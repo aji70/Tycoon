@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Dices, KeyRound, Gamepad2 } from "lucide-react"; // Added Gamepad2 for new button
+import { Dices, BarChart2, Gamepad2 } from "lucide-react"; // Replaced KeyRound with BarChart2
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -55,7 +55,8 @@ const HeroSection: React.FC = () => {
 
   const handleRouteToPrivateRoom = () => router.push("/game-settings");
   const handleRouteToJoinRoom = () => router.push("/join-room");
-  const handleRouteToCreateGame = () => router.push("/game-settings"); // New handler for Create Game
+  const handleRouteToCreateGame = () => router.push("/game-settings");
+  const handleRouteToGameStats = () => router.push("/game-stats"); // Updated handler
 
   const handleRequest = async () => {
     if (!address) {
@@ -339,7 +340,7 @@ const HeroSection: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={handleRouteToPrivateRoom}
+                onClick={handleRouteToGameStats} // Updated handler
                 className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
               >
                 <svg
@@ -359,8 +360,8 @@ const HeroSection: React.FC = () => {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
-                  <KeyRound className="mr-1.5 w-[16px] h-[16px]" />
-                  Create A Private Game
+                  <BarChart2 className="mr-1.5 w-[16px] h-[16px]" />
+                  Game Stats {/* Or use "Battle Stats" for a catchier name */}
                 </span>
               </button>
             </div>

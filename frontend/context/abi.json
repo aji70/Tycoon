@@ -66,50 +66,6 @@
 		"inputs": [
 			{
 				"indexed": true,
-				"internalType": "uint256",
-				"name": "gameId",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "winner",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint64",
-				"name": "timestamp",
-				"type": "uint64"
-			}
-		],
-		"name": "GameEnded",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "uint256",
-				"name": "gameId",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint64",
-				"name": "timestamp",
-				"type": "uint64"
-			}
-		],
-		"name": "GameStarted",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
 				"internalType": "string",
 				"name": "username",
 				"type": "string"
@@ -128,37 +84,6 @@
 			}
 		],
 		"name": "PlayerCreated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "uint256",
-				"name": "gameId",
-				"type": "uint256"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "player",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint8",
-				"name": "order",
-				"type": "uint8"
-			},
-			{
-				"indexed": false,
-				"internalType": "enum Blockopoly.PlayerSymbol",
-				"name": "symbol",
-				"type": "uint8"
-			}
-		],
-		"name": "PlayerJoined",
 		"type": "event"
 	},
 	{
@@ -196,30 +121,6 @@
 	{
 		"inputs": [
 			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "balances",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "string",
 				"name": "gameType",
 				"type": "string"
@@ -238,6 +139,11 @@
 				"internalType": "string",
 				"name": "code",
 				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startingBalance",
+				"type": "uint256"
 			}
 		],
 		"name": "createGame",
@@ -249,6 +155,44 @@
 			}
 		],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "gameId",
+				"type": "uint256"
+			}
+		],
+		"name": "drawChanceCard",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "gameId",
+				"type": "uint256"
+			}
+		],
+		"name": "drawCommunityCard",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -273,40 +217,21 @@
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "",
+				"name": "gameId",
 				"type": "uint256"
 			},
 			{
-				"internalType": "uint8",
-				"name": "",
-				"type": "uint8"
-			}
-		],
-		"name": "gameOrderAddress",
-		"outputs": [
-			{
 				"internalType": "address",
-				"name": "",
+				"name": "player",
 				"type": "address"
 			}
 		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"name": "gamePlayerCount",
+		"name": "gamePlayerInGame",
 		"outputs": [
 			{
-				"internalType": "uint8",
+				"internalType": "bool",
 				"name": "",
-				"type": "uint8"
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -372,9 +297,9 @@
 				"type": "uint8"
 			},
 			{
-				"internalType": "uint8",
+				"internalType": "uint256",
 				"name": "order",
-				"type": "uint8"
+				"type": "uint256"
 			},
 			{
 				"internalType": "enum Blockopoly.PlayerSymbol",
@@ -432,6 +357,60 @@
 				"type": "uint256"
 			}
 		],
+		"name": "gameSettings",
+		"outputs": [
+			{
+				"internalType": "uint8",
+				"name": "maxPlayers",
+				"type": "uint8"
+			},
+			{
+				"internalType": "string",
+				"name": "privateRoom",
+				"type": "string"
+			},
+			{
+				"internalType": "bool",
+				"name": "auction",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "rentInPrison",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "mortgage",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "evenBuild",
+				"type": "bool"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startingCash",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "randomizePlayOrder",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
 		"name": "games",
 		"outputs": [
 			{
@@ -455,9 +434,9 @@
 				"type": "uint8"
 			},
 			{
-				"internalType": "uint8",
+				"internalType": "uint256",
 				"name": "nextPlayer",
-				"type": "uint8"
+				"type": "uint256"
 			},
 			{
 				"internalType": "address",
@@ -467,6 +446,11 @@
 			{
 				"internalType": "uint8",
 				"name": "numberOfPlayers",
+				"type": "uint8"
+			},
+			{
+				"internalType": "uint8",
+				"name": "joinedPlayers",
 				"type": "uint8"
 			},
 			{
@@ -521,9 +505,9 @@
 						"type": "uint8"
 					},
 					{
-						"internalType": "uint8",
+						"internalType": "uint256",
 						"name": "nextPlayer",
-						"type": "uint8"
+						"type": "uint256"
 					},
 					{
 						"internalType": "address",
@@ -533,6 +517,87 @@
 					{
 						"internalType": "uint8",
 						"name": "numberOfPlayers",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint8",
+						"name": "joinedPlayers",
+						"type": "uint8"
+					},
+					{
+						"internalType": "enum Blockopoly.GameType",
+						"name": "mode",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint64",
+						"name": "createdAt",
+						"type": "uint64"
+					},
+					{
+						"internalType": "uint64",
+						"name": "endedAt",
+						"type": "uint64"
+					}
+				],
+				"internalType": "struct Blockopoly.Game",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "code",
+				"type": "string"
+			}
+		],
+		"name": "getGameByCode",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "id",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "code",
+						"type": "string"
+					},
+					{
+						"internalType": "address",
+						"name": "creator",
+						"type": "address"
+					},
+					{
+						"internalType": "enum Blockopoly.GameStatus",
+						"name": "status",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint256",
+						"name": "nextPlayer",
+						"type": "uint256"
+					},
+					{
+						"internalType": "address",
+						"name": "winner",
+						"type": "address"
+					},
+					{
+						"internalType": "uint8",
+						"name": "numberOfPlayers",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint8",
+						"name": "joinedPlayers",
 						"type": "uint8"
 					},
 					{
@@ -568,7 +633,7 @@
 			},
 			{
 				"internalType": "address",
-				"name": "playerAddr",
+				"name": "a",
 				"type": "address"
 			}
 		],
@@ -597,9 +662,9 @@
 						"type": "uint8"
 					},
 					{
-						"internalType": "uint8",
+						"internalType": "uint256",
 						"name": "order",
-						"type": "uint8"
+						"type": "uint256"
 					},
 					{
 						"internalType": "enum Blockopoly.PlayerSymbol",
@@ -634,7 +699,7 @@
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "playerAddr",
+				"name": "a",
 				"type": "address"
 			}
 		],
@@ -705,31 +770,7 @@
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "gameId",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint8",
-				"name": "order",
-				"type": "uint8"
-			}
-		],
-		"name": "getPlayerAddressByOrder",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "playerId",
+				"name": "id",
 				"type": "uint256"
 			}
 		],
@@ -799,30 +840,6 @@
 	{
 		"inputs": [
 			{
-				"internalType": "uint256",
-				"name": "gameId",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address",
-				"name": "playerAddr",
-				"type": "address"
-			}
-		],
-		"name": "getPlayerSymbolString",
-		"outputs": [
-			{
-				"internalType": "string",
-				"name": "",
-				"type": "string"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "address",
 				"name": "",
 				"type": "address"
@@ -853,7 +870,13 @@
 			}
 		],
 		"name": "joinGame",
-		"outputs": [],
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
@@ -948,16 +971,51 @@
 				"type": "uint256"
 			},
 			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "positions",
-		"outputs": [
-			{
 				"internalType": "uint256",
 				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "properties",
+		"outputs": [
+			{
+				"internalType": "uint8",
+				"name": "id",
+				"type": "uint8"
+			},
+			{
+				"internalType": "string",
+				"name": "name",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"internalType": "enum Blockopoly.PropertyType",
+				"name": "property_type",
+				"type": "uint8"
+			},
+			{
+				"internalType": "uint256",
+				"name": "cost_of_property",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint8",
+				"name": "group_id",
+				"type": "uint8"
+			},
+			{
+				"internalType": "bool",
+				"name": "isOwned",
+				"type": "bool"
+			},
+			{
+				"internalType": "uint256",
+				"name": "rent",
 				"type": "uint256"
 			}
 		],
@@ -1030,25 +1088,6 @@
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"name": "usedGameIds",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
 			}
 		],
 		"stateMutability": "view",

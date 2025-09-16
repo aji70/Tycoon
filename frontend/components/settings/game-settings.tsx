@@ -69,7 +69,8 @@ const GameSettings = () => {
     write: createGame,
     isPending,
     error: contractError,
-  } = useCreateGame(gameCode, gameType, playerSymbol, numberOfPlayers, {
+  } = useCreateGame( gameType, playerSymbol, numberOfPlayers, gameCode,
+     {
     maxPlayers: numberOfPlayers,
     privateRoom: gameType,
     auction: settings.auction,
@@ -78,7 +79,8 @@ const GameSettings = () => {
     evenBuild: settings.evenBuild,
     startingCash: BigInt(settings.startingCash),
     randomizePlayOrder: settings.randomPlayOrder,
-  });
+  }
+);
 
   const handleSettingChange = (key: keyof Settings, value: string | boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -223,11 +225,13 @@ const GameSettings = () => {
               </div>
             </div>
             <Select
+              value={settings.symbol}
               onValueChange={(value) => handleSettingChange('symbol', value)}
-              defaultValue={settings.symbol}
             >
               <SelectTrigger className="w-[160px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
-                <SelectValue className="text-[#F0F7F7]" />
+                <SelectValue className="text-[#F0F7F7]">
+                  {settings.symbol}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {GamePieces.map((piece) => (
@@ -253,11 +257,13 @@ const GameSettings = () => {
               </div>
             </div>
             <Select
+              value={settings.maxPlayers}
               onValueChange={(value) => handleSettingChange('maxPlayers', value)}
-              defaultValue={settings.maxPlayers}
             >
               <SelectTrigger className="w-[80px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
-                <SelectValue className="text-[#F0F7F7]" />
+                <SelectValue className="text-[#F0F7F7]">
+                  {settings.maxPlayers}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="2">2</SelectItem>
@@ -401,12 +407,14 @@ const GameSettings = () => {
               </div>
             </div>
             <Select
+              value={settings.startingCash}
               onValueChange={(value) => handleSettingChange('startingCash', value)}
-              defaultValue={settings.startingCash}
             >
               <SelectTrigger className="w-[120px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
                 <AiOutlineDollarCircle className="md:w-3 md:h-3 text-[#73838B]" />
-                <SelectValue className="text-[#F0F7F7]" />
+                <SelectValue className="text-[#F0F7F7]">
+                  {settings.startingCash}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="100">100</SelectItem>

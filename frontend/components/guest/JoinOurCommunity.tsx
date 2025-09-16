@@ -1,7 +1,6 @@
-import React from 'react'
-import { PiTelegramLogoLight } from 'react-icons/pi'
-import { RxDiscordLogo } from "react-icons/rx";
-
+import React from 'react';
+import { PiTelegramLogoLight } from 'react-icons/pi';
+import { FaXTwitter } from 'react-icons/fa6'; // Import Twitter (X) icon
 
 const JoinOurCommunity = () => {
     return (
@@ -15,6 +14,7 @@ const JoinOurCommunity = () => {
                 </div>
 
                 <div className="w-full flex md:flex-row flex-col gap-4 md:gap-0 justify-center md:items-center items-start mt-2">
+                    {/* Telegram Button */}
                     <button
                         type="button"
                         className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
@@ -35,12 +35,18 @@ const JoinOurCommunity = () => {
                                 className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                             />
                         </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[13px] font-dmSans font-medium z-10">
+                        <a
+                            href="https://t.me/+JJq4-cTLznc3YTVk"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[13px] font-dmSans font-medium z-10"
+                        >
                             <PiTelegramLogoLight className="mr-1 w-[14px] h-[14px]" />
                             Join our Telegram
-                        </span>
+                        </a>
                     </button>
 
+                    {/* Twitter (X) Button */}
                     <button
                         type="button"
                         className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
@@ -61,15 +67,20 @@ const JoinOurCommunity = () => {
                                 className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                             />
                         </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
-                            <RxDiscordLogo className="mr-1 w-[14px] h-[14px]" />
-                            Join our Discord Server
-                        </span>
+                        <a
+                            href="https://x.com/blockopoly1"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[13px] font-dmSans font-medium z-10"
+                        >
+                            <FaXTwitter className="mr-1 w-[14px] h-[14px]" />
+                            Follow us on X
+                        </a>
                     </button>
                 </div>
             </div>
         </section>
-    )
-}
+    );
+};
 
-export default JoinOurCommunity
+export default JoinOurCommunity;
