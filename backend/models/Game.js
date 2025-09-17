@@ -51,6 +51,13 @@ const Game = {
       .offset(offset);
   },
 
+  async findPendingGames({ limit = 50, offset = 0 } = {}) {
+    return db("games")
+      .whereIn("status", ["PENDING"])
+      .limit(limit)
+      .offset(offset);
+  },
+
   async findActiveGames({ limit = 50, offset = 0 } = {}) {
     return db("games")
       .whereIn("status", ["PENDING", "RUNNING"])

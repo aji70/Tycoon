@@ -15,14 +15,8 @@ const gameController = {
 
   async create(req, res) {
     try {
-      const {
-        code,
-        mode,
-        address,
-        symbol,
-        number_of_players,
-        settings,
-      } = req.body;
+      const { code, mode, address, symbol, number_of_players, settings } =
+        req.body;
       const user = await User.findByAddress(address);
       if (!user) {
         return res.status(422).json({ message: "User not found" });
@@ -60,7 +54,9 @@ const gameController = {
         community_chest_jail_card: false,
       };
 
-      const game_players = await GamePlayer.create(gamePlayersPayload);
+      const add_to_game_players = await GamePlayer.create(gamePlayersPayload);
+
+      const game_players = await GamePlayer.findByGameId(game.id);
 
       res.status(201).json({
         ...game,
@@ -80,8 +76,9 @@ const gameController = {
 
       // Attach settings
       const settings = await GameSetting.findByGameId(game.id);
+      const players = await GamePlayer.findByGameId(game.id);
 
-      res.json({ ...game, settings });
+      res.json({ ...game, settings, players });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -96,14 +93,15 @@ const gameController = {
       });
 
       // Eager load settings for each game
-      const withSettings = await Promise.all(
+      const withSettingsAndPlayers = await Promise.all(
         games.map(async (g) => ({
           ...g,
           settings: await GameSetting.findByGameId(g.id),
+          players: await GamePlayer.findByGameId(g.id),
         }))
       );
 
-      res.json(withSettings);
+      res.json(withSettingsAndPlayers);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -135,7 +133,10 @@ const gameController = {
     try {
       const game = await Game.findByCode(req.params.code);
       if (!game) return res.status(404).json({ error: "Game not found" });
-      res.json(game);
+      const settings = await GameSetting.findByGameId(game.id);
+      const players = await GamePlayer.findByGameId(game.id);
+
+      res.json({ ...game, settings, players });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -171,6 +172,19 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findActiveGames({
+        limit: Number.parseInt(limit) || 50,
+        offset: Number.parseInt(offset) || 0,
+      });
+      res.json(games);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async findPending(req, res) {
+    try {
+      const { limit, offset } = req.query;
+      const games = await Game.findPendingGames({
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
