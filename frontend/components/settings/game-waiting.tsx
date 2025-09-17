@@ -196,6 +196,11 @@ const GameWaiting = () => {
 
     try {
       await joinGame();
+      const response = await apiClient.post("/game-players/join", {
+        address,
+        symbol: playerSymbol.value,
+        code: game.code,
+      });
       setIsJoined(true);
       setError(null);
     } catch (err: any) {
