@@ -1,13 +1,45 @@
+import Game from "../models/Game.js";
 import GamePlayer from "../models/GamePlayer.js";
+import GameSetting from "../models/GameSetting.js";
+import User from "../models/User.js";
 
 const gamePlayerController = {
   async create(req, res) {
     try {
-      const player = await GamePlayer.create(req.body);
+      const { address, code } = req.body;
+      const user = await User.findByAddress(address);
+      if (!user) {
+        res.status(422).json({ success: false, message: "User not found" });
+      }
+      const game = await Game.findByCode(code);
+      if (!game) {
+        res.status(422).json({ success: false, message: "Game not found" });
+      }
+      const settings = await GameSetting.findByGameId(game.id);
+      if (!settings) {
+        res
+          .status(422)
+          .json({ success: false, message: "Game settings not found" });
+      }
+      const players = await GamePlayer.findByGameId(game.id);
+      if (!players) {
+        res
+          .status(422)
+          .json({ success: false, message: "Game players not found" });
+      }
+      const player = await GamePlayer.create({
+        ...req.body,
+        user_id: user.id,
+        balance: settings.starting_cash,
+        position: 0,
+        chance_jail_card: 0,
+        community_chest_jail_card: 0,
+        turn_order: req.body.turn_order ?? players.length + 1,
+      });
       res.status(201).json(player);
     } catch (error) {
       console.error("Error creating game player:", error);
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   },
 

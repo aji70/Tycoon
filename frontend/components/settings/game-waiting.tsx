@@ -40,12 +40,6 @@ const GameWaiting = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const { data: isInGame, isLoading: isInGameLoading } = useIsInGame(
-    game?.id,
-    address,
-    { enabled: !!address && !!game?.id }
-  );
-
   const {
     data: contractGame,
     isLoading: contractGameLoading,
@@ -94,6 +88,11 @@ const GameWaiting = () => {
       return available;
     };
 
+    const playerInGame = (game: Game | null): boolean => {
+      if (!game) return false;
+      return !!game.players.find((p) => p.address === address);
+    };
+
     const fetchGame = async () => {
       try {
         const gameData = await apiClient.get<Game>(`/games/code/${gameCode}`);
@@ -110,6 +109,7 @@ const GameWaiting = () => {
             gameData.players.length === gameData.number_of_players
         );
         setAvailableSymbols(getAvailableSymbols(gameData));
+        setIsJoined(playerInGame(gameData));
       } catch (error: any) {
         console.error("Error fetching game state:", error);
         setError(
@@ -123,22 +123,7 @@ const GameWaiting = () => {
     fetchGame();
     const interval = setInterval(fetchGame, 5000);
     return () => clearInterval(interval);
-  }, [gameCode]);
-
-  // Handle player join status
-  useEffect(() => {
-    if (!isInGameLoading && isInGame !== undefined) {
-      setIsJoined(isInGame);
-      if (isInGame) {
-        const player = game?.players.find(
-          (p) => p.address.toLowerCase() === address?.toLowerCase()
-        );
-        if (player) {
-          setPlayerSymbol(playerSymbol);
-        }
-      }
-    }
-  }, [isInGame, isInGameLoading, address, game, playerSymbol]);
+  }, [gameCode, address]);
 
   // Use contract data for playersJoined and maxPlayers, with fallback to game
   const playersJoined = contractGame?.joinedPlayers ?? game?.players.length;
@@ -264,7 +249,7 @@ const GameWaiting = () => {
     router.push("/");
   };
 
-  if (loading || isInGameLoading || contractGameLoading) {
+  if (loading || contractGameLoading) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
         <p className="text-[#00F0FF] text-xl font-semibold font-orbitron animate-pulse">
@@ -277,7 +262,7 @@ const GameWaiting = () => {
   if (error || !game) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
-        <div className="text-center space-y-4">
+        <div className="text-centermake i see how e goo be reach evennigs  space-y-4">
           <p className="text-red-500 text-xl font-semibold font-orbitron mb-4">
             {error || "Game not found"}
           </p>
@@ -324,15 +309,17 @@ const GameWaiting = () => {
             <p className="text-[#00F0FF] text-lg font-semibold">
               Players: {playersJoined}/{maxPlayers}
             </p>
-            {game.players.map((player) => (
-              <p
-                key={player.user_id}
-                className="text-sm text-[#F0F7F7] flex items-center justify-center"
-              >
-                {symbols.find((t) => t.value === player.symbol)?.emoji}{" "}
-                {player.username}
-              </p>
-            ))}
+            <div className="w-full items-center flex space-x-4 justify-center">
+              {game.players.map((player) => (
+                <span
+                  key={player.user_id}
+                  className="text-sm text-[#F0F7F7] flex items-center justify-center"
+                >
+                  {symbols.find((t) => t.value === player.symbol)?.emoji}{" "}
+                  {player.username}
+                </span>
+              ))}
+            </div>
           </div>
 
           {showShare && (
@@ -379,7 +366,7 @@ const GameWaiting = () => {
             </div>
           )}
 
-          {showJoin && (
+          {!canStartGame && showJoin && (
             <div className="mt-6 space-y-4">
               <div className="flex flex-col">
                 <label
@@ -418,7 +405,7 @@ const GameWaiting = () => {
             </div>
           )}
 
-          {showLeave && (
+          {!canStartGame && showLeave && (
             <button
               type="button"
               onClick={handleLeaveGame}
