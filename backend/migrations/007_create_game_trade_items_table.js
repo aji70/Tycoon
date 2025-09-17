@@ -17,37 +17,13 @@ export const up = async (knex) => {
     table.increments("id").primary();
 
     // Trade relation
-    table
-      .integer("trade_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("game_trades")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("trade_id").unsigned().notNullable();
 
     // Property relation
-    table
-      .integer("property_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("properties")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("property_id").unsigned().notNullable();
 
     // Player relation
-    table
-      .integer("player_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("game_players")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("player_id").unsigned().notNullable();
 
     // Timestamps
     table.timestamp("created_at").defaultTo(knex.fn.now());

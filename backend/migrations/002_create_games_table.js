@@ -26,14 +26,7 @@ export const up = async (knex) => {
     table.enu("mode", ["PUBLIC", "PRIVATE"]).notNullable().defaultTo("PUBLIC");
 
     // Relationships
-    table
-      .integer("creator_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("users")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE");
+    table.integer("creator_id").unsigned().notNullable();
 
     // Game status
     table
@@ -42,27 +35,13 @@ export const up = async (knex) => {
       .defaultTo("PENDING");
 
     // Winner (nullable)
-    table
-      .integer("winner_id")
-      .unsigned()
-      .nullable()
-      .references("id")
-      .inTable("users")
-      .onDelete("SET NULL")
-      .onUpdate("CASCADE");
+    table.integer("winner_id").unsigned().nullable();
 
     // Game settings
     table.integer("number_of_players").unsigned().notNullable().defaultTo(4);
 
     // Turn tracking
-    table
-      .integer("next_player_id")
-      .unsigned()
-      .nullable()
-      .references("id")
-      .inTable("users")
-      .onDelete("SET NULL")
-      .onUpdate("CASCADE");
+    table.integer("next_player_id").unsigned().nullable();
 
     // Timestamps (created_at, updated_at)
     table.timestamps(true, true);

@@ -23,26 +23,10 @@ export const up = async (knex) => {
     table.increments("id").primary();
 
     // Relation to games
-    table
-      .integer("game_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("games")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("game_id").unsigned().notNullable();
 
     // Relation to game_players
-    table
-      .integer("game_player_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("game_players")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("game_player_id").unsigned().notNullable();
 
     // Dice roll
     table.tinyint("rolled").unsigned().nullable(); // 0–12

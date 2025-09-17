@@ -21,15 +21,7 @@ export const up = async (knex) => {
     table.increments("id").primary();
 
     // Game relation
-    table
-      .integer("game_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("games")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("game_id").unsigned().notNullable();
 
     // Game rule toggles
     table.boolean("auction").notNullable().defaultTo(false);

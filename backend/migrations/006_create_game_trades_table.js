@@ -21,37 +21,11 @@ export const up = async (knex) => {
     table.increments("id").primary();
 
     // Game relation
-    table
-      .integer("game_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("games")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
-
+    table.integer("game_id").unsigned().notNullable();
     // Players
-    table
-      .integer("from_player_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("game_players")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("from_player_id").unsigned().notNullable();
 
-    table
-      .integer("to_player_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("game_players")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
-
+    table.integer("to_player_id").unsigned().notNullable();
     // Trade details
     table
       .enum("type", ["CASH", "PROPERTY", "MIXED"])

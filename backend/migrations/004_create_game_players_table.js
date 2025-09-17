@@ -23,26 +23,10 @@ export const up = async (knex) => {
     table.increments("id").primary();
 
     // Game relation
-    table
-      .integer("game_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("games")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("game_id").unsigned().notNullable();
 
     // Player relation
-    table
-      .integer("user_id")
-      .unsigned()
-      .notNullable()
-      .references("id")
-      .inTable("users")
-      .onDelete("CASCADE")
-      .onUpdate("CASCADE")
-      .index();
+    table.integer("user_id").unsigned().notNullable();
 
     // Wallet address (optional for Web3 games)
     table.string("address", 120).nullable();
