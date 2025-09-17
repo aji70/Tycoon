@@ -21,6 +21,8 @@ const gameController = {
       if (!user) {
         return res.status(422).json({ message: "User not found" });
       }
+      // check if code exist
+      // create game on contract : code, mode, address, no_of_players, status, players_joined
       const game = await Game.create({
         code,
         mode,
@@ -109,8 +111,8 @@ const gameController = {
 
   async update(req, res) {
     try {
-      const game = await Game.update(req.params.id, req.body);
-      res.json(game);
+      await Game.update(req.params.id, req.body);
+      res.json({ success: true, message: "Game updated" });
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
@@ -119,7 +121,7 @@ const gameController = {
   async remove(req, res) {
     try {
       await Game.delete(req.params.id);
-      res.json({ message: "Game deleted" });
+      res.json({ success: true, message: "Game deleted" });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

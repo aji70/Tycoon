@@ -12,15 +12,11 @@ import {
   useGetGameByCode,
 } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
+import { Game } from "@/lib/types/games";
+import { PlayerSymbol, symbols } from "@/lib/types/symbol";
 
-interface Token {
-  name: string;
-  emoji: string;
-  value: string;
-}
-
-interface Game {
-  id: number;
+interface GameOld {
+  gameId: number;
   code: string;
   maxPlayers: number;
   playersJoined: number;
@@ -29,25 +25,18 @@ interface Game {
   availableSymbols: { value: string; label: string }[];
 }
 
-const tokens: Token[] = [
-  { name: "Hat", emoji: "🎩", value: "hat" },
-  { name: "Car", emoji: "🚗", value: "car" },
-  { name: "Dog", emoji: "🐕", value: "dog" },
-  { name: "Thimble", emoji: "🧵", value: "thimble" },
-  { name: "Iron", emoji: "🧼", value: "iron" },
-  { name: "Battleship", emoji: "🚢", value: "battleship" },
-  { name: "Boot", emoji: "👞", value: "boot" },
-  { name: "Wheelbarrow", emoji: "🛒", value: "wheelbarrow" },
-];
-
 const GameWaiting = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const gameCode = searchParams.get("gameCode")?.toUpperCase();
   const { address } = useAccount();
   const [game, setGame] = useState<Game | null>(null);
-  const [playerSymbol, setPlayerSymbol] = useState<string>("");
+  const [playerSymbol, setPlayerSymbol] = useState<PlayerSymbol | null>();
+  const [availableSymbols, setAvailableSymbols] = useState<
+    PlayerSymbol[] | null
+  >(null);
   const [isJoined, setIsJoined] = useState<boolean>(false);
+  const [isReady, setIsReady] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -86,7 +75,6 @@ const GameWaiting = () => {
       console.warn("Contract Game Data is undefined, but no error occurred");
     }
   }, [gameCode, contractGame, contractGameLoading, contractGameError]);
-
   // Fetch game state from API
   useEffect(() => {
     if (!gameCode) {
@@ -95,41 +83,36 @@ const GameWaiting = () => {
       return;
     }
 
+    const getAvailableSymbols = (game: Game | null) => {
+      if (!game) return symbols;
+      // collect taken symbols
+      const taken = new Set(game.players.map((p) => p.symbol));
+      // filter out taken ones
+      const available = symbols.filter((s) => !taken.has(s.value));
+      return available;
+    };
+
     const fetchGame = async () => {
       try {
-        const response = await apiClient.get(`/games/code/${gameCode}`);
-        if (!response) {
+        const gameData = await apiClient.get<Game>(`/games/code/${gameCode}`);
+        if (!gameData) {
           throw new Error(`Game ${gameCode} not found`);
         }
-        const gameData = await response;
+        console.log("game data__________:", gameData);
         if (gameData.status !== "PENDING") {
           throw new Error(`Game ${gameCode} has already started or ended.`);
         }
-
-        const fetchedState: Game = {
-          gameId: gameData.id,
-          code: gameData.code,
-          maxPlayers: gameData.number_of_players,
-          playersJoined: gameData.players_joined || 1,
-          players: gameData.players || [
-            { id: "creator", symbol: "hat", name: "Creator" },
-          ],
-          isReady:
-            gameData.status === "PENDING" &&
-            gameData.players_joined >= gameData.number_of_players,
-          availableSymbols: tokens
-            .filter(
-              (t) => !gameData.players?.some((p: any) => p.symbol === t.value)
-            )
-            .map((t) => ({
-              value: t.value,
-              label: `${t.emoji} ${t.name}`,
-            })),
-        };
-        setGame(fetchedState);
-      } catch (err: any) {
-        console.error("Error fetching game state:", err);
-        setError(err.message || "Failed to fetch game data. Please try again.");
+        setGame(gameData);
+        setIsReady(
+          gameData.status === "PENDING" &&
+            gameData.players.length === gameData.number_of_players
+        );
+        setAvailableSymbols(getAvailableSymbols(gameData));
+      } catch (error: any) {
+        console.error("Error fetching game state:", error);
+        setError(
+          error.message || "Failed to fetch game data. Please try again."
+        );
       } finally {
         setLoading(false);
       }
@@ -155,11 +138,27 @@ const GameWaiting = () => {
     }
   }, [isInGame, isInGameLoading, address, game]);
 
-  const handleStartGame = () => {
-    if (gameCode) {
-      router.push(`/game-play?gameCode=${gameCode}`);
-    } else {
-      setError("Game code not available. Please try again.");
+  const handleStartGame = async () => {
+    try {
+      setLoading(true);
+      if (!game) {
+        setError("No game data found. Please enter a valid game code.");
+        setLoading(false);
+        return;
+      }
+      const response = await apiClient.put(`/games/${game.id}`, {
+        status: "RUNNING",
+      });
+      if (response) {
+        router.push(`/game-play?gameCode=${gameCode}`);
+      } else {
+        setError("Game code not available. Please try again.");
+      }
+    } catch (error: any) {
+      console.error("Error fetching game state:", error);
+      setError(error.message || "Failed to fetch game data. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
