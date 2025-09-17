@@ -23,7 +23,7 @@ const gameController = {
       }
       const game = await Game.create({
         code,
-        mode: mode ? "PRIVATE" : "PUBLIC",
+        mode,
         creator_id: user.id,
         next_player_id: user.id,
         number_of_players,
@@ -175,7 +175,16 @@ const gameController = {
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
-      res.json(games);
+      // Eager load settings for each game
+      const withSettingsAndPlayers = await Promise.all(
+        games.map(async (g) => ({
+          ...g,
+          settings: await GameSetting.findByGameId(g.id),
+          players: await GamePlayer.findByGameId(g.id),
+        }))
+      );
+
+      res.json(withSettingsAndPlayers);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -188,7 +197,16 @@ const gameController = {
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
-      res.json(games);
+      // Eager load settings for each game
+      const withSettingsAndPlayers = await Promise.all(
+        games.map(async (g) => ({
+          ...g,
+          settings: await GameSetting.findByGameId(g.id),
+          players: await GamePlayer.findByGameId(g.id),
+        }))
+      );
+
+      res.json(withSettingsAndPlayers);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
