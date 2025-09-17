@@ -100,6 +100,9 @@ const GameWaiting = () => {
           throw new Error(`Game ${gameCode} not found`);
         }
         console.log("game data__________:", gameData);
+        if (gameData.status === "RUNNING") {
+          router.push(`/game-play?gameCode=${gameCode}`);
+        }
         if (gameData.status !== "PENDING") {
           throw new Error(`Game ${gameCode} has already started or ended.`);
         }
