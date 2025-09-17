@@ -7,6 +7,8 @@ const router = express.Router();
 // 🔹 CRUD
 // -------------------------
 router.post("/", gamePlayerController.create);
+router.post("/join", gamePlayerController.join);
+router.post("/leave", gamePlayerController.leave);
 router.get("/", gamePlayerController.findAll);
 router.get("/:id", gamePlayerController.findById);
 router.put("/:id", gamePlayerController.update);

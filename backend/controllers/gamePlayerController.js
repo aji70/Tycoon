@@ -45,6 +45,72 @@ const gamePlayerController = {
     }
   },
 
+  async join(req, res) {
+    try {
+      const { address, code, symbol } = req.body;
+      const user = await User.findByAddress(address);
+      if (!user) {
+        res.status(422).json({ success: false, message: "User not found" });
+      }
+      const game = await Game.findByCode(code);
+      if (!game) {
+        res.status(422).json({ success: false, message: "Game not found" });
+      }
+      const settings = await GameSetting.findByGameId(game.id);
+      if (!settings) {
+        res
+          .status(422)
+          .json({ success: false, message: "Game settings not found" });
+      }
+      const players = await GamePlayer.findByGameId(game.id);
+      if (!players) {
+        res
+          .status(422)
+          .json({ success: false, message: "Game players not found" });
+      }
+      const player = await GamePlayer.create({
+        address,
+        symbol,
+        user_id: user.id,
+        game_id: game.id,
+        balance: settings.starting_cash,
+        position: 0,
+        chance_jail_card: 0,
+        community_chest_jail_card: 0,
+      });
+      res
+        .status(201)
+        .json({ success: true, message: "Player added to game successfully" });
+    } catch (error) {
+      console.error("Error creating game player:", error);
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async leave(req, res) {
+    try {
+      const { address, code } = req.body;
+      const user = await User.findByAddress(address);
+      if (!user) {
+        res.status(422).json({ success: false, message: "User not found" });
+      }
+      const game = await Game.findByCode(code);
+      if (!game) {
+        res.status(422).json({ success: false, message: "Game not found" });
+      }
+      const player = await GamePlayer.leave(game.id, user.id);
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: "Player removed to game successfully",
+        });
+    } catch (error) {
+      console.error("Error creating game player:", error);
+      res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
   async findById(req, res) {
     try {
       const player = await GamePlayer.findById(req.params.id);

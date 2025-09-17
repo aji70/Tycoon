@@ -1,7 +1,7 @@
 import db from "../config/database.js";
 
 const GamePlayer = {
-  async create(data) {
+  async join(data) {
     return db.transaction(async (trx) => {
       // 1. Ensure symbol uniqueness
       if (data.symbol) {
@@ -30,6 +30,11 @@ const GamePlayer = {
       const [id] = await trx("game_players").insert(data);
       return this.findById(id, trx);
     });
+  },
+
+  async create(data) {
+    const [id] = await trx("game_players").insert(data);
+    return this.findById(id);
   },
 
   async findById(id, trx = db) {
@@ -70,7 +75,7 @@ const GamePlayer = {
         "gp.turn_order",
         "gp.symbol",
         "gp.created_at as joined_date",
-        "u.username",
+        "u.username"
       )
       .where("gp.game_id", gameId)
       .orderBy("gp.turn_order", "asc");
@@ -112,6 +117,10 @@ const GamePlayer = {
 
   async delete(id) {
     return db("game_players").where({ id }).del();
+  },
+
+  async leave(game_id, user_id) {
+    return db("game_players").where({ game_id, user_id }).del();
   },
 };
 
