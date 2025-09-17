@@ -201,39 +201,24 @@ const GameWaiting = () => {
       setLoading(false);
       return;
     }
-    // try {
-    //   const response = await apiClient.post(`/games/${game?.gameId}/leave`, {
-    //     symbol: playerSymbol,
-    //   });
-    //   if (!response.ok) {
-    //     throw new Error(
-    //       `Failed to leave game: ${response.status} ${response.statusText}`
-    //     );
-    //   }
-    //   const updatedGame = await response.json();
-    //   const symbolObj = {
-    //     value: playerSymbol,
-    //     label:
-    //       tokens.find((t) => t.value === playerSymbol)?.emoji +
-    //         " " +
-    //         tokens.find((t) => t.value === playerSymbol)?.name || "",
-    //   };
-    //   setGame({
-    //     ...game!,
-    //     playersJoined:
-    //       updatedGame.players_joined || Math.max(game!.playersJoined - 1, 1),
-    //     players:
-    //       updatedGame.players ||
-    //       game!.players.filter((p) => p.symbol !== playerSymbol),
-    //     availableSymbols: [...game!.availableSymbols, symbolObj],
-    //   });
-    //   setIsJoined(false);
-    //   setPlayerSymbol("");
-    //   setError(null);
-    // } catch (err: any) {
-    //   console.error("Error leaving game:", err);
-    //   setError(err.message || "Failed to leave game. Please try again.");
-    // }
+    try {
+      const response = await apiClient.post<{
+        success: boolean;
+        message: string;
+      }>("/game-players/leave", {
+        address,
+        code: game.code,
+      });
+      if (!response.success) {
+        setError("Failed to remove user from game!");
+      }
+      setIsJoined(false);
+      setPlayerSymbol(null);
+      setError(null);
+    } catch (err: any) {
+      console.error("Error leaving game:", err);
+      setError(err.message || "Failed to leave game. Please try again.");
+    }
   };
 
   const handleGoHome = () => {
