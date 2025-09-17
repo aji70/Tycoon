@@ -34,7 +34,7 @@ const gamePlayerController = {
         position: 0,
         chance_jail_card: 0,
         community_chest_jail_card: 0,
-        turn_order: req.body.turn_order ?? players.length + 1,
+        // turn_order: req.body.turn_order ?? players.length + 1,
       });
       res.status(201).json(player);
     } catch (error) {
