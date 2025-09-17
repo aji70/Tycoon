@@ -36,7 +36,9 @@ const gamePlayerController = {
         community_chest_jail_card: 0,
         // turn_order: req.body.turn_order ?? players.length + 1,
       });
-      res.status(201).json(player);
+      res
+        .status(201)
+        .json({ success: true, message: "Player added to game successfully" });
     } catch (error) {
       console.error("Error creating game player:", error);
       res.status(400).json({ success: false, message: error.message });
