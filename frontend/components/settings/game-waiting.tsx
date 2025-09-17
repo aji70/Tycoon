@@ -1,12 +1,17 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { PiTelegramLogoLight } from 'react-icons/pi';
-import { FaXTwitter } from 'react-icons/fa6';
-import { IoCopyOutline, IoHomeOutline } from 'react-icons/io5';
-import { useAccount } from 'wagmi';
-import { useIsInGame, useJoinGame, useGetGameByCode } from '@/context/ContractProvider';
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { PiTelegramLogoLight } from "react-icons/pi";
+import { FaXTwitter } from "react-icons/fa6";
+import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
+import { useAccount } from "wagmi";
+import {
+  useIsInGame,
+  useJoinGame,
+  useGetGameByCode,
+} from "@/context/ContractProvider";
+import { apiClient } from "@/lib/api";
 
 interface Token {
   name: string;
@@ -14,8 +19,8 @@ interface Token {
   value: string;
 }
 
-interface GameState {
-  gameId: number;
+interface Game {
+  id: number;
   code: string;
   maxPlayers: number;
   playersJoined: number;
@@ -25,114 +30,113 @@ interface GameState {
 }
 
 const tokens: Token[] = [
-  { name: 'Hat', emoji: '🎩', value: 'hat' },
-  { name: 'Car', emoji: '🚗', value: 'car' },
-  { name: 'Dog', emoji: '🐕', value: 'dog' },
-  { name: 'Thimble', emoji: '🧵', value: 'thimble' },
-  { name: 'Iron', emoji: '🧼', value: 'iron' },
-  { name: 'Battleship', emoji: '🚢', value: 'battleship' },
-  { name: 'Boot', emoji: '👞', value: 'boot' },
-  { name: 'Wheelbarrow', emoji: '🛒', value: 'wheelbarrow' },
+  { name: "Hat", emoji: "🎩", value: "hat" },
+  { name: "Car", emoji: "🚗", value: "car" },
+  { name: "Dog", emoji: "🐕", value: "dog" },
+  { name: "Thimble", emoji: "🧵", value: "thimble" },
+  { name: "Iron", emoji: "🧼", value: "iron" },
+  { name: "Battleship", emoji: "🚢", value: "battleship" },
+  { name: "Boot", emoji: "👞", value: "boot" },
+  { name: "Wheelbarrow", emoji: "🛒", value: "wheelbarrow" },
 ];
 
 const GameWaiting = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const gameCode = searchParams.get('gameCode')?.toUpperCase();
+  const gameCode = searchParams.get("gameCode")?.toUpperCase();
   const { address } = useAccount();
-  const [gameState, setGameState] = useState<GameState | null>(null);
-  const [playerSymbol, setPlayerSymbol] = useState<string>('');
+  const [game, setGame] = useState<Game | null>(null);
+  const [playerSymbol, setPlayerSymbol] = useState<string>("");
   const [isJoined, setIsJoined] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   const { data: isInGame, isLoading: isInGameLoading } = useIsInGame(
-    gameState?.gameId,
+    game?.gameId,
     address,
-    { enabled: !!address && !!gameState?.gameId }
+    { enabled: !!address && !!game?.gameId }
   );
 
-  
-  const { data: contractGame, isLoading: contractGameLoading, error: contractGameError } = useGetGameByCode(
-    gameCode,
-    { enabled: !!gameCode }
-  );
-  
+  const {
+    data: contractGame,
+    isLoading: contractGameLoading,
+    error: contractGameError,
+  } = useGetGameByCode(gameCode, { enabled: !!gameCode });
+
   const contractId = contractGame?.id || null;
 
-const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
-  contractId ? Number(contractId) : 0,
-  playerSymbol
-);
+  const {
+    write: joinGame,
+    isPending: isJoining,
+    error: joinError,
+  } = useJoinGame(contractId ? Number(contractId) : 0, playerSymbol);
 
   // Log contract game data
   useEffect(() => {
-    console.log('Game Code Input:', gameCode);
-    console.log('Contract Game Loading:', contractGameLoading);
+    console.log("Game Code Input:", gameCode);
+    console.log("Contract Game Loading:", contractGameLoading);
     if (contractGame && !contractGameLoading) {
-      console.log('Contract Game Data:', contractGame);
+      console.log("Contract Game Data:", contractGame);
     }
     if (contractGameError) {
-      console.error('Contract Game Error:', contractGameError.message);
+      console.error("Contract Game Error:", contractGameError.message);
     }
     if (!contractGame && !contractGameLoading && !contractGameError) {
-      console.warn('Contract Game Data is undefined, but no error occurred');
+      console.warn("Contract Game Data is undefined, but no error occurred");
     }
   }, [gameCode, contractGame, contractGameLoading, contractGameError]);
 
   // Fetch game state from API
   useEffect(() => {
     if (!gameCode) {
-      setError('No game code provided. Please enter a valid game code.');
+      setError("No game code provided. Please enter a valid game code.");
       setLoading(false);
       return;
     }
 
-    const fetchGameState = async () => {
+    const fetchGame = async () => {
       try {
-        const response = await fetch(
-          `https://base-monopoly-production.up.railway.app/api/games/code/${gameCode}`
-        );
-        if (!response.ok) {
-          throw new Error(
-            `Game ${gameCode} not found: ${response.status} ${response.statusText}`
-          );
+        const response = await apiClient.get(`/games/code/${gameCode}`);
+        if (!response) {
+          throw new Error(`Game ${gameCode} not found`);
         }
-        const gameData = await response.json();
-        if (gameData.status !== 'PENDING') {
+        const gameData = await response;
+        if (gameData.status !== "PENDING") {
           throw new Error(`Game ${gameCode} has already started or ended.`);
         }
 
-        const fetchedState: GameState = {
+        const fetchedState: Game = {
           gameId: gameData.id,
           code: gameData.code,
           maxPlayers: gameData.number_of_players,
           playersJoined: gameData.players_joined || 1,
           players: gameData.players || [
-            { id: 'creator', symbol: 'hat', name: 'Creator' },
+            { id: "creator", symbol: "hat", name: "Creator" },
           ],
           isReady:
-            gameData.status === 'PENDING' &&
+            gameData.status === "PENDING" &&
             gameData.players_joined >= gameData.number_of_players,
           availableSymbols: tokens
-            .filter((t) => !gameData.players?.some((p: any) => p.symbol === t.value))
+            .filter(
+              (t) => !gameData.players?.some((p: any) => p.symbol === t.value)
+            )
             .map((t) => ({
               value: t.value,
               label: `${t.emoji} ${t.name}`,
             })),
         };
-        setGameState(fetchedState);
+        setGame(fetchedState);
       } catch (err: any) {
-        console.error('Error fetching game state:', err);
-        setError(err.message || 'Failed to fetch game data. Please try again.');
+        console.error("Error fetching game state:", err);
+        setError(err.message || "Failed to fetch game data. Please try again.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchGameState();
-    const interval = setInterval(fetchGameState, 5000);
+    fetchGame();
+    const interval = setInterval(fetchGame, 5000);
     return () => clearInterval(interval);
   }, [gameCode]);
 
@@ -141,7 +145,7 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
     if (!isInGameLoading && isInGame !== undefined) {
       setIsJoined(isInGame);
       if (isInGame) {
-        const player = gameState?.players.find(
+        const player = game?.players.find(
           (p) => p.id.toLowerCase() === address?.toLowerCase()
         );
         if (player) {
@@ -149,21 +153,21 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
         }
       }
     }
-  }, [isInGame, isInGameLoading, address, gameState]);
+  }, [isInGame, isInGameLoading, address, game]);
 
   const handleStartGame = () => {
     if (gameCode) {
       router.push(`/game-play?gameCode=${gameCode}`);
     } else {
-      setError('Game code not available. Please try again.');
+      setError("Game code not available. Please try again.");
     }
   };
 
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ||
-    (typeof window !== 'undefined'
+    (typeof window !== "undefined"
       ? window.location.origin
-      : 'https://base-monopoly-production.up.railway.app');
+      : "https://base-monopoly-production.up.railway.app");
   const gameUrl = `${baseUrl}/game-waiting?gameCode=${gameCode}`;
   const shareText = `Join my Blockopoly game! Code: ${gameCode}. Waiting room: ${gameUrl}`;
   const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(
@@ -176,20 +180,23 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(gameUrl);
-      setCopySuccess('Copied!');
+      setCopySuccess("Copied!");
       setTimeout(() => setCopySuccess(null), 2000);
     } catch (err) {
-      setError('Failed to copy link. Please try again.');
+      setError("Failed to copy link. Please try again.");
     }
   };
 
   const handleJoinGame = async () => {
-    if (!playerSymbol || !gameState?.availableSymbols.some((s) => s.value === playerSymbol)) {
-      setError('Please select a valid symbol.');
+    if (
+      !playerSymbol ||
+      !game?.availableSymbols.some((s) => s.value === playerSymbol)
+    ) {
+      setError("Please select a valid symbol.");
       return;
     }
     if (playersJoined >= maxPlayers) {
-      setError('Game is full!');
+      setError("Game is full!");
       return;
     }
 
@@ -198,21 +205,16 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
       setIsJoined(true);
       setError(null);
     } catch (err: any) {
-      console.error('Error joining game:', err);
-      setError(err.message || 'Failed to join game. Please try again.');
+      console.error("Error joining game:", err);
+      setError(err.message || "Failed to join game. Please try again.");
     }
   };
 
   const handleLeaveGame = async () => {
     try {
-      const response = await fetch(
-        `https://base-monopoly-production.up.railway.app/api/games/${gameState!.gameId}/leave`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol: playerSymbol }),
-        }
-      );
+      const response = await apiClient.post(`/games/${game?.gameId}/leave`, {
+        symbol: playerSymbol,
+      });
       if (!response.ok) {
         throw new Error(
           `Failed to leave game: ${response.status} ${response.statusText}`
@@ -223,35 +225,35 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
         value: playerSymbol,
         label:
           tokens.find((t) => t.value === playerSymbol)?.emoji +
-          ' ' +
-          tokens.find((t) => t.value === playerSymbol)?.name ||
-          '',
+            " " +
+            tokens.find((t) => t.value === playerSymbol)?.name || "",
       };
-      setGameState({
-        ...gameState!,
-        playersJoined: updatedGame.players_joined || Math.max(gameState!.playersJoined - 1, 1),
+      setGame({
+        ...game!,
+        playersJoined:
+          updatedGame.players_joined || Math.max(game!.playersJoined - 1, 1),
         players:
           updatedGame.players ||
-          gameState!.players.filter((p) => p.symbol !== playerSymbol),
-        availableSymbols: [...gameState!.availableSymbols, symbolObj],
+          game!.players.filter((p) => p.symbol !== playerSymbol),
+        availableSymbols: [...game!.availableSymbols, symbolObj],
       });
       setIsJoined(false);
-      setPlayerSymbol('');
+      setPlayerSymbol("");
       setError(null);
     } catch (err: any) {
-      console.error('Error leaving game:', err);
-      setError(err.message || 'Failed to leave game. Please try again.');
+      console.error("Error leaving game:", err);
+      setError(err.message || "Failed to leave game. Please try again.");
     }
   };
 
   const handleGoHome = () => {
-    router.push('/');
+    router.push("/");
   };
 
-  // Use contract data for playersJoined and maxPlayers, with fallback to gameState
-  const playersJoined = contractGame?.joinedPlayers ?? gameState?.playersJoined ?? 0;
-  const maxPlayers = contractGame?.numberOfPlayers ?? gameState?.maxPlayers ?? 0;
-  const canStartGame =  playersJoined === maxPlayers;
+  // Use contract data for playersJoined and maxPlayers, with fallback to game
+  const playersJoined = contractGame?.joinedPlayers ?? game?.playersJoined ?? 0;
+  const maxPlayers = contractGame?.numberOfPlayers ?? game?.maxPlayers ?? 0;
+  const canStartGame = playersJoined === maxPlayers;
 
   if (loading || isInGameLoading || contractGameLoading) {
     return (
@@ -263,20 +265,22 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
     );
   }
 
-  if (error || !gameState) {
+  if (error || !game) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
         <div className="text-center space-y-4">
           <p className="text-red-500 text-xl font-semibold font-orbitron mb-4">
-            {error || contractGameError?.message || 'Game not found'}
+            {error || contractGameError?.message || "Game not found"}
           </p>
           <button
-            onClick={() => router.push('/join-room')}
+            type="button"
+            onClick={() => router.push("/join-room")}
             className="bg-[#00F0FF] text-black px-4 py-2 rounded font-orbitron"
           >
             Back to Join Room
           </button>
           <button
+            type="button"
             onClick={handleGoHome}
             className="bg-[#00F0FF] text-black px-4 py-2 rounded font-orbitron"
           >
@@ -305,18 +309,18 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
           <div className="text-center space-y-3 mb-6">
             <p className="text-[#869298] text-sm">
               {playersJoined === maxPlayers
-                ? 'All players joined! Ready to start...'
-                : 'Waiting for players to join...'}
+                ? "All players joined! Ready to start..."
+                : "Waiting for players to join..."}
             </p>
             <p className="text-[#00F0FF] text-lg font-semibold">
               Players: {playersJoined}/{maxPlayers}
             </p>
-            {gameState.players.map((player) => (
+            {game.players.map((player) => (
               <p
                 key={player.id}
                 className="text-sm text-[#F0F7F7] flex items-center justify-center"
               >
-                {tokens.find((t) => t.value === player.symbol)?.emoji}{' '}
+                {tokens.find((t) => t.value === player.symbol)?.emoji}{" "}
                 {player.name}
               </p>
             ))}
@@ -339,7 +343,9 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
                 </button>
               </div>
               {copySuccess && (
-                <p className="text-green-400 text-xs text-center">{copySuccess}</p>
+                <p className="text-green-400 text-xs text-center">
+                  {copySuccess}
+                </p>
               )}
               <div className="flex justify-center gap-4">
                 <a
@@ -357,8 +363,7 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
                   rel="noopener noreferrer"
                   className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
                 >
-                  <FaXTwitter className="mr-2 w-5 h-5" />
-                  X
+                  <FaXTwitter className="mr-2 w-5 h-5" />X
                 </a>
               </div>
             </div>
@@ -378,7 +383,7 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
                   <option value="" disabled>
                     Select a token
                   </option>
-                  {gameState.availableSymbols.map((symbol) => (
+                  {game.availableSymbols.map((symbol) => (
                     <option key={symbol.value} value={symbol.value}>
                       {symbol.label}
                     </option>
@@ -390,7 +395,7 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
                 className="w-full bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00D4E6] transition-all duration-300 shadow-md"
                 disabled={!playerSymbol || isJoining}
               >
-                {isJoining ? 'Joining...' : 'Join Game'}
+                {isJoining ? "Joining..." : "Join Game"}
               </button>
             </div>
           )}
@@ -415,7 +420,7 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
 
           <div className="flex justify-between mt-3">
             <button
-              onClick={() => router.push('/join-room')}
+              onClick={() => router.push("/join-room")}
               className="text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200"
             >
               Back to Join Room
@@ -431,7 +436,10 @@ const { write: joinGame, isPending: isJoining, error: joinError } = useJoinGame(
 
           {(error || joinError || contractGameError) && (
             <p className="text-red-500 text-xs mt-4 text-center animate-pulse">
-              {error || joinError?.message || contractGameError?.message || 'An error occurred'}
+              {error ||
+                joinError?.message ||
+                contractGameError?.message ||
+                "An error occurred"}
             </p>
           )}
         </div>

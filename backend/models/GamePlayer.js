@@ -59,7 +59,19 @@ const GamePlayer = {
   async findByGameId(gameId) {
     return db("game_players as gp")
       .leftJoin("users as u", "gp.user_id", "u.id")
-      .select("gp.*", "u.username", "u.address as user_address")
+      .leftJoin("games as g", "gp.game_id", "g.id")
+      .select(
+        "gp.user_id",
+        "gp.address",
+        "gp.chance_jail_card",
+        "gp.community_chest_jail_card",
+        "gp.balance",
+        "gp.position",
+        "gp.turn_order",
+        "gp.symbol",
+        "gp.created_at as joined_date",
+        "u.username",
+      )
       .where("gp.game_id", gameId)
       .orderBy("gp.turn_order", "asc");
   },

@@ -15,7 +15,16 @@ const GameSetting = {
   },
 
   async findByGameId(gameId) {
-    return db("game_settings").where({ game_id: gameId }).first();
+    return db("game_settings")
+      .select(
+        "auction",
+        "mortgage",
+        "even_build",
+        "randomize_play_order",
+        "starting_cash"
+      )
+      .where({ game_id: gameId })
+      .first();
   },
 
   async findAll({ limit = 100, offset = 0 } = {}) {
