@@ -110,6 +110,19 @@ const GameWaiting = () => {
         );
         setAvailableSymbols(getAvailableSymbols(gameData));
         setIsJoined(playerInGame(gameData));
+        if (gameData?.players.length === gameData?.number_of_players) {
+          const response = await apiClient.put<{
+            success: boolean;
+            message: string;
+          }>(`/games/${gameData.id}`, {
+            status: "RUNNING",
+          });
+          if (response.success) {
+            router.push(`/game-play?gameCode=${gameCode}`);
+          } else {
+            setError("Game not available. Please try again.");
+          }
+        }
       } catch (error: any) {
         console.error("Error fetching game state:", error);
         setError(
@@ -129,34 +142,7 @@ const GameWaiting = () => {
   const playersJoined = contractGame?.joinedPlayers ?? game?.players.length;
   const maxPlayers =
     contractGame?.numberOfPlayers ?? game?.number_of_players ?? 0;
-  const canStartGame = playersJoined === maxPlayers;
 
-  const handleStartGame = async () => {
-    try {
-      setLoading(true);
-      if (!game) {
-        setError("No game data found. Please enter a valid game code.");
-        setLoading(false);
-        return;
-      }
-      const response = await apiClient.put<{
-        success: boolean;
-        message: string;
-      }>(`/games/${game.id}`, {
-        status: "RUNNING",
-      });
-      if (response.success) {
-        router.push(`/game-play?gameCode=${gameCode}`);
-      } else {
-        setError("Game not available. Please try again.");
-      }
-    } catch (error: any) {
-      console.error("Error fetching game state:", error);
-      setError(error.message || "Failed to fetch game data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
   const gameUrl = `${window.location.origin}/game-waiting?gameCode=${gameCode}`;
   const shareText = `Join my Blockopoly game! Code: ${gameCode}. Waiting room: ${gameUrl}`;
   const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(
@@ -417,16 +403,6 @@ const GameWaiting = () => {
               className="w-full mt-6 bg-[#FF4D4D] text-white text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#E63939] transition-all duration-300 shadow-md"
             >
               Leave Game
-            </button>
-          )}
-
-          {canStartGame && (
-            <button
-              type="button"
-              onClick={handleStartGame}
-              className="w-full mt-6 bg-[#00FF00] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00CC00] transition-all duration-300 shadow-md"
-            >
-              Start Game
             </button>
           )}
 
