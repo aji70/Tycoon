@@ -33,7 +33,7 @@ const GamePlayer = {
   },
 
   async create(data) {
-    const [id] = await trx("game_players").insert(data);
+    const [id] = await db("game_players").insert(data);
     return this.findById(id);
   },
 

@@ -75,8 +75,8 @@ const gamePlayerController = {
         game_id: game.id,
         balance: settings.starting_cash,
         position: 0,
-        chance_jail_card: 0,
-        community_chest_jail_card: 0,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
       });
       res
         .status(201)
