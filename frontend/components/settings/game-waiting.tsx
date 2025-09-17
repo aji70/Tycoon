@@ -275,9 +275,6 @@ const GameWaiting = () => {
       </section>
     );
   }
-
-  const showJoin = !isJoined && game.players.length < game.number_of_players;
-  const showLeave = isJoined && game.players.length < game.number_of_players;
   const showShare = game.players.length < game.number_of_players;
 
   return (
@@ -357,7 +354,7 @@ const GameWaiting = () => {
             </div>
           )}
 
-          {!canStartGame && showJoin && (
+          {game.players.length < game.number_of_players && !isJoined && (
             <div className="mt-6 space-y-4">
               <div className="flex flex-col">
                 <label
@@ -396,7 +393,7 @@ const GameWaiting = () => {
             </div>
           )}
 
-          {!canStartGame && showLeave && (
+          {game.players.length < game.number_of_players && isJoined && (
             <button
               type="button"
               onClick={handleLeaveGame}
