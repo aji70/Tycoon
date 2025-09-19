@@ -10,11 +10,20 @@ export interface GameContextProps {
 
 export interface BoardSquare {
   id: number;
-  type: "property" | "corner" | "special";
+  type: "corner" | "property" | "special";
   name: string;
-  position: "bottom" | "left" | "top" | "right";
+  price: number;
+  rent_site_only: number;
+  rent_one_house: number;
+  rent_two_houses: number;
+  rent_three_houses: number;
+  rent_four_houses: number;
+  rent_hotel: number;
+  cost_of_house: number;
+  is_mortgaged: boolean;
+  group_id: number;
+  color: string;
+  position: "top" | "bottom" | "left" | "right";
   gridPosition: { row: number; col: number };
-  price?: number;
-  color?: string;
-  icon?: string; // For special squares like '?', jail, etc.
+  icon: string;
 }
