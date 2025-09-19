@@ -108,6 +108,7 @@ const GameBoard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [selectedCardType, setSelectedCardType] = useState<'Chance' | 'CommunityChest' | null>(null);
+  const [propertyId, setPropertyId] = useState('');
   const [chatMessages, setChatMessages] = useState<{ sender: string; message: string }[]>([
     { sender: 'Player1', message: 'hi' },
   ]);
@@ -188,6 +189,34 @@ const GameBoard = () => {
     console.log(`Processing ${selectedCardType} card: ${selectedCard}`);
     setSelectedCard(null);
     setSelectedCardType(null);
+    setIsLoading(false);
+  };
+
+  const handlePayRent = () => {
+    if (!propertyId || !currentProperty || !currentProperty.owner) {
+      setError('Cannot pay rent: No owner or invalid property.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    const square = boardData.find((s) => s.id === Number(propertyId));
+    if (square && square.type === 'property' && square.rent_site_only) {
+      setPlayers((prevPlayers) => {
+        const newPlayers = [...prevPlayers];
+        const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+        const owner = newPlayers.find((p) => p.username === currentProperty.owner);
+        if (currentPlayer.balance >= square.rent_site_only && owner) {
+          currentPlayer.balance -= square.rent_site_only;
+          owner.balance += square.rent_site_only;
+          newPlayers[currentPlayerIndex] = currentPlayer;
+          newPlayers[players.indexOf(owner)] = owner;
+        } else {
+          setError('Insufficient balance to pay rent.');
+        }
+        return newPlayers;
+      });
+    }
+    setPropertyId('');
     setIsLoading(false);
   };
 
@@ -322,7 +351,22 @@ const GameBoard = () => {
                         Rolled: <span className="font-bold text-white">{lastRoll.die1} + {lastRoll.die2} = {lastRoll.total}</span>
                       </p>
                     )}
+                    <input
+                      type="number"
+                      placeholder="Property ID for Rent"
+                      value={propertyId}
+                      onChange={(e) => setPropertyId(e.target.value)}
+                      className="w-full px-2 py-1 mb-2 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      aria-label="Enter property ID for rent"
+                    />
                     <div className="flex flex-wrap gap-2 justify-center">
+                      <button
+                        onClick={handlePayRent}
+                        aria-label="Pay rent for the property"
+                        className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Pay Rent
+                      </button>
                       <button
                         onClick={handleEndTurn}
                         aria-label="End your turn"
