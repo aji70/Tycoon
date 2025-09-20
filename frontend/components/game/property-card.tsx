@@ -4,9 +4,12 @@ import { BoardSquare } from "@/types/game";
 
 interface PropertyCardProps {
     square: BoardSquare;
+    owner: string | null; // Added
+    ownerUsername: string | null; // Added
+    isConnectedPlayer: boolean; // Added
 }
 
-const PropertyCard = ({ square }: PropertyCardProps) => {
+const PropertyCard = ({ square, owner, ownerUsername, isConnectedPlayer }: PropertyCardProps) => {
     const { name, price, rent_site_only, color, position, icon } = square;
 
     // Define classes for different orientations
@@ -27,7 +30,7 @@ const PropertyCard = ({ square }: PropertyCardProps) => {
     const rent_site_onlyOrientationClasses = {
         bottom: 'bottom-0.5 left-0.5', // Confirmed working
         left: 'bottom-[30%] left-0.5 transform -rotate-90', // Confirmed working
-        top: 'bottom-0.5 left-0.5', // Moved to bottom-left for top orientation
+        top: 'bottom-0.5 left-0.5', // Bottom-left for top orientation
         right: 'transform rotate-90 bottom-[30%] right-0.5', // Confirmed working
     };
 
@@ -43,7 +46,7 @@ const PropertyCard = ({ square }: PropertyCardProps) => {
             className={`relative w-full h-full bg-[#F0F7F7] text-[#0B191A] p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]}`}
             style={{ borderColor: color }}
         >
-            <div className={`flex flex-col items-center pt-1.5`}> {/* Kept pt-1.5 to prevent overlap */}
+            <div className={`flex flex-col items-center pt-1.5`}>
                 <p className="text-[5px] md:text-[5px] font-bold uppercase text-center max-w-full truncate">{name}</p>
                 {icon && (
                     <Image
@@ -65,6 +68,14 @@ const PropertyCard = ({ square }: PropertyCardProps) => {
                     className={`text-[5px] md:text-[6px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${rent_site_onlyOrientationClasses[position]}`}
                 >
                     ${rent_site_only}
+                </p>
+            )}
+            {/* Optionally display owner info if needed */}
+            {owner && (
+                <p
+                    className={`text-[4px] md:text-[5px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] top-0.5 left-0.5 ${isConnectedPlayer ? 'text-green-600' : 'text-gray-600'}`}
+                >
+                    Owner: {ownerUsername || owner}
                 </p>
             )}
         </div>
