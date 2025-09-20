@@ -109,6 +109,7 @@ const GameBoard = () => {
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [selectedCardType, setSelectedCardType] = useState<'Chance' | 'CommunityChest' | null>(null);
   const [propertyId, setPropertyId] = useState('');
+  const [showRentInput, setShowRentInput] = useState(false); // New state for input visibility
   const [chatMessages, setChatMessages] = useState<{ sender: string; message: string }[]>([
     { sender: 'Player1', message: 'hi' },
   ]);
@@ -195,6 +196,7 @@ const GameBoard = () => {
   const handlePayRent = () => {
     if (!propertyId || !currentProperty || !currentProperty.owner) {
       setError('Cannot pay rent: No owner or invalid property.');
+      setShowRentInput(false); // Hide input on error
       return;
     }
     setIsLoading(true);
@@ -212,12 +214,19 @@ const GameBoard = () => {
           newPlayers[players.indexOf(owner)] = owner;
         } else {
           setError('Insufficient balance to pay rent.');
+          setShowRentInput(false); // Hide input on error
         }
         return newPlayers;
       });
     }
-    setPropertyId('');
+    setPropertyId(''); // Clear input
+    setShowRentInput(false); // Hide input after paying rent
     setIsLoading(false);
+  };
+
+  const handleCancelRent = () => {
+    setPropertyId(''); // Clear input
+    setShowRentInput(false); // Hide input
   };
 
   const handleEndTurn = () => {
@@ -351,17 +360,37 @@ const GameBoard = () => {
                         Rolled: <span className="font-bold text-white">{lastRoll.die1} + {lastRoll.die2} = {lastRoll.total}</span>
                       </p>
                     )}
-                    <input
-                      type="number"
-                      placeholder="Property ID for Rent"
-                      value={propertyId}
-                      onChange={(e) => setPropertyId(e.target.value)}
-                      className="w-full px-2 py-1 mb-2 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                      aria-label="Enter property ID for rent"
-                    />
+                    {showRentInput && (
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="number"
+                          placeholder="Property ID for Rent"
+                          value={propertyId}
+                          onChange={(e) => setPropertyId(e.target.value)}
+                          className="w-full px-2 py-1 mb-2 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          aria-label="Enter property ID for rent"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handlePayRent}
+                            aria-label="Confirm rent payment"
+                            className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
+                          >
+                            Confirm Rent
+                          </button>
+                          <button
+                            onClick={handleCancelRent}
+                            aria-label="Cancel rent payment"
+                            className="px-2 py-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xs rounded-full hover:from-gray-600 hover:to-gray-800 transform hover:scale-105 transition-all duration-200"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2 justify-center">
                       <button
-                        onClick={handlePayRent}
+                        onClick={() => setShowRentInput(true)} // Show input on click
                         aria-label="Pay rent for the property"
                         className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
                       >
