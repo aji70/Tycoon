@@ -2,15 +2,15 @@
 import { ChevronLeft, Flag, Plus, Handshake, CheckCircle, Repeat, ChevronDown, ChevronUp } from 'lucide-react'
 import React, { useState, useMemo } from 'react'
 import { PiUsersThree } from 'react-icons/pi';
-import { boardData } from '@/data/board-data'; // Assuming boardData is available
+import { boardData } from '@/data/board-data';
 
 interface TradeInputs {
   to: string;
-  offeredPropertyIds: string;
-  requestedPropertyIds: string;
-  cashOffer: string;
-  cashRequest: string;
-  tradeType: string;
+  offeredPropertyIds: string; // Comma-separated IDs
+  requestedPropertyIds: string; // Comma-separated IDs
+  cashAmount: string; // Single cash amount
+  cashDirection: 'offer' | 'request'; // New field for cash direction
+  tradeType: 'property_for_property' | 'property_for_cash' | 'cash_for_property';
   tradeId: string;
   originalOfferId: string;
 }
@@ -37,12 +37,18 @@ interface Property {
   cost?: number;
   mortgage?: number;
   color?: string;
+  house_cost?: number;
+  hotel_cost?: number;
+  houses: number;
+  hotels: number;
 }
 
 interface OwnedProperty {
   owner: string;
   ownerUsername: string;
   token: string;
+  houses: number;
+  hotels: number;
 }
 
 const Players = () => {
@@ -52,9 +58,9 @@ const Players = () => {
     to: '',
     offeredPropertyIds: '',
     requestedPropertyIds: '',
-    cashOffer: '0',
-    cashRequest: '0',
-    tradeType: '0',
+    cashAmount: '0',
+    cashDirection: 'offer',
+    tradeType: 'property_for_property',
     tradeId: '',
     originalOfferId: '',
   });
@@ -68,8 +74,8 @@ const Players = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [propertyId, setPropertyId] = useState('');
+  const [selectedRequestedProperties, setSelectedRequestedProperties] = useState<number[]>([]);
 
-  // Mock player data (8 players)
   const [players, setPlayers] = useState<Player[]>([
     { id: 0, name: 'Aji', username: 'Aji', position: 0, balance: 1500, jailed: false, properties_owned: [1, 3], isNext: true, token: '🚗' },
     { id: 1, name: 'Signor', username: 'Signor', position: 5, balance: 1200, jailed: false, properties_owned: [], isNext: false, token: '🚢' },
@@ -88,10 +94,34 @@ const Players = () => {
     owner: null,
     ownerUsername: null,
     rent_site_only: 0,
+    houses: 0,
+    hotels: 0,
   });
-  const [ownedProperties, setOwnedProperties] = useState<{ [key: number]: OwnedProperty }>({});
+  const [ownedProperties, setOwnedProperties] = useState<{ [key: number]: OwnedProperty }>({
+    1: { owner: 'Aji', ownerUsername: 'Aji', token: '🚗', houses: 0, hotels: 0 },
+    3: { owner: 'Aji', ownerUsername: 'Aji', token: '🚗', houses: 0, hotels: 0 },
+    5: { owner: 'Luna', ownerUsername: 'Luna', token: '🐶', houses: 0, hotels: 0 },
+    7: { owner: 'Mira', ownerUsername: 'Mira', token: '🐱', houses: 0, hotels: 0 },
+    9: { owner: 'Mira', ownerUsername: 'Mira', token: '🐱', houses: 0, hotels: 0 },
+    11: { owner: 'Finn', ownerUsername: 'Finn', token: '🛩️', houses: 0, hotels: 0 },
+  });
 
-  // Determine the winning player (highest balance)
+  // Compute properties owned by other players
+  const otherPlayersProperties = useMemo(() => {
+    const currentPlayer = players[currentPlayerIndex];
+    return boardData.filter(
+      (property) =>
+        property.owner &&
+        property.owner !== currentPlayer.username &&
+        property.type === 'property'
+    ).map((property) => ({
+      id: property.id,
+      name: property.name,
+      ownerUsername: property.ownerUsername || 'Unknown',
+      color: property.color || '#FFFFFF',
+    }));
+  }, [players, currentPlayerIndex, boardData]);
+
   const winningPlayerId = useMemo(() => {
     return players.reduce((max, player) => player.balance > max.balance ? player : max, players[0]).id;
   }, [players]);
@@ -113,26 +143,36 @@ const Players = () => {
       management: false,
       [modal]: true,
     });
+    if (modal === 'offerTrade') {
+      setSelectedRequestedProperties([]);
+    }
   };
 
   const handleOfferTrade = () => {
-    if (!tradeInputs.to || !tradeInputs.offeredPropertyIds || !tradeInputs.requestedPropertyIds) {
-      setError('Please fill all trade fields.');
+    if (!tradeInputs.to || !tradeInputs.offeredPropertyIds || (!selectedRequestedProperties.length && tradeInputs.tradeType !== 'property_for_cash') || (tradeInputs.cashAmount === '0' && ['property_for_cash', 'cash_for_property'].includes(tradeInputs.tradeType))) {
+      setError('Please fill all required trade fields.');
       return;
     }
     setIsLoading(true);
     setError(null);
-    console.log('Offering trade:', tradeInputs);
+    const tradeData = {
+      ...tradeInputs,
+      requestedPropertyIds: selectedRequestedProperties.join(','),
+      cashOffer: tradeInputs.cashDirection === 'offer' ? tradeInputs.cashAmount : '0',
+      cashRequest: tradeInputs.cashDirection === 'request' ? tradeInputs.cashAmount : '0',
+    };
+    console.log('Offering trade:', tradeData);
     setTradeInputs({
       to: '',
       offeredPropertyIds: '',
       requestedPropertyIds: '',
-      cashOffer: '0',
-      cashRequest: '0',
-      tradeType: '0',
+      cashAmount: '0',
+      cashDirection: 'offer',
+      tradeType: 'property_for_property',
       tradeId: '',
       originalOfferId: '',
     });
+    setSelectedRequestedProperties([]);
     setIsLoading(false);
     setModalState((prev) => ({ ...prev, offerTrade: false }));
   };
@@ -175,9 +215,9 @@ const Players = () => {
       to: '',
       offeredPropertyIds: '',
       requestedPropertyIds: '',
-      cashOffer: '0',
-      cashRequest: '0',
-      tradeType: '0',
+      cashAmount: '0',
+      cashDirection: 'offer',
+      tradeType: 'property_for_property',
       tradeId: '',
       originalOfferId: '',
     });
@@ -220,9 +260,11 @@ const Players = () => {
               owner: currentPlayer.username,
               ownerUsername: currentPlayer.username,
               token: currentPlayer.token,
+              houses: 0,
+              hotels: 0,
             },
           }));
-          setCurrentProperty((prev) => prev ? { ...prev, owner: currentPlayer.username, ownerUsername: currentPlayer.username } : null);
+          setCurrentProperty((prev) => prev ? { ...prev, owner: currentPlayer.username, ownerUsername: currentPlayer.username, houses: 0, hotels: 0 } : null);
         } else {
           setError('Insufficient balance to buy property.');
         }
@@ -260,27 +302,141 @@ const Players = () => {
     setModalState((prev) => ({ ...prev, property: false }));
   };
 
-  const handleBuyHouseOrHotel = () => {
+  const handleBuyHouse = () => {
     if (!propertyId || ownedProperties[Number(propertyId)]?.owner !== players[currentPlayerIndex].username) {
-      setError('Cannot buy house or hotel: Invalid property ID or not owned.');
+      setError('Cannot buy house: Invalid property ID or not owned.');
+      return;
+    }
+    const square = boardData.find((s) => s.id === Number(propertyId));
+    if (!square || square.type !== 'property' || !square.house_cost || ownedProperties[Number(propertyId)].houses >= 4 || ownedProperties[Number(propertyId)].hotels > 0) {
+      setError('Cannot buy house: Invalid property, max houses reached, or hotel already built.');
       return;
     }
     setIsLoading(true);
     setError(null);
-    console.log(`Buying house/hotel for property ${propertyId}`);
+    setPlayers((prevPlayers) => {
+      const newPlayers = [...prevPlayers];
+      const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+      if (currentPlayer.balance >= square.house_cost) {
+        currentPlayer.balance -= square.house_cost;
+        newPlayers[currentPlayerIndex] = currentPlayer;
+        setOwnedProperties((prev) => ({
+          ...prev,
+          [Number(propertyId)]: {
+            ...prev[Number(propertyId)],
+            houses: prev[Number(propertyId)].houses + 1,
+          },
+        }));
+        setCurrentProperty((prev) => prev && prev.id === Number(propertyId) ? { ...prev, houses: prev.houses + 1 } : prev);
+      } else {
+        setError('Insufficient balance to buy house.');
+      }
+      return newPlayers;
+    });
     setPropertyId('');
     setIsLoading(false);
     setModalState((prev) => ({ ...prev, management: false }));
   };
 
-  const handleSellHouseOrHotel = () => {
+  const handleBuyHotel = () => {
     if (!propertyId || ownedProperties[Number(propertyId)]?.owner !== players[currentPlayerIndex].username) {
-      setError('Cannot sell house or hotel: Invalid property ID or not owned.');
+      setError('Cannot buy hotel: Invalid property ID or not owned.');
+      return;
+    }
+    const square = boardData.find((s) => s.id === Number(propertyId));
+    if (!square || square.type !== 'property' || !square.hotel_cost || ownedProperties[Number(propertyId)].houses < 4 || ownedProperties[Number(propertyId)].hotels > 0) {
+      setError('Cannot buy hotel: Invalid property, requires 4 houses, or hotel already built.');
       return;
     }
     setIsLoading(true);
     setError(null);
-    console.log(`Selling house/hotel for property ${propertyId}`);
+    setPlayers((prevPlayers) => {
+      const newPlayers = [...prevPlayers];
+      const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+      if (currentPlayer.balance >= square.hotel_cost) {
+        currentPlayer.balance -= square.hotel_cost;
+        newPlayers[currentPlayerIndex] = currentPlayer;
+        setOwnedProperties((prev) => ({
+          ...prev,
+          [Number(propertyId)]: {
+            ...prev[Number(propertyId)],
+            houses: 0,
+            hotels: 1,
+          },
+        }));
+        setCurrentProperty((prev) => prev && prev.id === Number(propertyId) ? { ...prev, houses: 0, hotels: 1 } : prev);
+      } else {
+        setError('Insufficient balance to buy hotel.');
+      }
+      return newPlayers;
+    });
+    setPropertyId('');
+    setIsLoading(false);
+    setModalState((prev) => ({ ...prev, management: false }));
+  };
+
+  const handleSellHouse = () => {
+    if (!propertyId || ownedProperties[Number(propertyId)]?.owner !== players[currentPlayerIndex].username) {
+      setError('Cannot sell house: Invalid property ID or not owned.');
+      return;
+    }
+    const square = boardData.find((s) => s.id === Number(propertyId));
+    if (!square || square.type !== 'property' || !square.house_cost || ownedProperties[Number(propertyId)].houses === 0) {
+      setError('Cannot sell house: Invalid property or no houses to sell.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setPlayers((prevPlayers) => {
+      const newPlayers = [...prevPlayers];
+      const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+      const refund = Math.floor(square.house_cost / 2);
+      currentPlayer.balance += refund;
+      newPlayers[currentPlayerIndex] = currentPlayer;
+      setOwnedProperties((prev) => ({
+        ...prev,
+        [Number(propertyId)]: {
+          ...prev[Number(propertyId)],
+          houses: prev[Number(propertyId)].houses - 1,
+        },
+      }));
+      setCurrentProperty((prev) => prev && prev.id === Number(propertyId) ? { ...prev, houses: prev.houses - 1 } : prev);
+      return newPlayers;
+    });
+    setPropertyId('');
+    setIsLoading(false);
+    setModalState((prev) => ({ ...prev, management: false }));
+  };
+
+  const handleSellHotel = () => {
+    if (!propertyId || ownedProperties[Number(propertyId)]?.owner !== players[currentPlayerIndex].username) {
+      setError('Cannot sell hotel: Invalid property ID or not owned.');
+      return;
+    }
+    const square = boardData.find((s) => s.id === Number(propertyId));
+    if (!square || square.type !== 'property' || !square.hotel_cost || ownedProperties[Number(propertyId)].hotels === 0) {
+      setError('Cannot sell hotel: Invalid property or no hotel to sell.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setPlayers((prevPlayers) => {
+      const newPlayers = [...prevPlayers];
+      const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+      const refund = Math.floor(square.hotel_cost / 2);
+      currentPlayer.balance += refund;
+      newPlayers[currentPlayerIndex] = currentPlayer;
+      setOwnedProperties((prev) => ({
+        ...prev,
+        [Number(propertyId)]: {
+          ...prev[Number(propertyId)],
+          houses: 4,
+          hotels: 0,
+        },
+      }));
+      setCurrentProperty((prev) => prev && prev.id === Number(propertyId) ? { ...prev, houses: 4, hotels: 0 } : prev);
+      return newPlayers;
+    });
     setPropertyId('');
     setIsLoading(false);
     setModalState((prev) => ({ ...prev, management: false }));
@@ -335,10 +491,19 @@ const Players = () => {
     setModalState((prev) => ({ ...prev, management: false }));
   };
 
-  // Get owned properties for display
   const ownedPropertiesList = players[currentPlayerIndex].properties_owned.map((id) => {
     const property = boardData.find((p) => p.id === id);
-    return property || { id, name: `Property ${id}`, type: 'unknown', owner: players[currentPlayerIndex].username, ownerUsername: players[currentPlayerIndex].username, rent_site_only: 0, color: '#FFFFFF' };
+    return property || { 
+      id, 
+      name: `Property ${id}`, 
+      type: 'unknown', 
+      owner: players[currentPlayerIndex].username, 
+      ownerUsername: players[currentPlayerIndex].username, 
+      rent_site_only: 0, 
+      color: '#FFFFFF',
+      houses: ownedProperties[id]?.houses || 0,
+      hotels: ownedProperties[id]?.hotels || 0,
+    };
   });
 
   return (
@@ -408,7 +573,6 @@ const Players = () => {
             <div className="w-full flex flex-col gap-4">
               <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7]'>My Properties</h4>
               <div className="flex flex-col gap-3">
-                {/* My Empire Dropdown */}
                 <button
                   onClick={toggleProperties}
                   className="flex items-center justify-between w-full px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 rounded-[12px] text-[#F0F7F7] text-[13px] font-semibold font-dmSans hover:from-cyan-700 hover:to-teal-700 hover:shadow-[0_0_8px_rgba(45,212,191,0.3)] transition-all duration-300"
@@ -434,7 +598,9 @@ const Players = () => {
                             />
                             <div className="flex-1">
                               <span className="font-medium">{property.name}</span>
-                              <span className="block text-[11px] text-[#A0B1B8]">ID: {property.id} | Rent: ${property.rent_site_only}</span>
+                              <span className="block text-[11px] text-[#A0B1B8]">
+                                ID: {property.id} | Rent: ${property.rent_site_only} | Houses: {property.houses} | Hotels: {property.hotels}
+                              </span>
                             </div>
                           </li>
                         ))}
@@ -444,7 +610,6 @@ const Players = () => {
                     )}
                   </div>
                 )}
-                {/* Property Actions */}
                 <button
                   onClick={() => openModal('property')}
                   className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-green-700 to-emerald-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-green-800 hover:to-emerald-800 hover:shadow-[0_0_12px_rgba(16,185,129,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -525,36 +690,104 @@ const Players = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Offered Property IDs"
+                  placeholder="Offered Property IDs (comma-separated)"
                   value={tradeInputs.offeredPropertyIds}
                   onChange={(e) => setTradeInputs((prev) => ({ ...prev, offeredPropertyIds: e.target.value }))}
                   className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
                   aria-label="Enter offered property IDs"
                 />
-                <input
-                  type="text"
-                  placeholder="Requested Property IDs"
-                  value={tradeInputs.requestedPropertyIds}
-                  onChange={(e) => setTradeInputs((prev) => ({ ...prev, requestedPropertyIds: e.target.value }))}
-                  className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
-                  aria-label="Enter requested property IDs"
-                />
-                <input
-                  type="number"
-                  placeholder="Cash Offer"
-                  value={tradeInputs.cashOffer}
-                  onChange={(e) => setTradeInputs((prev) => ({ ...prev, cashOffer: e.target.value }))}
-                  className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
-                  aria-label="Enter cash offer amount"
-                />
-                <input
-                  type="number"
-                  placeholder="Cash Request"
-                  value={tradeInputs.cashRequest}
-                  onChange={(e) => setTradeInputs((prev) => ({ ...prev, cashRequest: e.target.value }))}
-                  className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
-                  aria-label="Enter cash request amount"
-                />
+                <div>
+                  <label className="block text-[#F0F7F7] text-[13px] mb-1">Select Requested Properties</label>
+                  <div className="max-h-[150px] overflow-y-auto no-scrollbar bg-[#131F25]/80 rounded-[12px] border border-white/10 p-2">
+                    {otherPlayersProperties.length > 0 ? (
+                      otherPlayersProperties.map((property) => (
+                        <div
+                          key={property.id}
+                          className={`p-2 flex items-center gap-2 cursor-pointer rounded-[8px] ${
+                            selectedRequestedProperties.includes(property.id)
+                              ? 'bg-cyan-600/50'
+                              : 'hover:bg-[#1A262B]/80'
+                          }`}
+                          onClick={() =>
+                            setSelectedRequestedProperties((prev) =>
+                              prev.includes(property.id)
+                                ? prev.filter((id) => id !== property.id)
+                                : [...prev, property.id]
+                            )
+                          }
+                          aria-label={`Select property ${property.name}`}
+                        >
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: property.color }}
+                          />
+                          <span className="text-[#F0F7F7] text-[12px]">
+                            {property.name} (Owned by {property.ownerUsername})
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[#A0B1B8] text-[12px] text-center">
+                        No properties available to request.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[#F0F7F7] text-[13px] mb-1">Trade Type</label>
+                  <select
+                    value={tradeInputs.tradeType}
+                    onChange={(e) =>
+                      setTradeInputs((prev) => ({
+                        ...prev,
+                        tradeType: e.target.value as TradeInputs['tradeType'],
+                      }))
+                    }
+                    className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
+                    aria-label="Select trade type"
+                  >
+                    <option value="property_for_property">Property for Property</option>
+                    <option value="property_for_cash">Property for Cash</option>
+                    <option value="cash_for_property">Cash for Property</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[#F0F7F7] text-[13px] mb-1">Cash Amount</label>
+                  <input
+                    type="number"
+                    placeholder="Cash Amount"
+                    value={tradeInputs.cashAmount}
+                    onChange={(e) => setTradeInputs((prev) => ({ ...prev, cashAmount: e.target.value }))}
+                    className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
+                    aria-label="Enter cash amount"
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-[#F0F7F7] text-[13px]">
+                    <input
+                      type="radio"
+                      name="cashDirection"
+                      value="offer"
+                      checked={tradeInputs.cashDirection === 'offer'}
+                      onChange={() => setTradeInputs((prev) => ({ ...prev, cashDirection: 'offer' }))}
+                      className="text-cyan-500 focus:ring-cyan-500"
+                      aria-label="Offer cash"
+                    />
+                    Offer Cash
+                  </label>
+                  <label className="flex items-center gap-2 text-[#F0F7F7] text-[13px]">
+                    <input
+                      type="radio"
+                      name="cashDirection"
+                      value="request"
+                      checked={tradeInputs.cashDirection === 'request'}
+                      onChange={() => setTradeInputs((prev) => ({ ...prev, cashDirection: 'request' }))}
+                      className="text-cyan-500 focus:ring-cyan-500"
+                      aria-label="Request cash"
+                    />
+                    Request Cash
+                  </label>
+                </div>
                 <button
                   onClick={handleOfferTrade}
                   aria-label="Offer a trade"
@@ -659,20 +892,38 @@ const Players = () => {
                 />
                 <input
                   type="number"
-                  placeholder="Cash Offer"
-                  value={tradeInputs.cashOffer}
-                  onChange={(e) => setTradeInputs((prev) => ({ ...prev, cashOffer: e.target.value }))}
+                  placeholder="Cash Amount"
+                  value={tradeInputs.cashAmount}
+                  onChange={(e) => setTradeInputs((prev) => ({ ...prev, cashAmount: e.target.value }))}
                   className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
-                  aria-label="Enter cash offer amount"
+                  aria-label="Enter cash amount"
                 />
-                <input
-                  type="number"
-                  placeholder="Cash Request"
-                  value={tradeInputs.cashRequest}
-                  onChange={(e) => setTradeInputs((prev) => ({ ...prev, cashRequest: e.target.value }))}
-                  className="w-full px-4 py-2 bg-[#131F25]/80 text-[#F0F7F7] text-[13px] rounded-[12px] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-300"
-                  aria-label="Enter cash request amount"
-                />
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-[#F0F7F7] text-[13px]">
+                    <input
+                      type="radio"
+                      name="cashDirection"
+                      value="offer"
+                      checked={tradeInputs.cashDirection === 'offer'}
+                      onChange={() => setTradeInputs((prev) => ({ ...prev, cashDirection: 'offer' }))}
+                      className="text-cyan-500 focus:ring-cyan-500"
+                      aria-label="Offer cash"
+                    />
+                    Offer Cash
+                  </label>
+                  <label className="flex items-center gap-2 text-[#F0F7F7] text-[13px]">
+                    <input
+                      type="radio"
+                      name="cashDirection"
+                      value="request"
+                      checked={tradeInputs.cashDirection === 'request'}
+                      onChange={() => setTradeInputs((prev) => ({ ...prev, cashDirection: 'request' }))}
+                      className="text-cyan-500 focus:ring-cyan-500"
+                      aria-label="Request cash"
+                    />
+                    Request Cash
+                  </label>
+                </div>
                 <button
                   onClick={handleCounterTrade}
                   aria-label="Counter a trade"
@@ -751,18 +1002,32 @@ const Players = () => {
               />
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <button
-                  onClick={handleBuyHouseOrHotel}
-                  aria-label="Buy a house or hotel"
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-[#F0F7F7] text-[13px] rounded-[12px] hover:from-indigo-700 hover:to-purple-700 hover:shadow-[0_0_12px_rgba(99,102,241,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  onClick={handleBuyHouse}
+                  aria-label="Buy a house"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-[#F0F7F7] text-[13px] rounded-[12px] hover:from-blue-700 hover:to-indigo-700 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  Buy House/Hotel
+                  Buy House
                 </button>
                 <button
-                  onClick={handleSellHouseOrHotel}
-                  aria-label="Sell a house or hotel"
+                  onClick={handleBuyHotel}
+                  aria-label="Buy a hotel"
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-violet-600 text-[#F0F7F7] text-[13px] rounded-[12px] hover:from-purple-700 hover:to-violet-700 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  Buy Hotel
+                </button>
+                <button
+                  onClick={handleSellHouse}
+                  aria-label="Sell a house"
                   className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-[#F0F7F7] text-[13px] rounded-[12px] hover:from-amber-700 hover:to-orange-700 hover:shadow-[0_0_12px_rgba(249,115,22,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  Sell House/Hotel
+                  Sell House
+                </button>
+                <button
+                  onClick={handleSellHotel}
+                  aria-label="Sell a hotel"
+                  className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-[#F0F7F7] text-[13px] rounded-[12px] hover:from-amber-700 hover:to-orange-700 hover:shadow-[0_0_12px_rgba(249,115,22,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  Sell Hotel
                 </button>
                 <button
                   onClick={handleMortgageProperty}
