@@ -1,12 +1,16 @@
-'use client';
-import React, { useState, useEffect, Component, ReactNode } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { BoardSquare } from '@/types/game';
-import PropertyCard from './property-card';
-import SpecialCard from './special-card';
-import CornerCard from './corner-card';
-import { boardData } from '@/data/board-data';
-import { PLAYER_TOKENS, CHANCE_CARDS, COMMUNITY_CHEST_CARDS } from '@/constants/constants';
+"use client";
+import React, { useState, useEffect, Component, ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { BoardDataSquare } from "@/types/game";
+import PropertyCard from "./property-card";
+import SpecialCard from "./special-card";
+import CornerCard from "./corner-card";
+import {
+  PLAYER_TOKENS,
+  CHANCE_CARDS,
+  COMMUNITY_CHEST_CARDS,
+} from "@/constants/constants";
+import { apiClient } from "@/lib/api";
 
 interface Player {
   id: number;
@@ -46,14 +50,21 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
   state: ErrorBoundaryState = { hasError: false };
   static getDerivedStateFromError() {
     return { hasError: true };
   }
   render() {
     if (this.state.hasError) {
-      return <div className="text-red-400 text-center">Something went wrong. Please refresh the page.</div>;
+      return (
+        <div className="text-red-400 text-center">
+          Something went wrong. Please refresh the page.
+        </div>
+      );
     }
     return this.props.children;
   }
@@ -65,8 +76,8 @@ const GameBoard = () => {
   const [players, setPlayers] = useState<Player[]>([
     {
       id: 0,
-      name: 'Player 1',
-      username: 'Player1',
+      name: "Player 1",
+      username: "Player1",
       position: 0,
       balance: 1500,
       jailed: false,
@@ -76,8 +87,8 @@ const GameBoard = () => {
     },
     {
       id: 1,
-      name: 'Player 2',
-      username: 'Player2',
+      name: "Player 2",
+      username: "Player2",
       position: 0,
       balance: 1500,
       jailed: false,
@@ -87,44 +98,56 @@ const GameBoard = () => {
     },
   ]);
   const [playerTokens, setPlayerTokens] = useState<{ [key: string]: string }>({
-    'player1': PLAYER_TOKENS[0],
-    'player2': PLAYER_TOKENS[1],
+    player1: PLAYER_TOKENS[0],
+    player2: PLAYER_TOKENS[1],
   });
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [lastRoll, setLastRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  const [lastRoll, setLastRoll] = useState<{
+    die1: number;
+    die2: number;
+    total: number;
+  } | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [player, setPlayer] = useState<Player | null>(players[0]);
   const [currentProperty, setCurrentProperty] = useState<Property | null>({
     id: 0,
-    name: 'Go',
-    type: 'corner',
+    name: "Go",
+    type: "corner",
     owner: null,
     ownerUsername: null,
     rent_site_only: 0,
   });
-  const [ownedProperties, setOwnedProperties] = useState<{ [key: number]: OwnedProperty }>({});
+  const [ownedProperties, setOwnedProperties] = useState<{
+    [key: number]: OwnedProperty;
+  }>({});
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
-  const [selectedCardType, setSelectedCardType] = useState<'Chance' | 'CommunityChest' | null>(null);
-  const [propertyId, setPropertyId] = useState('');
+  const [selectedCardType, setSelectedCardType] = useState<
+    "Chance" | "CommunityChest" | null
+  >(null);
+  const [propertyId, setPropertyId] = useState("");
   const [showRentInput, setShowRentInput] = useState(false); // New state for input visibility
-  const [chatMessages, setChatMessages] = useState<{ sender: string; message: string }[]>([
-    { sender: 'Player1', message: 'hi' },
-  ]);
-  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<
+    { sender: string; message: string }[]
+  >([{ sender: "Player1", message: "hi" }]);
+  const [chatInput, setChatInput] = useState("");
 
+  const [boardData, setBoardData] = useState<BoardDataSquare[] | []>([]);
   useEffect(() => {
-    const id = searchParams.get('gameCode') || localStorage.getItem('gameCode') || 'TZIYLR';
+    const id =
+      searchParams.get("gameCode") ||
+      localStorage.getItem("gameCode") ||
+      "TZIYLR";
     setGameId(id);
     setGame({
       id: id,
       currentPlayer: players[0].username,
       nextPlayer: players[1].username,
-      createdBy: 'player1',
+      createdBy: "player1",
     });
-    localStorage.setItem('gameCode', id);
+    localStorage.setItem("gameCode", id);
   }, [searchParams, players]);
 
   useEffect(() => {
@@ -159,7 +182,7 @@ const GameBoard = () => {
     if (square) {
       setCurrentProperty({
         id: square.id,
-        name: square.name || 'Unknown',
+        name: square.name || "Unknown",
         type: square.type,
         owner: ownedProperties[square.id]?.owner || null,
         ownerUsername: ownedProperties[square.id]?.ownerUsername || null,
@@ -170,10 +193,10 @@ const GameBoard = () => {
     }
   };
 
-  const handleDrawCard = (type: 'Chance' | 'CommunityChest') => {
+  const handleDrawCard = (type: "Chance" | "CommunityChest") => {
     setIsLoading(true);
     setError(null);
-    const cardList = type === 'Chance' ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
+    const cardList = type === "Chance" ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
     const randomCard = cardList[Math.floor(Math.random() * cardList.length)];
     setSelectedCard(randomCard);
     setSelectedCardType(type);
@@ -182,7 +205,7 @@ const GameBoard = () => {
 
   const handleProcessCard = () => {
     if (!selectedCard) {
-      setError('No card selected to process.');
+      setError("No card selected to process.");
       return;
     }
     setIsLoading(true);
@@ -195,43 +218,45 @@ const GameBoard = () => {
 
   const handlePayRent = () => {
     if (!propertyId || !currentProperty || !currentProperty.owner) {
-      setError('Cannot pay rent: No owner or invalid property.');
+      setError("Cannot pay rent: No owner or invalid property.");
       setShowRentInput(false); // Hide input on error
       return;
     }
     setIsLoading(true);
     setError(null);
     const square = boardData.find((s) => s.id === Number(propertyId));
-    if (square && square.type === 'property' && square.rent_site_only) {
+    if (square && square.type === "property" && square.rent_site_only) {
       setPlayers((prevPlayers) => {
         const newPlayers = [...prevPlayers];
         const currentPlayer = { ...newPlayers[currentPlayerIndex] };
-        const owner = newPlayers.find((p) => p.username === currentProperty.owner);
+        const owner = newPlayers.find(
+          (p) => p.username === currentProperty.owner
+        );
         if (currentPlayer.balance >= square.rent_site_only && owner) {
           currentPlayer.balance -= square.rent_site_only;
           owner.balance += square.rent_site_only;
           newPlayers[currentPlayerIndex] = currentPlayer;
           newPlayers[players.indexOf(owner)] = owner;
         } else {
-          setError('Insufficient balance to pay rent.');
+          setError("Insufficient balance to pay rent.");
           setShowRentInput(false); // Hide input on error
         }
         return newPlayers;
       });
     }
-    setPropertyId(''); // Clear input
+    setPropertyId(""); // Clear input
     setShowRentInput(false); // Hide input after paying rent
     setIsLoading(false);
   };
 
   const handleCancelRent = () => {
-    setPropertyId(''); // Clear input
+    setPropertyId(""); // Clear input
     setShowRentInput(false); // Hide input
   };
 
   const handleEndTurn = () => {
     if (selectedCard) {
-      setError('You must process the drawn card before ending your turn.');
+      setError("You must process the drawn card before ending your turn.");
       return;
     }
     setIsLoading(true);
@@ -243,7 +268,16 @@ const GameBoard = () => {
       newPlayers[nextIndex].isNext = true;
       setCurrentPlayerIndex(nextIndex);
       setPlayer(newPlayers[nextIndex]);
-      setGame((prev) => prev ? { ...prev, currentPlayer: newPlayers[nextIndex].username, nextPlayer: newPlayers[(nextIndex + 1) % newPlayers.length].username } : null);
+      setGame((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentPlayer: newPlayers[nextIndex].username,
+              nextPlayer:
+                newPlayers[(nextIndex + 1) % newPlayers.length].username,
+            }
+          : null
+      );
       return newPlayers;
     });
     updateCurrentProperty();
@@ -262,7 +296,7 @@ const GameBoard = () => {
         newPlayers[currentPlayerIndex] = currentPlayer;
         setPlayer(currentPlayer);
       } else {
-        setError('Cannot pay jail fine: Not in jail or insufficient balance.');
+        setError("Cannot pay jail fine: Not in jail or insufficient balance.");
       }
       return newPlayers;
     });
@@ -281,8 +315,8 @@ const GameBoard = () => {
     setSelectedCard(null);
     setSelectedCardType(null);
     setLastRoll(null);
-    localStorage.removeItem('gameCode');
-    router.push('/');
+    localStorage.removeItem("gameCode");
+    router.push("/");
     setIsLoading(false);
   };
 
@@ -294,39 +328,54 @@ const GameBoard = () => {
     if (!chatInput.trim()) return;
     setChatMessages((prev) => [
       ...prev,
-      { sender: player?.username || 'Anonymous', message: chatInput },
+      { sender: player?.username || "Anonymous", message: chatInput },
     ]);
-    setChatInput('');
+    setChatInput("");
   };
 
   const handleCopyGameLink = () => {
     if (gameId) {
       const link = `https://gameroom10qd.io/${gameId}`;
-      navigator.clipboard.writeText(link).then(() => {
-        alert('Game link copied to clipboard!');
-      }).catch(() => {
-        setError('Failed to copy game link.');
-      });
+      navigator.clipboard
+        .writeText(link)
+        .then(() => {
+          alert("Game link copied to clipboard!");
+        })
+        .catch(() => {
+          setError("Failed to copy game link.");
+        });
     } else {
-      setError('No game ID available to copy.');
+      setError("No game ID available to copy.");
     }
   };
 
-  const getGridPosition = (square: BoardSquare) => ({
-    gridRowStart: square.gridPosition.row,
-    gridColumnStart: square.gridPosition.col,
+  const getGridPosition = (square: BoardDataSquare) => ({
+    gridRowStart: square.grid_row,
+    gridColumnStart: square.grid_col,
   });
 
-  const isTopHalf = (square: BoardSquare) => {
-    return square.gridPosition.row === 1; // Top row of the 11x11 grid
+  const isTopHalf = (square: BoardDataSquare) => {
+    return square.grid_row === 1; // Top row of the 11x11 grid
   };
+
+  useEffect(() => {
+    const getProperties = async () => {
+      const response = await apiClient.get<BoardDataSquare[]>("/properties");
+      if (response.length === 40) {
+        setBoardData(response);
+      }
+    };
+    getProperties();
+  }, []);
 
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
         {/* Rotate Prompt for Mobile Portrait */}
         <div className="rotate-prompt hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 text-center text-white p-4">
-          <p className="text-lg font-semibold">Please rotate your device to landscape mode for the best experience.</p>
+          <p className="text-lg font-semibold">
+            Please rotate your device to landscape mode for the best experience.
+          </p>
         </div>
 
         {/* Board Section */}
@@ -343,12 +392,17 @@ const GameBoard = () => {
                     backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
                   }}
                 >
-                  <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
+                  <h2 className="text-base font-semibold text-cyan-300 mb-3">
+                    Game Actions
+                  </h2>
                   {isLoading && (
-                    <p className="text-cyan-300 text-sm text-center mb-2">Loading...</p>
+                    <p className="text-cyan-300 text-sm text-center mb-2">
+                      Loading...
+                    </p>
                   )}
                   <div className="flex flex-col gap-2">
                     <button
+                      type="button"
                       onClick={rollDice}
                       aria-label="Roll the dice to move your player"
                       className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200"
@@ -357,7 +411,10 @@ const GameBoard = () => {
                     </button>
                     {lastRoll && (
                       <p className="text-gray-300 text-sm text-center">
-                        Rolled: <span className="font-bold text-white">{lastRoll.die1} + {lastRoll.die2} = {lastRoll.total}</span>
+                        Rolled:{" "}
+                        <span className="font-bold text-white">
+                          {lastRoll.die1} + {lastRoll.die2} = {lastRoll.total}
+                        </span>
                       </p>
                     )}
                     {showRentInput && (
@@ -372,6 +429,7 @@ const GameBoard = () => {
                         />
                         <div className="flex gap-2">
                           <button
+                            type="button"
                             onClick={handlePayRent}
                             aria-label="Confirm rent payment"
                             className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
@@ -379,6 +437,7 @@ const GameBoard = () => {
                             Confirm Rent
                           </button>
                           <button
+                            type="button"
                             onClick={handleCancelRent}
                             aria-label="Cancel rent payment"
                             className="px-2 py-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xs rounded-full hover:from-gray-600 hover:to-gray-800 transform hover:scale-105 transition-all duration-200"
@@ -390,6 +449,7 @@ const GameBoard = () => {
                     )}
                     <div className="flex flex-wrap gap-2 justify-center">
                       <button
+                        type="button"
                         onClick={() => setShowRentInput(true)} // Show input on click
                         aria-label="Pay rent for the property"
                         className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
@@ -397,6 +457,7 @@ const GameBoard = () => {
                         Pay Rent
                       </button>
                       <button
+                        type="button"
                         onClick={handleEndTurn}
                         aria-label="End your turn"
                         className="px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-105 transition-all duration-200"
@@ -404,6 +465,7 @@ const GameBoard = () => {
                         End Turn
                       </button>
                       <button
+                        type="button"
                         onClick={handlePayJailFine}
                         aria-label="Pay jail fine"
                         className="px-2 py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full hover:from-pink-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200"
@@ -411,20 +473,23 @@ const GameBoard = () => {
                         Pay Jail Fine
                       </button>
                       <button
-                        onClick={() => handleDrawCard('Chance')}
+                        type="button"
+                        onClick={() => handleDrawCard("Chance")}
                         aria-label="Draw a Chance card"
                         className="px-2 py-1 bg-gradient-to-r from-yellow-500 to-lime-500 text-white text-xs rounded-full hover:from-yellow-600 hover:to-lime-600 transform hover:scale-105 transition-all duration-200"
                       >
                         Draw Chance
                       </button>
                       <button
-                        onClick={() => handleDrawCard('CommunityChest')}
+                        type="button"
+                        onClick={() => handleDrawCard("CommunityChest")}
                         aria-label="Draw a Community Chest card"
                         className="px-2 py-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs rounded-full hover:from-teal-600 hover:to-cyan-600 transform hover:scale-105 transition-all duration-200"
                       >
                         Draw CChest
                       </button>
                       <button
+                        type="button"
                         onClick={handleEndGame}
                         aria-label="End the game"
                         className="px-2 py-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs rounded-full hover:from-red-600 hover:to-pink-600 transform hover:scale-105 transition-all duration-200"
@@ -432,6 +497,7 @@ const GameBoard = () => {
                         End Game
                       </button>
                       <button
+                        type="button"
                         onClick={handleLeaveGame}
                         aria-label="Leave the game"
                         className="px-2 py-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xs rounded-full hover:from-gray-600 hover:to-gray-800 transform hover:scale-105 transition-all duration-200"
@@ -440,7 +506,9 @@ const GameBoard = () => {
                       </button>
                     </div>
                     {error && (
-                      <p className="text-red-400 text-sm mt-2 text-center">{error}</p>
+                      <p className="text-red-400 text-sm mt-2 text-center">
+                        {error}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -452,11 +520,15 @@ const GameBoard = () => {
                     }}
                   >
                     <h3 className="text-base font-semibold text-cyan-300 mb-2">
-                      {selectedCardType === 'CommunityChest' ? 'Community Chest' : 'Chance'} Card
+                      {selectedCardType === "CommunityChest"
+                        ? "Community Chest"
+                        : "Chance"}{" "}
+                      Card
                     </h3>
                     <p className="text-sm text-gray-300">{selectedCard}</p>
                     <div className="flex gap-2 mt-2">
                       <button
+                        type="button"
                         onClick={handleProcessCard}
                         aria-label="Process the drawn card"
                         className="px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-full hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200"
@@ -465,6 +537,7 @@ const GameBoard = () => {
                         Process
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedCard(null);
                           setSelectedCardType(null);
@@ -487,28 +560,38 @@ const GameBoard = () => {
                 >
                   <div
                     className={`w-full h-full transform group-hover:scale-200 ${
-                      isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''
+                      isTopHalf(square)
+                        ? "origin-top group-hover:origin-bottom group-hover:translate-y-[100px]"
+                        : ""
                     } group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200`}
                   >
-                    {square.type === 'property' && (
+                    {square.type === "property" && (
                       <PropertyCard
                         square={square}
                         owner={ownedProperties[square.id]?.owner || null}
-                        ownerUsername={ownedProperties[square.id]?.ownerUsername || null}
-                        isConnectedPlayer={ownedProperties[square.id]?.owner === player?.username}
+                        ownerUsername={
+                          ownedProperties[square.id]?.ownerUsername || null
+                        }
+                        isConnectedPlayer={
+                          ownedProperties[square.id]?.owner === player?.username
+                        }
                       />
                     )}
-                    {square.type === 'special' && <SpecialCard square={square} />}
-                    {square.type === 'corner' && <CornerCard square={square} />}
+                    {square.type === "special" && (
+                      <SpecialCard square={square} />
+                    )}
+                    {square.type === "corner" && <CornerCard square={square} />}
                     <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
                       {players
                         .filter((p) => p.position === index)
                         .map((p) => (
                           <span
                             key={p.id}
-                            className={`text-lg md:text-2xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
+                            className={`text-lg md:text-2xl ${
+                              p.isNext ? "border-2 border-cyan-300 rounded" : ""
+                            }`}
                           >
-                            {p.token || playerTokens[p.username] || ''}
+                            {p.token || playerTokens[p.username] || ""}
                           </span>
                         ))}
                     </div>

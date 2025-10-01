@@ -143,11 +143,11 @@ const HeroSection: React.FC = () => {
         />
       </div>
       <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
-        <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-10">
+        <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
           BLOCKOPOLY
         </h1>
       </div>
-      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-center items-center gap-1">
+      <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
         {isUserRegistered && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
@@ -247,7 +247,7 @@ const HeroSection: React.FC = () => {
                     strokeWidth={1}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-10">
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <svg
@@ -307,7 +307,7 @@ const HeroSection: React.FC = () => {
                     className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
+                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
                   <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
                   Create Game
                 </span>
@@ -333,7 +333,7 @@ const HeroSection: React.FC = () => {
                     className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-10">
+                <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
                   <Dices className="mr-1.5 w-[16px] h-[16px]" />
                   Join Room
                 </span>
@@ -359,7 +359,7 @@ const HeroSection: React.FC = () => {
                     className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
+                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
                   <BarChart2 className="mr-1.5 w-[16px] h-[16px]" />
                   Game Stats {/* Or use "Battle Stats" for a catchier name */}
                 </span>

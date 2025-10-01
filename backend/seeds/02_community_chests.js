@@ -1,6 +1,4 @@
-// seeds/02_community_chests.js
 export const seed = async (knex) => {
-  // Clear existing
   await knex("community_chests").del();
 
   await knex("community_chests").insert([

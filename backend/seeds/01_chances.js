@@ -1,6 +1,4 @@
-// seeds/01_chances.js
 export const seed = async (knex) => {
-  // Clear existing
   await knex("chances").del();
 
   await knex("chances").insert([

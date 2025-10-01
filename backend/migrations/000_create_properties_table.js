@@ -1,28 +1,36 @@
-// migrations/202509090003_create_properties.js
 export const up = async (knex) => {
-  return knex.schema.createTable("properties", (table) => {
-    table.increments("id").primary();
-    table.integer("position").notNullable().unique(); // 0–39 board index
-    table.string("name", 255).notNullable();
-    table.string("color", 50).nullable(); // e.g. "brown", "light_blue", null for railroads/utilities/special
-    table.string("type", 50).notNullable(); // street, railroad, utility, tax, chance, community_chest, special(no buyable - price 0)
+  await knex.schema.createTable("properties", (table) => {
+    table.integer("id").primary(); // Auto-incrementing ID
 
-    table.integer("price").nullable(); // purchase price
-    table.integer("mortgage_value").nullable();
+    // Core attributes
+    table.string("type").notNullable(); // property | corner | special
+    table.string("name").notNullable();
+    table.integer("group_id").defaultTo(0);
 
-    // JSON rent structure for flexibility
-    table.json("rent").nullable();
-    // e.g. { "site": 2, "one_house": 10, "two_houses": 30, "three_houses": 90, "four_houses": 160, "hotel": 250 }
+    // Positioning
+    table.string("position").notNullable(); // bottom | left | top | right
+    table.integer("grid_row").notNullable();
+    table.integer("grid_col").notNullable();
 
-    // JSON for development cost e.g. { "house": 50, "hotel": 50 }
-    table.json("development_cost").nullable();
+    // Economics
+    table.integer("price").defaultTo(0);
+    table.integer("rent_site_only").defaultTo(0);
+    table.integer("rent_one_house").defaultTo(0);
+    table.integer("rent_two_houses").defaultTo(0);
+    table.integer("rent_three_houses").defaultTo(0);
+    table.integer("rent_four_houses").defaultTo(0);
+    table.integer("rent_hotel").defaultTo(0);
+    table.integer("cost_of_house").defaultTo(0);
 
+    // State
     table.boolean("is_mortgaged").defaultTo(false);
-    table.boolean("for_sale").defaultTo(true);
-    table.boolean("development").defaultTo(false);
+
+    // UI fields
+    table.string("color", 10).defaultTo("#FFFFFF"); // Hex color code
+    table.string("icon").nullable(); // image url
   });
 };
 
 export const down = async (knex) => {
-  return knex.schema.dropTable("properties");
+  await knex.schema.dropTableIfExists("properties");
 };

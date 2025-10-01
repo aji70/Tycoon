@@ -35,7 +35,7 @@ const HowItWorks = () => {
 
 
             {/* Foreground content */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#010F1000] via-[#010F10] z-10 w-full px-4 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#010F1000] via-[#010F10] z-1 w-full px-4 flex flex-col items-center justify-center">
                 <div className=' w-full flex flex-col justify-center items-center gap-2 mb-6'>
                     <h1 className="text-center text-[#F0F7F7] font-[900] md:text-[48px] text-[32px] font-orbitron leading-normal">How it works</h1>
                     <p className='md:max-w-[60%]  w-full text-center text-[20px] font-[400] font-dmSans leading-[30px] text-[#F0F7F7]'>It&apos;s super simple how Blockopoly works. The flow has been designed to help you not to stress too much.</p>
@@ -111,7 +111,7 @@ const HowItWorks = () => {
                                 strokeWidth={1}
                             />
                         </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-10">
+                        <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-1">
                             Let&apos;s Go!
                         </span>
                     </button>

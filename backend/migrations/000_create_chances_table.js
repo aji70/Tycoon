@@ -1,6 +1,6 @@
 export const up = async (knex) => {
   return knex.schema.createTable("chances", (table) => {
-    table.increments("id").primary();
+    table.integer("id").primary();
     table.text("instruction").notNullable();
 
     // 'credit', 'debit', 'move', 'credit_and_move', 'debit_and_move', 'special'
