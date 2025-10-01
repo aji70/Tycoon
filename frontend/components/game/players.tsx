@@ -244,19 +244,22 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
     return player?.user_id ?? null;
   };
 
-  const currentPlayerId = getCurrentPlayerId();
+  const myProperties: Property[] = React.useMemo(() => {
+    if (!gameProperties || !properties || !address) return [];
 
-  const myProperties = useMemo(() => {
-    if (!gameProperties || !properties || !currentPlayerId) return [];
+    const propertyMap = new Map<number, Property>(
+      properties.map((p) => [p.id, p])
+    );
 
     return gameProperties
-      .filter((gp) => gp.user_id === currentPlayerId) // only owned by me
-      .map((gp) => {
-        const prop = properties.find((p) => p.id === gp.property_id);
-        return prop ? { ...gp, ...prop } : gp;
-        // merge fields so UI has both ownership + property info
-      });
-  }, [gameProperties, properties, currentPlayerId]);
+      .filter(
+        (gp: GameProperty) =>
+          gp.address?.toLowerCase() === address.toLowerCase()
+      )
+      .map((gp: GameProperty) => propertyMap.get(gp.property_id))
+      .filter((p): p is Property => p !== undefined && p !== null);
+  }, [gameProperties, properties, address]);
+
   // const handleOfferTrade = () => {
   //   if (
   //     !tradeInputs.to ||
@@ -794,7 +797,7 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
                           {player.user_id === game.winner_id && (
                             <span className="ml-2 text-yellow-400">👑</span>
                           )}
-                          {player.user_id === currentPlayerId && (
+                          {player.address === address && (
                             <span className="text-[11px] text-cyan-300">
                               {" "}
                               (Me)
@@ -847,16 +850,13 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
                 {isPropertiesOpen && (
                   <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
                     {myProperties.length > 0 ? (
-                      <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
+                      <div className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
                         {myProperties.map((property) => (
-                          // biome-ignore lint/a11y/useKeyWithClickEvents: <explanation>
-                          <li
+                          <button
+                            type="button"
                             key={property.id}
                             className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 cursor-pointer"
-                            onClick={() =>
-                              setPropertyId(property.id.toString())
-                            }
-                            aria-label={`Select property ${property.name}`}
+                            onClick={() => setPropertyId(property.id)}
                           >
                             <div
                               className="w-4 h-4 rounded-full"
@@ -871,12 +871,13 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
                               <span className="block text-[11px] text-[#A0B1B8]">
                                 ID: {property.id} | Rent: $
                                 {property.rent_site_only} | Houses:{" "}
-                                {property.houses} | Hotels: {property.hotels}
+                                {property.houses ?? 0} | Hotels:{" "}
+                                {property.hotels ?? 0}
                               </span>
                             </div>
-                          </li>
+                          </button>
                         ))}
-                      </ul>
+                      </div>
                     ) : (
                       <p className="text-[#A0B1B8] text-[13px] text-center">
                         No properties owned yet.
