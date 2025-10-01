@@ -95,8 +95,10 @@ const GameBoard = ({
     position: number
   ) => {
     if (!id) return;
-    await apiClient.put(`/game-players/${id}/${game.id}`, {
+    await apiClient.post("/game-players/change/position", {
       position,
+      player_id: id,
+      game_id: game.id,
     });
     forceRefetch();
     return;
