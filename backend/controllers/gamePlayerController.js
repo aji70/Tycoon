@@ -44,30 +44,52 @@ const gamePlayerController = {
       res.status(400).json({ success: false, message: error.message });
     }
   },
-
   async join(req, res) {
     try {
       const { address, code, symbol } = req.body;
+
+      // find user
       const user = await User.findByAddress(address);
       if (!user) {
-        res.status(422).json({ success: false, message: "User not found" });
+        return res
+          .status(422)
+          .json({ success: false, message: "User not found" });
       }
+
+      // find game
       const game = await Game.findByCode(code);
       if (!game) {
-        res.status(422).json({ success: false, message: "Game not found" });
+        return res
+          .status(422)
+          .json({ success: false, message: "Game not found" });
       }
+
+      // find settings
       const settings = await GameSetting.findByGameId(game.id);
       if (!settings) {
-        res
+        return res
           .status(422)
           .json({ success: false, message: "Game settings not found" });
       }
+
+      // fetch players in game
       const players = await GamePlayer.findByGameId(game.id);
       if (!players) {
-        res
+        return res
           .status(422)
           .json({ success: false, message: "Game players not found" });
       }
+
+      // find max turn order (0 if no players yet)
+      const maxTurnOrder =
+        players.length > 0
+          ? Math.max(...players.map((p) => p.turn_order || 0))
+          : 0;
+
+      // assign next turn_order
+      const nextTurnOrder = maxTurnOrder + 1;
+
+      // create new player
       const player = await GamePlayer.create({
         address,
         symbol,
@@ -77,16 +99,19 @@ const gamePlayerController = {
         position: 0,
         chance_jail_card: false,
         community_chest_jail_card: false,
+        turn_order: nextTurnOrder,
       });
-      res
-        .status(201)
-        .json({ success: true, message: "Player added to game successfully" });
+
+      return res.status(201).json({
+        success: true,
+        message: "Player added to game successfully",
+        data: player,
+      });
     } catch (error) {
       console.error("Error creating game player:", error);
-      res.status(400).json({ success: false, message: error.message });
+      return res.status(400).json({ success: false, message: error.message });
     }
   },
-
   async leave(req, res) {
     try {
       const { address, code } = req.body;
@@ -99,12 +124,10 @@ const gamePlayerController = {
         res.status(422).json({ success: false, message: "Game not found" });
       }
       const player = await GamePlayer.leave(game.id, user.id);
-      res
-        .status(200)
-        .json({
-          success: true,
-          message: "Player removed to game successfully",
-        });
+      res.status(200).json({
+        success: true,
+        message: "Player removed to game successfully",
+      });
     } catch (error) {
       console.error("Error creating game player:", error);
       res.status(400).json({ success: false, message: error.message });
