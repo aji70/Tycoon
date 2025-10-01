@@ -95,7 +95,7 @@ const GameBoard = ({
     position: number
   ) => {
     if (!id) return;
-    await apiClient.post("/game-players/change/position", {
+    await apiClient.post("/game-players/change-position", {
       position,
       player_id: id,
       game_id: game.id,
