@@ -58,20 +58,7 @@ const GameBoard = ({
   const { address } = useAccount();
   const router = useRouter();
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [lastRoll, setLastRoll] = useState<{
-    die1: number;
-    die2: number;
-    total: number;
-  } | null>(null);
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [currentProperty, setCurrentProperty] = useState<Property | null>({
-    id: 0,
-    name: "Go",
-    type: "corner",
-    owner: null,
-    ownerUsername: null,
-    rent_site_only: 0,
-  });
+  const [players, setPlayers] = useState<Player[] | []>(game.players);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -86,27 +73,52 @@ const GameBoard = ({
   const [chatInput, setChatInput] = useState("");
 
   const [boardData, setBoardData] = useState<Property[]>(properties);
+  const [isRolling, setIsRolling] = useState<boolean>(false);
+  const [roll, setRoll] = useState<{
+    die1: number;
+    die2: number;
+    total: number;
+  } | null>(null);
+  const getDiceValues = () => {
+    const die1 = Number(Math.floor(Math.random() * 6) + 1);
+    const die2 = Number(Math.floor(Math.random() * 6) + 1);
+    const total = Number(die1 + die2);
+    return { die1, die2, total };
+  };
+  const UPDATE_GAME_PLAYER_POSITION = async (
+    id: undefined | null | number,
+    position: number
+  ) => {
+    if (!id) return;
+    await apiClient.put(`/game-players/${id}`, {
+      position,
+    });
+    return;
+  };
+  const ROLL_DICE = async () => {
+    try {
+      setIsRolling(true);
+      setError(null);
+      setTimeout(() => {
+        const value = getDiceValues();
+        setRoll(value);
 
-  const rollDice = () => {
-    setIsLoading(true);
-    setError(null);
-    const die1 = Math.floor(Math.random() * 6) + 1;
-    const die2 = Math.floor(Math.random() * 6) + 1;
-    const roll = die1 + die2;
-    setLastRoll({ die1, die2, total: roll });
-
-    // setPlayers((prevPlayers) => {
-    //   const newPlayers = [...prevPlayers];
-    //   const currentPlayer = { ...newPlayers[currentPlayerIndex] };
-    //   let newPosition = (currentPlayer.position + roll) % 40;
-    //   if (newPosition < 0) newPosition += 40;
-    //   currentPlayer.position = newPosition;
-    //   newPlayers[currentPlayerIndex] = currentPlayer;
-    //   return newPlayers;
-    // });
-
-    // updateCurrentProperty();
-    setIsLoading(false);
+        let newPosition = (me?.position || 0 + value.total) % 40;
+        if (newPosition < 0) newPosition += 40;
+        setPlayers((prevPlayers) => {
+          const newPlayers = [...prevPlayers];
+          const currentPlayer = { ...newPlayers[me?.position || 0] };
+          currentPlayer.position = newPosition;
+          newPlayers[me?.position || 0] = currentPlayer;
+          return newPlayers;
+        });
+        UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
+      }, 3000);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsRolling(false);
+    }
   };
 
   const updateCurrentProperty = () => {
@@ -247,7 +259,7 @@ const GameBoard = ({
   //   setOwnedProperties({});
   //   setSelectedCard(null);
   //   setSelectedCardType(null);
-  //   setLastRoll(null);
+  //   setRoll(null);
   //   localStorage.removeItem("gameCode");
   //   router.push("/");
   //   setIsLoading(false);
@@ -312,19 +324,30 @@ const GameBoard = ({
 
                 {game.next_player_id === me?.user_id ? (
                   <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={rollDice}
-                      aria-label="Roll the dice to move your player"
-                      className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200"
-                    >
-                      Roll Dice
-                    </button>
-                    {lastRoll && (
+                    {!roll ? (
+                      <button
+                        type="button"
+                        onClick={ROLL_DICE}
+                        aria-label="Roll the dice"
+                        className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        {isRolling ? "Rolling" : "Roll Dice"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={ROLL_DICE}
+                        aria-label="Move to next player"
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        End Turn
+                      </button>
+                    )}
+                    {!isRolling && roll && (
                       <p className="text-gray-300 text-sm text-center">
                         Rolled:{" "}
                         <span className="font-bold text-white">
-                          {lastRoll.die1} + {lastRoll.die2} = {lastRoll.total}
+                          {roll.die1} + {roll.die2} = {roll.total}
                         </span>
                       </p>
                     )}
@@ -509,7 +532,7 @@ const GameBoard = ({
                     )}
                     {square.type === "corner" && <CornerCard square={square} />}
                     <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
-                      {game.players
+                      {players
                         .filter((p) => p.position === index)
                         .map((p) => (
                           <button
