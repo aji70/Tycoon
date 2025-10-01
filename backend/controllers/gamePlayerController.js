@@ -187,9 +187,9 @@ const gamePlayerController = {
 
   async changePosition(req, res) {
     try {
-      const { player_id, game_id, position } = req.body;
+      const { user_id, game_id, position } = req.body;
       const game_player = await GamePlayer.findByUserIdAndGameId(
-        player_id,
+        user_id,
         game_id
       );
       if (!game_player) {
