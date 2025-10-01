@@ -54,3 +54,35 @@ export interface Player {
   joined_date: string;
   username: string;
 }
+
+export interface Property {
+  id: number;
+  type: string;
+  name: string;
+  group_id: number;
+  position: string;
+  grid_row: number;
+  grid_col: number;
+  price: number;
+  rent_site_only: number;
+  rent_one_house: number;
+  rent_two_houses: number;
+  rent_three_houses: number;
+  rent_four_houses: number;
+  rent_hotel: number;
+  cost_of_house: number;
+  is_mortgaged: boolean;
+  color: string;
+  icon?: string | null;
+}
+
+export interface GameProperty {
+  id: number;
+  game_id: number;
+  address: string,
+  player_id: number;
+  property_id: number;
+  mortgaged: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}

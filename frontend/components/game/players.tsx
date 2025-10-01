@@ -13,7 +13,10 @@ import React, { useState, useMemo, useEffect } from "react";
 import { PiUsersThree } from "react-icons/pi";
 import { boardData } from "@/data/board-data";
 import { apiClient } from "@/lib/api";
-import { Game, Player } from "@/types/game";
+import { Game, Player, Property, GameProperty } from "@/types/game";
+import { useAccount } from "wagmi";
+import { getPlayerSymbol } from "@/lib/types/symbol";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface TradeInputs {
   to: string;
@@ -29,22 +32,6 @@ interface TradeInputs {
   originalOfferId: string;
 }
 
-interface Property {
-  id: number;
-  name: string;
-  type: string;
-  owner: string | null;
-  ownerUsername: string | null;
-  rent_site_only: number;
-  cost?: number;
-  mortgage?: number;
-  color?: string;
-  house_cost?: number;
-  hotel_cost?: number;
-  houses: number;
-  hotels: number;
-}
-
 interface OwnedProperty {
   owner: string;
   ownerUsername: string;
@@ -56,6 +43,8 @@ interface GamePlayersProps {
   gameId: number;
 }
 const GamePlayers = ({ gameId }: GamePlayersProps) => {
+  const queryClient = useQueryClient();
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [tradeInputs, setTradeInputs] = useState<TradeInputs>({
@@ -77,11 +66,12 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [propertyId, setPropertyId] = useState("");
+  const [propertyId, setPropertyId] = useState<number | null>(null);
   const [selectedRequestedProperties, setSelectedRequestedProperties] =
     useState<number[]>([]);
 
-  const [game, setGame] = useState<Game | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
+  // const [game, setGame] = useState<Game | null>(null);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [currentProperty, setCurrentProperty] = useState<Property | null>({
     id: 0,
@@ -139,17 +129,66 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
       hotels: 0,
     },
   });
+  // const [allProperties, setAllProperties] = useState<Property[] | []>([]);
+  const [gameProperties, setGameProperties] = useState<[]>([]);
+  const { address, isConnecting } = useAccount();
 
-  useEffect(() => {
-    const getGame = async () => {
-      const response = await apiClient.get<Game | null>(`/games/${gameId}`);
-      if (response) {
-        setGame(response);
-      }
-    };
-    getGame();
-  }, [gameId]);
+  const getGame = async () => {
+    return await apiClient.get<Game | null>(`/games/${gameId}`);
+  };
+  const getAllProperties = async () => {
+    return await apiClient.get<Property[]>("/properties");
+  };
+  const getGameProperties = async () => {
+    return await apiClient.get<GameProperty[]>(
+      `/game-properties/game/${gameId}`
+    );
+  };
+  const getPlayerProperties = async (id: number) => {
+    return await apiClient.get<GameProperty[]>(`/game-properties/player/${id}`);
+  };
 
+  const {
+    data: game,
+    isLoading: gameLoading,
+    isError: gameError,
+  } = useQuery({
+    queryKey: ["game", gameId],
+    queryFn: async () => {
+      const res = await getGame();
+      return res;
+    },
+    refetchInterval: 5000, // auto refetch every 5s
+  });
+
+  const {
+    data: game_properties,
+    isLoading: gamePropertiesLoading,
+    isError: gamePropertiesError,
+  } = useQuery({
+    queryKey: ["game_properties", gameId],
+    queryFn: async () => {
+      const res = await getGameProperties();
+      return res;
+    },
+    refetchInterval: 15000, // auto refetch every 15s
+  });
+
+  const {
+    data: properties,
+    isLoading: propertiesLoading,
+    isError: propertiesError,
+  } = useQuery({
+    queryKey: ["properties"],
+    queryFn: async () => {
+      const res = await getAllProperties();
+      return res;
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  // ✅ Force refresh immediately after the mutation
+  // queryClient.invalidateQueries({ queryKey: ["game", gameId] });
   // Compute properties owned by other players
   // const otherPlayersProperties = useMemo(() => {
   //   const currentPlayer = players[currentPlayerIndex];
@@ -179,24 +218,45 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // const toggleProperties = () => {
-  //   setIsPropertiesOpen(!isPropertiesOpen);
-  // };
+  const toggleProperties = () => {
+    setIsPropertiesOpen(!isPropertiesOpen);
+  };
 
-  // const openModal = (modal: keyof typeof modalState) => {
-  //   setModalState({
-  //     offerTrade: false,
-  //     manageTrades: false,
-  //     counterTrade: false,
-  //     property: false,
-  //     management: false,
-  //     [modal]: true,
-  //   });
-  //   if (modal === "offerTrade") {
-  //     setSelectedRequestedProperties([]);
-  //   }
-  // };
+  const openModal = (modal: keyof typeof modalState) => {
+    setModalState({
+      offerTrade: false,
+      manageTrades: false,
+      counterTrade: false,
+      property: false,
+      management: false,
+      [modal]: true,
+    });
+    if (modal === "offerTrade") {
+      setSelectedRequestedProperties([]);
+    }
+  };
 
+  const getCurrentPlayerId = () => {
+    if (!game || !address) return null;
+    const player = game.players.find(
+      (p) => p.address.toLowerCase() === address.toLowerCase()
+    );
+    return player?.user_id ?? null;
+  };
+
+  const currentPlayerId = getCurrentPlayerId();
+
+  const myProperties = useMemo(() => {
+    if (!gameProperties || !properties || !currentPlayerId) return [];
+
+    return gameProperties
+      .filter((gp) => gp.user_id === currentPlayerId) // only owned by me
+      .map((gp) => {
+        const prop = properties.find((p) => p.id === gp.property_id);
+        return prop ? { ...gp, ...prop } : gp;
+        // merge fields so UI has both ownership + property info
+      });
+  }, [gameProperties, properties, currentPlayerId]);
   // const handleOfferTrade = () => {
   //   if (
   //     !tradeInputs.to ||
@@ -717,7 +777,7 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
                     <li
                       key={player.user_id}
                       className={`p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 ${
-                        index === currentPlayerIndex
+                        player.user_id === game.next_player_id
                           ? "border-l-4 border-cyan-300"
                           : ""
                       }`}
@@ -725,49 +785,133 @@ const GamePlayers = ({ gameId }: GamePlayersProps) => {
                         player.user_id === game.winner_id ? "(Leader)" : ""
                       }`}
                     >
-                      <div
-                        className="w-4 h-4 rounded-full"
-                        style={{
-                          backgroundColor:
-                            player.symbol === "car"
-                              ? "#FFBE04"
-                              : player.symbol === "battleship"
-                              ? "#0E8AED"
-                              : player.symbol === "dog"
-                              ? "#A52A2A"
-                              : player.symbol === "hat"
-                              ? "#000000"
-                              : player.symbol === "wheelbarrow"
-                              ? "#228B22"
-                              : player.symbol === "iron"
-                              ? "#4682B4"
-                              : "#FF4500",
-                        }}
-                      />
+                      <div className="w-4 h-4 rounded-full">
+                        {getPlayerSymbol(player.symbol)}
+                      </div>
                       <div className="flex-1">
                         <span className="font-medium">
                           {player.username}
                           {player.user_id === game.winner_id && (
                             <span className="ml-2 text-yellow-400">👑</span>
                           )}
-                          {index === currentPlayerIndex && (
+                          {player.user_id === currentPlayerId && (
                             <span className="text-[11px] text-cyan-300">
                               {" "}
                               (Me)
                             </span>
                           )}
                         </span>
-                        <span className="block text-[11px] text-[#A0B1B8]">
-                          Position: {player.position} | Balance: $
-                          {player.balance}
+                        <div className="flex flex-col">
+                          <div className="flex flex-row space-x-3 text-[11px] text-[#A0B1B8]">
+                            <span>Position: {player.position}</span>
+                            <span>|</span>
+                            <span>Balance: ${player.balance}</span>
+                          </div>
                           {player.position === 30 && (
-                            <span className="ml-2 text-red-400">(Jailed)</span>
+                            <div className="ml-2 text-red-400">(Jailed)</div>
                           )}
-                        </span>
+                        </div>
                       </div>
                     </li>
                   ))}
               </ul>
+            </div>
+          </div>
+
+          {/* Properties Section */}
+          <div
+            className={`w-full flex flex-col gap-6 ${
+              isSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            <div className="w-full flex flex-col gap-4">
+              <h4 className="font-[700] font-dmSans text-[16px] text-[#F0F7F7]">
+                My Properties
+              </h4>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={toggleProperties}
+                  className="flex items-center justify-between w-full px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 rounded-[12px] text-[#F0F7F7] text-[13px] font-semibold font-dmSans hover:from-cyan-700 hover:to-teal-700 hover:shadow-[0_0_8px_rgba(45,212,191,0.3)] transition-all duration-300"
+                  aria-label={
+                    isPropertiesOpen ? "Collapse My Empire" : "Expand My Empire"
+                  }
+                >
+                  <span>My Empire</span>
+                  {isPropertiesOpen ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+                {isPropertiesOpen && (
+                  <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
+                    {myProperties.length > 0 ? (
+                      <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
+                        {myProperties.map((property) => (
+                          // biome-ignore lint/a11y/useKeyWithClickEvents: <explanation>
+                          <li
+                            key={property.id}
+                            className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 cursor-pointer"
+                            onClick={() =>
+                              setPropertyId(property.id.toString())
+                            }
+                            aria-label={`Select property ${property.name}`}
+                          >
+                            <div
+                              className="w-4 h-4 rounded-full"
+                              style={{
+                                backgroundColor: property.color || "#FFFFFF",
+                              }}
+                            />
+                            <div className="flex-1">
+                              <span className="font-medium">
+                                {property.name}
+                              </span>
+                              <span className="block text-[11px] text-[#A0B1B8]">
+                                ID: {property.id} | Rent: $
+                                {property.rent_site_only} | Houses:{" "}
+                                {property.houses} | Hotels: {property.hotels}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[#A0B1B8] text-[13px] text-center">
+                        No properties owned yet.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openModal("property")}
+                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-green-700 to-emerald-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-green-800 hover:to-emerald-800 hover:shadow-[0_0_12px_rgba(16,185,129,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  aria-label="Open property actions"
+                >
+                  <Plus className="w-4 h-4" />
+                  Property
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openModal("management")}
+                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-purple-700 to-indigo-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-purple-800 hover:to-indigo-800 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  aria-label="Open property management actions"
+                >
+                  <Plus className="w-4 h-4" />
+                  Management
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-red-700 to-pink-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-red-800 hover:to-pink-800 hover:shadow-[0_0_12px_rgba(239,68,68,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  aria-label="Declare bankruptcy"
+                >
+                  <Flag className="w-4 h-4" />
+                  Bankruptcy
+                </button>
+              </div>
             </div>
           </div>
         </div>

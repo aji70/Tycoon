@@ -18,3 +18,8 @@ export const symbols: PlayerSymbol[] = [
 export const getPlayerSymbolData = (value: string) => {
   return symbols.find((s) => s.value === value);
 };
+
+export const getPlayerSymbol = (value: string) => {
+  const symbol = symbols.find((s) => s.value === value);
+  return symbol?.emoji;
+};
