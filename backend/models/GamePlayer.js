@@ -61,6 +61,15 @@ const GamePlayer = {
       .orderBy("gp.created_at", "desc");
   },
 
+  async findByUserIdAndGameId(player_id, game_id) {
+    return db("game_players")
+      .select("id")
+      .where("player_id", player_id)
+      .where("game_id", game_id)
+      .orderBy("id", "desc")
+      .first();
+  },
+  
   async findByGameId(gameId) {
     return db("game_players as gp")
       .leftJoin("users as u", "gp.user_id", "u.id")

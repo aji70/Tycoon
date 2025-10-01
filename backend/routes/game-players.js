@@ -20,4 +20,5 @@ router.delete("/:id", gamePlayerController.remove);
 router.get("/game/:gameId", gamePlayerController.findByGame);
 router.get("/user/:userId", gamePlayerController.findByUser);
 
+router.post("/change-position", gamePlayerController.changePosition);
 export default router;

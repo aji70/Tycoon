@@ -13,6 +13,7 @@ import { Game, GameProperty, Property, Player } from "@/types/game";
 import { useAccount } from "wagmi";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface GameProps {
   game: Game;
@@ -57,6 +58,10 @@ const GameBoard = ({
 }: GameProps) => {
   const { address } = useAccount();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const forceRefetch = () => {
+    queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+  };
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [players, setPlayers] = useState<Player[] | []>(game.players);
   const [error, setError] = useState<string | null>(null);
@@ -90,9 +95,10 @@ const GameBoard = ({
     position: number
   ) => {
     if (!id) return;
-    await apiClient.put(`/game-players/${id}`, {
+    await apiClient.put(`/game-players/${id}/${game.id}`, {
       position,
     });
+    forceRefetch();
     return;
   };
   const ROLL_DICE = () => {
