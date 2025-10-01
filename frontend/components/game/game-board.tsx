@@ -95,30 +95,25 @@ const GameBoard = ({
     });
     return;
   };
-  const ROLL_DICE = async () => {
-    try {
-      setIsRolling(true);
-      setError(null);
-      setTimeout(() => {
-        const value = getDiceValues();
-        setRoll(value);
+  const ROLL_DICE = () => {
+    setIsRolling(true);
+    setError(null);
+    setTimeout(() => {
+      const value = getDiceValues();
+      setRoll(value);
 
-        let newPosition = (me?.position || 0 + value.total) % 40;
-        if (newPosition < 0) newPosition += 40;
-        setPlayers((prevPlayers) => {
-          const newPlayers = [...prevPlayers];
-          const currentPlayer = { ...newPlayers[me?.position || 0] };
-          currentPlayer.position = newPosition;
-          newPlayers[me?.position || 0] = currentPlayer;
-          return newPlayers;
-        });
-        UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
-      }, 3000);
-    } catch (error) {
-      console.log(error);
-    } finally {
+      let newPosition = (me?.position || 0 + value.total) % 40;
+      if (newPosition < 0) newPosition += 40;
+      setPlayers((prevPlayers) => {
+        const newPlayers = [...prevPlayers];
+        const currentPlayer = { ...newPlayers[me?.position || 0] };
+        currentPlayer.position = newPosition;
+        newPlayers[me?.position || 0] = currentPlayer;
+        return newPlayers;
+      });
+      UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
       setIsRolling(false);
-    }
+    }, 3000);
   };
 
   const updateCurrentProperty = () => {
