@@ -110,21 +110,32 @@ const GameBoard = ({
       const value = getDiceValues();
       setRoll(value);
 
-      let newPosition = (me?.position || 0 + value.total) % 40;
+      // fix precedence bug
+      let newPosition = ((me?.position ?? 0) + value.total) % 40;
       if (newPosition < 0) newPosition += 40;
+
       setPlayers((prevPlayers) => {
         const newPlayers = [...prevPlayers];
-        const currentPlayer = { ...newPlayers[me?.position || 0] };
-        currentPlayer.position = newPosition;
-        newPlayers[me?.position || 0] = currentPlayer;
+        // fix indexing bug: find by user_id
+        const playerIndex = newPlayers.findIndex(
+          (p) => p.user_id === me?.user_id
+        );
+        if (playerIndex !== -1) {
+          const currentPlayer = {
+            ...newPlayers[playerIndex],
+            position: newPosition,
+          };
+          newPlayers[playerIndex] = currentPlayer;
+        }
         return newPlayers;
       });
+
       UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
       setIsRolling(false);
     }, 3000);
   };
 
-  const END_TURN = async (id) => {
+  const END_TURN = async (id?: number) => {
     setRoll(null);
     if (!id || game.next_player_id !== id) return;
     await apiClient.post("/game-players/end-turn", {
@@ -132,35 +143,17 @@ const GameBoard = ({
       game_id: game.id,
     });
     forceRefetch();
-    return;
   };
 
-  const updateCurrentProperty = () => {
-    const currentPlayer = players[currentPlayerIndex];
-    const square = boardData.find((s) => s.id === currentPlayer.position);
-    if (square) {
-      setCurrentProperty({
-        id: square.id,
-        name: square.name || "Unknown",
-        type: square.type,
-        owner: ownedProperties[square.id]?.owner || null,
-        ownerUsername: ownedProperties[square.id]?.ownerUsername || null,
-        rent_site_only: square.rent_site_only || 0,
-      });
-    } else {
-      setCurrentProperty(null);
-    }
-  };
-
-  const handleDrawCard = (type: "Chance" | "CommunityChest") => {
-    setIsLoading(true);
-    setError(null);
-    const cardList = type === "Chance" ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
-    const randomCard = cardList[Math.floor(Math.random() * cardList.length)];
-    setSelectedCard(randomCard);
-    setSelectedCardType(type);
-    setIsLoading(false);
-  };
+  // const handleDrawCard = (type: "Chance" | "CommunityChest") => {
+  //   setIsLoading(true);
+  //   setError(null);
+  //   const cardList = type === "Chance" ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
+  //   const randomCard = cardList[Math.floor(Math.random() * cardList.length)];
+  //   setSelectedCard(randomCard);
+  //   setSelectedCardType(type);
+  //   setIsLoading(false);
+  // };
 
   const handleProcessCard = () => {
     if (!selectedCard) {
@@ -351,7 +344,7 @@ const GameBoard = ({
                     ) : (
                       <button
                         type="button"
-                        onClick={END_TURN(me?.user_id)}
+                        onClick={() => END_TURN(me?.user_id)}
                         aria-label="Move to next player"
                         className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200"
                       >

@@ -138,7 +138,7 @@ const gamePlayerController = {
     try {
       const player = await GamePlayer.findById(req.params.id);
       if (!player)
-        return res.status(404).json({ error: "Game player not found" });
+        return res.status(400).json({ error: "Game player not found" });
       res.json(player);
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -188,6 +188,10 @@ const gamePlayerController = {
   async changePosition(req, res) {
     try {
       const { user_id, game_id, position } = req.body;
+      const game = await Game.findById(game_id);
+      if (!game) {
+        res.json({ error: "Game not found" });
+      }
       const game_player = await GamePlayer.findByUserIdAndGameId(
         user_id,
         game_id
@@ -200,6 +204,80 @@ const gamePlayerController = {
       });
       res.json(update_game_player);
     } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  async endTurn(req, res) {
+    try {
+      const { user_id, game_id } = req.body;
+
+      // Find the game
+      const game = await Game.findById(game_id);
+      if (!game) {
+        return res.status(400).json({ error: "Game not found" });
+      }
+
+      // Verify the current player exists
+      const current_player = await GamePlayer.findByUserIdAndGameId(
+        user_id,
+        game_id
+      );
+      if (!current_player) {
+        return res.status(400).json({ error: "Game player not found" });
+      }
+
+      if (current_player.id !== game.next_player_id) {
+        return res.status(400).json({ error: "It is not your turn" });
+      }
+
+      // Get all players in the game ordered by turn_order
+      const all_players = await GamePlayer.findByGameId(game_id);
+
+      if (!all_players || all_players.length === 0) {
+        return res.status(400).json({ error: "No players found in game" });
+      }
+
+      // Sort players by turn_order to maintain clockwise rotation
+      const sorted_players = all_players.sort(
+        (a, b) => a.turn_order - b.turn_order
+      );
+
+      // Find current player's index
+      const current_player_index = sorted_players.findIndex(
+        (player) => player.user_id === user_id
+      );
+
+      if (current_player_index === -1) {
+        return res
+          .status(400)
+          .json({ error: "Current player not found in player list" });
+      }
+
+      // Calculate next player index (clockwise rotation)
+      let next_player_index;
+      if (current_player_index === sorted_players.length - 1) {
+        // If current player is last, wrap around to first player
+        next_player_index = 0;
+      } else {
+        // Otherwise, move to next player
+        next_player_index = current_player_index + 1;
+      }
+
+      const next_player = sorted_players[next_player_index];
+
+      if (!next_player) {
+        return res.status(400).json({ error: "Next player not found" });
+      }
+
+      // Update game with next player
+      const update_game = await Game.update(game.id, {
+        next_player_id: next_player.user_id,
+      });
+
+      res.json(update_game);
+    } catch (error) {
+      console.error("Error ending turn:", error);
       res.status(400).json({ error: error.message });
     }
   },

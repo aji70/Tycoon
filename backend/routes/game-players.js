@@ -21,4 +21,5 @@ router.get("/game/:gameId", gamePlayerController.findByGame);
 router.get("/user/:userId", gamePlayerController.findByUser);
 
 router.post("/change-position", gamePlayerController.changePosition);
+router.post("/end-turn", gamePlayerController.endTurn);
 export default router;

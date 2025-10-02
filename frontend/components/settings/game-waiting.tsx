@@ -149,10 +149,7 @@ export default function GameWaiting(): JSX.Element {
       setError(null);
       try {
         const resp = await apiClient.get<Game>(
-          `/games/code/${encodeURIComponent(gameCode)}`,
-          {
-            signal: abort.signal as unknown as undefined, // apiClient may not accept signal, keep for compatibility
-          }
+          `/games/code/${encodeURIComponent(gameCode)}`
         );
 
         if (!mountedRef.current) return;
@@ -183,7 +180,7 @@ export default function GameWaiting(): JSX.Element {
             }
           );
           if (updateRes?.success)
-            router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
+            router.push(`/game-play?gameCode=${gameCode}`);
         }
       } catch (err: any) {
         if (!mountedRef.current) return;

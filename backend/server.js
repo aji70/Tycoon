@@ -3,6 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
+import { Server } from "socket.io";
+import http, { createServer } from "node:http";
 
 // Import routes
 import usersRoutes from "./routes/users.js";
@@ -21,6 +23,34 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("join-game-room", (gameCode) => {
+    socket.join(gameCode);
+    console.log(`User ${socket.id} joined room: ${gameCode}`);
+  });
+
+  socket.on("leave-game-room", (gameCode) => {
+    socket.leave(gameCode);
+    console.log(`User ${socket.id} left room: ${gameCode}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -85,4 +115,4 @@ app.listen(PORT, () => {
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
 });
 
-export default app;
+export { app, server, io };

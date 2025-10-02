@@ -1,3 +1,12 @@
+export interface GameContextProps {
+  isAppearanceModalOpen: boolean;
+  setAppearanceModalOpen: (isOpen: boolean) => void;
+  players: Player[];
+  setPlayers: (players: Player[]) => void;
+  selectedColor: string;
+  setSelectedColor: (color: string) => void;
+}
+
 export interface BoardDataSquare {
   id: number;
   type: "corner" | "property" | "special";
@@ -19,6 +28,7 @@ export interface BoardDataSquare {
   icon: string;
 }
 
+export type Position = "bottom" | "left" | "top" | "right";
 export interface Game {
   id: number;
   code: string;
@@ -60,7 +70,7 @@ export interface Property {
   type: string;
   name: string;
   group_id: number;
-  position: string;
+  position: Position;
   grid_row: number;
   grid_col: number;
   price: number;
