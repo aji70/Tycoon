@@ -81,6 +81,7 @@ struct Property {
 mapping(address => User) public users;
 mapping(string => address) private usernameToAddress; // to enforce unique usernames
 mapping(uint256 => address) private userIdToAddress;  // lookup by sequential ID
+mapping(address => bool) public isRegistered;
 
 mapping(uint256 => Game) public games;
 mapping(uint256 => GameSettings) public gameSettings;
@@ -100,7 +101,7 @@ event DiceRolled(uint256 indexed gameId, address player, uint256 die1, uint256 d
 // -------------------------
 
 modifier onlyRegistered() {
-    require(users[msg.sender].playerAddress != address(0), "Player not registered");
+  require(isRegistered[msg.sender], "Player not registered");
     _;
 }
 
@@ -123,6 +124,7 @@ function registerPlayer(string memory username)
 
     totalUsers++;
     uint64 nowTime = uint64(block.timestamp);
+    isRegistered[msg.sender] = true;
 
     users[msg.sender] = User({
         id: totalUsers,

@@ -211,7 +211,11 @@ contract Blockopoly {
         return gameId;
     }
 
-   function joinGame(uint256 gameId, string memory playerSymbol) public onlyRegistered returns (uint256) {
+  function joinGame(uint256 gameId, string memory playerSymbol) 
+    public 
+    onlyRegistered 
+    returns (uint256) 
+{
     Game storage game = games[gameId];
     require(game.creator != address(0), "Game not found");
     require(game.status == GameStatus.Pending, "Game not open");
@@ -239,21 +243,57 @@ contract Blockopoly {
     gp.symbol = pSym;
     gp.username = addressToUsername[msg.sender];
 
-    // increment joined players and return this player's order
+    // increment joined players
     game.joinedPlayers++;
+
+    // ✅ if last player joined, start the game automatically
+    if (game.joinedPlayers == game.numberOfPlayers) {
+        game.status = GameStatus.Ongoing;
+    }
+
     return gp.order;
 }
+
 
 function gamePlayerInGame(uint256 gameId, address player) public view returns (bool) {
     return gamePlayersMap[gameId][player];
 }
+event PlayerLeft(uint256 indexed gameId, address indexed player);
 
-    function startGame(uint256 gameId) public {
-        Game storage game = games[gameId];
-        require(msg.sender == game.creator, "Only creator");
-        require(game.status == GameStatus.Pending, "Already started");
-        game.status = GameStatus.Ongoing;
+function leaveGame(uint256 gameId) public onlyRegistered {
+    Game storage game = games[gameId];
+    require(game.creator != address(0), "Game not found");
+    require(gamePlayersMap[gameId][msg.sender], "You are not in this game");
+    require(game.status != GameStatus.Ended, "Game already ended");
+
+    // remove player from maps
+    delete gamePlayers[gameId][msg.sender];
+    delete gamePlayerSymbols[gameId][msg.sender];
+    gamePlayersMap[gameId][msg.sender] = false;
+
+    // reduce joined players count
+    if (game.joinedPlayers > 0) {
+        game.joinedPlayers--;
     }
+
+    // ✅ If only 1 player remains, declare them winner
+    if (game.status == GameStatus.Ongoing && game.joinedPlayers == 1) {
+        address winner;
+        for (uint256 i = 1; i <= totalUsers; i++) {
+            address p = playerIdToAddress[i];
+            if (gamePlayersMap[gameId][p]) {
+                winner = p;
+                break;
+            }
+        }
+        require(winner != address(0), "No winner found");
+        game.status = GameStatus.Ended;
+        game.winner = winner;
+        game.endedAt = uint64(block.timestamp);
+    }
+
+    emit PlayerLeft(gameId, msg.sender);
+}
 
     function endGame(uint256 gameId, address winnerAddr) public {
         Game storage game = games[gameId];
