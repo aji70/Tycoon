@@ -3,12 +3,13 @@ import NavBar from "@/components/shared/navbar";
 import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { getMetadata } from "@/utils/getMeatadata";
-import { headers } from 'next/headers';
-import ContextProvider from '@/context';
-import AppKitProviderWrapper from '@/components/AppKitProviderWrapper';
+import { headers } from "next/headers";
+import ContextProvider from "@/context";
+import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import { PlayerContractProvider } from "@/context/ContractProvider";
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { SocketProvider } from "@/context/SocketContext";
 
 export const metadata = getMetadata({
   title: "Blockopoly",
@@ -22,7 +23,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const headersObj = await headers();
-  const cookies = headersObj.get('cookie');
+  const cookies = headersObj.get("cookie");
 
   return (
     <html
@@ -34,27 +35,33 @@ export default async function RootLayout({
         <ContextProvider cookies={cookies}>
           <PlayerContractProvider>
             <AppKitProviderWrapper>
-              <NavBar />
-              {children}
-              <ScrollToTopBtn />
-              <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="dark"
-                toastStyle={{
-                  fontFamily: 'Orbitron, sans-serif',
-                  background: '#0E1415',
-                  color: '#00F0FF',
-                  border: '1px solid #003B3E',
-                }}
-              />
+              {/* <SocketProvider
+                serverUrl={
+                  "https://base-monopoly-production.up.railway.app/api"
+                }
+              > */}
+                <NavBar />
+                {children}
+                <ScrollToTopBtn />
+                <ToastContainer
+                  position="top-right"
+                  autoClose={5000}
+                  hideProgressBar={false}
+                  newestOnTop
+                  closeOnClick
+                  rtl={false}
+                  pauseOnFocusLoss
+                  draggable
+                  pauseOnHover
+                  theme="dark"
+                  toastStyle={{
+                    fontFamily: "Orbitron, sans-serif",
+                    background: "#0E1415",
+                    color: "#00F0FF",
+                    border: "1px solid #003B3E",
+                  }}
+                />
+              {/* </SocketProvider> */}
             </AppKitProviderWrapper>
           </PlayerContractProvider>
         </ContextProvider>

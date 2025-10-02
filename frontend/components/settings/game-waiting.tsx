@@ -176,9 +176,12 @@ export default function GameWaiting(): JSX.Element {
 
         // if all players joined, try to transition server-side and redirect
         if (resp.players.length === resp.number_of_players) {
-          const updateRes = await apiClient.put<ApiResponse>(`/games/${resp.id}`, {
-            status: "RUNNING",
-          });
+          const updateRes = await apiClient.put<ApiResponse>(
+            `/games/${resp.id}`,
+            {
+              status: "RUNNING",
+            }
+          );
           if (updateRes?.success)
             router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
         }

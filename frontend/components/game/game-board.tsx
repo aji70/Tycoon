@@ -124,6 +124,17 @@ const GameBoard = ({
     }, 3000);
   };
 
+  const END_TURN = async (id) => {
+    setRoll(null);
+    if (!id || game.next_player_id !== id) return;
+    await apiClient.post("/game-players/end-turn", {
+      user_id: id,
+      game_id: game.id,
+    });
+    forceRefetch();
+    return;
+  };
+
   const updateCurrentProperty = () => {
     const currentPlayer = players[currentPlayerIndex];
     const square = boardData.find((s) => s.id === currentPlayer.position);
@@ -314,6 +325,7 @@ const GameBoard = ({
           <p className="text-lg font-semibold">
             Please rotate your device to landscape mode for the best experience.
           </p>
+          UPDATE_GAME_PLAYER_POSITION
         </div>
 
         {/* Board Section */}
@@ -339,7 +351,7 @@ const GameBoard = ({
                     ) : (
                       <button
                         type="button"
-                        onClick={ROLL_DICE}
+                        onClick={END_TURN(me?.user_id)}
                         aria-label="Move to next player"
                         className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200"
                       >
