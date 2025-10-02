@@ -82,6 +82,7 @@ mapping(address => User) public users;
 mapping(string => address) private usernameToAddress; // to enforce unique usernames
 mapping(uint256 => address) private userIdToAddress;  // lookup by sequential ID
 mapping(address => bool) public isRegistered;
+mapping(address => string) public addressToUsername;
 
 mapping(uint256 => Game) public games;
 mapping(uint256 => GameSettings) public gameSettings;
@@ -141,6 +142,7 @@ function registerPlayer(string memory username)
 
     usernameToAddress[username] = msg.sender;
     userIdToAddress[totalUsers] = msg.sender;
+    addressToUsername[msg.sender] = username;
 
     emit PlayerCreated(username, msg.sender, nowTime);
     return totalUsers;

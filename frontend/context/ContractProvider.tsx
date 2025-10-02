@@ -11,7 +11,7 @@ import { Address } from 'viem';
 import PlayerABI from './abi.json';
 
 const CONTRACT_ADDRESS =
-  '0x7c1d3Dc64Bfba7073656034bC1500b2D7915B394' as Address;
+  '0x494b240f12Ada8Cac02415c8D02b167c07331773' as Address;
 
 /* ----------------------- Types ----------------------- */
 type PlayerData = {
