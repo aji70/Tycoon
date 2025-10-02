@@ -227,9 +227,9 @@ const gamePlayerController = {
         return res.status(400).json({ error: "Game player not found" });
       }
 
-      if (current_player.id !== game.next_player_id) {
-        return res.status(400).json({ error: "It is not your turn" });
-      }
+      // if (current_player.id !== game.next_player_id) {
+      //   return res.status(400).json({ error: "It is not your turn" });
+      // }
 
       // Get all players in the game ordered by turn_order
       const all_players = await GamePlayer.findByGameId(game_id);
