@@ -189,10 +189,6 @@ const GameBoard = ({
       setIsProcessing(true);
 
       const prevPlayers = players;
-      safeSetPlayers((prev) =>
-        prev.map((p) => ({ ...p }))
-      );
-
 
       try {
         await apiClient.post("/game-players/end-turn", { user_id: id, game_id: game.id });
