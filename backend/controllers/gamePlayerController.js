@@ -229,11 +229,11 @@ const gamePlayerController = {
       await GamePlayHistory.create({
         game_id,
         game_player_id: game_player.id,
-        rolled, // could be null if manually moved
+        rolled, 
         old_position,
         new_position,
         action: actionType,
-        amount: 0, // future logic can adjust based on property/rent
+        amount: 0, 
         extra: JSON.stringify({
           description: `Player moved from ${old_position} → ${new_position}`,
         }),

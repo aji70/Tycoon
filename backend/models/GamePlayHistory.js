@@ -56,7 +56,7 @@ const GamePlayHistory = {
       .where("h.game_id", gameId)
       .limit(limit)
       .offset(offset)
-      .orderBy("h.created_at", "asc"); // chronological order
+      .orderBy("h.created_at", "desc"); // chronological order
   },
 
   async findByPlayerId(gamePlayerId, { limit = 100, offset = 0 } = {}) {
@@ -86,7 +86,7 @@ const GamePlayHistory = {
   async delete(id) {
     return db("game_play_history").where({ id }).del();
   },
-  
+
   async findLatestActiveByGameId(game_id) {
     return await db("game_play_history")
       .where({ game_id, active: 1 })
