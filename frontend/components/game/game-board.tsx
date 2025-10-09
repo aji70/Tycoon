@@ -192,7 +192,6 @@ const GameBoard = ({
         safeSetPlayers(() => optimisticPlayers);
       }
 
-      const controller = new AbortController();
       try {
         await apiClient.post(
           "/game-players/end-turn",
@@ -211,7 +210,7 @@ const GameBoard = ({
         console.error("END_TURN error:", err);
         if (isMountedRef.current) {
           setPlayers(prevPlayers); // rollback
-          setError("Failed to end turn. Try again.");
+          // setError("Failed to end turn. Try again.");
           forceRefetch();
         }
       } finally {
