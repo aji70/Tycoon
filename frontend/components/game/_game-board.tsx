@@ -94,70 +94,19 @@ const GameBoard = ({
     }
     return { die1, die2, total };
   };
-
-
   const UPDATE_GAME_PLAYER_POSITION = async (
     id: undefined | null | number,
     position: number
   ) => {
     if (!id) return;
-    setPlayers((prevPlayers) =>
-      prevPlayers.map((p) =>
-        p.user_id === id ? { ...p, position } : p
-      )
-    );
-
-    try {
-      await apiClient.post("/game-players/change-position", {
-        position,
-        user_id: id,
-        game_id: game.id,
-      });
-      const updatedGame = await apiClient.get<Game>(`/games/${game.code}`);
-
-      if (updatedGame && updatedGame.players) {
-        setPlayers(updatedGame.players);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["game", game.code] });
-    } catch (err) {
-      console.error("Error updating player position:", err);
-      setError("Failed to update player position. Try again.");
-
-      forceRefetch();
-    }
+    await apiClient.post("/game-players/change-position", {
+      position,
+      user_id: id,
+      game_id: game.id,
+    });
+    forceRefetch();
+    return;
   };
-
-
-  const END_TURN = async (id?: number) => {
-    setRollAgain(false);
-    setRoll(null);
-
-    if (!id || game.next_player_id !== id) return;
-
-    try {
-
-      await apiClient.post("/game-players/end-turn", {
-        user_id: id,
-        game_id: game.id,
-      });
-
-      const updatedGame = await apiClient.get<Game>(`/games/${game.code}`);
-
-      if (updatedGame && updatedGame.players) {
-        setPlayers(updatedGame.players);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["game", game.code] });
-    } catch (err) {
-      console.error("Error ending turn:", err);
-      setError("Failed to end turn. Try again.");
-      forceRefetch();
-    }
-  };
-
-
-
   const ROLL_DICE = () => {
     setIsRolling(true);
     setError(null);
@@ -196,6 +145,26 @@ const GameBoard = ({
     }, 3000);
   };
 
+  const END_TURN = async (id?: number) => {
+    setRollAgain(false);
+    setRoll(null);
+    if (!id || game.next_player_id !== id) return;
+    await apiClient.post("/game-players/end-turn", {
+      user_id: id,
+      game_id: game.id,
+    });
+    forceRefetch();
+  };
+
+  // const handleDrawCard = (type: "Chance" | "CommunityChest") => {
+  //   setIsLoading(true);
+  //   setError(null);
+  //   const cardList = type === "Chance" ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
+  //   const randomCard = cardList[Math.floor(Math.random() * cardList.length)];
+  //   setSelectedCard(randomCard);
+  //   setSelectedCardType(type);
+  //   setIsLoading(false);
+  // };
 
   const handleProcessCard = () => {
     if (!selectedCard) {
@@ -209,6 +178,139 @@ const GameBoard = ({
     setSelectedCardType(null);
     setIsLoading(false);
   };
+
+  // const handlePayRent = () => {
+  //   if (!propertyId || !currentProperty || !currentProperty.owner) {
+  //     setError("Cannot pay rent: No owner or invalid property.");
+  //     setShowRentInput(false); // Hide input on error
+  //     return;
+  //   }
+  //   setIsLoading(true);
+  //   setError(null);
+  //   const square = boardData.find((s) => s.id === Number(propertyId));
+  //   if (square && square.type === "property" && square.rent_site_only) {
+  //     setPlayers((prevPlayers) => {
+  //       const newPlayers = [...prevPlayers];
+  //       const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+  //       const owner = newPlayers.find(
+  //         (p) => p.username === currentProperty.owner
+  //       );
+  //       if (currentPlayer.balance >= square.rent_site_only && owner) {
+  //         currentPlayer.balance -= square.rent_site_only;
+  //         owner.balance += square.rent_site_only;
+  //         newPlayers[currentPlayerIndex] = currentPlayer;
+  //         newPlayers[players.indexOf(owner)] = owner;
+  //       } else {
+  //         setError("Insufficient balance to pay rent.");
+  //         setShowRentInput(false); // Hide input on error
+  //       }
+  //       return newPlayers;
+  //     });
+  //   }
+  //   setPropertyId(""); // Clear input
+  //   setShowRentInput(false); // Hide input after paying rent
+  //   setIsLoading(false);
+  // };
+
+  // const handleCancelRent = () => {
+  //   setPropertyId(""); // Clear input
+  //   setShowRentInput(false); // Hide input
+  // };
+
+  // const handleEndTurn = () => {
+  //   if (selectedCard) {
+  //     setError("You must process the drawn card before ending your turn.");
+  //     return;
+  //   }
+  //   setIsLoading(true);
+  //   setError(null);
+  //   setPlayers((prevPlayers) => {
+  //     const newPlayers = [...prevPlayers];
+  //     newPlayers[currentPlayerIndex].isNext = false;
+  //     const nextIndex = (currentPlayerIndex + 1) % newPlayers.length;
+  //     newPlayers[nextIndex].isNext = true;
+  //     setCurrentPlayerIndex(nextIndex);
+  //     setPlayer(newPlayers[nextIndex]);
+  //     setGame((prev) =>
+  //       prev
+  //         ? {
+  //             ...prev,
+  //             currentPlayer: newPlayers[nextIndex].username,
+  //             nextPlayer:
+  //               newPlayers[(nextIndex + 1) % newPlayers.length].username,
+  //           }
+  //         : null
+  //     );
+  //     return newPlayers;
+  //   });
+  //   updateCurrentProperty();
+  //   setIsLoading(false);
+  // };
+
+  // const handlePayJailFine = () => {
+  //   setIsLoading(true);
+  //   setError(null);
+  //   setPlayers((prevPlayers) => {
+  //     const newPlayers = [...prevPlayers];
+  //     const currentPlayer = { ...newPlayers[currentPlayerIndex] };
+  //     if (currentPlayer.jailed && currentPlayer.balance >= 50) {
+  //       currentPlayer.jailed = false;
+  //       currentPlayer.balance -= 50;
+  //       newPlayers[currentPlayerIndex] = currentPlayer;
+  //       setPlayer(currentPlayer);
+  //     } else {
+  //       setError("Cannot pay jail fine: Not in jail or insufficient balance.");
+  //     }
+  //     return newPlayers;
+  //   });
+  //   setIsLoading(false);
+  // };
+
+  // const handleEndGame = () => {
+  //   setIsLoading(true);
+  //   setError(null);
+  //   setGameId(null);
+  //   setPlayers([]);
+  //   setGame(null);
+  //   setPlayer(null);
+  //   setCurrentProperty(null);
+  //   setOwnedProperties({});
+  //   setSelectedCard(null);
+  //   setSelectedCardType(null);
+  //   setRoll(null);
+  //   localStorage.removeItem("gameCode");
+  //   router.push("/");
+  //   setIsLoading(false);
+  // };
+
+  // const handleLeaveGame = () => {
+  //   handleEndGame();
+  // };
+
+  // const handleSendChat = () => {
+  //   if (!chatInput.trim()) return;
+  //   setChatMessages((prev) => [
+  //     ...prev,
+  //     { sender: player?.username || "Anonymous", message: chatInput },
+  //   ]);
+  //   setChatInput("");
+  // };
+
+  // const handleCopyGameLink = () => {
+  //   if (gameId) {
+  //     const link = `https://gameroom10qd.io/${gameId}`;
+  //     navigator.clipboard
+  //       .writeText(link)
+  //       .then(() => {
+  //         alert("Game link copied to clipboard!");
+  //       })
+  //       .catch(() => {
+  //         setError("Failed to copy game link.");
+  //       });
+  //   } else {
+  //     setError("No game ID available to copy.");
+  //   }
+  // };
 
   const getGridPosition = (square: Property) => ({
     gridRowStart: square.grid_row,
@@ -280,7 +382,109 @@ const GameBoard = ({
                 ) : (
                   <></>
                 )}
-
+                {/* {showRentInput && (
+                      <div className="flex flex-col gap-2">
+                        <input
+                          type="number"
+                          placeholder="Property ID for Rent"
+                          value={propertyId}
+                          onChange={(e) => setPropertyId(e.target.value)}
+                          className="w-full px-2 py-1 mb-2 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          aria-label="Enter property ID for rent"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handlePayRent}
+                            aria-label="Confirm rent payment"
+                            className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
+                          >
+                            Confirm Rent
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelRent}
+                            aria-label="Cancel rent payment"
+                            className="px-2 py-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xs rounded-full hover:from-gray-600 hover:to-gray-800 transform hover:scale-105 transition-all duration-200"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )} */}
+                {/* <div className="flex flex-wrap gap-2 justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowRentInput(true)}
+                        aria-label="Pay rent for the property"
+                        className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Pay Rent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleEndTurn}
+                        aria-label="End your turn"
+                        className="px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        End Turn
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePayJailFine}
+                        aria-label="Pay jail fine"
+                        className="px-2 py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full hover:from-pink-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Pay Jail Fine
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDrawCard("Chance")}
+                        aria-label="Draw a Chance card"
+                        className="px-2 py-1 bg-gradient-to-r from-yellow-500 to-lime-500 text-white text-xs rounded-full hover:from-yellow-600 hover:to-lime-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Draw Chance
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDrawCard("CommunityChest")}
+                        aria-label="Draw a Community Chest card"
+                        className="px-2 py-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs rounded-full hover:from-teal-600 hover:to-cyan-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Draw CChest
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleEndGame}
+                        aria-label="End the game"
+                        className="px-2 py-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs rounded-full hover:from-red-600 hover:to-pink-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        End Game
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleLeaveGame}
+                        aria-label="Leave the game"
+                        className="px-2 py-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xs rounded-full hover:from-gray-600 hover:to-gray-800 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Leave Game
+                      </button>
+                    </div> */}
+                {/* <div
+                  className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
+                  }}
+                >
+                  <h2 className="text-base font-semibold text-cyan-300 mb-3">
+                    Game Actions
+                  </h2>
+                  {isLoading && (
+                    <p className="text-cyan-300 text-sm text-center mb-2">
+                      Loading...
+                    </p>
+                  )}
+                </div> */}
                 {selectedCard && (
                   <div
                     className="mt-4 p-3 rounded-lg w-full max-w-sm bg-cover bg-center absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50"
