@@ -42,6 +42,7 @@ export interface Game {
   updated_at: string;
   settings: GameSettings;
   players: Player[];
+  history: History[];
 }
 
 export interface GameSettings {
@@ -63,6 +64,30 @@ export interface Player {
   symbol: string;
   joined_date: string;
   username: string;
+  rolls: number;
+  circle: number;
+}
+
+export interface GamePlayExtra {
+  description: string;
+  [key: string]: any;
+}
+export interface History {
+  id: number;
+  game_id: number;
+  game_player_id: number;
+  rolled: number | null;
+  old_position: number | null;
+  new_position: number;
+  action: string;
+  amount: number;
+  extra: GamePlayExtra | null;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+  active: boolean | number;
+  player_symbol: string;
+  player_name: string;
 }
 
 export interface Property {
