@@ -138,7 +138,6 @@ const GameBoard = ({
       const prevPlayers = players;
       safeSetPlayers((prevPlayers) => prevPlayers.map((p) => (p.user_id === id ? { ...p, position } : p)));
 
-      const controller = new AbortController();
       try {
         await apiClient.post("/game-players/change-position", {
           position,
@@ -160,7 +159,7 @@ const GameBoard = ({
         // rollback optimistic update if request failed
         if (isMountedRef.current) {
           setPlayers(prevPlayers);
-          setError("Failed to update player position. Try again.");
+          // setError("Failed to update player position. Try again.");
           forceRefetch();
         }
       } finally {
