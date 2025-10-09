@@ -63,7 +63,7 @@ const GamePlayer = {
 
   async findByUserIdAndGameId(user_id, game_id) {
     return db("game_players")
-      .select("id")
+      .select("*")
       .where("user_id", user_id)
       .where("game_id", game_id)
       .orderBy("id", "desc")
