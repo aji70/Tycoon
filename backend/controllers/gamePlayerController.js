@@ -213,7 +213,7 @@ const gamePlayerController = {
       if (!game_player) {
         return res.status(404).json({ error: "Game player not found" });
       }
-      
+      console.log(game_player)
       // Record old & new positions
       const old_position = Number(game_player.position);
       const new_position = Number(position);
