@@ -93,6 +93,8 @@ const GameBoard = ({
   const [isProcessing, setIsProcessing] = useState(false); // prevents double submits
   const [isRolling, setIsRolling] = useState(false);
   const [rollAgain, setRollAgain] = useState(false);
+  const [rollAction, setRollAction] = useState<string | null>(null);
+  const [propertyId, setPropertyId] = useState<number | null>(null);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [selectedCardType, setSelectedCardType] = useState<"Chance" | "CommunityChest" | null>(null);
@@ -257,10 +259,14 @@ const GameBoard = ({
         return next;
       });
 
-      // persist to backend (no await here so UI is snappy) — function handles itself
+      // persist to backend (no await here so UI is snappy)
       await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
 
       if (isMountedRef.current) setIsRolling(false);
+
+      if(me?.position == newPosition){
+        console.log("Voila")
+      }
     }, ROLL_ANIMATION_MS);
   }, [isRolling, isProcessing, me?.position, me?.user_id, safeSetPlayers, UPDATE_GAME_PLAYER_POSITION]);
 
@@ -318,15 +324,17 @@ const GameBoard = ({
                         {isRolling ? "Rolling..." : "Roll Dice"}
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => END_TURN(me?.user_id)}
-                        aria-label="Move to next player"
-                        disabled={isProcessing}
-                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        End Turn
-                      </button>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => END_TURN(me?.user_id)}
+                          aria-label="Move to next player"
+                          disabled={isProcessing}
+                          className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          End Turn
+                        </button>
+                      </div>
                     )}
 
                     {rollAgain && <p className="text-xs font-normal text-red-600">You rolled a double 6 — please roll again</p>}
