@@ -350,6 +350,8 @@ export const join = async (req, res) => {
       chance_jail_card: false,
       community_chest_jail_card: false,
       turn_order: nextTurnOrder,
+      circle: 0, 
+      rolls: 0
     });
 
     // Get updated players list

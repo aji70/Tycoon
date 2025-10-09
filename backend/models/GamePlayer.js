@@ -83,6 +83,8 @@ const GamePlayer = {
         "gp.position",
         "gp.turn_order",
         "gp.symbol",
+        "gp.rolls",
+        "gp.circle",
         "gp.created_at as joined_date",
         "u.username"
       )
