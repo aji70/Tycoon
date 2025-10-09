@@ -264,12 +264,11 @@ const GameBoard = ({
 
       if (isMountedRef.current) setIsRolling(false);
 
-      if (me?.position == newPosition) {
-        console.log("Voila")
-        setPropertyId(newPosition);
-        const property_action = PROPERTY_ACTION(newPosition)
-        setRollAction(property_action);
-      }
+      console.log("Voila")
+      setPropertyId(newPosition);
+      const property_action = PROPERTY_ACTION(newPosition)
+      setRollAction(property_action);
+
     }, ROLL_ANIMATION_MS);
   }, [isRolling, isProcessing, me?.position, me?.user_id, safeSetPlayers, UPDATE_GAME_PLAYER_POSITION]);
 
