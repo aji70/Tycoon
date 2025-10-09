@@ -215,8 +215,8 @@ const gamePlayerController = {
       }
       
       // Record old & new positions
-      const old_position = game_player.position;
-      const new_position = position;
+      const old_position = Number(game_player.position);
+      const new_position = Number(position);
 
       //  Determine action type based on position
       const actionType = PROPERTY_ACTION(new_position);
