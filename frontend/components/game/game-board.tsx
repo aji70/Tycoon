@@ -124,7 +124,7 @@ const GameBoard = ({
 
   /* ---------- API helpers with AbortController ---------- */
   const fetchUpdatedGame = useCallback(async () => {
-    const resp = await apiClient.get<Game>(`/games/${game.code}`);
+    const resp = await apiClient.get<Game>(`/games/code/${game.code}`);
     return resp;
   }, [game.code]);
 
