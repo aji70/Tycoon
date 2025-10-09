@@ -256,7 +256,7 @@ const gamePlayerController = {
       // 7️⃣ Return response
       res.json({
         success: true,
-        message: "${user.username} position updated and logged successfully.",
+        message: `${user.username} position updated and logged successfully.`,
         player: updated_player,
       });
     } catch (error) {
