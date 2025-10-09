@@ -3,6 +3,7 @@ import GamePlayer from "../models/GamePlayer.js";
 import GamePlayHistory from "../models/GamePlayHistory.js";
 import GameSetting from "../models/GameSetting.js";
 import User from "../models/User.js";
+import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
 
 const gamePlayerController = {
@@ -186,13 +187,25 @@ const gamePlayerController = {
     try {
       const { user_id, game_id, position, rolled = null } = req.body;
 
-      // 1️⃣ Validate game
+      // Validate game
       const game = await Game.findById(game_id);
       if (!game) {
         return res.status(404).json({ error: "Game not found" });
       }
 
-      // 2️⃣ Validate player
+      // Validate user
+      const user = await User.findById(user_id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Validate property
+      const property = await Property.findById(position);
+      if (!property) {
+        return res.status(404).json({ error: "Property not found" });
+      }
+
+      // Validate player
       const game_player = await GamePlayer.findByUserIdAndGameId(
         user_id,
         game_id
@@ -201,14 +214,14 @@ const gamePlayerController = {
         return res.status(404).json({ error: "Game player not found" });
       }
 
-      // 3️⃣ Record old & new positions
+      // Record old & new positions
       const old_position = game_player.position;
       const new_position = position;
 
-      // 4️⃣ Determine action type based on position
+      //  Determine action type based on position
       const actionType = PROPERTY_ACTION(new_position);
 
-      // 5️⃣ Update player's position & roll count
+      // Update player's position & roll count
       const passedStart = new_position < old_position;
       const updatedFields = {
         position: new_position,
@@ -229,21 +242,21 @@ const gamePlayerController = {
       await GamePlayHistory.create({
         game_id,
         game_player_id: game_player.id,
-        rolled, 
+        rolled,
         old_position,
         new_position,
         action: actionType,
-        amount: 0, 
+        amount: 0,
         extra: JSON.stringify({
-          description: `Player moved from ${old_position} → ${new_position}`,
+          description: `${user.username} moved from ${old_position} → ${new_position}`,
         }),
-        comment: `Player ${user_id} moved to ${actionType}`,
+        comment: `${user.username} moved to ${property.name}`,
       });
 
       // 7️⃣ Return response
       res.json({
         success: true,
-        message: "Player position updated and logged successfully.",
+        message: "${user.username} position updated and logged successfully.",
         player: updated_player,
       });
     } catch (error) {
