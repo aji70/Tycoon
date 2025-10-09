@@ -209,10 +209,21 @@ const gamePlayerController = {
       const actionType = PROPERTY_ACTION(new_position);
 
       // 5️⃣ Update player's position & roll count
-      const updated_player = await GamePlayer.update(game_player.id, {
+      const passedStart = new_position < old_position;
+      const updatedFields = {
         position: new_position,
         rolls: game_player.rolls + 1,
-      });
+      };
+
+      if (passedStart) {
+        updatedFields.circle = game_player.circle + 1;
+        updatedFields.balance = game_player.balance + 200;
+      }
+
+      const updated_player = await GamePlayer.update(
+        game_player.id,
+        updatedFields
+      );
 
       // 6️⃣ Log move into history
       await GamePlayHistory.create({
