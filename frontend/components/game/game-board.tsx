@@ -156,8 +156,6 @@ const GameBoard = ({
     }
   };
 
-
-
   const ROLL_DICE = () => {
     setIsRolling(true);
     setError(null);
