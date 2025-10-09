@@ -116,14 +116,65 @@ export const COMMUNITY_CHEST_POSITION = [2, 17, 33];
 
 export const CHANCE_POSITION = [7, 22, 36];
 
-export const GOTO_JAIL_POSITION = 30;
+export const GOTO_JAIL_POSITION = [30];
 
-export const VISITING_JAIL_POSITION = 10;
+export const VISITING_JAIL_POSITION = [10];
 
-export const START_POSITION = 0;
+export const START_POSITION = [0];
 
-export const FREE_PACKING_POSITION = 20;
+export const FREE_PACKING_POSITION = [20];
 
-export const INCOME_TAX_POSITION = 4;
+export const INCOME_TAX_POSITION = [4];
 
-export const LUXURY_TAX_POSITION = 38;
+export const LUXURY_TAX_POSITION = [38];
+
+export const CardTypesArray = [
+  "land",
+  "railway",
+  "utility",
+  "community_chest",
+  "chance",
+  "goto_jail",
+  "visiting_jail",
+  "start",
+  "free_packing",
+  "income_tax",
+  "luxury_tax",
+];
+
+export type CardTypes =
+  | "land"
+  | "railway"
+  | "utility"
+  | "community_chest"
+  | "chance"
+  | "goto_jail"
+  | "visiting_jail"
+  | "start"
+  | "free_packing"
+  | "income_tax"
+  | "luxury_tax";
+
+export const POSITION_MAP: Record<CardTypes, number[]> = {
+  land: PROPERTY_POSITION,
+  railway: RAILWAY_POSITION,
+  utility: UTILITY_POSITION,
+  community_chest: COMMUNITY_CHEST_POSITION,
+  chance: CHANCE_POSITION,
+  goto_jail: GOTO_JAIL_POSITION,
+  visiting_jail: VISITING_JAIL_POSITION,
+  start: START_POSITION,
+  free_packing: FREE_PACKING_POSITION,
+  income_tax: INCOME_TAX_POSITION,
+  luxury_tax: LUXURY_TAX_POSITION,
+};
+
+export const PROPERTY_ACTION = (position: number): CardTypes | null => {
+  for (const [type, positions] of Object.entries(POSITION_MAP) as [
+    CardTypes,
+    number[]
+  ][]) {
+    if (positions.includes(position)) return type;
+  }
+  return null;
+};

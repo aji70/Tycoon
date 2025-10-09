@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
-import { Game, GameProperty, Property, Player } from "@/types/game";
+import { Game, GameProperty, Property, Player, PROPERTY_ACTION, CardTypes } from "@/types/game";
 import { useAccount } from "wagmi";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
@@ -93,7 +93,7 @@ const GameBoard = ({
   const [isProcessing, setIsProcessing] = useState(false); // prevents double submits
   const [isRolling, setIsRolling] = useState(false);
   const [rollAgain, setRollAgain] = useState(false);
-  const [rollAction, setRollAction] = useState<string | null>(null);
+  const [rollAction, setRollAction] = useState<CardTypes | null>(null);
   const [propertyId, setPropertyId] = useState<number | null>(null);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -264,8 +264,11 @@ const GameBoard = ({
 
       if (isMountedRef.current) setIsRolling(false);
 
-      if(me?.position == newPosition){
+      if (me?.position == newPosition) {
         console.log("Voila")
+        setPropertyId(newPosition);
+        const property_action = PROPERTY_ACTION(newPosition)
+        setRollAction(property_action);
       }
     }, ROLL_ANIMATION_MS);
   }, [isRolling, isProcessing, me?.position, me?.user_id, safeSetPlayers, UPDATE_GAME_PLAYER_POSITION]);
@@ -325,6 +328,9 @@ const GameBoard = ({
                       </button>
                     ) : (
                       <div>
+                        <p>
+                          Prop ID: {propertyId} , Action: {rollAction}
+                        </p>
                         <button
                           type="button"
                           onClick={() => END_TURN(me?.user_id)}
