@@ -337,7 +337,7 @@ const GameBoard = ({
                       </p>
                     )}
 
-                    {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
+                    {/* {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>} */}
                   </div>
                 )}
 
