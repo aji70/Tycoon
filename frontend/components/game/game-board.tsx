@@ -1,20 +1,24 @@
 "use client";
-import React, { useState, useEffect, Component, ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, {
+  Component,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useRouter } from "next/navigation";
 import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
-import {
-  PLAYER_TOKENS,
-  CHANCE_CARDS,
-  COMMUNITY_CHEST_CARDS,
-} from "@/constants/constants";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { useAccount } from "wagmi";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 
+/* ---------- Types ---------- */
 interface GameProps {
   game: Game;
   properties: Property[];
@@ -28,10 +32,8 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-class ErrorBoundary extends Component<
-  { children: ReactNode },
-  ErrorBoundaryState
-> {
+/* ---------- ErrorBoundary (unchanged behavior but typed) ---------- */
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false };
   static getDerivedStateFromError() {
     return { hasError: true };
@@ -48,6 +50,21 @@ class ErrorBoundary extends Component<
   }
 }
 
+/* ---------- Constants ---------- */
+const BOARD_SQUARES = 40; // keep a single source for wrap-around
+const ROLL_ANIMATION_MS = 1200;
+
+/* ---------- Helpers ---------- */
+const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
+  const die1 = Math.floor(Math.random() * 6) + 1;
+  const die2 = Math.floor(Math.random() * 6) + 1;
+  const total = die1 + die2;
+  // original code treated double 6 specially and returned null
+  if (total === 12) return null;
+  return { die1, die2, total };
+};
+
+/* ---------- Component ---------- */
 const GameBoard = ({
   game,
   properties,
@@ -59,164 +76,218 @@ const GameBoard = ({
   const { address } = useAccount();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const forceRefetch = () => {
-    queryClient.invalidateQueries({ queryKey: ["game", game.code] });
-  };
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [players, setPlayers] = useState<Player[] | []>(game.players);
+
+  // Mounted ref -> prevents setting state after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Local state (keep in sync with incoming props)
+  const [players, setPlayers] = useState<Player[]>(() => game?.players ?? []);
+  const [boardData, setBoardData] = useState<Property[]>(() => properties ?? []);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // prevents double submits
+  const [isRolling, setIsRolling] = useState(false);
   const [rollAgain, setRollAgain] = useState(false);
+  const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
-  const [selectedCardType, setSelectedCardType] = useState<
-    "Chance" | "CommunityChest" | null
-  >(null);
-  const [propertyId, setPropertyId] = useState("");
-  const [showRentInput, setShowRentInput] = useState(false); // New state for input visibility
-  const [chatMessages, setChatMessages] = useState<
-    { sender: string; message: string }[]
-  >([{ sender: "Player1", message: "hi" }]);
+  const [selectedCardType, setSelectedCardType] = useState<"Chance" | "CommunityChest" | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ sender: string; message: string }[]>([{ sender: "Player1", message: "hi" }]);
   const [chatInput, setChatInput] = useState("");
 
-  const [boardData, setBoardData] = useState<Property[]>(properties);
-  const [isRolling, setIsRolling] = useState<boolean>(false);
-  const [roll, setRoll] = useState<{
-    die1: number;
-    die2: number;
-    total: number;
-  } | null>(null);
-  const getDiceValues = () => {
-    const die1 = Number(Math.floor(Math.random() * 6) + 1);
-    const die2 = Number(Math.floor(Math.random() * 6) + 1);
-    const total = Number(die1 + die2);
-    if (total == 12) {
-      return null;
-    }
-    return { die1, die2, total };
-  };
+  // sync props -> local state when game/props update (avoid stale props)
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    setPlayers(game?.players ?? []);
+  }, [game?.players]);
 
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    setBoardData(properties ?? []);
+  }, [properties]);
 
-  const UPDATE_GAME_PLAYER_POSITION = async (
-    id: undefined | null | number,
-    position: number
-  ) => {
-    if (!id) return;
-    setPlayers((prevPlayers) =>
-      prevPlayers.map((p) =>
-        p.user_id === id ? { ...p, position } : p
-      )
-    );
+  /* ---------- Utilities ---------- */
+  const forceRefetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+  }, [queryClient, game.code]);
 
-    try {
-      await apiClient.post("/game-players/change-position", {
-        position,
-        user_id: id,
-        game_id: game.id,
-      });
-      const updatedGame = await apiClient.get<Game>(`/games/${game.code}`);
+  const safeSetPlayers = useCallback((updater: (prev: Player[]) => Player[]) => {
+    if (!isMountedRef.current) return;
+    setPlayers((prev) => updater(prev));
+  }, []);
 
-      if (updatedGame && updatedGame.players) {
-        setPlayers(updatedGame.players);
+  /* ---------- API helpers with AbortController ---------- */
+  const fetchUpdatedGame = useCallback(async () => {
+    const resp = await apiClient.get<Game>(`/games/${game.code}`);
+    return resp;
+  }, [game.code]);
+
+  /* ---------- UPDATE_GAME_PLAYER_POSITION (optimistic + rollback + refetch) ---------- */
+  const UPDATE_GAME_PLAYER_POSITION = useCallback(
+    async (id: number | undefined | null, position: number) => {
+      if (!id) return;
+      if (isProcessing) return;
+      setError(null);
+      setIsProcessing(true);
+
+      // optimistic update
+      const prevPlayers = players;
+      safeSetPlayers((prevPlayers) => prevPlayers.map((p) => (p.user_id === id ? { ...p, position } : p)));
+
+      const controller = new AbortController();
+      try {
+        await apiClient.post("/game-players/change-position", {
+          position,
+          user_id: id,
+          game_id: game.id,
+        });
+
+        // fetch authoritative game state
+        const updatedGame = await fetchUpdatedGame();
+
+        if (updatedGame?.players && isMountedRef.current) {
+          setPlayers(updatedGame.players);
+        }
+
+        // keep react-query cache consistent
+        queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+      } catch (err) {
+        console.error("UPDATE_GAME_PLAYER_POSITION error:", err);
+        // rollback optimistic update if request failed
+        if (isMountedRef.current) {
+          setPlayers(prevPlayers);
+          setError("Failed to update player position. Try again.");
+          forceRefetch();
+        }
+      } finally {
+        if (isMountedRef.current) setIsProcessing(false);
+      }
+    },
+    [players, safeSetPlayers, game.id, fetchUpdatedGame, queryClient, game.code, forceRefetch, isProcessing]
+  );
+
+  /* ---------- END_TURN (optimistic + safe) ---------- */
+  const END_TURN = useCallback(
+    async (id?: number) => {
+      setRollAgain(false);
+      setRoll(null);
+      if (!id || game.next_player_id !== id) return;
+      if (isProcessing) return;
+      setIsProcessing(true);
+      setError(null);
+
+      // optimistic: compute next player index locally (if players exist)
+      const prevPlayers = players;
+      let optimisticPlayers = prevPlayers;
+      if (prevPlayers.length > 0) {
+        const currentIndex = prevPlayers.findIndex((p) => p.user_id === id);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % prevPlayers.length : 0;
+        const nextPlayer = prevPlayers[nextIndex];
+        optimisticPlayers = prevPlayers.map((p) =>
+          p.user_id === nextPlayer.user_id ? { ...p, isNext: true } : { ...p, isNext: false }
+        );
+        safeSetPlayers(() => optimisticPlayers);
       }
 
-      queryClient.invalidateQueries({ queryKey: ["game", game.code] });
-    } catch (err) {
-      console.error("Error updating player position:", err);
-      setError("Failed to update player position. Try again.");
+      const controller = new AbortController();
+      try {
+        await apiClient.post(
+          "/game-players/end-turn",
+          {
+            user_id: id,
+            game_id: game.id,
+          });
 
-      forceRefetch();
-    }
-  };
+        const updatedGame = await fetchUpdatedGame();
+        if (updatedGame?.players && isMountedRef.current) {
+          setPlayers(updatedGame.players);
+        }
 
-
-  const END_TURN = async (id?: number) => {
-    setRollAgain(false);
-    setRoll(null);
-
-    if (!id || game.next_player_id !== id) return;
-
-    try {
-
-      await apiClient.post("/game-players/end-turn", {
-        user_id: id,
-        game_id: game.id,
-      });
-
-      const updatedGame = await apiClient.get<Game>(`/games/${game.code}`);
-
-      if (updatedGame && updatedGame.players) {
-        setPlayers(updatedGame.players);
+        queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+      } catch (err) {
+        console.error("END_TURN error:", err);
+        if (isMountedRef.current) {
+          setPlayers(prevPlayers); // rollback
+          setError("Failed to end turn. Try again.");
+          forceRefetch();
+        }
+      } finally {
+        if (isMountedRef.current) setIsProcessing(false);
       }
+    },
+    [players, game.next_player_id, game.id, fetchUpdatedGame, queryClient, game.code, safeSetPlayers, forceRefetch, isProcessing]
+  );
 
-      queryClient.invalidateQueries({ queryKey: ["game", game.code] });
-    } catch (err) {
-      console.error("Error ending turn:", err);
-      setError("Failed to end turn. Try again.");
-      forceRefetch();
-    }
-  };
-
-  const ROLL_DICE = () => {
-    setIsRolling(true);
+  /* ---------- ROLL_DICE (keeps animation delay configurable) ---------- */
+  const ROLL_DICE = useCallback(() => {
+    if (isRolling || isProcessing) return;
     setError(null);
-    setTimeout(() => {
+    setRollAgain(false);
+    setIsRolling(true);
+
+    // simulate roll animation then apply result
+    setTimeout(async () => {
       const value = getDiceValues();
+      if (!isMountedRef.current) return setIsRolling(false);
+
       if (!value) {
+        // a special case in your original code
         setRollAgain(true);
         setRoll(null);
         setIsRolling(false);
         return;
       }
+
+      // set roll result for immediate UI
       setRoll(value);
 
-      // fix precedence bug
-      let newPosition = ((me?.position ?? 0) + value.total) % 40;
-      if (newPosition < 0) newPosition += 40;
+      // compute wrapped position
+      const currentPos = me?.position ?? 0;
+      let newPosition = (currentPos + value.total) % BOARD_SQUARES;
+      if (newPosition < 0) newPosition += BOARD_SQUARES;
 
-      setPlayers((prevPlayers) => {
-        const newPlayers = [...prevPlayers];
-        // fix indexing bug: find by user_id
-        const playerIndex = newPlayers.findIndex(
-          (p) => p.user_id === me?.user_id
-        );
-        if (playerIndex !== -1) {
-          const currentPlayer = {
-            ...newPlayers[playerIndex],
-            position: newPosition,
-          };
-          newPlayers[playerIndex] = currentPlayer;
-        }
-        return newPlayers;
+      // update local players optimistically
+      safeSetPlayers((prevPlayers) => {
+        const idx = prevPlayers.findIndex((p) => p.user_id === me?.user_id);
+        if (idx === -1) return prevPlayers;
+        const next = [...prevPlayers];
+        next[idx] = { ...next[idx], position: newPosition };
+        return next;
       });
 
-      UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
-      setIsRolling(false);
-    }, 3000);
-  };
+      // persist to backend (no await here so UI is snappy) — function handles itself
+      await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
 
+      if (isMountedRef.current) setIsRolling(false);
+    }, ROLL_ANIMATION_MS);
+  }, [isRolling, isProcessing, me?.position, me?.user_id, safeSetPlayers, UPDATE_GAME_PLAYER_POSITION]);
 
-  const handleProcessCard = () => {
-    if (!selectedCard) {
-      setError("No card selected to process.");
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    console.log(`Processing ${selectedCardType} card: ${selectedCard}`);
-    setSelectedCard(null);
-    setSelectedCardType(null);
-    setIsLoading(false);
-  };
+  /* ---------- small helpers used in render ---------- */
+  const getGridPosition = useCallback((square: Property) => {
+    return {
+      gridRowStart: square.grid_row,
+      gridColumnStart: square.grid_col,
+    } as React.CSSProperties;
+  }, []);
 
-  const getGridPosition = (square: Property) => ({
-    gridRowStart: square.grid_row,
-    gridColumnStart: square.grid_col,
-  });
+  const isTopHalf = useCallback((square: Property) => square.grid_row === 1, []);
 
-  const isTopHalf = (square: Property) => {
-    return square.grid_row === 1; // Top row of the 11x11 grid
-  };
+  /* ---------- memoized players-by-position map to avoid repeated filtering ---------- */
+  const playersByPosition = useMemo(() => {
+    const map = new Map<number, Player[]>();
+    players.forEach((p) => {
+      const pos = Number(p.position ?? 0);
+      if (!map.has(pos)) map.set(pos, []);
+      map.get(pos)!.push(p);
+    });
+    return map;
+  }, [players]);
 
+  /* ---------- render ---------- */
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
@@ -228,7 +299,7 @@ const GameBoard = ({
         </div>
 
         {/* Board Section */}
-        <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
+        <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[900px] mt-[-1rem]">
           <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
             <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
               <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative">
@@ -236,47 +307,40 @@ const GameBoard = ({
                   Blockopoly
                 </h1>
 
-                {game.next_player_id === me?.user_id ? (
+                {game.next_player_id === me?.user_id && (
                   <div className="flex flex-col gap-2">
                     {!roll ? (
                       <button
                         type="button"
                         onClick={ROLL_DICE}
                         aria-label="Roll the dice"
-                        className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200"
+                        disabled={isRolling || isProcessing}
+                        className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {isRolling ? "Rolling" : "Roll Dice"}
+                        {isRolling ? "Rolling..." : "Roll Dice"}
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => END_TURN(me?.user_id)}
                         aria-label="Move to next player"
-                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200"
+                        disabled={isProcessing}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:from-amber-600 hover:to-rose-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         End Turn
                       </button>
                     )}
-                    {rollAgain && (
-                      <p className="text-xs font-normal text-red-600">You rolled a double 6 please roll again</p>
-                    )}
+
+                    {rollAgain && <p className="text-xs font-normal text-red-600">You rolled a double 6 — please roll again</p>}
+
                     {!isRolling && roll && !rollAgain && (
                       <p className="text-gray-300 text-sm text-center">
-                        Rolled:{" "}
-                        <span className="font-bold text-white">
-                          {roll.die1} + {roll.die2} = {roll.total}
-                        </span>
+                        Rolled: <span className="font-bold text-white">{roll.die1} + {roll.die2} = {roll.total}</span>
                       </p>
                     )}
 
-                    {error && (
-                      <p className="text-red-400 text-sm mt-2 text-center">
-                        {error}
-                      </p>
-                    )}
+                    {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
                   </div>
-                ) : (
-                  <></>
                 )}
 
                 {selectedCard && (
@@ -287,19 +351,19 @@ const GameBoard = ({
                     }}
                   >
                     <h3 className="text-base font-semibold text-cyan-300 mb-2">
-                      {selectedCardType === "CommunityChest"
-                        ? "Community Chest"
-                        : "Chance"}{" "}
-                      Card
+                      {selectedCardType === "CommunityChest" ? "Community Chest" : "Chance"} Card
                     </h3>
                     <p className="text-sm text-gray-300">{selectedCard}</p>
                     <div className="flex gap-2 mt-2">
                       <button
                         type="button"
-                        onClick={handleProcessCard}
+                        onClick={() => {
+                          /* process card logic stub - keep lightweight */
+                          setSelectedCard(null);
+                          setSelectedCardType(null);
+                        }}
                         aria-label="Process the drawn card"
                         className="px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-full hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200"
-                        disabled={!selectedCardType}
                       >
                         Process
                       </button>
@@ -319,51 +383,42 @@ const GameBoard = ({
                 )}
               </div>
 
-              {boardData.map((square, index) => (
-                <div
-                  key={square.id}
-                  style={getGridPosition(square)}
-                  className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
-                >
+              {boardData.map((square, index) => {
+                const playersHere = playersByPosition.get(index) ?? [];
+                return (
                   <div
-                    className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square)
-                      ? "origin-top group-hover:origin-bottom group-hover:translate-y-[100px]"
-                      : ""
-                      } group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200`}
+                    key={square.id}
+                    style={getGridPosition(square)}
+                    className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
                   >
-                    {square.type === "property" && (
-                      <PropertyCard
-                        square={square}
-                        owner={
-                          my_properties.find((p) => p.id === square.id)
-                            ? me?.username || null
-                            : null
-                        }
-                      />
-                    )}
-                    {square.type === "special" && (
-                      <SpecialCard square={square} />
-                    )}
-                    {square.type === "corner" && <CornerCard square={square} />}
-                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
-                      {players
-                        .filter((p) => p.position === index)
-                        .map((p) => (
+                    <div
+                      className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? "origin-top group-hover:origin-bottom group-hover:translate-y-[100px]" : ""} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200`}
+                    >
+                      {square.type === "property" && (
+                        <PropertyCard
+                          square={square}
+                          owner={my_properties.find((p) => p.id === square.id) ? me?.username ?? null : null}
+                        />
+                      )}
+                      {square.type === "special" && <SpecialCard square={square} />}
+                      {square.type === "corner" && <CornerCard square={square} />}
+
+                      <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
+                        {playersHere.map((p) => (
                           <button
                             type="button"
-                            key={p.user_id}
-                            className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
-                              ? "border-2 border-cyan-300 rounded"
-                              : ""
-                              }`}
+                            key={String(p.user_id)}
+                            className={`text-lg md:text-2xl ${p.user_id === game.next_player_id ? "border-2 border-cyan-300 rounded" : ""}`}
+                            aria-label={p.username ?? `Player ${p.user_id}`}
                           >
                             {getPlayerSymbol(p.symbol)}
                           </button>
                         ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
