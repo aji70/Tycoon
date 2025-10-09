@@ -130,7 +130,7 @@ const GameBoard = ({
 
   /* ---------- UPDATE GAME PLAYER POSITION (optimistic + rollback + refetch) ---------- */
   const UPDATE_GAME_PLAYER_POSITION = useCallback(
-    async (id: number | undefined | null, position: number) => {
+    async (id: number | undefined | null, position: number, rolled: number) => {
       if (!id) return;
       if (isProcessing) return;
       setError(null);
@@ -145,6 +145,7 @@ const GameBoard = ({
           position,
           user_id: id,
           game_id: game.id,
+          rolled
         });
 
         // fetch authoritative game state
@@ -160,7 +161,7 @@ const GameBoard = ({
         // keep react-query cache consistent
         queryClient.invalidateQueries({ queryKey: ["game", game.code] });
       } catch (err) {
-        console.error("UPDATE_GAME_PLAYER_POSITION error:", err);
+        console.error("UPDATE GAME PLAYER POSITION error:", err);
         // rollback optimistic update if request failed
         if (isMountedRef.current) {
           setPlayers(prevPlayers);
@@ -263,7 +264,7 @@ const GameBoard = ({
       });
 
       // persist to backend (no await here so UI is snappy)
-      await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
+      await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition, value);
 
       if (isMountedRef.current) setIsRolling(false);
 
