@@ -128,7 +128,7 @@ const GameBoard = ({
     return resp;
   }, [game.code]);
 
-  /* ---------- UPDATE_GAME_PLAYER_POSITION (optimistic + rollback + refetch) ---------- */
+  /* ---------- UPDATE GAME PLAYER POSITION (optimistic + rollback + refetch) ---------- */
   const UPDATE_GAME_PLAYER_POSITION = useCallback(
     async (id: number | undefined | null, position: number) => {
       if (!id) return;
@@ -152,6 +152,9 @@ const GameBoard = ({
 
         if (updatedGame?.players && isMountedRef.current) {
           setPlayers(updatedGame.players);
+          setPropertyId(position)
+          const property_action = PROPERTY_ACTION(position)
+          setRollAction(property_action);
         }
 
         // keep react-query cache consistent
@@ -263,11 +266,6 @@ const GameBoard = ({
       await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition);
 
       if (isMountedRef.current) setIsRolling(false);
-
-      console.log("Voila")
-      setPropertyId(newPosition);
-      const property_action = PROPERTY_ACTION(newPosition)
-      setRollAction(property_action);
 
     }, ROLL_ANIMATION_MS);
   }, [isRolling, isProcessing, me?.position, me?.user_id, safeSetPlayers, UPDATE_GAME_PLAYER_POSITION]);
