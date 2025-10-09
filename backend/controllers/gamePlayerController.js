@@ -212,7 +212,7 @@ const gamePlayerController = {
       const passedStart = new_position < old_position;
       const updatedFields = {
         position: new_position,
-        rolls: game_player.rolls + 1,
+        rolls: Number(game_player.rolls || 0) + 1,
       };
 
       if (passedStart) {
