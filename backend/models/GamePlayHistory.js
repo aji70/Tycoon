@@ -86,6 +86,13 @@ const GamePlayHistory = {
   async delete(id) {
     return db("game_play_history").where({ id }).del();
   },
+  
+  async findLatestActiveByGameId(game_id) {
+    return await db("game_play_history")
+      .where({ game_id, active: 1 })
+      .orderBy("id", "desc")
+      .first();
+  },
 };
 
 export default GamePlayHistory;

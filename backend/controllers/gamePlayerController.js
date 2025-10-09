@@ -2,6 +2,7 @@ import Game from "../models/Game.js";
 import GamePlayer from "../models/GamePlayer.js";
 import GameSetting from "../models/GameSetting.js";
 import User from "../models/User.js";
+import { PROPERTY_ACTION } from "../utils/properties.js";
 
 const gamePlayerController = {
   async create(req, res) {
@@ -133,7 +134,6 @@ const gamePlayerController = {
       res.status(400).json({ success: false, message: error.message });
     }
   },
-
   async findById(req, res) {
     try {
       const player = await GamePlayer.findById(req.params.id);
@@ -144,7 +144,6 @@ const gamePlayerController = {
       res.status(500).json({ error: error.message });
     }
   },
-
   async findAll(req, res) {
     try {
       const { limit, offset } = req.query;
@@ -157,7 +156,6 @@ const gamePlayerController = {
       res.status(500).json({ error: error.message });
     }
   },
-
   async findByGame(req, res) {
     try {
       const players = await GamePlayer.findByGameId(req.params.gameId);
@@ -166,7 +164,6 @@ const gamePlayerController = {
       res.status(500).json({ error: error.message });
     }
   },
-
   async findByUser(req, res) {
     try {
       const players = await GamePlayer.findByUserId(req.params.userId);
@@ -175,7 +172,6 @@ const gamePlayerController = {
       res.status(500).json({ error: error.message });
     }
   },
-
   async update(req, res) {
     try {
       const player = await GamePlayer.update(req.params.id, req.body);
@@ -187,38 +183,73 @@ const gamePlayerController = {
 
   async changePosition(req, res) {
     try {
-      const { user_id, game_id, position } = req.body;
+      const { user_id, game_id, position, rolled = null } = req.body;
+
+      // 1️⃣ Validate game
       const game = await Game.findById(game_id);
       if (!game) {
-        res.json({ error: "Game not found" });
+        return res.status(404).json({ error: "Game not found" });
       }
+
+      // 2️⃣ Validate player
       const game_player = await GamePlayer.findByUserIdAndGameId(
         user_id,
         game_id
       );
       if (!game_player) {
-        res.json({ error: "Game player not found" });
+        return res.status(404).json({ error: "Game player not found" });
       }
-      const update_game_player = await GamePlayer.update(game_player.id, {
-        position,
+
+      // 3️⃣ Record old & new positions
+      const old_position = game_player.position;
+      const new_position = position;
+
+      // 4️⃣ Determine action type based on position
+      const actionType = PROPERTY_ACTION(new_position);
+
+      // 5️⃣ Update player's position & roll count
+      const updated_player = await GamePlayer.update(game_player.id, {
+        position: new_position,
+        rolls: game_player.rolls + 1,
       });
-      res.json(update_game_player);
+
+      // 6️⃣ Log move into history
+      await GamePlayHistory.create({
+        game_id,
+        game_player_id: game_player.id,
+        rolled, // could be null if manually moved
+        old_position,
+        new_position,
+        action: actionType,
+        amount: 0, // future logic can adjust based on property/rent
+        extra: JSON.stringify({
+          description: `Player moved from ${old_position} → ${new_position}`,
+        }),
+        comment: `Player ${user_id} moved to ${actionType}`,
+      });
+
+      // 7️⃣ Return response
+      res.json({
+        success: true,
+        message: "Player position updated and logged successfully.",
+        player: updated_player,
+      });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      console.error("Error changing position:", error);
+      res.status(500).json({ error: error.message });
     }
   },
-
   async endTurn(req, res) {
     try {
       const { user_id, game_id } = req.body;
 
-      // Find the game
+      // 1️⃣ Validate game
       const game = await Game.findById(game_id);
       if (!game) {
         return res.status(400).json({ error: "Game not found" });
       }
 
-      // Verify the current player exists
+      // 2️⃣ Validate player
       const current_player = await GamePlayer.findByUserIdAndGameId(
         user_id,
         game_id
@@ -227,55 +258,55 @@ const gamePlayerController = {
         return res.status(400).json({ error: "Game player not found" });
       }
 
-      // if (current_player.id !== game.next_player_id) {
-      //   return res.status(400).json({ error: "It is not your turn" });
-      // }
-
-      // Get all players in the game ordered by turn_order
+      // 3️⃣ Get all players ordered by turn_order
       const all_players = await GamePlayer.findByGameId(game_id);
-
-      if (!all_players || all_players.length === 0) {
+      if (!all_players?.length) {
         return res.status(400).json({ error: "No players found in game" });
       }
 
-      // Sort players by turn_order to maintain clockwise rotation
       const sorted_players = all_players.sort(
         (a, b) => a.turn_order - b.turn_order
       );
-
-      // Find current player's index
       const current_player_index = sorted_players.findIndex(
-        (player) => player.user_id === user_id
+        (p) => p.user_id === user_id
       );
 
       if (current_player_index === -1) {
         return res
           .status(400)
-          .json({ error: "Current player not found in player list" });
+          .json({ error: "Current player not found in list" });
       }
 
-      // Calculate next player index (clockwise rotation)
-      let next_player_index;
-      if (current_player_index === sorted_players.length - 1) {
-        // If current player is last, wrap around to first player
-        next_player_index = 0;
-      } else {
-        // Otherwise, move to next player
-        next_player_index = current_player_index + 1;
-      }
+      // 4️⃣ Determine next player (wrap to first if end of list)
+      const next_player_index =
+        current_player_index === sorted_players.length - 1
+          ? 0
+          : current_player_index + 1;
 
       const next_player = sorted_players[next_player_index];
-
       if (!next_player) {
         return res.status(400).json({ error: "Next player not found" });
       }
 
-      // Update game with next player
-      const update_game = await Game.update(game.id, {
+      // 5️⃣ Mark the last active game play history as inactive (active = 0)
+      const last_active = await GamePlayHistory.findLatestActiveByGameId(
+        game_id
+      );
+      if (last_active) {
+        await GamePlayHistory.update(last_active.id, { active: 0 });
+      }
+
+      // 6️⃣ Update game’s next player
+      const updated_game = await Game.update(game.id, {
         next_player_id: next_player.user_id,
       });
 
-      res.json(update_game);
+      res.json({
+        success: true,
+        message: "Turn ended successfully. Next player updated.",
+        next_player: next_player.user_id,
+        game: updated_game,
+      });
     } catch (error) {
       console.error("Error ending turn:", error);
       res.status(400).json({ error: error.message });

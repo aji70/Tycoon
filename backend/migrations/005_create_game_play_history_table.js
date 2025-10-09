@@ -38,25 +38,24 @@ export const up = async (knex) => {
     // Action type
     table
       .enu("action", [
-        "MOVE",
-        "PAY_RENT",
-        "BUY_PROPERTY",
-        "SELL_PROPERTY",
-        "MORTGAGE_PROPERTY",
-        "UNMORTGAGE_PROPERTY",
-        "DRAW_CHANCE",
-        "DRAW_COMMUNITY_CHEST",
-        "GO_TO_JAIL",
-        "GET_OUT_OF_JAIL",
-        "PASS_GO",
-        "TRADE",
-        "BANKRUPT",
-        "OTHER",
+        "land",
+        "railway",
+        "utility",
+        "community_chest",
+        "chance",
+        "goto_jail",
+        "visiting_jail",
+        "start",
+        "free_packing",
+        "income_tax",
+        "luxury_tax",
       ])
       .notNullable();
 
     // Economy
     table.integer("amount").defaultTo(0); // +/- for debit/credit
+
+    table.boolean("active").defaultTo(true);
 
     // Flexible metadata
     table.json("extra").nullable();
