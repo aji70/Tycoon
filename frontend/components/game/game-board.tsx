@@ -264,7 +264,7 @@ const GameBoard = ({
       });
 
       // persist to backend (no await here so UI is snappy)
-      await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition, value);
+      await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition, value.total);
 
       if (isMountedRef.current) setIsRolling(false);
 
