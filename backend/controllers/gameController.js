@@ -2,6 +2,7 @@ import Game from "../models/Game.js";
 import GameSetting from "../models/GameSetting.js";
 import GamePlayer from "../models/GamePlayer.js";
 import User from "../models/User.js";
+import GamePlayHistory from "../models/GamePlayHistory.js";
 
 /**
  * Game Controller
@@ -137,8 +138,9 @@ const gameController = {
       if (!game) return res.status(404).json({ error: "Game not found" });
       const settings = await GameSetting.findByGameId(game.id);
       const players = await GamePlayer.findByGameId(game.id);
+      const history = await GamePlayHistory.findByGameId(game.id);
 
-      res.json({ ...game, settings, players });
+      res.json({ ...game, settings, players, history });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

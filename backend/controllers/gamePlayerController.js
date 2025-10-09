@@ -1,5 +1,6 @@
 import Game from "../models/Game.js";
 import GamePlayer from "../models/GamePlayer.js";
+import GamePlayHistory from "../models/GamePlayHistory.js";
 import GameSetting from "../models/GameSetting.js";
 import User from "../models/User.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
