@@ -10,6 +10,7 @@ import { PlayerContractProvider } from "@/context/ContractProvider";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
+import { Toaster } from "react-hot-toast";
 
 export const metadata = getMetadata({
   title: "Blockopoly",
@@ -40,27 +41,28 @@ export default async function RootLayout({
                   "https://base-monopoly-production.up.railway.app/api"
                 }
               > */}
-                <NavBar />
-                {children}
-                <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
+              <NavBar />
+              {children}
+              <ScrollToTopBtn />
+              <ToastContainer
+                position="top-right"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="dark"
+                toastStyle={{
+                  fontFamily: "Orbitron, sans-serif",
+                  background: "#0E1415",
+                  color: "#00F0FF",
+                  border: "1px solid #003B3E",
+                }}
+              />
+              <Toaster position="top-center" />
               {/* </SocketProvider> */}
             </AppKitProviderWrapper>
           </PlayerContractProvider>
