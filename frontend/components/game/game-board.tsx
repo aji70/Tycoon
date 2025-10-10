@@ -127,7 +127,7 @@ const GameBoard = ({
   );
 
   const fetchUpdatedGame = useCallback(async () => {
-    const resp = await apiClient.get<Game>(`/games/code/${game.code}`);
+    const resp = await apiClient.get<Record<string, Game>>(`/games/code/${game.code}`);
     return resp.data;
   }, [game.code]);
 
@@ -357,11 +357,10 @@ const GameBoard = ({
                       {playersHere.map((p) => (
                         <button
                           key={p.user_id}
-                          className={`text-lg md:text-2xl ${
-                            p.user_id === game.next_player_id
+                          className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
                               ? "border-2 border-cyan-300 rounded animate-pulse"
                               : ""
-                          }`}
+                            }`}
                         >
                           {getPlayerSymbol(p.symbol)}
                         </button>

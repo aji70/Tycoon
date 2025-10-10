@@ -20,7 +20,9 @@ const gameController = {
         req.body;
       const user = await User.findByAddress(address);
       if (!user) {
-        return res.status(422).json({ message: "User not found" });
+        return res
+          .status(200)
+          .json({ success: false, message: "User not found" });
       }
       // check if code exist
       // create game on contract : code, mode, address, no_of_players, status, players_joined
@@ -62,13 +64,17 @@ const gameController = {
       const game_players = await GamePlayer.findByGameId(game.id);
 
       res.status(201).json({
-        ...game,
-        settings: game_settings,
-        players: game_players,
+        success: true,
+        message: "successful",
+        data: {
+          ...game,
+          settings: game_settings,
+          players: game_players,
+        },
       });
     } catch (error) {
       console.error("Error creating game with settings:", error);
-      res.status(400).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -81,9 +87,13 @@ const gameController = {
       const settings = await GameSetting.findByGameId(game.id);
       const players = await GamePlayer.findByGameId(game.id);
 
-      res.json({ ...game, settings, players });
+      res.json({
+        success: true,
+        message: "successful",
+        data: { ...game, settings, players },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -104,9 +114,13 @@ const gameController = {
         }))
       );
 
-      res.json(withSettingsAndPlayers);
+      res.json({
+        success: true,
+        message: "successful",
+        data: withSettingsAndPlayers,
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -115,7 +129,7 @@ const gameController = {
       await Game.update(req.params.id, req.body);
       res.json({ success: true, message: "Game updated" });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -124,7 +138,7 @@ const gameController = {
       await Game.delete(req.params.id);
       res.json({ success: true, message: "Game deleted" });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -140,9 +154,13 @@ const gameController = {
       const players = await GamePlayer.findByGameId(game.id);
       const history = await GamePlayHistory.findByGameId(game.id);
 
-      res.json({ ...game, settings, players, history });
+      res.json({
+        success: true,
+        message: "successful",
+        data: { ...game, settings, players, history },
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -153,9 +171,13 @@ const gameController = {
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
-      res.json(games);
+      res.json({
+        success: true,
+        message: "successful",
+        data: games,
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -166,9 +188,13 @@ const gameController = {
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
-      res.json(games);
+      res.json({
+        success: true,
+        message: "successful",
+        data: games,
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -188,9 +214,13 @@ const gameController = {
         }))
       );
 
-      res.json(withSettingsAndPlayers);
+      res.json({
+        success: true,
+        message: "successful",
+        data: withSettingsAndPlayers,
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 
@@ -210,9 +240,13 @@ const gameController = {
         }))
       );
 
-      res.json(withSettingsAndPlayers);
+      res.json({
+        success: true,
+        message: "successful",
+        data: withSettingsAndPlayers,
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 };
@@ -223,13 +257,17 @@ export const create = async (req, res) => {
       req.body;
     const user = await User.findByAddress(address);
     if (!user) {
-      return res.status(422).json({ message: "User not found" });
+      return res
+        .status(200)
+        .json({ success: false, message: "User not found" });
     }
 
     // Check if game code already exists
     const existingGame = await Game.findByCode(code);
     if (existingGame) {
-      return res.status(422).json({ message: "Game code already exists" });
+      return res
+        .status(200)
+        .json({ success: false, message: "Game code already exists" });
     }
 
     const game = await Game.create({
@@ -276,13 +314,17 @@ export const create = async (req, res) => {
     });
 
     res.status(201).json({
-      ...game,
-      settings: game_settings,
-      players: game_players,
+      success: true,
+      message: "successful",
+      data: {
+        ...game,
+        settings: game_settings,
+        players: game_players,
+      },
     });
   } catch (error) {
     console.error("Error creating game with settings:", error);
-    res.status(400).json({ error: error.message });
+    res.status(200).json({ success: false, message: error.message });
   }
 };
 
@@ -294,7 +336,7 @@ export const join = async (req, res) => {
     const user = await User.findByAddress(address);
     if (!user) {
       return res
-        .status(422)
+        .status(200)
         .json({ success: false, message: "User not found" });
     }
 
@@ -302,14 +344,14 @@ export const join = async (req, res) => {
     const game = await Game.findByCode(code);
     if (!game) {
       return res
-        .status(422)
+        .status(200)
         .json({ success: false, message: "Game not found" });
     }
 
     // Check if game is full
     const currentPlayers = await GamePlayer.findByGameId(game.id);
     if (currentPlayers.length >= game.number_of_players) {
-      return res.status(422).json({ success: false, message: "Game is full" });
+      return res.status(200).json({ success: false, message: "Game is full" });
     }
 
     // Check if user is already in the game
@@ -318,7 +360,7 @@ export const join = async (req, res) => {
     );
     if (existingPlayer) {
       return res
-        .status(422)
+        .status(200)
         .json({ success: false, message: "Player already in game" });
     }
 
@@ -326,7 +368,7 @@ export const join = async (req, res) => {
     const settings = await GameSetting.findByGameId(game.id);
     if (!settings) {
       return res
-        .status(422)
+        .status(200)
         .json({ success: false, message: "Game settings not found" });
     }
 
@@ -350,8 +392,8 @@ export const join = async (req, res) => {
       chance_jail_card: false,
       community_chest_jail_card: false,
       turn_order: nextTurnOrder,
-      circle: 0, 
-      rolls: 0
+      circle: 0,
+      rolls: 0,
     });
 
     // Get updated players list
@@ -383,7 +425,7 @@ export const join = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating game player:", error);
-    return res.status(400).json({ success: false, message: error.message });
+    return res.status(200).json({ success: false, message: error.message });
   }
 };
 
@@ -393,14 +435,14 @@ export const leave = async (req, res) => {
     const user = await User.findByAddress(address);
     if (!user) {
       return res
-        .status(422)
+        .status(200)
         .json({ success: false, message: "User not found" });
     }
 
     const game = await Game.findByCode(code);
     if (!game) {
       return res
-        .status(422)
+        .status(200)
         .json({ success: false, message: "Game not found" });
     }
 
@@ -429,55 +471,7 @@ export const leave = async (req, res) => {
     });
   } catch (error) {
     console.error("Error removing game player:", error);
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const changePosition = async (req, res) => {
-  try {
-    const { user_id, game_id, position } = req.body;
-    const game_player = await GamePlayer.findByUserIdAndGameId(
-      user_id,
-      game_id
-    );
-    if (!game_player) {
-      return res.status(422).json({ error: "Game player not found" });
-    }
-
-    const update_game_player = await GamePlayer.update(game_player.id, {
-      position,
-    });
-
-    // Get game info for emitting
-    const game = await Game.findById(game_id);
-
-    // Emit position changed event
-    const io = req.app.get("io");
-    io.to(game.code).emit("position-changed", {
-      player: update_game_player,
-      gameId: game_id,
-    });
-
-    res.json(update_game_player);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// Additional socket event for game start
-export const startGame = async (req, res) => {
-  try {
-    const { game_id } = req.body;
-    const game = await Game.update(game_id, { status: "RUNNING" });
-
-    const io = req.app.get("io");
-    io.to(game.code).emit("game-started", {
-      game: game,
-    });
-
-    res.json({ success: true, game });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(200).json({ success: false, message: error.message });
   }
 };
 
