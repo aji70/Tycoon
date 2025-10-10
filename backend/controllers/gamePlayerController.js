@@ -187,58 +187,66 @@ const gamePlayerController = {
     try {
       const { user_id, game_id, position, rolled = null } = req.body;
 
-      // Validate game
+      // 1) Validate game
       const game = await Game.findById(game_id);
-      if (!game) {
-        return res.status(404).json({ error: "Game not found" });
+      if (!game) return res.status(404).json({ error: "Game not found" });
+
+      // 2) Ensure it's this player's turn (important for one-roll-round)
+      if (game.next_player_id !== user_id) {
+        return res.status(403).json({ error: "It is not your turn." });
       }
 
-      // Validate user
+      // 3) Validate user
       const user = await User.findById(user_id);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      // Validate property
+      // 4) Validate property/position
       const property = await Property.findById(position);
-      if (!property) {
+      if (!property)
         return res.status(404).json({ error: "Property not found" });
-      }
 
-      // Validate player
+      // 5) Validate game player entry
       const game_player = await GamePlayer.findByUserIdAndGameId(
         user_id,
         game_id
       );
-      if (!game_player) {
+      if (!game_player)
         return res.status(404).json({ error: "Game player not found" });
+
+      // 6) Prevent duplicate rolls within same round
+      //    (one roll per player per round). If you later add doubles/extras, adapt this check.
+      const currentRolls = Number(game_player.rolls || 0);
+      if (currentRolls >= 1) {
+        return res
+          .status(400)
+          .json({
+            error: "You already rolled this round. Wait for others to roll.",
+          });
       }
-      console.log(game_player)
-      // Record old & new positions
-      const old_position = Number(game_player.position);
+
+      // 7) compute old/new positions and payload to update
+      const old_position = Number(game_player.position || 0);
       const new_position = Number(position);
-
-      //  Determine action type based on position
       const actionType = PROPERTY_ACTION(new_position);
-
-      // Update player's position & roll count
       const passedStart = new_position < old_position;
+
       const updatedFields = {
         position: new_position,
-        rolls: Number(game_player.rolls || 0) + 1,
+        rolls: currentRolls + 1,
       };
 
       if (passedStart) {
-        updatedFields.circle = game_player.circle + 1;
-        updatedFields.balance = game_player.balance + 200;
+        updatedFields.circle = Number(game_player.circle || 0) + 1;
+        updatedFields.balance = Number(game_player.balance || 0) + 200; // pass start bonus
       }
 
+      // OPTIONAL: wrap these DB operations in a transaction if your ORM supports it.
       const updated_player = await GamePlayer.update(
         game_player.id,
         updatedFields
       );
 
-      // 6️⃣ Log move into history
+      // 8) Log the move (active = 1 is acceptable — endTurn will mark it inactive)
       await GamePlayHistory.create({
         game_id,
         game_player_id: game_player.id,
@@ -251,13 +259,16 @@ const gamePlayerController = {
           description: `${user.username} moved from ${old_position} → ${new_position}`,
         }),
         comment: `${user.username} moved to ${property.name}`,
+        active: 1, // mark this history as the current active play
       });
 
-      // 7️⃣ Return response
+      // 9) Return updated player (and optionally fresh game state if you want)
+      const freshGame = await Game.findById(game_id);
       res.json({
         success: true,
         message: `${user.username} position updated and logged successfully.`,
         player: updated_player,
+        game: freshGame,
       });
     } catch (error) {
       console.error("Error changing position:", error);
@@ -268,26 +279,29 @@ const gamePlayerController = {
     try {
       const { user_id, game_id } = req.body;
 
-      // 1️⃣ Validate game
+      // 1) Validate game
       const game = await Game.findById(game_id);
-      if (!game) {
-        return res.status(400).json({ error: "Game not found" });
-      }
+      if (!game) return res.status(400).json({ error: "Game not found" });
 
-      // 2️⃣ Validate player
+      // 2) Validate player
       const current_player = await GamePlayer.findByUserIdAndGameId(
         user_id,
         game_id
       );
-      if (!current_player) {
+      if (!current_player)
         return res.status(400).json({ error: "Game player not found" });
+
+      // 2b) Ensure only the player whose turn it is can end the turn
+      if (game.next_player_id !== user_id) {
+        return res
+          .status(403)
+          .json({ error: "You cannot end another player's turn." });
       }
 
-      // 3️⃣ Get all players ordered by turn_order
+      // 3) Load all players ordered by turn_order
       const all_players = await GamePlayer.findByGameId(game_id);
-      if (!all_players?.length) {
+      if (!all_players?.length)
         return res.status(400).json({ error: "No players found in game" });
-      }
 
       const sorted_players = all_players.sort(
         (a, b) => a.turn_order - b.turn_order
@@ -302,18 +316,16 @@ const gamePlayerController = {
           .json({ error: "Current player not found in list" });
       }
 
-      // 4️⃣ Determine next player (wrap to first if end of list)
+      // 4) Determine next player (wrap)
       const next_player_index =
         current_player_index === sorted_players.length - 1
           ? 0
           : current_player_index + 1;
-
       const next_player = sorted_players[next_player_index];
-      if (!next_player) {
+      if (!next_player)
         return res.status(400).json({ error: "Next player not found" });
-      }
 
-      // 5️⃣ Mark the last active game play history as inactive (active = 0)
+      // 5) Mark last active history as inactive
       const last_active = await GamePlayHistory.findLatestActiveByGameId(
         game_id
       );
@@ -321,10 +333,42 @@ const gamePlayerController = {
         await GamePlayHistory.update(last_active.id, { active: 0 });
       }
 
-      // 6️⃣ Update game’s next player
+      // 6) Update game next_player_id
       const updated_game = await Game.update(game.id, {
         next_player_id: next_player.user_id,
       });
+
+      // 7) Check if a full round has completed (everyone has rolled at least once)
+      //    If yes, reset rolls for all players so the new round can begin.
+      //    Note: we re-fetch players to get the most recent rolls values (including the roll we just recorded).
+      const latest_players = await GamePlayer.findByGameId(game_id);
+      const allHaveRolled = latest_players.every(
+        (p) => Number(p.rolls || 0) >= 1
+      );
+
+      if (allHaveRolled) {
+        // Reset rolls for the next round
+        await Promise.all(
+          latest_players.map((p) => GamePlayer.update(p.id, { rolls: 0 }))
+        );
+
+        // Optional: create a round boundary history record
+        await GamePlayHistory.create({
+          game_id,
+          game_player_id: current_player.id,
+          rolled: null,
+          old_position: null,
+          new_position: null,
+          action: "ROUND_COMPLETE",
+          amount: 0,
+          extra: JSON.stringify({
+            description:
+              "All players rolled — starting new round (rolls reset).",
+          }),
+          comment: "Round completed. Rolls reset.",
+          active: 0,
+        });
+      }
 
       res.json({
         success: true,
@@ -337,7 +381,6 @@ const gamePlayerController = {
       res.status(400).json({ error: error.message });
     }
   },
-
   async remove(req, res) {
     try {
       await GamePlayer.delete(req.params.id);
