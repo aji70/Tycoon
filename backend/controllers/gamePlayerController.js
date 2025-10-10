@@ -196,13 +196,17 @@ const gamePlayerController = {
         .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ error: "Game not found" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Game not found" });
       }
 
       // Ensure it’s this player’s turn
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res.status(403).json({ error: "It is not your turn." });
+        return res
+          .status(400)
+          .json({ success: false, message: "It is not your turn." });
       }
 
       // 2️⃣ Lock player row
@@ -212,7 +216,9 @@ const gamePlayerController = {
         .first();
       if (!game_player) {
         await trx.rollback();
-        return res.status(404).json({ error: "Game player not found" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Game player not found" });
       }
 
       // Prevent double rolls in same round
@@ -220,14 +226,16 @@ const gamePlayerController = {
         await trx.rollback();
         return res
           .status(400)
-          .json({ error: "You already rolled this round." });
+          .json({ success: false, message: "You already rolled this round." });
       }
 
       // 3️⃣ Validate position (no lock needed)
       const property = await trx("properties").where({ id: position }).first();
       if (!property) {
         await trx.rollback();
-        return res.status(404).json({ error: "Property not found" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Property not found" });
       }
 
       // 4️⃣ Compute new values
@@ -273,13 +281,11 @@ const gamePlayerController = {
       res.json({
         success: true,
         message: "Position updated successfully.",
-        player_id: game_player.id,
-        position: new_position,
       });
     } catch (error) {
       await trx.rollback();
       console.error("changePosition error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   },
   async endTurn(req, res) {
