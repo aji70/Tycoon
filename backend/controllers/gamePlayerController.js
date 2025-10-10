@@ -413,7 +413,7 @@ const gamePlayerController = {
         return res.status(200).json({
           success: false,
           message: "It's not your turn to roll.",
-          canRoll: false,
+          data: { canRoll: false },
         });
       }
 
@@ -423,7 +423,7 @@ const gamePlayerController = {
         return res.status(200).json({
           success: false,
           message: "You cannot roll while jailed.",
-          canRoll: false,
+          data: { canRoll: false },
         });
       }
 
@@ -432,7 +432,7 @@ const gamePlayerController = {
         return res.status(200).json({
           success: false,
           message: "You are bankrupt and cannot roll.",
-          canRoll: false,
+          data: { canRoll: false },
         });
       }
 
@@ -442,7 +442,7 @@ const gamePlayerController = {
         return res.status(200).json({
           success: false,
           message: "You have already rolled this round.",
-          canRoll: false,
+          data: { canRoll: false },
         });
       }
 
@@ -450,15 +450,19 @@ const gamePlayerController = {
       await trx.commit();
       return res.status(200).json({
         success: true,
-        canRoll: true,
         message: "You are eligible to roll.",
+        data: { canRoll: true },
       });
     } catch (error) {
       await trx.rollback();
       console.error("canRoll error:", error);
       return res
         .status(200)
-        .json({ success: false, canRoll: false, message: error.message });
+        .json({
+          success: false,
+          data: { canRoll: false },
+          message: error.message,
+        });
     }
   },
 
