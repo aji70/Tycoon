@@ -301,15 +301,20 @@ const gamePlayerController = {
         .first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ error: "Game not found" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Game not found" });
       }
 
       // Must be this player’s turn
       if (game.next_player_id !== user_id) {
         await trx.rollback();
         return res
-          .status(403)
-          .json({ error: "You cannot end another player's turn." });
+          .status(400)
+          .json({
+            success: false,
+            message: "You cannot end another player's turn.",
+          });
       }
 
       // 2️⃣ Fetch and lock all players
@@ -320,7 +325,9 @@ const gamePlayerController = {
 
       if (!players.length) {
         await trx.rollback();
-        return res.status(400).json({ error: "No players found in game" });
+        return res
+          .status(400)
+          .json({ success: false, message: "No players found in game" });
       }
 
       const currentIdx = players.findIndex((p) => p.user_id === user_id);
@@ -364,12 +371,11 @@ const gamePlayerController = {
       res.json({
         success: true,
         message: "Turn ended. Next player set.",
-        next_player_id: next_player.user_id,
       });
     } catch (error) {
       await trx.rollback();
       console.error("endTurn error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   },
 
