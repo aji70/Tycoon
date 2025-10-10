@@ -3,8 +3,6 @@ import gameController, {
   create,
   join,
   leave,
-  changePosition,
-  startGame,
 } from "../controllers/gameController.js";
 
 const router = express.Router();
@@ -30,7 +28,5 @@ router.delete("/:id", gameController.remove);
 router.post("/create", create);
 router.post("/join", join);
 router.post("/leave", leave);
-router.post("/position", changePosition);
-router.post("/start", startGame);
 
 export default router;
