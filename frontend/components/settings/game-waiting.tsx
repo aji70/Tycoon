@@ -20,6 +20,7 @@ import {
 import { apiClient } from "@/lib/api";
 import { Game } from "@/lib/types/games";
 import { getPlayerSymbolData, PlayerSymbol, symbols } from "@/lib/types/symbol";
+import { ApiResponse } from "@/types/api";
 
 /**
  * Production-ready GameWaiting component
@@ -33,11 +34,6 @@ import { getPlayerSymbolData, PlayerSymbol, symbols } from "@/lib/types/symbol";
 
 const POLL_INTERVAL = 5000; // ms
 const COPY_FEEDBACK_MS = 2000;
-
-type ApiResponse = {
-  success: boolean;
-  message: string;
-};
 
 export default function GameWaiting(): JSX.Element {
   const router = useRouter();
@@ -148,52 +144,48 @@ export default function GameWaiting(): JSX.Element {
     const fetchOnce = async () => {
       setError(null);
       try {
-        const resp = await apiClient.get<Game>(
+        const res = await apiClient.get<ApiResponse<Game>>(
           `/games/code/${encodeURIComponent(gameCode)}`
         );
 
         if (!mountedRef.current) return;
 
-        if (!resp) throw new Error(`Game ${gameCode} not found`);
+        const gameData = res?.data;
+        if (!gameData) throw new Error(`Game ${gameCode} not found`);
 
-        // if game moved to RUNNING redirect to play page
-        if (resp.status === "RUNNING") {
+        // Redirect if already running
+        if (gameData.status === "RUNNING") {
           router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
           return;
         }
 
-        if (resp.status !== "PENDING") {
-          // keep the UI consistent and inform the user
+        if (gameData.status !== "PENDING") {
           throw new Error(`Game ${gameCode} is not open for joining.`);
         }
 
-        setGame(resp);
-        setAvailableSymbols(computeAvailableSymbols(resp));
-        setIsJoined(checkPlayerJoined(resp));
+        setGame(gameData);
+        setAvailableSymbols(computeAvailableSymbols(gameData));
+        setIsJoined(checkPlayerJoined(gameData));
 
-        // if all players joined, try to transition server-side and redirect
-        if (resp.players.length === resp.number_of_players) {
+        // Auto-start if all players joined
+        if (gameData.players.length === gameData.number_of_players) {
           const updateRes = await apiClient.put<ApiResponse>(
-            `/games/${resp.id}`,
-            {
-              status: "RUNNING",
-            }
+            `/games/${gameData.id}`,
+            { status: "RUNNING" }
           );
-          if (updateRes?.success)
+          if (updateRes?.data?.success)
             router.push(`/game-play?gameCode=${gameCode}`);
         }
       } catch (err: any) {
         if (!mountedRef.current) return;
-        // ignore abort errors
-        if (err?.name === "AbortError") return;
+        if (err?.name === "AbortError") return; // ignore aborts
         console.error("fetchGame error:", err);
-        setError(
-          err?.message ?? "Failed to fetch game data. Please try again."
-        );
+        setError(err?.message ?? "Failed to fetch game data. Please try again.");
       } finally {
         if (mountedRef.current) setLoading(false);
       }
     };
+
 
     const startPolling = async () => {
       await fetchOnce();
