@@ -1,4 +1,5 @@
 "use client";
+
 import GameBoard from "@/components/game/game-board";
 import GameRoom from "@/components/game/game-room";
 import GamePlayers from "@/components/game/players";
@@ -8,20 +9,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
+import { ApiResponse } from "@/types/api";
 
 export default function GamePlayPage() {
   const searchParams = useSearchParams();
   const [gameCode, setGameCode] = useState<string>("");
 
-  // ✅ get connected wallet address
   const { address } = useAccount();
 
+  // ✅ Extract gameCode from search or localStorage
   useEffect(() => {
-    const code =
-      searchParams.get("gameCode") || localStorage.getItem("gameCode");
-    if (code && code.length === 6) {
-      setGameCode(code);
-    }
+    const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
+    if (code && code.length === 6) setGameCode(code);
   }, [searchParams]);
 
   // --- Fetch Game ---
@@ -29,10 +28,13 @@ export default function GamePlayPage() {
     data: game,
     isLoading: gameLoading,
     isError: gameError,
-  } = useQuery({
+  } = useQuery<Game>({
     queryKey: ["game", gameCode],
-    queryFn: async () =>
-      gameCode ? await apiClient.get<Game>(`/games/code/${gameCode}`) : null,
+    queryFn: async () => {
+      if (!gameCode) throw new Error("No game code found");
+      const res = await apiClient.get<ApiResponse<Game>>(`/games/code/${gameCode}`);
+      return res.data!;
+    },
     enabled: !!gameCode,
     refetchInterval: 5000,
   });
@@ -42,15 +44,16 @@ export default function GamePlayPage() {
     data: game_properties = [],
     isLoading: gamePropertiesLoading,
     isError: gamePropertiesError,
-  } = useQuery({
+  } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
-    queryFn: async () =>
-      game?.id
-        ? await apiClient.get<GameProperty[]>(
-            `/game-properties/game/${game.id}`
-          )
-        : [],
-    enabled: !!game,
+    queryFn: async () => {
+      if (!game?.id) return [];
+      const res = await apiClient.get<ApiResponse<GameProperty[]>>(
+        `/game-properties/game/${game.id}`
+      );
+      return res.data || [];
+    },
+    enabled: !!game?.id,
     refetchInterval: 15000,
   });
 
@@ -59,52 +62,49 @@ export default function GamePlayPage() {
     data: properties = [],
     isLoading: propertiesLoading,
     isError: propertiesError,
-  } = useQuery({
+  } = useQuery<Property[]>({
     queryKey: ["properties"],
-    queryFn: async () => await apiClient.get<Property[]>("/properties"),
-    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<Property[]>>("/properties");
+      return res.data || [];
+    },
+    staleTime: Infinity,
   });
 
-  // ✅ find my profile from game.players
+  // ✅ Find my player profile
   const me = useMemo(() => {
     if (!game?.players || !address) return null;
-    const player = game.players.find(
+    return game.players.find(
       (pl: Player) => pl.address?.toLowerCase() === address.toLowerCase()
-    );
-    return player || null;
+    ) || null;
   }, [game, address]);
 
-  // ✅ compute my properties
+  // ✅ Compute my owned properties
   const my_properties: Property[] = useMemo(() => {
-    if (!game_properties || !properties || !game?.players || !address)
-      return [];
+    if (!game_properties?.length || !properties?.length || !address) return [];
 
-    const propertyMap = new Map<number, Property>(
-      properties.map((p) => [p.id, p])
-    );
-
+    const propertyMap = new Map(properties.map((p) => [p.id, p]));
     return game_properties
-      .filter(
-        (gp: GameProperty) =>
-          gp.address?.toLowerCase() === address.toLowerCase()
-      )
-      .map((gp: GameProperty) => propertyMap.get(gp.property_id))
+      .filter((gp) => gp.address?.toLowerCase() === address.toLowerCase())
+      .map((gp) => propertyMap.get(gp.property_id))
       .filter((p): p is Property => !!p);
-  }, [game_properties, properties, game, address]);
+  }, [game_properties, properties, address]);
 
-  if (gameLoading)
+  if (gameLoading) {
     return (
-      <div className="w-full min-h-screen h-auto flex items-center justify-center text-lg font-medium text-white">
+      <div className="w-full min-h-screen flex items-center justify-center text-lg font-medium text-white">
         Loading game...
       </div>
     );
+  }
 
-  if (gameError)
+  if (gameError) {
     return (
-      <div className="w-full min-h-screen h-auto flex items-center justify-center text-lg font-medium text-white">
+      <div className="w-full min-h-screen flex items-center justify-center text-lg font-medium text-white">
         Failed to load game
       </div>
     );
+  }
 
   // --- Main Layout ---
   return game ? (

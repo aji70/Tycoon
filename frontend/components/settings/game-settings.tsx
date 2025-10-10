@@ -24,6 +24,7 @@ import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
 import { useIsRegistered, useCreateGame } from "@/context/ContractProvider";
+import { ApiResponse } from "@/types/api";
 
 // Define settings interface
 interface Settings {
@@ -118,7 +119,7 @@ const GameSettings = () => {
       const gameIdStr = gameId.toString();
       console.log("Game created with ID:", gameIdStr);
 
-      const response = await apiClient.post("/games", {
+      const response = await apiClient.post<ApiResponse>("/games", {
         id: gameId,
         code: gameCode,
         mode: gameType,
