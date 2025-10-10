@@ -354,6 +354,16 @@ const GameBoard = ({
                     )}
                   </div>
                 )}
+                {!canRoll && game.next_player_id === me?.user_id && (
+                  <button
+                    type="button"
+                    onClick={() => END_TURN(me?.user_id)}
+                    disabled={actionLock === "ROLL"}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                  >
+                    End Turn
+                  </button>
+                )}
               </div>
 
               {/* Render each board square */}
