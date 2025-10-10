@@ -309,12 +309,10 @@ const gamePlayerController = {
       // Must be this player’s turn
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "You cannot end another player's turn.",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "You cannot end another player's turn.",
+        });
       }
 
       // 2️⃣ Fetch and lock all players
@@ -376,6 +374,98 @@ const gamePlayerController = {
       await trx.rollback();
       console.error("endTurn error:", error);
       res.status(400).json({ success: false, message: error.message });
+    }
+  },
+  async canRoll(req, res) {
+    const trx = await db.transaction();
+
+    try {
+      const { user_id, game_id } = req.body;
+
+      // Validate required fields
+      if (!user_id || !game_id) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Missing user_id or game_id." });
+      }
+
+      // 1️⃣ Lock game row
+      const game = await trx("games")
+        .where({ id: game_id })
+        .forUpdate()
+        .first();
+      if (!game) {
+        await trx.rollback();
+        return res
+          .status(404)
+          .json({ success: false, message: "Game not found." });
+      }
+
+      // 2️⃣ Lock player row
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .forUpdate()
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res
+          .status(404)
+          .json({ success: false, message: "Player not found in game." });
+      }
+
+      // 3️⃣ Check if it's the player's turn
+      if (game.next_player_id !== user_id) {
+        await trx.rollback();
+        return res.status(403).json({
+          success: false,
+          message: "It's not your turn to roll.",
+          canRoll: false,
+        });
+      }
+
+      // 4️⃣ Optional checks: jailed, bankrupt, inactive
+      if (player.is_jailed) {
+        await trx.rollback();
+        return res.status(403).json({
+          success: false,
+          message: "You cannot roll while jailed.",
+          canRoll: false,
+        });
+      }
+
+      if (player.is_bankrupt) {
+        await trx.rollback();
+        return res.status(403).json({
+          success: false,
+          message: "You are bankrupt and cannot roll.",
+          canRoll: false,
+        });
+      }
+
+      // 5️⃣ Prevent multiple rolls per round
+      if (Number(player.rolls || 0) >= 1) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "You have already rolled this round.",
+          canRoll: false,
+        });
+      }
+
+      // ✅ Passed all checks
+      await trx.commit();
+      return res.status(200).json({
+        success: true,
+        canRoll: true,
+        message: "You are eligible to roll.",
+      });
+    } catch (error) {
+      await trx.rollback();
+      console.error("canRoll error:", error);
+      return res
+        .status(500)
+        .json({ success: false, canRoll: false, message: error.message });
     }
   },
 
