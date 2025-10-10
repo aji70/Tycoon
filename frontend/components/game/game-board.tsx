@@ -135,7 +135,7 @@ const GameBoard = ({
   const checkCanRoll = useCallback(async () => {
     if (!me?.user_id) return;
     try {
-      const res = await apiClient.post<ApiResponse<{ canRoll: boolean }>>("/game-players/can-roll", {
+      const res = await apiClient.post<ApiResponse>("/game-players/can-roll", {
         user_id: me.user_id,
         game_id: game.id,
       });
