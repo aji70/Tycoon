@@ -91,6 +91,7 @@ const GameBoard = ({
     };
   }, []);
 
+  // local state initialised from props and kept in sync with effects below
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [boardData, setBoardData] = useState<Property[]>(properties ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -126,10 +127,22 @@ const GameBoard = ({
     []
   );
 
+  // Return the game DTO (resp.data) not the raw axios response
   const fetchUpdatedGame = useCallback(async () => {
     const resp = await apiClient.get<Game>(`/games/code/${game.code}`);
-    return resp;
+    return resp.data;
   }, [game.code]);
+
+  /* ---------- Keep local state synced with incoming props ---------- */
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    setPlayers(game?.players ?? []);
+  }, [game?.players]);
+
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    setBoardData(properties ?? []);
+  }, [properties]);
 
   /* ---------- CAN_ROLL ---------- */
   const checkCanRoll = useCallback(async () => {
@@ -139,19 +152,24 @@ const GameBoard = ({
         user_id: me.user_id,
         game_id: game.id,
       });
-      const allowed = res?.data?.canRoll ?? false;
-      setCanRoll(allowed);
-      if (allowed) {
-        toast.success("🎲 It’s your turn! Roll the dice!");
-      }
+
+      // backend might return { canRoll: true } or { data: { canRoll: true } }
+      const allowed =
+        (res?.data as any)?.canRoll ?? (res?.data as any)?.data?.canRoll ?? false;
+
+      setCanRoll(Boolean(allowed));
+      // show a subtle toast only when allowed becomes true
+      if (allowed) toast.success("🎲 It's your turn — roll the dice!");
     } catch (err: any) {
       console.error("checkCanRoll error:", err);
-      toast.error("Failed to check roll eligibility");
       setCanRoll(false);
+      // don't spam error toasts while polling — show once
+      toast.error("Failed to check roll eligibility");
     }
   }, [me?.user_id, game.id]);
 
   useEffect(() => {
+    // initial check and polling to stay in sync
     checkCanRoll();
     const interval = setInterval(() => checkCanRoll(), 7000);
     return () => clearInterval(interval);
@@ -161,32 +179,47 @@ const GameBoard = ({
   const UPDATE_GAME_PLAYER_POSITION = useCallback(
     async (id: number | undefined | null, position: number, rolled: number) => {
       if (!id) return;
+      setError(null);
+
+      // optimistic visual move (kept minimal)
       const prevPlayers = players;
       safeSetPlayers((prev) =>
         prev.map((p) => (p.user_id === id ? { ...p, position } : p))
       );
 
       try {
-        const resp = await apiClient.post("/game-players/change-position", {
+        const resp = await apiClient.post<ApiResponse>("/game-players/change-position", {
           position,
           user_id: id,
           game_id: game.id,
           rolled,
         });
-        if (!resp) throw new Error("Server rejected position update.");
+
+        // respect backend rejected responses
+        if (!resp?.data?.success) {
+          throw new Error(resp?.data?.message || "Server rejected position update.");
+        }
+
+        // fetch authoritative game state
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players && isMountedRef.current) {
           setPlayers(updatedGame.players);
           setPropertyId(position);
           setRollAction(PROPERTY_ACTION(position));
         }
+
+        // keep react-query in sync
         queryClient.invalidateQueries({ queryKey: ["game", game.code] });
       } catch (err: any) {
         console.error("UPDATE_GAME_PLAYER_POSITION error:", err);
-        setPlayers(prevPlayers);
-        const msg = err?.response?.data?.message || "Failed to update position.";
-        toast.error(msg);
-        forceRefetch();
+        if (isMountedRef.current) {
+          // rollback to previous players
+          setPlayers(prevPlayers);
+          const msg = err?.response?.data?.message || err?.message || "Failed to update position.";
+          setError(msg);
+          toast.error(msg);
+          forceRefetch();
+        }
       }
     },
     [players, safeSetPlayers, game.id, fetchUpdatedGame, queryClient, game.code, forceRefetch]
@@ -199,22 +232,26 @@ const GameBoard = ({
       if (!lockAction("END")) return;
 
       try {
-        const resp = await apiClient.post("/game-players/end-turn", {
+        const resp = await apiClient.post<ApiResponse>("/game-players/end-turn", {
           user_id: id,
           game_id: game.id,
         });
-        if (!resp) throw new Error("Server rejected turn end.");
+
+        if (!resp?.data?.success) {
+          throw new Error(resp?.data?.message || "Server rejected turn end.");
+        }
 
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players && isMountedRef.current) {
           setPlayers(updatedGame.players);
           toast.success("✅ Turn ended. Waiting for next player...");
+          // After ending the turn, obviously you cannot roll
           setCanRoll(false);
         }
         queryClient.invalidateQueries({ queryKey: ["game", game.code] });
       } catch (err: any) {
         console.error("END_TURN error:", err);
-        toast.error("Failed to end turn. Resyncing...");
+        toast.error(err?.response?.data?.message || err?.message || "Failed to end turn. Resyncing...");
         forceRefetch();
       } finally {
         unlockAction();
@@ -225,58 +262,92 @@ const GameBoard = ({
 
   /* ---------- ROLL_DICE ---------- */
   const ROLL_DICE = useCallback(async () => {
+    // don't start if already rolling or locked
     if (isRolling || actionLock || !lockAction("ROLL")) return;
     setError(null);
     setRollAgain(false);
     setIsRolling(true);
 
-    // 🔹 Ensure it's this user's turn from backend
-    const rollAllowed = await apiClient
-      .post<ApiResponse<{ canRoll: boolean }>>("/game-players/can-roll", {
+    try {
+      // 1) Ask backend if we can roll
+      const res = await apiClient.post<ApiResponse<{ canRoll: boolean }>>("/game-players/can-roll", {
         user_id: me?.user_id,
         game_id: game.id,
-      })
-      .then((r) => r?.data?.canRoll)
-      .catch(() => false);
+      });
+      const allowed = (res?.data as any)?.canRoll ?? (res?.data as any)?.data?.canRoll ?? false;
 
-    if (!rollAllowed) {
-      toast.error("⏳ Not your turn! Wait for your turn to roll.");
-      setIsRolling(false);
-      unlockAction();
-      return;
-    }
-
-    setTimeout(async () => {
-      const value = getDiceValues();
-      if (!isMountedRef.current) return unlockAction();
-
-      if (!value) {
-        setRollAgain(true);
+      if (!allowed) {
+        toast.error("⏳ Not your turn! Wait for your turn to roll.");
         setIsRolling(false);
         unlockAction();
+        // refresh to reflect true state if we were out-of-sync
+        forceRefetch();
         return;
       }
 
-      setRoll(value);
-      const currentPos = me?.position ?? 0;
-      const newPosition = (currentPos + value.total) % BOARD_SQUARES;
-      safeSetPlayers((prev) =>
-        prev.map((p) =>
-          p.user_id === me?.user_id ? { ...p, position: newPosition } : p
-        )
-      );
+      // 2) animate & compute dice
+      setTimeout(async () => {
+        const value = getDiceValues();
+        if (!isMountedRef.current) {
+          unlockAction();
+          return;
+        }
 
-      try {
-        await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition, value.total);
-        setCanRoll(false); // prevent rolling again unless next turn
-      } catch {
-        toast.error("Position update failed, syncing...");
-        forceRefetch();
-      } finally {
-        if (isMountedRef.current) setIsRolling(false);
-        unlockAction();
-      }
-    }, ROLL_ANIMATION_MS);
+        if (!value) {
+          setRollAgain(true);
+          setIsRolling(false);
+          unlockAction();
+          return;
+        }
+
+        setRoll(value);
+
+        const currentPos = me?.position ?? 0;
+        const newPosition = (currentPos + value.total) % BOARD_SQUARES;
+
+        // UI move optimistic
+        safeSetPlayers((prev) =>
+          prev.map((p) => (p.user_id === me?.user_id ? { ...p, position: newPosition } : p))
+        );
+
+        try {
+          // persist move
+          const updateResp = await apiClient.post<ApiResponse>("/game-players/change-position", {
+            position: newPosition,
+            user_id: me?.user_id,
+            game_id: game.id,
+            rolled: value.total,
+          });
+
+          if (!updateResp?.data?.success) {
+            throw new Error(updateResp?.data?.message || "Move rejected by server");
+          }
+
+          // fetch authoritative state
+          const updatedGame = await fetchUpdatedGame();
+          if (updatedGame?.players && isMountedRef.current) {
+            setPlayers(updatedGame.players);
+            setPropertyId(newPosition);
+            setRollAction(PROPERTY_ACTION(newPosition));
+          }
+          // prevent further roll until next turn is set by endTurn
+          setCanRoll(false);
+        } catch (err: any) {
+          console.error("Persist move error:", err);
+          toast.error(err?.response?.data?.message || err?.message || "Position update failed, syncing...");
+          forceRefetch();
+        } finally {
+          if (isMountedRef.current) setIsRolling(false);
+          unlockAction();
+        }
+      }, ROLL_ANIMATION_MS);
+    } catch (err: any) {
+      console.error("ROLL_DICE error:", err);
+      toast.error("Failed to verify roll eligibility.");
+      setIsRolling(false);
+      unlockAction();
+      forceRefetch();
+    }
   }, [
     isRolling,
     actionLock,
@@ -284,7 +355,8 @@ const GameBoard = ({
     unlockAction,
     me?.user_id,
     me?.position,
-    UPDATE_GAME_PLAYER_POSITION,
+    safeSetPlayers,
+    fetchUpdatedGame,
     forceRefetch,
     game.id,
   ]);
@@ -300,6 +372,9 @@ const GameBoard = ({
     return map;
   }, [players]);
 
+  // is it currently this player's turn (authoritative via `game` prop)
+  const isMyTurn = me?.user_id != null && game?.next_player_id === me.user_id;
+
   /* ---------- Render ---------- */
   return (
     <ErrorBoundary>
@@ -312,18 +387,21 @@ const GameBoard = ({
                   Blockopoly
                 </h1>
 
-                {canRoll && (
+                {/* Show controls if it's my turn (so End Turn remains visible after rolling) */}
+                {isMyTurn && (
                   <div className="flex flex-col gap-2">
+                    {/* Show Roll button when there's no roll result yet */}
                     {!roll ? (
                       <button
                         type="button"
                         onClick={ROLL_DICE}
-                        disabled={isRolling || actionLock === "END"}
+                        disabled={isRolling || actionLock === "END" || !canRoll}
                         className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
                       >
                         {isRolling ? "Rolling..." : "Roll Dice"}
                       </button>
                     ) : (
+                      // After rolling, show End Turn (so player can finish their move)
                       <button
                         type="button"
                         onClick={() => END_TURN(me?.user_id)}
@@ -353,16 +431,6 @@ const GameBoard = ({
                       </p>
                     )}
                   </div>
-                )}
-                {!canRoll && game.next_player_id === me?.user_id && (
-                  <button
-                    type="button"
-                    onClick={() => END_TURN(me?.user_id)}
-                    disabled={actionLock === "ROLL"}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                  >
-                    End Turn
-                  </button>
                 )}
               </div>
 
@@ -395,9 +463,10 @@ const GameBoard = ({
                         <button
                           key={String(p.user_id)}
                           className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
-                            ? "border-2 border-cyan-300 rounded"
-                            : ""
+                              ? "border-2 border-cyan-300 rounded animate-pulse"
+                              : ""
                             }`}
+                          aria-label={p.username ?? `Player ${p.user_id}`}
                         >
                           {getPlayerSymbol(p.symbol)}
                         </button>
