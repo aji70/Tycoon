@@ -139,6 +139,7 @@ const GameBoard = ({
         user_id: me.user_id,
         game_id: game.id,
       });
+      console.log(res)
 
       const allowed =
         (res?.data as any)?.canRoll ?? (res?.data as any)?.data?.canRoll ?? false;
