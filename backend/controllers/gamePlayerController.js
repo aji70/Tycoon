@@ -13,22 +13,22 @@ const gamePlayerController = {
       const { address, code } = req.body;
       const user = await User.findByAddress(address);
       if (!user) {
-        res.status(422).json({ success: false, message: "User not found" });
+        res.status(200).json({ success: false, message: "User not found" });
       }
       const game = await Game.findByCode(code);
       if (!game) {
-        res.status(422).json({ success: false, message: "Game not found" });
+        res.status(200).json({ success: false, message: "Game not found" });
       }
       const settings = await GameSetting.findByGameId(game.id);
       if (!settings) {
         res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "Game settings not found" });
       }
       const players = await GamePlayer.findByGameId(game.id);
       if (!players) {
         res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "Game players not found" });
       }
       const player = await GamePlayer.create({
@@ -45,7 +45,7 @@ const gamePlayerController = {
         .json({ success: true, message: "Player added to game successfully" });
     } catch (error) {
       console.error("Error creating game player:", error);
-      res.status(400).json({ success: false, message: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async join(req, res) {
@@ -56,7 +56,7 @@ const gamePlayerController = {
       const user = await User.findByAddress(address);
       if (!user) {
         return res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "User not found" });
       }
 
@@ -64,7 +64,7 @@ const gamePlayerController = {
       const game = await Game.findByCode(code);
       if (!game) {
         return res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "Game not found" });
       }
 
@@ -72,7 +72,7 @@ const gamePlayerController = {
       const settings = await GameSetting.findByGameId(game.id);
       if (!settings) {
         return res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "Game settings not found" });
       }
 
@@ -80,7 +80,7 @@ const gamePlayerController = {
       const players = await GamePlayer.findByGameId(game.id);
       if (!players) {
         return res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "Game players not found" });
       }
 
@@ -113,7 +113,7 @@ const gamePlayerController = {
       });
     } catch (error) {
       console.error("Error creating game player:", error);
-      return res.status(400).json({ success: false, message: error.message });
+      return res.status(200).json({ success: false, message: error.message });
     }
   },
   async leave(req, res) {
@@ -121,11 +121,11 @@ const gamePlayerController = {
       const { address, code } = req.body;
       const user = await User.findByAddress(address);
       if (!user) {
-        res.status(422).json({ success: false, message: "User not found" });
+        res.status(200).json({ success: false, message: "User not found" });
       }
       const game = await Game.findByCode(code);
       if (!game) {
-        res.status(422).json({ success: false, message: "Game not found" });
+        res.status(200).json({ success: false, message: "Game not found" });
       }
       const player = await GamePlayer.leave(game.id, user.id);
       res.status(200).json({
@@ -134,17 +134,17 @@ const gamePlayerController = {
       });
     } catch (error) {
       console.error("Error creating game player:", error);
-      res.status(400).json({ success: false, message: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async findById(req, res) {
     try {
       const player = await GamePlayer.findById(req.params.id);
       if (!player)
-        return res.status(400).json({ error: "Game player not found" });
+        return res.status(200).json({ error: "Game player not found" });
       res.json(player);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async findAll(req, res) {
@@ -156,7 +156,7 @@ const gamePlayerController = {
       });
       res.json(players);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async findByGame(req, res) {
@@ -164,7 +164,7 @@ const gamePlayerController = {
       const players = await GamePlayer.findByGameId(req.params.gameId);
       res.json(players);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async findByUser(req, res) {
@@ -172,7 +172,7 @@ const gamePlayerController = {
       const players = await GamePlayer.findByUserId(req.params.userId);
       res.json(players);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async update(req, res) {
@@ -180,7 +180,7 @@ const gamePlayerController = {
       const player = await GamePlayer.update(req.params.id, req.body);
       res.json(player);
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async changePosition(req, res) {
@@ -197,7 +197,7 @@ const gamePlayerController = {
       if (!game) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "Game not found" });
       }
 
@@ -205,7 +205,7 @@ const gamePlayerController = {
       if (game.next_player_id !== user_id) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "It is not your turn." });
       }
 
@@ -217,7 +217,7 @@ const gamePlayerController = {
       if (!game_player) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "Game player not found" });
       }
 
@@ -225,7 +225,7 @@ const gamePlayerController = {
       if (Number(game_player.rolls || 0) >= 1) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "You already rolled this round." });
       }
 
@@ -234,7 +234,7 @@ const gamePlayerController = {
       if (!property) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "Property not found" });
       }
 
@@ -285,7 +285,7 @@ const gamePlayerController = {
     } catch (error) {
       await trx.rollback();
       console.error("changePosition error:", error);
-      res.status(400).json({ success: false, message: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async endTurn(req, res) {
@@ -302,14 +302,14 @@ const gamePlayerController = {
       if (!game) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "Game not found" });
       }
 
       // Must be this player’s turn
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "You cannot end another player's turn.",
         });
@@ -324,7 +324,7 @@ const gamePlayerController = {
       if (!players.length) {
         await trx.rollback();
         return res
-          .status(400)
+          .status(200)
           .json({ success: false, message: "No players found in game" });
       }
 
@@ -373,7 +373,7 @@ const gamePlayerController = {
     } catch (error) {
       await trx.rollback();
       console.error("endTurn error:", error);
-      res.status(400).json({ success: false, message: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
   async canRoll(req, res) {
@@ -386,7 +386,7 @@ const gamePlayerController = {
       if (!user_id || !game_id) {
         await trx.rollback();
         return res
-          .status(422)
+          .status(200)
           .json({ success: false, message: "Missing user_id or game_id." });
       }
 
@@ -398,7 +398,7 @@ const gamePlayerController = {
       if (!game) {
         await trx.rollback();
         return res
-          .status(404)
+          .status(200)
           .json({ success: false, message: "Game not found." });
       }
 
@@ -410,14 +410,14 @@ const gamePlayerController = {
       if (!player) {
         await trx.rollback();
         return res
-          .status(404)
+          .status(200)
           .json({ success: false, message: "Player not found in game." });
       }
 
       // 3️⃣ Check if it's the player's turn
       if (game.next_player_id !== user_id) {
         await trx.rollback();
-        return res.status(403).json({
+        return res.status(200).json({
           success: false,
           message: "It's not your turn to roll.",
           canRoll: false,
@@ -427,7 +427,7 @@ const gamePlayerController = {
       // 4️⃣ Optional checks: jailed, bankrupt, inactive
       if (player.is_jailed) {
         await trx.rollback();
-        return res.status(403).json({
+        return res.status(200).json({
           success: false,
           message: "You cannot roll while jailed.",
           canRoll: false,
@@ -436,7 +436,7 @@ const gamePlayerController = {
 
       if (player.is_bankrupt) {
         await trx.rollback();
-        return res.status(403).json({
+        return res.status(200).json({
           success: false,
           message: "You are bankrupt and cannot roll.",
           canRoll: false,
@@ -446,7 +446,7 @@ const gamePlayerController = {
       // 5️⃣ Prevent multiple rolls per round
       if (Number(player.rolls || 0) >= 1) {
         await trx.rollback();
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "You have already rolled this round.",
           canRoll: false,
@@ -464,7 +464,7 @@ const gamePlayerController = {
       await trx.rollback();
       console.error("canRoll error:", error);
       return res
-        .status(500)
+        .status(200)
         .json({ success: false, canRoll: false, message: error.message });
     }
   },
@@ -474,7 +474,7 @@ const gamePlayerController = {
       await GamePlayer.delete(req.params.id);
       res.json({ message: "Game player removed" });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(200).json({ success: false, message: error.message });
     }
   },
 };
