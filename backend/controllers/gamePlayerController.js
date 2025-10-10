@@ -266,7 +266,7 @@ const gamePlayerController = {
         rolled,
         old_position,
         new_position,
-        action: "MOVE",
+        action: PROPERTY_ACTION(new_position),
         amount: 0,
         extra: JSON.stringify({
           description: `Player moved from ${old_position} → ${new_position}`,
@@ -355,13 +355,6 @@ const gamePlayerController = {
 
       if (allRolled) {
         await trx("game_players").where({ game_id }).update({ rolls: 0 });
-        await trx("game_play_history").insert({
-          game_id,
-          action: "ROUND_COMPLETE",
-          comment: "All players rolled — new round started",
-          active: 0,
-          created_at: new Date(),
-        });
       }
 
       await trx.commit();
