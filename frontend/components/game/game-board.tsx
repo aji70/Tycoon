@@ -25,6 +25,7 @@ import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { ApiResponse } from "@/types/api";
 
 /* ---------- Types ---------- */
 interface GameProps {
@@ -67,7 +68,7 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   const total = die1 + die2;
-  if (total === 12) return null;
+  if (total === 12) return null; // e.g. rolling double six → roll again
   return { die1, die2, total };
 };
 
@@ -82,7 +83,6 @@ const GameBoard = ({
   const { address } = useAccount();
   const router = useRouter();
   const queryClient = useQueryClient();
-
   const isMountedRef = useRef(true);
   useEffect(() => {
     isMountedRef.current = true;
@@ -94,12 +94,12 @@ const GameBoard = ({
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [boardData, setBoardData] = useState<Property[]>(properties ?? []);
   const [error, setError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isRolling, setIsRolling] = useState(false);
   const [rollAgain, setRollAgain] = useState(false);
   const [rollAction, setRollAction] = useState<CardTypes | null>(null);
   const [propertyId, setPropertyId] = useState<number | null>(null);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  const [canRoll, setCanRoll] = useState<boolean>(false);
 
   /* ---------- Action Lock ---------- */
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
@@ -131,15 +131,39 @@ const GameBoard = ({
     return resp;
   }, [game.code]);
 
+  /* ---------- CAN_ROLL ---------- */
+  const checkCanRoll = useCallback(async () => {
+    if (!me?.user_id) return;
+    try {
+      const res = await apiClient.post<ApiResponse<{ canRoll: boolean }>>("/game-players/can-roll", {
+        user_id: me.user_id,
+        game_id: game.id,
+      });
+      const allowed = res?.data?.canRoll ?? false;
+      setCanRoll(allowed);
+      if (allowed) {
+        toast.success("🎲 It’s your turn! Roll the dice!");
+      }
+    } catch (err: any) {
+      console.error("checkCanRoll error:", err);
+      toast.error("Failed to check roll eligibility");
+      setCanRoll(false);
+    }
+  }, [me?.user_id, game.id]);
+
+  useEffect(() => {
+    checkCanRoll();
+    const interval = setInterval(() => checkCanRoll(), 7000);
+    return () => clearInterval(interval);
+  }, [checkCanRoll]);
+
   /* ---------- UPDATE_GAME_PLAYER_POSITION ---------- */
   const UPDATE_GAME_PLAYER_POSITION = useCallback(
     async (id: number | undefined | null, position: number, rolled: number) => {
       if (!id) return;
-      setError(null);
       const prevPlayers = players;
-
-      safeSetPlayers((prevPlayers) =>
-        prevPlayers.map((p) => (p.user_id === id ? { ...p, position } : p))
+      safeSetPlayers((prev) =>
+        prev.map((p) => (p.user_id === id ? { ...p, position } : p))
       );
 
       try {
@@ -150,7 +174,6 @@ const GameBoard = ({
           rolled,
         });
         if (!resp) throw new Error("Server rejected position update.");
-
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players && isMountedRef.current) {
           setPlayers(updatedGame.players);
@@ -160,13 +183,10 @@ const GameBoard = ({
         queryClient.invalidateQueries({ queryKey: ["game", game.code] });
       } catch (err: any) {
         console.error("UPDATE_GAME_PLAYER_POSITION error:", err);
-        if (isMountedRef.current) {
-          setPlayers(prevPlayers);
-          const msg = err?.response?.data?.message || "Failed to update position. Retrying...";
-          setError(msg);
-          toast.error(msg);
-          forceRefetch();
-        }
+        setPlayers(prevPlayers);
+        const msg = err?.response?.data?.message || "Failed to update position.";
+        toast.error(msg);
+        forceRefetch();
       }
     },
     [players, safeSetPlayers, game.id, fetchUpdatedGame, queryClient, game.code, forceRefetch]
@@ -175,74 +195,56 @@ const GameBoard = ({
   /* ---------- END_TURN ---------- */
   const END_TURN = useCallback(
     async (id?: number) => {
-      if (!id || game.next_player_id !== id) return;
+      if (!id) return;
       if (!lockAction("END")) return;
 
-      setRollAgain(false);
-      setRoll(null);
-      setError(null);
-
-      const prevPlayers = players;
       try {
-        if (prevPlayers.length > 0) {
-          const currentIndex = prevPlayers.findIndex((p) => p.user_id === id);
-          const nextIndex =
-            currentIndex >= 0 ? (currentIndex + 1) % prevPlayers.length : 0;
-          const nextPlayer = prevPlayers[nextIndex];
-          safeSetPlayers(() =>
-            prevPlayers.map((p) =>
-              p.user_id === nextPlayer.user_id
-                ? { ...p, isNext: true }
-                : { ...p, isNext: false }
-            )
-          );
-        }
-
         const resp = await apiClient.post("/game-players/end-turn", {
           user_id: id,
           game_id: game.id,
         });
-
-        if (!resp) throw new Error("Server rejected turn change.");
+        if (!resp) throw new Error("Server rejected turn end.");
 
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players && isMountedRef.current) {
           setPlayers(updatedGame.players);
+          toast.success("✅ Turn ended. Waiting for next player...");
+          setCanRoll(false);
         }
         queryClient.invalidateQueries({ queryKey: ["game", game.code] });
       } catch (err: any) {
         console.error("END_TURN error:", err);
-        if (isMountedRef.current) {
-          setPlayers(prevPlayers);
-          const msg = err?.response?.data?.message || "Failed to end turn. Re-syncing...";
-          setError(msg);
-          toast.error(msg);
-          forceRefetch();
-        }
+        toast.error("Failed to end turn. Resyncing...");
+        forceRefetch();
       } finally {
         unlockAction();
       }
     },
-    [
-      players,
-      game.next_player_id,
-      game.id,
-      fetchUpdatedGame,
-      queryClient,
-      game.code,
-      safeSetPlayers,
-      forceRefetch,
-      lockAction,
-      unlockAction,
-    ]
+    [game.id, fetchUpdatedGame, queryClient, game.code, lockAction, unlockAction, forceRefetch]
   );
 
   /* ---------- ROLL_DICE ---------- */
-  const ROLL_DICE = useCallback(() => {
+  const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
     setError(null);
     setRollAgain(false);
     setIsRolling(true);
+
+    // 🔹 Ensure it's this user's turn from backend
+    const rollAllowed = await apiClient
+      .post<ApiResponse<{ canRoll: boolean }>>("/game-players/can-roll", {
+        user_id: me?.user_id,
+        game_id: game.id,
+      })
+      .then((r) => r?.data?.canRoll)
+      .catch(() => false);
+
+    if (!rollAllowed) {
+      toast.error("⏳ Not your turn! Wait for your turn to roll.");
+      setIsRolling(false);
+      unlockAction();
+      return;
+    }
 
     setTimeout(async () => {
       const value = getDiceValues();
@@ -250,7 +252,6 @@ const GameBoard = ({
 
       if (!value) {
         setRollAgain(true);
-        setRoll(null);
         setIsRolling(false);
         unlockAction();
         return;
@@ -258,23 +259,18 @@ const GameBoard = ({
 
       setRoll(value);
       const currentPos = me?.position ?? 0;
-      let newPosition = (currentPos + value.total) % BOARD_SQUARES;
-      if (newPosition < 0) newPosition += BOARD_SQUARES;
-
-      safeSetPlayers((prevPlayers) => {
-        const idx = prevPlayers.findIndex((p) => p.user_id === me?.user_id);
-        if (idx === -1) return prevPlayers;
-        const next = [...prevPlayers];
-        next[idx] = { ...next[idx], position: newPosition };
-        return next;
-      });
+      const newPosition = (currentPos + value.total) % BOARD_SQUARES;
+      safeSetPlayers((prev) =>
+        prev.map((p) =>
+          p.user_id === me?.user_id ? { ...p, position: newPosition } : p
+        )
+      );
 
       try {
         await UPDATE_GAME_PLAYER_POSITION(me?.user_id, newPosition, value.total);
+        setCanRoll(false); // prevent rolling again unless next turn
       } catch {
-        const msg = "Server rejected dice roll. Re-syncing...";
-        setError(msg);
-        toast.error(msg);
+        toast.error("Position update failed, syncing...");
         forceRefetch();
       } finally {
         if (isMountedRef.current) setIsRolling(false);
@@ -284,25 +280,16 @@ const GameBoard = ({
   }, [
     isRolling,
     actionLock,
-    me?.position,
-    me?.user_id,
-    safeSetPlayers,
-    UPDATE_GAME_PLAYER_POSITION,
     lockAction,
     unlockAction,
+    me?.user_id,
+    me?.position,
+    UPDATE_GAME_PLAYER_POSITION,
     forceRefetch,
+    game.id,
   ]);
 
   /* ---------- Helpers ---------- */
-  const getGridPosition = useCallback(
-    (square: Property) => ({
-      gridRowStart: square.grid_row,
-      gridColumnStart: square.grid_col,
-    }) as React.CSSProperties,
-    []
-  );
-  const isTopHalf = useCallback((square: Property) => square.grid_row === 1, []);
-
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
@@ -325,7 +312,7 @@ const GameBoard = ({
                   Blockopoly
                 </h1>
 
-                {game.next_player_id === me?.user_id && (
+                {canRoll && (
                   <div className="flex flex-col gap-2">
                     {!roll ? (
                       <button
@@ -337,24 +324,19 @@ const GameBoard = ({
                         {isRolling ? "Rolling..." : "Roll Dice"}
                       </button>
                     ) : (
-                      <div>
-                        <p>
-                          Prop ID: {propertyId} , Action: {rollAction}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => END_TURN(me?.user_id)}
-                          disabled={actionLock === "ROLL"}
-                          className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                        >
-                          End Turn
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => END_TURN(me?.user_id)}
+                        disabled={actionLock === "ROLL"}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                      >
+                        End Turn
+                      </button>
                     )}
 
                     {rollAgain && (
                       <p className="text-xs text-red-600">
-                        You rolled a double 6 — please roll again
+                        You rolled double 6 🎯 — roll again!
                       </p>
                     )}
                     {roll && !rollAgain && (
@@ -372,16 +354,18 @@ const GameBoard = ({
                     )}
                   </div>
                 )}
-
-                {/* board and players */}
               </div>
 
+              {/* Render each board square */}
               {boardData.map((square, index) => {
                 const playersHere = playersByPosition.get(index) ?? [];
                 return (
                   <div
                     key={square.id}
-                    style={getGridPosition(square)}
+                    style={{
+                      gridRowStart: square.grid_row,
+                      gridColumnStart: square.grid_col,
+                    }}
                     className="w-full h-full p-[2px] relative box-border group"
                   >
                     {square.type === "property" && (
