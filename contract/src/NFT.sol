@@ -11,7 +11,6 @@ contract Looters is ERC721, ERC721URIStorage {
     string private constant FIXED_TOKEN_URI =
         "https://gateway.pinata.cloud/ipfs/bafkreicu5ldq3bgvd2cqq3732bmrbyhcowl5i7fb24htopelrktorhuu6i";
 
-
     constructor(address initialOwner) ERC721("Looters", "LOOT") {
         owner = initialOwner;
     }
@@ -20,38 +19,31 @@ contract Looters is ERC721, ERC721URIStorage {
         require(msg.sender == owner, "unauthorized access");
         _;
     }
-        // Function to issue a certificate NFT with a fixed URI
+    // Function to issue a certificate NFT with a fixed URI
+
     function mint() external {
-       uint256 token_id = _nextTokenId;
+        uint256 token_id = _nextTokenId;
         _safeMint(msg.sender, token_id);
-        _setTokenURI(token_id, FIXED_TOKEN_URI);        
+        _setTokenURI(token_id, FIXED_TOKEN_URI);
 
         _nextTokenId++;
     }
 
-      function mint_with_uri(address receiver, string memory uri) external {
-       uint256 token_id = _nextTokenId;
+    function mint_with_uri(address receiver, string memory uri) external {
+        uint256 token_id = _nextTokenId;
         _safeMint(receiver, token_id);
-        _setTokenURI(token_id, uri);        
+        _setTokenURI(token_id, uri);
 
         _nextTokenId++;
     }
 
-
-
-    function tokenURI(
-        uint256 tokenId
-    ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
         return super.tokenURI(tokenId);
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC721, ERC721URIStorage) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
-
-
 }
 
 // {
