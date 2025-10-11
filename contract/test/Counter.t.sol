@@ -20,9 +20,9 @@ contract BlockopolyTest is Test {
         blockopoly = new Blockopoly(address(lootToken), address(lootersNft));
 
         vm.prank(owner);
-        lootToken.mint(address(blockopoly), 10000000000 * 10**18); // Fund contract with tokens
+        lootToken.mint(address(blockopoly), 10000000000 * 10 ** 18); // Fund contract with tokens
         uint256 initialBalance = lootToken.balanceOf(address(blockopoly));
-        assertEq(initialBalance, 10000000000 * 10**18);
+        assertEq(initialBalance, 10000000000 * 10 ** 18);
     }
 
     function test_Register_Player() public {
@@ -72,7 +72,7 @@ contract BlockopolyTest is Test {
         assertEq(uint8(game.mode), uint8(Blockopoly.GameType.PublicGame));
         // joinedPlayers should be 1 because creator auto-joins
 
-        assertEq(balAfter, initialBalance - 1 * 10**18); 
+        assertEq(balAfter, initialBalance - 1 * 10 ** 18);
         assertEq(game.joinedPlayers, 1);
     }
 }

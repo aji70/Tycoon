@@ -168,7 +168,7 @@ contract Blockopoly {
         userIdToAddress[totalUsers] = msg.sender;
         addressToUsername[msg.sender] = username;
 
-        IERC20(token).transfer(userwallet, 10 * 10**18); // Initial token airdrop
+        IERC20(token).transfer(userwallet, 10 * 10 ** 18); // Initial token airdrop
 
         emit PlayerCreated(username, msg.sender, nowTime);
         return totalUsers;
@@ -187,14 +187,14 @@ contract Blockopoly {
     ) public onlyRegistered returns (uint256) {
         require(numberOfPlayers >= 2 && numberOfPlayers <= 8, "Invalid player count");
 
-        User memory user = getUser(msg.sender); // Ensure user exists
-        IWallet(address(user.wallet)).withdrawERC20(token, address(this), 1 * 10**18); // Stake to create game
+        User storage user = users[msg.sender];
+        user.gamesPlayed += 1;
+        IWallet(address(user.wallet)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to create game
 
         uint8 gType = _stringToGameType(gameType);
         uint8 pSym = _stringToPlayerSymbol(playerSymbol);
 
         uint256 gameId = nextGameId++;
-
 
         games[gameId] = Game({
             id: gameId,
@@ -235,8 +235,9 @@ contract Blockopoly {
         require(game.joinedPlayers < game.numberOfPlayers, "Game full");
         require(gamePlayers[gameId][msg.sender].playerAddress == address(0), "Already joined");
 
-        User memory user = getUser(msg.sender); // Ensure user exists
-        IWallet(address(user.wallet)).withdrawERC20(token, address(this), 1 * 10**18); // Stake to join game
+        User storage user = users[msg.sender];
+        user.gamesPlayed += 1;
+        IWallet(address(user.wallet)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to join game
 
         uint8 pSym = _stringToPlayerSymbol(playerSymbol);
 
