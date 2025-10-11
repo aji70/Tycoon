@@ -3,12 +3,13 @@ pragma solidity ^0.8.30;
 
 import "./Wallet.sol";
 
-contract Blockopoly {
+contract Blockopoly is ReentrancyGuard {
     uint256 public totalUsers;
     uint256 public totalGames;
     uint256 private nextGameId;
     address public immutable token; // in-game ERC20 token
     address public immutable nft; // in-game NFT contract
+    address public paymaster;
     uint256 public constant BOARD_SIZE = 40; // Monopoly-style board
 
     // -------------------------
@@ -19,7 +20,6 @@ contract Blockopoly {
         uint256 id;
         string username;
         address playerAddress;
-        address wallet;
         uint64 registeredAt;
         uint256 gamesPlayed;
         uint256 gamesWon;
@@ -120,14 +120,15 @@ contract Blockopoly {
         require(_nft != address(0), "Invalid NFT address");
         token = _token;
         nft = _nft;
+        paymaster = msg.sender;
     }
 
     // -------------------------
     // 📌 Modifiers
     // -------------------------
 
-    modifier onlyRegistered() {
-        require(isRegistered[msg.sender], "Player not registered");
+    modifier onlyPaymaster() {
+        require(msg.sender == paymaster, "Not registered");
         _;
     }
 
@@ -140,21 +141,16 @@ contract Blockopoly {
     // 📌 Player Management
     // -------------------------
 
-    function registerPlayer(string memory username) public nonEmptyUsername(username) returns (uint256) {
+    function registerPlayer(string memory username) public nonReentrant nonEmptyUsername(username) returns (uint256) {
         require(usernameToAddress[username] == address(0), "Username taken");
-        require(users[msg.sender].playerAddress == address(0), "Already registered");
-
         totalUsers++;
         uint64 nowTime = uint64(block.timestamp);
-        isRegistered[msg.sender] = true;
-
         address userwallet = address(new Wallet(address(this)));
 
-        users[msg.sender] = User({
+        users[userwallet] = User({
             id: totalUsers,
             username: username,
-            playerAddress: msg.sender,
-            wallet: userwallet,
+            playerAddress: userwallet,
             registeredAt: nowTime,
             gamesPlayed: 0,
             gamesWon: 0,
@@ -164,13 +160,13 @@ contract Blockopoly {
             totalWithdrawn: 0
         });
 
-        usernameToAddress[username] = msg.sender;
-        userIdToAddress[totalUsers] = msg.sender;
-        addressToUsername[msg.sender] = username;
+        usernameToAddress[username] = userwallet;
+        userIdToAddress[totalUsers] = userwallet;
+        addressToUsername[userwallet] = username;
 
         IERC20(token).transfer(userwallet, 10 * 10 ** 18); // Initial token airdrop
 
-        emit PlayerCreated(username, msg.sender, nowTime);
+        emit PlayerCreated(username, userwallet, nowTime);
         return totalUsers;
     }
 
@@ -179,17 +175,18 @@ contract Blockopoly {
     // -------------------------
 
     function createGame(
+        address creator,
         string memory gameType,
         string memory playerSymbol,
         uint8 numberOfPlayers,
         string memory code,
         uint256 startingBalance
-    ) public onlyRegistered returns (uint256) {
+    ) public onlyPaymaster nonReentrant returns (uint256) {
         require(numberOfPlayers >= 2 && numberOfPlayers <= 8, "Invalid player count");
 
-        User storage user = users[msg.sender];
+        User storage user = users[creator];
         user.gamesPlayed += 1;
-        IWallet(address(user.wallet)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to create game
+        IWallet(address(user.playerAddress)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to create game
 
         uint8 gType = _stringToGameType(gameType);
         uint8 pSym = _stringToPlayerSymbol(playerSymbol);
@@ -199,7 +196,7 @@ contract Blockopoly {
         games[gameId] = Game({
             id: gameId,
             code: code,
-            creator: msg.sender,
+            creator: creator,
             status: GameStatus.Pending,
             nextPlayer: 1,
             winner: address(0),
@@ -211,80 +208,104 @@ contract Blockopoly {
         });
 
         // Register creator in game
-        gamePlayers[gameId][msg.sender] = GamePlayer({
+        gamePlayers[gameId][creator] = GamePlayer({
             gameId: gameId,
-            playerAddress: msg.sender,
+            playerAddress: creator,
             balance: startingBalance,
             position: 0,
             order: 1,
             symbol: PlayerSymbol(pSym),
             chanceJailCard: false,
             communityChestJailCard: false,
-            username: users[msg.sender].username
+            username: users[creator].username
         });
 
         totalGames++;
-        emit GameCreated(gameId, msg.sender, uint64(block.timestamp));
+        emit GameCreated(gameId, creator, uint64(block.timestamp));
         return gameId;
     }
 
-    function joinGame(uint256 gameId, string memory playerSymbol) public onlyRegistered returns (uint8) {
+    function joinGame(uint256 gameId, address player, string memory playerSymbol)
+        public
+        onlyPaymaster
+        nonReentrant
+        returns (uint8)
+    {
         Game storage game = games[gameId];
         require(game.creator != address(0), "Game not found");
         require(game.status == GameStatus.Pending, "Game not open");
         require(game.joinedPlayers < game.numberOfPlayers, "Game full");
-        require(gamePlayers[gameId][msg.sender].playerAddress == address(0), "Already joined");
+        require(gamePlayers[gameId][player].playerAddress == address(0), "Already joined");
 
-        User storage user = users[msg.sender];
+        User storage user = users[player];
         user.gamesPlayed += 1;
-        IWallet(address(user.wallet)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to join game
+        IWallet(address(user.playerAddress)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to join game
 
         uint8 pSym = _stringToPlayerSymbol(playerSymbol);
 
         uint8 order = game.joinedPlayers + 1;
         game.joinedPlayers++;
 
-        gamePlayers[gameId][msg.sender] = GamePlayer({
+        gamePlayers[gameId][player] = GamePlayer({
             gameId: gameId,
-            playerAddress: msg.sender,
+            playerAddress: player,
             balance: gameSettings[gameId].startingCash,
             position: 0,
             order: order,
             symbol: PlayerSymbol(pSym),
             chanceJailCard: false,
             communityChestJailCard: false,
-            username: users[msg.sender].username
+            username: users[player].username
         });
-
+        if (game.joinedPlayers == game.numberOfPlayers) {
+            game.status = GameStatus.Ongoing;
+        }
         return order;
     }
 
-    function startGame(uint256 gameId) public {
+    function removePlayerFromGame(uint256 gameId, address player, address finalCandidate)
+        public
+        nonReentrant
+        returns (bool)
+    {
         Game storage game = games[gameId];
-        require(msg.sender == game.creator, "Only creator");
-        require(game.status == GameStatus.Pending, "Already started");
-        game.status = GameStatus.Ongoing;
-    }
+        require(game.creator != address(0), "Game not found");
+        require(game.status == GameStatus.Ongoing, "Game not ongoing");
+        require(player != address(0), "Invalid player address");
+        require(gamePlayers[gameId][player].playerAddress != address(0), "Player not in game");
 
-    function endGame(uint256 gameId, address winnerAddr) public {
-        Game storage game = games[gameId];
-        require(msg.sender == game.creator, "Only creator");
-        require(game.status != GameStatus.Ended, "Already ended");
-        game.status = GameStatus.Ended;
-        game.winner = winnerAddr;
-        game.endedAt = uint64(block.timestamp);
+        bool isFinalPhase = (game.joinedPlayers == 2);
+        if (isFinalPhase) {
+            require(finalCandidate != address(0), "Remaining player required");
+            require(finalCandidate != player, "Candidate was removed");
+            require(gamePlayers[gameId][finalCandidate].playerAddress != address(0), "Remaining player not in game");
+        }
+
+        // Update player lost
+        User storage user = users[player];
+        user.gamesLost += 1;
+
+        // Remove the player
+        delete gamePlayers[gameId][player];
+        game.joinedPlayers -= 1;
+
+        // If only one player remains, finalize game
+        if (isFinalPhase) {
+            game.status = GameStatus.Ended;
+            game.winner = finalCandidate;
+            game.endedAt = uint64(block.timestamp);
+
+            User storage winner = users[finalCandidate];
+            winner.gamesWon += 1;
+            fund_smart_wallet_ERC20(winner.playerAddress, 15 * 10 ** 17);
+        }
+
+        return true;
     }
 
     // -------------------------
     // 📌 Gameplay
     // -------------------------
-
-    function rollDice() external view returns (uint256 die1, uint256 die2, uint256 total) {
-        bytes32 randomness = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, block.number, msg.sender));
-        die1 = (uint256(randomness) % 6) + 1;
-        die2 = (uint256(randomness >> 16) % 6) + 1;
-        total = die1 + die2;
-    }
 
     function updatePlayerPosition(
         uint256 gameId,
@@ -345,7 +366,7 @@ contract Blockopoly {
     }
 
     function getProperty(uint256 gameId, uint8 propertyId) public view returns (Property memory) {
-        require(properties[gameId][propertyId].id != 0, "Property not found");
+        require(properties[gameId][propertyId].id < 40, "Property not found");
         return properties[gameId][propertyId];
     }
 
@@ -397,13 +418,13 @@ contract Blockopoly {
     //     return true;
     // }
 
-    // function fund_smart_wallet_ERC20(address wallet, address _token, uint256 amount) public returns (bool) {
-    //     require(msg.sender == address(this), "Only contract can fund");
-    //     IERC20 erc20 = IERC20(_token);
-    //     bool ok = erc20.transfer(wallet, amount);
-    //     require(ok, "ERC20 transfer failed");
-    //     return true;
-    // }
+    function fund_smart_wallet_ERC20(address wallet, uint256 amount) public returns (bool) {
+        require(msg.sender == paymaster, "Only contract can fund");
+        IERC20 erc20 = IERC20(token);
+        bool ok = erc20.transfer(wallet, amount);
+        require(ok, "ERC20 transfer failed");
+        return true;
+    }
 
     // function get_smart_wallet_balance(address wallet) public view returns (uint256) {
     //     IWallet w = IWallet(payable(wallet));
