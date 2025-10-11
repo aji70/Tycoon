@@ -128,7 +128,7 @@ contract Blockopoly is ReentrancyGuard {
     // -------------------------
 
     modifier onlyPaymaster() {
-        require(msg.sender == paymaster, "Not registered");
+        require(msg.sender == paymaster, "Not paymaster");
         _;
     }
 

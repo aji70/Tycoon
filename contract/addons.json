@@ -1,0 +1,275 @@
+[
+  {
+    "name": "Lucky Roll",
+    "description": "Next dice roll is maximum.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "golden_dice"
+  },
+  {
+    "name": "Double Rent",
+    "description": "Next rent you collect is doubled.",
+    "type": "Gameplay",
+    "rarity": "Epic",
+    "icon": "rent_booster"
+  },
+  {
+    "name": "Tax Refund",
+    "description": "Refunds any tax paid this turn.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "tax_receipt"
+  },
+  {
+    "name": "Property Freeze",
+    "description": "Prevent another player from buying/selling property this turn.",
+    "type": "Gameplay",
+    "rarity": "Epic",
+    "icon": "ice_property"
+  },
+  {
+    "name": "Steal Cash",
+    "description": "Take a small fixed amount from a random opponent.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "money_bag"
+  },
+  {
+    "name": "Move Backwards",
+    "description": "Move another player backward a few spaces.",
+    "type": "Gameplay",
+    "rarity": "Uncommon",
+    "icon": "reverse_arrow"
+  },
+  {
+    "name": "Extra Roll",
+    "description": "Roll the dice again immediately.",
+    "type": "Gameplay",
+    "rarity": "Common",
+    "icon": "dice_plus"
+  },
+  {
+    "name": "Safe Haven",
+    "description": "Skip penalties like Chance or Community Chest cards this turn.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "shield"
+  },
+  {
+    "name": "Bank Loan",
+    "description": "Receive extra in-game tokens immediately.",
+    "type": "Gameplay",
+    "rarity": "Common",
+    "icon": "bank_building"
+  },
+  {
+    "name": "Property Swap",
+    "description": "Swap ownership of a property with another player.",
+    "type": "Gameplay",
+    "rarity": "Epic",
+    "icon": "swap_hands"
+  },
+  {
+    "name": "Rent Discount",
+    "description": "Reduce rent payment by 50% next turn.",
+    "type": "Gameplay",
+    "rarity": "Uncommon",
+    "icon": "discount_tag"
+  },
+  {
+    "name": "Free Property",
+    "description": "Claim any unowned property instantly.",
+    "type": "Gameplay",
+    "rarity": "Legendary",
+    "icon": "property_star"
+  },
+  {
+    "name": "Time Warp",
+    "description": "Skip another player’s turn.",
+    "type": "Gameplay",
+    "rarity": "Epic",
+    "icon": "clock_reverse"
+  },
+  {
+    "name": "Dice Predictor",
+    "description": "Know your next dice roll in advance.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "crystal_ball"
+  },
+  {
+    "name": "Jail Escape Kit",
+    "description": "Leave jail without paying or waiting.",
+    "type": "Gameplay",
+    "rarity": "Uncommon",
+    "icon": "jail_key"
+  },
+  {
+    "name": "Trade Boost",
+    "description": "Boost negotiation power in trades.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "handshake"
+  },
+  {
+    "name": "Loan Forgiveness",
+    "description": "Cancel debt or penalty owed in game.",
+    "type": "Gameplay",
+    "rarity": "Epic",
+    "icon": "broken_chain"
+  },
+  {
+    "name": "Chance Multiplier",
+    "description": "Double the reward from a Chance card.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "chance_card"
+  },
+  {
+    "name": "Community Chest Shield",
+    "description": "Block negative Community Chest effects.",
+    "type": "Gameplay",
+    "rarity": "Rare",
+    "icon": "chest_shield"
+  },
+  {
+    "name": "Custom Token Skin",
+    "description": "Change your player token appearance.",
+    "type": "Cosmetic",
+    "rarity": "Common",
+    "icon": "player_token"
+  },
+  {
+    "name": "Board Theme",
+    "description": "Change board visual theme (e.g., neon, medieval).",
+    "type": "Cosmetic",
+    "rarity": "Uncommon",
+    "icon": "board_theme"
+  },
+  {
+    "name": "Special House/Hotel",
+    "description": "Unique designs for houses and hotels.",
+    "type": "Cosmetic",
+    "rarity": "Rare",
+    "icon": "house_hotel"
+  },
+  {
+    "name": "Username Badge",
+    "description": "Display special badge on leaderboard or lobby.",
+    "type": "Cosmetic",
+    "rarity": "Uncommon",
+    "icon": "badge"
+  },
+  {
+    "name": "VIP Icon",
+    "description": "Shiny icon next to your avatar.",
+    "type": "Cosmetic",
+    "rarity": "Rare",
+    "icon": "vip_icon"
+  },
+  {
+    "name": "Animated Token",
+    "description": "Player token has a subtle animation.",
+    "type": "Cosmetic",
+    "rarity": "Uncommon",
+    "icon": "animated_token"
+  },
+  {
+    "name": "Property Glow",
+    "description": "Owned properties have a glowing effect.",
+    "type": "Cosmetic",
+    "rarity": "Rare",
+    "icon": "glow_property"
+  },
+  {
+    "name": "Background Music Pack",
+    "description": "Unlock a new music theme in the game.",
+    "type": "Cosmetic",
+    "rarity": "Uncommon",
+    "icon": "music_note"
+  },
+  {
+    "name": "Custom Dice Skin",
+    "description": "Unique dice design when rolling.",
+    "type": "Cosmetic",
+    "rarity": "Uncommon",
+    "icon": "dice_skin"
+  },
+  {
+    "name": "Celebration Animation",
+    "description": "Animated fireworks or effects when winning a game.",
+    "type": "Cosmetic",
+    "rarity": "Rare",
+    "icon": "fireworks"
+  },
+  {
+    "name": "Extra Stash",
+    "description": "Store additional tokens beyond starting cash.",
+    "type": "Hybrid",
+    "rarity": "Rare",
+    "icon": "treasure_chest"
+  },
+  {
+    "name": "Lucky Charm",
+    "description": "Slightly increases chances for high rolls.",
+    "type": "Hybrid",
+    "rarity": "Uncommon",
+    "icon": "clover"
+  },
+  {
+    "name": "Golden Ticket",
+    "description": "Automatic win for one property auction.",
+    "type": "Hybrid",
+    "rarity": "Epic",
+    "icon": "golden_ticket"
+  },
+  {
+    "name": "Speed Boost",
+    "description": "Move extra spaces once per game.",
+    "type": "Hybrid",
+    "rarity": "Rare",
+    "icon": "running_shoe"
+  },
+  {
+    "name": "Magic Trade",
+    "description": "Force trade favorable to you once.",
+    "type": "Hybrid",
+    "rarity": "Epic",
+    "icon": "magic_wand"
+  },
+  {
+    "name": "Invisible Token",
+    "description": "Your token hides from other players for 1 turn.",
+    "type": "Hybrid",
+    "rarity": "Rare",
+    "icon": "invisible_token"
+  },
+  {
+    "name": "Teleport",
+    "description": "Move to any space on the board once.",
+    "type": "Hybrid",
+    "rarity": "Epic",
+    "icon": "teleport_portal"
+  },
+  {
+    "name": "Power-Up Card",
+    "description": "Random bonus effect on use.",
+    "type": "Hybrid",
+    "rarity": "Epic",
+    "icon": "power_card"
+  },
+  {
+    "name": "Bonus Collectible",
+    "description": "Gain extra tokens when passing Go.",
+    "type": "Hybrid",
+    "rarity": "Uncommon",
+    "icon": "coin_bundle"
+  },
+  {
+    "name": "Reward Multiplier",
+    "description": "Double the token gain from in-game purchases once.",
+    "type": "Hybrid",
+    "rarity": "Epic",
+    "icon": "x2_coin"
+  }
+]
