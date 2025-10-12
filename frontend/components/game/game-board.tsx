@@ -355,25 +355,34 @@ const GameBoard = ({
                   Blockopoly
                 </h1>
 
-                {isMyTurn && (
+                {isMyTurn ? (
                   <div className="flex flex-col gap-2">
-                    {canRoll ? (
-                      <button
-                        onClick={ROLL_DICE}
-                        disabled={!canRoll || isRolling}
-                        className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                      >
-                        {isRolling ? "Rolling..." : "Roll Dice"}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => END_TURN(me?.user_id)}
-                        disabled={actionLock === "ROLL"}
-                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                      >
-                        End Turn
-                      </button>
-                    )}
+                    {(() => {
+                      const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
+                      const hasRolled = (myPlayer?.rolls ?? 0) > 0;
+
+                      if (!hasRolled) {
+                        return (
+                          <button
+                            onClick={ROLL_DICE}
+                            disabled={isRolling}
+                            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                          >
+                            {isRolling ? "Rolling..." : "Roll Dice"}
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <button
+                          onClick={() => END_TURN(me?.user_id)}
+                          disabled={actionLock === "ROLL"}
+                          className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                        >
+                          End Turn
+                        </button>
+                      );
+                    })()}
 
                     {rollAgain && <p className="text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
                     {roll && (
@@ -385,7 +394,12 @@ const GameBoard = ({
                       </p>
                     )}
                   </div>
-                )}
+                ) : (<button
+                  disabled
+                  className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
+                >
+                  Waiting for your turn...
+                </button>)}
               </div>
 
               {/* Board Squares */}
@@ -414,8 +428,8 @@ const GameBoard = ({
                         <button
                           key={p.user_id}
                           className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
-                              ? "border-2 border-cyan-300 rounded animate-pulse"
-                              : ""
+                            ? "border-2 border-cyan-300 rounded animate-pulse"
+                            : ""
                             }`}
                         >
                           {getPlayerSymbol(p.symbol)}
