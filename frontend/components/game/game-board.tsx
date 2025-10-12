@@ -160,17 +160,21 @@ const GameBoard = ({
   /* ---------- Fetch Updated Game ---------- */
   const fetchUpdatedGame = useCallback(async () => {
     try {
-      const resp = await apiClient.get<Record<string, Game>>(`/games/code/${game.code}`);
-      const gameData = resp.data;
-      if (gameData && Array.isArray(gameData.players)) setPlayers(gameData.players);
+      const { data } = await apiClient.get<Record<string, Game>>(`/games/code/${game.code}`);
+      const gameData = data;
+      if (gameData && Array.isArray(gameData.players)) {
+        setPlayers((prev) => {
+          // ✅ Avoid redundant updates if same data
+          const changed = JSON.stringify(prev) !== JSON.stringify(gameData.players);
+          return changed ? gameData.players : prev;
+        });
+      }
       return gameData;
     } catch (err) {
       console.error("fetchUpdatedGame error:", err);
-      toast.error("Failed to refresh game state.");
       return null;
     }
   }, [game.code, setPlayers]);
-
   /* ---------- Turn Management ---------- */
   const checkCanRoll = useCallback(async () => {
     if (!me?.user_id) return;
@@ -190,12 +194,17 @@ const GameBoard = ({
     }
   }, [me?.user_id, game.id, setCanRoll]);
 
-  /* ---------- Poll every 8 seconds ---------- */
+  /* ---------- Poll every 5 seconds ---------- */
+  /* ✅ Poll both canRoll and player positions */
   useEffect(() => {
     checkCanRoll();
-    const interval = setInterval(checkCanRoll, 5000);
+    const poll = async () => {
+      await fetchUpdatedGame();
+    };
+    poll(); // initial
+    const interval = setInterval(poll, 5000); // 5s refresh
     return () => clearInterval(interval);
-  }, [checkCanRoll]);
+  }, [fetchUpdatedGame, checkCanRoll]);
 
   /* ---------- End Turn ---------- */
   const END_TURN = useCallback(
