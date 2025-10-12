@@ -180,8 +180,7 @@ const GameBoard = ({
         "/game-players/can-roll",
         { user_id: me.user_id, game_id: game.id }
       );
-
-      const allowed = Boolean(res?.data?.data?.canRoll);
+      const allowed = Boolean(res?.data?.canRoll);
       setCanRoll(allowed);
 
       if (allowed) toast.success("🎲 It's your turn — roll the dice!");
@@ -194,7 +193,7 @@ const GameBoard = ({
   /* ---------- Poll every 8 seconds ---------- */
   useEffect(() => {
     checkCanRoll();
-    const interval = setInterval(checkCanRoll, 8000);
+    const interval = setInterval(checkCanRoll, 5000);
     return () => clearInterval(interval);
   }, [checkCanRoll]);
 
@@ -246,7 +245,7 @@ const GameBoard = ({
         { user_id: me?.user_id, game_id: game.id }
       );
 
-      const allowed = Boolean(res?.data?.data?.canRoll);
+      const allowed = Boolean(res?.data?.canRoll);
       if (!allowed) {
         toast.error("⏳ Not your turn! Wait for your turn to roll.");
         setIsRolling(false);
