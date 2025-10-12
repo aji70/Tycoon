@@ -395,7 +395,7 @@ const GameBoard = ({
                     {rollAgain && <p className="text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
                     {roll && (
                       <p className="text-gray-300 text-sm">
-                        🎲 Rolled:{" "}
+                        🎲 You Rolled - {" "}
                         <span className="font-bold text-white">
                           {roll.die1} + {roll.die2} = {roll.total}
                         </span>
