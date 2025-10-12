@@ -208,8 +208,8 @@ const GameBoard = ({
           game_id: game.id,
         });
 
-        if (!resp?.data?.success)
-          throw new Error(resp?.data?.message || "Server rejected turn end.");
+        if (!resp?.success)
+          throw new Error(resp?.message || "Server rejected turn end.");
 
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players) {
@@ -283,7 +283,7 @@ const GameBoard = ({
             }
           );
 
-          if (!updateResp?.data?.success) toast.error("Unable to move from current position");
+          if (!updateResp?.success) toast.error("Unable to move from current position");
 
           const updatedGame = await fetchUpdatedGame();
           if (updatedGame?.players) {
