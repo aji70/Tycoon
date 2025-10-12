@@ -392,9 +392,9 @@ const GameBoard = ({
                       );
                     })()}
 
-                    {rollAgain && <p className="text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
+                    {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
                     {roll && (
-                      <p className="text-gray-300 text-sm">
+                      <p className="text-center text-gray-300 text-xs">
                         🎲 You Rolled - {" "}
                         <span className="font-bold text-white">
                           {roll.die1} + {roll.die2} = {roll.total}
@@ -402,9 +402,14 @@ const GameBoard = ({
                       </p>
                     )}
                     {game.history?.length > 0 && (
-                      <p className="text-gray-300 text-xs italic">
-                        {game.history[0].player_name} - {game.history[0].comment}
-                      </p>
+                      <div className="w-full flex flex-col gap-1 items-center">
+                        <p className="text-center text-gray-300 text-xs italic">
+                          {game.history[0].player_name} - {game.history[0].comment}
+                        </p>
+                        <p className="text-center text-gray-300 text-xs underline">
+                          [{game.history[0].rolled} - {game.history[0].extra?.description}]
+                        </p>
+                      </div>
                     )}
                   </div>
                 ) : (<button
