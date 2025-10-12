@@ -223,7 +223,7 @@ const GameBoard = ({
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players) {
           setPlayers(updatedGame.players);
-          toast.success("✅ Turn ended. Waiting for next player...");
+          toast.success("Turn ended. Waiting for next player...");
           setCanRoll(false);
           setRoll(null);
         }
@@ -399,6 +399,11 @@ const GameBoard = ({
                         <span className="font-bold text-white">
                           {roll.die1} + {roll.die2} = {roll.total}
                         </span>
+                      </p>
+                    )}
+                    {game.history?.length > 0 && (
+                      <p className="text-gray-300 text-xs italic">
+                        {game.history[0].player_name} - {game.history[0].comment}
                       </p>
                     )}
                   </div>
