@@ -81,17 +81,15 @@ const GameSettings = () => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [gameType, setGameType] = useState('');
+  const [gameType, setGameType] = useState('0');
   const [selectedToken, setSelectedToken] = useState('');
   const [numberOfPlayers, setNumberOfPlayers] = useState('');
 
   const checkRegistration = async () => {
     try {
-      console.log('[checkRegistration] Checking registration for address:', address);
       const registered = await player.isRegistered(address!);
       setIsRegistered(registered);
     } catch (err: any) {
-      console.error('[checkRegistration] Error:', err);
       setError(err?.message || 'Failed to check registration status');
     }
   };
@@ -102,246 +100,51 @@ const GameSettings = () => {
     }
   }, [address]);
 
-  // // Commented out backend logic from HeroSection.tsx
-  // const waitForLastGameUpdate = async (
-  //   expectedGameId: number,
-  //   maxWait: number = 60000
-  // ) => {
-  //   const startTime = Date.now();
-  //   const delay = 2000;
-  //   const maxAttempts = 30;
-  //   let attempts = 0;
-  //   while (attempts < maxAttempts && Date.now() - startTime < maxWait) {
-  //     try {
-  //       const lastGame = Number(await game.lastGame());
-  //       console.log(
-  //         `[waitForLastGameUpdate] Polled lastGame: ${lastGame}, Expected: ${expectedGameId}, Attempt: ${attempts + 1}`
-  //       );
-  //       if (lastGame >= expectedGameId && lastGame > 0) {
-  //         return lastGame;
-  //       }
-  //     } catch (err: any) {
-  //       console.warn(`[waitForLastGameUpdate] Error polling lastGame (Attempt ${attempts + 1}):`, err.message);
-  //     }
-  //     attempts++;
-  //     await new Promise((resolve) => setTimeout(resolve, delay));
-  //   }
-  //   console.warn(`[waitForLastGameUpdate] lastGame did not update. Last: ${await game.lastGame()}, Expected: ${expectedGameId}`);
-  //   return null;
-  // };
-
-  // // Commented out backend logic from HeroSection.tsx
-  // const waitForGameStatus = async (gid: number, maxAttempts: number = 5, delay: number = 2000) => {
-  //   let attempts = 0;
-  //   while (attempts < maxAttempts) {
-  //     try {
-  //       const gameData = await game.getGame(gid) as Game;
-  //       console.log(`[waitForGameStatus] Game ${gid} data:`, gameData);
-  //       if (!gameData) {
-  //         throw new Error('Game data not found.');
-  //       }
-  //       if (gameData.is_initialised) {
-  //         console.log(`[waitForGameStatus] Game ${gid} is initialized, status:`, gameData.status);
-  //         return gameData;
-  //       }
-  //       console.log(`[waitForGameStatus] Game ${gid} not yet initialized, attempt ${attempts + 1}`);
-  //     } catch (err: any) {
-  //       console.warn(`[waitForGameStatus] Error checking game status, attempt ${attempts + 1}:`, err.message);
-  //     }
-  //     attempts++;
-  //     await new Promise((resolve) => setTimeout(resolve, delay));
-  //   }
-  //   throw new Error('Game data not available or not initialized after multiple attempts.');
-  // };
-
-  // // Commented out backend logic from HeroSection.tsx
-  // const handleCreateGame = async () => {
-  //   if (!account || !address) {
-  //     setError('Please connect your wallet');
-  //     console.log('[handleCreateGame] No wallet connected');
-  //     return;
-  //   }
-  //   if (!isRegistered) {
-  //     setError('Please register before creating a game');
-  //     console.log('[handleCreateGame] User not registered');
-  //     router.push('/');
-  //     return;
-  //   }
-  //   if (!gameType || !selectedToken || !numberOfPlayers) {
-  //     setError('Please select all fields');
-  //     console.log('[handleCreateGame] Missing fields:', { gameType, selectedToken, numberOfPlayers });
-  //     return;
-  //   }
-  //   const gameTypeNum = Number(gameType);
-  //   const numPlayers = Number(numberOfPlayers);
-  //   if (gameType !== '0' && gameType !== '1') {
-  //     setError('Game type must be Public (0) or Private (1)');
-  //     console.log('[handleCreateGame] Invalid game type:', gameType);
-  //     return;
-  //   }
-  //   if (isNaN(numPlayers) || numPlayers < 2 || numPlayers > 8) {
-  //     setError('Number of players must be between 2 and 8');
-  //     console.log('[handleCreateGame] Invalid number of players:', numPlayers);
-  //     return;
-  //   }
-  //   const tokenValue = tokens.find((t) => t.name === selectedToken)?.value;
-  //   if (tokenValue === undefined) {
-  //     setError('Invalid token selected');
-  //     console.log('[handleCreateGame] Invalid token:', selectedToken);
-  //     return;
-  //   }
-  //   setIsCreatingGame(true);
-  //   setError(null);
-  //   try {
-  //     console.log('[handleCreateGame] Starting game creation');
-  //     const initialLastGame = Number(await game.lastGame()) || 0;
-  //     console.log(`[handleCreateGame] Initial lastGame: ${initialLastGame}`);
-  //     console.log(`[handleCreateGame] Creating game with type: ${gameTypeNum}, token: ${tokenValue}, players: ${numPlayers}, wallet: ${connector?.name || 'unknown'}`);
-  //     const tx = await game.createGame(account, gameTypeNum, tokenValue, numPlayers);
-  //     console.log('[handleCreateGame] Create game transaction:', tx);
-  //     if (!tx?.transaction_hash) {
-  //       throw new Error('No transaction hash returned from createGame');
-  //     }
-  //     const newGameId = initialLastGame + 1;
-  //     console.log(`[handleCreateGame] Assumed new game ID: ${newGameId}`);
-  //     const currentLastGame = await waitForLastGameUpdate(newGameId);
-  //     console.log(`[handleCreateGame] Current lastGame: ${currentLastGame}`);
-  //     if (currentLastGame === null) {
-  //       throw new Error('Game creation not confirmed by lastGame update');
-  //     }
-  //     const gameData = await waitForGameStatus(newGameId);
-  //     console.log('[handleCreateGame] Game data confirmed:', gameData);
-  //     const updatedGames = [...new Set([...JSON.parse(localStorage.getItem('ongoingGames') || '[]'), newGameId])];
-  //     localStorage.setItem('ongoingGames', JSON.stringify(updatedGames));
-  //     console.log(`[handleCreateGame] Initiating redirect to /game-waiting?gameId=${newGameId}&creator=${address}`);
-  //     setTimeout(() => {
-  //       router.push(`/game-waiting?gameId=${newGameId}&creator=${address}`);
-  //       console.log('[handleCreateGame] Redirect executed');
-  //     }, 2000);
-  //   } catch (err: any) {
-  //     console.error('[handleCreateGame] Error:', err.message);
-  //     setError(err?.message || 'Failed to create game. Please try again.');
-  //   } finally {
-  //     setIsCreatingGame(false);
-  //     console.log('[handleCreateGame] Loading state cleared');
-  //   }
-  // };
-
-  // // Commented out backend logic from HeroSection.tsx
-  // const handleCreatePrivateGame = async () => {
-  //   if (!account || !selectedToken || !numberOfPlayers) {
-  //     setError('Please connect your wallet, select a token, and select number of players.');
-  //     console.log('[handleCreatePrivateGame] Missing fields:', { selectedToken, numberOfPlayers });
-  //     return;
-  //   }
-  //   const numPlayers = Number(numberOfPlayers);
-  //   if (isNaN(numPlayers) || numPlayers < 2 || numPlayers > 8) {
-  //     setError('Number of players must be between 2 and 8');
-  //     console.log('[handleCreatePrivateGame] Invalid number of players:', numPlayers);
-  //     return;
-  //   }
-  //   const tokenValue = tokens.find((t) => t.name === selectedToken)?.value;
-  //   if (tokenValue === undefined) {
-  //     setError('Invalid token selected');
-  //     console.log('[handleCreatePrivateGame] Invalid token:', selectedToken);
-  //     return;
-  //   }
-  //   setIsCreatingGame(true);
-  //   setError(null);
-  //   try {
-  //     console.log('[handleCreatePrivateGame] Starting private game creation');
-  //     const initialLastGame = Number(await game.lastGame()) || 0;
-  //     console.log(`[handleCreatePrivateGame] Initial lastGame: ${initialLastGame}`);
-  //     const tx = await game.createGame(account, 1, tokenValue, numPlayers);
-  //     console.log('[handleCreatePrivateGame] Create game transaction:', tx);
-  //     if (!tx?.transaction_hash) {
-  //       throw new Error('No transaction hash returned from createGame');
-  //     }
-  //     const newGameId = initialLastGame + 1;
-  //     console.log(`[handleCreatePrivateGame] Assumed new game ID: ${newGameId}`);
-  //     const currentLastGame = await waitForLastGameUpdate(newGameId);
-  //     console.log(`[handleCreatePrivateGame] Current lastGame: ${currentLastGame}`);
-  //     if (currentLastGame === null) {
-  //       throw new Error('Game creation not confirmed by lastGame update');
-  //     }
-  //     const gameData = await waitForGameStatus(newGameId);
-  //     console.log('[handleCreatePrivateGame] Game data confirmed:', gameData);
-  //     const updatedGames = [...new Set([...JSON.parse(localStorage.getItem('ongoingGames') || '[]'), newGameId])];
-  //     localStorage.setItem('ongoingGames', JSON.stringify(updatedGames));
-  //     console.log(`[handleCreatePrivateGame] Initiating redirect to /game-waiting?gameId=${newGameId}&creator=${address}`);
-  //     setTimeout(() => {
-  //       router.push(`/game-waiting?gameId=${newGameId}&creator=${address}`);
-  //       console.log('[handleCreatePrivateGame] Redirect executed');
-  //     }, 2000);
-  //   } catch (err: any) {
-  //     console.error('[handleCreatePrivateGame] Error:', err.message);
-  //     setError(err?.message || 'Failed to create private game. Please try again.');
-  //   } finally {
-  //     setIsCreatingGame(false);
-  //     console.log('[handleCreatePrivateGame] Loading state cleared');
-  //   }
-  // };
-
   const handleCreateGame = async () => {
     if (!account || !address) {
       setError('Please connect your wallet');
-      console.log('[handleCreateGame] No wallet connected');
       return;
     }
     if (!isRegistered) {
       setError('Please register before creating a game');
-      console.log('[handleCreateGame] User not registered');
       router.push('/');
       return;
     }
     if (!gameType || !selectedToken || !numberOfPlayers) {
       setError('Please select all fields');
-      console.log('[handleCreateGame] Missing fields:', { gameType, selectedToken, numberOfPlayers });
       return;
     }
     const gameTypeNum = Number(gameType);
     const numPlayers = Number(numberOfPlayers);
     if (gameType !== '0' && gameType !== '1') {
       setError('Game type must be Public (0) or Private (1)');
-      console.log('[handleCreateGame] Invalid game type:', gameType);
       return;
     }
     if (isNaN(numPlayers) || numPlayers < 2 || numPlayers > 8) {
       setError('Number of players must be between 2 and 8');
-      console.log('[handleCreateGame] Invalid number of players:', numPlayers);
       return;
     }
     const tokenValue = tokens.find((t) => t.name === selectedToken)?.value;
     if (tokenValue === undefined) {
       setError('Invalid token selected');
-      console.log('[handleCreateGame] Invalid token:', selectedToken);
       return;
     }
     setIsCreatingGame(true);
     setError(null);
     try {
-      console.log('[handleCreateGame] Starting game creation');
       const initialLastGame = Number(await game.lastGame()) || 0;
-      console.log(`[handleCreateGame] Initial lastGame: ${initialLastGame}`);
-      console.log(`[handleCreateGame] Creating game with type: ${gameTypeNum}, token: ${tokenValue}, players: ${numPlayers}, wallet: ${connector?.name || 'unknown'}`);
       const tx: CreateGameResponse = await game.createGame(account, gameTypeNum, tokenValue, numPlayers);
-      console.log('[handleCreateGame] Create game transaction:', tx);
       if (!tx?.transaction_hash) {
         throw new Error('No transaction hash returned from createGame');
       }
       const newGameId = initialLastGame + 1;
-      console.log(`[handleCreateGame] Assumed new game ID: ${newGameId}`);
-      console.log(`[handleCreateGame] Initiating redirect to /game-waiting?gameId=${newGameId}&creator=${address}`);
       setTimeout(() => {
         router.push(`/game-waiting?gameId=${newGameId}&creator=${address}`);
-        console.log('[handleCreateGame] Redirect executed');
       }, 2000);
     } catch (err: any) {
-      console.error('[handleCreateGame] Error:', err.message);
       setError(err?.message || 'Failed to create game. Please try again.');
     } finally {
       setIsCreatingGame(false);
-      console.log('[handleCreateGame] Loading state cleared');
     }
   };
 
@@ -491,7 +294,7 @@ const GameSettings = () => {
                 </p>
               </div>
             </div>
-            <Switch id="auction" />
+            <Switch id="auction" disabled />
           </div>
 
           <div className="w-full flex justify-between items-start">
@@ -506,7 +309,7 @@ const GameSettings = () => {
                 </p>
               </div>
             </div>
-            <Switch id="rent-in-prison" />
+            <Switch id="rent-in-prison" disabled />
           </div>
 
           <div className="w-full flex justify-between items-start">
@@ -521,7 +324,7 @@ const GameSettings = () => {
                 </p>
               </div>
             </div>
-            <Switch id="mortgage" />
+            <Switch id="mortgage" disabled />
           </div>
 
           <div className="w-full flex justify-between items-start">
@@ -536,7 +339,7 @@ const GameSettings = () => {
                 </p>
               </div>
             </div>
-            <Switch id="even-build" />
+            <Switch id="even-build" disabled />
           </div>
 
           <div className="w-full flex justify-between items-start">
@@ -552,7 +355,7 @@ const GameSettings = () => {
               </div>
             </div>
             <Select
-              value="100"
+              value="1500"
               disabled
             >
               <SelectTrigger className="w-[120px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
@@ -583,7 +386,7 @@ const GameSettings = () => {
                 </p>
               </div>
             </div>
-            <Switch id="random-play" />
+            <Switch id="random-play" disabled />
           </div>
         </div>
 

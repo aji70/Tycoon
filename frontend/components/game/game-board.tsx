@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Component, ReactNode } from 'react';
+import React, { useState, useEffect, Component, ReactNode, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAccount } from '@starknet-react/core';
 import { useGameActions } from '@/hooks/useGameActions';
@@ -66,6 +66,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   }
 }
 
+const TOKEN_EMOJIS: { [key: string]: string } = {
+  hat: '🧢',
+  car: '🚗',
+  dog: '🐕',
+  thimble: '📌',
+  iron: '🔧',
+  battleship: '🚢',
+  boot: '👢',
+  wheelbarrow: '🛒',
+};
+
+const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
+  <span className="text-lg">{TOKEN_EMOJIS[token.toLowerCase()] || token}</span>
+);
+
 /**
  * Dojo GameBoard component aligned with Solidity version
  * - Focuses on board UI and core contract logic (roll dice, pay rent, end turn, draw/process cards, pay jail fine, end/leave game)
@@ -95,8 +110,12 @@ const GameBoard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [selectedCardType, setSelectedCardType] = useState<'Chance' | 'CommunityChest' | null>(null);
-  const [propertyId, setPropertyId] = useState('');
-  const [showRentInput, setShowRentInput] = useState(false);
+  const [currentProperty, setCurrentProperty] = useState<Property | null>(null);
+  const [hasRolled, setHasRolled] = useState(false);
+  const [previousCurrentPlayer, setPreviousCurrentPlayer] = useState<string | null>(null);
+  const [actionLog, setActionLog] = useState<string[]>([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
     const id = searchParams.get('gameId') || localStorage.getItem('gameId');
@@ -117,9 +136,32 @@ const GameBoard = () => {
 
   useEffect(() => {
     if (address && gameId !== null) {
-      loadGameData(address, gameId);
+      loadGameData(gameId);
     }
   }, [address, gameId]);
+
+  // Polling for game updates during ongoing game
+  useEffect(() => {
+    if (!address || gameId === null) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        await loadGameData(gameId);
+      } catch (err) {
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [address, gameId]);
+
+  // Reset hasRolled when current player changes (new turn)
+  useEffect(() => {
+    const current = currentPlayer()?.address;
+    if (previousCurrentPlayer && previousCurrentPlayer !== current) {
+      setHasRolled(false);
+    }
+    setPreviousCurrentPlayer(current ?? null);
+  }, [players]);
 
   // Commented Solidity backend logic
   /*
@@ -170,9 +212,7 @@ const GameBoard = () => {
         if (isOngoing) {
           return gameData;
         }
-        console.log(`Game ${gid} not yet ongoing, attempt ${attempts + 1}/${maxAttempts}`);
       } catch (err: any) {
-        console.warn(`Error checking game status, attempt ${attempts + 1}:`, err.message);
       }
       attempts++;
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -180,24 +220,25 @@ const GameBoard = () => {
     throw new Error('Game is not ongoing after multiple attempts. Please verify the game ID or try again later.');
   };
 
-  const loadGameData = async (playerAddress: string, gid: number) => {
+  const getPlayerToken = (playerData: any): string => {
+    if (!playerData.player_symbol || !playerData.player_symbol.variant) return '';
+    const symbolVariant = Object.keys(playerData.player_symbol.variant).find(
+      (key) => playerData.player_symbol.variant[key] !== undefined
+    );
+    return symbolVariant ? symbolVariant.toLowerCase() : '';
+  };
+
+  const loadGameData = async (gid: number, skipDetection = false) => {
+    if (isFetchingRef.current) {
+      return;
+    }
+    isFetchingRef.current = true;
+
     setIsLoading(true);
     setError(null);
     try {
       const gameData = await waitForGameStatus(gid);
       const currentPlayerAddress = await movementActions.getCurrentPlayer(gid);
-      console.log('loadGameData:', { playerAddress, currentPlayerAddress, gameData });
-
-      const tokenFields = {
-        hat: gameData.player_hat,
-        car: gameData.player_car,
-        dog: gameData.player_dog,
-        thimble: gameData.player_thimble,
-        iron: gameData.player_iron,
-        battleship: gameData.player_battleship,
-        boot: gameData.player_boot,
-        wheelbarrow: gameData.player_wheelbarrow,
-      };
 
       const assignedTokens: string[] = [];
       const playerTokensMap: { [address: string]: string } = {};
@@ -215,17 +256,11 @@ const GameBoard = () => {
           const username = await playerActions.getUsernameFromAddress(addrString);
           const decodedUsername = shortString.decodeShortString(username) || `Player ${index + 1}`;
 
-          const tokenKey = Object.keys(tokenFields).find(
-            (key) => String(tokenFields[key as keyof typeof tokenFields]).toLowerCase() === addrString
-          );
-          let token = tokenKey
-            ? PLAYER_TOKENS[Object.keys(tokenFields).indexOf(tokenKey)]
-            : PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || '';
-
-          if (assignedTokens.includes(token)) {
+          let token = getPlayerToken(playerData)
+          if (!token || assignedTokens.includes(token)) {
             token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || '';
           }
-          assignedTokens.push(token);
+          if (token) assignedTokens.push(token);
           playerTokensMap[addrString] = token;
 
           return {
@@ -262,8 +297,11 @@ const GameBoard = () => {
             const playerData = await gameActions.getPlayer(addr, gid);
             const username = await playerActions.getUsernameFromAddress(addr);
             const decodedUsername = shortString.decodeShortString(username) || `Player ${gamePlayers.length + index + 1}`;
-            let token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || '';
-            assignedTokens.push(token);
+            let token = getPlayerToken(playerData)
+            if (!token || assignedTokens.includes(token)) {
+              token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || '';
+            }
+            if (token) assignedTokens.push(token);
             playerTokensMap[addr] = token;
 
             return {
@@ -281,6 +319,112 @@ const GameBoard = () => {
       );
 
       const allPlayers = [...gamePlayers, ...additionalPlayers];
+
+      const ownershipMap: { [key: number]: OwnedProperty } = {};
+      propertyDataArray.forEach((propertyData, index) => {
+        const square = boardData.filter((s) => s.type === 'property')[index];
+        if (propertyData.owner && propertyData.owner !== '0') {
+          const ownerAddress = String(propertyData.owner).toLowerCase();
+          const ownerPlayer = allPlayers.find((p) => p.address === ownerAddress);
+          ownershipMap[square.id] = {
+            owner: ownerAddress,
+            ownerUsername: ownerPlayer?.username || 'Unknown',
+            token: ownerPlayer?.token || '',
+          };
+        }
+      });
+
+      // Detect changes if already loaded and not skipping detection
+      if (hasLoaded && !skipDetection) {
+        // Previous players map by address
+        const prevPlayersMap = new Map(players.map(p => [p.address, p]));
+        // Previous owned map
+        const prevOwnedMap = new Map(Object.entries(ownedProperties).map(([id, prop]) => [id, prop]));
+
+        // Detect turn changes
+        allPlayers.forEach(newP => {
+          const prevP = prevPlayersMap.get(newP.address);
+          if (prevP && prevP.isNext !== newP.isNext) {
+            if (!prevP.isNext && newP.isNext) {
+              if (newP.address !== String(address).toLowerCase()) {
+                addActionLog(`It's ${newP.username}'s turn`);
+              }
+            }
+          }
+        });
+
+        // Detect moves and payments per player
+        allPlayers.forEach(newP => {
+          const prevP = prevPlayersMap.get(newP.address);
+          if (prevP) {
+            let logMessage = '';
+            const moved = prevP.position !== newP.position;
+            const paid = prevP.balance > newP.balance;
+            let paidAmount = 0;
+            let rentDue = 0;
+            let isTax = false;
+            let taxAmount = 0;
+            let isOwnProperty = false;
+            let ownerU = '';
+            let posName = '';
+
+            if (moved) {
+              const square = boardData.find(s => s.id === newP.position);
+              posName = square?.name || newP.position.toString();
+              logMessage = `${newP.username} moved to ${posName}`;
+              if (square?.type === 'property') {
+                const ownerAddr = ownershipMap[newP.position]?.owner;
+                if (ownerAddr) {
+                  if (ownerAddr === newP.address) {
+                    isOwnProperty = true;
+                    logMessage += ' (own property)';
+                  } else {
+                    const ownerPlayer = allPlayers.find(p => p.address === ownerAddr);
+                    ownerU = ownerPlayer?.username || 'Unknown';
+                    rentDue = Number(square.rent_site_only || 0);
+                    logMessage += `, owned by ${ownerU}`;
+                  }
+                }
+              } else if (['Income Tax', 'Luxury Tax'].includes(square?.name || '')) {
+                isTax = true;
+                taxAmount = square ? Number(square.rent_site_only || 0) : 0;
+                logMessage += `. Tax: $${taxAmount}`;
+              }
+            }
+
+            if (paid) {
+              paidAmount = prevP.balance - newP.balance;
+              if (moved) {
+                if (rentDue > 0 && paidAmount === rentDue) {
+                  logMessage += ` and paid $${paidAmount} rent to ${ownerU}`;
+                } else if (isTax && paidAmount === taxAmount) {
+                  logMessage += ` (paid)`;
+                }
+              } else if (!newP.jailed && prevP.jailed && paidAmount === 50) {
+                logMessage = `${newP.username} paid $50 jail fine`;
+              } else {
+                logMessage = `${newP.username} paid $${paidAmount}`;
+              }
+            }
+
+            if (logMessage && newP.address !== String(address).toLowerCase()) {
+              addActionLog(logMessage);
+            }
+          }
+        });
+
+        // Detect buys
+        Object.entries(ownershipMap).forEach(([propIdStr, newProp]) => {
+          const propId = Number(propIdStr);
+          const prevProp = prevOwnedMap.get(propIdStr);
+          if (!prevProp && newProp && newProp.owner !== String(address).toLowerCase()) {
+            const square = boardData.find(s => s.id === propId);
+            const price = square?.price || 0;
+            addActionLog(`${newProp.ownerUsername} bought ${square?.name || propId} for $${price}`);
+          }
+        });
+      }
+
       setPlayers(allPlayers);
       setPlayerTokens(playerTokensMap);
 
@@ -298,26 +442,61 @@ const GameBoard = () => {
         createdBy: String(gameData.created_by).toLowerCase(),
       });
 
-      const ownershipMap: { [key: number]: OwnedProperty } = {};
-      propertyDataArray.forEach((propertyData, index) => {
-        const square = boardData.filter((s) => s.type === 'property')[index];
-        if (propertyData.owner && propertyData.owner !== '0') {
-          const ownerAddress = String(propertyData.owner).toLowerCase();
-          const ownerPlayer = allPlayers.find((p) => p.address === ownerAddress);
-          ownershipMap[square.id] = {
-            owner: ownerAddress,
-            ownerUsername: ownerPlayer?.username || 'Unknown',
-            token: ownerPlayer?.token || '',
-          };
-        }
-      });
       setOwnedProperties(ownershipMap);
+
+      // Set current property based on current player's position
+      const currentPlayer = allPlayers.find(p => p.isNext);
+      if (currentPlayer) {
+        const square = boardData.find(s => s.id === currentPlayer.position);
+        if (square) {
+          let decodedName = square.name || 'Unknown';
+          if (square.type === 'property') {
+            const propIndex = boardData.filter(s => s.type === 'property').findIndex(s => s.id === square.id);
+            if (propIndex !== -1) {
+              const propData = propertyDataArray[propIndex];
+              if (propData.name && propData.name !== '0') {
+                decodedName = shortString.decodeShortString(propData.name);
+              }
+            }
+          }
+          setCurrentProperty({
+            id: square.id,
+            name: decodedName,
+            type: square.type,
+            owner: ownershipMap[square.id]?.owner || null,
+            ownerUsername: ownershipMap[square.id]?.ownerUsername || null,
+            rent_site_only: square.rent_site_only || 0,
+          });
+        } else {
+          setCurrentProperty(null);
+        }
+      } else {
+        setCurrentProperty(null);
+      }
+
+      setHasLoaded(true);
     } catch (err: any) {
-      console.error('Failed to load game data:', err);
       setError(err.message || 'Failed to load game data. Please try again or check the game ID.');
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
+  };
+
+  const currentPlayer = () => players.find(p => p.isNext);
+  const isUsersTurn = () => address && currentPlayer()?.address === String(address).toLowerCase();
+
+  const addActionLog = (message: string) => {
+    setActionLog(prev => {
+      // Check last 3 entries to prevent recent duplicates
+      if (prev.slice(-3).includes(message)) {
+        return prev;
+      }
+      if (prev.length > 0 && prev[prev.length - 1] === message) {
+        return prev;
+      }
+      return [...prev, message].slice(-20);
+    });
   };
 
   const rollDice = async () => {
@@ -333,12 +512,33 @@ const GameBoard = () => {
       const roll = die1 + die2;
       setLastRoll({ die1, die2, total: roll });
       await movementActions.movePlayer(account, gameId, roll);
-      if (address && gameId !== null) {
-        await loadGameData(address, gameId);
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} rolled ${die1} + ${die2} = ${roll}`);
+      await loadGameData(gameId, true);
+      // Log landing details for current user
+      if (currentProperty && currentPlayer()) {
+        const currPlayer = currentPlayer();
+        if (currentProperty.type === 'property') {
+          const ownerAddr = currentProperty.owner;
+          if (ownerAddr) {
+            if (currPlayer && ownerAddr === currPlayer.address) {
+              addActionLog(`Landed on own ${currentProperty.name}`);
+            } else if (currPlayer) {
+              addActionLog(`Landed on ${currentProperty.name} owned by ${currentProperty.ownerUsername}. Rent due: $${currentProperty.rent_site_only}`);
+            }
+          } else {
+            // Unowned, buy option available
+            const square = boardData.find(s => s.id === currentProperty.id);
+            const cost = square?.price || 0;
+            addActionLog(`Landed on unowned ${currentProperty.name}. Buy for $${cost}`);
+          }
+        } else if (['Income Tax', 'Luxury Tax'].includes(currentProperty.name)) {
+          addActionLog(`Landed on ${currentProperty.name}. Tax due: $${currentProperty.rent_site_only}`);
+        }
       }
+      setHasRolled(true);
     } catch (err: any) {
-      console.error('rollDice Error:', err);
-      setError(err.message || 'Error rolling dice. It may not be your turn.');
+      setError(err.message || 'Error rolling dice.');
     } finally {
       setIsLoading(false);
     }
@@ -356,8 +556,9 @@ const GameBoard = () => {
       const randomCard = cardList[Math.floor(Math.random() * cardList.length)];
       setSelectedCard(randomCard);
       setSelectedCardType(type);
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} drew a ${type === 'Chance' ? 'Chance' : 'Community Chest'} card`);
     } catch (err: any) {
-      console.error(`Draw ${type} Card Error:`, err);
       setError(err.message || `Error drawing ${type} card.`);
     } finally {
       setIsLoading(false);
@@ -376,67 +577,93 @@ const GameBoard = () => {
         ? () => movementActions.processCommunityChestCard(account, gameId, selectedCard)
         : () => movementActions.processChanceCard(account, gameId, selectedCard);
       await action();
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} processed ${selectedCardType} card: "${selectedCard}"`);
+      await loadGameData(gameId, true);
       setSelectedCard(null);
       setSelectedCardType(null);
-      if (address && gameId !== null) {
-        await loadGameData(address, gameId);
-      }
     } catch (err: any) {
-      console.error(`Process ${selectedCardType} Card Error:`, err);
       setError(err.message || `Error processing ${selectedCardType} card.`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePayRent = async () => {
-    if (!account || !gameId || !propertyId) {
-      setError('Please connect your account, provide a valid Game ID, or enter a property ID.');
+  const handleBuyProperty = async () => {
+    if (!account || !gameId || !currentProperty || currentProperty.owner || currentProperty.type !== 'property') {
+      setError('Cannot buy: Invalid position or property already owned.');
       return;
     }
-    const square = boardData.find((s) => s.id === Number(propertyId));
-    if (!square || square.type !== 'property' || !ownedProperties[Number(propertyId)]?.owner) {
-      setError('Cannot pay rent: Invalid property or no owner.');
-      setShowRentInput(false);
-      return;
-    }
+    const currentPlayerObj = currentPlayer();
+    if (!currentPlayerObj) return;
     try {
       setIsLoading(true);
       setError(null);
-      await propertyActions.payRent(account, Number(propertyId), gameId);
-      setPropertyId('');
-      setShowRentInput(false);
-      if (address && gameId !== null) {
-        await loadGameData(address, gameId);
-      }
+      await propertyActions.buyProperty(account, currentPlayerObj.position, gameId);
+      const square = boardData.find(s => s.id === currentProperty.id);
+      const price = square?.price || 0;
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} bought ${currentProperty.name} for $${price}`);
+      await loadGameData(gameId, true);
     } catch (err: any) {
-      console.error('Pay Rent Error:', err);
-      setError(err.message || 'Error paying rent.');
-      setShowRentInput(false);
+      setError(err.message || 'Error buying property.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCancelRent = () => {
-    setPropertyId('');
-    setShowRentInput(false);
+  const handlePayRent = async () => {
+    if (!account || !gameId || !currentProperty || !currentProperty.owner || currentProperty.owner === String(address).toLowerCase() || currentProperty.type !== 'property') {
+      setError('Cannot pay rent: Invalid property or no owner.');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      await propertyActions.payRent(account, Number(currentProperty.id), gameId);
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} paid $${currentProperty.rent_site_only} rent to ${currentProperty.ownerUsername}`);
+      await loadGameData(gameId, true);
+    } catch (err: any) {
+      setError(err.message || 'Error paying rent.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePayTax = async () => {
+    if (!account || !gameId || !currentProperty || !['Income Tax', 'Luxury Tax'].includes(currentProperty.name)) {
+      setError('Invalid tax square or position.');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      await movementActions.payTax(account, currentProperty.id, gameId);
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} paid $${currentProperty.rent_site_only} tax`);
+      await loadGameData(gameId, true);
+    } catch (err: any) {
+      setError(err.message || 'Error paying tax.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePayJailFine = async () => {
-    if (!account || !gameId) {
-      setError('Please connect your account and provide a valid Game ID.');
+    if (!account || !gameId || !currentPlayer()?.jailed) {
+      setError('Please connect your account and provide a valid Game ID. You are not in jail.');
       return;
     }
     try {
       setIsLoading(true);
       setError(null);
       await movementActions.payJailFine(account, gameId);
-      if (address && gameId !== null) {
-        await loadGameData(address, gameId);
-      }
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} paid $50 jail fine`);
+      await loadGameData(gameId, true);
+      setHasRolled(true);
     } catch (err: any) {
-      console.error('Pay Jail Fine Error:', err);
       setError(err.message || 'Error paying jail fine.');
     } finally {
       setIsLoading(false);
@@ -456,11 +683,10 @@ const GameBoard = () => {
       setIsLoading(true);
       setError(null);
       await propertyActions.finishTurn(account, gameId);
-      if (address && gameId !== null) {
-        await loadGameData(address, gameId);
-      }
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} ended their turn`);
+      await loadGameData(gameId, true);
     } catch (err: any) {
-      console.error('End Turn Error:', err);
       setError(err.message || 'Error ending turn.');
     } finally {
       setIsLoading(false);
@@ -476,6 +702,8 @@ const GameBoard = () => {
       setIsLoading(true);
       setError(null);
       await gameActions.endGame(account, gameId);
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} ended the game`);
       setGameId(null);
       setPlayers([]);
       setGame(null);
@@ -486,7 +714,6 @@ const GameBoard = () => {
       localStorage.removeItem('gameId');
       router.push('/');
     } catch (err: any) {
-      console.error('End Game Error:', err);
       setError(err.message || 'Error ending game.');
     } finally {
       setIsLoading(false);
@@ -502,6 +729,8 @@ const GameBoard = () => {
       setIsLoading(true);
       setError(null);
       await gameActions.leaveGame(account, gameId);
+      const username = currentPlayer()?.username || 'You';
+      addActionLog(`${username} left the game`);
       setGameId(null);
       setPlayers([]);
       setGame(null);
@@ -512,7 +741,6 @@ const GameBoard = () => {
       localStorage.removeItem('gameId');
       router.push('/');
     } catch (err: any) {
-      console.error('Leave Game Error:', err);
       setError(err.message || 'Error leaving game.');
     } finally {
       setIsLoading(false);
@@ -551,9 +779,6 @@ const GameBoard = () => {
                   }}
                 >
                   <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
-                  {isLoading && (
-                    <p className="text-cyan-300 text-sm text-center mb-2">Loading...</p>
-                  )}
                   <div className="flex flex-col gap-2">
                     <button
                       onClick={rollDice}
@@ -562,47 +787,30 @@ const GameBoard = () => {
                     >
                       Roll Dice
                     </button>
-                    {lastRoll && (
-                      <p className="text-gray-300 text-sm text-center">
-                        Rolled: <span className="font-bold text-white">{lastRoll.die1} + {lastRoll.die2} = {lastRoll.total}</span>
-                      </p>
-                    )}
-                    {showRentInput && (
-                      <div className="flex flex-col gap-2">
-                        <input
-                          type="number"
-                          placeholder="Property ID for Rent"
-                          value={propertyId}
-                          onChange={(e) => setPropertyId(e.target.value)}
-                          className="w-full px-2 py-1 mb-2 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                          aria-label="Enter property ID for rent"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handlePayRent}
-                            aria-label="Confirm rent payment"
-                            className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
-                          >
-                            Confirm Rent
-                          </button>
-                          <button
-                            onClick={handleCancelRent}
-                            aria-label="Cancel rent payment"
-                            className="px-2 py-1 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xs rounded-full hover:from-gray-600 hover:to-gray-800 transform hover:scale-105 transition-all duration-200"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <div className="flex flex-wrap gap-2 justify-center">
                       <button
-                        onClick={() => setShowRentInput(true)}
+                        onClick={handlePayRent}
                         aria-label="Pay rent for the property"
                         className="px-2 py-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs rounded-full hover:from-orange-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
                       >
                         Pay Rent
                       </button>
+                      <button
+                        onClick={handleBuyProperty}
+                        aria-label="Buy the current property"
+                        className="px-2 py-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs rounded-full hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200"
+                      >
+                        Buy Property
+                      </button>
+                      {(currentProperty?.name === 'Income Tax' || currentProperty?.name === 'Luxury Tax') && (
+                        <button
+                          onClick={handlePayTax}
+                          aria-label="Pay tax"
+                          className="px-2 py-1 bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-xs rounded-full hover:from-yellow-600 hover:to-amber-600 transform hover:scale-105 transition-all duration-200"
+                        >
+                          Pay Tax
+                        </button>
+                      )}
                       <button
                         onClick={handleEndTurn}
                         aria-label="End your turn"
@@ -667,7 +875,6 @@ const GameBoard = () => {
                         onClick={handleProcessCard}
                         aria-label="Process the drawn card"
                         className="px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-full hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200"
-                        disabled={!selectedCardType}
                       >
                         Process
                       </button>
@@ -684,6 +891,13 @@ const GameBoard = () => {
                     </div>
                   </div>
                 )}
+                <div className="mt-4 p-2 bg-gray-800 rounded max-h-40 overflow-y-auto w-full max-w-sm">
+                  <h3 className="text-sm font-semibold text-cyan-300 mb-2">Action Log</h3>
+                  {actionLog.slice(-10).reverse().map((log, i) => (
+                    <p key={i} className="text-xs text-gray-300 mb-1 last:mb-0">{log}</p>
+                  ))}
+                  {actionLog.length === 0 && <p className="text-xs text-gray-500 italic">No actions yet</p>}
+                </div>
               </div>
 
               {boardData.map((square, index) => (
@@ -713,9 +927,9 @@ const GameBoard = () => {
                         .map((p) => (
                           <span
                             key={p.id}
-                            className={`text-lg md:text-2xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
+                            className={`md:text-2xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
                           >
-                            {p.token || playerTokens[p.address] || ''}
+                            <TokenIcon token={p.token || playerTokens[p.address] || ''} />
                           </span>
                         ))}
                     </div>

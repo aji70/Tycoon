@@ -48,13 +48,13 @@ interface Token {
 }
 
 const tokens: Token[] = [
-  { name: 'Hat', emoji: '🎩', value: 0 },
+  { name: 'Hat', emoji: '🧢', value: 0 },
   { name: 'Car', emoji: '🚗', value: 1 },
   { name: 'Dog', emoji: '🐕', value: 2 },
-  { name: 'Thimble', emoji: '🧵', value: 3 },
-  { name: 'Iron', emoji: '🧼', value: 4 },
+  { name: 'Thimble', emoji: '📌', value: 3 },
+  { name: 'Iron', emoji: '🔧', value: 4 },
   { name: 'Battleship', emoji: '🚢', value: 5 },
-  { name: 'Boot', emoji: '👞', value: 6 },
+  { name: 'Boot', emoji: '👢', value: 6 },
   { name: 'Wheelbarrow', emoji: '🛒', value: 7 },
 ];
 
@@ -117,7 +117,6 @@ const GameWaiting = () => {
     try {
       const gameData = (await gameActions.getGame(numericGameId)) as Game;
       if (!gameData) {
-        console.warn('No game data returned, keeping last state.');
         return;
       }
 
@@ -128,25 +127,16 @@ const GameWaiting = () => {
       const playerInGame = gameData.game_players.includes(address);
 
       const symbolFields = [
-        { field: 'player_hat', label: '🎩 Hat', value: '0' },
+        { field: 'player_hat', label: '🧢 Hat', value: '0' },
         { field: 'player_car', label: '🚗 Car', value: '1' },
         { field: 'player_dog', label: '🐕 Dog', value: '2' },
-        { field: 'player_thimble', label: '🧵 Thimble', value: '3' },
-        { field: 'player_iron', label: '🧼 Iron', value: '4' },
+        { field: 'player_thimble', label: '📌 Thimble', value: '3' },
+        { field: 'player_iron', label: '🔧 Iron', value: '4' },
         { field: 'player_battleship', label: '🚢 Battleship', value: '5' },
-        { field: 'player_boot', label: '👞 Boot', value: '6' },
+        { field: 'player_boot', label: '👢 Boot', value: '6' },
         { field: 'player_wheelbarrow', label: '🛒 Wheelbarrow', value: '7' },
       ];
-      console.log('[GameWaiting] Player Fields:', {
-        player_hat: gameData.player_hat,
-        player_car: gameData.player_car,
-        player_dog: gameData.player_dog,
-        player_thimble: gameData.player_thimble,
-        player_iron: gameData.player_iron,
-        player_battleship: gameData.player_battleship,
-        player_boot: gameData.player_boot,
-        player_wheelbarrow: gameData.player_wheelbarrow,
-      });
+
       const symbolNames = symbolFields
         .filter(({ field }) => gameData[field as keyof Game] === BigInt(0))
         .map(({ label }) => label);
@@ -155,7 +145,6 @@ const GameWaiting = () => {
         .map(({ value, label }) => ({ value, label }));
 
       const playerDataResult = (await gameActions.getPlayer(address, numericGameId)) as Player;
-      console.log('[GameWaiting] Player Data:', playerDataResult);
 
       setPlayersJoined(!isNaN(joined) ? joined : playersJoined);
       setMaxPlayers(!isNaN(max) ? max : maxPlayers);
@@ -206,7 +195,6 @@ const GameWaiting = () => {
       setLoading(true);
       setError(null);
       await gameActions.joinGame(account, Number(playerSymbol), numericGameId);
-      console.log('[GameWaiting] Join Game called:', { gameId, playerSymbol });
       await fetchGameData();
     } catch (err: any) {
       console.error('Error joining game:', err.message);
@@ -226,7 +214,6 @@ const GameWaiting = () => {
       setLoading(true);
       setError(null);
       await gameActions.leaveGame(account, numericGameId);
-      console.log('[GameWaiting] Leave Game called:', { gameId });
       await fetchGameData();
     } catch (err: any) {
       console.error('Error leaving game:', err.message);
@@ -246,7 +233,6 @@ const GameWaiting = () => {
       return;
     }
 
-    console.log('[GameWaiting] Redirecting to /game-play');
     router.push(`/game-play?gameId=${numericGameId}`);
   };
 
@@ -255,7 +241,6 @@ const GameWaiting = () => {
       setError('Cannot proceed to game board');
       return;
     }
-    console.log('[GameWaiting] Navigating to game board:', numericGameId);
     router.push(`/game-play?gameId=${numericGameId}`);
   };
 

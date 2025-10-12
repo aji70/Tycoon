@@ -42,16 +42,16 @@ interface Property {
   color?: string;
   house_cost?: number;
   hotel_cost?: number;
-  houses: number;
-  hotels: number;
+  development: number;
 }
 
 interface OwnedProperty {
   owner: string;
   ownerUsername: string;
   token: string;
-  houses: number;
-  hotels: number;
+  development: number;
+  rent_site_only: number;
+  name: string;
 }
 
 interface TradeInputs {
@@ -64,6 +64,21 @@ interface TradeInputs {
   tradeId: string;
   originalOfferId: string;
 }
+
+const TOKEN_EMOJIS: { [key: string]: string } = {
+  hat: '🧢',
+  car: '🚗',
+  dog: '🐕',
+  thimble: '📌',
+  iron: '🔧',
+  battleship: '🚢',
+  boot: '👢',
+  wheelbarrow: '🛒',
+};
+
+const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
+  <span className="text-lg">{TOKEN_EMOJIS[token.toLowerCase()] || token}</span>
+);
 
 const Players = () => {
   const { account, address } = useAccount()
@@ -128,9 +143,23 @@ const Players = () => {
   // Load game data when address and gameId are available
   useEffect(() => {
     if (address && gameId !== null) {
-      loadGameData(address, gameId)
+      loadGameData(address, gameId, false)
     }
   }, [address, gameId])
+
+  // Polling for game updates during ongoing game
+  useEffect(() => {
+    if (!address || gameId === null) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        await loadGameData(address, gameId, true);
+      } catch (err) {
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [address, gameId]);
 
   const waitForGameStatus = async (gid: number, maxAttempts: number = 5, delay: number = 2000) => {
     let attempts = 0
@@ -147,9 +176,7 @@ const Players = () => {
         if (isOngoing) {
           return gameData
         }
-        console.log(`Game ${gid} not yet ongoing, attempt ${attempts + 1}/${maxAttempts}`)
       } catch (err: any) {
-        console.warn(`Error checking game status, attempt ${attempts + 1}:`, err.message)
       }
       attempts++
       await new Promise((resolve) => setTimeout(resolve, delay))
@@ -157,29 +184,26 @@ const Players = () => {
     throw new Error('Game is not ongoing after multiple attempts. Please verify the game ID or try again later.')
   }
 
-  const loadGameData = async (playerAddress: string, gid: number) => {
-    setIsLoading(true)
-    setError(null)
+  const getPlayerToken = (playerData: any): string => {
+    if (!playerData.player_symbol || !playerData.player_symbol.variant) return '';
+    const symbolVariant = Object.keys(playerData.player_symbol.variant).find(
+      (key) => playerData.player_symbol.variant[key] !== undefined
+    );
+    return symbolVariant ? symbolVariant.toLowerCase() : '';
+  };
+
+  const loadGameData = async (playerAddress: string, gid: number, isSilent: boolean = false) => {
+    if (!isSilent) {
+      setIsLoading(true)
+      setError(null)
+    }
     try {
       const gameData = await waitForGameStatus(gid)
       const currentPlayerAddress = await movementActions.getCurrentPlayer(gid)
 
-      const tokenFields = {
-        hat: gameData.player_hat,
-        car: gameData.player_car,
-        dog: gameData.player_dog,
-        thimble: gameData.player_thimble,
-        iron: gameData.player_iron,
-        battleship: gameData.player_battleship,
-        boot: gameData.player_boot,
-        wheelbarrow: gameData.player_wheelbarrow,
-      }
-
       const assignedTokens: string[] = []
       const playerTokensMap: { [address: string]: string } = {}
       const processedAddresses = new Set<string>()
-        const gamePlayer = await gameActions.getPlayer('0x07C57053230197aE838b24264bD49d2D485B12A92Fe57135e16FCb1404EA5116', 5)
-    console.log('Game Player:', gamePlayer);
 
       const gamePlayers = await Promise.all(
         (gameData.game_players || []).filter((addr: string) => {
@@ -193,17 +217,11 @@ const Players = () => {
           const username = await playerActions.getUsernameFromAddress(addrString)
           const decodedUsername = shortString.decodeShortString(username) || `Player ${index + 1}`
 
-          const tokenKey = Object.keys(tokenFields).find(
-            (key) => String(tokenFields[key as keyof typeof tokenFields]).toLowerCase() === addrString
-          )
-          let token = tokenKey
-            ? PLAYER_TOKENS[Object.keys(tokenFields).indexOf(tokenKey)]
-            : PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || ''
-
-          if (assignedTokens.includes(token)) {
+          let token = getPlayerToken(playerData)
+          if (!token || assignedTokens.includes(token)) {
             token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || ''
           }
-          assignedTokens.push(token)
+          if (token) assignedTokens.push(token)
           playerTokensMap[addrString] = token
 
           return {
@@ -240,8 +258,11 @@ const Players = () => {
             const playerData = await gameActions.getPlayer(addr, gid)
             const username = await playerActions.getUsernameFromAddress(addr)
             const decodedUsername = shortString.decodeShortString(username) || `Player ${gamePlayers.length + index + 1}`
-            let token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || ''
-            assignedTokens.push(token)
+            let token = getPlayerToken(playerData)
+            if (!token || assignedTokens.includes(token)) {
+              token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || ''
+            }
+            if (token) assignedTokens.push(token)
             playerTokensMap[addr] = token
 
             return {
@@ -274,7 +295,7 @@ const Players = () => {
 
       const playerData = await gameActions.getPlayer(playerAddress, gid)
       const decodedPlayerUsername = shortString.decodeShortString(playerData.username) || 'Unknown'
-      const playerToken = playerTokensMap[String(playerAddress).toLowerCase()] || ''
+      const playerToken = getPlayerToken(playerData) || playerTokensMap[String(playerAddress).toLowerCase()] || ''
 
       setPlayer({
         address: String(playerAddress).toLowerCase(),
@@ -294,12 +315,14 @@ const Players = () => {
         if (propertyData.owner && propertyData.owner !== '0') {
           const ownerAddress = String(propertyData.owner).toLowerCase()
           const ownerPlayer = allPlayers.find((p) => p.address === ownerAddress)
+          const decodedName = shortString.decodeShortString(propertyData.name) || square.name
           ownershipMap[square.id] = {
             owner: ownerAddress,
             ownerUsername: ownerPlayer?.username || 'Unknown',
             token: ownerPlayer?.token || '',
-            houses: Number(propertyData.houses || 0),
-            hotels: Number(propertyData.hotels || 0),
+            development: Number(propertyData.development || 0),
+            rent_site_only: Number(propertyData.rent_site_only || 0),
+            name: decodedName,
           }
         }
       })
@@ -316,29 +339,39 @@ const Players = () => {
         const ownerAddress = propertyData.owner && propertyData.owner !== '0' ? String(propertyData.owner).toLowerCase() : null
         const ownerPlayer = ownerAddress ? allPlayers.find((p) => p.address === ownerAddress) : null
 
+        let currentRent = Number(propertyData.rent_site_only || square.rent_site_only || 0)
+        const dev = Number(propertyData.development || 0)
+        if (dev >= 1 && dev <= 4) {
+          currentRent = Number(propertyData[`rent_${dev}_houses`] || currentRent)
+        } else if (dev === 5) {
+          currentRent = Number(propertyData.rent_hotel || currentRent)
+        }
+
         setCurrentProperty({
           id: Number(propertyData.id || square.id),
           name: decodedPropertyName,
           type: square.type,
           owner: ownerPlayer?.username || null,
           ownerUsername: ownerPlayer?.username || null,
-          rent_site_only: Number(propertyData.rent_site_only || square.rent_site_only || 0),
+          rent_site_only: currentRent,
           cost: Number(square.price || 0),
           mortgage: Number(square.price/2 || 0),
           color: square.color || '#FFFFFF',
           house_cost: Number(square.cost_of_house || 0),
           hotel_cost: Number(square.cost_of_house || 0),
-          houses: Number(propertyData.houses || 0),
-          hotels: Number(propertyData.hotels || 0),
+          development: dev,
         })
       } else {
         setCurrentProperty(null)
       }
     } catch (err: any) {
-      console.error('Failed to load game data:', err)
-      setError(err.message || 'Failed to load game data. Please try again or check the game ID.')
+      if (!isSilent) {
+        setError(err.message || 'Failed to load game data. Please try again or check the game ID.')
+      }
     } finally {
-      setIsLoading(false)
+      if (!isSilent) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -348,7 +381,7 @@ const Players = () => {
       setGameId(gid)
       localStorage.setItem('gameId', inputGameId)
       if (address) {
-        await loadGameData(address, gid)
+        await loadGameData(address, gid, false)
       
       } else {
         setError('Please connect your wallet to join the game.')
@@ -441,11 +474,10 @@ const Players = () => {
       })
       setSelectedRequestedProperties([])
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Offer Trade Error:', err)
       setError(err.message || 'Error offering trade.')
     } finally {
       setIsLoading(false)
@@ -463,11 +495,10 @@ const Players = () => {
       await tradeActions.acceptTrade(account, Number(tradeInputs.tradeId), gameId)
       setTradeInputs((prev) => ({ ...prev, tradeId: '' }))
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Accept Trade Error:', err)
       setError(err.message || 'Error accepting trade.')
     } finally {
       setIsLoading(false)
@@ -485,11 +516,10 @@ const Players = () => {
       await tradeActions.rejectTrade(account, Number(tradeInputs.tradeId), gameId)
       setTradeInputs((prev) => ({ ...prev, tradeId: '' }))
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Reject Trade Error:', err)
       setError(err.message || 'Error rejecting trade.')
     } finally {
       setIsLoading(false)
@@ -535,11 +565,10 @@ const Players = () => {
         originalOfferId: '',
       })
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Counter Trade Error:', err)
       setError(err.message || 'Error countering trade.')
     } finally {
       setIsLoading(false)
@@ -557,11 +586,10 @@ const Players = () => {
       await tradeActions.approveCounterTrade(account, Number(tradeInputs.tradeId))
       setTradeInputs((prev) => ({ ...prev, tradeId: '' }))
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Approve Counter Trade Error:', err)
       setError(err.message || 'Error approving counter trade.')
     } finally {
       setIsLoading(false)
@@ -578,11 +606,10 @@ const Players = () => {
       setError(null)
       await propertyActions.buyProperty(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Buy Property Error:', err)
       setError(err.message || 'Error buying property.')
     } finally {
       setIsLoading(false)
@@ -599,11 +626,10 @@ const Players = () => {
       setError(null)
       await movementActions.payTax(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Pay Tax Error:', err)
       setError(err.message || 'Error paying tax.')
     } finally {
       setIsLoading(false)
@@ -616,7 +642,7 @@ const Players = () => {
       return
     }
     const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.houses >= 4 || ownedProperties[player.position]?.hotels > 0) {
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development >= 4 || ownedProperties[player.position]?.development > 4) {
       setError('Cannot buy house: Invalid property, max houses reached, or hotel already built.')
       return
     }
@@ -625,11 +651,10 @@ const Players = () => {
       setError(null)
       await propertyActions.buyHouseOrHotel(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Buy House Error:', err)
       setError(err.message || 'Error buying house.')
     } finally {
       setIsLoading(false)
@@ -642,7 +667,7 @@ const Players = () => {
       return
     }
     const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.houses < 4 || ownedProperties[player.position]?.hotels > 0) {
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development < 4 || ownedProperties[player.position]?.development > 4) {
       setError('Cannot buy hotel: Invalid property, requires 4 houses, or hotel already built.')
       return
     }
@@ -651,11 +676,10 @@ const Players = () => {
       setError(null)
       await propertyActions.buyHouseOrHotel(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Buy Hotel Error:', err)
       setError(err.message || 'Error buying hotel.')
     } finally {
       setIsLoading(false)
@@ -668,7 +692,7 @@ const Players = () => {
       return
     }
     const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.houses === 0) {
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development === 0) {
       setError('Cannot sell house: Invalid property or no houses to sell.')
       return
     }
@@ -677,11 +701,10 @@ const Players = () => {
       setError(null)
       await propertyActions.sellHouseOrHotel(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Sell House Error:', err)
       setError(err.message || 'Error selling house.')
     } finally {
       setIsLoading(false)
@@ -694,7 +717,7 @@ const Players = () => {
       return
     }
     const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.hotels === 0) {
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development === 0) {
       setError('Cannot sell hotel: Invalid property or no hotel to sell.')
       return
     }
@@ -703,11 +726,10 @@ const Players = () => {
       setError(null)
       await propertyActions.sellHouseOrHotel(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Sell Hotel Error:', err)
       setError(err.message || 'Error selling hotel.')
     } finally {
       setIsLoading(false)
@@ -724,11 +746,10 @@ const Players = () => {
       setError(null)
       await propertyActions.mortgageProperty(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Mortgage Property Error:', err)
       setError(err.message || 'Error mortgaging property.')
     } finally {
       setIsLoading(false)
@@ -745,55 +766,50 @@ const Players = () => {
       setError(null)
       await propertyActions.unmortgageProperty(account, player.position, gameId)
       if (address && gameId !== null) {
-        await loadGameData(address, gameId)
+        await loadGameData(address, gameId, true)
       }
       closeModal()
     } catch (err: any) {
-      console.error('Unmortgage Property Error:', err)
       setError(err.message || 'Error unmortgaging property.')
     } finally {
       setIsLoading(false)
     }
   }
 
+  const myPlayer = useMemo(() => players.find(p => p.address === String(address).toLowerCase()), [players, address])
+
   const ownedPropertiesList = useMemo(() => {
-    const currentPlayer = players[currentPlayerIndex]
-    if (!currentPlayer) return []
-    return currentPlayer.properties_owned.map((id) => {
-      const property = boardData.find((p) => p.id === id)
-      return property || {
-        id,
-        name: `Property ${id}`,
-        type: 'unknown',
-        owner: currentPlayer.username,
-        ownerUsername: currentPlayer.username,
-        rent_site_only: 0,
-        cost: 0,
-        mortgage: 0,
-        color: '#FFFFFF',
-        house_cost: 0,
-        hotel_cost: 0,
-        houses: ownedProperties[id]?.houses || 0,
-        hotels: ownedProperties[id]?.hotels || 0,
-      }
-    })
-  }, [players, currentPlayerIndex, ownedProperties])
+    if (!myPlayer) return []
+    return Object.entries(ownedProperties)
+      .filter(([_, prop]) => prop.owner === myPlayer.address)
+      .map(([idStr, prop]) => {
+        const id = Number(idStr)
+        const boardProp = boardData.find(b => b.id === id)
+        return {
+          id,
+          name: prop.name,
+          rent_site_only: prop.rent_site_only,
+          development: prop.development,
+          color: boardProp?.color || '#FFFFFF',
+        }
+      })
+  }, [myPlayer, ownedProperties])
 
   const otherPlayersProperties = useMemo(() => {
-    const currentPlayer = players[currentPlayerIndex]
-    if (!currentPlayer) return []
-    return boardData.filter(
-      (property) =>
-        // property.owner &&
-        // property.owner !== currentPlayer.username &&
-        property.type === 'property'
-    ).map((property) => ({
-      id: property.id,
-      name: property.name,
-      ownerUsername:  'Unknown',//property.ownerUsername ||
-      color: property.color || '#FFFFFF',
-    }))
-  }, [players, currentPlayerIndex])
+    if (!myPlayer) return []
+    return Object.entries(ownedProperties)
+      .filter(([_, prop]) => prop.owner !== myPlayer.address && prop.owner !== '')
+      .map(([idStr, prop]) => {
+        const id = Number(idStr)
+        const boardProp = boardData.find(b => b.id === id)
+        return {
+          id,
+          name: prop.name,
+          ownerUsername: prop.ownerUsername,
+          color: boardProp?.color || '#FFFFFF',
+        }
+      })
+  }, [myPlayer, ownedProperties])
 
   const winningPlayerId = useMemo(() => {
     if (players.length === 0) return null
@@ -845,7 +861,7 @@ const Players = () => {
               <h2 className="text-base font-semibold text-cyan-300 mb-2">My Profile</h2>
               {player ? (
                 <p className="text-sm text-white" aria-label={`Player ${player.username} with ${player.token} token`}>
-                  <span className="font-medium">{player.username}</span> {player.token}
+                  <span className="font-medium">{player.username}</span> <TokenIcon token={player.token} />
                 </p>
               ) : (
                 <p className="text-sm text-white">Loading player data...</p>
@@ -895,7 +911,7 @@ const Players = () => {
                     }`}
                     aria-label={`Player ${player.username} with ${player.token} token${player.id === winningPlayerId ? ' (Leader)' : ''}`}
                   >
-                    <span className="text-lg">{player.token}</span>
+                    <TokenIcon token={player.token} />
                     <div className="flex-1">
                       <span className="font-medium">
                         {player.username}
@@ -977,7 +993,7 @@ const Players = () => {
                             <div className="flex-1">
                               <span className="font-medium">{property.name}</span>
                               <span className="block text-[11px] text-[#A0B1B8]">
-                                ID: {property.id} | Rent: ${property.rent_site_only} | Houses: {property.id} | Hotels: {property.id}
+                                ID: {property.id} | Rent: ${property.rent_site_only} | Development: {property.development}
                               </span>
                             </div>
                           </li>
@@ -1389,8 +1405,7 @@ const Players = () => {
               <button
                 onClick={handleBuyHotel}
                 disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-blue-7
-              00 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label="Buy hotel"
               >
                 {isLoading ? 'Processing...' : 'Buy Hotel'}
