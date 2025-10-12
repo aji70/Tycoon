@@ -118,6 +118,7 @@ function useSafeState<S>(initial: S) {
 const GameBoard = ({
   game,
   properties,
+  game_properties,
   my_properties,
   me,
   loading = false,
@@ -136,8 +137,6 @@ const GameBoard = ({
     null
   );
   const [canRoll, setCanRoll] = useSafeState<boolean>(false);
-  const [rollAction, setRollAction] = useSafeState<CardTypes | null>(null);
-  const [propertyId, setPropertyId] = useSafeState<number | null>(null);
   const [actionLock, setActionLock] = useSafeState<"ROLL" | "END" | null>(null);
 
   /* ---------- Locks ---------- */
@@ -151,6 +150,13 @@ const GameBoard = ({
   );
 
   const unlockAction = useCallback(() => setActionLock(null), [setActionLock]);
+
+  const [currentAction, setCurrentAction] = useSafeState<string | null>(null);
+  const [currentProperty, setCurrentProperty] = useSafeState<Property | null>(null);
+  const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
+
+
+  const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
 
   /* ---------- React Query Utilities ---------- */
   const forceRefetch = useCallback(() => {
@@ -205,6 +211,61 @@ const GameBoard = ({
     const interval = setInterval(poll, 5000); // 5s refresh
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, checkCanRoll]);
+
+  // Property Action
+
+  const stableProperties = useMemo(() => properties, [properties]);
+
+  useEffect(() => {
+    if (!stableProperties.length || !me?.position) return;
+
+    const property = stableProperties.find((p) => p.id === me.position);
+    if (!property) return;
+
+    const game_property =
+      game_properties.length === 0
+        ? null
+        : game_properties.find((p) => p.property_id === property.id);
+
+    const action = PROPERTY_ACTION(property.id);
+
+    setCurrentProperty(property);
+    setCurrentGameProperty(game_property || null);
+    setCurrentAction(action);
+
+
+    if (action === "land" && !game_property && isMyTurn) {
+      toast("💰 You can buy this property!", { icon: "🏠" });
+    }
+  }, [me?.position, stableProperties, game_properties, isMyTurn, setCurrentProperty, setCurrentGameProperty, setCurrentAction]);
+
+  /* ---------- Buy Property ---------- */
+  const BUY_PROPERTY = useCallback(async () => {
+    if (!me?.user_id || !currentProperty) return;
+
+    try {
+      const res = await apiClient.post<ApiResponse>(
+        "/game-properties/buy",
+        {
+          user_id: me.user_id,
+          game_id: game.id,
+          property_id: currentProperty.id,
+        }
+      );
+
+      if (res?.data?.error) {
+        toast.error(res.data.message || "Failed to buy property.");
+        return;
+      }
+
+      toast.success(`🏠 You bought ${currentProperty.name}!`);
+      await fetchUpdatedGame();
+      forceRefetch();
+    } catch (err) {
+      console.error("BUY_PROPERTY error:", err);
+      toast.error("Unable to complete property purchase.");
+    }
+  }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch]);
 
   /* ---------- End Turn ---------- */
   const END_TURN = useCallback(
@@ -297,8 +358,6 @@ const GameBoard = ({
           const updatedGame = await fetchUpdatedGame();
           if (updatedGame?.players) {
             setPlayers(updatedGame.players);
-            setPropertyId(newPosition);
-            setRollAction(PROPERTY_ACTION(newPosition));
           }
 
           setCanRoll(false);
@@ -332,8 +391,6 @@ const GameBoard = ({
     setRoll,
     fetchUpdatedGame,
     forceRefetch,
-    setPropertyId,
-    setRollAction,
     setCanRoll,
   ]);
 
@@ -347,8 +404,6 @@ const GameBoard = ({
     });
     return map;
   }, [players]);
-
-  const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
 
   /* ---------- Render ---------- */
   return (
@@ -382,13 +437,25 @@ const GameBoard = ({
                       }
 
                       return (
-                        <button
-                          onClick={() => END_TURN(me?.user_id)}
-                          disabled={actionLock === "ROLL"}
-                          className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                        >
-                          End Turn
-                        </button>
+                        <div className="flex flex-row items-center gap-2">
+                          {
+                            currentAction === "land" && !currentGameProperty && currentProperty && (
+                              <button
+                                onClick={BUY_PROPERTY}
+                                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                              >
+                                Buy {currentProperty.name} [${currentProperty.price}]
+                              </button>
+                            )
+                          }
+                          <button
+                            onClick={() => END_TURN(me?.user_id)}
+                            disabled={actionLock === "ROLL"}
+                            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                          >
+                            End Turn
+                          </button>
+                        </div>
                       );
                     })()}
 
