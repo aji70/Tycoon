@@ -407,7 +407,7 @@ const GameBoard = ({
                           {game.history[0].player_name} - {game.history[0].comment}
                         </p>
                         <p className="text-center text-gray-300 text-xs underline">
-                          [{game.history[0].rolled} - {game.history[0].extra?.description}]
+                          [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
                         </p>
                       </div>
                     )}
