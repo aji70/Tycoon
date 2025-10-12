@@ -305,6 +305,7 @@ const GameBoard = ({
    * 6. Triggers property/card action based on landed square
    */
   const ROLL_DICE = useCallback(async () => {
+    if (!canRoll) return;
     // Guard against simultaneous rolls or action lock
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
@@ -445,11 +446,11 @@ const GameBoard = ({
                 {isMyTurn && (
                   <div className="flex flex-col gap-2">
                     {/* Show Roll Dice button until player rolls, then show End Turn */}
-                    {!roll ? (
+                    {canRoll ? (
                       <button
                         type="button"
                         onClick={ROLL_DICE}
-                        disabled={!canRoll || isRolling}
+                        disabled={isRolling}
                         className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
                       >
                         {isRolling ? "Rolling..." : "Roll Dice"}
