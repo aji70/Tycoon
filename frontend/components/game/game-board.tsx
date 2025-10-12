@@ -401,23 +401,27 @@ const GameBoard = ({
                         </span>
                       </p>
                     )}
+                  </div>
+                ) : (
+                  <div className="w-full flex flex-col gap-1 items-center">
+                    <button
+                      disabled
+                      className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
+                    >
+                      Waiting for your turn...
+                    </button>
                     {game.history?.length > 0 && (
                       <div className="w-full flex flex-col gap-1 items-center">
                         <p className="text-center text-gray-300 text-xs italic">
                           {game.history[0].player_name} - {game.history[0].comment}
                         </p>
-                        <p className="text-center text-gray-300 text-xs underline">
+                        {!roll && (<p className="text-center text-gray-300 text-xs underline">
                           [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
-                        </p>
+                        </p>)}
                       </div>
                     )}
                   </div>
-                ) : (<button
-                  disabled
-                  className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
-                >
-                  Waiting for your turn...
-                </button>)}
+                )}
               </div>
 
               {/* Board Squares */}
