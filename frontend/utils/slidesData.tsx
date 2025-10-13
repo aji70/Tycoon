@@ -17,7 +17,7 @@ export const slidesData = [
         icon: <Tangent className="w-[24px] h-[24px] text-[#0FF0FC]" />,
         outOf: "3 of 4",
         title: "Think Smart, Play Hard",
-        description: "Blockopoly isn't just about luck—it's about smart moves. Buy wisely, make good deals, and try to beat your opponents. Every choice you make counts."
+        description: "Magnate isn't just about luck—it's about smart moves. Buy wisely, make good deals, and try to beat your opponents. Every choice you make counts."
     },
     {
         icon: <Pyramid className="w-[24px] h-[24px] text-[#0FF0FC]" />,

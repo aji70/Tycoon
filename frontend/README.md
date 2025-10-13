@@ -1,10 +1,10 @@
-# 🏛️ Blockopoly Frontend
+# 🏛️ Magnate Frontend
 
-![Blockopoly Thumbnail](./public/thumbnail.png)
+![Magnate Thumbnail](./public/thumbnail.png)
 
 ## 📌 Overview
 
-Blockopoly Frontend is the user interface for the decentralized Monopoly game built on Starknet. Powered by **Next.js**, **Tailwind CSS**, **Starknet-React**, and **Cartridge**, it delivers a modern, responsive UI that connects seamlessly to the on-chain game logic implemented in Cairo and Dojo. Players can interact with the game board, buy/sell properties, roll dice, and trade digital assets (NFTs or Starknet assets) in a trustless, blockchain-powered environment.
+Magnate Frontend is the user interface for the decentralized Monopoly game built on Starknet. Powered by **Next.js**, **Tailwind CSS**, **Starknet-React**, and **Cartridge**, it delivers a modern, responsive UI that connects seamlessly to the on-chain game logic implemented in Cairo and Dojo. Players can interact with the game board, buy/sell properties, roll dice, and trade digital assets (NFTs or Starknet assets) in a trustless, blockchain-powered environment.
 
 ## ✨ Features
 
@@ -32,13 +32,13 @@ Blockopoly Frontend is the user interface for the decentralized Monopoly game bu
 - Node.js >= 18.0.0
 - npm or yarn
 - Starknet wallet (e.g., Argent X or Braavos)
-- Access to the Blockopoly backend contracts (see [Cairo repo](https://github.com/SaboStudios/Blockopoly))
+- Access to the Magnate backend contracts (see [Cairo repo](https://github.com/SaboStudios/Magnate))
 
 ### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/SaboStudios/blockopoly-frontend-v1.git
-cd Blockopoly_Frontend
+git clone https://github.com/SaboStudios/Magnate-frontend-v1.git
+cd Magnate_Frontend
 2️⃣ Install Dependencies
 bash
 npm install

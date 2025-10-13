@@ -962,7 +962,7 @@ const GameBoard = () => {
             <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
               <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative">
                 <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
-                  Blockopoly
+                  Magnate
                 </h1>
                 <div
                   className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
