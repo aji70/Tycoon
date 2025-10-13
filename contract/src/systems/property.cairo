@@ -317,7 +317,6 @@ pub mod property {
             let mut game: Game = world.read_model(game_id);
             let players_len = game.game_players.len();
             let mut player: GamePlayer = world.read_model((caller, game_id));
-            assert!(player.paid_rent, "Pay your rent");
             assert!(game.status == GameStatus::Ongoing, "Game has not started yet ");
             assert!(game.next_player == caller, "Not your turn");
             assert!(player.rolled_dice, "You must roll the dice");
