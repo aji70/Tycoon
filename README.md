@@ -1,8 +1,8 @@
-# 🏛️ Magnate
+# 🏛️ Tycoon
 
 ## 📌 Overview
 
-Magnate is a **fully on-chain, decentralized version of the classic Monopoly-style strategy game**, built on **Starknet** using **Dojo**. This version leverages **ZK-Rollups** for scalability and **Cairo smart contracts** to ensure a seamless, trustless gaming experience. Players can **buy, sell, and trade digital properties** securely, with game logic enforced entirely on-chain.
+Tycoon is a **fully on-chain, decentralized version of the classic Monopoly-style strategy game**, built on **Starknet** using **Dojo**. This version leverages **ZK-Rollups** for scalability and **Cairo smart contracts** to ensure a seamless, trustless gaming experience. Players can **buy, sell, and trade digital properties** securely, with game logic enforced entirely on-chain.
 
 ## ✨ Features
 
@@ -26,8 +26,8 @@ Magnate is a **fully on-chain, decentralized version of the classic Monopoly-sty
 ### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/magnate.git
-cd magnate
+git clone https://github.com/your-username/Tycoon.git
+cd Tycoon
 ```
 
 ### 2️⃣ Install Dependencies
@@ -53,10 +53,10 @@ npm run dev
 
 ## 📜 Smart Contract Deployment
 
-To deploy the **Dojo-based Magnate contracts**, use:
+To deploy the **Dojo-based Tycoon contracts**, use:
 
 ```bash
-sozo execute MagnateSystem register_player --account <ACCOUNT> --world <WORLD_ADDRESS>
+sozo execute TycoonSystem register_player --account <ACCOUNT> --world <WORLD_ADDRESS>
 ```
 
 ## 📅 Roadmap
@@ -71,4 +71,4 @@ sozo execute MagnateSystem register_player --account <ACCOUNT> --world <WORLD_AD
 
 We welcome contributions! Fork the repo, submit PRs, and help build the future of **on-chain gaming**.
 
-# Magnate
+# Tycoon
