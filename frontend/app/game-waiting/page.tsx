@@ -90,12 +90,12 @@ const GameWaiting = () => {
   const showLeaveGame = !!account && !!address && !!gameId && !isNaN(numericGameId) && playerData?.joined === true && !isGameReady;
 
   // Share game URL and text
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://magnate-rho.vercel.app/');
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://Tycoon-rho.vercel.app/');
   if (!process.env.NEXT_PUBLIC_BASE_URL) {
     console.warn('NEXT_PUBLIC_BASE_URL is not set in .env. Using fallback URL:', baseUrl);
   }
   const gameUrl = `${baseUrl}/game-waiting?gameId=${gameId}`;
-  const shareText = `Join my Magnate game in the waiting room! Game ID: ${gameId}. Enter the waiting room at ${gameUrl}`;
+  const shareText = `Join my Tycoon game in the waiting room! Game ID: ${gameId}. Enter the waiting room at ${gameUrl}`;
   const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(gameUrl)}&text=${encodeURIComponent(shareText)}`;
   const twitterShareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
 
@@ -265,7 +265,7 @@ const GameWaiting = () => {
       <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
         <div className="w-full max-w-md bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-xl shadow-lg border border-[#00F0FF]/30 backdrop-blur-sm">
           <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-wide">
-            Magnate Waiting Room
+            Tycoon Waiting Room
             <span className="block text-sm text-[#00F0FF] mt-1">
               Game ID: {gameId}
             </span>

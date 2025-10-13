@@ -15,9 +15,9 @@ const DojoProvider = dynamic(
 );
 
 export const metadata = getMetadata({
-  title: "Blockopoly",
+  title: "Tycoon",
   description:
-    "Blockopoly is a decentralized on-chain game inspired by the classic Monopoly game, built on Starknet. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
+    "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Starknet. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
 })
 
 export default function RootLayout({
