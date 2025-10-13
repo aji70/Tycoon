@@ -1,8 +1,8 @@
 {
   "world": {
     "class_hash": "0x13d92333361bb7049c1232c0a5404e2c19082ededc3a73d75cb33fa952adec7",
-    "address": "0x599a7eeea7708eb5af55cf29e4bd100188acb5f4581a36d017e153878e9f33a",
-    "seed": "livetoday672",
+    "address": "0x31f103cf220c98e898b3bc7a493b1ac5fa8166d3fb5f3b404ba952c0070902e",
+    "seed": "livetoday6172",
     "name": "Dojo starter",
     "entrypoints": [
       "uuid",
@@ -1328,7 +1328,7 @@
   },
   "contracts": [
     {
-      "address": "0x463cd8e1754166103e2177b2db53de19536f0d982a3ea621e8bb7439ef9e489",
+      "address": "0x66be039b9c0ae6b77c44f29d7c433aea3b2761b67db60dd861a8cfc76a03dd7",
       "class_hash": "0x7f4ded76aa4aa388cf74175759676bb733b0c9797b880bac481ed0e33851342",
       "abi": [
         {
@@ -2087,7 +2087,7 @@
       ]
     },
     {
-      "address": "0x4387844ba4b3b9927f1f9338cb204a14fbcbdc85eef36a69fee127ee32295be",
+      "address": "0x14bebb917b9a615e6e628f52ab3dbe8c63407dcd64ff12c77b3152a35ca0815",
       "class_hash": "0x1b776b371930826c270bb2fba2a6f26141fbf2e665956f7c8c61adba95519d3",
       "abi": [
         {
@@ -2469,7 +2469,7 @@
       ]
     },
     {
-      "address": "0x53216abc751596a651ba21af95dfaf2a2b8d8c9c7c3da9979f04272c33a349",
+      "address": "0x282a4683cbe4603cf4e92e6797320ffa39d773ddb355311e6027a28bcdf19c9",
       "class_hash": "0x5c293b9519284310a34dc395289b68bf291e466fdb6c8b1a5e76d81ada41caa",
       "abi": [
         {
@@ -2795,8 +2795,8 @@
       ]
     },
     {
-      "address": "0x44ee0ac3b108156b2dbd19d83049baee4bea5439245b3cc00a1d4dad7db84b5",
-      "class_hash": "0xbfc9ea7ea08f4d660e3d603fd9e3323207713fdb1e1b68114523b363a8a2ef",
+      "address": "0x36b9a6c80d1f2c7bc57b81e52412da7f6768340287e0c4ee3c2a26e731db2c2",
+      "class_hash": "0x6330175367ca100ec5ba6415d3ca4a6b0f6198b4bdd8ba69be7de4cd4f257de",
       "abi": [
         {
           "type": "impl",
@@ -3475,7 +3475,410 @@
       ]
     },
     {
-      "address": "0x615c20289fbbadd6691e0512fa70244ef26384bc8086d625610e27fba877770",
+      "address": "0x4d14ae37313689fc07b8b4beeb623b31d366fbbfd22e21fb0d2318464b04135",
+      "class_hash": "0xd929ec012a1167487dd873cae4d1e07b05c5e60e238948149cee49adf1c698",
+      "abi": [
+        {
+          "type": "impl",
+          "name": "session__ContractImpl",
+          "interface_name": "dojo::contract::interface::IContract"
+        },
+        {
+          "type": "interface",
+          "name": "dojo::contract::interface::IContract",
+          "items": []
+        },
+        {
+          "type": "impl",
+          "name": "session__DeployedContractImpl",
+          "interface_name": "dojo::meta::interface::IDeployedResource"
+        },
+        {
+          "type": "struct",
+          "name": "core::byte_array::ByteArray",
+          "members": [
+            {
+              "name": "data",
+              "type": "core::array::Array::<core::bytes_31::bytes31>"
+            },
+            {
+              "name": "pending_word",
+              "type": "core::felt252"
+            },
+            {
+              "name": "pending_word_len",
+              "type": "core::integer::u32"
+            }
+          ]
+        },
+        {
+          "type": "interface",
+          "name": "dojo::meta::interface::IDeployedResource",
+          "items": [
+            {
+              "type": "function",
+              "name": "dojo_name",
+              "inputs": [],
+              "outputs": [
+                {
+                  "type": "core::byte_array::ByteArray"
+                }
+              ],
+              "state_mutability": "view"
+            }
+          ]
+        },
+        {
+          "type": "impl",
+          "name": "SessionImpl",
+          "interface_name": "blockopoly::systems::session::ISession"
+        },
+        {
+          "type": "enum",
+          "name": "core::bool",
+          "variants": [
+            {
+              "name": "False",
+              "type": "()"
+            },
+            {
+              "name": "True",
+              "type": "()"
+            }
+          ]
+        },
+        {
+          "type": "struct",
+          "name": "blockopoly::model::session::SessionKey",
+          "members": [
+            {
+              "name": "session_id",
+              "type": "core::felt252"
+            },
+            {
+              "name": "player_address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            },
+            {
+              "name": "created_at",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "expires_at",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "last_used",
+              "type": "core::integer::u64"
+            },
+            {
+              "name": "max_transactions",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "used_transactions",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "status",
+              "type": "core::integer::u8"
+            },
+            {
+              "name": "is_valid",
+              "type": "core::bool"
+            },
+            {
+              "name": "auto_renewal_enabled",
+              "type": "core::bool"
+            },
+            {
+              "name": "session_type",
+              "type": "core::integer::u8"
+            },
+            {
+              "name": "permissions",
+              "type": "core::array::Array::<core::integer::u8>"
+            }
+          ]
+        },
+        {
+          "type": "interface",
+          "name": "blockopoly::systems::session::ISession",
+          "items": [
+            {
+              "type": "function",
+              "name": "create_session_key",
+              "inputs": [
+                {
+                  "name": "duration",
+                  "type": "core::integer::u64"
+                },
+                {
+                  "name": "max_transactions",
+                  "type": "core::integer::u32"
+                },
+                {
+                  "name": "session_type",
+                  "type": "core::integer::u8"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::felt252"
+                }
+              ],
+              "state_mutability": "external"
+            },
+            {
+              "type": "function",
+              "name": "validate_session",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::bool"
+                }
+              ],
+              "state_mutability": "external"
+            },
+            {
+              "type": "function",
+              "name": "renew_session",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                },
+                {
+                  "name": "new_duration",
+                  "type": "core::integer::u64"
+                },
+                {
+                  "name": "new_max_tx",
+                  "type": "core::integer::u32"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::bool"
+                }
+              ],
+              "state_mutability": "external"
+            },
+            {
+              "type": "function",
+              "name": "revoke_session",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::bool"
+                }
+              ],
+              "state_mutability": "external"
+            },
+            {
+              "type": "function",
+              "name": "get_session_info",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "blockopoly::model::session::SessionKey"
+                }
+              ],
+              "state_mutability": "view"
+            },
+            {
+              "type": "function",
+              "name": "calculate_session_time_remaining",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::integer::u64"
+                }
+              ],
+              "state_mutability": "view"
+            },
+            {
+              "type": "function",
+              "name": "check_session_needs_renewal",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::bool"
+                }
+              ],
+              "state_mutability": "view"
+            },
+            {
+              "type": "function",
+              "name": "calculate_remaining_transactions",
+              "inputs": [
+                {
+                  "name": "session_id",
+                  "type": "core::felt252"
+                }
+              ],
+              "outputs": [
+                {
+                  "type": "core::integer::u32"
+                }
+              ],
+              "state_mutability": "view"
+            }
+          ]
+        },
+        {
+          "type": "function",
+          "name": "dojo_init",
+          "inputs": [],
+          "outputs": [],
+          "state_mutability": "view"
+        },
+        {
+          "type": "impl",
+          "name": "WorldProviderImpl",
+          "interface_name": "dojo::contract::components::world_provider::IWorldProvider"
+        },
+        {
+          "type": "struct",
+          "name": "dojo::world::iworld::IWorldDispatcher",
+          "members": [
+            {
+              "name": "contract_address",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ]
+        },
+        {
+          "type": "interface",
+          "name": "dojo::contract::components::world_provider::IWorldProvider",
+          "items": [
+            {
+              "type": "function",
+              "name": "world_dispatcher",
+              "inputs": [],
+              "outputs": [
+                {
+                  "type": "dojo::world::iworld::IWorldDispatcher"
+                }
+              ],
+              "state_mutability": "view"
+            }
+          ]
+        },
+        {
+          "type": "impl",
+          "name": "UpgradeableImpl",
+          "interface_name": "dojo::contract::components::upgradeable::IUpgradeable"
+        },
+        {
+          "type": "interface",
+          "name": "dojo::contract::components::upgradeable::IUpgradeable",
+          "items": [
+            {
+              "type": "function",
+              "name": "upgrade",
+              "inputs": [
+                {
+                  "name": "new_class_hash",
+                  "type": "core::starknet::class_hash::ClassHash"
+                }
+              ],
+              "outputs": [],
+              "state_mutability": "external"
+            }
+          ]
+        },
+        {
+          "type": "constructor",
+          "name": "constructor",
+          "inputs": []
+        },
+        {
+          "type": "event",
+          "name": "dojo::contract::components::upgradeable::upgradeable_cpt::Upgraded",
+          "kind": "struct",
+          "members": [
+            {
+              "name": "class_hash",
+              "type": "core::starknet::class_hash::ClassHash",
+              "kind": "data"
+            }
+          ]
+        },
+        {
+          "type": "event",
+          "name": "dojo::contract::components::upgradeable::upgradeable_cpt::Event",
+          "kind": "enum",
+          "variants": [
+            {
+              "name": "Upgraded",
+              "type": "dojo::contract::components::upgradeable::upgradeable_cpt::Upgraded",
+              "kind": "nested"
+            }
+          ]
+        },
+        {
+          "type": "event",
+          "name": "dojo::contract::components::world_provider::world_provider_cpt::Event",
+          "kind": "enum",
+          "variants": []
+        },
+        {
+          "type": "event",
+          "name": "blockopoly::systems::session::session::Event",
+          "kind": "enum",
+          "variants": [
+            {
+              "name": "UpgradeableEvent",
+              "type": "dojo::contract::components::upgradeable::upgradeable_cpt::Event",
+              "kind": "nested"
+            },
+            {
+              "name": "WorldProviderEvent",
+              "type": "dojo::contract::components::world_provider::world_provider_cpt::Event",
+              "kind": "nested"
+            }
+          ]
+        }
+      ],
+      "init_calldata": [],
+      "tag": "blockopoly-session",
+      "selector": "0x5cee4a58c5f257b6d82020f71d5a3144b11392e43f6f7e4803aa6b68f4e87ce",
+      "systems": [
+        "create_session_key",
+        "validate_session",
+        "renew_session",
+        "revoke_session",
+        "upgrade"
+      ]
+    },
+    {
+      "address": "0x7ed4ba2f939016dbda3b21517a34f8344661fbcc686321ee3285d60449ec538",
       "class_hash": "0x6cd7fe235d31a1d17415074521fb0b16a0e733b7e8537a9edcea2f4865eee46",
       "abi": [
         {
@@ -4023,6 +4426,24 @@
     },
     {
       "members": [],
+      "class_hash": "0x68c52b895f43237771622d843b52be33e1f882e46e01cf8934542b90b33fbaa",
+      "tag": "blockopoly-SessionAnalytics",
+      "selector": "0x6b99caa16de6818379d993d20fffd271141eee88a4f3371a4a397e2ba941242"
+    },
+    {
+      "members": [],
+      "class_hash": "0x238eb8d55a7fcbe17ae546a62eebaf2df17a3cabae099a0d1c95921f38c2cf3",
+      "tag": "blockopoly-SessionKey",
+      "selector": "0x5e76c65706edb31c3b655de906a7f3392f17303927a5024613eeba98484a841"
+    },
+    {
+      "members": [],
+      "class_hash": "0x4b153454f4072a9b7420b0ec62243906651d3a0ef3f083aab38822e6aeb2f85",
+      "tag": "blockopoly-SessionOperation",
+      "selector": "0x51c099566d2d5c1bb730f65d325d99cbb54cb1c5e5edeaa42d756e6609eaf4a"
+    },
+    {
+      "members": [],
       "class_hash": "0x76edf03c6cc7687322eeae81ea18e1c58e193633f8244464531e57c7968bb55",
       "tag": "blockopoly-TradeCounter",
       "selector": "0x83d22b052c2506c69e0582a67595b8a4be24f1cb009d9fa6ae1df5b6cfc925"
@@ -4064,6 +4485,42 @@
       "class_hash": "0x428c55a5dfeafa6b1a1c33d9f389c8af4ba4a26aaa78848325cde2a7a8ac8c3",
       "tag": "blockopoly-PlayerJoined",
       "selector": "0x70426ec38c35a4acb4dcb4dbc894ef2392a995dbd09c69a05383c304627d27b"
+    },
+    {
+      "members": [],
+      "class_hash": "0x7ab0048d9ce097306e5ab129b0d9da1cf81b5d87954ae8a94e1186bd1c1f14d",
+      "tag": "blockopoly-SessionAutoRenewed",
+      "selector": "0x692db219e51da2ff40d24b0aa7b73bfcac81bc2da94ee82aaeda58ba1ad4e3f"
+    },
+    {
+      "members": [],
+      "class_hash": "0x772b37b4e04c9e850b5f4504cd32d9e821b029fdd2f28f71693ae0bf1a7982e",
+      "tag": "blockopoly-SessionKeyCreated",
+      "selector": "0xc13308f8ce70cf20e46f12c68da765be1fa8e53dc7954731433cece89ac8f5"
+    },
+    {
+      "members": [],
+      "class_hash": "0x28cc11915f55af67f6bc84092744245992f59bfcfc91fd7b230ec6733d6e41d",
+      "tag": "blockopoly-SessionKeyRevoked",
+      "selector": "0x667d78dd46ac375715d0d9aca8832a309632269a0cedb8af365dc0afa42162e"
+    },
+    {
+      "members": [],
+      "class_hash": "0x7e1871c3b4f37b2fe8d1e8c17be73a02d445cbd12a9c59dfe933006454e509a",
+      "tag": "blockopoly-SessionKeyUsed",
+      "selector": "0x7b72d3f96c262fc71cd68c9483f7f07ba555982b0e5782e190bf75476b4d529"
+    },
+    {
+      "members": [],
+      "class_hash": "0x643732a9809ab7cf6a3661306b3a2683b465a598d9ce87218b8b3891fce8f64",
+      "tag": "blockopoly-SessionOperationTracked",
+      "selector": "0x64c8228add877b60f6ad1a18aab77d336a147b26c9ea445855baba25ce6cef4"
+    },
+    {
+      "members": [],
+      "class_hash": "0x48b566df5895c0201d2300f5706d25172da9d2389e76e96994e2ba25a65c3bd",
+      "tag": "blockopoly-SessionPerformanceMetrics",
+      "selector": "0x6b6d38e10fddb4c7d51649d5fb7de539da19d6331358bd3f760a491e248c5b9"
     }
   ],
   "external_contracts": []

@@ -22,7 +22,7 @@ const cartridgeConnector = new ControllerConnector({
     },
     {
       ...sepolia,
-      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia",
+      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_8",
     },
   ],
 });
@@ -41,7 +41,7 @@ export function StarknetProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
-  const connectors = [cartridgeConnector, argent(), braavos()];
+  const connectors = [cartridgeConnector];
 
   return (
     <StarknetConfig

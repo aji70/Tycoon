@@ -908,9 +908,9 @@ const GameBoard = () => {
                         Leave Game
                       </button>
                     </div>
-                    {error && (
+                    {/* {error && (
                       <p className="text-red-400 text-sm mt-2 text-center">{error}</p>
-                    )}
+                    )} */}
                   </div>
                 </div>
                 {selectedCard && (

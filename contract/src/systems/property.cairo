@@ -19,21 +19,11 @@ pub trait IProperty<T> {
 pub mod property {
     use blockopoly::model::game_player_model::GamePlayer;
 
-    // use dojo::event::EventStorage;
+
     use dojo::model::ModelStorage;
     use starknet::{ContractAddress, contract_address_const, get_caller_address};
-    // use blockopoly::model::player_model::Player;
     use super::{Game, GameStatus, IProperty, Property, PropertyTrait, PropertyType};
 
-    // #[derive(Copy, Drop, Serde)]
-    // #[dojo::event]
-    // pub struct PlayerCreated {
-    //     #[key]
-    //     pub username: felt252,
-    //     #[key]
-    //     pub player: ContractAddress,
-    //     pub timestamp: u64,
-    // }
 
     #[abi(embed_v0)]
     impl PropertysImpl of IProperty<ContractState> {
@@ -328,6 +318,9 @@ pub mod property {
             let players_len = game.game_players.len();
             let mut player: GamePlayer = world.read_model((caller, game_id));
             assert!(player.paid_rent, "Pay your rent");
+            assert!(game.status == GameStatus::Ongoing, "Game has not started yet ");
+            assert!(game.next_player == caller, "Not your turn");
+            assert!(player.rolled_dice, "You must roll the dice");
 
             while index < players_len {
                 let player = game.game_players.at(index);
