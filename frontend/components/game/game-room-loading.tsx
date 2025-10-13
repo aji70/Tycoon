@@ -30,7 +30,7 @@ const GameRoomLoading: React.FC<GameRoomLoadingProps> = ({ action, customMessage
       <main className="w-full h-[calc(100dvh-87px)] flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
         <div className="w-full max-w-md bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-xl shadow-lg border border-[#00F0FF]/30 backdrop-blur-sm">
           <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-wide">
-            Loading Magnate
+            Loading Tycoon
           </h2>
           <div className="text-center space-y-3">
             <p className="text-[#869298] text-sm font-orbitron">
