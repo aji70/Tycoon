@@ -154,8 +154,7 @@ const GameBoard = ({
   const [currentAction, setCurrentAction] = useSafeState<string | null>(null);
   const [currentProperty, setCurrentProperty] = useSafeState<Property | null>(null);
   const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
-
-
+  const [buyPrompted, setBuyPrompted] = useState(false);
   const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
 
   /* ---------- React Query Utilities ---------- */
@@ -217,7 +216,7 @@ const GameBoard = ({
   const stableProperties = useMemo(() => properties, [properties]);
 
   useEffect(() => {
-    if (!stableProperties.length || !me?.position) return;
+    if (!stableProperties.length || !me?.position || !game?.players) return;
 
     const property = stableProperties.find((p) => p.id === me.position);
     if (!property) return;
@@ -233,11 +232,46 @@ const GameBoard = ({
     setCurrentGameProperty(game_property || null);
     setCurrentAction(action);
 
+    // ✅ Find the current player info from the game data
+    const meInGame = game.players.find((p) => p.user_id === me?.user_id);
+    const hasRolled = (meInGame?.rolls ?? 0) > 0;
 
-    if (action === "land" && !game_property && isMyTurn) {
+    // ✅ Show toast & enable buy only if:
+    // - it's my turn
+    // - I’ve rolled at least once
+    // - the roll animation finished
+    // - I'm standing on a land property that’s unowned
+    // - and toast not already shown for this property
+    if (
+      isMyTurn &&
+      !buyPrompted &&
+      hasRolled &&
+      isRolling === false &&
+      roll !== null &&
+      action === "land" &&
+      !game_property
+    ) {
       toast("💰 You can buy this property!", { icon: "🏠" });
+      setBuyPrompted(true);
     }
-  }, [me?.position, stableProperties, game_properties, isMyTurn, setCurrentProperty, setCurrentGameProperty, setCurrentAction]);
+
+    // Reset the buy prompt whenever I roll again or end my turn
+    if (!isMyTurn || roll === null || meInGame?.rolls === 0) {
+      setBuyPrompted(false);
+    }
+  }, [
+    me?.position,
+    stableProperties,
+    game_properties,
+    game?.players,
+    isMyTurn,
+    isRolling,
+    roll,
+    setCurrentProperty,
+    setCurrentGameProperty,
+    setCurrentAction,
+    buyPrompted,
+  ]);
 
   /* ---------- Buy Property ---------- */
   const BUY_PROPERTY = useCallback(async () => {
@@ -439,7 +473,7 @@ const GameBoard = ({
                       return (
                         <div className="flex flex-row items-center gap-2">
                           {
-                            currentAction === "land" && !currentGameProperty && currentProperty && (
+                            currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
                               <button
                                 onClick={BUY_PROPERTY}
                                 className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
