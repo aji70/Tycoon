@@ -176,7 +176,7 @@ pub mod game {
             true
         }
 
-    fn leave_game(ref self: ContractState, game_id: u256) {
+      fn leave_game(ref self: ContractState, game_id: u256) {
     // Load world state
     let mut world = self.world_default();
 
@@ -202,6 +202,25 @@ pub mod game {
         self.player_leaves_game(game_id, caller_address);
         // Reload player to update joined status
         player = world.read_model((caller_address, game_id));
+
+        // Find the leaving player's index in the original players array
+        let mut leaver_index: usize = 0;
+        let original_len = game.game_players.len();
+        let mut i = 0_usize;
+        while i < original_len {
+            if *game.game_players[i] == caller_address {
+                leaver_index = i;
+                break;
+            }
+            i += 1;
+        };
+
+        // If the leaving player is the current next_player, advance the turn to the next one
+        if game.next_player == caller_address {
+            let next_idx = (leaver_index + 1) % original_len;
+            let original_next_player = *game.game_players[next_idx];
+            game.next_player = original_next_player;
+        }
     }
 
     // Remove the player from the game_players array using while loop
