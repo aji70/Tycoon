@@ -183,6 +183,7 @@ pub mod game {
     // Retrieve the game
     let mut game: Game = world.read_model(game_id);
     assert(game.is_initialised, 'GAME NOT INITIALISED');
+    assert(game.status == GameStatus::Pending || game.status == GameStatus::Ongoing, 'GAME NOT ACTIVE');
 
     // Caller info
     let caller_address = get_caller_address();
@@ -197,6 +198,10 @@ pub mod game {
     // [FIX 2] Only assert for ongoing games; allow unjoin in pending
     if game.status == GameStatus::Ongoing {
         assert!(game.game_players.len() > 1, "CANNOT LEAVE LAST PLAYER IN ONGOING GAME");
+        // Handle assets when leaving an ongoing game
+        self.player_leaves_game(game_id, caller_address);
+        // Reload player to update joined status
+        player = world.read_model((caller_address, game_id));
     }
 
     // Remove the player from the game_players array using while loop
@@ -242,7 +247,6 @@ pub mod game {
         world.write_model(@game);
     }
 }
-
         fn mint(ref self: ContractState, recepient: ContractAddress, game_id: u256, amount: u256) {
             let mut world = self.world_default();
 
@@ -580,6 +584,128 @@ pub mod game {
 
             net_worth
         }
+
+          fn return_property_to_bank(
+        ref self: ContractState, id: u32, game_id: u256, caller: ContractAddress
+    ) {
+        let mut world = self.world_default();
+        let zero_address: ContractAddress = contract_address_const::<0>();
+        let property_id: u8 = id.try_into().unwrap();
+        // Load and validate
+        let mut property: Property = world.read_model((property_id, game_id));
+        assert(property.owner == caller, 'Not your property');
+        assert(!property.is_mortgaged, 'Unmortgage first');
+        assert(property.development == 0, 'Sell houses/hotels first');
+
+        let mut player: GamePlayer = world.read_model((caller, game_id));
+
+        // Refund half the purchase price to player
+        let refund: u256 = property.cost_of_property / 2;
+        player.balance += refund;
+
+        // Reset property to bank
+        property.owner = zero_address;
+        property.for_sale = true;
+
+        // Decrement player's ownership counters
+        if property.property_type == PropertyType::RailRoad {
+            player.no_of_railways -= 1;
+        }
+        if property.property_type == PropertyType::Utility {
+            player.no_of_utilities -= 1;
+        }
+        match property.group_id {
+            0 => {},
+            1 => player.no_section1 -= 1,
+            2 => player.no_section2 -= 1,
+            3 => player.no_section3 -= 1,
+            4 => player.no_section4 -= 1,
+            5 => player.no_section5 -= 1,
+            6 => player.no_section6 -= 1,
+            7 => player.no_section7 -= 1,
+            8 => player.no_section8 -= 1,
+            _ => {},
+        }
+
+        // Persist changes (note: properties_owned array is not removed from for simplicity;
+        // ownership checks should rely on the Property model's owner field)
+        world.write_model(@player);
+        world.write_model(@property);
+    }
+
+    /// Helper function to handle a player leaving the game: sell all houses/hotels, unmortgage all properties,
+    /// return all properties to the bank with refunds.
+    fn player_leaves_game(ref self: ContractState, game_id: u256, leaving_player: ContractAddress) {
+        let mut world = self.world_default();
+        
+        let mut game: Game = world.read_model(game_id);
+        assert(game.status == GameStatus::Ongoing, 'Game not ongoing');
+
+        let mut player: GamePlayer = world.read_model((leaving_player, game_id));
+
+        // Step 1: Sell all houses/hotels on owned properties (refund half cost)
+        let mut i = 0_u32;
+        while i < 41_u32 {
+            let mut property: Property = world.read_model((i, game_id));
+            if property.owner == leaving_player && property.development > 0 {
+                let mut dev_count = property.development;
+                while dev_count > 0 {
+                    let refund: u256 = property.cost_of_house / 2;
+                    player.balance += refund;
+                    if property.development < 5 {
+                        player.total_houses_owned -= 1;
+                    } else {
+                        player.total_hotels_owned -= 1;
+                    };
+                    property.development -= 1;
+                    dev_count -= 1;
+                };
+                world.write_model(@property);
+            }
+            i += 1;
+        };
+
+        // Step 2: Unmortgage all owned properties (charge interest)
+        i = 0_u32;
+        while i < 41_u32 {
+            let mut property: Property = world.read_model((i, game_id));
+            if property.owner == leaving_player && property.is_mortgaged {
+                let mortgage_amount: u256 = property.cost_of_property / 2;
+                let interest: u256 = mortgage_amount * 10 / 100; // 10%
+                let repay_amount: u256 = mortgage_amount + interest;
+                // Deduct from player balance (if insufficient, this would fail, but for leaving, perhaps waive or adjust)
+                if player.balance >= repay_amount {
+                    player.balance -= repay_amount;
+                } else {
+                    // Waive remaining debt for simplicity when leaving
+                    player.balance = 0;
+                }
+                property.lift_mortgage(leaving_player);
+                world.write_model(@property);
+            }
+            i += 1;
+        };
+
+        // Step 3: Return all owned properties to bank
+        i = 0_u32;
+        while i < 41_u32 {
+            let property: Property = world.read_model((i, game_id));
+            if property.owner == leaving_player {
+                self.return_property_to_bank(i, game_id, leaving_player);
+            }
+            i += 1;
+        };
+
+        // Step 4: Remove player from game (set balance to 0, remove from game_players array if needed)
+        player.balance = 0;
+        // Note: Removing from game_players array requires game model update; for simplicity, mark as left
+        // Assume game model has a way to track active players; here, just set next_player skip if needed
+        world.write_model(@player);
+
+        // Update game: remove from players list (simplified: assume manual or separate logic)
+        // For now, persist game
+        world.write_model(@game);
+    }
 
         fn assert_player_not_already_joined(
             ref self: ContractState, game_id: u256, username: felt252,

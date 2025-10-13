@@ -115,6 +115,8 @@ const GameBoard = () => {
   const [previousCurrentPlayer, setPreviousCurrentPlayer] = useState<string | null>(null);
   const [actionLog, setActionLog] = useState<string[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [winner, setWinner] = useState<string | null>(null);
+  const [showWinnerModal, setShowWinnerModal] = useState(false);
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
@@ -474,6 +476,24 @@ const GameBoard = () => {
         setCurrentProperty(null);
       }
 
+      // Check for winner if game is finished
+      const statusVariant = gameData.status?.variant;
+      const isEnded = statusVariant && 'Ended' in statusVariant;
+      let newWinner: string | null = null;
+      if (isEnded && gameData.winner) {
+        const winnerAddress = String(gameData.winner).toLowerCase();
+        const winnerPlayer = allPlayers.find(p => p.address === winnerAddress);
+        const winnerUsername = winnerPlayer?.username || shortString.decodeShortString(String(gameData.winner)) || 'Unknown';
+        newWinner = winnerUsername;
+        if (!winner && winnerUsername !== 'No winner (0)') {
+          setShowWinnerModal(true);
+        }
+        addActionLog(`Game Over! Winner: ${winnerUsername}`);
+      } else {
+        newWinner = null;
+      }
+      setWinner(newWinner);
+
       setHasLoaded(true);
     } catch (err: any) {
       setError(err.message || 'Failed to load game data. Please try again or check the game ID.');
@@ -497,6 +517,40 @@ const GameBoard = () => {
       }
       return [...prev, message].slice(-20);
     });
+  };
+
+  const handleGetWinner = async () => {
+    if (!gameId) {
+      setError('No Game ID provided.');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      const gameData = await gameActions.getGame(gameId);
+      if (!gameData) {
+        addActionLog('Game data not found.');
+        return;
+      }
+      const statusVariant = gameData.status?.variant;
+      const isEnded = statusVariant && 'Ended' in statusVariant;
+      if (isEnded && gameData.winner) {
+        const winnerAddress = String(gameData.winner).toLowerCase();
+        const username = await playerActions.getUsernameFromAddress(winnerAddress);
+        const decodedUsername = shortString.decodeShortString(username) || String(gameData.winner) || 'Unknown';
+        setWinner(decodedUsername);
+        addActionLog(`The winner is: ${decodedUsername}`);
+      } else if (isEnded && (!gameData.winner || gameData.winner === '0')) {
+        setWinner('No winner (0)');
+        addActionLog('The winner is: No winner (0)');
+      } else {
+        addActionLog('Game is still ongoing. No winner yet.');
+      }
+    } catch (err: any) {
+      addActionLog(`Error fetching winner: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const rollDice = async () => {
@@ -939,6 +993,36 @@ const GameBoard = () => {
             </div>
           </div>
         </div>
+
+        {/* Winner Modal */}
+        {showWinnerModal && winner && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-[#010F10] border-2 border-cyan-500 rounded-lg p-8 max-w-md w-full text-center relative shadow-2xl shadow-cyan-500/50">
+              <h2 className="text-3xl font-bold text-cyan-300 mb-4">Congratulations!</h2>
+              <p className="text-xl text-white mb-6">Winner: <span className="text-yellow-300">{winner}</span></p>
+              <div className="flex flex-wrap justify-center gap-2 mb-6">
+                {Array.from({ length: 20 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="text-3xl animate-bounce"
+                    style={{ animationDelay: `${i * 0.1}s` }}
+                  >
+                    {i % 2 === 0 ? '🎈' : '🎉'}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  setShowWinnerModal(false);
+                  router.push('/');
+                }}
+                className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 text-lg font-semibold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );

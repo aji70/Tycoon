@@ -76,7 +76,7 @@ const JoinRoom = () => {
   const [ongoingGames, setOngoingGames] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [inputCode, setInputCode] = useState<string>('');
+  const [inputValue, setInputValue] = useState<string>(''); // Renamed for clarity: code OR ID
   const [continueGameId, setContinueGameId] = useState<number | null>(null);
   const [expandedGame, setExpandedGame] = useState<string | null>(null);
 
@@ -86,59 +86,55 @@ const JoinRoom = () => {
     setOngoingGames(storedGames);
   }, []);
 
-  // Commented out backend logic
-  /*
-  const { account, address, connector } = useAccount();
-  const game = useGameActions();
-  const player = usePlayerActions();
-  useEffect(() => {
-    if (isWasmSupported()) {
-      getWasmCapabilities();
+  // Helper: Find game by code or ID
+  const findGameByValue = (value: string): Game | null => {
+    const idNum = parseInt(value);
+    const isId = !isNaN(idNum) && value === idNum.toString();
+    if (isId) {
+      return games.find((g) => g.id === idNum) || null;
     }
-    if (address) {
-      let isMounted = true;
-      const checkRegistration = async () => {
-        try {
-          const registered = await player.isRegistered(address);
-          if (!isMounted) return;
-          setIsRegistered(registered);
-          if (registered) {
-            const user = await player.getUsernameFromAddress(address);
-            if (!isMounted) return;
-            setUsername(shortString.decodeShortString(user) || 'Unknown');
-          }
-        } catch (err: any) {
-          if (!isMounted) return;
-          setError(err?.message || 'Failed to check registration status');
-        }
-      };
-      checkRegistration();
-      return () => {
-        isMounted = false;
-      };
-    }
-  }, [address, player]);
-  */
+    return games.find((g) => g.code === value.toUpperCase()) || null;
+  };
 
-  const handleJoinByCode = (code: string) => {
+  // Unified join handler: Works for code or ID, always to waiting if pending
+  const handleJoin = (value: string) => {
+    if (!value.trim()) {
+      setError('Please enter a room code or ID');
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    // Simulate joining a game
-    const game = games.find((g) => g.code === code.toUpperCase());
+
+    // TODO: Real backend - Replace with Starknet call, e.g.:
+    // const game = await gameContract.getGameByIdOrCode(value);
+    // if (!game.isPending) throw new Error('Game not pending');
+
+    const game = findGameByValue(value.trim());
     if (!game) {
-      setError(`Game ${code} not found.`);
+      setError(`Game with code/ID "${value}" not found.`);
       setLoading(false);
       return;
     }
     if (game.status !== 'PENDING') {
-      setError(`Game ${code} has already started or ended.`);
+      setError(`Game "${value}" has already started (${game.status.toLowerCase()}). Cannot join waiting room.`);
       setLoading(false);
       return;
     }
+    // Check if full (simulate)
+    if ((game.players_joined || 0) >= game.number_of_players) {
+      setError('Game is full!');
+      setLoading(false);
+      return;
+    }
+
+    // Add to ongoing (simulate join)
     const updatedGames = [...new Set([...ongoingGames, game.id])];
     setOngoingGames(updatedGames);
     localStorage.setItem('ongoingGames', JSON.stringify(updatedGames));
-    router.push(`/game-waiting?gameCode=${code}`);
+
+    // Redirect to waiting room for the passed ID
+    router.push(`/game-waiting?gameId=${game.id}`);
     setLoading(false);
   };
 
@@ -147,9 +143,7 @@ const JoinRoom = () => {
   };
 
   const handleInputJoin = () => {
-    if (inputCode.trim()) {
-      handleJoinByCode(inputCode.trim().toUpperCase());
-    }
+    handleJoin(inputValue);
   };
 
   const handleContinueGame = () => {
@@ -157,27 +151,8 @@ const JoinRoom = () => {
       setError('Please enter a valid game ID');
       return;
     }
-    setLoading(true);
-    setError(null);
-
-    // Simulate checking game status
-    const game = games.find((g) => g.id === continueGameId);
-    if (!game) {
-      setError('Game not found');
-      setLoading(false);
-      return;
-    }
-    const isPending = game.status === 'PENDING';
-    const isOngoing = game.status === 'ONGOING';
-
-    if (isPending) {
-      router.push(`/game-waiting?gameId=${continueGameId}`);
-    } else if (isOngoing) {
-      router.push(`/game-play?gameId=${continueGameId}`);
-    } else {
-      setError('Invalid game status');
-    }
-    setLoading(false);
+    // Reuse unified handler for consistency
+    handleJoin(continueGameId.toString());
   };
 
   const handleLeaveGame = () => {
@@ -401,6 +376,9 @@ const JoinRoom = () => {
                         <strong>Mode:</strong> {game.mode}
                       </p>
                       <p>
+                        <strong>ID:</strong> {game.id} {/* Show ID for easy copy-paste */}
+                      </p>
+                      <p>
                         <strong>Created:</strong>{' '}
                         {game.created_at ? new Date(game.created_at).toLocaleString() : 'N/A'}
                       </p>
@@ -408,7 +386,7 @@ const JoinRoom = () => {
                     {renderGameSettings(game.settings)}
                     <button
                       type="button"
-                      onClick={() => handleJoinByCode(game.code)}
+                      onClick={() => handleJoin(game.code)} // Now uses unified handler
                       className="relative group w-[150px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer mt-4"
                       disabled={loading}
                     >
@@ -437,13 +415,13 @@ const JoinRoom = () => {
             ))
           )}
 
-          {/* Join by Code */}
+          {/* Join by Code or ID */}
           <div className="w-full h-[52px] flex mt-8">
             <input
               type="text"
-              placeholder="Input room code"
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value)}
+              placeholder="Input room code (e.g., ABC123) or ID (e.g., 1)"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               className="w-full h-full px-4 text-[#73838B] border-[1px] border-[#0E282A] rounded-[12px] flex-1 outline-none focus:border-[#00F0FF]"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -455,8 +433,8 @@ const JoinRoom = () => {
             <button
               type="button"
               onClick={handleInputJoin}
-              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              disabled={loading}
+              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer ml-2"
+              disabled={loading || !inputValue.trim()}
             >
               <svg
                 width="260"
