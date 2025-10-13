@@ -269,7 +269,7 @@ pub mod movement {
 
             player.paid_rent = true;
 
-            // game = self.finish_turn(game);
+            game = self.finish_turn(game);
             world.write_model(@player);
             world.write_model(@game);
             world.write_model(@property);
@@ -285,6 +285,7 @@ pub mod movement {
             let mut game: Game = world.read_model(game_id);
             let mut property: Property = world.read_model((player.position, game_id));
             assert(property.property_type == PropertyType::Chance, 'not on chance');
+
             if card == "Advance to Go (Collect $200)" {
                 player.position = 0;
                 player.balance += 200;
@@ -362,7 +363,7 @@ pub mod movement {
             }
 
             player.paid_rent = true;
-            // game = self.finish_turn(game);
+            game = self.finish_turn(game);
             world.write_model(@player);
             world.write_model(@game);
             world.write_model(@property);

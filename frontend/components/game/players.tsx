@@ -82,6 +82,7 @@ const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
 
 const Players = () => {
   const { account, address } = useAccount()
+  console.log('Sidebar connected address (useAccount):', address ? String(address).toLowerCase() : 'No wallet'); // Debug log
   const gameActions = useGameActions()
   const playerActions = usePlayerActions()
   const movementActions = useMovementActions()
@@ -193,6 +194,8 @@ const Players = () => {
   };
 
   const loadGameData = async (playerAddress: string, gid: number, isSilent: boolean = false) => {
+    console.log('Expected player address (from manual query):', '135468865440775691766709935916620667041655899686403319246123751585737847380'); // Debug log
+    console.log('Input to getPlayer:', String(playerAddress).toLowerCase()); // Debug log
     if (!isSilent) {
       setIsLoading(true)
       setError(null)
@@ -231,7 +234,7 @@ const Players = () => {
             position: Number(playerData.position || 0),
             balance: Number(playerData.balance || 0),
             jailed: Boolean(playerData.jailed),
-            properties_owned: playerData.properties_owned || [],
+            properties_owned: (playerData.properties_owned || []).map((p: string) => Number(p)),
             isNext: String(addr).toLowerCase() === String(currentPlayerAddress).toLowerCase(),
             token,
           }
@@ -242,6 +245,17 @@ const Players = () => {
         .filter((square) => square.type === 'property')
         .map((square) => propertyActions.getProperty(square.id, gid))
       const propertyDataArray = await Promise.all(propertyPromises)
+
+      // Debug log for specific properties
+      const boardProperties = boardData.filter((s) => s.type === 'property');
+      const index3 = boardProperties.findIndex((s) => s.id === 3);
+      const index19 = boardProperties.findIndex((s) => s.id === 19);
+      console.log('Property data for ID 3 (index', index3, '):', index3 !== -1 ? propertyDataArray[index3] : 'ID 3 not a property');
+      console.log('Its owner (lowercase):', index3 !== -1 ? (propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner).toLowerCase() : 'None') : 'N/A');
+      console.log('Property data for ID 19 (index', index19, '):', index19 !== -1 ? propertyDataArray[index19] : 'ID 19 not a property');
+      console.log('Its owner (lowercase):', index19 !== -1 ? (propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner).toLowerCase() : 'None') : 'N/A');
+      console.log('Does ID 3 owner match expected player?', index3 !== -1 && propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner).toLowerCase() === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
+      console.log('Does ID 19 owner match expected player?', index19 !== -1 && propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner).toLowerCase() === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
 
       const propertyOwners = new Set<string>()
       propertyDataArray.forEach((propertyData) => {
@@ -272,7 +286,7 @@ const Players = () => {
               position: Number(playerData.position || 0),
               balance: Number(playerData.balance || 0),
               jailed: Boolean(playerData.jailed),
-              properties_owned: playerData.properties_owned || [],
+              properties_owned: (playerData.properties_owned || []).map((p: string) => Number(p)),
               isNext: addr === String(currentPlayerAddress).toLowerCase(),
               token,
             }
@@ -293,7 +307,14 @@ const Players = () => {
         currentPlayer: allPlayers.find((p) => p.isNext)?.username || 'Unknown',
       })
 
-      const playerData = await gameActions.getPlayer(playerAddress, gid)
+      // Normalize address for getPlayer if needed
+      const normalizedAddress = typeof playerAddress === 'bigint' ? playerAddress.toString() : String(playerAddress);
+      console.log('Normalized playerAddress for getPlayer:', normalizedAddress); // Debug log
+      const playerData = await gameActions.getPlayer(normalizedAddress, gid);
+      console.log('Fetched playerData full object:', playerData); // Debug log
+      console.log('Fetched playerData.address (lowercase):', playerData.address ? String(playerData.address).toLowerCase() : 'No address'); // Debug log
+      console.log('Fetched playerData.properties_owned (parsed):', (playerData.properties_owned || []).map((p: any) => Number(p))); // Debug log
+      console.log('Does fetched address match expected?', playerData.address ? String(playerData.address).toLowerCase() === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false); // Debug log
       const decodedPlayerUsername = shortString.decodeShortString(playerData.username) || 'Unknown'
       const playerToken = getPlayerToken(playerData) || playerTokensMap[String(playerAddress).toLowerCase()] || ''
 
@@ -303,7 +324,7 @@ const Players = () => {
         balance: Number(playerData.balance || 0),
         position: Number(playerData.position || 0),
         jailed: Boolean(playerData.jailed),
-        properties_owned: playerData.properties_owned || [],
+        properties_owned: (playerData.properties_owned || []).map((p: string) => Number(p)),
         id: allPlayers.find((p) => p.address === String(playerAddress).toLowerCase())?.id || 0,
         isNext: String(playerAddress).toLowerCase() === String(currentPlayerAddress).toLowerCase(),
         token: playerToken,
@@ -326,6 +347,10 @@ const Players = () => {
           }
         }
       })
+      console.log('Full ownedProperties map:', ownershipMap); // Debug log
+      console.log('ownedProperties map entries for ID 3:', ownershipMap[3]); // Debug log
+      console.log('ownedProperties map entries for ID 19:', ownershipMap[19]); // Debug log
+      console.log('Full ownedProperties keys:', Object.keys(ownershipMap).map(Number)); // Debug log
       setOwnedProperties(ownershipMap)
 
       const position = Number(playerData.position || 0)
@@ -778,21 +803,37 @@ const Players = () => {
 
   const myPlayer = useMemo(() => players.find(p => p.address === String(address).toLowerCase()), [players, address])
 
+  useEffect(() => {
+    console.log('Final myPlayer:', myPlayer);
+    if (myPlayer) {
+      console.log('My properties_owned:', myPlayer.properties_owned);
+    }
+  }, [myPlayer]); // Debug log
+
   const ownedPropertiesList = useMemo(() => {
-    if (!myPlayer) return []
-    return Object.entries(ownedProperties)
-      .filter(([_, prop]) => prop.owner === myPlayer.address)
-      .map(([idStr, prop]) => {
-        const id = Number(idStr)
-        const boardProp = boardData.find(b => b.id === id)
-        return {
-          id,
-          name: prop.name,
-          rent_site_only: prop.rent_site_only,
-          development: prop.development,
-          color: boardProp?.color || '#FFFFFF',
-        }
-      })
+    console.log('useMemo trigger - myPlayer:', myPlayer); // Debug log
+    console.log('useMemo trigger - ownedProperties:', ownedProperties); // Debug log
+    if (!myPlayer || !myPlayer.properties_owned || myPlayer.properties_owned.length === 0) {
+      console.log('ownedPropertiesList empty: No properties owned');
+      return []
+    }
+    const result = myPlayer.properties_owned.map(id => {
+      const prop = ownedProperties[id]
+      if (!prop) {
+        console.log(`No prop data for ID ${id}`);
+        return null
+      }
+      const boardProp = boardData.find(b => b.id === id)
+      return {
+        id,
+        name: prop.name,
+        rent_site_only: prop.rent_site_only,
+        development: prop.development,
+        color: boardProp?.color || '#FFFFFF',
+      }
+    }).filter(Boolean)
+    console.log('Final ownedPropertiesList:', result);
+    return result
   }, [myPlayer, ownedProperties])
 
   const otherPlayersProperties = useMemo(() => {
@@ -850,41 +891,29 @@ const Players = () => {
             </button>
           </div>
 
-          {/* Connected Player Header */}
-          <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          {/* Merged My Profile and Game ID Section */}
+          <div className={`w-full flex flex-col gap-2 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div
-              className="p-3 rounded-lg bg-cover bg-center"
+              className="p-2 rounded-lg bg-cover bg-center"
               style={{
                 backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
               }}
             >
-              <h2 className="text-base font-semibold text-cyan-300 mb-2">My Profile</h2>
+              <h2 className="text-sm font-semibold text-cyan-300 mb-1">My Profile & Game ID</h2>
               {player ? (
-                <p className="text-sm text-white" aria-label={`Player ${player.username} with ${player.token} token`}>
+                <p className="text-xs text-white mb-2" aria-label={`Player ${player.username} with ${player.token} token`}>
                   <span className="font-medium">{player.username}</span> <TokenIcon token={player.token} />
                 </p>
               ) : (
-                <p className="text-sm text-white">Loading player data...</p>
+                <p className="text-xs text-white mb-2">Loading player data...</p>
               )}
-            </div>
-          </div>
-
-          {/* Game ID Section */}
-          <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <div
-              className="p-3 rounded-lg bg-cover bg-center"
-              style={{
-                backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
-              }}
-            >
-              <h2 className="text-base font-semibold text-cyan-300 mb-2">Game ID</h2>
-              <div className="flex flex-row gap-2">
+              <div className="flex flex-row gap-1">
                 <input
                   type="number"
-                  placeholder="Enter game ID"
+                  placeholder="Game ID"
                   value={inputGameId}
                   onChange={(e) => setInputGameId(e.target.value)}
-                  className="px-2 py-1 bg-gray-800 text-white text-sm rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 flex-grow"
+                  className="px-2 py-1 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 flex-grow"
                   aria-label="Enter game ID to join"
                 />
                 <button
@@ -942,23 +971,23 @@ const Players = () => {
           {/* Current Property Section */}
           <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div
-              className="p-3 rounded-lg bg-cover bg-center"
+              className="p-2 rounded-lg bg-cover bg-center"
               style={{
                 backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
               }}
             >
-              <h2 className="text-base font-semibold text-cyan-300 mb-2">Current Property</h2>
+              <h2 className="text-sm font-semibold text-cyan-300 mb-1">Current Property</h2>
               {isLoading ? (
-                <p className="text-white text-sm">Loading property data...</p>
+                <p className="text-xs text-white">Loading property data...</p>
               ) : currentProperty ? (
-                <div className="space-y-1">
-                  <p className="text-sm text-white"><strong>ID:</strong> {currentProperty.id}</p>
-                  <p className="text-sm text-white"><strong>Name:</strong> {currentProperty.name || 'Unknown'}</p>
-                  <p className="text-sm text-white"><strong>Current Owner:</strong> {currentProperty.owner || 'None'}</p>
-                  <p className="text-sm text-white"><strong>Current Rent:</strong> ${currentProperty.rent_site_only || 0}</p>
+                <div className="space-y-0.5">
+                  <p className="text-xs text-white"><strong>ID:</strong> {currentProperty.id}</p>
+                  <p className="text-xs text-white"><strong>Name:</strong> {currentProperty.name || 'Unknown'}</p>
+                  <p className="text-xs text-white"><strong>Current Owner:</strong> {currentProperty.owner || 'None'}</p>
+                  <p className="text-xs text-white"><strong>Current Rent:</strong> ${currentProperty.rent_site_only || 0}</p>
                 </div>
               ) : (
-                <p className="text-white text-sm">No property data available.</p>
+                <p className="text-xs text-white">No property data available.</p>
               )}
             </div>
           </div>
@@ -981,22 +1010,24 @@ const Players = () => {
                     {ownedPropertiesList.length > 0 ? (
                       <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
                         {ownedPropertiesList.map((property) => (
-                          <li
-                            key={property.id}
-                            className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 cursor-pointer"
-                            aria-label={`Select property ${property.name}`}
-                          >
-                            <div
-                              className="w-4 h-4 rounded-full"
-                              style={{ backgroundColor: property.color || '#FFFFFF' }}
-                            />
-                            <div className="flex-1">
-                              <span className="font-medium">{property.name}</span>
-                              <span className="block text-[11px] text-[#A0B1B8]">
-                                ID: {property.id} | Rent: ${property.rent_site_only} | Development: {property.development}
-                              </span>
-                            </div>
-                          </li>
+                          property ? (
+                            <li
+                              key={property.id}
+                              className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 cursor-pointer"
+                              aria-label={`Select property ${property.name}`}
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full"
+                                style={{ backgroundColor: property.color || '#FFFFFF' }}
+                              />
+                              <div className="flex-1">
+                                <span className="font-medium">{property.name}</span>
+                                <span className="block text-[11px] text-[#A0B1B8]">
+                                  ID: {property.id} | Rent: ${property.rent_site_only} | Development: {property.development}
+                                </span>
+                              </div>
+                            </li>
+                          ) : null
                         ))}
                       </ul>
                     ) : (
@@ -1005,29 +1036,12 @@ const Players = () => {
                   </div>
                 )}
                 <button
-                  onClick={() => openModal('property')}
-                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-green-700 to-emerald-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-green-800 hover:to-emerald-800 hover:shadow-[0_0_12px_rgba(16,185,129,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  aria-label="Open property actions"
-                >
-                  <Plus className='w-4 h-4' />
-                  Property
-                </button>
-                <button
                   onClick={() => openModal('management')}
                   className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-purple-700 to-indigo-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-purple-800 hover:to-indigo-800 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   aria-label="Open property management actions"
                 >
                   <Plus className='w-4 h-4' />
                   Management
-                </button>
-                <button
-                  onClick={() => {}}
-                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-red-700 to-pink-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-red-800 hover:to-pink-800 hover:shadow-[0_0_12px_rgba(239,68,68,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  aria-label="Declare bankruptcy"
-                  disabled={true}
-                >
-                  <Flag className='w-4 h-4' />
-                  Bankruptcy
                 </button>
               </div>
             </div>

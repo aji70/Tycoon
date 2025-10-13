@@ -841,7 +841,7 @@ pub mod game {
             deck.append("Go to Jail dirctly do not pass Go do not collect $200");
             deck.append("Make general repairs - $25 house, $100 hotel");
             deck.append("Pay poor tax of $15");
-            deck.append("Take a trip to Reading Railroad");
+            deck.append("Take a trip to IPFS Railroad");
             deck.append("Take a walk on the Bitcoin Lane");
             deck.append("Speeding fine $200");
             deck.append("Building loan matures - collect $150");

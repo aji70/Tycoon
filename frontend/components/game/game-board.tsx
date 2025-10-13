@@ -151,7 +151,7 @@ const GameBoard = () => {
         await loadGameData(gameId);
       } catch (err) {
       }
-    }, 5000); // Poll every 5 seconds
+    }, 2500); // Poll every 5 seconds
 
     return () => clearInterval(pollInterval);
   }, [address, gameId]);
@@ -164,39 +164,6 @@ const GameBoard = () => {
     }
     setPreviousCurrentPlayer(current ?? null);
   }, [players]);
-
-  // Commented Solidity backend logic
-  /*
-  useEffect(() => {
-    const id = searchParams.get('gameCode') || localStorage.getItem('gameCode') || 'TZIYLR';
-    setGameId(id);
-    setGame({
-      id: id,
-      currentPlayer: players[0].username,
-      nextPlayer: players[1].username,
-      createdBy: 'player1',
-    });
-    localStorage.setItem('gameCode', id);
-  }, [searchParams, players]);
-
-  const updateCurrentPropertySolidity = () => {
-    const currentPlayer = players[currentPlayerIndex];
-    const square = boardData.find((s) => s.id === currentPlayer.position);
-    if (square) {
-      setCurrentProperty({
-        id: square.id,
-        name: square.name || 'Unknown',
-        type: square.type,
-        owner: ownedProperties[square.id]?.owner || null,
-        ownerUsername: ownedProperties[square.id]?.ownerUsername || null,
-        rent_site_only: square.rent_site_only || 0,
-      });
-    } else {
-      setCurrentProperty(null);
-    }
-  };
-  */
-
   
 
   const waitForGameStatus = async (gid: number, maxAttempts: number = 5, delay: number = 2000) => {

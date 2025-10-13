@@ -24,7 +24,7 @@ export const CHANCE_CARDS: string[] = [
   'Go to Jail directly, do not pass Go, do not collect $200', // Fixed typo
   'Make general repairs - $25 house, $100 hotel',
   'Pay poor tax of $15',
-  'Take a trip to Reading Railroad',
+  'Take a trip to IPFS Railroad',
   'Take a walk on the Bitcoin Lane',
   'Speeding fine $200',
   'Building loan matures - collect $150',
