@@ -3,47 +3,57 @@ import React from "react";
 
 import { sepolia, mainnet } from "@starknet-react/chains";
 import {
-    StarknetConfig,
-    publicProvider,
-    argent,
-    braavos,
-    useInjectedConnectors,
-    voyager,
+  StarknetConfig,
+  jsonRpcProvider,
+  cartridge, // Import for explorer
 } from "@starknet-react/core";
 import { ControllerConnector } from "@cartridge/connector";
 import { constants } from "starknet";
 
+// Create the connector *outside* the component (simplified, no theme/namespace/slot)
 const cartridgeConnector = new ControllerConnector({
+  defaultChainId: constants.StarknetChainId.SN_SEPOLIA,
   chains: [
     {
-      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia",
-    },
-    {
+      ...mainnet,
       rpcUrl: "https://api.cartridge.gg/x/starknet/mainnet",
     },
+    {
+      ...sepolia,
+      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_8",
+    },
   ],
-  defaultChainId: constants.StarknetChainId.SN_SEPOLIA,
 });
 
 export function StarknetProvider({ children }: { children: React.ReactNode }) {
-  const { connectors } = useInjectedConnectors({
-    // Show these connectors if the user has no connector installed.
-    recommended: [argent(), braavos(), cartridgeConnector],
-    // Hide recommended connectors if the user has any connector installed.
-    includeRecommended: "onlyIfNoConnectors",
-    // Randomize the order of the connectors.
-    order: "random",
+  // Custom provider with Cartridge RPCs
+  const provider = jsonRpcProvider({
+    rpc: (chain) => {
+      switch (chain) {
+        case mainnet:
+          return { nodeUrl: "https://api.cartridge.gg/x/starknet/mainnet" };
+        case sepolia:
+        default:
+          return { nodeUrl: "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_8" };
+      }
+    },
   });
 
-    return (
-     <StarknetConfig
-        chains={[mainnet, sepolia]}
-        provider={publicProvider()}
-        connectors={connectors}
-        explorer={voyager}
-        autoConnect={true}
-        >
-            {children}
-        </StarknetConfig>
-    );
+  // Optional: Include other connectors if you want multi-wallet support
+  const connectors = [
+    cartridgeConnector,
+  ];
+
+  return (
+    <StarknetConfig
+      chains={[mainnet, sepolia]}
+      provider={provider}
+      connectors={connectors}
+      explorer={cartridge}
+      autoConnect={true}
+      defaultChainId={sepolia.id} // Matches your Sepolia focus
+    >
+      {children}
+    </StarknetConfig>
+  );
 }

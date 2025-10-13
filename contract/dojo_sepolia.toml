@@ -24,19 +24,23 @@ default = "blockopoly"
 # world_address = ""
 
 [writers]
-"blockopoly" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-GameCounter" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player","blockopoly-property", "blockopoly-trade"]
-"blockopoly-Game" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-GamePlayer" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-Player" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
+"blockopoly" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-GameCounter" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player","blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-Game" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-GamePlayer" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-Player" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
 
-"blockopoly-UsernameToAddress" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-AddressToUsername" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-IsRegistered" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-IdToProperty" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-PropertyToId" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player","blockopoly-property", "blockopoly-trade"]
-"blockopoly-Property" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
+"blockopoly-UsernameToAddress" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-AddressToUsername" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-IsRegistered" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-IdToProperty" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-PropertyToId" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player","blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-Property" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
 
-"blockopoly-TradeOfferDetails" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
-"blockopoly-TradeCounter" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade"]
+"blockopoly-TradeOfferDetails" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-TradeCounter" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+
+"blockopoly-SessionKey" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-SessionAnalytics" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"blockopoly-SessionOperation" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
 
