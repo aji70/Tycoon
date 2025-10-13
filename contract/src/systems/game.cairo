@@ -176,59 +176,72 @@ pub mod game {
             true
         }
 
-        fn leave_game(ref self: ContractState, game_id: u256) {
-            // Load world state
-            let mut world = self.world_default();
+    fn leave_game(ref self: ContractState, game_id: u256) {
+    // Load world state
+    let mut world = self.world_default();
 
-            // Retrieve the game
-            let mut game: Game = world.read_model(game_id);
-            assert(game.is_initialised, 'GAME NOT INITIALISED');
+    // Retrieve the game
+    let mut game: Game = world.read_model(game_id);
+    assert(game.is_initialised, 'GAME NOT INITIALISED');
 
-            // Caller info
-            let caller_address = get_caller_address();
-            let caller_username_map: AddressToUsername = world.read_model(caller_address);
-            let caller_username = caller_username_map.username;
-            assert(caller_username != 0, 'PLAYER NOT REGISTERED');
+    // Caller info
+    let caller_address = get_caller_address();
+    let caller_username_map: AddressToUsername = world.read_model(caller_address);
+    let caller_username = caller_username_map.username;
+    assert(caller_username != 0, 'PLAYER NOT REGISTERED');
 
-            // Retrieve the player's data for this game
-            let mut player: GamePlayer = world.read_model((caller_address, game_id));
-            assert(player.joined, 'PLAYER NOT JOINED');
+    // Retrieve the player's data for this game
+    let mut player: GamePlayer = world.read_model((caller_address, game_id));
+    assert(player.joined, 'PLAYER NOT JOINED');
 
-            // Remove the player from the game_players array using while loop
-            let mut new_players: Array<ContractAddress> = ArrayTrait::new();
-            let mut found = false;
+    // [FIX 2] Only assert for ongoing games; allow unjoin in pending
+    if game.status == GameStatus::Ongoing {
+        assert!(game.game_players.len() > 1, "CANNOT LEAVE LAST PLAYER IN ONGOING GAME");
+    }
 
-            let len = game.game_players.len();
-            let mut i = 0;
-            while i < len {
-                let current_addr: ContractAddress = *game.game_players[i];
-                if current_addr != caller_address {
-                    new_players.append(current_addr);
-                } else {
-                    found = true;
-                }
-                i += 1;
-            };
-            assert(found, 'PLAYER NOT IN GAME PLAYERS');
+    // Remove the player from the game_players array using while loop
+    let mut new_players: Array<ContractAddress> = ArrayTrait::new();
+    let mut found = false;
 
-            // Update game state
-            game.game_players = new_players;
-            game.players_joined -= 1;
-
-            // Update player state
-            player.joined = false;
-
-            // Game status logic
-            if game.players_joined == 1 && game.status == GameStatus::Ongoing {
-                self.end_game(game_id);
-            } else if game.status == GameStatus::Pending && game.players_joined == 0 {
-                game.status = GameStatus::Ended;
-            }
-
-            // Persist updates
-            world.write_model(@player);
-            world.write_model(@game);
+    let len = game.game_players.len();
+    let mut i = 0;
+    while i < len {
+        let current_addr: ContractAddress = *game.game_players[i];
+        if current_addr != caller_address {
+            new_players.append(current_addr);
+        } else {
+            found = true;
         }
+        i += 1;
+    };
+    assert(found, 'PLAYER NOT IN GAME PLAYERS');
+
+    // Update game state
+    game.game_players = new_players;
+    game.players_joined -= 1;
+
+    // Update player state
+    player.joined = false;
+
+    // [FIX 1] Persist player update early (independent of game logic)
+    world.write_model(@player);
+
+    // Game status logic
+    let should_end_game = game.players_joined == 1 && game.status == GameStatus::Ongoing;
+    let should_cancel_game = game.players_joined == 0 && game.status == GameStatus::Pending;
+
+    if should_end_game {
+        // [FIX 1] Write updated game BEFORE end_game to avoid overwrite
+        world.write_model(@game);
+        self.end_game(game_id);
+    } else if should_cancel_game {
+        game.status = GameStatus::Ended;
+        world.write_model(@game);
+    } else {
+        // Normal case: persist game updates
+        world.write_model(@game);
+    }
+}
 
         fn mint(ref self: ContractState, recepient: ContractAddress, game_id: u256, amount: u256) {
             let mut world = self.world_default();
