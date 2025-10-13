@@ -636,6 +636,158 @@ export function setupWorld(provider: DojoProvider) {
 		}
 	};
 
+	const build_session_calculateRemainingTransactions_calldata = (sessionId: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "calculate_remaining_transactions",
+			calldata: [sessionId],
+		};
+	};
+
+	const session_calculateRemainingTransactions = async (sessionId: BigNumberish) => {
+		try {
+			return await provider.call("blockopoly", build_session_calculateRemainingTransactions_calldata(sessionId));
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_calculateSessionTimeRemaining_calldata = (sessionId: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "calculate_session_time_remaining",
+			calldata: [sessionId],
+		};
+	};
+
+	const session_calculateSessionTimeRemaining = async (sessionId: BigNumberish) => {
+		try {
+			return await provider.call("blockopoly", build_session_calculateSessionTimeRemaining_calldata(sessionId));
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_checkSessionNeedsRenewal_calldata = (sessionId: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "check_session_needs_renewal",
+			calldata: [sessionId],
+		};
+	};
+
+	const session_checkSessionNeedsRenewal = async (sessionId: BigNumberish) => {
+		try {
+			return await provider.call("blockopoly", build_session_checkSessionNeedsRenewal_calldata(sessionId));
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_createSessionKey_calldata = (duration: BigNumberish, maxTransactions: BigNumberish, sessionType: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "create_session_key",
+			calldata: [duration, maxTransactions, sessionType],
+		};
+	};
+
+	const session_createSessionKey = async (snAccount: Account | AccountInterface, duration: BigNumberish, maxTransactions: BigNumberish, sessionType: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_session_createSessionKey_calldata(duration, maxTransactions, sessionType),
+				"blockopoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_getSessionInfo_calldata = (sessionId: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "get_session_info",
+			calldata: [sessionId],
+		};
+	};
+
+	const session_getSessionInfo = async (sessionId: BigNumberish) => {
+		try {
+			return await provider.call("blockopoly", build_session_getSessionInfo_calldata(sessionId));
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_renewSession_calldata = (sessionId: BigNumberish, newDuration: BigNumberish, newMaxTx: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "renew_session",
+			calldata: [sessionId, newDuration, newMaxTx],
+		};
+	};
+
+	const session_renewSession = async (snAccount: Account | AccountInterface, sessionId: BigNumberish, newDuration: BigNumberish, newMaxTx: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_session_renewSession_calldata(sessionId, newDuration, newMaxTx),
+				"blockopoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_revokeSession_calldata = (sessionId: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "revoke_session",
+			calldata: [sessionId],
+		};
+	};
+
+	const session_revokeSession = async (snAccount: Account | AccountInterface, sessionId: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_session_revokeSession_calldata(sessionId),
+				"blockopoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
+	const build_session_validateSession_calldata = (sessionId: BigNumberish): DojoCall => {
+		return {
+			contractName: "session",
+			entrypoint: "validate_session",
+			calldata: [sessionId],
+		};
+	};
+
+	const session_validateSession = async (snAccount: Account | AccountInterface, sessionId: BigNumberish) => {
+		try {
+			return await provider.execute(
+				snAccount,
+				build_session_validateSession_calldata(sessionId),
+				"blockopoly",
+			);
+		} catch (error) {
+			console.error(error);
+			throw error;
+		}
+	};
+
 	const build_trade_acceptTrade_calldata = (tradeId: BigNumberish, gameId: BigNumberish): DojoCall => {
 		return {
 			contractName: "trade",
@@ -832,6 +984,24 @@ export function setupWorld(provider: DojoProvider) {
 			buildSellHouseOrHotelCalldata: build_property_sellHouseOrHotel_calldata,
 			unmortgageProperty: property_unmortgageProperty,
 			buildUnmortgagePropertyCalldata: build_property_unmortgageProperty_calldata,
+		},
+		session: {
+			calculateRemainingTransactions: session_calculateRemainingTransactions,
+			buildCalculateRemainingTransactionsCalldata: build_session_calculateRemainingTransactions_calldata,
+			calculateSessionTimeRemaining: session_calculateSessionTimeRemaining,
+			buildCalculateSessionTimeRemainingCalldata: build_session_calculateSessionTimeRemaining_calldata,
+			checkSessionNeedsRenewal: session_checkSessionNeedsRenewal,
+			buildCheckSessionNeedsRenewalCalldata: build_session_checkSessionNeedsRenewal_calldata,
+			createSessionKey: session_createSessionKey,
+			buildCreateSessionKeyCalldata: build_session_createSessionKey_calldata,
+			getSessionInfo: session_getSessionInfo,
+			buildGetSessionInfoCalldata: build_session_getSessionInfo_calldata,
+			renewSession: session_renewSession,
+			buildRenewSessionCalldata: build_session_renewSession_calldata,
+			revokeSession: session_revokeSession,
+			buildRevokeSessionCalldata: build_session_revokeSession_calldata,
+			validateSession: session_validateSession,
+			buildValidateSessionCalldata: build_session_validateSession_calldata,
 		},
 		trade: {
 			acceptTrade: trade_acceptTrade,

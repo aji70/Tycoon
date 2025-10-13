@@ -9,6 +9,7 @@ import { useGameActions } from '@/hooks/useGameActions';
 import { useMovementActions } from '@/hooks/useMovementActions';
 import { usePropertyActions } from '@/hooks/usePropertyActions';
 import { useTradeActions } from '@/hooks/useTradeActions';
+import { useSessionActions } from '@/hooks/useSession';
 
 export default function WasmDemo() {
   const { account, address } = useAccount();
@@ -20,11 +21,13 @@ export default function WasmDemo() {
   const move   = useMovementActions();
   const property = usePropertyActions();
   const trade   = useTradeActions();
+  const session = useSessionActions();
 
   const [fields, setFields] = useState({
     username: '', addressp: '', gameType: '', playerSymbol: '',
     numPlayers: '', gameId: '', amount: '', diceRoll: '', propertyId: '',
-    card: ''
+    card: '', sessionId: '', duration: '', maxTransactions: '', sessionType: '',
+    newDuration: '', newMaxTx: ''
   });
 
   const [response, setResponse] = useState<any>(null);
@@ -82,6 +85,14 @@ export default function WasmDemo() {
     { label: 'Process Community', onClick:() => account && handleRequest(() => move.processCommunityChestCard(account, +fields.gameId, fields.card), 'processCommunityChestCard')},
     { label: 'Process Chance', onClick:() => account && handleRequest(() => move.processChanceCard(account, +fields.gameId, fields.card), 'processChanceCard')},
     { label: 'Pay Tax', onClick: () => account && handleRequest(() => move.payTax(account, +fields.propertyId, +fields.gameId), 'payTax')},
+    { label: 'Create Session Key', onClick: () => account && handleRequest(() => session.createSessionKey(account, +fields.duration, +fields.maxTransactions, +fields.sessionType), 'createSessionKey') },
+    { label: 'Validate Session', onClick: () => account && handleRequest(() => session.validateSession(account, fields.sessionId), 'validateSession') },
+    { label: 'Renew Session', onClick: () => account && handleRequest(() => session.renewSession(account, fields.sessionId, +fields.newDuration, +fields.newMaxTx), 'renewSession') },
+    { label: 'Revoke Session', onClick: () => account && handleRequest(() => session.revokeSession(account, fields.sessionId), 'revokeSession') },
+    { label: 'Get Session Info', onClick: () => handleRequest(() => session.getSessionInfo(fields.sessionId), 'getSessionInfo') },
+    { label: 'Calculate Session Time Remaining', onClick: () => handleRequest(() => session.calculateSessionTimeRemaining(fields.sessionId), 'calculateSessionTimeRemaining') },
+    { label: 'Check Session Needs Renewal', onClick: () => handleRequest(() => session.checkSessionNeedsRenewal(fields.sessionId), 'checkSessionNeedsRenewal') },
+    { label: 'Calculate Remaining Transactions', onClick: () => handleRequest(() => session.calculateRemainingTransactions(fields.sessionId), 'calculateRemainingTransactions') },
   ];
 
   return (
@@ -110,8 +121,12 @@ export default function WasmDemo() {
           { name: 'diceRoll', label: 'Dice Roll' },
           { name: 'propertyId', label: 'Property ID' },
           { name: 'card', label: 'Card' },
-
-          
+          { name: 'sessionId', label: 'Session ID' },
+          { name: 'duration', label: 'Duration' },
+          { name: 'maxTransactions', label: 'Max Transactions' },
+          { name: 'sessionType', label: 'Session Type' },
+          { name: 'newDuration', label: 'New Duration' },
+          { name: 'newMaxTx', label: 'New Max Tx' },
         ].map(({ name, label }) => (
           <div key={name} className="flex flex-col">
             <label className="text-sm text-gray-300 mb-1">{label}</label>

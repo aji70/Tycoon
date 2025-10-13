@@ -1,6 +1,6 @@
 import type { SchemaType as ISchemaType } from "@dojoengine/sdk";
 
-import { CairoCustomEnum, BigNumberish } from 'starknet';
+import { CairoCustomEnum, CairoOption, CairoOptionVariant, BigNumberish } from 'starknet';
 
 // Type definition for `blockopoly::model::game_model::Game` struct
 export interface Game {
@@ -79,6 +79,7 @@ export interface GamePlayer {
 	strikes: BigNumberish;
 	paid_rent: boolean;
 	joined: boolean;
+	rolled_dice: boolean;
 }
 
 // Type definition for `blockopoly::model::player_model::AddressToUsername` struct
@@ -170,6 +171,45 @@ export interface TradeOfferDetails {
 	approve_counter: boolean;
 }
 
+// Type definition for `blockopoly::model::session::SessionAnalytics` struct
+export interface SessionAnalytics {
+	session_id: BigNumberish;
+	total_transactions: BigNumberish;
+	successful_transactions: BigNumberish;
+	failed_transactions: BigNumberish;
+	total_gas_used: BigNumberish;
+	average_gas_per_tx: BigNumberish;
+	last_activity: BigNumberish;
+	created_at: BigNumberish;
+}
+
+// Type definition for `blockopoly::model::session::SessionKey` struct
+export interface SessionKey {
+	session_id: BigNumberish;
+	player_address: string;
+	created_at: BigNumberish;
+	expires_at: BigNumberish;
+	last_used: BigNumberish;
+	max_transactions: BigNumberish;
+	used_transactions: BigNumberish;
+	status: BigNumberish;
+	is_valid: boolean;
+	auto_renewal_enabled: boolean;
+	session_type: BigNumberish;
+	permissions: Array<BigNumberish>;
+}
+
+// Type definition for `blockopoly::model::session::SessionOperation` struct
+export interface SessionOperation {
+	session_id: BigNumberish;
+	operation_id: BigNumberish;
+	operation_type: BigNumberish;
+	timestamp: BigNumberish;
+	gas_used: BigNumberish;
+	success: boolean;
+	error_code: CairoOption<BigNumberish>;
+}
+
 // Type definition for `blockopoly::systems::game::game::GameCreated` struct
 export interface GameCreated {
 	game_id: BigNumberish;
@@ -194,6 +234,56 @@ export interface PlayerCreated {
 	username: BigNumberish;
 	player: string;
 	timestamp: BigNumberish;
+}
+
+// Type definition for `blockopoly::systems::session::session::SessionAutoRenewed` struct
+export interface SessionAutoRenewed {
+	session_id: BigNumberish;
+	player_address: string;
+	new_expires_at: BigNumberish;
+	new_max_transactions: BigNumberish;
+}
+
+// Type definition for `blockopoly::systems::session::session::SessionKeyCreated` struct
+export interface SessionKeyCreated {
+	session_id: BigNumberish;
+	player_address: string;
+	duration: BigNumberish;
+	max_transactions: BigNumberish;
+	session_type: BigNumberish;
+}
+
+// Type definition for `blockopoly::systems::session::session::SessionKeyRevoked` struct
+export interface SessionKeyRevoked {
+	session_id: BigNumberish;
+	player_address: string;
+	reason: BigNumberish;
+}
+
+// Type definition for `blockopoly::systems::session::session::SessionKeyUsed` struct
+export interface SessionKeyUsed {
+	session_id: BigNumberish;
+	player_address: string;
+	operation_type: BigNumberish;
+	gas_used: BigNumberish;
+}
+
+// Type definition for `blockopoly::systems::session::session::SessionOperationTracked` struct
+export interface SessionOperationTracked {
+	session_id: BigNumberish;
+	operation_id: BigNumberish;
+	operation_type: BigNumberish;
+	timestamp: BigNumberish;
+	gas_used: BigNumberish;
+	success: boolean;
+}
+
+// Type definition for `blockopoly::systems::session::session::SessionPerformanceMetrics` struct
+export interface SessionPerformanceMetrics {
+	session_id: BigNumberish;
+	average_gas_per_tx: BigNumberish;
+	success_rate: BigNumberish;
+	last_activity: BigNumberish;
 }
 
 // Type definition for `blockopoly::model::game_model::GameStatus` enum
@@ -282,10 +372,19 @@ export interface SchemaType extends ISchemaType {
 		PropertyToId: PropertyToId,
 		TradeCounter: TradeCounter,
 		TradeOfferDetails: TradeOfferDetails,
+		SessionAnalytics: SessionAnalytics,
+		SessionKey: SessionKey,
+		SessionOperation: SessionOperation,
 		GameCreated: GameCreated,
 		GameStarted: GameStarted,
 		PlayerJoined: PlayerJoined,
 		PlayerCreated: PlayerCreated,
+		SessionAutoRenewed: SessionAutoRenewed,
+		SessionKeyCreated: SessionKeyCreated,
+		SessionKeyRevoked: SessionKeyRevoked,
+		SessionKeyUsed: SessionKeyUsed,
+		SessionOperationTracked: SessionOperationTracked,
+		SessionPerformanceMetrics: SessionPerformanceMetrics,
 	},
 }
 export const schema: SchemaType = {
@@ -375,6 +474,7 @@ export const schema: SchemaType = {
 			strikes: 0,
 			paid_rent: false,
 			joined: false,
+			rolled_dice: false,
 		},
 		AddressToUsername: {
 			address: "",
@@ -470,6 +570,39 @@ export const schema: SchemaType = {
 			is_countered: false,
 			approve_counter: false,
 		},
+		SessionAnalytics: {
+			session_id: 0,
+			total_transactions: 0,
+			successful_transactions: 0,
+			failed_transactions: 0,
+			total_gas_used: 0,
+			average_gas_per_tx: 0,
+			last_activity: 0,
+			created_at: 0,
+		},
+		SessionKey: {
+			session_id: 0,
+			player_address: "",
+			created_at: 0,
+			expires_at: 0,
+			last_used: 0,
+			max_transactions: 0,
+			used_transactions: 0,
+			status: 0,
+			is_valid: false,
+			auto_renewal_enabled: false,
+			session_type: 0,
+			permissions: [0],
+		},
+		SessionOperation: {
+			session_id: 0,
+			operation_id: 0,
+			operation_type: 0,
+			timestamp: 0,
+			gas_used: 0,
+			success: false,
+		error_code: new CairoOption(CairoOptionVariant.None),
+		},
 		GameCreated: {
 		game_id: 0,
 			timestamp: 0,
@@ -487,6 +620,44 @@ export const schema: SchemaType = {
 			username: 0,
 			player: "",
 			timestamp: 0,
+		},
+		SessionAutoRenewed: {
+			session_id: 0,
+			player_address: "",
+			new_expires_at: 0,
+			new_max_transactions: 0,
+		},
+		SessionKeyCreated: {
+			session_id: 0,
+			player_address: "",
+			duration: 0,
+			max_transactions: 0,
+			session_type: 0,
+		},
+		SessionKeyRevoked: {
+			session_id: 0,
+			player_address: "",
+			reason: 0,
+		},
+		SessionKeyUsed: {
+			session_id: 0,
+			player_address: "",
+			operation_type: 0,
+			gas_used: 0,
+		},
+		SessionOperationTracked: {
+			session_id: 0,
+			operation_id: 0,
+			operation_type: 0,
+			timestamp: 0,
+			gas_used: 0,
+			success: false,
+		},
+		SessionPerformanceMetrics: {
+			session_id: 0,
+			average_gas_per_tx: 0,
+			success_rate: 0,
+			last_activity: 0,
 		},
 	},
 };
@@ -509,8 +680,17 @@ export enum ModelsMapping {
 	TradeOffer = 'blockopoly-TradeOffer',
 	TradeOfferDetails = 'blockopoly-TradeOfferDetails',
 	TradeStatus = 'blockopoly-TradeStatus',
+	SessionAnalytics = 'blockopoly-SessionAnalytics',
+	SessionKey = 'blockopoly-SessionKey',
+	SessionOperation = 'blockopoly-SessionOperation',
 	GameCreated = 'blockopoly-GameCreated',
 	GameStarted = 'blockopoly-GameStarted',
 	PlayerJoined = 'blockopoly-PlayerJoined',
 	PlayerCreated = 'blockopoly-PlayerCreated',
+	SessionAutoRenewed = 'blockopoly-SessionAutoRenewed',
+	SessionKeyCreated = 'blockopoly-SessionKeyCreated',
+	SessionKeyRevoked = 'blockopoly-SessionKeyRevoked',
+	SessionKeyUsed = 'blockopoly-SessionKeyUsed',
+	SessionOperationTracked = 'blockopoly-SessionOperationTracked',
+	SessionPerformanceMetrics = 'blockopoly-SessionPerformanceMetrics',
 }

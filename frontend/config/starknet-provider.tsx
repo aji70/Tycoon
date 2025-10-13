@@ -5,12 +5,14 @@ import { sepolia, mainnet } from "@starknet-react/chains";
 import {
   StarknetConfig,
   jsonRpcProvider,
-  cartridge, // Import for explorer
+  argent,
+  braavos,
+  cartridge,
 } from "@starknet-react/core";
 import { ControllerConnector } from "@cartridge/connector";
 import { constants } from "starknet";
 
-// Create the connector *outside* the component (simplified, no theme/namespace/slot)
+// Connector unchanged (uses Cartridge RPC for wallet ops)
 const cartridgeConnector = new ControllerConnector({
   defaultChainId: constants.StarknetChainId.SN_SEPOLIA,
   chains: [
@@ -20,29 +22,26 @@ const cartridgeConnector = new ControllerConnector({
     },
     {
       ...sepolia,
-      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_8",
+      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia",
     },
   ],
 });
 
 export function StarknetProvider({ children }: { children: React.ReactNode }) {
-  // Custom provider with Cartridge RPCs
+  // Switch to official Starknet RPCs (supports pending for reads)
   const provider = jsonRpcProvider({
     rpc: (chain) => {
       switch (chain) {
         case mainnet:
-          return { nodeUrl: "https://api.cartridge.gg/x/starknet/mainnet" };
+          return { nodeUrl: "https://rpc.mainnet.starknet.io/rpc/v0_8_0" };
         case sepolia:
         default:
-          return { nodeUrl: "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_8" };
+          return { nodeUrl: "https://rpc.sepolia.starknet.io/rpc/v0_8_0" };
       }
     },
   });
 
-  // Optional: Include other connectors if you want multi-wallet support
-  const connectors = [
-    cartridgeConnector,
-  ];
+  const connectors = [cartridgeConnector, argent(), braavos()];
 
   return (
     <StarknetConfig
@@ -51,7 +50,7 @@ export function StarknetProvider({ children }: { children: React.ReactNode }) {
       connectors={connectors}
       explorer={cartridge}
       autoConnect={true}
-      defaultChainId={sepolia.id} // Matches your Sepolia focus
+      defaultChainId={sepolia.id}
     >
       {children}
     </StarknetConfig>
