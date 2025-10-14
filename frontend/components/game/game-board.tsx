@@ -78,7 +78,7 @@ const TOKEN_EMOJIS: { [key: string]: string } = {
 };
 
 const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
-  <span className="text-lg">{TOKEN_EMOJIS[token.toLowerCase()] || token}</span>
+  <span className="text-2xl md:text-3xl lg:text-4xl">{TOKEN_EMOJIS[token.toLowerCase()] || token}</span>
 );
 
 /**
@@ -89,6 +89,7 @@ const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
  * - Uses gameId query parameter and automatic game status polling
  * - Includes commented Solidity backend logic for reference
  * - Maintains accessibility with ARIA labels and mobile-responsive design
+ * - Updated to make player token icons bigger
  */
 
 const GameBoard = () => {
@@ -777,6 +778,8 @@ const GameBoard = () => {
     return square.gridPosition.row === 1;
   };
 
+  
+
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
@@ -948,7 +951,7 @@ const GameBoard = () => {
                         .map((p) => (
                           <span
                             key={p.id}
-                            className={`md:text-2xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
+                            className={`md:text-3xl lg:text-4xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
                           >
                             <TokenIcon token={p.token || playerTokens[p.address] || ''} />
                           </span>

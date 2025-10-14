@@ -121,7 +121,7 @@ const Players = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedRequestedProperties, setSelectedRequestedProperties] = useState<number[]>([])
-
+  
   const decimalAddress = useMemo(() => address ? BigInt(address).toString() : '', [address]);
 
   // Load game ID from query params or localStorage
@@ -809,11 +809,11 @@ const Players = () => {
     if (myPlayer) {
       console.log('My properties_owned:', myPlayer.properties_owned);
     }
-  }, [myPlayer]); // Debug log
+  }, [myPlayer]);
 
   const ownedPropertiesList = useMemo(() => {
-    console.log('useMemo trigger - myPlayer:', myPlayer); // Debug log
-    console.log('useMemo trigger - ownedProperties:', ownedProperties); // Debug log
+    console.log('useMemo trigger - myPlayer:', myPlayer);
+    console.log('useMemo trigger - ownedProperties:', ownedProperties);
     if (!myPlayer || !myPlayer.properties_owned || myPlayer.properties_owned.length === 0) {
       console.log('ownedPropertiesList empty: No properties owned');
       return []
@@ -880,20 +880,7 @@ const Players = () => {
         `}
       >
         <div className="w-full h-full flex flex-col gap-8">
-          <div className="w-full sticky top-0 bg-[#010F10]/95 py-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h4 className={`font-[700] font-dmSans text-[18px] text-[#F0F7F7] ${!isSidebarOpen && 'hidden'}`}>
-                Players
-              </h4>
-              <button
-                onClick={handleGameIdSubmit}
-                className={`inline-block px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-md hover:from-green-700 hover:to-emerald-700 transition-all duration-200 ${!isSidebarOpen && 'hidden'}`}
-                aria-label={`Submit Game ID ${gameId || 'N/A'}`}
-              >
-                {gameId || 'N/A'}
-              </button>
-              <TokenIcon token={myPlayer?.token || ''} />
-            </div>
+          <div className="w-full sticky top-0 bg-[#010F10]/95 py-5 flex items-center justify-end">
             <button
               onClick={toggleSidebar}
               className="text-[#F0F7F7] lg:hidden transition-colors duration-300 hover:text-cyan-300"
@@ -906,7 +893,17 @@ const Players = () => {
           {/* Players Section */}
           <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
-              <h5 className="text-[14px] font-semibold text-cyan-300 mb-3">Players</h5>
+              <div className="flex items-center gap-2 mb-3">
+                <h5 className="text-[14px] font-semibold text-cyan-300">Players</h5>
+                <button
+                  onClick={handleGameIdSubmit}
+                  className="inline-block px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-md hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+                  aria-label={`Submit Game ID ${gameId || 'N/A'}`}
+                >
+                  {gameId || 'N/A'}
+                </button>
+                <TokenIcon token={myPlayer?.token || ''} />
+              </div>
               <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
                 {players.map((player, index) => (
                   <li
@@ -931,45 +928,36 @@ const Players = () => {
                   </li>
                 ))}
               </ul>
-              {isLoading ? (
-                <p className="text-white text-sm">Loading game data...</p>
-              ) : game ? (
-                <div className="space-y-1">
-                  <p className="text-sm text-white"><strong>Current Player:</strong> {game.currentPlayer}</p>
-                </div>
-              ) : (
-                <p className="text-white text-sm">No game data available.</p>
+              {isLoading && (
+                <p className="text-white text-sm mt-3">Loading game data...</p>
               )}
-            </div>
-          </div>
-
-          {/* Current Property Section (Compact, styled like player cards) */}
-          <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
-              <h5 className="text-[14px] font-semibold text-cyan-300 mb-3">Current Property</h5>
-              {isLoading ? (
-                <p className="text-[#A0B1B8] text-[13px] text-center">Loading...</p>
-              ) : currentProperty ? (
-                <div
-                  className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300"
-                  aria-label={`Current property: ${currentProperty.name}`}
-                >
+              {/* Current Property Section (Compact, inside Players div) */}
+              <div className="mt-4">
+                <h6 className="text-[13px] font-semibold text-cyan-300 mb-2">Current Property</h6>
+                {isLoading ? (
+                  <p className="text-[#A0B1B8] text-[12px] text-center">Loading...</p>
+                ) : currentProperty ? (
                   <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: currentProperty.color || '#FFFFFF' }}
-                  />
-                  <div className="flex-1">
-                    <span className="font-medium">
-                      {currentProperty.name || 'Unknown'} (ID: {currentProperty.id})
-                    </span>
-                    <span className="block text-[11px] text-[#A0B1B8]">
-                      Owner: {currentProperty.owner || 'None'} | Rent: ${currentProperty.rent_site_only || 0}
-                    </span>
+                    className="p-2 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[12px] flex items-center gap-2 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300"
+                    aria-label={`Current property: ${currentProperty.name}`}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: currentProperty.color || '#FFFFFF' }}
+                    />
+                    <div className="flex-1">
+                      <span className="font-medium">
+                        {currentProperty.name || 'Unknown'} (ID: {currentProperty.id})
+                      </span>
+                      <span className="block text-[10px] text-[#A0B1B8]">
+                        Owner: {currentProperty.owner || 'None'} | Rent: ${currentProperty.rent_site_only || 0}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-[#A0B1B8] text-[13px] text-center">No property data available.</p>
-              )}
+                ) : (
+                  <p className="text-[#A0B1B8] text-[12px] text-center">No property data available.</p>
+                )}
+              </div>
             </div>
           </div>
 
