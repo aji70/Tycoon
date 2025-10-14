@@ -193,7 +193,7 @@ const Players = () => {
     return symbolVariant ? symbolVariant.toLowerCase() : '';
   };
 
-  const loadGameData = async (playerAddress: string, gid: number, isSilent: boolean = false) => {
+  const loadGameData = async (playerAddress: string | bigint, gid: number, isSilent: boolean = false) => {
     console.log('Expected player address (from manual query):', '135468865440775691766709935916620667041655899686403319246123751585737847380'); // Debug log
     console.log('Input to getPlayer:', String(playerAddress).toLowerCase()); // Debug log
     if (!isSilent) {
