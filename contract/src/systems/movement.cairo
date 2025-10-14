@@ -269,7 +269,7 @@ pub mod movement {
 
             player.paid_rent = true;
 
-            game = self.finish_turn(game);
+            game = self.finish(game.id);
             world.write_model(@player);
             world.write_model(@game);
             world.write_model(@property);
@@ -363,7 +363,7 @@ pub mod movement {
             }
 
             player.paid_rent = true;
-            game = self.finish_turn(game);
+            game = self.finish(game.id);
             world.write_model(@player);
             world.write_model(@game);
             world.write_model(@property);
@@ -406,6 +406,36 @@ pub mod movement {
                 i += 1;
             };
             count
+        }
+
+          fn finish(ref self: ContractState, game_id: u256) -> Game {
+            let mut world = self.world_default();
+            let caller = get_caller_address();
+            let mut index = 0;
+            let mut current_index = 0;
+            let mut game: Game = world.read_model(game_id);
+            let players_len = game.game_players.len();
+            let mut player: GamePlayer = world.read_model((caller, game_id));
+            assert!(game.status == GameStatus::Ongoing, "Game has not started yet ");
+            assert!(game.next_player == caller, "Not your turn");
+            assert!(player.rolled_dice, "You must roll the dice");
+
+            while index < players_len {
+                let player = game.game_players.at(index);
+                if *player == caller {
+                    current_index = index;
+                    break;
+                }
+                index += 1;
+            };
+
+            let next_index = (current_index + 1) % players_len;
+            game.next_player = *game.game_players.at(next_index);
+
+            player.rolled_dice = false;
+            world.write_model(@player);
+            world.write_model(@game);
+            game
         }
 
         // Count how many utilities the owner has

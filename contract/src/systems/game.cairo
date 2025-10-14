@@ -120,6 +120,7 @@ pub mod game {
 
             let mut player: Player = world.read_model(get_caller_address());
             player.last_game = game_id;
+            player.total_games_played += 1;
 
             self.mint(get_caller_address(), game_id, 1500);
             world.write_model(@player);
@@ -151,6 +152,7 @@ pub mod game {
 
             let mut player: Player = world.read_model(get_caller_address());
             player.last_game = game_id;
+            player.total_games_played += 1;
             world.write_model(@player);
         }
 
@@ -305,6 +307,10 @@ pub mod game {
             let mut updated_game = game;
             updated_game.status = GameStatus::Ended;
             updated_game.winner = winner.address;
+            let mut p: Player = world.read_model(winner.address);
+            p.total_games_completed += 1;
+            p.total_games_won += 1;
+            world.write_model(@p);
 
             // Write back the updated game state
             world.write_model(@updated_game);
@@ -717,6 +723,11 @@ pub mod game {
 
         // Step 4: Remove player from game (set balance to 0, remove from game_players array if needed)
         player.balance = 0;
+
+        let mut p: Player = world.read_model(leaving_player);
+        p.total_games_completed += 1;
+        world.write_model(@p);
+
         // Note: Removing from game_players array requires game model update; for simplicity, mark as left
         // Assume game model has a way to track active players; here, just set next_player skip if needed
         world.write_model(@player);

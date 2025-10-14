@@ -57,7 +57,7 @@ export const boardData: BoardSquare[] = [
     color: "#F0E68C", // Khaki for Community Chest
     position: "bottom",
     gridPosition: { row: 11, col: 9 },
-    icon: "/game/seoul.svg",
+    icon: "/game/tokyo.svg",
   },
   {
     id: 3,
