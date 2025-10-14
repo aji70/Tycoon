@@ -22,7 +22,7 @@ const cartridgeConnector = new ControllerConnector({
     },
     {
       ...sepolia,
-      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_8",
+      rpcUrl: "https://api.cartridge.gg/x/starknet/sepolia",
     },
   ],
 });
@@ -36,7 +36,7 @@ export function StarknetProvider({ children }: { children: React.ReactNode }) {
           return { nodeUrl: "https://rpc.mainnet.starknet.io/rpc/v0_8_0" };
         case sepolia:
         default:
-          return { nodeUrl: "https://rpc.sepolia.starknet.io/rpc/v0_8_0" };
+          return { nodeUrl: "https://api.cartridge.gg/x/starknet/sepolia"};
       }
     },
   });

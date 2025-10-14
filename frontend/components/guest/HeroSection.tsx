@@ -267,9 +267,9 @@ const HeroSection = () => {
               </button>
             </>
           )}
-          {error && (
+          {/* {error && (
             <p className="text-red-400 text-sm text-center mt-2">{error}</p>
-          )}
+          )} */}
           {!address && (
             <p className="text-gray-400 text-sm text-center mt-2">
               Please connect your wallet to continue.
