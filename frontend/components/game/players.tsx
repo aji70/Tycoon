@@ -157,7 +157,7 @@ const Players = () => {
         await loadGameData(address, gameId, true);
       } catch (err) {
       }
-    }, 2000); // Poll every 2 seconds
+    }, 5000); // Poll every 2 seconds
 
     return () => clearInterval(pollInterval);
   }, [address, gameId]);

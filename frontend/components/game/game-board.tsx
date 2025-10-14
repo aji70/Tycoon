@@ -151,7 +151,7 @@ const GameBoard = () => {
         await loadGameData(gameId);
       } catch (err) {
       }
-    }, 2500); // Poll every 5 seconds
+    }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(pollInterval);
   }, [address, gameId]);
