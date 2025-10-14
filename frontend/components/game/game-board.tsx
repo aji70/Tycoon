@@ -78,7 +78,7 @@ const TOKEN_EMOJIS: { [key: string]: string } = {
 };
 
 const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
-  <span className="text-2xl md:text-3xl lg:text-4xl">{TOKEN_EMOJIS[token.toLowerCase()] || token}</span>
+  <span className="text-xl md:text-2xl lg:text-3xl">{TOKEN_EMOJIS[token.toLowerCase()] || token}</span>
 );
 
 /**
@@ -89,9 +89,9 @@ const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
  * - Uses gameId query parameter and automatic game status polling
  * - Includes commented Solidity backend logic for reference
  * - Maintains accessibility with ARIA labels and mobile-responsive design
- * - Updated to make player token icons bigger
+ * - Updated to make player token icons bigger with better spacing for multiple players
+ * - Enhanced Congratulations modal with dynamic visuals and animations
  */
-
 const GameBoard = () => {
   const { account, address } = useAccount();
   const gameActions = useGameActions();
@@ -165,7 +165,6 @@ const GameBoard = () => {
     }
     setPreviousCurrentPlayer(current ?? null);
   }, [players]);
-  
 
   const waitForGameStatus = async (gid: number, maxAttempts: number = 5, delay: number = 2000) => {
     let attempts = 0;
@@ -226,7 +225,7 @@ const GameBoard = () => {
           const username = await playerActions.getUsernameFromAddress(addrString);
           const decodedUsername = shortString.decodeShortString(username) || `Player ${index + 1}`;
 
-          let token = getPlayerToken(playerData)
+          let token = getPlayerToken(playerData);
           if (!token || assignedTokens.includes(token)) {
             token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || '';
           }
@@ -267,7 +266,7 @@ const GameBoard = () => {
             const playerData = await gameActions.getPlayer(addr, gid);
             const username = await playerActions.getUsernameFromAddress(addr);
             const decodedUsername = shortString.decodeShortString(username) || `Player ${gamePlayers.length + index + 1}`;
-            let token = getPlayerToken(playerData)
+            let token = getPlayerToken(playerData);
             if (!token || assignedTokens.includes(token)) {
               token = PLAYER_TOKENS.find((t) => !assignedTokens.includes(t)) || '';
             }
@@ -306,13 +305,10 @@ const GameBoard = () => {
 
       // Detect changes if already loaded and not skipping detection
       if (hasLoaded && !skipDetection) {
-        // Previous players map by address
-        const prevPlayersMap = new Map(players.map(p => [p.address, p]));
-        // Previous owned map
+        const prevPlayersMap = new Map(players.map((p) => [p.address, p]));
         const prevOwnedMap = new Map(Object.entries(ownedProperties).map(([id, prop]) => [id, prop]));
 
-        // Detect turn changes
-        allPlayers.forEach(newP => {
+        allPlayers.forEach((newP) => {
           const prevP = prevPlayersMap.get(newP.address);
           if (prevP && prevP.isNext !== newP.isNext) {
             if (!prevP.isNext && newP.isNext) {
@@ -323,8 +319,7 @@ const GameBoard = () => {
           }
         });
 
-        // Detect moves and payments per player
-        allPlayers.forEach(newP => {
+        allPlayers.forEach((newP) => {
           const prevP = prevPlayersMap.get(newP.address);
           if (prevP) {
             let logMessage = '';
@@ -339,7 +334,7 @@ const GameBoard = () => {
             let posName = '';
 
             if (moved) {
-              const square = boardData.find(s => s.id === newP.position);
+              const square = boardData.find((s) => s.id === newP.position);
               posName = square?.name || newP.position.toString();
               logMessage = `${newP.username} moved to ${posName}`;
               if (square?.type === 'property') {
@@ -349,7 +344,7 @@ const GameBoard = () => {
                     isOwnProperty = true;
                     logMessage += ' (own property)';
                   } else {
-                    const ownerPlayer = allPlayers.find(p => p.address === ownerAddr);
+                    const ownerPlayer = allPlayers.find((p) => p.address === ownerAddr);
                     ownerU = ownerPlayer?.username || 'Unknown';
                     rentDue = Number(square.rent_site_only || 0);
                     logMessage += `, owned by ${ownerU}`;
@@ -383,12 +378,11 @@ const GameBoard = () => {
           }
         });
 
-        // Detect buys
         Object.entries(ownershipMap).forEach(([propIdStr, newProp]) => {
           const propId = Number(propIdStr);
           const prevProp = prevOwnedMap.get(propIdStr);
           if (!prevProp && newProp && newProp.owner !== String(address).toLowerCase()) {
-            const square = boardData.find(s => s.id === propId);
+            const square = boardData.find((s) => s.id === propId);
             const price = square?.price || 0;
             addActionLog(`${newProp.ownerUsername} bought ${square?.name || propId} for $${price}`);
           }
@@ -414,14 +408,13 @@ const GameBoard = () => {
 
       setOwnedProperties(ownershipMap);
 
-      // Set current property based on current player's position
-      const currentPlayer = allPlayers.find(p => p.isNext);
+      const currentPlayer = allPlayers.find((p) => p.isNext);
       if (currentPlayer) {
-        const square = boardData.find(s => s.id === currentPlayer.position);
+        const square = boardData.find((s) => s.id === currentPlayer.position);
         if (square) {
           let decodedName = square.name || 'Unknown';
           if (square.type === 'property') {
-            const propIndex = boardData.filter(s => s.type === 'property').findIndex(s => s.id === square.id);
+            const propIndex = boardData.filter((s) => s.type === 'property').findIndex((s) => s.id === square.id);
             if (propIndex !== -1) {
               const propData = propertyDataArray[propIndex];
               if (propData.name && propData.name !== '0') {
@@ -444,13 +437,12 @@ const GameBoard = () => {
         setCurrentProperty(null);
       }
 
-      // Check for winner if game is finished
       const statusVariant = gameData.status?.variant;
       const isEnded = statusVariant && 'Ended' in statusVariant;
       let newWinner: string | null = null;
       if (isEnded && gameData.winner) {
         const winnerAddress = String(gameData.winner).toLowerCase();
-        const winnerPlayer = allPlayers.find(p => p.address === winnerAddress);
+        const winnerPlayer = allPlayers.find((p) => p.address === winnerAddress);
         const winnerUsername = winnerPlayer?.username || shortString.decodeShortString(String(gameData.winner)) || 'Unknown';
         newWinner = winnerUsername;
         if (!winner && winnerUsername !== 'No winner (0)') {
@@ -471,12 +463,11 @@ const GameBoard = () => {
     }
   };
 
-  const currentPlayer = () => players.find(p => p.isNext);
+  const currentPlayer = () => players.find((p) => p.isNext);
   const isUsersTurn = () => address && currentPlayer()?.address === String(address).toLowerCase();
 
   const addActionLog = (message: string) => {
-    setActionLog(prev => {
-      // Check last 3 entries to prevent recent duplicates
+    setActionLog((prev) => {
       if (prev.slice(-3).includes(message)) {
         return prev;
       }
@@ -537,7 +528,6 @@ const GameBoard = () => {
       const username = currentPlayer()?.username || 'You';
       addActionLog(`${username} rolled ${die1} + ${die2} = ${roll}`);
       await loadGameData(gameId, true);
-      // Log landing details for current user
       if (currentProperty && currentPlayer()) {
         const currPlayer = currentPlayer();
         if (currentProperty.type === 'property') {
@@ -549,8 +539,7 @@ const GameBoard = () => {
               addActionLog(`Landed on ${currentProperty.name} owned by ${currentProperty.ownerUsername}. Rent due: $${currentProperty.rent_site_only}`);
             }
           } else {
-            // Unowned, buy option available
-            const square = boardData.find(s => s.id === currentProperty.id);
+            const square = boardData.find((s) => s.id === currentProperty.id);
             const cost = square?.price || 0;
             addActionLog(`Landed on unowned ${currentProperty.name}. Buy for $${cost}`);
           }
@@ -622,7 +611,7 @@ const GameBoard = () => {
       setIsLoading(true);
       setError(null);
       await propertyActions.buyProperty(account, currentPlayerObj.position, gameId);
-      const square = boardData.find(s => s.id === currentProperty.id);
+      const square = boardData.find((s) => s.id === currentProperty.id);
       const price = square?.price || 0;
       const username = currentPlayer()?.username || 'You';
       addActionLog(`${username} bought ${currentProperty.name} for $${price}`);
@@ -778,17 +767,13 @@ const GameBoard = () => {
     return square.gridPosition.row === 1;
   };
 
-  
-
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-        {/* Rotate Prompt for Mobile Portrait */}
         <div className="rotate-prompt hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 text-center text-white p-4">
           <p className="text-lg font-semibold">Please rotate your device to landscape mode for the best experience.</p>
         </div>
 
-        {/* Board Section */}
         <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
           <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
             <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
@@ -878,9 +863,6 @@ const GameBoard = () => {
                         Leave Game
                       </button>
                     </div>
-                    {/* {error && (
-                      <p className="text-red-400 text-sm mt-2 text-center">{error}</p>
-                    )} */}
                   </div>
                 </div>
                 {selectedCard && (
@@ -945,13 +927,13 @@ const GameBoard = () => {
                     )}
                     {square.type === 'special' && <SpecialCard square={square} />}
                     {square.type === 'corner' && <CornerCard square={square} />}
-                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
+                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">
                       {players
                         .filter((p) => p.position === index)
                         .map((p) => (
                           <span
                             key={p.id}
-                            className={`md:text-3xl lg:text-4xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
+                            className={`md:text-2xl lg:text-3xl ${p.isNext ? 'border-2 border-cyan-300 rounded' : ''}`}
                           >
                             <TokenIcon token={p.token || playerTokens[p.address] || ''} />
                           </span>
@@ -964,36 +946,108 @@ const GameBoard = () => {
           </div>
         </div>
 
-        {/* Winner Modal */}
         {showWinnerModal && winner && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-[#010F10] border-2 border-cyan-500 rounded-lg p-8 max-w-md w-full text-center relative shadow-2xl shadow-cyan-500/50">
-              <h2 className="text-3xl font-bold text-cyan-300 mb-4">Congratulations!</h2>
-              <p className="text-xl text-white mb-6">Winner: <span className="text-yellow-300">{winner}</span></p>
-              <div className="flex flex-wrap justify-center gap-2 mb-6">
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="text-3xl animate-bounce"
-                    style={{ animationDelay: `${i * 0.1}s` }}
-                  >
-                    {i % 2 === 0 ? '🎈' : '🎉'}
-                  </span>
-                ))}
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div
+              className="relative bg-gradient-to-br from-yellow-600 via-cyan-600 to-blue-600 rounded-2xl p-8 max-w-lg w-full text-center shadow-2xl shadow-yellow-500/50 animate-pop-in"
+              aria-labelledby="winner-modal-title"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-4">🏆</div>
+                <h2 id="winner-modal-title" className="text-4xl md:text-5xl font-bold text-white font-orbitron mb-4">
+                  Victory!
+                </h2>
+                <p className="text-2xl md:text-3xl text-yellow-200 mb-6">
+                  Champion: <span className="text-yellow-100 font-bold">{winner}</span>
+                </p>
+                <div className="flex flex-wrap justify-center gap-3 mb-6 relative h-16">
+                  {Array.from({ length: 15 }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={`text-2xl md:text-3xl absolute animate-confetti`}
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                        animationDelay: `${i * 0.15}s`,
+                        animationDuration: `${2 + Math.random() * 2}s`,
+                      }}
+                    >
+                      {['🎉', '🎈', '✨', '🥳'][Math.floor(Math.random() * 4)]}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowWinnerModal(false);
+                    router.push('/');
+                  }}
+                  className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-8 py-3 rounded-full text-lg font-semibold hover:from-yellow-600 hover:to-orange-600 transform hover:scale-110 transition-all duration-300 animate-pulse-slow"
+                  aria-label="Close winner modal and return to home"
+                >
+                  Celebrate & Exit
+                </button>
+                {/* Optional: Add sound effect for celebration */}
+                {/* <audio autoPlay src="/sounds/victory.mp3" /> */}
               </div>
-              <button
-                onClick={() => {
-                  setShowWinnerModal(false);
-                  router.push('/');
-                }}
-                className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 text-lg font-semibold"
-              >
-                Close
-              </button>
             </div>
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes pop-in {
+          0% {
+            transform: scale(0.5);
+            opacity: 0;
+          }
+          80% {
+            transform: scale(1.1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes confetti {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.8;
+          }
+          100% {
+            transform: translateY(-100px) rotate(360deg);
+            opacity: 0;
+          }
+        }
+        @keyframes pulse-slow {
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
+          }
+          70% {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px 5px rgba(255, 215, 0, 0);
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+          }
+        }
+        .animate-pop-in {
+          animation: pop-in 0.5s ease-out;
+        }
+        .animate-confetti {
+          animation: confetti ${2 + Math.random() * 2}s ease-out forwards;
+        }
+        .animate-pulse-slow {
+          animation: pulse-slow 2s infinite;
+        }
+      `}</style>
     </ErrorBoundary>
   );
 };

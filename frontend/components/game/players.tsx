@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronUp, ChevronDown, Handshake, CheckCircle, Repeat, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronUp, ChevronDown, Handshake, CheckCircle, Repeat } from 'lucide-react'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccount } from '@starknet-react/core'
@@ -82,7 +82,7 @@ const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
 
 const Players = () => {
   const { account, address } = useAccount()
-  console.log('Sidebar connected address (useAccount):', address ? String(address).toLowerCase() : 'No wallet'); // Debug log
+  console.log('Sidebar connected address (useAccount):', address ? String(address).toLowerCase() : 'No wallet');
   const gameActions = useGameActions()
   const playerActions = usePlayerActions()
   const movementActions = useMovementActions()
@@ -121,6 +121,7 @@ const Players = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedRequestedProperties, setSelectedRequestedProperties] = useState<number[]>([])
+  const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null)
   
   const decimalAddress = useMemo(() => address ? BigInt(address).toString() : '', [address]);
 
@@ -196,8 +197,8 @@ const Players = () => {
   };
 
   const loadGameData = async (playerAddress: string | bigint, gid: number, isSilent: boolean = false) => {
-    console.log('Expected player address (from manual query):', '135468865440775691766709935916620667041655899686403319246123751585737847380'); // Debug log
-    console.log('Input to getPlayer:', String(playerAddress).toLowerCase()); // Debug log
+    console.log('Expected player address (from manual query):', '135468865440775691766709935916620667041655899686403319246123751585737847380');
+    console.log('Input to getPlayer:', String(playerAddress).toLowerCase());
     if (!isSilent) {
       setIsLoading(true)
       setError(null)
@@ -247,17 +248,6 @@ const Players = () => {
         .filter((square) => square.type === 'property')
         .map((square) => propertyActions.getProperty(square.id, gid))
       const propertyDataArray = await Promise.all(propertyPromises)
-
-      // Debug log for specific properties
-      const boardProperties = boardData.filter((s) => s.type === 'property');
-      const index3 = boardProperties.findIndex((s) => s.id === 3);
-      const index19 = boardProperties.findIndex((s) => s.id === 19);
-      console.log('Property data for ID 3 (index', index3, '):', index3 !== -1 ? propertyDataArray[index3] : 'ID 3 not a property');
-      console.log('Its owner:', index3 !== -1 ? (propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner) : 'None') : 'N/A');
-      console.log('Property data for ID 19 (index', index19, '):', index19 !== -1 ? propertyDataArray[index19] : 'ID 19 not a property');
-      console.log('Its owner:', index19 !== -1 ? (propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner) : 'None') : 'N/A');
-      console.log('Does ID 3 owner match expected player?', index3 !== -1 && propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
-      console.log('Does ID 19 owner match expected player?', index19 !== -1 && propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
 
       const propertyOwners = new Set<string>()
       propertyDataArray.forEach((propertyData) => {
@@ -309,14 +299,13 @@ const Players = () => {
         currentPlayer: allPlayers.find((p) => p.isNext)?.username || 'Unknown',
       })
 
-      // Normalize address for getPlayer if needed
       const normalizedAddress = typeof playerAddress === 'bigint' ? playerAddress.toString() : String(playerAddress);
-      console.log('Normalized playerAddress for getPlayer:', normalizedAddress); // Debug log
+      console.log('Normalized playerAddress for getPlayer:', normalizedAddress);
       const playerData = await gameActions.getPlayer(normalizedAddress, gid);
-      console.log('Fetched playerData full object:', playerData); // Debug log
-      console.log('Fetched playerData.address:', playerData.address ? String(playerData.address) : 'No address'); // Debug log
-      console.log('Fetched playerData.properties_owned (parsed):', (playerData.properties_owned || []).map((p: any) => Number(p))); // Debug log
-      console.log('Does fetched address match expected?', playerData.address ? String(playerData.address) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false); // Debug log
+      console.log('Fetched playerData full object:', playerData);
+      console.log('Fetched playerData.address:', playerData.address ? String(playerData.address) : 'No address');
+      console.log('Fetched playerData.properties_owned (parsed):', (playerData.properties_owned || []).map((p: any) => Number(p)));
+      console.log('Does fetched address match expected?', playerData.address ? String(playerData.address) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
       const decodedPlayerUsername = shortString.decodeShortString(playerData.username) || 'Unknown'
       const playerToken = getPlayerToken(playerData) || playerTokensMap[BigInt(normalizedAddress).toString()] || ''
 
@@ -349,10 +338,10 @@ const Players = () => {
           }
         }
       })
-      console.log('Full ownedProperties map:', ownershipMap); // Debug log
-      console.log('ownedProperties map entries for ID 3:', ownershipMap[3]); // Debug log
-      console.log('ownedProperties map entries for ID 19:', ownershipMap[19]); // Debug log
-      console.log('Full ownedProperties keys:', Object.keys(ownershipMap).map(Number)); // Debug log
+      console.log('Full ownedProperties map:', ownershipMap);
+      console.log('ownedProperties map entries for ID 3:', ownershipMap[3]);
+      console.log('ownedProperties map entries for ID 19:', ownershipMap[19]);
+      console.log('Full ownedProperties keys:', Object.keys(ownershipMap).map(Number));
       setOwnedProperties(ownershipMap)
 
       const position = Number(playerData.position || 0)
@@ -425,7 +414,7 @@ const Players = () => {
     setIsPropertiesOpen(!isPropertiesOpen)
   }
 
-  const openModal = (modal: keyof typeof modalState) => {
+  const openModal = (modal: keyof typeof modalState, propertyId?: number) => {
     setModalState({
       offerTrade: false,
       manageTrades: false,
@@ -436,6 +425,9 @@ const Players = () => {
     })
     if (modal === 'offerTrade') {
       setSelectedRequestedProperties([])
+    }
+    if (modal === 'management' && propertyId != null) {
+      setSelectedPropertyId(propertyId)
     }
   }
 
@@ -458,6 +450,7 @@ const Players = () => {
       tradeId: '',
       originalOfferId: '',
     })
+    setSelectedPropertyId(null)
   }
 
   const handleOfferTrade = async () => {
@@ -663,19 +656,19 @@ const Players = () => {
   }
 
   const handleBuyHouse = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
-      setError('Cannot buy house: Invalid position or not owned.')
+    if (!account || !gameId || !player || !selectedPropertyId || ownedProperties[selectedPropertyId]?.owner !== decimalAddress) {
+      setError('Cannot buy house: Invalid property or not owned.')
       return
     }
-    const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development >= 4 || ownedProperties[player.position]?.development > 4) {
+    const square = boardData.find((s) => s.id === selectedPropertyId)
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[selectedPropertyId]?.development >= 4) {
       setError('Cannot buy house: Invalid property, max houses reached, or hotel already built.')
       return
     }
     try {
       setIsLoading(true)
       setError(null)
-      await propertyActions.buyHouseOrHotel(account, player.position, gameId)
+      await propertyActions.buyHouseOrHotel(account, selectedPropertyId, gameId)
       if (address && gameId !== null) {
         await loadGameData(address, gameId, true)
       }
@@ -688,19 +681,19 @@ const Players = () => {
   }
 
   const handleBuyHotel = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
-      setError('Cannot buy hotel: Invalid position or not owned.')
+    if (!account || !gameId || !player || !selectedPropertyId || ownedProperties[selectedPropertyId]?.owner !== decimalAddress) {
+      setError('Cannot buy hotel: Invalid property or not owned.')
       return
     }
-    const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development < 4 || ownedProperties[player.position]?.development > 4) {
+    const square = boardData.find((s) => s.id === selectedPropertyId)
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[selectedPropertyId]?.development < 4) {
       setError('Cannot buy hotel: Invalid property, requires 4 houses, or hotel already built.')
       return
     }
     try {
       setIsLoading(true)
       setError(null)
-      await propertyActions.buyHouseOrHotel(account, player.position, gameId)
+      await propertyActions.buyHouseOrHotel(account, selectedPropertyId, gameId)
       if (address && gameId !== null) {
         await loadGameData(address, gameId, true)
       }
@@ -713,19 +706,19 @@ const Players = () => {
   }
 
   const handleSellHouse = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
-      setError('Cannot sell house: Invalid position or not owned.')
+    if (!account || !gameId || !player || !selectedPropertyId || ownedProperties[selectedPropertyId]?.owner !== decimalAddress) {
+      setError('Cannot sell house: Invalid property or not owned.')
       return
     }
-    const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development === 0) {
+    const square = boardData.find((s) => s.id === selectedPropertyId)
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[selectedPropertyId]?.development === 0) {
       setError('Cannot sell house: Invalid property or no houses to sell.')
       return
     }
     try {
       setIsLoading(true)
       setError(null)
-      await propertyActions.sellHouseOrHotel(account, player.position, gameId)
+      await propertyActions.sellHouseOrHotel(account, selectedPropertyId, gameId)
       if (address && gameId !== null) {
         await loadGameData(address, gameId, true)
       }
@@ -738,19 +731,19 @@ const Players = () => {
   }
 
   const handleSellHotel = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
-      setError('Cannot sell hotel: Invalid position or not owned.')
+    if (!account || !gameId || !player || !selectedPropertyId || ownedProperties[selectedPropertyId]?.owner !== decimalAddress) {
+      setError('Cannot sell hotel: Invalid property or not owned.')
       return
     }
-    const square = boardData.find((s) => s.id === player.position)
-    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[player.position]?.development === 0) {
+    const square = boardData.find((s) => s.id === selectedPropertyId)
+    if (!square || square.type !== 'property' || !square.cost_of_house || ownedProperties[selectedPropertyId]?.development !== 5) {
       setError('Cannot sell hotel: Invalid property or no hotel to sell.')
       return
     }
     try {
       setIsLoading(true)
       setError(null)
-      await propertyActions.sellHouseOrHotel(account, player.position, gameId)
+      await propertyActions.sellHouseOrHotel(account, selectedPropertyId, gameId)
       if (address && gameId !== null) {
         await loadGameData(address, gameId, true)
       }
@@ -763,14 +756,14 @@ const Players = () => {
   }
 
   const handleMortgageProperty = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
-      setError('Cannot mortgage: Invalid position or not owned.')
+    if (!account || !gameId || !player || !selectedPropertyId || ownedProperties[selectedPropertyId]?.owner !== decimalAddress) {
+      setError('Cannot mortgage: Invalid property or not owned.')
       return
     }
     try {
       setIsLoading(true)
       setError(null)
-      await propertyActions.mortgageProperty(account, player.position, gameId)
+      await propertyActions.mortgageProperty(account, selectedPropertyId, gameId)
       if (address && gameId !== null) {
         await loadGameData(address, gameId, true)
       }
@@ -783,14 +776,14 @@ const Players = () => {
   }
 
   const handleUnmortgageProperty = async () => {
-    if (!account || !gameId || !player) {
-      setError('Cannot unmortgage: Invalid position.')
+    if (!account || !gameId || !player || !selectedPropertyId) {
+      setError('Cannot unmortgage: Invalid property.')
       return
     }
     try {
       setIsLoading(true)
       setError(null)
-      await propertyActions.unmortgageProperty(account, player.position, gameId)
+      await propertyActions.unmortgageProperty(account, selectedPropertyId, gameId)
       if (address && gameId !== null) {
         await loadGameData(address, gameId, true)
       }
@@ -879,8 +872,15 @@ const Players = () => {
           ${isSidebarOpen ? 'lg:w-[300px] md:w-3/5 w-full' : 'lg:w-[60px] w-full'}
         `}
       >
-        <div className="w-full h-full flex flex-col gap-8">
-          <div className="w-full sticky top-0 bg-[#010F10]/95 py-5 flex items-center justify-end">
+        <div className="w-full h-full flex flex-col gap-4">
+          <div className="w-full sticky top-0 bg-[#010F10]/95 py-2 flex items-center justify-between">
+            <button
+              onClick={handleGameIdSubmit}
+              className="inline-block px-3 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-sm rounded-md hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+              aria-label={`Submit Game ID ${gameId || 'N/A'}`}
+            >
+              Game ID: {gameId || 'N/A'}
+            </button>
             <button
               onClick={toggleSidebar}
               className="text-[#F0F7F7] lg:hidden transition-colors duration-300 hover:text-cyan-300"
@@ -893,17 +893,6 @@ const Players = () => {
           {/* Players Section */}
           <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
-              <div className="flex items-center gap-2 mb-3">
-                <h5 className="text-[14px] font-semibold text-cyan-300">Players</h5>
-                <button
-                  onClick={handleGameIdSubmit}
-                  className="inline-block px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-md hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
-                  aria-label={`Submit Game ID ${gameId || 'N/A'}`}
-                >
-                  {gameId || 'N/A'}
-                </button>
-                <TokenIcon token={myPlayer?.token || ''} />
-              </div>
               <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
                 {players.map((player, index) => (
                   <li
@@ -964,7 +953,7 @@ const Players = () => {
           {/* Properties Section */}
           <div className={`w-full flex flex-col gap-6 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="w-full flex flex-col gap-4">
-              <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7]'>My Properties</h4>
+              <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7]'>My Empire</h4>
               <div className="flex flex-col gap-3">
                 <button
                   onClick={toggleProperties}
@@ -982,8 +971,9 @@ const Players = () => {
                           property ? (
                             <li
                               key={property.id}
+                              onClick={() => openModal('management', property.id)}
                               className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 cursor-pointer"
-                              aria-label={`Select property ${property.name}`}
+                              aria-label={`Manage property ${property.name}`}
                             >
                               <div
                                 className="w-4 h-4 rounded-full"
@@ -1004,14 +994,6 @@ const Players = () => {
                     )}
                   </div>
                 )}
-                <button
-                  onClick={() => openModal('management')}
-                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-purple-700 to-indigo-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-purple-800 hover:to-indigo-800 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  aria-label="Open property management actions"
-                >
-                  <Plus className='w-4 h-4' />
-                  Management
-                </button>
               </div>
             </div>
           </div>
@@ -1053,118 +1035,135 @@ const Players = () => {
 
       {/* Offer Trade Modal */}
       {modalState.offerTrade && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0B191A] p-6 rounded-[16px] w-full max-w-md border border-white/10">
-            <h3 className="text-lg font-semibold text-cyan-300 mb-4">Offer Trade</h3>
-            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">To Player</label>
-                <select
-                  value={tradeInputs.to}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, to: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Select player to trade with"
-                >
-                  <option value="">Select Player</option>
-                  {players
-                    .filter((p) => p.address !== decimalAddress)
-                    .map((p) => (
-                      <option key={p.address} value={p.address}>
-                        {p.username}
-                      </option>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            aria-labelledby="offer-trade-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">🤝</div>
+              <h3 id="offer-trade-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                Offer Trade
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">Propose a deal to another player</p>
+              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="to-player">To Player</label>
+                  <select
+                    id="to-player"
+                    value={tradeInputs.to}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, to: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Select player to trade with"
+                  >
+                    <option value="">Select Player</option>
+                    {players
+                      .filter((p) => p.address !== decimalAddress)
+                      .map((p) => (
+                        <option key={p.address} value={p.address}>
+                          {p.username}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="offered-properties">Offered Property IDs (comma-separated)</label>
+                  <input
+                    id="offered-properties"
+                    type="text"
+                    value={tradeInputs.offeredPropertyIds}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, offeredPropertyIds: e.target.value })}
+                    placeholder="e.g., 1,3,5"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter offered property IDs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1">Requested Properties</label>
+                  <div className="max-h-40 overflow-y-auto bg-gray-800/80 rounded-md border border-cyan-500/30 p-2">
+                    {otherPlayersProperties.map((property) => (
+                      <div key={property.id} className="flex items-center gap-2 py-1">
+                        <input
+                          type="checkbox"
+                          value={property.id}
+                          checked={selectedRequestedProperties.includes(property.id)}
+                          onChange={(e) => {
+                            const id = Number(e.target.value)
+                            setSelectedRequestedProperties((prev) =>
+                              prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+                            )
+                          }}
+                          className="h-4 w-4 text-cyan-500 focus:ring-cyan-500 rounded"
+                          aria-label={`Select property ${property.name} for trade`}
+                        />
+                        <span className="text-sm text-cyan-200">
+                          {property.name} (ID: {property.id}, Owner: {property.ownerUsername})
+                        </span>
+                      </div>
                     ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Offered Property IDs (comma-separated)</label>
-                <input
-                  type="text"
-                  value={tradeInputs.offeredPropertyIds}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, offeredPropertyIds: e.target.value })}
-                  placeholder="e.g., 1,3,5"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter offered property IDs"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Requested Properties</label>
-                <div className="max-h-40 overflow-y-auto bg-gray-800 rounded-md border border-gray-600 p-2">
-                  {otherPlayersProperties.map((property) => (
-                    <div key={property.id} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        value={property.id}
-                        checked={selectedRequestedProperties.includes(property.id)}
-                        onChange={(e) => {
-                          const id = Number(e.target.value)
-                          setSelectedRequestedProperties((prev) =>
-                            prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-                          )
-                        }}
-                        className="h-4 w-4 text-cyan-500 focus:ring-cyan-500"
-                        aria-label={`Select property ${property.name}`}
-                      />
-                      <span className="text-sm text-gray-300">
-                        {property.name} (ID: {property.id}, Owner: {property.ownerUsername})
-                      </span>
-                    </div>
-                  ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="cash-amount">Cash Amount</label>
+                  <input
+                    id="cash-amount"
+                    type="number"
+                    value={tradeInputs.cashAmount}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, cashAmount: e.target.value })}
+                    placeholder="Enter cash amount"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter cash amount for trade"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="cash-direction">Cash Direction</label>
+                  <select
+                    id="cash-direction"
+                    value={tradeInputs.cashDirection}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, cashDirection: e.target.value as 'offer' | 'request' })}
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Select cash direction for trade"
+                  >
+                    <option value="offer">Offer Cash</option>
+                    <option value="request">Request Cash</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="trade-type">Trade Type</label>
+                  <select
+                    id="trade-type"
+                    value={tradeInputs.tradeType}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, tradeType: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Select trade type"
+                  >
+                    <option value="property_for_property">Property for Property</option>
+                    <option value="property_for_cash">Property for Cash</option>
+                    <option value="cash_for_property">Cash for Property</option>
+                  </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Cash Amount</label>
-                <input
-                  type="number"
-                  value={tradeInputs.cashAmount}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, cashAmount: e.target.value })}
-                  placeholder="Enter cash amount"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter cash amount for trade"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Cash Direction</label>
-                <select
-                  value={tradeInputs.cashDirection}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, cashDirection: e.target.value as 'offer' | 'request' })}
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Select cash direction"
+              <div className="flex justify-center gap-3 mt-6">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  aria-label="Cancel trade offer"
                 >
-                  <option value="offer">Offer Cash</option>
-                  <option value="request">Request Cash</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Trade Type</label>
-                <select
-                  value={tradeInputs.tradeType}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, tradeType: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Select trade type"
+                  Cancel
+                </button>
+                <button
+                  onClick={handleOfferTrade}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Submit trade offer"
                 >
-                  <option value="property_for_property">Property for Property</option>
-                  <option value="property_for_cash">Property for Cash</option>
-                  <option value="cash_for_property">Cash for Property</option>
-                </select>
+                  {isLoading ? 'Submitting...' : 'Offer Trade'}
+                </button>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200"
-                aria-label="Cancel trade offer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleOfferTrade}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Submit trade offer"
-              >
-                {isLoading ? 'Submitting...' : 'Offer Trade'}
-              </button>
             </div>
           </div>
         </div>
@@ -1172,55 +1171,68 @@ const Players = () => {
 
       {/* Manage Trades Modal */}
       {modalState.manageTrades && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0B191A] p-6 rounded-[16px] w-full max-w-md border border-white/10">
-            <h3 className="text-lg font-semibold text-cyan-300 mb-4">Manage Trades</h3>
-            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Trade ID</label>
-                <input
-                  type="number"
-                  value={tradeInputs.tradeId}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, tradeId: e.target.value })}
-                  placeholder="Enter trade ID"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter trade ID to manage"
-                />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            aria-labelledby="manage-trades-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">🤝</div>
+              <h3 id="manage-trades-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                Manage Trades
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">Review and respond to trade offers</p>
+              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="trade-id">Trade ID</label>
+                  <input
+                    id="trade-id"
+                    type="number"
+                    value={tradeInputs.tradeId}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, tradeId: e.target.value })}
+                    placeholder="Enter trade ID"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter trade ID to manage"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200"
-                aria-label="Cancel manage trades"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAcceptTrade}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Accept trade"
-              >
-                {isLoading ? 'Processing...' : 'Accept'}
-              </button>
-              <button
-                onClick={handleRejectTrade}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Reject trade"
-              >
-                {isLoading ? 'Processing...' : 'Reject'}
-              </button>
-              <button
-                onClick={handleApproveCounterTrade}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-md hover:from-purple-800 hover:to-indigo-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Approve counter trade"
-              >
-                {isLoading ? 'Processing...' : 'Approve Counter'}
-              </button>
+              <div className="flex flex-wrap justify-center gap-3 mt-6">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  aria-label="Cancel manage trades"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAcceptTrade}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Accept trade"
+                >
+                  {isLoading ? 'Processing...' : 'Accept'}
+                </button>
+                <button
+                  onClick={handleRejectTrade}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Reject trade"
+                >
+                  {isLoading ? 'Processing...' : 'Reject'}
+                </button>
+                <button
+                  onClick={handleApproveCounterTrade}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-md hover:from-purple-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Approve counter trade"
+                >
+                  {isLoading ? 'Processing...' : 'Approve Counter'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1228,97 +1240,115 @@ const Players = () => {
 
       {/* Counter Trade Modal */}
       {modalState.counterTrade && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0B191A] p-6 rounded-[16px] w-full max-w-md border border-white/10">
-            <h3 className="text-lg font-semibold text-cyan-300 mb-4">Counter Trade</h3>
-            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Original Trade ID</label>
-                <input
-                  type="number"
-                  value={tradeInputs.originalOfferId}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, originalOfferId: e.target.value })}
-                  placeholder="Enter original trade ID"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter original trade ID"
-                />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            aria-labelledby="counter-trade-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">🤝</div>
+              <h3 id="counter-trade-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                Counter Trade
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">Propose a counter-offer for a trade</p>
+              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="original-trade-id">Original Trade ID</label>
+                  <input
+                    id="original-trade-id"
+                    type="number"
+                    value={tradeInputs.originalOfferId}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, originalOfferId: e.target.value })}
+                    placeholder="Enter original trade ID"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter original trade ID for counter trade"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="counter-offered-properties">Offered Property IDs (comma-separated)</label>
+                  <input
+                    id="counter-offered-properties"
+                    type="text"
+                    value={tradeInputs.offeredPropertyIds}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, offeredPropertyIds: e.target.value })}
+                    placeholder="e.g., 1,3,5"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter offered property IDs for counter trade"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="counter-requested-properties">Requested Property IDs (comma-separated)</label>
+                  <input
+                    id="counter-requested-properties"
+                    type="text"
+                    value={tradeInputs.requestedPropertyIds}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, requestedPropertyIds: e.target.value })}
+                    placeholder="e.g., 2,4,6"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter requested property IDs for counter trade"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="counter-cash-amount">Cash Amount</label>
+                  <input
+                    id="counter-cash-amount"
+                    type="number"
+                    value={tradeInputs.cashAmount}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, cashAmount: e.target.value })}
+                    placeholder="Enter cash amount"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Enter cash amount for counter trade"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="counter-cash-direction">Cash Direction</label>
+                  <select
+                    id="counter-cash-direction"
+                    value={tradeInputs.cashDirection}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, cashDirection: e.target.value as 'offer' | 'request' })}
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Select cash direction for counter trade"
+                  >
+                    <option value="offer">Offer Cash</option>
+                    <option value="request">Request Cash</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-cyan-200 mb-1" htmlFor="counter-trade-type">Trade Type</label>
+                  <select
+                    id="counter-trade-type"
+                    value={tradeInputs.tradeType}
+                    onChange={(e) => setTradeInputs({ ...tradeInputs, tradeType: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    aria-label="Select trade type for counter trade"
+                  >
+                    <option value="property_for_property">Property for Property</option>
+                    <option value="property_for_cash">Property for Cash</option>
+                    <option value="cash_for_property">Cash for Property</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Offered Property IDs (comma-separated)</label>
-                <input
-                  type="text"
-                  value={tradeInputs.offeredPropertyIds}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, offeredPropertyIds: e.target.value })}
-                  placeholder="e.g., 1,3,5"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter offered property IDs for counter trade"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Requested Property IDs (comma-separated)</label>
-                <input
-                  type="text"
-                  value={tradeInputs.requestedPropertyIds}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, requestedPropertyIds: e.target.value })}
-                  placeholder="e.g., 2,4,6"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter requested property IDs for counter trade"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Cash Amount</label>
-                <input
-                  type="number"
-                  value={tradeInputs.cashAmount}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, cashAmount: e.target.value })}
-                  placeholder="Enter cash amount"
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Enter cash amount for counter trade"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Cash Direction</label>
-                <select
-                  value={tradeInputs.cashDirection}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, cashDirection: e.target.value as 'offer' | 'request' })}
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Select cash direction for counter trade"
+              <div className="flex justify-center gap-3 mt-6">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  aria-label="Cancel counter trade"
                 >
-                  <option value="offer">Offer Cash</option>
-                  <option value="request">Request Cash</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-1">Trade Type</label>
-                <select
-                  value={tradeInputs.tradeType}
-                  onChange={(e) => setTradeInputs({ ...tradeInputs, tradeType: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Select trade type for counter trade"
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCounterTrade}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-orange-700 to-red-700 text-white rounded-md hover:from-orange-800 hover:to-red-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Submit counter trade"
                 >
-                  <option value="property_for_property">Property for Property</option>
-                  <option value="property_for_cash">Property for Cash</option>
-                  <option value="cash_for_property">Cash for Property</option>
-                </select>
+                  {isLoading ? 'Submitting...' : 'Counter Trade'}
+                </button>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200"
-                aria-label="Cancel counter trade"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCounterTrade}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-orange-700 to-red-700 text-white rounded-md hover:from-orange-800 hover:to-red-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Submit counter trade"
-              >
-                {isLoading ? 'Submitting...' : 'Counter Trade'}
-              </button>
             </div>
           </div>
         </div>
@@ -1326,38 +1356,50 @@ const Players = () => {
 
       {/* Property Actions Modal */}
       {modalState.property && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0B191A] p-6 rounded-[16px] w-full max-w-md border border-white/10">
-            <h3 className="text-lg font-semibold text-cyan-300 mb-4">Property Actions</h3>
-            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200"
-                aria-label="Cancel property action"
-              >
-                Cancel
-              </button>
-              {currentProperty?.type === 'property' && !currentProperty.owner && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            aria-labelledby="property-actions-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">🏠</div>
+              <h3 id="property-actions-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                Property Actions
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">Take action on the current property</p>
+              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+              <div className="flex justify-center gap-3 mt-6">
                 <button
-                  onClick={handleBuyProperty}
-                  disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  aria-label="Buy property"
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  aria-label="Cancel property action"
                 >
-                  {isLoading ? 'Processing...' : 'Buy Property'}
+                  Cancel
                 </button>
-              )}
-              {currentProperty?.name === 'Tax' && (
-                <button
-                  onClick={handlePayTax}
-                  disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  aria-label="Pay tax"
-                >
-                  {isLoading ? 'Processing...' : 'Pay Tax'}
-                </button>
-              )}
+                {currentProperty?.type === 'property' && !currentProperty.owner && (
+                  <button
+                    onClick={handleBuyProperty}
+                    disabled={isLoading}
+                    className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    aria-label="Buy property"
+                  >
+                    {isLoading ? 'Processing...' : 'Buy Property'}
+                  </button>
+                )}
+                {currentProperty?.name === 'Tax' && (
+                  <button
+                    onClick={handlePayTax}
+                    disabled={isLoading}
+                    className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    aria-label="Pay tax"
+                  >
+                    {isLoading ? 'Processing...' : 'Pay Tax'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1365,70 +1407,121 @@ const Players = () => {
 
       {/* Property Management Modal */}
       {modalState.management && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-[#0B191A] p-6 rounded-[16px] w-full max-w-md border border-white/10">
-            <h3 className="text-lg font-semibold text-cyan-300 mb-4">Property Management</h3>
-            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-            <div className="flex flex-wrap justify-end gap-2 mt-6">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200"
-                aria-label="Cancel property management"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBuyHouse}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Buy house"
-              >
-                {isLoading ? 'Processing...' : 'Buy House'}
-              </button>
-              <button
-                onClick={handleBuyHotel}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Buy hotel"
-              >
-                {isLoading ? 'Processing...' : 'Buy Hotel'}
-              </button>
-              <button
-                onClick={handleSellHouse}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Sell house"
-              >
-                {isLoading ? 'Processing...' : 'Sell House'}
-              </button>
-              <button
-                onClick={handleSellHotel}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Sell hotel"
-              >
-                {isLoading ? 'Processing...' : 'Sell Hotel'}
-              </button>
-              <button
-                onClick={handleMortgageProperty}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Mortgage property"
-              >
-                {isLoading ? 'Processing...' : 'Mortgage'}
-              </button>
-              <button
-                onClick={handleUnmortgageProperty}
-                disabled={isLoading}
-                className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-label="Unmortgage property"
-              >
-                {isLoading ? 'Processing...' : 'Unmortgage'}
-              </button>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            aria-labelledby="property-management-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">🏠</div>
+              <h3 id="property-management-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                Manage {ownedProperties[selectedPropertyId!]?.name || 'Property'} (ID: {selectedPropertyId})
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">
+                Development: {ownedProperties[selectedPropertyId!]?.development || 0} | Rent: ${ownedProperties[selectedPropertyId!]?.rent_site_only || 0}
+              </p>
+              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={handleBuyHouse}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Buy house for selected property"
+                >
+                  {isLoading ? 'Processing...' : 'Buy House'}
+                </button>
+                <button
+                  onClick={handleBuyHotel}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Buy hotel for selected property"
+                >
+                  {isLoading ? 'Processing...' : 'Buy Hotel'}
+                </button>
+                <button
+                  onClick={handleSellHouse}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Sell house for selected property"
+                >
+                  {isLoading ? 'Processing...' : 'Sell House'}
+                </button>
+                <button
+                  onClick={handleSellHotel}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Sell hotel for selected property"
+                >
+                  {isLoading ? 'Processing...' : 'Sell Hotel'}
+                </button>
+                <button
+                  onClick={handleMortgageProperty}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Mortgage selected property"
+                >
+                  {isLoading ? 'Processing...' : 'Mortgage'}
+                </button>
+                <button
+                  onClick={handleUnmortgageProperty}
+                  disabled={isLoading}
+                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Unmortgage selected property"
+                >
+                  {isLoading ? 'Processing...' : 'Unmortgage'}
+                </button>
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  aria-label="Cancel property management"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes pop-in {
+          0% {
+            transform: scale(0.5);
+            opacity: 0;
+          }
+          80% {
+            transform: scale(1.1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes pulse-slow {
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7);
+          }
+          70% {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px 5px rgba(34, 211, 238, 0);
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+          }
+        }
+        .animate-pop-in {
+          animation: pop-in 0.5s ease-out;
+        }
+                .animate-pulse-slow {
+          animation: pulse-slow 2s infinite;
+        }
+      `}</style>
     </>
   )
 }
