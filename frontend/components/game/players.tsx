@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronUp, ChevronDown, Flag, Handshake, CheckCircle, Repeat, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronUp, ChevronDown, Handshake, CheckCircle, Repeat, Plus } from 'lucide-react'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccount } from '@starknet-react/core'
@@ -122,6 +122,8 @@ const Players = () => {
   const [error, setError] = useState<string | null>(null)
   const [selectedRequestedProperties, setSelectedRequestedProperties] = useState<number[]>([])
 
+  const decimalAddress = useMemo(() => address ? BigInt(address).toString() : '', [address]);
+
   // Load game ID from query params or localStorage
   useEffect(() => {
     const id = searchParams.get('gameId') || localStorage.getItem('gameId')
@@ -157,7 +159,7 @@ const Players = () => {
         await loadGameData(address, gameId, true);
       } catch (err) {
       }
-    }, 5000); // Poll every 2 seconds
+    }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(pollInterval);
   }, [address, gameId]);
@@ -209,14 +211,14 @@ const Players = () => {
       const processedAddresses = new Set<string>()
 
       const gamePlayers = await Promise.all(
-        (gameData.game_players || []).filter((addr: string) => {
-          const addrString = String(addr).toLowerCase()
+        (gameData.game_players || []).filter((addr: any) => {
+          const addrString = String(addr)
           if (processedAddresses.has(addrString)) return false
           processedAddresses.add(addrString)
           return true
-        }).map(async (addr: string, index: number) => {
+        }).map(async (addr: any, index: number) => {
           const playerData = await gameActions.getPlayer(addr, gid)
-          const addrString = String(addr).toLowerCase()
+          const addrString = String(addr)
           const username = await playerActions.getUsernameFromAddress(addrString)
           const decodedUsername = shortString.decodeShortString(username) || `Player ${index + 1}`
 
@@ -234,8 +236,8 @@ const Players = () => {
             position: Number(playerData.position || 0),
             balance: Number(playerData.balance || 0),
             jailed: Boolean(playerData.jailed),
-            properties_owned: (playerData.properties_owned || []).map((p: string) => Number(p)),
-            isNext: String(addr).toLowerCase() === String(currentPlayerAddress).toLowerCase(),
+            properties_owned: (playerData.properties_owned || []).map((p: any) => Number(p)),
+            isNext: addrString === String(currentPlayerAddress),
             token,
           }
         })
@@ -251,16 +253,16 @@ const Players = () => {
       const index3 = boardProperties.findIndex((s) => s.id === 3);
       const index19 = boardProperties.findIndex((s) => s.id === 19);
       console.log('Property data for ID 3 (index', index3, '):', index3 !== -1 ? propertyDataArray[index3] : 'ID 3 not a property');
-      console.log('Its owner (lowercase):', index3 !== -1 ? (propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner).toLowerCase() : 'None') : 'N/A');
+      console.log('Its owner:', index3 !== -1 ? (propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner) : 'None') : 'N/A');
       console.log('Property data for ID 19 (index', index19, '):', index19 !== -1 ? propertyDataArray[index19] : 'ID 19 not a property');
-      console.log('Its owner (lowercase):', index19 !== -1 ? (propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner).toLowerCase() : 'None') : 'N/A');
-      console.log('Does ID 3 owner match expected player?', index3 !== -1 && propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner).toLowerCase() === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
-      console.log('Does ID 19 owner match expected player?', index19 !== -1 && propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner).toLowerCase() === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
+      console.log('Its owner:', index19 !== -1 ? (propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner) : 'None') : 'N/A');
+      console.log('Does ID 3 owner match expected player?', index3 !== -1 && propertyDataArray[index3]?.owner ? String(propertyDataArray[index3].owner) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
+      console.log('Does ID 19 owner match expected player?', index19 !== -1 && propertyDataArray[index19]?.owner ? String(propertyDataArray[index19].owner) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
 
       const propertyOwners = new Set<string>()
       propertyDataArray.forEach((propertyData) => {
         if (propertyData.owner && propertyData.owner !== '0') {
-          propertyOwners.add(String(propertyData.owner).toLowerCase())
+          propertyOwners.add(String(propertyData.owner))
         }
       })
 
@@ -286,8 +288,8 @@ const Players = () => {
               position: Number(playerData.position || 0),
               balance: Number(playerData.balance || 0),
               jailed: Boolean(playerData.jailed),
-              properties_owned: (playerData.properties_owned || []).map((p: string) => Number(p)),
-              isNext: addr === String(currentPlayerAddress).toLowerCase(),
+              properties_owned: (playerData.properties_owned || []).map((p: any) => Number(p)),
+              isNext: addr === String(currentPlayerAddress),
               token,
             }
           })
@@ -297,7 +299,7 @@ const Players = () => {
       setPlayers(allPlayers)
       setPlayerTokens(playerTokensMap)
 
-      const currentPlayerIdx = allPlayers.findIndex((p) => p.address === String(currentPlayerAddress).toLowerCase())
+      const currentPlayerIdx = allPlayers.findIndex((p) => p.address === String(currentPlayerAddress))
       if (currentPlayerIdx !== -1) {
         setCurrentPlayerIndex(currentPlayerIdx)
       }
@@ -312,21 +314,21 @@ const Players = () => {
       console.log('Normalized playerAddress for getPlayer:', normalizedAddress); // Debug log
       const playerData = await gameActions.getPlayer(normalizedAddress, gid);
       console.log('Fetched playerData full object:', playerData); // Debug log
-      console.log('Fetched playerData.address (lowercase):', playerData.address ? String(playerData.address).toLowerCase() : 'No address'); // Debug log
+      console.log('Fetched playerData.address:', playerData.address ? String(playerData.address) : 'No address'); // Debug log
       console.log('Fetched playerData.properties_owned (parsed):', (playerData.properties_owned || []).map((p: any) => Number(p))); // Debug log
-      console.log('Does fetched address match expected?', playerData.address ? String(playerData.address).toLowerCase() === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false); // Debug log
+      console.log('Does fetched address match expected?', playerData.address ? String(playerData.address) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false); // Debug log
       const decodedPlayerUsername = shortString.decodeShortString(playerData.username) || 'Unknown'
-      const playerToken = getPlayerToken(playerData) || playerTokensMap[String(playerAddress).toLowerCase()] || ''
+      const playerToken = getPlayerToken(playerData) || playerTokensMap[BigInt(normalizedAddress).toString()] || ''
 
       setPlayer({
-        address: String(playerAddress).toLowerCase(),
+        address: BigInt(normalizedAddress).toString(),
         username: decodedPlayerUsername,
         balance: Number(playerData.balance || 0),
         position: Number(playerData.position || 0),
         jailed: Boolean(playerData.jailed),
-        properties_owned: (playerData.properties_owned || []).map((p: string) => Number(p)),
-        id: allPlayers.find((p) => p.address === String(playerAddress).toLowerCase())?.id || 0,
-        isNext: String(playerAddress).toLowerCase() === String(currentPlayerAddress).toLowerCase(),
+        properties_owned: (playerData.properties_owned || []).map((p: any) => Number(p)),
+        id: allPlayers.find((p) => p.address === BigInt(normalizedAddress).toString())?.id || 0,
+        isNext: BigInt(normalizedAddress).toString() === String(currentPlayerAddress),
         token: playerToken,
       })
 
@@ -334,7 +336,7 @@ const Players = () => {
       propertyDataArray.forEach((propertyData, index) => {
         const square = boardData.filter((s) => s.type === 'property')[index]
         if (propertyData.owner && propertyData.owner !== '0') {
-          const ownerAddress = String(propertyData.owner).toLowerCase()
+          const ownerAddress = String(propertyData.owner)
           const ownerPlayer = allPlayers.find((p) => p.address === ownerAddress)
           const decodedName = shortString.decodeShortString(propertyData.name) || square.name
           ownershipMap[square.id] = {
@@ -361,7 +363,7 @@ const Players = () => {
         const decodedPropertyName = propertyData.name && propertyData.name !== '0'
           ? shortString.decodeShortString(propertyData.name)
           : square.name || 'Unknown'
-        const ownerAddress = propertyData.owner && propertyData.owner !== '0' ? String(propertyData.owner).toLowerCase() : null
+        const ownerAddress = propertyData.owner && propertyData.owner !== '0' ? String(propertyData.owner) : null
         const ownerPlayer = ownerAddress ? allPlayers.find((p) => p.address === ownerAddress) : null
 
         let currentRent = Number(propertyData.rent_site_only || square.rent_site_only || 0)
@@ -407,7 +409,6 @@ const Players = () => {
       localStorage.setItem('gameId', inputGameId)
       if (address) {
         await loadGameData(address, gid, false)
-      
       } else {
         setError('Please connect your wallet to join the game.')
       }
@@ -662,7 +663,7 @@ const Players = () => {
   }
 
   const handleBuyHouse = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== String(address).toLowerCase()) {
+    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
       setError('Cannot buy house: Invalid position or not owned.')
       return
     }
@@ -687,7 +688,7 @@ const Players = () => {
   }
 
   const handleBuyHotel = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== String(address).toLowerCase()) {
+    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
       setError('Cannot buy hotel: Invalid position or not owned.')
       return
     }
@@ -712,7 +713,7 @@ const Players = () => {
   }
 
   const handleSellHouse = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== String(address).toLowerCase()) {
+    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
       setError('Cannot sell house: Invalid position or not owned.')
       return
     }
@@ -737,7 +738,7 @@ const Players = () => {
   }
 
   const handleSellHotel = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== String(address).toLowerCase()) {
+    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
       setError('Cannot sell hotel: Invalid position or not owned.')
       return
     }
@@ -762,7 +763,7 @@ const Players = () => {
   }
 
   const handleMortgageProperty = async () => {
-    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== String(address).toLowerCase()) {
+    if (!account || !gameId || !player || ownedProperties[player.position]?.owner !== decimalAddress) {
       setError('Cannot mortgage: Invalid position or not owned.')
       return
     }
@@ -801,7 +802,7 @@ const Players = () => {
     }
   }
 
-  const myPlayer = useMemo(() => players.find(p => p.address === String(address).toLowerCase()), [players, address])
+  const myPlayer = useMemo(() => players.find(p => p.address === decimalAddress), [players, decimalAddress])
 
   useEffect(() => {
     console.log('Final myPlayer:', myPlayer);
@@ -865,6 +866,7 @@ const Players = () => {
           className="absolute top-0 left-0 bg-[#010F10] z-10 lg:hidden text-[#F0F7F7] w-[44px] h-[44px] rounded-e-[12px] flex items-center justify-center border-[1px] border-white/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-900 hover:to-indigo-900 hover:shadow-md"
           aria-label="Toggle sidebar"
         >
+          <ChevronLeft className="size-[28px]" />
         </button>
       )}
       <aside
@@ -878,10 +880,20 @@ const Players = () => {
         `}
       >
         <div className="w-full h-full flex flex-col gap-8">
-          <div className="w-full sticky top-0 bg-[#010F10]/95 py-5 flex justify-between items-center">
-            <h4 className={`font-[700] font-dmSans text-[18px] text-[#F0F7F7] ${!isSidebarOpen && 'hidden'}`}>
-              Players
-            </h4>
+          <div className="w-full sticky top-0 bg-[#010F10]/95 py-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h4 className={`font-[700] font-dmSans text-[18px] text-[#F0F7F7] ${!isSidebarOpen && 'hidden'}`}>
+                Players
+              </h4>
+              <button
+                onClick={handleGameIdSubmit}
+                className={`inline-block px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-md hover:from-green-700 hover:to-emerald-700 transition-all duration-200 ${!isSidebarOpen && 'hidden'}`}
+                aria-label={`Submit Game ID ${gameId || 'N/A'}`}
+              >
+                {gameId || 'N/A'}
+              </button>
+              <TokenIcon token={myPlayer?.token || ''} />
+            </div>
             <button
               onClick={toggleSidebar}
               className="text-[#F0F7F7] lg:hidden transition-colors duration-300 hover:text-cyan-300"
@@ -889,42 +901,6 @@ const Players = () => {
             >
               {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <ChevronLeft className="size-[28px]" />}
             </button>
-          </div>
-
-          {/* Merged My Profile and Game ID Section */}
-          <div className={`w-full flex flex-col gap-2 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <div
-              className="p-2 rounded-lg bg-cover bg-center"
-              style={{
-                backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
-              }}
-            >
-              <h2 className="text-sm font-semibold text-cyan-300 mb-1">My Profile & Game ID</h2>
-              {player ? (
-                <p className="text-xs text-white mb-2" aria-label={`Player ${player.username} with ${player.token} token`}>
-                  <span className="font-medium">{player.username}</span> <TokenIcon token={player.token} />
-                </p>
-              ) : (
-                <p className="text-xs text-white mb-2">Loading player data...</p>
-              )}
-              <div className="flex flex-row gap-1">
-                <input
-                  type="number"
-                  placeholder="Game ID"
-                  value={inputGameId}
-                  onChange={(e) => setInputGameId(e.target.value)}
-                  className="px-2 py-1 bg-gray-800 text-white text-xs rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 flex-grow"
-                  aria-label="Enter game ID to join"
-                />
-                <button
-                  onClick={handleGameIdSubmit}
-                  aria-label="Submit game ID"
-                  className="px-2 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs rounded-md hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200"
-                >
-                  Submit
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Players Section */}
@@ -942,10 +918,10 @@ const Players = () => {
                   >
                     <TokenIcon token={player.token} />
                     <div className="flex-1">
-                      <span className="font-medium">
+                      <span className={`font-medium ${player.address === decimalAddress ? 'text-cyan-300' : ''}`}>
                         {player.username}
                         {player.id === winningPlayerId && <span className="ml-2 text-yellow-400">👑</span>}
-                        {player.address === String(address).toLowerCase() && <span className="text-[11px] text-cyan-300"> (Me)</span>}
+                        {player.address === decimalAddress && <span className="text-[11px] text-cyan-300"> (Me)</span>}
                       </span>
                       <span className="block text-[11px] text-[#A0B1B8]">
                         Position: {player.position} | Balance: ${player.balance}
@@ -953,10 +929,9 @@ const Players = () => {
                       </span>
                     </div>
                   </li>
-                  
                 ))}
               </ul>
-                {isLoading ? (
+              {isLoading ? (
                 <p className="text-white text-sm">Loading game data...</p>
               ) : game ? (
                 <div className="space-y-1">
@@ -968,26 +943,32 @@ const Players = () => {
             </div>
           </div>
 
-          {/* Current Property Section */}
+          {/* Current Property Section (Compact, styled like player cards) */}
           <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <div
-              className="p-2 rounded-lg bg-cover bg-center"
-              style={{
-                backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
-              }}
-            >
-              <h2 className="text-sm font-semibold text-cyan-300 mb-1">Current Property</h2>
+            <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
+              <h5 className="text-[14px] font-semibold text-cyan-300 mb-3">Current Property</h5>
               {isLoading ? (
-                <p className="text-xs text-white">Loading property data...</p>
+                <p className="text-[#A0B1B8] text-[13px] text-center">Loading...</p>
               ) : currentProperty ? (
-                <div className="space-y-0.5">
-                  <p className="text-xs text-white"><strong>ID:</strong> {currentProperty.id}</p>
-                  <p className="text-xs text-white"><strong>Name:</strong> {currentProperty.name || 'Unknown'}</p>
-                  <p className="text-xs text-white"><strong>Current Owner:</strong> {currentProperty.owner || 'None'}</p>
-                  <p className="text-xs text-white"><strong>Current Rent:</strong> ${currentProperty.rent_site_only || 0}</p>
+                <div
+                  className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300"
+                  aria-label={`Current property: ${currentProperty.name}`}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: currentProperty.color || '#FFFFFF' }}
+                  />
+                  <div className="flex-1">
+                    <span className="font-medium">
+                      {currentProperty.name || 'Unknown'} (ID: {currentProperty.id})
+                    </span>
+                    <span className="block text-[11px] text-[#A0B1B8]">
+                      Owner: {currentProperty.owner || 'None'} | Rent: ${currentProperty.rent_site_only || 0}
+                    </span>
+                  </div>
                 </div>
               ) : (
-                <p className="text-xs text-white">No property data available.</p>
+                <p className="text-[#A0B1B8] text-[13px] text-center">No property data available.</p>
               )}
             </div>
           </div>
@@ -1099,7 +1080,7 @@ const Players = () => {
                 >
                   <option value="">Select Player</option>
                   {players
-                    .filter((p) => p.address !== String(address).toLowerCase())
+                    .filter((p) => p.address !== decimalAddress)
                     .map((p) => (
                       <option key={p.address} value={p.address}>
                         {p.username}
