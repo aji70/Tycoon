@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronUp, ChevronDown, Handshake, CheckCircle, Repeat } from 'lucide-react'
+import { ChevronLeft, ChevronUp, ChevronDown, Handshake, CheckCircle, Repeat, User, MapPin, DollarSign, Home, Key } from 'lucide-react'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccount } from '@starknet-react/core'
@@ -117,7 +117,10 @@ const Players = () => {
     counterTrade: false,
     property: false,
     management: false,
+    playerDetails: false,
+    propertyDetails: false,
   })
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedRequestedProperties, setSelectedRequestedProperties] = useState<number[]>([])
@@ -414,20 +417,25 @@ const Players = () => {
     setIsPropertiesOpen(!isPropertiesOpen)
   }
 
-  const openModal = (modal: keyof typeof modalState, propertyId?: number) => {
+  const openModal = (modal: keyof typeof modalState, data?: Player | number | null) => {
     setModalState({
       offerTrade: false,
       manageTrades: false,
       counterTrade: false,
       property: false,
       management: false,
+      playerDetails: false,
+      propertyDetails: false,
       [modal]: true,
     })
     if (modal === 'offerTrade') {
       setSelectedRequestedProperties([])
     }
-    if (modal === 'management' && propertyId != null) {
-      setSelectedPropertyId(propertyId)
+    if (modal === 'management' && typeof data === 'number') {
+      setSelectedPropertyId(data)
+    }
+    if (modal === 'playerDetails' && data instanceof Object && 'id' in data) {
+      setSelectedPlayer(data as Player)
     }
   }
 
@@ -438,6 +446,8 @@ const Players = () => {
       counterTrade: false,
       property: false,
       management: false,
+      playerDetails: false,
+      propertyDetails: false,
     })
     setError(null)
     setTradeInputs({
@@ -450,6 +460,7 @@ const Players = () => {
       tradeId: '',
       originalOfferId: '',
     })
+    setSelectedPlayer(null)
     setSelectedPropertyId(null)
   }
 
@@ -856,7 +867,7 @@ const Players = () => {
       {!isSidebarOpen && (
         <button
           onClick={toggleSidebar}
-          className="absolute top-0 left-0 bg-[#010F10] z-10 lg:hidden text-[#F0F7F7] w-[44px] h-[44px] rounded-e-[12px] flex items-center justify-center border-[1px] border-white/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-900 hover:to-indigo-900 hover:shadow-md"
+          className="absolute top-0 left-0 bg-gradient-to-r from-[#010F10] to-[#0A1A20] z-10 lg:hidden text-[#F0F7F7] w-[44px] h-[44px] rounded-e-[12px] flex items-center justify-center border-[1px] border-white/10 transition-all duration-300 hover:from-cyan-900 hover:to-indigo-900 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)]"
           aria-label="Toggle sidebar"
         >
           <ChevronLeft className="size-[28px]" />
@@ -864,7 +875,8 @@ const Players = () => {
       )}
       <aside
         className={`
-          h-full overflow-y-auto no-scrollbar bg-[#010F10]/95 backdrop-blur-sm px-5 pb-12 rounded-e-[16px] border-r-[1px] border-white/10
+          h-full overflow-y-auto no-scrollbar bg-gradient-to-b from-[#010F10]/95 via-[#0A1A20]/95 to-[#010F10]/95 backdrop-blur-sm px-5 pb-12 rounded-e-[16px] border-r-[1px] border-white/10 relative
+          before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.1),transparent_50%)] before:pointer-events-none
           transition-all duration-300 ease-in-out
           fixed z-20 top-0 left-0 
           transform ${isSidebarOpen ? 'translate-x-0 lg:translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -872,18 +884,18 @@ const Players = () => {
           ${isSidebarOpen ? 'lg:w-[300px] md:w-3/5 w-full' : 'lg:w-[60px] w-full'}
         `}
       >
-        <div className="w-full h-full flex flex-col gap-4">
-          <div className="w-full sticky top-0 bg-[#010F10]/95 py-2 flex items-center justify-between">
+        <div className="w-full h-full flex flex-col gap-4 relative z-10">
+          <div className="w-full sticky top-0 bg-gradient-to-r from-[#010F10]/95 to-[#0A1A20]/95 py-2 flex items-center justify-between backdrop-blur-sm rounded-t-[16px]">
             <button
               onClick={handleGameIdSubmit}
-              className="inline-block px-3 py-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-sm rounded-md hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+              className="inline-block px-3 py-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white text-sm rounded-md hover:from-emerald-700 hover:via-teal-700 hover:to-cyan-700 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.3)]"
               aria-label={`Submit Game ID ${gameId || 'N/A'}`}
             >
               Game ID: {gameId || 'N/A'}
             </button>
             <button
               onClick={toggleSidebar}
-              className="text-[#F0F7F7] lg:hidden transition-colors duration-300 hover:text-cyan-300"
+              className="text-[#F0F7F7] lg:hidden transition-all duration-300 hover:text-cyan-300 hover:rotate-180"
               aria-label="Toggle sidebar"
             >
               {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <ChevronLeft className="size-[28px]" />}
@@ -892,14 +904,14 @@ const Players = () => {
 
           {/* Players Section */}
           <div className={`w-full flex flex-col gap-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
-              <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
-                {players.map((player, index) => (
+            <div className="w-full p-4 bg-gradient-to-br from-[#0B191A]/90 to-[#1A262B]/90 backdrop-blur-sm rounded-[16px] shadow-[0_0_20px_rgba(34,211,238,0.1)] border border-white/5 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(34,211,238,0.05),transparent_70%)] animate-pulse-slow"></div>
+              <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar relative z-10">
+                {players.map((player) => (
                   <li
                     key={player.id}
-                    className={`p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 ${
-                      player.isNext ? 'border-l-4 border-cyan-300' : ''
-                    }`}
+                    onClick={() => openModal('playerDetails', player)}
+                    className={`p-3 bg-gradient-to-r from-[#131F25]/80 to-[#2A3A40]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 cursor-pointer hover:from-cyan-500/10 hover:to-indigo-500/10 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)] transition-all duration-300 border-l-4 ${player.isNext ? 'border-cyan-300 bg-cyan-500/5' : 'border-transparent'}`}
                     aria-label={`Player ${player.username} with ${player.token} token${player.id === winningPlayerId ? ' (Leader)' : ''}`}
                   >
                     <TokenIcon token={player.token} />
@@ -918,20 +930,26 @@ const Players = () => {
                 ))}
               </ul>
               {isLoading && (
-                <p className="text-white text-sm mt-3">Loading game data...</p>
+                <p className="text-white text-sm mt-3 relative z-10">Loading game data...</p>
               )}
               {/* Current Property Section (Compact, inside Players div) */}
-              <div className="mt-4">
-                <h6 className="text-[13px] font-semibold text-cyan-300 mb-2">Current Property</h6>
+              <div 
+                onClick={() => currentProperty && openModal('propertyDetails', currentProperty.id)}
+                className={`mt-4 cursor-pointer ${currentProperty ? 'hover:shadow-[0_0_15px_rgba(34,211,238,0.3)]' : ''}`}
+              >
+                <h6 className="text-[13px] font-semibold text-cyan-300 mb-2 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Current Property
+                </h6>
                 {isLoading ? (
                   <p className="text-[#A0B1B8] text-[12px] text-center">Loading...</p>
                 ) : currentProperty ? (
                   <div
-                    className="p-2 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[12px] flex items-center gap-2 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300"
+                    className="p-2 bg-gradient-to-r from-[#131F25]/80 to-[#2A3A40]/80 rounded-[12px] text-[#F0F7F7] text-[12px] flex items-center gap-2 hover:from-cyan-500/10 hover:to-indigo-500/10 transition-all duration-300 border border-white/5"
                     aria-label={`Current property: ${currentProperty.name}`}
                   >
                     <div
-                      className="w-3 h-3 rounded-full"
+                      className="w-3 h-3 rounded-full shadow-[0_0_10px_currentColor]"
                       style={{ backgroundColor: currentProperty.color || '#FFFFFF' }}
                     />
                     <div className="flex-1">
@@ -953,30 +971,34 @@ const Players = () => {
           {/* Properties Section */}
           <div className={`w-full flex flex-col gap-6 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="w-full flex flex-col gap-4">
-              <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7]'>My Empire</h4>
+              <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7] flex items-center gap-2'>
+                <Home className="w-5 h-5 text-cyan-300" />
+                My Empire
+              </h4>
               <div className="flex flex-col gap-3">
                 <button
                   onClick={toggleProperties}
-                  className="flex items-center justify-between w-full px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 rounded-[12px] text-[#F0F7F7] text-[13px] font-semibold font-dmSans hover:from-cyan-700 hover:to-teal-700 hover:shadow-[0_0_8px_rgba(45,212,191,0.3)] transition-all duration-300"
+                  className="flex items-center justify-between w-full px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 rounded-[12px] text-[#F0F7F7] text-[13px] font-semibold font-dmSans hover:from-cyan-700 hover:to-teal-700 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all duration-300 border border-white/10"
                   aria-label={isPropertiesOpen ? "Collapse My Empire" : "Expand My Empire"}
                 >
                   <span>My Empire</span>
                   {isPropertiesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {isPropertiesOpen && (
-                  <div className="w-full p-4 bg-[#0B191A]/90 backdrop-blur-sm rounded-[16px] shadow-lg border border-white/5">
+                  <div className="w-full p-4 bg-gradient-to-br from-[#0B191A]/90 to-[#1A262B]/90 backdrop-blur-sm rounded-[16px] shadow-[0_0_20px_rgba(34,211,238,0.1)] border border-white/5 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(34,211,238,0.05),transparent_70%)] animate-pulse-slow"></div>
                     {ownedPropertiesList.length > 0 ? (
-                      <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar">
+                      <ul className="space-y-3 max-h-[200px] overflow-y-auto no-scrollbar relative z-10">
                         {ownedPropertiesList.map((property) => (
                           property ? (
                             <li
                               key={property.id}
                               onClick={() => openModal('management', property.id)}
-                              className="p-3 bg-[#131F25]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:bg-gradient-to-r hover:from-[#1A262B]/80 hover:to-[#2A3A40]/80 hover:shadow-[0_0_8px_rgba(34,211,238,0.2)] transition-all duration-300 cursor-pointer"
+                              className="p-3 bg-gradient-to-r from-[#131F25]/80 to-[#2A3A40]/80 rounded-[12px] text-[#F0F7F7] text-[13px] flex items-center gap-3 hover:from-cyan-500/10 hover:to-indigo-500/10 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)] transition-all duration-300 cursor-pointer border border-white/5"
                               aria-label={`Manage property ${property.name}`}
                             >
                               <div
-                                className="w-4 h-4 rounded-full"
+                                className="w-4 h-4 rounded-full shadow-[0_0_10px_currentColor]"
                                 style={{ backgroundColor: property.color || '#FFFFFF' }}
                               />
                               <div className="flex-1">
@@ -990,7 +1012,7 @@ const Players = () => {
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-[#A0B1B8] text-[13px] text-center">No properties owned yet.</p>
+                      <p className="text-[#A0B1B8] text-[13px] text-center relative z-10">No properties owned yet.</p>
                     )}
                   </div>
                 )}
@@ -1001,11 +1023,14 @@ const Players = () => {
           {/* Trade Section */}
           <div className={`w-full flex flex-col gap-6 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="w-full flex flex-col gap-4">
-              <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7]'>Trade</h4>
+              <h4 className='font-[700] font-dmSans text-[16px] text-[#F0F7F7] flex items-center gap-2'>
+                <Handshake className="w-5 h-5 text-cyan-300" />
+                Trade Hub
+              </h4>
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => openModal('offerTrade')}
-                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-blue-700 to-indigo-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-blue-800 hover:to-indigo-800 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-blue-700 to-indigo-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-blue-800 hover:to-indigo-800 hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:scale-[1.02] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-white/10"
                   aria-label="Open offer trade modal"
                 >
                   <Handshake className='w-4 h-4' />
@@ -1013,7 +1038,7 @@ const Players = () => {
                 </button>
                 <button
                   onClick={() => openModal('manageTrades')}
-                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-teal-700 to-cyan-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-teal-800 hover:to-cyan-800 hover:shadow-[0_0_12px_rgba(45,212,191,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-teal-700 to-cyan-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-teal-800 hover:to-cyan-800 hover:shadow-[0_0_15px_rgba(45,212,191,0.5)] hover:scale-[1.02] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-teal-500 border border-white/10"
                   aria-label="Open manage trades modal"
                 >
                   <CheckCircle className='w-4 h-4' />
@@ -1021,7 +1046,7 @@ const Players = () => {
                 </button>
                 <button
                   onClick={() => openModal('counterTrade')}
-                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-orange-700 to-red-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-orange-800 hover:to-red-800 hover:shadow-[0_0_12px_rgba(249,115,22,0.5)] hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-2 rounded-[12px] bg-gradient-to-r from-orange-700 to-red-700 text-[#F0F7F7] text-[13px] font-semibold font-dmSans flex items-center gap-2 hover:from-orange-800 hover:to-red-800 hover:shadow-[0_0_15px_rgba(249,115,22,0.5)] hover:scale-[1.02] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 border border-white/10"
                   aria-label="Open counter trade modal"
                 >
                   <Repeat className='w-4 h-4' />
@@ -1033,11 +1058,142 @@ const Players = () => {
         </div>
       </aside>
 
+      {/* Player Details Modal */}
+      {modalState.playerDetails && selectedPlayer && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
+            aria-labelledby="player-details-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">👤</div>
+              <h3 id="player-details-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                {selectedPlayer.username}
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">Player Profile</p>
+              <div className="space-y-4 text-left">
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-cyan-300" />
+                  <span className="text-white">Username: {selectedPlayer.username}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-emerald-300" />
+                  <span className="text-white">Balance: ${selectedPlayer.balance}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="w-4 h-4 text-blue-300" />
+                  <span className="text-white">Position: {selectedPlayer.position}</span>
+                </div>
+                {selectedPlayer.jailed && (
+                  <div className="flex items-center gap-2 text-sm text-red-300">
+                    <Key className="w-4 h-4" />
+                    <span className="text-white">Status: Jailed</span>
+                  </div>
+                )}
+                <div className="text-sm">
+                  <span className="text-cyan-200 font-medium">Properties Owned:</span>
+                  <ul className="mt-2 space-y-1 text-xs text-white/80">
+                    {selectedPlayer.properties_owned.length > 0 ? (
+                      selectedPlayer.properties_owned.map((id) => {
+                        const prop = ownedProperties[id];
+                        return (
+                          <li key={id} className="flex items-center gap-1">
+                            <Home className="w-3 h-3" />
+                            {prop?.name || `Property ${id}`}
+                          </li>
+                        );
+                      })
+                    ) : (
+                      <li>No properties</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={closeModal}
+                  className="px-6 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
+                  aria-label="Close player details"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Property Details Modal */}
+      {modalState.propertyDetails && currentProperty && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
+            aria-labelledby="property-details-modal-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1560518883-ce09059eeffa')] bg-cover bg-center opacity-20 rounded-2xl"></div>
+            <div className="relative z-10">
+              <div className="text-4xl mb-4">🏠</div>
+              <h3 id="property-details-modal-title" className="text-2xl md:text-3xl font-bold text-white font-dmSans mb-2">
+                {currentProperty.name}
+              </h3>
+              <p className="text-lg text-cyan-200 mb-6">Property Details</p>
+              <div className="space-y-4 text-left">
+                <div className="flex items-center gap-2 text-sm">
+                  <Home className="w-4 h-4 text-cyan-300" />
+                  <span className="text-white">Name: {currentProperty.name} (ID: {currentProperty.id})</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-emerald-300" />
+                  <span className="text-white">Rent: ${currentProperty.rent_site_only}</span>
+                </div>
+                {currentProperty.cost && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <DollarSign className="w-4 h-4 text-blue-300" />
+                    <span className="text-white">Cost: ${currentProperty.cost}</span>
+                  </div>
+                )}
+                {currentProperty.development > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Home className="w-4 h-4 text-yellow-300" />
+                    <span className="text-white">Development: {currentProperty.development}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-purple-300" />
+                  <span className="text-white">Owner: {currentProperty.owner || 'None'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <div
+                    className="w-4 h-4 rounded-full shadow-[0_0_10px_currentColor]"
+                    style={{ backgroundColor: currentProperty.color || '#FFFFFF' }}
+                  />
+                  <span className="text-white">Color Group</span>
+                </div>
+              </div>
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={closeModal}
+                  className="px-6 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
+                  aria-label="Close property details"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Offer Trade Modal */}
       {modalState.offerTrade && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div
-            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
             aria-labelledby="offer-trade-modal-title"
             role="dialog"
             aria-modal="true"
@@ -1057,7 +1213,7 @@ const Players = () => {
                     id="to-player"
                     value={tradeInputs.to}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, to: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Select player to trade with"
                   >
                     <option value="">Select Player</option>
@@ -1078,7 +1234,7 @@ const Players = () => {
                     value={tradeInputs.offeredPropertyIds}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, offeredPropertyIds: e.target.value })}
                     placeholder="e.g., 1,3,5"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter offered property IDs"
                   />
                 </div>
@@ -1115,7 +1271,7 @@ const Players = () => {
                     value={tradeInputs.cashAmount}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, cashAmount: e.target.value })}
                     placeholder="Enter cash amount"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter cash amount for trade"
                   />
                 </div>
@@ -1125,7 +1281,7 @@ const Players = () => {
                     id="cash-direction"
                     value={tradeInputs.cashDirection}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, cashDirection: e.target.value as 'offer' | 'request' })}
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Select cash direction for trade"
                   >
                     <option value="offer">Offer Cash</option>
@@ -1138,7 +1294,7 @@ const Players = () => {
                     id="trade-type"
                     value={tradeInputs.tradeType}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, tradeType: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Select trade type"
                   >
                     <option value="property_for_property">Property for Property</option>
@@ -1150,7 +1306,7 @@ const Players = () => {
               <div className="flex justify-center gap-3 mt-6">
                 <button
                   onClick={closeModal}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
                   aria-label="Cancel trade offer"
                 >
                   Cancel
@@ -1158,7 +1314,7 @@ const Players = () => {
                 <button
                   onClick={handleOfferTrade}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(59,130,246,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Submit trade offer"
                 >
                   {isLoading ? 'Submitting...' : 'Offer Trade'}
@@ -1171,9 +1327,9 @@ const Players = () => {
 
       {/* Manage Trades Modal */}
       {modalState.manageTrades && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div
-            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
             aria-labelledby="manage-trades-modal-title"
             role="dialog"
             aria-modal="true"
@@ -1195,7 +1351,7 @@ const Players = () => {
                     value={tradeInputs.tradeId}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, tradeId: e.target.value })}
                     placeholder="Enter trade ID"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter trade ID to manage"
                   />
                 </div>
@@ -1203,7 +1359,7 @@ const Players = () => {
               <div className="flex flex-wrap justify-center gap-3 mt-6">
                 <button
                   onClick={closeModal}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
                   aria-label="Cancel manage trades"
                 >
                   Cancel
@@ -1211,7 +1367,7 @@ const Players = () => {
                 <button
                   onClick={handleAcceptTrade}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(34,197,94,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Accept trade"
                 >
                   {isLoading ? 'Processing...' : 'Accept'}
@@ -1219,7 +1375,7 @@ const Players = () => {
                 <button
                   onClick={handleRejectTrade}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(239,68,68,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Reject trade"
                 >
                   {isLoading ? 'Processing...' : 'Reject'}
@@ -1227,7 +1383,7 @@ const Players = () => {
                 <button
                   onClick={handleApproveCounterTrade}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-md hover:from-purple-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-md hover:from-purple-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(147,51,234,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Approve counter trade"
                 >
                   {isLoading ? 'Processing...' : 'Approve Counter'}
@@ -1240,9 +1396,9 @@ const Players = () => {
 
       {/* Counter Trade Modal */}
       {modalState.counterTrade && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div
-            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
             aria-labelledby="counter-trade-modal-title"
             role="dialog"
             aria-modal="true"
@@ -1264,7 +1420,7 @@ const Players = () => {
                     value={tradeInputs.originalOfferId}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, originalOfferId: e.target.value })}
                     placeholder="Enter original trade ID"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter original trade ID for counter trade"
                   />
                 </div>
@@ -1276,7 +1432,7 @@ const Players = () => {
                     value={tradeInputs.offeredPropertyIds}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, offeredPropertyIds: e.target.value })}
                     placeholder="e.g., 1,3,5"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter offered property IDs for counter trade"
                   />
                 </div>
@@ -1288,7 +1444,7 @@ const Players = () => {
                     value={tradeInputs.requestedPropertyIds}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, requestedPropertyIds: e.target.value })}
                     placeholder="e.g., 2,4,6"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter requested property IDs for counter trade"
                   />
                 </div>
@@ -1300,7 +1456,7 @@ const Players = () => {
                     value={tradeInputs.cashAmount}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, cashAmount: e.target.value })}
                     placeholder="Enter cash amount"
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Enter cash amount for counter trade"
                   />
                 </div>
@@ -1310,7 +1466,7 @@ const Players = () => {
                     id="counter-cash-direction"
                     value={tradeInputs.cashDirection}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, cashDirection: e.target.value as 'offer' | 'request' })}
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Select cash direction for counter trade"
                   >
                     <option value="offer">Offer Cash</option>
@@ -1323,7 +1479,7 @@ const Players = () => {
                     id="counter-trade-type"
                     value={tradeInputs.tradeType}
                     onChange={(e) => setTradeInputs({ ...tradeInputs, tradeType: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200"
+                    className="w-full px-3 py-2 bg-gray-800/80 text-white rounded-md border border-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all duration-200 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
                     aria-label="Select trade type for counter trade"
                   >
                     <option value="property_for_property">Property for Property</option>
@@ -1335,7 +1491,7 @@ const Players = () => {
               <div className="flex justify-center gap-3 mt-6">
                 <button
                   onClick={closeModal}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
                   aria-label="Cancel counter trade"
                 >
                   Cancel
@@ -1343,7 +1499,7 @@ const Players = () => {
                 <button
                   onClick={handleCounterTrade}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-orange-700 to-red-700 text-white rounded-md hover:from-orange-800 hover:to-red-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-orange-700 to-red-700 text-white rounded-md hover:from-orange-800 hover:to-red-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(249,115,22,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Submit counter trade"
                 >
                   {isLoading ? 'Submitting...' : 'Counter Trade'}
@@ -1356,9 +1512,9 @@ const Players = () => {
 
       {/* Property Actions Modal */}
       {modalState.property && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div
-            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
             aria-labelledby="property-actions-modal-title"
             role="dialog"
             aria-modal="true"
@@ -1374,7 +1530,7 @@ const Players = () => {
               <div className="flex justify-center gap-3 mt-6">
                 <button
                   onClick={closeModal}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
                   aria-label="Cancel property action"
                 >
                   Cancel
@@ -1383,7 +1539,7 @@ const Players = () => {
                   <button
                     onClick={handleBuyProperty}
                     disabled={isLoading}
-                    className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(34,197,94,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     aria-label="Buy property"
                   >
                     {isLoading ? 'Processing...' : 'Buy Property'}
@@ -1393,7 +1549,7 @@ const Players = () => {
                   <button
                     onClick={handlePayTax}
                     disabled={isLoading}
-                    className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(251,191,36,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     aria-label="Pay tax"
                   >
                     {isLoading ? 'Processing...' : 'Pay Tax'}
@@ -1407,9 +1563,9 @@ const Players = () => {
 
       {/* Property Management Modal */}
       {modalState.management && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div
-            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in"
+            className="relative bg-gradient-to-br from-cyan-600 via-purple-600 to-indigo-600 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl shadow-cyan-500/50 animate-pop-in border border-white/20"
             aria-labelledby="property-management-modal-title"
             role="dialog"
             aria-modal="true"
@@ -1428,7 +1584,7 @@ const Players = () => {
                 <button
                   onClick={handleBuyHouse}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(59,130,246,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Buy house for selected property"
                 >
                   {isLoading ? 'Processing...' : 'Buy House'}
@@ -1436,7 +1592,7 @@ const Players = () => {
                 <button
                   onClick={handleBuyHotel}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(59,130,246,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Buy hotel for selected property"
                 >
                   {isLoading ? 'Processing...' : 'Buy Hotel'}
@@ -1444,7 +1600,7 @@ const Players = () => {
                 <button
                   onClick={handleSellHouse}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(239,68,68,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Sell house for selected property"
                 >
                   {isLoading ? 'Processing...' : 'Sell House'}
@@ -1452,7 +1608,7 @@ const Players = () => {
                 <button
                   onClick={handleSellHotel}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-red-700 to-pink-700 text-white rounded-md hover:from-red-800 hover:to-pink-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(239,68,68,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Sell hotel for selected property"
                 >
                   {isLoading ? 'Processing...' : 'Sell Hotel'}
@@ -1460,7 +1616,7 @@ const Players = () => {
                 <button
                   onClick={handleMortgageProperty}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-yellow-700 to-amber-700 text-white rounded-md hover:from-yellow-800 hover:to-amber-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(251,191,36,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Mortgage selected property"
                 >
                   {isLoading ? 'Processing...' : 'Mortgage'}
@@ -1468,14 +1624,14 @@ const Players = () => {
                 <button
                   onClick={handleUnmortgageProperty}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-4 py-2 bg-gradient-to-r from-green-700 to-emerald-700 text-white rounded-md hover:from-green-800 hover:to-emerald-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_15px_rgba(34,197,94,0.4)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Unmortgage selected property"
                 >
                   {isLoading ? 'Processing...' : 'Unmortgage'}
                 </button>
                 <button
                   onClick={closeModal}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-all duration-200 animate-pulse-slow"
+                  className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md hover:from-gray-700 hover:to-gray-800 transition-all duration-200 animate-pulse-slow shadow-[0_0_10px_rgba(255,255,255,0.2)]"
                   aria-label="Cancel property management"
                 >
                   Cancel
@@ -1489,15 +1645,15 @@ const Players = () => {
       <style jsx>{`
         @keyframes pop-in {
           0% {
-            transform: scale(0.5);
+            transform: scale(0.7) rotate(-5deg);
             opacity: 0;
           }
           80% {
-            transform: scale(1.1);
+            transform: scale(1.05) rotate(2deg);
             opacity: 1;
           }
           100% {
-            transform: scale(1);
+            transform: scale(1) rotate(0deg);
             opacity: 1;
           }
         }
@@ -1507,8 +1663,8 @@ const Players = () => {
             box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7);
           }
           70% {
-            transform: scale(1.05);
-            box-shadow: 0 0 10px 5px rgba(34, 211, 238, 0);
+            transform: scale(1.03);
+            box-shadow: 0 0 15px 5px rgba(34, 211, 238, 0);
           }
           100% {
             transform: scale(1);
@@ -1516,10 +1672,10 @@ const Players = () => {
           }
         }
         .animate-pop-in {
-          animation: pop-in 0.5s ease-out;
+          animation: pop-in 0.6s ease-out;
         }
-                .animate-pulse-slow {
-          animation: pulse-slow 2s infinite;
+        .animate-pulse-slow {
+          animation: pulse-slow 3s infinite;
         }
       `}</style>
     </>
