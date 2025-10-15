@@ -1,10 +1,10 @@
-# 🏛️ Magnate Frontend
+# 🏛️ Tycoon Frontend
 
-![Magnate Thumbnail](./public/thumbnail.png)
+![Tycoon Thumbnail](./public/thumbnail.png)
 
 ## 📌 Overview
 
-Magnate Frontend is the user interface for the decentralized Monopoly game built on Starknet. Powered by **Next.js**, **Tailwind CSS**, **Starknet-React**, and **Cartridge**, it delivers a modern, responsive UI that connects seamlessly to the on-chain game logic implemented in Cairo and Dojo. Players can interact with the game board, buy/sell properties, roll dice, and trade digital assets (NFTs or Starknet assets) in a trustless, blockchain-powered environment.
+Tycoon Frontend is the user interface for the decentralized Monopoly game built on Starknet. Powered by **Next.js**, **Tailwind CSS**, **Starknet-React**, and **Cartridge**, it delivers a modern, responsive UI that connects seamlessly to the on-chain game logic implemented in Cairo and Dojo. Players can interact with the game board, buy/sell properties, roll dice, and trade digital assets (NFTs or Starknet assets) in a trustless, blockchain-powered environment.
 
 ## ✨ Features
 
@@ -32,13 +32,13 @@ Magnate Frontend is the user interface for the decentralized Monopoly game built
 - Node.js >= 18.0.0
 - npm or yarn
 - Starknet wallet (e.g., Argent X or Braavos)
-- Access to the Magnate backend contracts (see [Cairo repo](https://github.com/SaboStudios/Magnate))
+- Access to the Tycoon backend contracts (see [Cairo repo](https://github.com/aji70/Tycoon))
 
 ### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/SaboStudios/Magnate-frontend-v1.git
-cd Magnate_Frontend
+git clone https://github.com/aji70/tycoon-frontend-v1.git
+cd frontend
 2️⃣ Install Dependencies
 bash
 npm install
