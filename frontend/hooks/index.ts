@@ -23,7 +23,7 @@ interface UseMonopolyProps {
 
 export function usePlayer({ account }: UseMonopolyProps) {
 const { client } = useDojoSDK();
-console.log("client", client);
+
 
 
   const register = useCallback(

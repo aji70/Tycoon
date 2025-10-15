@@ -55,7 +55,7 @@ import { isWasmSupported, getWasmCapabilities } from '@/utils/wasm-loader';
 
 if (isWasmSupported()) {
   const capabilities = getWasmCapabilities();
-  console.log('WASM capabilities:', capabilities);
+  
 }
 ```
 

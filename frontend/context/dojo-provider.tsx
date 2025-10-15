@@ -22,9 +22,9 @@ export function DojoProvider({ children }: DojoProviderProps) {
         setError(null);
 
         // Dynamic import with error handling for WASM modules
-        console.log('Importing @dojoengine/sdk...');
+        
         const { init } = await import('@dojoengine/sdk');
-        console.log('Successfully imported @dojoengine/sdk');
+        
 
         const sdkInstance = await init<SchemaType>({
           client: {

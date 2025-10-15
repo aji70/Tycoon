@@ -38,7 +38,6 @@ export default function WasmDemo() {
     setLoading(true); setError(null); setResponse(null);
     try {
       const res = await fn();
-      console.log(label, res);
       setResponse(res);
     } catch (err: any) {
       console.error(label, err);

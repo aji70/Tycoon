@@ -82,7 +82,6 @@ const TokenIcon: React.FC<{ token: string }> = ({ token }) => (
 
 const Players = () => {
   const { account, address } = useAccount()
-  console.log('Sidebar connected address (useAccount):', address ? String(address).toLowerCase() : 'No wallet');
   const gameActions = useGameActions()
   const playerActions = usePlayerActions()
   const movementActions = useMovementActions()
@@ -200,8 +199,6 @@ const Players = () => {
   };
 
   const loadGameData = async (playerAddress: string | bigint, gid: number, isSilent: boolean = false) => {
-    console.log('Expected player address (from manual query):', '135468865440775691766709935916620667041655899686403319246123751585737847380');
-    console.log('Input to getPlayer:', String(playerAddress).toLowerCase());
     if (!isSilent) {
       setIsLoading(true)
       setError(null)
@@ -303,12 +300,7 @@ const Players = () => {
       })
 
       const normalizedAddress = typeof playerAddress === 'bigint' ? playerAddress.toString() : String(playerAddress);
-      console.log('Normalized playerAddress for getPlayer:', normalizedAddress);
-      const playerData = await gameActions.getPlayer(normalizedAddress, gid);
-      console.log('Fetched playerData full object:', playerData);
-      console.log('Fetched playerData.address:', playerData.address ? String(playerData.address) : 'No address');
-      console.log('Fetched playerData.properties_owned (parsed):', (playerData.properties_owned || []).map((p: any) => Number(p)));
-      console.log('Does fetched address match expected?', playerData.address ? String(playerData.address) === '135468865440775691766709935916620667041655899686403319246123751585737847380' : false);
+      const playerData = await gameActions.getPlayer(normalizedAddress, gid)
       const decodedPlayerUsername = shortString.decodeShortString(playerData.username) || 'Unknown'
       const playerToken = getPlayerToken(playerData) || playerTokensMap[BigInt(normalizedAddress).toString()] || ''
 
@@ -341,10 +333,7 @@ const Players = () => {
           }
         }
       })
-      console.log('Full ownedProperties map:', ownershipMap);
-      console.log('ownedProperties map entries for ID 3:', ownershipMap[3]);
-      console.log('ownedProperties map entries for ID 19:', ownershipMap[19]);
-      console.log('Full ownedProperties keys:', Object.keys(ownershipMap).map(Number));
+     
       setOwnedProperties(ownershipMap)
 
       const position = Number(playerData.position || 0)
@@ -808,24 +797,15 @@ const Players = () => {
 
   const myPlayer = useMemo(() => players.find(p => p.address === decimalAddress), [players, decimalAddress])
 
-  useEffect(() => {
-    console.log('Final myPlayer:', myPlayer);
-    if (myPlayer) {
-      console.log('My properties_owned:', myPlayer.properties_owned);
-    }
-  }, [myPlayer]);
-
   const ownedPropertiesList = useMemo(() => {
-    console.log('useMemo trigger - myPlayer:', myPlayer);
-    console.log('useMemo trigger - ownedProperties:', ownedProperties);
     if (!myPlayer || !myPlayer.properties_owned || myPlayer.properties_owned.length === 0) {
-      console.log('ownedPropertiesList empty: No properties owned');
+      
       return []
     }
     const result = myPlayer.properties_owned.map(id => {
       const prop = ownedProperties[id]
       if (!prop) {
-        console.log(`No prop data for ID ${id}`);
+        
         return null
       }
       const boardProp = boardData.find(b => b.id === id)
@@ -837,7 +817,7 @@ const Players = () => {
         color: boardProp?.color || '#FFFFFF',
       }
     }).filter(Boolean)
-    console.log('Final ownedPropertiesList:', result);
+    
     return result
   }, [myPlayer, ownedProperties])
 

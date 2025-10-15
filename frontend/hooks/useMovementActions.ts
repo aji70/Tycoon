@@ -6,8 +6,6 @@ import { byteArray } from 'starknet';
 export function useMovementActions() {
   const { client } = useDojoSDK();
 
-  console.log(client);
-
   const movePlayer = useCallback((account: Account | AccountInterface, gameId: BigNumberish, steps: BigNumberish) => {
     return client.movement.movePlayer(account, gameId, steps);
   }, [client]);
