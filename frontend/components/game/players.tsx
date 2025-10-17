@@ -21,7 +21,7 @@ export default function GamePlayers({
   me,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const [showEmpire, setShowEmpire] = useState(true);
+  const [showEmpire, setShowEmpire] = useState<boolean>(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const toggleEmpire = useCallback(() => setShowEmpire((prev) => !prev), []);
