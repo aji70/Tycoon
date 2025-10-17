@@ -248,6 +248,8 @@ const gamePlayerController = {
             in_jail: true,
             in_jail_rolls: 0,
             position: 10,
+            rolls: Number(game_player.rolls || 0) + 1,
+            updated_at: new Date(),
           });
 
           // 6️⃣ Log move
