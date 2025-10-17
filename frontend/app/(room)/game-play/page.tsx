@@ -109,22 +109,28 @@ export default function GamePlayPage() {
   // --- Main Layout ---
   return game ? (
     <main className="w-full h-screen overflow-x-hidden relative flex flex-row lg:gap-2">
-      <GamePlayers
-        game={game}
-        properties={properties}
-        game_properties={game_properties}
-        my_properties={my_properties}
-        me={me}
-      />
-      <div className="lg:flex-1 w-full">
-        <GameBoard
+      {!game.players || game.players.length == 0 ? <></> : <>
+        <GamePlayers
           game={game}
           properties={properties}
           game_properties={game_properties}
           my_properties={my_properties}
           me={me}
-          loading={propertiesLoading}
         />
+      </>
+      }
+      <div className="lg:flex-1 w-full">
+        {!propertiesLoading ? <></> :
+          <>
+            <GameBoard
+              game={game}
+              properties={properties}
+              game_properties={game_properties}
+              my_properties={my_properties}
+              me={me}
+            />
+          </>
+        }
       </div>
       <GameRoom />
     </main>
