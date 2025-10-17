@@ -38,6 +38,24 @@ const GameProperty = {
       .first();
   },
 
+  async findByPlayerIdAndGameId(player_id, game_id) {
+    return db("game_properties as gp")
+      .leftJoin("games as g", "gp.game_id", "g.id")
+      .leftJoin("game_players as p", "gp.player_id", "p.id")
+      .leftJoin("users as u", "p.user_id", "u.id")
+      .leftJoin("properties as pr", "gp.property_id", "pr.id")
+      .select(
+        "gp.*",
+        "g.code as game_code",
+        "p.symbol as player_symbol",
+        "u.username as player_username",
+        "pr.name as property_name"
+      )
+      .where("gp.player_id", player_id)
+      .where("gp.game_id", game_id)
+      .first();
+  },
+
   async findAll({ limit = 100, offset = 0 } = {}) {
     return db("game_properties as gp")
       .leftJoin("properties as pr", "gp.property_id", "pr.id")

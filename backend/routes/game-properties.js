@@ -5,6 +5,7 @@ const router = Router();
 
 // CRUD
 router.post("/", gamePropertyController.create);
+router.post("/buy", gamePropertyController.buy);
 router.get("/", gamePropertyController.findAll);
 router.get("/:id", gamePropertyController.findById);
 router.put("/:id", gamePropertyController.update);
