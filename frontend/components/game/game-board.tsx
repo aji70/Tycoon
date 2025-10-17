@@ -581,7 +581,7 @@ const GameBoard = ({
                       gridColumnStart: square.grid_col,
                     }}
                     className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
-                    whileHover={{ scale: 2.00, zIndex: 50 }}
+                    whileHover={{ scale: 1.75, zIndex: 50 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1`}>
