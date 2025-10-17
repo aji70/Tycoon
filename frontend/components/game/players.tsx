@@ -10,7 +10,6 @@ interface GamePlayersProps {
   game_properties: GameProperty[];
   my_properties: Property[];
   me: Player | null;
-  loading?: boolean;
 }
 
 export default function GamePlayers({
@@ -19,7 +18,6 @@ export default function GamePlayers({
   game_properties,
   my_properties,
   me,
-  loading = false,
 }: GamePlayersProps) {
   const { address } = useAccount();
   return (
@@ -28,56 +26,51 @@ export default function GamePlayers({
         <h2 className="text-lg font-semibold text-gray-300">Players</h2>
       </header>
 
-      {loading ? (
-        <div className="p-4 text-sm text-gray-300">Loading players...</div>
-      ) : (
-        <ul className="divide-y divide-divide-cyan-800">
-          {game?.players
-            ?.slice()
-            .sort(
-              (a, b) =>
-                (a.turn_order ?? Number.POSITIVE_INFINITY) -
-                (b.turn_order ?? Number.POSITIVE_INFINITY)
-            )
-            .map((player) => {
-              const isWinner = player.user_id === game.winner_id;
-              const isNext = player.user_id === game.next_player_id;
-              const isMe =
-                player.address?.toLowerCase() === address?.toLowerCase();
+      <ul className="divide-y divide-divide-cyan-800">
+        {game?.players
+          ?.slice()
+          .sort(
+            (a, b) =>
+              (a.turn_order ?? Number.POSITIVE_INFINITY) -
+              (b.turn_order ?? Number.POSITIVE_INFINITY)
+          )
+          .map((player) => {
+            const isWinner = player.user_id === game.winner_id;
+            const isNext = player.user_id === game.next_player_id;
+            const isMe =
+              player.address?.toLowerCase() === address?.toLowerCase();
 
-              return (
-                <li
-                  key={player.user_id}
-                  className={`p-3 flex flex-col border-l-4 ${
-                    isNext
-                      ? "border-cyan-800 bg-cyan-900/20"
-                      : "border-transparent"
+            return (
+              <li
+                key={player.user_id}
+                className={`p-3 flex flex-col border-l-4 ${isNext
+                  ? "border-cyan-800 bg-cyan-900/20"
+                  : "border-transparent"
                   }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-200">
-                      {getPlayerSymbol(player.symbol)} &nbsp;
-                      {player.username || player.address?.slice(0, 6)}
-                      {isMe && " (Me)"}
-                      {isWinner && " 👑"}
-                    </span>
-                    <span className="text-xs text-gray-300">
-                      {player.balance} 💰
-                    </span>
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-200">
+                    {getPlayerSymbol(player.symbol)} &nbsp;
+                    {player.username || player.address?.slice(0, 6)}
+                    {isMe && " (Me)"}
+                    {isWinner && " 👑"}
+                  </span>
+                  <span className="text-xs text-gray-300">
+                    {player.balance} 💰
+                  </span>
+                </div>
+                <div className="flex items-center justify-end space-x-2">
+                  <div className="text-xs text-gray-300">
+                    Position: {player.position ?? "0"}
                   </div>
-                  <div className="flex items-center justify-end space-x-2">
-                    <div className="text-xs text-gray-300">
-                      Position: {player.position ?? "0"}
-                    </div>
-                    <div className="text-xs text-gray-300">
-                      Turn: {player.turn_order ?? "N/A"}
-                    </div>
+                  <div className="text-xs text-gray-300">
+                    Turn: {player.turn_order ?? "N/A"}
                   </div>
-                </li>
-              );
-            })}
-        </ul>
-      )}
+                </div>
+              </li>
+            );
+          })}
+      </ul>
 
       {/* My Properties Section */}
 

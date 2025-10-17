@@ -38,7 +38,7 @@ interface GameProps {
   game_properties: GameProperty[];
   my_properties: Property[];
   me: Player | null;
-  loading?: boolean;
+  loading: boolean;
 }
 
 interface ErrorBoundaryState {
@@ -121,7 +121,7 @@ const GameBoard = ({
   game_properties,
   my_properties,
   me,
-  loading = false,
+  loading,
 }: GameProps) => {
   const { address } = useAccount();
   const router = useRouter();

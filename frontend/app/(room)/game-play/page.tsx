@@ -115,7 +115,6 @@ export default function GamePlayPage() {
         game_properties={game_properties}
         my_properties={my_properties}
         me={me}
-        loading={gamePropertiesLoading || propertiesLoading}
       />
       <div className="lg:flex-1 w-full">
         <GameBoard
@@ -124,7 +123,7 @@ export default function GamePlayPage() {
           game_properties={game_properties}
           my_properties={my_properties}
           me={me}
-          loading={gamePropertiesLoading || propertiesLoading}
+          loading={propertiesLoading}
         />
       </div>
       <GameRoom />
