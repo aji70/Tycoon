@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -85,7 +86,9 @@ export default function GamePlayers({
           return (
             <li
               key={player.user_id}
-              className={`p-3 flex flex-col border-l-4 ${isNext ? "border-cyan-800 bg-cyan-900/20" : "border-transparent"
+              className={`p-3 flex flex-col border-l-4 transition-colors ${isNext
+                  ? "border-cyan-800 bg-cyan-900/20"
+                  : "border-transparent hover:bg-gray-900/20"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -119,86 +122,110 @@ export default function GamePlayers({
           </span>
         </button>
 
-        {showEmpire && (
-          <ul className="divide-y divide-gray-800">
-            {my_properties.length > 0 ? (
-              my_properties.map((prop) => (
-                <li
-                  key={prop.id}
-                  onClick={() => setSelectedProperty(prop)}
-                  className="p-3 text-sm text-gray-200 cursor-pointer hover:bg-gray-800/50 transition"
-                >
-                  <div className="rounded-lg border border-gray-700 shadow-sm p-2 bg-gray-900">
-                    {prop.color && (
-                      <div
-                        className="w-full h-2 rounded-t-md mb-2"
-                        style={{ backgroundColor: prop.color }}
-                      />
-                    )}
-
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">{prop.name}</span>
-                      <span className="text-xs text-gray-500">#{prop.id}</span>
-                    </div>
-
-                    <div className="mt-1 text-xs text-gray-400">
-                      <div>Price: 💵 {prop.price}</div>
-                      <div>Rent: 🏠 {rentPrice(prop.id)}</div>
-                      {isMortgaged(prop.id) && (
-                        <div className="text-red-500 font-medium">🔒 Mortgaged</div>
+        <AnimatePresence initial={false}>
+          {showEmpire && (
+            <motion.ul
+              key="empire-list"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="divide-y divide-gray-800 overflow-hidden"
+            >
+              {my_properties.length > 0 ? (
+                my_properties.map((prop) => (
+                  <motion.li
+                    key={prop.id}
+                    onClick={() => setSelectedProperty(prop)}
+                    whileHover={{ scale: 1.02 }}
+                    className="p-3 text-sm text-gray-200 cursor-pointer hover:bg-gray-800/50 transition"
+                  >
+                    <div className="rounded-lg border border-gray-700 shadow-sm p-2 bg-gray-900">
+                      {prop.color && (
+                        <div
+                          className="w-full h-2 rounded-t-md mb-2"
+                          style={{ backgroundColor: prop.color }}
+                        />
                       )}
+
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">{prop.name}</span>
+                        <span className="text-xs text-gray-500">#{prop.id}</span>
+                      </div>
+
+                      <div className="mt-1 text-xs text-gray-400">
+                        <div>Price: 💵 {prop.price}</div>
+                        <div>Rent: 🏠 {rentPrice(prop.id)}</div>
+                        {isMortgaged(prop.id) && (
+                          <div className="text-red-500 font-medium">🔒 Mortgaged</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))
-            ) : (
-              <div className="text-center text-sm font-medium text-gray-500 py-3">
-                No properties yet..
-              </div>
-            )}
-          </ul>
-        )}
+                  </motion.li>
+                ))
+              ) : (
+                <div className="text-center text-sm font-medium text-gray-500 py-3">
+                  No properties yet..
+                </div>
+              )}
+            </motion.ul>
+          )}
+        </AnimatePresence>
       </section>
 
       {/* Property Modal */}
-      {selectedProperty && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-gray-900 rounded-xl shadow-lg w-80 border border-cyan-900">
-            <div className="p-4 border-b border-cyan-800 flex justify-between items-center">
-              <h4 className="text-gray-200 font-semibold">
-                {selectedProperty.name}
-              </h4>
-              <button
-                onClick={() => setSelectedProperty(null)}
-                className="text-gray-400 hover:text-gray-200"
-              >
-                ✖
-              </button>
-            </div>
+      <AnimatePresence>
+        {selectedProperty && (
+          <motion.div
+            key="property-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="bg-gray-900 rounded-xl shadow-lg w-80 border border-cyan-900"
+            >
+              <div className="p-4 border-b border-cyan-800 flex justify-between items-center">
+                <h4 className="text-gray-200 font-semibold">
+                  {selectedProperty.name}
+                </h4>
+                <button
+                  onClick={() => setSelectedProperty(null)}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  ✖
+                </button>
+              </div>
 
-            <div className="p-4 space-y-2 text-sm text-gray-300">
-              <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                🏠 Buy House
-              </button>
-              <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                🏚️ Sell House
-              </button>
-              <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                🏨 Buy Hotel
-              </button>
-              <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                🏩 Sell Hotel
-              </button>
-              <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                💰 Mortgage
-              </button>
-              <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                💸 Unmortgage
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="p-4 space-y-2 text-sm text-gray-300">
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏠 Buy House
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏚️ Sell House
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏨 Buy Hotel
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏩 Sell Hotel
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  💰 Mortgage
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  💸 Unmortgage
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </aside>
   );
 }
