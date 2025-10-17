@@ -24,7 +24,39 @@ export default function GamePlayers({
     const game_property = game_properties.find((gp) => gp.property_id == property_id);
     return game_property?.mortgaged;
   }
-  console.log(my_properties)
+  const developmentStage = (property_id: number) => {
+    const game_property = game_properties.find((gp) => gp.property_id == property_id);
+    return game_property?.development ?? 0;
+  }
+  const rentPrice = (property_id: number) => {
+    const property = properties.find((p) => p.id == property_id);
+    const development = developmentStage(property_id);
+    let rent = property?.rent_site_only;
+    switch (development) {
+      case 0:
+        rent = property?.rent_site_only;
+        break;
+      case 1:
+        rent = property?.rent_one_house;
+        break;
+      case 2:
+        rent = property?.rent_two_houses;
+        break;
+      case 3:
+        rent = property?.rent_three_houses;
+        break;
+      case 4:
+        rent = property?.rent_four_houses;
+        break;
+      case 5:
+        rent = property?.rent_hotel;
+        break;
+
+      default:
+        break;
+    }
+    return rent;
+  }
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
       <header className="p-4 border-b border-cyan-800">
@@ -107,7 +139,7 @@ export default function GamePlayers({
 
                   <div className="mt-1 text-xs text-gray-400">
                     <div>Price: 💵 {prop.price}</div>
-                    <div>Rent: 🏠 {prop.rent_site_only}</div>
+                    <div>Rent: 🏠 {rentPrice(prop.id)}</div>
                     {isMortgaged(prop.id) && (
                       <div className="text-red-500">🔒 Mortgaged</div>
                     )}

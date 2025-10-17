@@ -294,13 +294,13 @@ const gamePlayerController = {
             rent = property.rent_one_house;
             break;
           case 2:
-            rent = property.rent_two_house;
+            rent = property.rent_two_houses;
             break;
           case 3:
-            rent = property.rent_three_house;
+            rent = property.rent_three_houses;
             break;
           case 4:
-            rent = property.rent_four_house;
+            rent = property.rent_four_houses;
             break;
           case 5:
             rent = property.rent_hotel;
@@ -313,7 +313,7 @@ const gamePlayerController = {
           await trx("game_players")
             .where({ id: game_player.id })
             .decrement("balance", rent);
-            
+
           await trx("game_players")
             .where({ id: game_property.player_id })
             .increment("balance", rent);

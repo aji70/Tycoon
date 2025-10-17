@@ -118,6 +118,7 @@ export interface GameProperty {
   player_id: number;
   property_id: number;
   mortgaged: boolean;
+  development: number;
   created_at: string | null;
   updated_at: string | null;
 }
