@@ -74,8 +74,7 @@ const GameProperty = {
   async findByGameId(gameId) {
     return db("game_properties as gp")
       .leftJoin("properties as pr", "gp.property_id", "pr.id")
-      .leftJoin("game_players as p", "gp.player_id", "p.id")
-      // .leftJoin("users as u", "p.user_id", "u.id")
+      .leftJoin("game_players as p", "gp.player_id", "p.user_id")
       .select("gp.*", "p.address as address")
       .where("gp.game_id", gameId)
       .orderBy("gp.created_at", "asc");
@@ -84,8 +83,7 @@ const GameProperty = {
   async findByPlayerId(playerId) {
     return db("game_properties as gp")
       .leftJoin("properties as pr", "gp.property_id", "pr.id")
-      .leftJoin("game_players as p", "gp.player_id", "p.id")
-      // .leftJoin("users as u", "p.user_id", "u.id")
+      .leftJoin("game_players as p", "gp.player_id", "p.user_id")
       .select("gp.*", "p.address as address")
       .where("gp.player_id", playerId)
       .orderBy("gp.created_at", "desc");
