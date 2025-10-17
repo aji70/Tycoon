@@ -66,6 +66,8 @@ export interface Player {
   username: string;
   rolls: number;
   circle: number;
+  in_jail: boolean;
+  in_jail_rolls: number;
 }
 
 export interface GamePlayExtra {
