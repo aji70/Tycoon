@@ -86,6 +86,10 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
   return total === 12 ? null : { die1, die2, total };
 };
 
+const isTopHalf = (square: any) => {
+  return square.grid_row === 1;
+};
+
 /* ============================================
    SAFE STATE HOOK
    ============================================ */
@@ -448,140 +452,120 @@ const GameBoard = ({
     logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [game.history]);
 
-  const renderHistoryItem = (item: any) => {
-    return (
-      <div key={item.id} className="p-2 border-b border-white/6">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">{item.player_name}</span>
-            <span className="text-xs opacity-70">· {new Date(item.created_at).toLocaleTimeString()}</span>
-          </div>
-          <div className="text-xs opacity-80">Rolled: {item.rolled}</div>
-        </div>
-        <div className="text-xs mt-1 text-gray-200/80">{item.comment}</div>
-        {item.extra?.description && (
-          <div className="text-[11px] mt-1 text-gray-300/60">{item.extra.description}</div>
-        )}
-      </div>
-    );
-  };
-
   /* ---------- Render ---------- */
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-        <div className="flex justify-center items-start w-full mt-[1rem]">
-          <div className="w-full bg-[#010F10] w-[88vw] h-[80vh] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10 p-3">
-            <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[4px] box-border">
+        <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
+          <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+            <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
               {/* Center Area */}
-              <div className="col-start-2 col-span-9 row-start-2 row-span-9 flex flex-col justify-center items-center p-4 relative bg-gradient-to-b from-black/20 to-transparent rounded-md">
+              <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative">
                 <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
-                  Blockopoly
+                  Tycoon
                 </h1>
 
                 {isMyTurn ? (
-                  <div className="flex flex-col gap-2">
-                    {(() => {
-                      const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
-                      const hasRolled = (myPlayer?.rolls ?? 0) > 0;
+                  <div
+                    className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
+                    }}
+                  >
+                    <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
+                    <div className="flex flex-col gap-2">
+                      {(() => {
+                        const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
+                        const hasRolled = (myPlayer?.rolls ?? 0) > 0;
 
-                      if (!hasRolled) {
+                        if (!hasRolled) {
+                          return (
+                            <button
+                              onClick={ROLL_DICE}
+                              disabled={isRolling}
+                              aria-label="Roll the dice to move your player"
+                              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60"
+                            >
+                              {isRolling ? "Rolling..." : "Roll Dice"}
+                            </button>
+                          );
+                        }
+
                         return (
-                          <button
-                            onClick={ROLL_DICE}
-                            disabled={isRolling}
-                            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-transform disabled:opacity-60"
-                          >
-                            {isRolling ? "Rolling..." : "Roll Dice"}
-                          </button>
+                          <div className="flex flex-row items-center gap-2">
+                            {
+                              currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
+                                <button
+                                  onClick={BUY_PROPERTY}
+                                  aria-label="Buy the current property"
+                                  className="px-2 py-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs rounded-full hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200"
+                                >
+                                  Buy Property
+                                </button>
+                              )
+                            }
+                            <button
+                              onClick={() => END_TURN(me?.user_id)}
+                              disabled={actionLock === "ROLL"}
+                              aria-label="End your turn"
+                              className="px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60"
+                            >
+                              End Turn
+                            </button>
+                          </div>
                         );
-                      }
+                      })()}
 
-                      return (
-                        <div className="flex flex-row items-center gap-2">
-                          {
-                            currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
-                              <button
-                                onClick={BUY_PROPERTY}
-                                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-full hover:scale-105 transition-transform disabled:opacity-60"
-                              >
-                                Buy {currentProperty.name} [${currentProperty.price}]
-                              </button>
-                            )
-                          }
-                          <button
-                            onClick={() => END_TURN(me?.user_id)}
-                            disabled={actionLock === "ROLL"}
-                            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-transform disabled:opacity-60"
-                          >
-                            End Turn
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
-                    {roll && (
-                      <p className="text-center text-gray-300 text-xs">
-                        🎲 You Rolled - {" "}
-                        <span className="font-bold text-white">
-                          {roll.die1} + {roll.die2} = {roll.total}
-                        </span>
-                      </p>
-                    )}
+                      {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
+                      {roll && (
+                        <p className="text-center text-gray-300 text-xs">
+                          🎲 You Rolled - {" "}
+                          <span className="font-bold text-white">
+                            {roll.die1} + {roll.die2} = {roll.total}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <div className="w-full flex flex-col gap-1 items-center">
-                    <button
-                      disabled
-                      className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
-                    >
-                      Waiting for your turn...
-                    </button>
-                    {game.history?.length > 0 && (
+                  <div
+                    className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
+                    }}
+                  >
+                    <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
+                    <div className="flex flex-col gap-2">
                       <div className="w-full flex flex-col gap-1 items-center">
-                        <p className="text-center text-gray-300 text-xs italic">
-                          {game.history[0].player_name} - {game.history[0].comment}
-                        </p>
-                        {!roll && (<p className="text-center text-gray-300 text-xs underline">
-                          [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
-                        </p>)}
+                        <button
+                          disabled
+                          className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
+                        >
+                          Waiting for your turn...
+                        </button>
+                        {game.history?.length > 0 && (
+                          <div className="w-full flex flex-col gap-1 items-center">
+                            <p className="text-center text-gray-300 text-xs italic">
+                              {game.history[0].player_name} - {game.history[0].comment}
+                            </p>
+                            {!roll && (<p className="text-center text-gray-300 text-xs underline">
+                              [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
+                            </p>)}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
-                <div className="w-full bg-[#001018] rounded-lg p-3 h-auto overflow-hidden shadow-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold">Activity Log</h3>
-                    <div className="text-xs opacity-70">Live</div>
-                  </div>
-
-                  <div ref={logRef} className="w-[80%] overflow-auto h-[220px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
-                    <AnimatePresence initial={false}>
-                      {(game.history ?? []).slice().reverse().map((h) => (
-                        <motion.div
-                          key={h.id}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -8 }}
-                          transition={{ duration: 0.18 }}
-                          className="mb-2"
-                        >
-                          {renderHistoryItem(h)}
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-
-                    {(!game.history || game.history.length === 0) && (
-                      <div className="text-center text-sm opacity-60 mt-6">No activity yet — play to see history.</div>
-                    )}
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <button onClick={forceRefetch} className="text-xs px-3 py-2 bg-white/6 rounded">Refresh</button>
-                    <button onClick={fetchUpdatedGame} className="text-xs px-3 py-2 bg-white/6 rounded">Sync Now</button>
-                  </div>
+                <div className="mt-4 p-2 bg-gray-800 rounded max-h-40 overflow-y-auto w-full max-w-sm">
+                  <h3 className="text-sm font-semibold text-cyan-300 mb-2">Action Log</h3>
+                  {(game.history ?? []).slice(-10).reverse().map((h, i) => (
+                    <p key={i} className="text-xs text-gray-300 mb-1 last:mb-0">
+                      {`${h.player_name} ${h.comment}`}
+                    </p>
+                  ))}
+                  {(!game.history || game.history.length === 0) && <p className="text-xs text-gray-500 italic">No actions yet</p>}
                 </div>
               </div>
 
@@ -596,27 +580,27 @@ const GameBoard = ({
                       gridRowStart: square.grid_row,
                       gridColumnStart: square.grid_col,
                     }}
-                    className="w-full h-full p-[2px] relative box-border"
+                    className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
                     whileHover={{ scale: 2.00, zIndex: 50 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <div className="w-full h-full rounded-md overflow-hidden bg-black/20 p-1">
+                    <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1`}>
                       {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
                       {square.type === "special" && <SpecialCard square={square} />}
                       {square.type === "corner" && <CornerCard square={square} />}
 
-                      <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
+                      <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">
                         {playersHere.map((p) => (
-                          <button
+                          <span
                             key={p.user_id}
                             title={`${p.username} (${p.balance})`}
-                            className={`text-3xl md:text-4xl ${p.user_id === game.next_player_id
-                              ? "bg-cyan-300 rounded-full animate-pulse"
+                            className={`text-xl md:text-2xl lg:text-3xl ${p.user_id === game.next_player_id
+                              ? 'border-2 border-cyan-300 rounded animate-pulse'
                               : ""
                               }`}
                           >
                             {getPlayerSymbol(p.symbol)}
-                          </button>
+                          </span>
                         ))}
                       </div>
                     </div>
@@ -626,7 +610,6 @@ const GameBoard = ({
             </div>
           </div>
         </div>
-
       </div>
     </ErrorBoundary>
   );
