@@ -20,6 +20,10 @@ export default function GamePlayers({
   me,
 }: GamePlayersProps) {
   const { address } = useAccount();
+  const isMortgaged = (property_id: number) => {
+    const game_property = game_properties.find((gp) => gp.property_id == property_id);
+    return game_property?.mortgaged;
+  }
   console.log(my_properties)
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
@@ -104,7 +108,7 @@ export default function GamePlayers({
                   <div className="mt-1 text-xs text-gray-400">
                     <div>Price: 💵 {prop.price}</div>
                     <div>Rent: 🏠 {prop.rent_site_only}</div>
-                    {prop.is_mortgaged && (
+                    {isMortgaged(prop.id) && (
                       <div className="text-red-500">🔒 Mortgaged</div>
                     )}
                   </div>
