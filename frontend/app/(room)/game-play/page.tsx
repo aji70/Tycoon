@@ -17,13 +17,11 @@ export default function GamePlayPage() {
 
   const { address } = useAccount();
 
-  // ✅ Extract gameCode from search or localStorage
   useEffect(() => {
     const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
     if (code && code.length === 6) setGameCode(code);
   }, [searchParams]);
 
-  // --- Fetch Game ---
   const {
     data: game,
     isLoading: gameLoading,
@@ -39,7 +37,25 @@ export default function GamePlayPage() {
     refetchInterval: 5000,
   });
 
-  // --- Fetch Game Properties ---
+  const me = useMemo(() => {
+    if (!game?.players || !address) return null;
+    return game.players.find(
+      (pl: Player) => pl.address?.toLowerCase() === address.toLowerCase()
+    ) || null;
+  }, [game, address]);
+
+  const {
+    data: properties = [],
+    isLoading: propertiesLoading,
+    isError: propertiesError,
+  } = useQuery<Property[]>({
+    queryKey: ["properties"],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<Property[]>>("/properties");
+      return res.data || [];
+    }
+  });
+
   const {
     data: game_properties = [],
     isLoading: gamePropertiesLoading,
@@ -57,29 +73,6 @@ export default function GamePlayPage() {
     refetchInterval: 15000,
   });
 
-  // --- Fetch All Properties ---
-  const {
-    data: properties = [],
-    isLoading: propertiesLoading,
-    isError: propertiesError,
-  } = useQuery<Property[]>({
-    queryKey: ["properties"],
-    queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<Property[]>>("/properties");
-      return res.data || [];
-    },
-    staleTime: Infinity,
-  });
-
-  // ✅ Find my player profile
-  const me = useMemo(() => {
-    if (!game?.players || !address) return null;
-    return game.players.find(
-      (pl: Player) => pl.address?.toLowerCase() === address.toLowerCase()
-    ) || null;
-  }, [game, address]);
-
-  // ✅ Compute my owned properties
   const my_properties: Property[] = useMemo(() => {
     if (!game_properties?.length || !properties?.length || !address) return [];
 
@@ -89,6 +82,7 @@ export default function GamePlayPage() {
       .map((gp) => propertyMap.get(gp.property_id))
       .filter((p): p is Property => !!p);
   }, [game_properties, properties, address]);
+
 
   if (gameLoading) {
     return (
@@ -106,31 +100,25 @@ export default function GamePlayPage() {
     );
   }
 
-  // --- Main Layout ---
-  return game ? (
+
+  return game && !propertiesLoading && !gamePropertiesLoading ? (
     <main className="w-full h-screen overflow-x-hidden relative flex flex-row lg:gap-2">
-      {!game.players || game.players.length == 0 ? <></> : <>
-        <GamePlayers
+      <GamePlayers
+        game={game}
+        properties={properties}
+        game_properties={game_properties}
+        my_properties={my_properties}
+        me={me}
+      />
+
+      <div className="lg:flex-1 w-full">
+        <GameBoard
           game={game}
           properties={properties}
           game_properties={game_properties}
           my_properties={my_properties}
           me={me}
         />
-      </>
-      }
-      <div className="lg:flex-1 w-full">
-        {!propertiesLoading ? <></> :
-          <>
-            <GameBoard
-              game={game}
-              properties={properties}
-              game_properties={game_properties}
-              my_properties={my_properties}
-              me={me}
-            />
-          </>
-        }
       </div>
       <GameRoom />
     </main>
