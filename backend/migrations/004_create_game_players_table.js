@@ -52,7 +52,6 @@ export const up = async (knex) => {
         "top_hat",
       ])
       .nullable();
-
     // Jail cards
     table.boolean("chance_jail_card").notNullable().defaultTo(false);
     table.boolean("community_chest_jail_card").notNullable().defaultTo(false);

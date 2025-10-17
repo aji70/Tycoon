@@ -241,97 +241,131 @@ const gamePlayerController = {
       // 4️⃣ Compute new values
       const old_position = Number(game_player.position);
       const new_position = Number(position);
-      const passedStart = new_position < old_position;
+      if (!game_player.in_jail && new_position == 30) {
+        {
+          // 5️⃣ Update player
+          await trx("game_players").where({ id: game_player.id }).update({
+            in_jail: true,
+            in_jail_rolls: 0,
+            position: 10,
+          });
 
-      const updatedFields = {
-        position: new_position,
-        rolls: Number(game_player.rolls || 0) + 1,
-        updated_at: new Date(),
-      };
-
-      if (passedStart) {
-        updatedFields.circle = (game_player.circle || 0) + 1;
-        updatedFields.balance = (game_player.balance || 0) + 200;
-      }
-
-      // 5️⃣ Update player
-      await trx("game_players")
-        .where({ id: game_player.id })
-        .update(updatedFields);
-
-      // 6️⃣ Log move
-      await trx("game_play_history").insert({
-        game_id,
-        game_player_id: game_player.id,
-        rolled,
-        old_position,
-        new_position,
-        action: PROPERTY_ACTION(new_position),
-        amount: 0,
-        extra: JSON.stringify({
-          description: `Player moved from ${old_position} → ${new_position}`,
-        }),
-        comment: `Moved to ${property.name}`,
-        active: 1,
-        created_at: new Date(),
-      });
-
-      // Get game properties
-      const game_property = await trx("game_properties")
-        .where({ game_id: game.id, property_id: property.id })
-        .first();
-      if (
-        game_property &&
-        game_property.player_id !== game_player.id &&
-        !game_property.mortgaged
-      ) {
-        let rent = 0;
-        switch (game_property.development) {
-          case 0:
-            rent = property.rent_site_only;
-            break;
-          case 1:
-            rent = property.rent_one_house;
-            break;
-          case 2:
-            rent = property.rent_two_houses;
-            break;
-          case 3:
-            rent = property.rent_three_houses;
-            break;
-          case 4:
-            rent = property.rent_four_houses;
-            break;
-          case 5:
-            rent = property.rent_hotel;
-            break;
-
-          default:
-            break;
-        }
-        if (rent > 0) {
-          await trx("game_players")
-            .where({ id: game_player.id })
-            .decrement("balance", rent);
-
-          await trx("game_players")
-            .where({ id: game_property.player_id })
-            .increment("balance", rent);
-
-          await trx("game_trades").insert({
+          // 6️⃣ Log move
+          await trx("game_play_history").insert({
             game_id,
-            from_player_id: game_player.id,
-            to_player_id: game_property.player_id,
-            type: "CASH",
-            status: "ACCEPTED",
-            sending_amount: rent,
-            receiving_amount: rent,
+            game_player_id: game_player.id,
+            rolled,
+            old_position,
+            new_position,
+            action: PROPERTY_ACTION(new_position),
+            amount: 0,
+            extra: JSON.stringify({
+              description: `Player moved from ${old_position} → ${new_position}`,
+            }),
+            comment: `Moved to ${property.name}`,
+            active: 1,
             created_at: new Date(),
-            updated_at: new Date(),
           });
         }
-      }
+      } else {
+        if (
+          (!game_player.in_jail && position !== 30) ||
+          (game_player.in_jail &&
+            (game_player.in_jail_rolls >= 3 || Number(rolled) >= 12))
+        ) {
+          const passedStart = new_position < old_position;
 
+          const updatedFields = {
+            position: new_position,
+            rolls: Number(game_player.rolls || 0) + 1,
+            updated_at: new Date(),
+            ...(game_player.in_jail && { in_jail: false, in_jail_rolls: 0 }),
+          };
+
+          if (passedStart) {
+            updatedFields.circle = (game_player.circle || 0) + 1;
+            updatedFields.balance = (game_player.balance || 0) + 200;
+          }
+
+          // 5️⃣ Update player
+          await trx("game_players")
+            .where({ id: game_player.id })
+            .update(updatedFields);
+
+          // 6️⃣ Log move
+          await trx("game_play_history").insert({
+            game_id,
+            game_player_id: game_player.id,
+            rolled,
+            old_position,
+            new_position,
+            action: PROPERTY_ACTION(new_position),
+            amount: 0,
+            extra: JSON.stringify({
+              description: `Player moved from ${old_position} → ${new_position}`,
+            }),
+            comment: `Moved to ${property.name}`,
+            active: 1,
+            created_at: new Date(),
+          });
+
+          // Get game properties
+          const game_property = await trx("game_properties")
+            .where({ game_id: game.id, property_id: property.id })
+            .first();
+          if (
+            game_property &&
+            game_property.player_id !== game_player.id &&
+            !game_property.mortgaged
+          ) {
+            let rent = 0;
+            switch (game_property.development) {
+              case 0:
+                rent = property.rent_site_only;
+                break;
+              case 1:
+                rent = property.rent_one_house;
+                break;
+              case 2:
+                rent = property.rent_two_houses;
+                break;
+              case 3:
+                rent = property.rent_three_houses;
+                break;
+              case 4:
+                rent = property.rent_four_houses;
+                break;
+              case 5:
+                rent = property.rent_hotel;
+                break;
+
+              default:
+                break;
+            }
+            if (rent > 0) {
+              await trx("game_players")
+                .where({ id: game_player.id })
+                .decrement("balance", rent);
+
+              await trx("game_players")
+                .where({ id: game_property.player_id })
+                .increment("balance", rent);
+
+              await trx("game_trades").insert({
+                game_id,
+                from_player_id: game_player.id,
+                to_player_id: game_property.player_id,
+                type: "CASH",
+                status: "ACCEPTED",
+                sending_amount: rent,
+                receiving_amount: rent,
+                created_at: new Date(),
+                updated_at: new Date(),
+              });
+            }
+          }
+        }
+      }
       await trx.commit();
 
       res.json({
