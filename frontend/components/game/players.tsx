@@ -65,6 +65,9 @@ export default function GamePlayers({
                     Position: {player.position ?? "0"}
                   </div>
                   <div className="text-xs text-gray-300">
+                    Circle: {player.circle ?? "0"}
+                  </div>
+                  <div className="text-xs text-gray-300">
                     Turn: {player.turn_order ?? "N/A"}
                   </div>
                 </div>
