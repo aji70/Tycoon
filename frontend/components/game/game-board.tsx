@@ -597,7 +597,7 @@ const GameBoard = ({
                       gridColumnStart: square.grid_col,
                     }}
                     className="w-full h-full p-[2px] relative box-border"
-                    whileHover={{ scale: 2.50, zIndex: 50 }}
+                    whileHover={{ scale: 2.00, zIndex: 50 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className="w-full h-full rounded-md overflow-hidden bg-black/20 p-1">
