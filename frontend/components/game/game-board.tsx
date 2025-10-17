@@ -551,13 +551,13 @@ const GameBoard = ({
                   </div>
                 )}
 
-                <div className="bg-[#001018] rounded-lg p-3 h-[200px] overflow-hidden shadow-lg">
+                <div className="w-full bg-[#001018] rounded-lg p-3 h-auto overflow-hidden shadow-lg">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-semibold">Activity Log</h3>
                     <div className="text-xs opacity-70">Live</div>
                   </div>
 
-                  <div ref={logRef} className="overflow-auto h-[620px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                  <div ref={logRef} className="w-[80%] overflow-auto h-[220px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
                     <AnimatePresence initial={false}>
                       {(game.history ?? []).slice().reverse().map((h) => (
                         <motion.div
