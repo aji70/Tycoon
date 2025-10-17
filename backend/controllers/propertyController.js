@@ -35,7 +35,7 @@ const propertyController = {
       const property = await Property.findById(req.params.id);
       if (!property)
         return res.status(404).json({ error: "Property not found" });
-      const add_to_cache = await redis.set(JSON.stringify(property));
+      const add_to_cache = await redis.set(cacheKey, JSON.stringify(property));
       res.json({ success: true, message: "successful", data: property });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -55,7 +55,7 @@ const propertyController = {
         limit: Number.parseInt(limit) || 100,
         offset: Number.parseInt(offset) || 0,
       });
-      const add_to_cache = await redis.set(JSON.stringify(properties));
+      const add_to_cache = await redis.set(cacheKey, JSON.stringify(properties));
       res.json({ success: true, message: "successful", data: properties });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
