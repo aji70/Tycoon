@@ -610,7 +610,7 @@ const GameBoard = ({
                           <button
                             key={p.user_id}
                             title={`${p.username} (${p.balance})`}
-                            className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
+                            className={`text-3xl md:text-4xl ${p.user_id === game.next_player_id
                               ? "border-2 border-cyan-300 rounded animate-pulse"
                               : ""
                               }`}
