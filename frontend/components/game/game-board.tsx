@@ -556,7 +556,7 @@ const GameBoard = ({
                     }}
                     className="w-full h-full p-[2px] relative box-border"
                   >
-                    {square.type === "property" && <PropertyCard square={square} owner={owner} />}
+                    {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
                     {square.type === "special" && <SpecialCard square={square} />}
                     {square.type === "corner" && <CornerCard square={square} />}
 
