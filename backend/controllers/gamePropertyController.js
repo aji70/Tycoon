@@ -137,9 +137,9 @@ const gamePropertyController = {
 
       // 7️⃣ Assign property to player
       await trx("game_properties").insert({
-        game_id,
-        property_id,
-        player_id: user_id,
+        game_id: game.id,
+        property_id: property.id,
+        player_id: player.id,
         created_at: db.fn.now(),
         updated_at: db.fn.now(),
       });
