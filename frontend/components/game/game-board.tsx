@@ -568,7 +568,9 @@ const GameBoard = ({
           </div>
         </div>
         :
-        <></>
+        <>
+          <div className="p-4 text-sm text-gray-300">Loading properties...</div>
+          </>
       }
     </ErrorBoundary>
   );
