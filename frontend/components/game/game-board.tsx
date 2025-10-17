@@ -560,7 +560,7 @@ const GameBoard = ({
 
                 <div className="mt-4 p-2 bg-gray-800 rounded max-h-40 overflow-y-auto w-full max-w-sm">
                   <h3 className="text-sm font-semibold text-cyan-300 mb-2">Action Log</h3>
-                  {(game.history ?? []).slice(-10).reverse().map((h, i) => (
+                  {(game.history ?? []).map((h, i) => (
                     <p key={i} className="text-xs text-gray-300 mb-1 last:mb-0">
                       {`${h.player_name} ${h.comment}`}
                     </p>
