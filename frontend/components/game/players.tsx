@@ -22,7 +22,7 @@ export default function GamePlayers({
   const { address } = useAccount();
   const isMortgaged = (property_id: number) => {
     const game_property = game_properties.find((gp) => gp.property_id == property_id);
-    return game_property?.mortgaged;
+    return game_property?.mortgaged ?? false;
   }
   const developmentStage = (property_id: number) => {
     const game_property = game_properties.find((gp) => gp.property_id == property_id);
@@ -140,9 +140,9 @@ export default function GamePlayers({
                   <div className="mt-1 text-xs text-gray-400">
                     <div>Price: 💵 {prop.price}</div>
                     <div>Rent: 🏠 {rentPrice(prop.id)}</div>
-                    {isMortgaged(prop.id) && (
+                    {isMortgaged(prop.id) ? (
                       <div className="text-red-500">🔒 Mortgaged</div>
-                    )}
+                    ) : <></>}
                   </div>
                 </div>
               </li>
