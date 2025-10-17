@@ -276,6 +276,62 @@ const gamePlayerController = {
         created_at: new Date(),
       });
 
+      // Get game properties
+      const game_property = await trx("game_properties")
+        .where({ game_id: game.id, property_id: property.id })
+        .first();
+      if (
+        game_property &&
+        game_property.player_id !== game_player.id &&
+        !game_property.mortgaged
+      ) {
+        let rent = 0;
+        switch (game_property.development) {
+          case 0:
+            rent = property.rent_site_only;
+            break;
+          case 1:
+            rent = property.rent_one_house;
+            break;
+          case 2:
+            rent = property.rent_two_house;
+            break;
+          case 3:
+            rent = property.rent_three_house;
+            break;
+          case 4:
+            rent = property.rent_four_house;
+            break;
+          case 5:
+            rent = property.rent_hotel;
+            break;
+
+          default:
+            break;
+        }
+        if (rent > 0) {
+          await trx("game_players")
+            .where({ id: game_player.id })
+            .decrement("balance", rent);
+            
+          await trx("game_players")
+            .where({ id: game_property.player_id })
+            .increment("balance", rent);
+
+          await trx("game_trades").insert({
+            game_id,
+            from_player_id: game_player.id,
+            to_player_id: game_property.player_id,
+            type: "CASH",
+            status: "ACCEPTED",
+            sending_amount: rent,
+            receiving_amount: rent,
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+        }
+      }
+
       await trx.commit();
 
       res.json({
@@ -456,13 +512,11 @@ const gamePlayerController = {
     } catch (error) {
       await trx.rollback();
       console.error("canRoll error:", error);
-      return res
-        .status(200)
-        .json({
-          success: false,
-          data: { canRoll: false },
-          message: error.message,
-        });
+      return res.status(200).json({
+        success: false,
+        data: { canRoll: false },
+        message: error.message,
+      });
     }
   },
 
