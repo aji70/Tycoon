@@ -442,130 +442,134 @@ const GameBoard = ({
   /* ---------- Render ---------- */
   return (
     <ErrorBoundary>
-      <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-        <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[900px] mt-[-1rem]">
-          <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
-            <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
-              {/* Center Area */}
-              <div className="col-start-2 col-span-9 row-start-2 row-span-9 flex flex-col justify-center items-center p-4 relative">
-                <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
-                  Blockopoly
-                </h1>
+      {!loading ?
+        <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
+          <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[900px] mt-[-1rem]">
+            <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+              <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
+                {/* Center Area */}
+                <div className="col-start-2 col-span-9 row-start-2 row-span-9 flex flex-col justify-center items-center p-4 relative">
+                  <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
+                    Blockopoly
+                  </h1>
 
-                {isMyTurn ? (
-                  <div className="flex flex-col gap-2">
-                    {(() => {
-                      const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
-                      const hasRolled = (myPlayer?.rolls ?? 0) > 0;
+                  {isMyTurn ? (
+                    <div className="flex flex-col gap-2">
+                      {(() => {
+                        const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
+                        const hasRolled = (myPlayer?.rolls ?? 0) > 0;
 
-                      if (!hasRolled) {
+                        if (!hasRolled) {
+                          return (
+                            <button
+                              onClick={ROLL_DICE}
+                              disabled={isRolling}
+                              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                            >
+                              {isRolling ? "Rolling..." : "Roll Dice"}
+                            </button>
+                          );
+                        }
+
                         return (
-                          <button
-                            onClick={ROLL_DICE}
-                            disabled={isRolling}
-                            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                          >
-                            {isRolling ? "Rolling..." : "Roll Dice"}
-                          </button>
+                          <div className="flex flex-row items-center gap-2">
+                            {
+                              currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
+                                <button
+                                  onClick={BUY_PROPERTY}
+                                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                                >
+                                  Buy {currentProperty.name} [${currentProperty.price}]
+                                </button>
+                              )
+                            }
+                            <button
+                              onClick={() => END_TURN(me?.user_id)}
+                              disabled={actionLock === "ROLL"}
+                              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
+                            >
+                              End Turn
+                            </button>
+                          </div>
                         );
-                      }
+                      })()}
 
-                      return (
-                        <div className="flex flex-row items-center gap-2">
-                          {
-                            currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
-                              <button
-                                onClick={BUY_PROPERTY}
-                                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                              >
-                                Buy {currentProperty.name} [${currentProperty.price}]
-                              </button>
-                            )
-                          }
-                          <button
-                            onClick={() => END_TURN(me?.user_id)}
-                            disabled={actionLock === "ROLL"}
-                            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-sm rounded-full hover:scale-105 transition-all disabled:opacity-60"
-                          >
-                            End Turn
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
-                    {roll && (
-                      <p className="text-center text-gray-300 text-xs">
-                        🎲 You Rolled - {" "}
-                        <span className="font-bold text-white">
-                          {roll.die1} + {roll.die2} = {roll.total}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full flex flex-col gap-1 items-center">
-                    <button
-                      disabled
-                      className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
-                    >
-                      Waiting for your turn...
-                    </button>
-                    {game.history?.length > 0 && (
-                      <div className="w-full flex flex-col gap-1 items-center">
-                        <p className="text-center text-gray-300 text-xs italic">
-                          {game.history[0].player_name} - {game.history[0].comment}
+                      {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
+                      {roll && (
+                        <p className="text-center text-gray-300 text-xs">
+                          🎲 You Rolled - {" "}
+                          <span className="font-bold text-white">
+                            {roll.die1} + {roll.die2} = {roll.total}
+                          </span>
                         </p>
-                        {!roll && (<p className="text-center text-gray-300 text-xs underline">
-                          [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
-                        </p>)}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Board Squares */}
-              {boardData.map((square, index) => {
-                const playersHere = playersByPosition.get(index) ?? [];
-                const owner =
-                  my_properties.find((p) => p.id === square.id) && me?.username
-                    ? me.username
-                    : null;
-
-                return (
-                  <div
-                    key={square.id}
-                    style={{
-                      gridRowStart: square.grid_row,
-                      gridColumnStart: square.grid_col,
-                    }}
-                    className="w-full h-full p-[2px] relative box-border"
-                  >
-                    {square.type === "property" && <PropertyCard square={square} owner={owner} />}
-                    {square.type === "special" && <SpecialCard square={square} />}
-                    {square.type === "corner" && <CornerCard square={square} />}
-
-                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
-                      {playersHere.map((p) => (
-                        <button
-                          key={p.user_id}
-                          className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
-                            ? "border-2 border-cyan-300 rounded animate-pulse"
-                            : ""
-                            }`}
-                        >
-                          {getPlayerSymbol(p.symbol)}
-                        </button>
-                      ))}
+                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  ) : (
+                    <div className="w-full flex flex-col gap-1 items-center">
+                      <button
+                        disabled
+                        className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
+                      >
+                        Waiting for your turn...
+                      </button>
+                      {game.history?.length > 0 && (
+                        <div className="w-full flex flex-col gap-1 items-center">
+                          <p className="text-center text-gray-300 text-xs italic">
+                            {game.history[0].player_name} - {game.history[0].comment}
+                          </p>
+                          {!roll && (<p className="text-center text-gray-300 text-xs underline">
+                            [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
+                          </p>)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Board Squares */}
+                {boardData.map((square, index) => {
+                  const playersHere = playersByPosition.get(index) ?? [];
+                  const owner =
+                    my_properties.find((p) => p.id === square.id) && me?.username
+                      ? me.username
+                      : null;
+
+                  return (
+                    <div
+                      key={square.id}
+                      style={{
+                        gridRowStart: square.grid_row,
+                        gridColumnStart: square.grid_col,
+                      }}
+                      className="w-full h-full p-[2px] relative box-border"
+                    >
+                      {square.type === "property" && <PropertyCard square={square} owner={owner} />}
+                      {square.type === "special" && <SpecialCard square={square} />}
+                      {square.type === "corner" && <CornerCard square={square} />}
+
+                      <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
+                        {playersHere.map((p) => (
+                          <button
+                            key={p.user_id}
+                            className={`text-lg md:text-2xl ${p.user_id === game.next_player_id
+                              ? "border-2 border-cyan-300 rounded animate-pulse"
+                              : ""
+                              }`}
+                          >
+                            {getPlayerSymbol(p.symbol)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+        :
+        <></>
+      }
     </ErrorBoundary>
   );
 };
