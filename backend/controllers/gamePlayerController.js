@@ -187,7 +187,13 @@ const gamePlayerController = {
     const trx = await db.transaction();
 
     try {
-      const { user_id, game_id, position, rolled = null, is_double = false } = req.body;
+      const {
+        user_id,
+        game_id,
+        position,
+        rolled = null,
+        is_double = false,
+      } = req.body;
 
       // 1️⃣ Lock game row
       const game = await trx("games")
@@ -199,6 +205,18 @@ const gamePlayerController = {
         return res
           .status(200)
           .json({ success: false, message: "Game not found" });
+      }
+
+      // Get game settings
+      const game_settings = await trx("game_settings")
+        .where({ game_id })
+        .forUpdate()
+        .first();
+      if (!game_settings) {
+        await trx.rollback();
+        return res
+          .status(200)
+          .json({ success: false, message: "Game settings not found" });
       }
 
       // Ensure it’s this player’s turn
@@ -244,13 +262,15 @@ const gamePlayerController = {
       if (!game_player.in_jail && new_position == 30) {
         {
           // 5️⃣ Update player
-          await trx("game_players").where({ id: game_player.id }).update({
-            in_jail: true,
-            in_jail_rolls: 0,
-            position: 10,
-            rolls: Number(game_player.rolls || 0) + 1,
-            updated_at: new Date(),
-          });
+          await trx("game_players")
+            .where({ id: game_player.id })
+            .update({
+              in_jail: true,
+              in_jail_rolls: 0,
+              position: 10,
+              rolls: Number(game_player.rolls || 0) + 1,
+              updated_at: new Date(),
+            });
 
           // 6️⃣ Log move
           await trx("game_play_history").insert({
@@ -273,7 +293,9 @@ const gamePlayerController = {
         if (
           (!game_player.in_jail && position !== 30) ||
           (game_player.in_jail &&
-            (game_player.in_jail_rolls >= 3 || Number(rolled) >= 12 || is_double))
+            (game_player.in_jail_rolls >= 3 ||
+              Number(rolled) >= 12 ||
+              is_double))
         ) {
           const passedStart = new_position < old_position;
 
@@ -345,27 +367,42 @@ const gamePlayerController = {
                 break;
             }
             if (rent > 0) {
-              await trx("game_players")
-                .where({ id: game_player.id })
-                .decrement("balance", rent);
+              const property_owner = await trx("game_players")
+                .where({
+                  id: game_property.player_id,
+                })
+                .first();
+              if (game_settings.rent_in_prison) {
+                await trx("game_players")
+                  .where({ id: game_player.id })
+                  .decrement("balance", rent);
 
-              await trx("game_players")
-                .where({ id: game_property.player_id })
-                .increment("balance", rent);
+                await trx("game_players")
+                  .where({ id: game_property.player_id })
+                  .increment("balance", rent);
 
-              await trx("game_trades").insert({
-                game_id,
-                from_player_id: game_player.id,
-                to_player_id: game_property.player_id,
-                type: "CASH",
-                status: "ACCEPTED",
-                sending_amount: rent,
-                receiving_amount: rent,
-                created_at: new Date(),
-                updated_at: new Date(),
-              });
+                await trx("game_trades").insert({
+                  game_id,
+                  from_player_id: game_player.id,
+                  to_player_id: game_property.player_id,
+                  type: "CASH",
+                  status: "ACCEPTED",
+                  sending_amount: rent,
+                  receiving_amount: rent,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                });
+              }
             }
           }
+        } else {
+          await trx("game_players")
+            .where({ id: game_player.id })
+            .update({
+              in_jail_rolls: game_player.in_jail_rolls + 1,
+              rolls: Number(game_player.rolls || 0) + 1,
+              updated_at: new Date(),
+            });
         }
       }
       await trx.commit();
