@@ -376,6 +376,7 @@ const GameBoard = ({
               user_id: me?.user_id,
               game_id: game.id,
               rolled: value.total + pendingRoll,
+              is_double: value.die1 == value.die2
             }
           );
 

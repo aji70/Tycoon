@@ -187,7 +187,7 @@ const gamePlayerController = {
     const trx = await db.transaction();
 
     try {
-      const { user_id, game_id, position, rolled = null } = req.body;
+      const { user_id, game_id, position, rolled = null, is_double = false } = req.body;
 
       // 1️⃣ Lock game row
       const game = await trx("games")
@@ -271,7 +271,7 @@ const gamePlayerController = {
         if (
           (!game_player.in_jail && position !== 30) ||
           (game_player.in_jail &&
-            (game_player.in_jail_rolls >= 3 || Number(rolled) >= 12))
+            (game_player.in_jail_rolls >= 3 || Number(rolled) >= 12 || is_double))
         ) {
           const passedStart = new_position < old_position;
 
