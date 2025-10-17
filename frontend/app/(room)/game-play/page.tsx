@@ -72,17 +72,18 @@ export default function GamePlayPage() {
     enabled: !!game?.id,
     refetchInterval: 15000,
   });
-
+  
   const my_properties: Property[] = useMemo(() => {
     if (!game_properties?.length || !properties?.length || !address) return [];
 
     const propertyMap = new Map(properties.map((p) => [p.id, p]));
+
     return game_properties
       .filter((gp) => gp.address?.toLowerCase() === address.toLowerCase())
       .map((gp) => propertyMap.get(gp.property_id))
-      .filter((p): p is Property => !!p);
+      .filter((p): p is Property => !!p)
+      .sort((a, b) => a.id - b.id);
   }, [game_properties, properties, address]);
-
 
   if (gameLoading) {
     return (

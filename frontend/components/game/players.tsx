@@ -87,8 +87,8 @@ export default function GamePlayers({
             <li
               key={player.user_id}
               className={`p-3 flex flex-col border-l-4 transition-colors ${isNext
-                  ? "border-cyan-800 bg-cyan-900/20"
-                  : "border-transparent hover:bg-gray-900/20"
+                ? "border-cyan-800 bg-cyan-900/20"
+                : "border-transparent hover:bg-gray-900/20"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -156,9 +156,9 @@ export default function GamePlayers({
                       <div className="mt-1 text-xs text-gray-400">
                         <div>Price: 💵 {prop.price}</div>
                         <div>Rent: 🏠 {rentPrice(prop.id)}</div>
-                        {isMortgaged(prop.id) && (
+                        {isMortgaged(prop.id) ? (
                           <div className="text-red-500 font-medium">🔒 Mortgaged</div>
-                        )}
+                        ) : <></>}
                       </div>
                     </div>
                   </motion.li>
