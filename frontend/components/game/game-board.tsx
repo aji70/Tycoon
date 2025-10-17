@@ -134,6 +134,7 @@ const GameBoard = ({
   const [roll, setRoll] = useSafeState<{ die1: number; die2: number; total: number } | null>(
     null
   );
+  const [pendingRoll, setPendingRoll] = useSafeState<number>(0);
   const [canRoll, setCanRoll] = useSafeState<boolean>(false);
   const [actionLock, setActionLock] = useSafeState<"ROLL" | "END" | null>(null);
 
@@ -338,6 +339,9 @@ const GameBoard = ({
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
     setError(null);
+    if (rollAgain) {
+      setPendingRoll(12)
+    }
     setRollAgain(false);
     setIsRolling(true);
 
@@ -367,12 +371,12 @@ const GameBoard = ({
 
         setRoll(value);
         const currentPos = me?.position ?? 0;
-        const newPosition = (currentPos + value.total) % BOARD_SQUARES;
+        const newPosition = (currentPos + value.total + pendingRoll) % BOARD_SQUARES;
 
         // Optimistic update
-        setPlayers((prev) =>
-          prev.map((p) => (p.user_id === me?.user_id ? { ...p, position: newPosition } : p))
-        );
+        // setPlayers((prev) =>
+        //   prev.map((p) => (p.user_id === me?.user_id ? { ...p, position: newPosition } : p))
+        // );
 
         try {
           const updateResp = await apiClient.post<ApiResponse>(
@@ -381,12 +385,13 @@ const GameBoard = ({
               position: newPosition,
               user_id: me?.user_id,
               game_id: game.id,
-              rolled: value.total,
+              rolled: value.total + pendingRoll,
             }
           );
 
           if (!updateResp?.success) toast.error("Unable to move from current position");
 
+          setPendingRoll(0)
           const updatedGame = await fetchUpdatedGame();
           if (updatedGame?.players) {
             setPlayers(updatedGame.players);
