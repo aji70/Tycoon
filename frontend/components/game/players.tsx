@@ -20,6 +20,7 @@ export default function GamePlayers({
   me,
 }: GamePlayersProps) {
   const { address } = useAccount();
+  console.log(my_properties)
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
       <header className="p-4 border-b border-cyan-800">
