@@ -611,7 +611,7 @@ const GameBoard = ({
                             key={p.user_id}
                             title={`${p.username} (${p.balance})`}
                             className={`text-3xl md:text-4xl ${p.user_id === game.next_player_id
-                              ? "border-2 border-cyan-300 rounded animate-pulse"
+                              ? "bg-cyan-300 rounded-full animate-pulse"
                               : ""
                               }`}
                           >
