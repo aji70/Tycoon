@@ -470,7 +470,7 @@ const GameBoard = ({
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-        <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[980px] mt-[-1rem]">
+        <div className="flex justify-center items-start w-full mt-[-1rem]">
           <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10 p-3">
             <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[6px] box-border">
               {/* Center Area */}
@@ -550,6 +550,39 @@ const GameBoard = ({
                     )}
                   </div>
                 )}
+
+                <div className="bg-[#001018] rounded-lg p-3 h-[200px] overflow-hidden shadow-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold">Activity Log</h3>
+                    <div className="text-xs opacity-70">Live</div>
+                  </div>
+
+                  <div ref={logRef} className="overflow-auto h-[620px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                    <AnimatePresence initial={false}>
+                      {(game.history ?? []).slice().reverse().map((h) => (
+                        <motion.div
+                          key={h.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.18 }}
+                          className="mb-2"
+                        >
+                          {renderHistoryItem(h)}
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+
+                    {(!game.history || game.history.length === 0) && (
+                      <div className="text-center text-sm opacity-60 mt-6">No activity yet — play to see history.</div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={forceRefetch} className="text-xs px-3 py-2 bg-white/6 rounded">Refresh</button>
+                    <button onClick={fetchUpdatedGame} className="text-xs px-3 py-2 bg-white/6 rounded">Sync Now</button>
+                  </div>
+                </div>
               </div>
 
               {/* Board Squares */}
@@ -564,7 +597,7 @@ const GameBoard = ({
                       gridColumnStart: square.grid_col,
                     }}
                     className="w-full h-full p-[2px] relative box-border"
-                    whileHover={{ scale: 1.06, zIndex: 50 }}
+                    whileHover={{ scale: 2.50, zIndex: 50 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className="w-full h-full rounded-md overflow-hidden bg-black/20 p-1">
@@ -590,42 +623,6 @@ const GameBoard = ({
                   </motion.div>
                 );
               })}
-            </div>
-          </div>
-        </div>
-
-        {/* Activity Log / Right Panel */}
-        <div className="w-full lg:w-1/3 max-w-[420px]">
-          <div className="bg-[#001018] rounded-lg p-3 h-[720px] overflow-hidden shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">Activity Log</h3>
-              <div className="text-xs opacity-70">Live</div>
-            </div>
-
-            <div ref={logRef} className="overflow-auto h-[620px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
-              <AnimatePresence initial={false}>
-                {(game.history ?? []).slice().reverse().map((h) => (
-                  <motion.div
-                    key={h.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.18 }}
-                    className="mb-2"
-                  >
-                    {renderHistoryItem(h)}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {(!game.history || game.history.length === 0) && (
-                <div className="text-center text-sm opacity-60 mt-6">No activity yet — play to see history.</div>
-              )}
-            </div>
-
-            <div className="mt-3 flex items-center gap-2">
-              <button onClick={forceRefetch} className="text-xs px-3 py-2 bg-white/6 rounded">Refresh</button>
-              <button onClick={fetchUpdatedGame} className="text-xs px-3 py-2 bg-white/6 rounded">Sync Now</button>
             </div>
           </div>
         </div>
