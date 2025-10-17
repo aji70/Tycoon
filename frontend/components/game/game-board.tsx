@@ -472,7 +472,7 @@ const GameBoard = ({
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
         <div className="flex justify-center items-start w-full mt-[-1rem]">
           <div className="w-full bg-[#010F10] h-[80vh] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10 p-3">
-            <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[6px] box-border">
+            <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[4px] box-border">
               {/* Center Area */}
               <div className="col-start-2 col-span-9 row-start-2 row-span-9 flex flex-col justify-center items-center p-4 relative bg-gradient-to-b from-black/20 to-transparent rounded-md">
                 <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
