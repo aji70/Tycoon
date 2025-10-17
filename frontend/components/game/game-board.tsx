@@ -442,6 +442,17 @@ const GameBoard = ({
     return map;
   }, [players]);
 
+
+  const propertyOwner = (property_id: number) => {
+    const gp = game_properties.find((gp) => gp.property_id === property_id);
+    if (gp) {
+      const player = players.find((p) => p.address === gp.address)
+      if (player) {
+        return player.username
+      }
+    }
+    return null;
+  }
   /* ---------- Render ---------- */
   return (
     <ErrorBoundary>
