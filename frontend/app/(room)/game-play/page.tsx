@@ -52,6 +52,7 @@ export default function GamePlayPage() {
     queryKey: ["properties"],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<Property[]>>("/properties");
+      console.log("Fetched properties:", res.data);
       return res.data || [];
     }
   });
