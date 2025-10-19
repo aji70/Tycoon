@@ -26,7 +26,7 @@ const SpecialCard = ({ square }: SpecialCardProps) => {
   const isLuxuryTax = position === "right" && isTaxFromBackend;
   const isTax = isIncomeTax || isLuxuryTax;
 
-  const taxAmount = isIncomeTax ? '$200' : isLuxuryTax ? '$100' : 0;
+  const taxAmount = isIncomeTax ? 200 : isLuxuryTax ? 100 : 0;
   const taxName = isIncomeTax ? "Income Tax" : isLuxuryTax ? "Luxury Tax" : name;
   const payText = `${taxAmount}`;
 
@@ -66,10 +66,10 @@ const SpecialCard = ({ square }: SpecialCardProps) => {
     right: "bottom-[20%] left-0 right-0 text-center",
   };
 
+  const outerClasses = `relative w-full h-full ${bgClass} ${isCommunityChest ? '' : 'p-0.5'} rounded-[2.5px] ${orientationClasses[position]} shadow-sm ${textClass} ${isCommunityChest ? 'overflow-hidden' : ''}`;
+
   return (
-    <div
-      className={`relative w-full h-full ${bgClass} p-0.5 rounded-[2.5px] ${orientationClasses[position]} shadow-sm ${textClass}`}
-    >
+    <div className={outerClasses}>
       {isChance ? (
         <>
           <GrHelp className={`${iconClass} size-5 md:size-6 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2`} />
@@ -78,9 +78,18 @@ const SpecialCard = ({ square }: SpecialCardProps) => {
           </p>
         </>
       ) : isCommunityChest ? (
-        <p className="absolute inset-0 flex items-center justify-center text-center text-[3.5px] md:text-[4.5px] uppercase font-semibold px-1 leading-tight">
-          {name}
-        </p>
+        <>
+          <Image
+            src="/game/communitychest.jpeg"
+            alt="Community Chest"
+            fill
+            className="object-contain"
+          />
+          <p className="absolute top-0 left-0 right-0 text-center text-[3.5px] md:text-[4.5px] uppercase font-bold bg-white py-0.5">
+            Community Chest
+          </p>
+         
+        </>
       ) : isTax ? (
         <div className="relative w-full h-full">
           {/* TAX NAME ON TOP (Black text) */}
