@@ -26,7 +26,7 @@ const SpecialCard = ({ square }: SpecialCardProps) => {
   const isLuxuryTax = position === "right" && isTaxFromBackend;
   const isTax = isIncomeTax || isLuxuryTax;
 
-  const taxAmount = isIncomeTax ? 200 : isLuxuryTax ? 100 : 0;
+  const taxAmount = isIncomeTax ? '$200' : isLuxuryTax ? '$100' : 0;
   const taxName = isIncomeTax ? "Income Tax" : isLuxuryTax ? "Luxury Tax" : name;
   const payText = `${taxAmount}`;
 
