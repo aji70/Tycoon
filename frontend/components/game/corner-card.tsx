@@ -9,9 +9,7 @@ interface CornerCardProps {
 const CornerCard = ({ square }: CornerCardProps) => {
     return (
         <div className="w-full h-full bg-[#F0F7F7] flex flex-col justify-center items-center text-[#0B191A] rounded-[2.5px] p-0.5">
-            {square.name === "Income Tax" ? (
-                <div className="text-lg font-bold">$200</div>
-            ) : square.icon ? (
+            {square.icon && (
                 <Image
                     src={square.icon}
                     alt={square.name}
@@ -19,7 +17,7 @@ const CornerCard = ({ square }: CornerCardProps) => {
                     height={48}
                     className="w-full h-full"
                 />
-            ) : null}
+            )}
         </div>
     );
 };

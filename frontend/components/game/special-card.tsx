@@ -16,7 +16,7 @@ interface SpecialCardProps {
 }
 
 const SpecialCard = ({ square }: SpecialCardProps) => {
-  const { position, name } = square;
+  const { position, id, name } = square;
 
   const orientationClasses: Record<Position, string> = {
     bottom: "",
@@ -27,7 +27,7 @@ const SpecialCard = ({ square }: SpecialCardProps) => {
 
   const isChance = name === "Chance";
   const isCommunityChest = name === "Community Chest";
-  const isIncomeTax = name === "Income Tax";
+  const isIncomeTax = id === 4;
   const isLuxuryTax = name === "Luxury Tax";
   const isTax = isIncomeTax || isLuxuryTax;
 
