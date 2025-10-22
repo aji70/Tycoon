@@ -587,7 +587,7 @@ const GameBoard = ({
                   >
                     <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1`}>
                       {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
-                      {["community_chest", "chance", "luxury_tax", "super_tax"].includes(square.type) && <SpecialCard square={square} />}
+                      {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                       {square.type === "corner" && <CornerCard square={square} />}
 
                       <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">

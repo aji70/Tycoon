@@ -764,7 +764,7 @@ export const seed = async (knex) => {
     },
     {
       id: 38,
-      type: "super_tax",
+      type: "income_tax",
       name: "Super Tax",
       price: 100,
       rent_site_only: 0,

@@ -13,7 +13,7 @@ export interface BoardDataSquare {
     | "corner"
     | "property"
     | "luxury_tax"
-    | "super_tax"
+    | "income_tax"
     | "chance"
     | "community_chest";
   name: string;
