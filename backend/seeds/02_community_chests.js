@@ -38,7 +38,7 @@ export const seed = async (knex) => {
       id: 5,
       instruction:
         "Get Out of Jail Free – This card may be kept until needed, or traded/sold",
-      type: "special",
+      type: "community_chest",
       amount: null,
       position: null,
       extra: JSON.stringify({ rule: "get_out_of_jail_free" }),

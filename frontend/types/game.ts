@@ -9,7 +9,13 @@ export interface GameContextProps {
 
 export interface BoardDataSquare {
   id: number;
-  type: "corner" | "property" | "special";
+  type:
+    | "corner"
+    | "property"
+    | "luxury_tax"
+    | "super_tax"
+    | "chance"
+    | "community_chest";
   name: string;
   price: number;
   rent_site_only: number;
