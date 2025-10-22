@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import "./Wallet.sol";
 
-contract Blockopoly is ReentrancyGuard {
+contract Tycoon is ReentrancyGuard {
     uint256 public totalUsers;
     uint256 public totalGames;
     uint256 private nextGameId;
@@ -11,6 +11,10 @@ contract Blockopoly is ReentrancyGuard {
     address public immutable nft; // in-game NFT contract
     address public paymaster;
     uint256 public constant BOARD_SIZE = 40; // Monopoly-style board
+    uint256 public constant STAKE_AMOUNT = 1 * 10 ** 18; // 1 token stake
+    uint256 public constant WINNER_REWARD_MULTIPLIER = 150; // 150% of stake as reward (1.5x)
+    uint256 public constant REWARD_DIVISOR = 100; // For percentage calculation (150 / 100 = 1.5)
+    uint256 public constant MIN_TURNS_FOR_BONUS = 40; // Minimum total turns for win bonus
 
     // -------------------------
     // 📌 Structs
@@ -61,6 +65,7 @@ contract Blockopoly is ReentrancyGuard {
         GameType mode;
         uint64 createdAt;
         uint64 endedAt;
+        uint256 totalStaked; // Track total stakes for this game
     }
 
     struct GamePlayer {
@@ -186,12 +191,25 @@ contract Blockopoly is ReentrancyGuard {
 
         User storage user = users[creator];
         user.gamesPlayed += 1;
-        IWallet(address(user.playerAddress)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to create game
+        user.totalStaked += STAKE_AMOUNT;
+        IWallet(address(user.playerAddress)).withdrawERC20(token, address(this), STAKE_AMOUNT); // Stake to create game
 
         uint8 gType = _stringToGameType(gameType);
         uint8 pSym = _stringToPlayerSymbol(playerSymbol);
 
         uint256 gameId = nextGameId++;
+
+        // Initialize game settings
+        gameSettings[gameId] = GameSettings({
+            maxPlayers: numberOfPlayers,
+            auction: true, // default
+            rentInPrison: false, // default
+            mortgage: true, // default
+            evenBuild: true, // default
+            startingCash: startingBalance,
+            randomizePlayOrder: false, // default
+            privateRoomCode: code // reuse code for private if needed
+        });
 
         games[gameId] = Game({
             id: gameId,
@@ -204,7 +222,8 @@ contract Blockopoly is ReentrancyGuard {
             joinedPlayers: 1,
             mode: GameType(gType),
             createdAt: uint64(block.timestamp),
-            endedAt: 0
+            endedAt: 0,
+            totalStaked: STAKE_AMOUNT // Start with creator's stake
         });
 
         // Register creator in game
@@ -239,7 +258,9 @@ contract Blockopoly is ReentrancyGuard {
 
         User storage user = users[player];
         user.gamesPlayed += 1;
-        IWallet(address(user.playerAddress)).withdrawERC20(token, address(this), 1 * 10 ** 18); // Stake to join game
+        user.totalStaked += STAKE_AMOUNT;
+        IWallet(address(user.playerAddress)).withdrawERC20(token, address(this), STAKE_AMOUNT); // Stake to join game
+        game.totalStaked += STAKE_AMOUNT;
 
         uint8 pSym = _stringToPlayerSymbol(playerSymbol);
 
@@ -263,8 +284,9 @@ contract Blockopoly is ReentrancyGuard {
         return order;
     }
 
-    function removePlayerFromGame(uint256 gameId, address player, address finalCandidate)
+    function removePlayerFromGame(uint256 gameId, address player, address finalCandidate, uint256 totalTurns)
         public
+        onlyPaymaster
         nonReentrant
         returns (bool)
     {
@@ -295,9 +317,15 @@ contract Blockopoly is ReentrancyGuard {
             game.winner = finalCandidate;
             game.endedAt = uint64(block.timestamp);
 
-            User storage winner = users[finalCandidate];
-            winner.gamesWon += 1;
-            fund_smart_wallet_ERC20(winner.playerAddress, 15 * 10 ** 17);
+            User storage winnerUser = users[finalCandidate];
+            winnerUser.gamesWon += 1;
+
+            // Pay bonus only if totalTurns >= MIN_TURNS_FOR_BONUS
+            if (totalTurns >= MIN_TURNS_FOR_BONUS) {
+                uint256 reward = (STAKE_AMOUNT * WINNER_REWARD_MULTIPLIER) / REWARD_DIVISOR;
+                winnerUser.totalEarned += reward;
+                fund_smart_wallet_ERC20(finalCandidate, reward);
+            }
         }
 
         return true;
@@ -313,7 +341,7 @@ contract Blockopoly is ReentrancyGuard {
         uint8 newPosition,
         uint256 newBalance,
         uint8 propertyId
-    ) public returns (bool) {
+    ) public onlyPaymaster returns (bool) {
         Game storage game = games[gameId];
         require(game.status == GameStatus.Ongoing, "Game not ongoing");
 
@@ -394,47 +422,47 @@ contract Blockopoly is ReentrancyGuard {
         revert("Invalid player symbol");
     }
 
-    // function debit_ETH_smart_wallet(address wallet, address to, uint256 amount) public returns (bool) {
-    //     require(msg.sender == address(this), "Only contract can debit");
-    //     IWallet w = IWallet(payable(wallet));
-    //     w.withdrawETH(payable(to), amount);
-    //     return true;
-    // }
+    function debit_ETH_smart_wallet(address wallet, address to, uint256 amount) public returns (bool) {
+        require(msg.sender == address(this), "Only contract can debit");
+        IWallet w = IWallet(payable(wallet));
+        w.withdrawETH(payable(to), amount);
+        return true;
+    }
 
-    // function debit_ERC20_smart_wallet(address wallet, address _token, address to, uint256 amount)
-    //     public
-    //     returns (bool)
-    // {
-    //     require(msg.sender == address(this), "Only contract can debit");
-    //     IWallet w = IWallet(payable(wallet));
-    //     w.withdrawERC20(_token, to, amount);
-    //     return true;
-    // }
+    function debit_ERC20_smart_wallet(address wallet, address _token, address to, uint256 amount)
+        public
+        returns (bool)
+    {
+        require(msg.sender == address(this), "Only contract can debit");
+        IWallet w = IWallet(payable(wallet));
+        w.withdrawERC20(_token, to, amount);
+        return true;
+    }
 
-    // function fund_smart_wallet(address wallet) public payable returns (bool) {
-    //     require(msg.sender == address(this), "Only contract can fund");
-    //     (bool sent,) = payable(wallet).call{value: msg.value}("");
-    //     require(sent, "Funding failed");
-    //     return true;
-    // }
+    function fund_smart_wallet(address wallet) public payable returns (bool) {
+        require(msg.sender == address(this), "Only contract can fund");
+        (bool sent,) = payable(wallet).call{value: msg.value}("");
+        require(sent, "Funding failed");
+        return true;
+    }
 
     function fund_smart_wallet_ERC20(address wallet, uint256 amount) public returns (bool) {
-        require(msg.sender == paymaster, "Only contract can fund");
+        require(msg.sender == paymaster || msg.sender == address(this), "Only paymaster or contract can fund");
         IERC20 erc20 = IERC20(token);
         bool ok = erc20.transfer(wallet, amount);
         require(ok, "ERC20 transfer failed");
         return true;
     }
 
-    // function get_smart_wallet_balance(address wallet) public view returns (uint256) {
-    //     IWallet w = IWallet(payable(wallet));
-    //     return w.getBalance();
-    // }
+    function get_smart_wallet_balance(address wallet) public view returns (uint256) {
+        IWallet w = IWallet(payable(wallet));
+        return w.getBalance();
+    }
 
-    // function get_smart_wallet_ERC20_balance(address wallet, address _token) public view returns (uint256) {
-    //     IWallet w = IWallet(payable(wallet));
-    //     return w.getERC20Balance(_token);
-    // }
+    function get_smart_wallet_ERC20_balance(address wallet, address _token) public view returns (uint256) {
+        IWallet w = IWallet(payable(wallet));
+        return w.getERC20Balance(_token);
+    }
 
     receive() external payable {}
 }

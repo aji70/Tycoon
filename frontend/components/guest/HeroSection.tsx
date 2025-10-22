@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Dices, BarChart2, Gamepad2 } from "lucide-react"; // Replaced KeyRound with BarChart2
+import { Dices, BarChart2, Gamepad2, ShoppingBag } from "lucide-react"; // Added ShoppingBag
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -57,6 +57,7 @@ const HeroSection: React.FC = () => {
   const handleRouteToJoinRoom = () => router.push("/join-room");
   const handleRouteToCreateGame = () => router.push("/game-settings");
   const handleRouteToGameStats = () => router.push("/game-stats"); // Updated handler
+  const handleRouteToShop = () => router.push("/game-shop"); // New handler for shop
 
   const handleRequest = async () => {
     if (!address) {
@@ -285,7 +286,7 @@ const HeroSection: React.FC = () => {
             </p>
           )}
           {address && isUserRegistered && (
-            <div className="flex justify-center items-center mt-2 gap-4">
+            <div className="flex flex-wrap justify-center items-center mt-2 gap-4">
               <button
                 type="button"
                 onClick={handleRouteToCreateGame}
@@ -362,6 +363,32 @@ const HeroSection: React.FC = () => {
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
                   <BarChart2 className="mr-1.5 w-[16px] h-[16px]" />
                   Game Stats {/* Or use "Battle Stats" for a catchier name */}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRouteToShop}
+                className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+              >
+                <svg
+                  width="140"
+                  height="40"
+                  viewBox="0 0 140 40"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-0 w-full h-full"
+                >
+                  <path
+                    d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                    fill="#0E1415"
+                    stroke="#003B3E"
+                    strokeWidth={1}
+                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
+                  <ShoppingBag className="mr-1.5 w-[16px] h-[16px]" />
+                  Shop
                 </span>
               </button>
             </div>
