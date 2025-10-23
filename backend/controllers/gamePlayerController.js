@@ -71,6 +71,14 @@ const payRent = async (
     let rent = null;
     let position = new_position;
 
+    // Get players count
+    const get_players_count = await trx("game_players")
+      .where("game_id", game.id)
+      .where("player_id", "!=", game_player.id)
+      .count({ cnt: "*" })
+      .first();
+    const players_count = Number(get_players_count?.cnt || 0);
+
     // Calculate rent based on property type
     if (RAILWAY_IDS.includes(property.id)) {
       const ownedCountResult = await trx("game_properties")
@@ -158,6 +166,83 @@ const payRent = async (
               old_position > new_position
                 ? { player: -200, owner: 0, players: 0 }
                 : { player: 0, owner: 0, players: 0 };
+          } else if (rule === "per_player") {
+            rent = {
+              player: chance.amount * players_count,
+              owner: 0,
+              players: chance.amount,
+            };
+          }
+        }
+      }
+    } else if (COMMUNITY_CHEST_IDS.includes(property.id)) {
+      const communityChest = await trx("community_chests")
+        .orderByRaw("RAND()")
+        .first();
+
+      if (communityChest) {
+        const extra = communityChest.extra
+          ? JSON.parse(communityChest.extra)
+          : {};
+        const communityChestType = communityChest.type.trim().toLowerCase();
+
+        switch (communityChestType) {
+          case "credit_and_move":
+            rent = { player: communityChest.amount, owner: 0, players: 0 };
+            position = communityChest.position;
+            break;
+          case "debit_and_move":
+            rent = { player: -communityChest.amount, owner: 0, players: 0 };
+            position = communityChest.position;
+            break;
+          case "move":
+            position =
+              communityChest.position >= 0
+                ? communityChest.position
+                : (new_position + communityChest.position + 40) % 40;
+            break;
+          case "credit":
+            rent = { player: communityChest.amount, owner: 0, players: 0 };
+            break;
+          case "debit":
+            rent = { player: -communityChest.amount, owner: 0, players: 0 };
+            break;
+        }
+
+        // Handle extra rule logic
+        if (extra?.rule) {
+          const rule = extra.rule;
+
+          if (rule === "nearest_utility") {
+            position =
+              UTILITY_IDS.find((id) => id > new_position) ?? UTILITY_IDS[0];
+          } else if (rule === "nearest_railroad") {
+            position =
+              RAILWAY_IDS.find((id) => id > new_position) ?? RAILWAY_IDS[0];
+          } else if (rule === "get_out_of_jail_free") {
+            await trx("game_players")
+              .where({ id: game_player.id })
+              .update({ community_chest_jail_card: 1 });
+          } else if (rule === "go_to_jail") {
+            position = 10;
+            await trx("game_players").where({ id: game_player.id }).update({
+              in_jail: true,
+              in_jail_rolls: 0,
+              position: 10,
+              updated_at: now,
+            });
+
+            // FIX: Pass GO collection logic
+            rent =
+              old_position > new_position
+                ? { player: -200, owner: 0, players: 0 }
+                : { player: 0, owner: 0, players: 0 };
+          } else if (rule === "per_player") {
+            rent = {
+              player: players_count * communityChest.amount,
+              owner: 0,
+              players: -communityChest.amount,
+            };
           }
         }
       }
