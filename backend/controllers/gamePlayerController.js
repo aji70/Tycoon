@@ -87,7 +87,8 @@ const payRent = async (
       if (!card) return;
 
       chanceCard = card;
-      const extra = card.extra ? JSON.parse(card.extra) : {};
+      // const extra = card.extra ? JSON.parse(card.extra) : {};
+      const extra = card.extra;
       const cardType = card.type.trim().toLowerCase();
       const players_count = await getPlayersCount();
 
