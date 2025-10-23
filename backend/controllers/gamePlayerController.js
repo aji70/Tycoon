@@ -56,7 +56,7 @@ const payRent = async (
 
     // No rent if property unowned, owned by current player, or mortgaged
     if (
-      !game_property ||
+      game_property ||
       game_property.player_id === game_player.id ||
       game_property.mortgaged
     ) {
@@ -67,7 +67,7 @@ const payRent = async (
       };
     }
 
-    const property_owner_id = game_property.player_id;
+    const property_owner_id = game_property ? game_property.player_id : null;
 
     // Get property owner and their user info in parallel
     const [property_owner, owner] = await Promise.all([
@@ -80,7 +80,7 @@ const payRent = async (
         ),
     ]);
 
-    if (!property_owner || !owner) {
+    if ((!property_owner || !owner) && property_owner_id) {
       return { success: false, message: "Property owner not found" };
     }
 
@@ -278,7 +278,7 @@ const payRent = async (
       }
     } else {
       // Normal property rent based on development level
-      const development = Number(game_property.development || 0);
+      const development = Number(game_property?.development || 0);
       const rentFields = [
         property.rent_site_only,
         property.rent_one_house,
@@ -434,7 +434,7 @@ const payRent = async (
       message: comment,
     };
   } catch (err) {
-    console.error("Error in payRent:", err);
+    console.error("Error in pay rent:", err);
     return {
       success: false,
       message: err.message || "Failed to process rent payment",
