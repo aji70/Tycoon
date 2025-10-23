@@ -642,7 +642,7 @@ const gamePlayerController = {
       const new_position = position;
 
       // Helper: create play history record
-      const insertPlayHistory = async (extra = {}) => {
+      const insertPlayHistory = async (extra = {}, comment = null) => {
         await trx("game_play_history").insert({
           game_id,
           game_player_id: game_player.id,
@@ -655,7 +655,7 @@ const gamePlayerController = {
             description: `Player moved from ${old_position} → ${new_position}`,
             ...extra,
           }),
-          comment: `Moved to ${property.name}`,
+          comment: `${comment ? comment : `Moved to ${property.name}`}`,
           active: 1,
           created_at: now,
         });
@@ -768,7 +768,7 @@ const gamePlayerController = {
             updated_at: now,
           });
 
-        await insertPlayHistory({ stayed_in_jail: true });
+        await insertPlayHistory({ stayed_in_jail: true }, "You are still in jail");
         await trx.commit();
 
         return res.json({
