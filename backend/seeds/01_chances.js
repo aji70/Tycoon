@@ -30,7 +30,7 @@ export const seed = async (knex) => {
       id: 4,
       instruction:
         "Advance token to nearest Utility. If unowned, you may buy it from the Bank. If owned, throw dice and pay owner a total ten times the amount thrown.",
-      type: "special",
+      type: "chance",
       amount: null,
       position: null,
       extra: JSON.stringify({ rule: "nearest_utility" }),
@@ -39,7 +39,7 @@ export const seed = async (knex) => {
       id: 5,
       instruction:
         "Advance token to the nearest Railroad and pay owner twice the rental. If Railroad is unowned, you may buy it.",
-      type: "special",
+      type: "chance",
       amount: null,
       position: null,
       extra: JSON.stringify({ rule: "nearest_railroad" }),
@@ -56,7 +56,7 @@ export const seed = async (knex) => {
       id: 7,
       instruction:
         "Get Out of Jail Free – This card may be kept until needed, or traded/sold",
-      type: "special",
+      type: "chance",
       amount: null,
       position: null,
       extra: JSON.stringify({ rule: "get_out_of_jail_free" }),

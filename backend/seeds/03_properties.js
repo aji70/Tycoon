@@ -44,7 +44,7 @@ export const seed = async (knex) => {
     },
     {
       id: 2,
-      type: "special",
+      type: "community_chest",
       name: "Community Chest",
       price: 0,
       rent_site_only: 0,
@@ -84,7 +84,7 @@ export const seed = async (knex) => {
     },
     {
       id: 4,
-      type: "special",
+      type: "luxury_tax",
       name: "Luxury Tax",
       price: 100,
       rent_site_only: 0,
@@ -144,7 +144,7 @@ export const seed = async (knex) => {
     },
     {
       id: 7,
-      type: "special",
+      type: "chance",
       name: "Chance",
       price: 0,
       rent_site_only: 0,
@@ -344,7 +344,7 @@ export const seed = async (knex) => {
     },
     {
       id: 17,
-      type: "special",
+      type: "community_chest",
       name: "Community Chest",
       price: 0,
       rent_site_only: 0,
@@ -444,7 +444,7 @@ export const seed = async (knex) => {
     },
     {
       id: 22,
-      type: "special",
+      type: "chance",
       name: "Chance",
       price: 0,
       rent_site_only: 0,
@@ -664,7 +664,7 @@ export const seed = async (knex) => {
     },
     {
       id: 33,
-      type: "special",
+      type: "community_chest",
       name: "Community Chest",
       price: 0,
       rent_site_only: 0,
@@ -724,7 +724,7 @@ export const seed = async (knex) => {
     },
     {
       id: 36,
-      type: "special",
+      type: "chance",
       name: "Chance",
       price: 0,
       rent_site_only: 0,
@@ -764,7 +764,7 @@ export const seed = async (knex) => {
     },
     {
       id: 38,
-      type: "special",
+      type: "income_tax",
       name: "Super Tax",
       price: 100,
       rent_site_only: 0,

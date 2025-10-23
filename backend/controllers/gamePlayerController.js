@@ -185,15 +185,41 @@ const gamePlayerController = {
   },
   async changePosition(req, res) {
     const trx = await db.transaction();
+    const now = new Date();
+
+    // small helpers
+    const respondAndRollback = async (statusObj) => {
+      try {
+        await trx.rollback();
+      } catch (e) {
+        /* ignore rollback errors */
+      }
+      return res.status(200).json(statusObj);
+    };
 
     try {
       const {
         user_id,
         game_id,
-        position,
+        position: rawPosition,
         rolled = null,
         is_double = false,
       } = req.body;
+
+      // basic validation
+      if (
+        !user_id ||
+        !game_id ||
+        rawPosition === undefined ||
+        rawPosition === null
+      ) {
+        return await respondAndRollback({
+          success: false,
+          message: "Missing required parameters.",
+        });
+      }
+
+      const position = Number(rawPosition);
 
       // 1️⃣ Lock game row
       const game = await trx("games")
@@ -201,30 +227,30 @@ const gamePlayerController = {
         .forUpdate()
         .first();
       if (!game) {
-        await trx.rollback();
-        return res
-          .status(200)
-          .json({ success: false, message: "Game not found" });
+        return await respondAndRollback({
+          success: false,
+          message: "Game not found",
+        });
       }
 
-      // Get game settings
+      // Get game settings and lock (settings are game-scoped)
       const game_settings = await trx("game_settings")
         .where({ game_id })
         .forUpdate()
         .first();
       if (!game_settings) {
-        await trx.rollback();
-        return res
-          .status(200)
-          .json({ success: false, message: "Game settings not found" });
+        return await respondAndRollback({
+          success: false,
+          message: "Game settings not found",
+        });
       }
 
-      // Ensure it’s this player’s turn
+      // Ensure it’s this player's turn
       if (game.next_player_id !== user_id) {
-        await trx.rollback();
-        return res
-          .status(200)
-          .json({ success: false, message: "It is not your turn." });
+        return await respondAndRollback({
+          success: false,
+          message: "It is not your turn.",
+        });
       }
 
       // 2️⃣ Lock player row
@@ -233,188 +259,259 @@ const gamePlayerController = {
         .forUpdate()
         .first();
       if (!game_player) {
-        await trx.rollback();
-        return res
-          .status(200)
-          .json({ success: false, message: "Game player not found" });
+        return await respondAndRollback({
+          success: false,
+          message: "Game player not found",
+        });
       }
 
       // Prevent double rolls in same round
       if (Number(game_player.rolls || 0) >= 1) {
-        await trx.rollback();
-        return res
-          .status(200)
-          .json({ success: false, message: "You already rolled this round." });
+        return await respondAndRollback({
+          success: false,
+          message: "You already rolled this round.",
+        });
       }
 
-      // 3️⃣ Validate position (no lock needed)
+      // 3️⃣ Validate position (no special lock needed)
       const property = await trx("properties").where({ id: position }).first();
       if (!property) {
-        await trx.rollback();
-        return res
-          .status(200)
-          .json({ success: false, message: "Property not found" });
+        return await respondAndRollback({
+          success: false,
+          message: "Property not found",
+        });
       }
 
       // 4️⃣ Compute new values
-      const old_position = Number(game_player.position);
-      const new_position = Number(position);
-      if (!game_player.in_jail && new_position == 30) {
-        {
-          // 5️⃣ Update player
-          await trx("game_players")
-            .where({ id: game_player.id })
-            .update({
-              in_jail: true,
-              in_jail_rolls: 0,
-              position: 10,
-              rolls: Number(game_player.rolls || 0) + 1,
-              updated_at: new Date(),
-            });
+      const old_position = Number(game_player.position || 0);
+      const new_position = position;
 
-          // 6️⃣ Log move
-          await trx("game_play_history").insert({
-            game_id,
-            game_player_id: game_player.id,
-            rolled,
-            old_position,
-            new_position,
-            action: PROPERTY_ACTION(new_position),
-            amount: 0,
-            extra: JSON.stringify({
-              description: `Player moved from ${old_position} → ${new_position}`,
-            }),
-            comment: `Moved to ${property.name}`,
-            active: 1,
-            created_at: new Date(),
-          });
-        }
-      } else {
-        if (
-          (!game_player.in_jail && position !== 30) ||
-          (game_player.in_jail &&
-            (game_player.in_jail_rolls >= 3 ||
-              Number(rolled) >= 12 ||
-              is_double))
-        ) {
-          const passedStart = new_position < old_position;
+      // Helper: create play history record
+      const insertPlayHistory = async (extra = {}) => {
+        await trx("game_play_history").insert({
+          game_id,
+          game_player_id: game_player.id,
+          rolled,
+          old_position,
+          new_position,
+          action: PROPERTY_ACTION(new_position),
+          amount: 0,
+          extra: JSON.stringify({
+            description: `Player moved from ${old_position} → ${new_position}`,
+            ...extra,
+          }),
+          comment: `Moved to ${property.name}`,
+          active: 1,
+          created_at: now,
+        });
+      };
 
-          const updatedFields = {
-            position: new_position,
+      // JAIL logic: landing on 30 sends to jail (position 10) if not already in jail
+      if (!game_player.in_jail && new_position === 30) {
+        await trx("game_players")
+          .where({ id: game_player.id })
+          .update({
+            in_jail: true,
+            in_jail_rolls: 0,
+            position: 10,
             rolls: Number(game_player.rolls || 0) + 1,
-            updated_at: new Date(),
-            ...(game_player.in_jail && { in_jail: false, in_jail_rolls: 0 }),
-          };
-
-          if (passedStart) {
-            updatedFields.circle = (game_player.circle || 0) + 1;
-            updatedFields.balance = (game_player.balance || 0) + 200;
-          }
-
-          // 5️⃣ Update player
-          await trx("game_players")
-            .where({ id: game_player.id })
-            .update(updatedFields);
-
-          // 6️⃣ Log move
-          await trx("game_play_history").insert({
-            game_id,
-            game_player_id: game_player.id,
-            rolled,
-            old_position,
-            new_position,
-            action: PROPERTY_ACTION(new_position),
-            amount: 0,
-            extra: JSON.stringify({
-              description: `Player moved from ${old_position} → ${new_position}`,
-            }),
-            comment: `Moved to ${property.name}`,
-            active: 1,
-            created_at: new Date(),
+            updated_at: now,
           });
 
-          // Get game properties
-          const game_property = await trx("game_properties")
-            .where({ game_id: game.id, property_id: property.id })
+        await insertPlayHistory();
+        await trx.commit();
+
+        return res.json({
+          success: true,
+          message: "Position updated successfully.",
+        });
+      }
+
+      // Determine whether player is leaving jail or normal move
+      const leavingJailCondition =
+        (!game_player.in_jail && new_position !== 30) ||
+        (game_player.in_jail &&
+          (Number(game_player.in_jail_rolls || 0) >= 3 ||
+            Number(rolled || 0) >= 12 ||
+            Boolean(is_double)));
+
+      if (leavingJailCondition) {
+        const passedStart = new_position < old_position;
+        const updatedFields = {
+          position: new_position,
+          rolls: Number(game_player.rolls || 0) + 1,
+          updated_at: now,
+          // if in jail, reset jail flags
+          ...(game_player.in_jail ? { in_jail: false, in_jail_rolls: 0 } : {}),
+        };
+
+        if (passedStart) {
+          updatedFields.circle = Number(game_player.circle || 0) + 1;
+          updatedFields.balance = Number(game_player.balance || 0) + 200;
+        }
+
+        // 5️⃣ Update player
+        await trx("game_players")
+          .where({ id: game_player.id })
+          .update(updatedFields);
+
+        // 6️⃣ Log move
+        await insertPlayHistory();
+
+        // 7️⃣ Handle landing on owned property (rent)
+        const game_property = await trx("game_properties")
+          .where({ game_id: game.id, property_id: property.id })
+          .first();
+
+        if (
+          game_property &&
+          game_property.player_id !== game_player.id &&
+          !game_property.mortgaged
+        ) {
+          const property_owner_id = game_property.player_id;
+
+          // Get property owner (lock to be safe for balance updates)
+          const property_owner = await trx("game_players")
+            .where({ id: property_owner_id })
             .first();
-          if (
-            game_property &&
-            game_property.player_id !== game_player.id &&
-            !game_property.mortgaged
-          ) {
+
+          if (property_owner) {
             let rent = 0;
-            switch (game_property.development) {
-              case 0:
-                rent = property.rent_site_only;
-                break;
-              case 1:
-                rent = property.rent_one_house;
-                break;
-              case 2:
-                rent = property.rent_two_houses;
-                break;
-              case 3:
-                rent = property.rent_three_houses;
-                break;
-              case 4:
-                rent = property.rent_four_houses;
-                break;
-              case 5:
-                rent = property.rent_hotel;
-                break;
 
-              default:
-                break;
-            }
-            if (rent > 0) {
-              const property_owner = await trx("game_players")
+            // Railways (IDs: 5,15,25,35) - number owned by owner in this game
+            const RAILWAY_IDS = [5, 15, 25, 35];
+            const UTILITY_IDS = [12, 28];
+
+            if (RAILWAY_IDS.includes(property.id)) {
+              const ownedCountResult = await trx("game_properties")
                 .where({
-                  id: game_property.player_id,
+                  game_id: game.id,
+                  player_id: property_owner_id,
                 })
+                .whereIn("property_id", RAILWAY_IDS)
+                .count({ cnt: "*" })
                 .first();
-              if (game_settings.rent_in_prison) {
-                await trx("game_players")
-                  .where({ id: game_player.id })
-                  .decrement("balance", rent);
-
-                await trx("game_players")
-                  .where({ id: game_property.player_id })
-                  .increment("balance", rent);
-
-                await trx("game_trades").insert({
-                  game_id,
-                  from_player_id: game_player.id,
-                  to_player_id: game_property.player_id,
-                  type: "CASH",
-                  status: "ACCEPTED",
-                  sending_amount: rent,
-                  receiving_amount: rent,
-                  created_at: new Date(),
-                  updated_at: new Date(),
-                });
+              const owned = Number(ownedCountResult?.cnt || 0);
+              switch (owned) {
+                case 1:
+                  rent = 25;
+                  break;
+                case 2:
+                  rent = 50;
+                  break;
+                case 3:
+                  rent = 100;
+                  break;
+                case 4:
+                  rent = 200;
+                  break;
+                default:
+                  rent = 0;
+              }
+            } else if (UTILITY_IDS.includes(property.id)) {
+              const ownedCountResult = await trx("game_properties")
+                .where({
+                  game_id: game.id,
+                  player_id: property_owner_id,
+                })
+                .whereIn("property_id", UTILITY_IDS)
+                .count({ cnt: "*" })
+                .first();
+              const owned = Number(ownedCountResult?.cnt || 0);
+              switch (owned) {
+                case 1:
+                  rent = Number(rolled || 0) * 4;
+                  break;
+                case 2:
+                  rent = Number(rolled || 0) * 10;
+                  break;
+                default:
+                  rent = 0;
+              }
+            } else {
+              // Normal property rent based on development level
+              switch (Number(game_property.development || 0)) {
+                case 0:
+                  rent = Number(property.rent_site_only || 0);
+                  break;
+                case 1:
+                  rent = Number(property.rent_one_house || 0);
+                  break;
+                case 2:
+                  rent = Number(property.rent_two_houses || 0);
+                  break;
+                case 3:
+                  rent = Number(property.rent_three_houses || 0);
+                  break;
+                case 4:
+                  rent = Number(property.rent_four_houses || 0);
+                  break;
+                case 5:
+                  rent = Number(property.rent_hotel || 0);
+                  break;
+                default:
+                  rent = 0;
               }
             }
-          }
-        } else {
-          await trx("game_players")
-            .where({ id: game_player.id })
-            .update({
-              in_jail_rolls: game_player.in_jail_rolls + 1,
-              rolls: Number(game_player.rolls || 0) + 1,
-              updated_at: new Date(),
-            });
-        }
-      }
-      await trx.commit();
 
-      res.json({
-        success: true,
-        message: "Position updated successfully.",
-      });
+            // 8️⃣ Process rent transfer if applicable & enabled
+            if (rent > 0 && game_settings.rent_in_prison) {
+              // Decrement payer balance and increment owner balance atomically in transaction
+              await trx("game_players")
+                .where({ id: game_player.id })
+                .decrement("balance", rent);
+              await trx("game_players")
+                .where({ id: property_owner_id })
+                .increment("balance", rent);
+
+              // Insert trade record
+              await trx("game_trades").insert({
+                game_id,
+                from_player_id: game_player.id,
+                to_player_id: property_owner_id,
+                type: "CASH",
+                status: "ACCEPTED",
+                sending_amount: rent,
+                receiving_amount: rent,
+                created_at: now,
+                updated_at: now,
+              });
+            }
+          }
+        }
+
+        // commit everything
+        await trx.commit();
+        return res.json({
+          success: true,
+          message: "Position updated successfully.",
+        });
+      } else {
+        // Player stays in jail and uses a jail roll
+        await trx("game_players")
+          .where({ id: game_player.id })
+          .update({
+            in_jail_rolls: Number(game_player.in_jail_rolls || 0) + 1,
+            rolls: Number(game_player.rolls || 0) + 1,
+            updated_at: now,
+          });
+
+        await trx.commit();
+        return res.json({
+          success: true,
+          message: "Position updated successfully.",
+        });
+      }
     } catch (error) {
-      await trx.rollback();
+      try {
+        await trx.rollback();
+      } catch (e) {
+        /* ignore */
+      }
       console.error("changePosition error:", error);
-      res.status(200).json({ success: false, message: error.message });
+      return res
+        .status(200)
+        .json({ success: false, message: error?.message || "Internal error" });
     }
   },
   async endTurn(req, res) {

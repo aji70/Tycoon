@@ -10,7 +10,7 @@ export interface GameContextProps {
 
 export interface BoardSquare {
   id: number;
-  type: "corner" | "property" | "special";
+  type: "corner" | "property" | "luxury_tax" | "income_tax" | "chance" | "community_chest";
   name: string;
   price: number;
   rent_site_only: number;
