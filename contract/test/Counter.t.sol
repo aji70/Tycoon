@@ -3,23 +3,50 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Tycoon} from "../src/Tycoon.sol";
-import {LootToken} from "../src/LootToken.sol";
+import {TycoonLib} from "../src/TycoonLib.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-contract DummyNFT {}
+// Stub ERC20 if not defined elsewhere (simple mintable token)
+contract TycoonT is IERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    uint8 public constant decimals = 18;
+    string public name = "Tycoon Token";
+    string public symbol = "TYC";
+
+    function totalSupply() external pure returns (uint256) { return type(uint256).max; }
+    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        if (allowance[from][msg.sender] != type(uint256).max) allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
 
 contract TycoonTest is Test {
     Tycoon public tycoon;
-    LootToken public lootToken;
+    TycoonT public lootToken;
     address public owner = address(0x1);
     uint256 constant STAKE_AMOUNT = 1 * 10 ** 18;
-    uint256 constant REWARD_AMOUNT = 15 * 10 ** 17; // 1.5 * 10**18, but wait, 150% of 1e18 = 1.5e18 = 15*10**17? No: 1.5e18 = 15*10**17 yes, but in code it's (1e18 * 150)/100 = 1.5e18
+    uint256 constant REWARD_AMOUNT = 1.5 * 10 ** 18; // 150% of stake
+    string constant FIXED_TOKEN_URI =
+        "https://gateway.pinata.cloud/ipfs/bafkreicu5ldq3bgvd2cqq3732bmrbyhcowl5i7fb24htopelrktorhuu6i";
 
     function setUp() public {
         vm.prank(owner);
-        lootToken = new LootToken(owner);
-        DummyNFT dummyNFT = new DummyNFT();
+        lootToken = new TycoonT();
         vm.prank(owner);
-        tycoon = new Tycoon(address(lootToken), address(dummyNFT));
+        tycoon = new Tycoon(address(lootToken));
 
         vm.prank(owner);
         lootToken.mint(address(tycoon), 10000000000 * 10 ** 18); // Fund contract with tokens
@@ -31,7 +58,7 @@ contract TycoonTest is Test {
         uint256 playerId = tycoon.registerPlayer("Alice");
         assertEq(playerId, 1);
 
-        Tycoon.User memory user = tycoon.getUserById(playerId);
+        TycoonLib.User memory user = tycoon.getUser("Alice");
 
         // Check basic user fields
         assertEq(user.username, "Alice");
@@ -45,12 +72,17 @@ contract TycoonTest is Test {
 
         // Check initial airdrop
         assertEq(lootToken.balanceOf(user.playerAddress), 10 * 10 ** 18);
+
+        // Check NFT minting
+        assertEq(tycoon.balanceOf(user.playerAddress), 3);
+        assertEq(tycoon.ownerOf(1), user.playerAddress);
+        // assertEq(tycoon.tokenURI(1), FIXED_TOKEN_URI);
     }
 
     function test_Create_Game() public {
         // First register a player
         uint256 playerId = tycoon.registerPlayer("Alice");
-        Tycoon.User memory user = tycoon.getUserById(playerId);
+        TycoonLib.User memory user = tycoon.getUser("Alice");
         assertEq(user.username, "Alice");
 
         uint256 initialBalance = lootToken.balanceOf(user.playerAddress);
@@ -58,7 +90,7 @@ contract TycoonTest is Test {
         // Create a game
         vm.prank(owner);
         uint256 gameId = tycoon.createGame(
-            user.playerAddress,
+            "Alice",
             "PUBLIC",
             "hat",
             2,
@@ -66,26 +98,26 @@ contract TycoonTest is Test {
             1500
         );
 
-        Tycoon.Game memory game = tycoon.getGame(gameId);
+        TycoonLib.Game memory game = tycoon.getGame(gameId);
         uint256 balAfter = lootToken.balanceOf(user.playerAddress);
         assertEq(game.id, gameId);
         assertEq(game.code, "GAME123");
         assertEq(game.creator, user.playerAddress);
-        assertEq(uint8(game.status), uint8(Tycoon.GameStatus.Pending));
+        assertEq(uint8(game.status), uint8(TycoonLib.GameStatus.Pending));
         assertEq(game.numberOfPlayers, 2);
-        assertEq(uint8(game.mode), uint8(Tycoon.GameType.PublicGame));
+        assertEq(uint8(game.mode), uint8(TycoonLib.GameType.PublicGame));
         assertEq(game.joinedPlayers, 1);
         assertEq(game.totalStaked, STAKE_AMOUNT);
 
         assertEq(balAfter, initialBalance - STAKE_AMOUNT);
 
         // Check games played increased
-        Tycoon.User memory updatedUser = tycoon.getUserById(playerId);
+        TycoonLib.User memory updatedUser = tycoon.getUser("Alice");
         assertEq(updatedUser.gamesPlayed, 1);
         assertEq(updatedUser.totalStaked, STAKE_AMOUNT);
 
         // Check creator's game player balance
-        Tycoon.GamePlayer memory creatorPlayer = tycoon.getGamePlayer(gameId, user.playerAddress);
+        TycoonLib.GamePlayer memory creatorPlayer = tycoon.getGamePlayer(gameId, "Alice");
         assertEq(creatorPlayer.balance, 1500);
     }
 
@@ -93,24 +125,24 @@ contract TycoonTest is Test {
         uint256 player1Id = tycoon.registerPlayer("Alice");
         uint256 player2Id = tycoon.registerPlayer("Bob");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
 
         uint256 balBefore = lootToken.balanceOf(bob.playerAddress);
 
         vm.prank(owner);
-        uint8 order = tycoon.joinGame(gameId, bob.playerAddress, "car");
+        uint8 order = tycoon.joinGame(gameId, "Bob", "car");
 
-        Tycoon.Game memory game = tycoon.getGame(gameId);
-        Tycoon.GamePlayer memory bobPlayer = tycoon.getGamePlayer(gameId, bob.playerAddress);
+        TycoonLib.Game memory game = tycoon.getGame(gameId);
+        TycoonLib.GamePlayer memory bobPlayer = tycoon.getGamePlayer(gameId, "Bob");
 
         // Check that Bob joined correctly
         assertEq(order, 2);
         assertEq(game.joinedPlayers, 2);
-        assertEq(uint8(game.status), uint8(Tycoon.GameStatus.Ongoing));
+        assertEq(uint8(game.status), uint8(TycoonLib.GameStatus.Ongoing));
         assertEq(bobPlayer.order, 2);
         assertEq(bobPlayer.balance, 1500);
 
@@ -119,7 +151,7 @@ contract TycoonTest is Test {
         assertEq(balBefore - balAfter, STAKE_AMOUNT);
 
         // Check games played increased
-        Tycoon.User memory updatedBob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory updatedBob = tycoon.getUser("Bob");
         assertEq(updatedBob.gamesPlayed, 1);
         assertEq(updatedBob.totalStaked, STAKE_AMOUNT);
 
@@ -131,68 +163,68 @@ contract TycoonTest is Test {
         uint256 player1Id = tycoon.registerPlayer("Alice");
         uint256 player2Id = tycoon.registerPlayer("Bob");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
-        Tycoon.Game memory gameBefore = tycoon.getGame(gameId);
-        assertEq(uint8(gameBefore.status), uint8(Tycoon.GameStatus.Ongoing));
+        TycoonLib.Game memory gameBefore = tycoon.getGame(gameId);
+        assertEq(uint8(gameBefore.status), uint8(TycoonLib.GameStatus.Ongoing));
 
         uint256 bobBalBefore = lootToken.balanceOf(bob.playerAddress);
-        uint256 bobEarnedBefore = tycoon.getUser(bob.playerAddress).totalEarned;
+        uint256 bobEarnedBefore = tycoon.getUser("Bob").totalEarned;
 
         // Remove Alice -> Bob should be winner with bonus (totalTurns >=40)
         vm.prank(owner);
-        bool removed = tycoon.removePlayerFromGame(gameId, alice.playerAddress, bob.playerAddress, 50); // >40
+        bool removed = tycoon.removePlayerFromGame(gameId, "Alice", "Bob", 50); // >40
         assertTrue(removed);
 
-        Tycoon.Game memory gameAfter = tycoon.getGame(gameId);
-        Tycoon.User memory bobUser = tycoon.getUser(bob.playerAddress);
-        Tycoon.User memory aliceUser = tycoon.getUser(alice.playerAddress);
+        TycoonLib.Game memory gameAfter = tycoon.getGame(gameId);
+        TycoonLib.User memory bobUser = tycoon.getUser("Bob");
+        TycoonLib.User memory aliceUser = tycoon.getUser("Alice");
 
-        assertEq(uint8(gameAfter.status), uint8(Tycoon.GameStatus.Ended));
+        assertEq(uint8(gameAfter.status), uint8(TycoonLib.GameStatus.Ended));
         assertEq(gameAfter.winner, bob.playerAddress);
         assertEq(bobUser.gamesWon, 1);
         assertEq(aliceUser.gamesLost, 1);
-        assertEq(bobUser.totalEarned, bobEarnedBefore + 1.5 * 10 ** 18); // 150% of stake
+        assertEq(bobUser.totalEarned, bobEarnedBefore + REWARD_AMOUNT); // 150% of stake
 
         // Check reward transferred
         uint256 bobBalAfter = lootToken.balanceOf(bob.playerAddress);
-        assertEq(bobBalAfter, bobBalBefore + 1.5 * 10 ** 18);
+        assertEq(bobBalAfter, bobBalBefore + REWARD_AMOUNT);
     }
 
     function test_Remove_Player_Finalizes_Game_No_Bonus() public {
         uint256 player1Id = tycoon.registerPlayer("Alice");
         uint256 player2Id = tycoon.registerPlayer("Bob");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
-        Tycoon.Game memory gameBefore = tycoon.getGame(gameId);
-        assertEq(uint8(gameBefore.status), uint8(Tycoon.GameStatus.Ongoing));
+        TycoonLib.Game memory gameBefore = tycoon.getGame(gameId);
+        assertEq(uint8(gameBefore.status), uint8(TycoonLib.GameStatus.Ongoing));
 
         uint256 bobBalBefore = lootToken.balanceOf(bob.playerAddress);
-        uint256 bobEarnedBefore = tycoon.getUser(bob.playerAddress).totalEarned;
+        uint256 bobEarnedBefore = tycoon.getUser("Bob").totalEarned;
 
         // Remove Alice -> Bob should be winner but no bonus (totalTurns <40)
         vm.prank(owner);
-        bool removed = tycoon.removePlayerFromGame(gameId, alice.playerAddress, bob.playerAddress, 30); // <40
+        bool removed = tycoon.removePlayerFromGame(gameId, "Alice", "Bob", 30); // <40
         assertTrue(removed);
 
-        Tycoon.Game memory gameAfter = tycoon.getGame(gameId);
-        Tycoon.User memory bobUser = tycoon.getUser(bob.playerAddress);
-        Tycoon.User memory aliceUser = tycoon.getUser(alice.playerAddress);
+        TycoonLib.Game memory gameAfter = tycoon.getGame(gameId);
+        TycoonLib.User memory bobUser = tycoon.getUser("Bob");
+        TycoonLib.User memory aliceUser = tycoon.getUser("Alice");
 
-        assertEq(uint8(gameAfter.status), uint8(Tycoon.GameStatus.Ended));
+        assertEq(uint8(gameAfter.status), uint8(TycoonLib.GameStatus.Ended));
         assertEq(gameAfter.winner, bob.playerAddress);
         assertEq(bobUser.gamesWon, 1);
         assertEq(aliceUser.gamesLost, 1);
@@ -207,29 +239,31 @@ contract TycoonTest is Test {
         uint256 player1Id = tycoon.registerPlayer("Alice");
         uint256 player2Id = tycoon.registerPlayer("Bob");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
         // Revert if not paymaster
+        vm.prank(address(0x2));  // Not owner/paymaster
         vm.expectRevert(bytes("Not paymaster"));
-        tycoon.removePlayerFromGame(gameId, alice.playerAddress, bob.playerAddress, 50);
+        tycoon.removePlayerFromGame(gameId, "Alice", "Bob", 50);
     }
 
     function test_Revert_Update_Position_Not_Paymaster() public {
         uint256 player1Id = tycoon.registerPlayer("Alice");
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
 
         // Revert if not paymaster
+        vm.prank(address(0x2));  // Not owner/paymaster
         vm.expectRevert(bytes("Not paymaster"));
-        tycoon.updatePlayerPosition(gameId, alice.playerAddress, 5, 1400, 0);
+        tycoon.updatePlayerPosition(gameId, "Alice", 5, 1400, 0);
     }
 
     function test_Revert_Empty_Username() public {
@@ -248,32 +282,33 @@ contract TycoonTest is Test {
         uint256 player2Id = tycoon.registerPlayer("Bob");
         uint256 player3Id = tycoon.registerPlayer("Charlie");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
-        Tycoon.User memory charlie = tycoon.getUserById(player3Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
+        TycoonLib.User memory charlie = tycoon.getUser("Charlie");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
+        // After full, status Ongoing, so revert on "Game not open"
         vm.expectRevert(bytes("Game not open"));
         vm.prank(owner);
-        tycoon.joinGame(gameId, charlie.playerAddress, "dog");
+        tycoon.joinGame(gameId, "Charlie", "dog");
     }
 
     function test_Update_Player_Position_And_Property() public {
         // Register two players
         uint256 aliceId = tycoon.registerPlayer("Alice");
-        Tycoon.User memory alice = tycoon.getUserById(aliceId);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
 
         uint256 bobId = tycoon.registerPlayer("Bob");
-        Tycoon.User memory bob = tycoon.getUserById(bobId);
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
 
         // Create a 2-player PUBLIC game
         vm.prank(owner);
         uint256 gameId = tycoon.createGame(
-            alice.playerAddress,
+            "Alice",
             "PUBLIC",
             "hat",
             2,
@@ -283,11 +318,11 @@ contract TycoonTest is Test {
 
         // Join second player to start the game
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
         // At this point, game.status should be Ongoing
-        Tycoon.Game memory game = tycoon.getGame(gameId);
-        assertEq(uint8(game.status), uint8(Tycoon.GameStatus.Ongoing));
+        TycoonLib.Game memory game = tycoon.getGame(gameId);
+        assertEq(uint8(game.status), uint8(TycoonLib.GameStatus.Ongoing));
 
         // Update Alice's position and balance
         uint8 newPosAlice = 5;
@@ -297,7 +332,7 @@ contract TycoonTest is Test {
         vm.prank(owner);
         bool updated = tycoon.updatePlayerPosition(
             gameId,
-            alice.playerAddress,
+            "Alice",
             newPosAlice,
             newBalanceAlice,
             propertyId
@@ -305,12 +340,13 @@ contract TycoonTest is Test {
         assertTrue(updated);
 
         // Check Alice's state
-        Tycoon.GamePlayer memory gpAlice = tycoon.getGamePlayer(gameId, alice.playerAddress);
+        TycoonLib.GamePlayer memory gpAlice = tycoon.getGamePlayer(gameId, "Alice");
         assertEq(gpAlice.position, newPosAlice);
         assertEq(gpAlice.balance, newBalanceAlice);
 
-        // Check property ownership
-        Tycoon.Property memory prop = tycoon.getProperty(gameId, propertyId);
+        // Check property ownership (now with ID set)
+        TycoonLib.Property memory prop = tycoon.getProperty(gameId, propertyId);
+        assertEq(prop.id, propertyId);
         assertEq(prop.owner, alice.playerAddress);
 
         // Update Bob's position without property
@@ -320,14 +356,14 @@ contract TycoonTest is Test {
         vm.prank(owner);
         updated = tycoon.updatePlayerPosition(
             gameId,
-            bob.playerAddress,
+            "Bob",
             newPosBob,
             newBalanceBob,
             0 // no property
         );
         assertTrue(updated);
 
-        Tycoon.GamePlayer memory gpBob = tycoon.getGamePlayer(gameId, bob.playerAddress);
+        TycoonLib.GamePlayer memory gpBob = tycoon.getGamePlayer(gameId, "Bob");
         assertEq(gpBob.position, newPosBob);
         assertEq(gpBob.balance, newBalanceBob);
     }
@@ -335,49 +371,79 @@ contract TycoonTest is Test {
     function test_Revert_Remove_Player_Not_In_Game() public {
         uint256 player1Id = tycoon.registerPlayer("Alice");
         uint256 player2Id = tycoon.registerPlayer("Bob");
+        uint256 player3Id = tycoon.registerPlayer("Charlie");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
+        TycoonLib.User memory charlie = tycoon.getUser("Charlie");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
-        // Try remove non-player
+        // Try remove non-player (Charlie is registered but not in game)
         vm.expectRevert(bytes("Player not in game"));
         vm.prank(owner);
-        tycoon.removePlayerFromGame(gameId, address(0x999), address(0), 50);
+        tycoon.removePlayerFromGame(gameId, "Charlie", "Bob", 50);
     }
 
     function test_Revert_Remove_Final_Phase_No_Candidate() public {
         uint256 player1Id = tycoon.registerPlayer("Alice");
         uint256 player2Id = tycoon.registerPlayer("Bob");
 
-        Tycoon.User memory alice = tycoon.getUserById(player1Id);
-        Tycoon.User memory bob = tycoon.getUserById(player2Id);
+        TycoonLib.User memory alice = tycoon.getUser("Alice");
+        TycoonLib.User memory bob = tycoon.getUser("Bob");
 
         vm.prank(owner);
-        uint256 gameId = tycoon.createGame(alice.playerAddress, "PUBLIC", "hat", 2, "GAME123", 1500);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, "GAME123", 1500);
         vm.prank(owner);
-        tycoon.joinGame(gameId, bob.playerAddress, "car");
+        tycoon.joinGame(gameId, "Bob", "car");
 
         // Try remove without finalCandidate
         vm.expectRevert(bytes("Remaining player required"));
         vm.prank(owner);
-        tycoon.removePlayerFromGame(gameId, alice.playerAddress, address(0), 50);
+        tycoon.removePlayerFromGame(gameId, "Alice", "", 50);
     }
 
     function test_Revert_Create_Invalid_Player_Count() public {
         uint256 playerId = tycoon.registerPlayer("Alice");
-        Tycoon.User memory user = tycoon.getUserById(playerId);
+        TycoonLib.User memory user = tycoon.getUser("Alice");
 
         vm.prank(owner);
         vm.expectRevert(bytes("Invalid player count"));
-        tycoon.createGame(user.playerAddress, "PUBLIC", "hat", 1, "GAME123", 1500);
+        tycoon.createGame("Alice", "PUBLIC", "hat", 1, "GAME123", 1500);
 
         vm.prank(owner);
         vm.expectRevert(bytes("Invalid player count"));
-        tycoon.createGame(user.playerAddress, "PUBLIC", "hat", 9, "GAME123", 1500);
+        tycoon.createGame("Alice", "PUBLIC", "hat", 9, "GAME123", 1500);
+    }
+
+    function test_GetUser() public {
+        tycoon.registerPlayer("Alice");
+        TycoonLib.User memory userByName = tycoon.getUser("Alice");
+        assertEq(userByName.username, "Alice");
+
+        vm.expectRevert(bytes("User not registered"));
+        tycoon.getUser("NonExistent");
+    }
+
+    // Bonus: Test invalid game type/symbol reverts
+    function test_Revert_Invalid_GameType() public {
+        uint256 playerId = tycoon.registerPlayer("Alice");
+        TycoonLib.User memory user = tycoon.getUser("Alice");
+
+        vm.prank(owner);
+        vm.expectRevert(bytes("Invalid game type"));
+        tycoon.createGame("Alice", "INVALID", "hat", 2, "GAME123", 1500);
+    }
+
+    function test_Revert_Invalid_PlayerSymbol() public {
+        uint256 playerId = tycoon.registerPlayer("Alice");
+        TycoonLib.User memory user = tycoon.getUser("Alice");
+
+        vm.prank(owner);
+        vm.expectRevert(bytes("Invalid player symbol"));
+        tycoon.createGame("Alice", "PUBLIC", "invalid", 2, "GAME123", 1500);
     }
 }

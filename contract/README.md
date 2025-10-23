@@ -10,6 +10,7 @@ Foundry consists of:
 -   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
 ## Documentation
+Tycoon erc20 Base Contract Address = 0x183ae08de75468f84aEB8245cf067538996FdE94
 
 https://book.getfoundry.sh/
 

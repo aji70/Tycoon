@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGetUsername, useIsRegistered } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
-import { BarChart2, Trophy, Wallet } from "lucide-react";
+import { BarChart2, Trophy, Wallet, Crown, Users } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import herobg from "@/public/heroBg.png";
 
 interface PlayerStats {
@@ -13,6 +14,7 @@ interface PlayerStats {
   wins: number;
   tokensEarned: number;
   ranking: number;
+  winRate: string;
 }
 
 interface LeaderboardEntry {
@@ -20,6 +22,7 @@ interface LeaderboardEntry {
   totalGames: number;
   wins: number;
   ranking: number;
+  avatar?: string;
 }
 
 const GameStats: React.FC = () => {
@@ -34,12 +37,13 @@ const GameStats: React.FC = () => {
     wins: 15,
     tokensEarned: 2500,
     ranking: 3,
+    winRate: "35.7%",
   });
   const [leaderboard] = useState<LeaderboardEntry[]>([
-    { username: "Player1", totalGames: 100, wins: 50, ranking: 1 },
-    { username: "Player2", totalGames: 80, wins: 40, ranking: 2 },
-    { username: "Player3", totalGames: 60, wins: 30, ranking: 3 },
-    { username: "You", totalGames: 42, wins: 15, ranking: 4 },
+    { username: "CryptoKing", totalGames: 100, wins: 50, ranking: 1, avatar: "/game/cairo.svg" },
+    { username: "BlockBaron", totalGames: 80, wins: 40, ranking: 2, avatar: "/game/dubai.svg" },
+    { username: "PixelTycoon", totalGames: 60, wins: 30, ranking: 3, avatar: "/game/canberra.svg" },
+    { username: username || "You", totalGames: 42, wins: 15, ranking: 4, avatar: "/game/berlin.svg" },
   ]);
   const [gameIdQuery, setGameIdQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -77,15 +81,14 @@ const GameStats: React.FC = () => {
 
   if (!address || !isUserRegistered) {
     return (
-      <div className="w-full h-screen flex flex-col items-center justify-center">
-        <p className="font-orbitron text-[#00F0FF] text-[16px] mb-4">
+      <div className="w-full min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] flex flex-col items-center justify-center">
+        <p className="font-orbitron text-[#00F0FF] text-[16px] mb-4 text-center">
           {address
             ? "Please register to view your game stats."
             : "Please connect your wallet to view game stats."}
         </p>
-        <button
-          type="button"
-          onClick={() => router.push("/")} // Redirect to home
+        <Link
+          href="/"
           className="relative group w-[200px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
         >
           <svg
@@ -107,19 +110,19 @@ const GameStats: React.FC = () => {
           <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
             Back to Home
           </span>
-        </button>
+        </Link>
       </div>
     );
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10">
+    <section className="z-0 w-full min-h-screen relative overflow-x-hidden bg-gradient-to-b from-[#010F10] to-[#0E1415]">
       {/* Background Image */}
-      <div className="w-full h-full overflow-hidden">
+      <div className="w-full h-full absolute inset-0 overflow-hidden">
         <Image
           src={herobg}
           alt="Hero Background"
-          className="w-full h-full object-cover hero-bg-zoom"
+          className="w-full h-full object-cover hero-bg-zoom opacity-50"
           width={1440}
           height={1024}
           priority
@@ -127,162 +130,195 @@ const GameStats: React.FC = () => {
         />
       </div>
 
-      {/* Content */}
-      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col lg:justify-center items-center gap-6">
-        <h1 className="font-orbitron text-[40px] md:text-[60px] lg:text-[80px] font-[900] text-[#00F0FF] uppercase tracking-[-0.02em] text-center">
+      {/* Overlay for readability */}
+      <div className="w-full h-full absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/80 to-[#010F10]"></div>
+
+      {/* Header */}
+      <header className="w-full h-[87px] flex items-center justify-between px-4 md:px-8 bg-[linear-gradient(180deg,rgba(1,15,16,0.12)_0%,rgba(8,50,52,0.12)_100%)] backdrop-blur-sm relative z-[50] border-b border-[#003B3E]">
+        <Link
+          href="/"
+          className="text-[#00F0FF] text-xl font-bold flex items-center gap-2 hover:text-[#0FF0FC] transition-colors"
+        >
+          ← Back to Tycoon
+        </Link>
+        <h1 className="text-2xl uppercase font-kronaOne text-transparent bg-clip-text bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC]">
           Game Stats
         </h1>
-        <p className="font-orbitron text-[16px] md:text-[20px] text-[#00F0FF] font-[700] text-center">
-          Welcome back, {username || "Player"}!
-        </p>
+        <div className="w-10" /> {/* Spacer */}
+      </header>
+
+      {/* Content */}
+      <main className="w-full relative z-20 flex flex-col items-center gap-8 py-8 px-4 md:px-8">
+        <div className="text-center">
+          <h2 className="font-orbitron text-[32px] md:text-[48px] lg:text-[64px] font-[900] text-[#00F0FF] uppercase tracking-[-0.02em] mb-2">
+            Your Empire Stats
+          </h2>
+          <p className="font-orbitron text-[18px] md:text-[24px] text-[#F0F7F7] font-[700]">
+            Welcome back, <span className="text-[#00F0FF]">{username || "Tycoon"}</span>!
+          </p>
+        </div>
 
         {loading ? (
-          <div className="flex items-center justify-center">
-            <p className="font-orbitron text-[#00F0FF] text-[16px]">
-              Loading stats...
+          <div className="flex items-center justify-center py-20">
+            <p className="font-orbitron text-[#00F0FF] text-[18px]">
+              Loading empire data...
             </p>
           </div>
         ) : (
-          <div className="w-full max-w-[800px] px-4 flex flex-col gap-6">
-            {/* Player Stats Card */}
-            <div className="bg-[#0E1415]/80 rounded-[12px] border-[1px] border-[#003B3E] p-6">
-              <h2 className="font-orbitron text-[24px] text-[#00F0FF] font-[700] mb-4">
-                Your Overall Stats
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-[24px] h-[24px] text-[#00F0FF]" />
-                  <p className="font-dmSans text-[16px] text-[#F0F7F7]">
-                    Wins: <span className="font-bold">{playerStats.wins}</span>
-                  </p>
+          <div className="w-full max-w-6xl flex flex-col gap-8">
+            {/* Player Stats Grid */}
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6 hover:border-[#00F0FF]/50 transition-all duration-300 group">
+                <div className="flex items-center justify-center w-12 h-12 bg-[#00F0FF]/10 rounded-full mb-4 group-hover:bg-[#00F0FF]/20 transition-colors">
+                  <BarChart2 className="w-6 h-6 text-[#00F0FF]" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <BarChart2 className="w-[24px] h-[24px] text-[#00F0FF]" />
-                  <p className="font-dmSans text-[16px] text-[#F0F7F7]">
-                    Total Games: <span className="font-bold">{playerStats.totalGames}</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-[24px] h-[24px] text-[#00F0FF]" />
-                  <p className="font-dmSans text-[16px] text-[#F0F7F7]">
-                    Tokens Earned: <span className="font-bold">{playerStats.tokensEarned}</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-[24px] h-[24px] text-[#00F0FF]" />
-                  <p className="font-dmSans text-[16px] text-[#F0F7F7]">
-                    Ranking: <span className="font-bold">#{playerStats.ranking}</span>
-                  </p>
-                </div>
+                <h3 className="font-orbitron text-lg text-[#00F0FF] font-bold mb-2 text-center">Total Games</h3>
+                <p className="text-3xl font-bold text-[#F0F7F7] text-center">{playerStats.totalGames}</p>
               </div>
-            </div>
+              <div className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6 hover:border-[#00F0FF]/50 transition-all duration-300 group">
+                <div className="flex items-center justify-center w-12 h-12 bg-[#FFD700]/10 rounded-full mb-4 group-hover:bg-[#FFD700]/20 transition-colors">
+                  <Trophy className="w-6 h-6 text-[#FFD700]" />
+                </div>
+                <h3 className="font-orbitron text-lg text-[#FFD700] font-bold mb-2 text-center">Wins</h3>
+                <p className="text-3xl font-bold text-[#F0F7F7] text-center">{playerStats.wins}</p>
+                <p className="text-sm text-[#AFBAC0] text-center mt-1">{playerStats.winRate} Win Rate</p>
+              </div>
+              <div className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6 hover:border-[#00F0FF]/50 transition-all duration-300 group">
+                <div className="flex items-center justify-center w-12 h-12 bg-[#00F0FF]/10 rounded-full mb-4 group-hover:bg-[#00F0FF]/20 transition-colors">
+                  <Wallet className="w-6 h-6 text-[#00F0FF]" />
+                </div>
+                <h3 className="font-orbitron text-lg text-[#00F0FF] font-bold mb-2 text-center">BLOCK Tokens</h3>
+                <p className="text-3xl font-bold text-[#F0F7F7] text-center">{playerStats.tokensEarned.toLocaleString()}</p>
+              </div>
+              <div className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6 hover:border-[#00F0FF]/50 transition-all duration-300 group">
+                <div className="flex items-center justify-center w-12 h-12 bg-[#FFD700]/10 rounded-full mb-4 group-hover:bg-[#FFD700]/20 transition-colors">
+                  <Crown className="w-6 h-6 text-[#FFD700]" />
+                </div>
+                <h3 className="font-orbitron text-lg text-[#FFD700] font-bold mb-2 text-center">Tycoon Rank</h3>
+                <p className="text-3xl font-bold text-[#F0F7F7] text-center">#{playerStats.ranking}</p>
+              </div>
+            </section>
 
             {/* Leaderboard */}
-            <div className="bg-[#0E1415]/80 rounded-[12px] border-[1px] border-[#003B3E] p-6">
-              <h2 className="font-orbitron text-[24px] text-[#00F0FF] font-[700] mb-4">
-                Leaderboard
-              </h2>
+            <section className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6">
+              <h3 className="font-orbitron text-2xl text-[#00F0FF] font-bold mb-6 flex items-center gap-2 justify-center">
+                <Users className="w-6 h-6" />
+                Global Leaderboard
+              </h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-[#F0F7F7] font-dmSans text-[14px]">
+                <table className="w-full text-[#F0F7F7] font-dmSans">
                   <thead>
-                    <tr className="border-b border-[#003B3E]">
-                      <th className="py-2 px-4 text-left">Rank</th>
-                      <th className="py-2 px-4 text-left">Player</th>
-                      <th className="py-2 px-4 text-left">Total Games</th>
-                      <th className="py-2 px-4 text-left">Wins</th>
+                    <tr className="border-b border-[#003B3E]/50">
+                      <th className="py-4 px-4 text-left font-semibold">Rank</th>
+                      <th className="py-4 px-4 text-left font-semibold">Tycoon</th>
+                      <th className="py-4 px-4 text-left font-semibold hidden md:table-cell">Games</th>
+                      <th className="py-4 px-4 text-left font-semibold">Wins</th>
                     </tr>
                   </thead>
                   <tbody>
                     {leaderboard.map((entry, index) => (
                       <tr
                         key={index}
-                        className={`border-b border-[#003B3E] ${
+                        className={`border-b border-[#003B3E]/50 hover:bg-[#00F0FF]/5 transition-colors ${
                           entry.username === (username || "You") ? "bg-[#00F0FF]/10" : ""
                         }`}
                       >
-                        <td className="py-2 px-4">#{entry.ranking}</td>
-                        <td className="py-2 px-4">{entry.username}</td>
-                        <td className="py-2 px-4">{entry.totalGames}</td>
-                        <td className="py-2 px-4">{entry.wins}</td>
+                        <td className="py-4 px-4 font-bold text-[#FFD700]">{entry.ranking === 1 ? "🏆" : `#${entry.ranking}`}</td>
+                        <td className="py-4 px-4 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#00F0FF]/20 overflow-hidden">
+                            <Image
+                              src={entry.avatar || "/public/avatar.jpg"}
+                              alt={entry.username}
+                              width={32}
+                              height={32}
+                              className="object-cover"
+                            />
+                          </div>
+                          <span className={entry.username === (username || "You") ? "text-[#00F0FF] font-bold" : ""}>
+                            {entry.username}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 hidden md:table-cell">{entry.totalGames}</td>
+                        <td className="py-4 px-4 font-bold">{entry.wins}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
 
-            {/* Specific Game Stats Query (Placeholder) */}
-            <div className="bg-[#0E1415]/80 rounded-[12px] border-[1px] border-[#003B3E] p-6">
-              <h2 className="font-orbitron text-[24px] text-[#00F0FF] font-[700] mb-4">
-                Specific Game Stats
-              </h2>
-              <div className="flex gap-3">
+            {/* Specific Game Stats Query */}
+            <section className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6">
+              <h3 className="font-orbitron text-xl text-[#00F0FF] font-bold mb-4 flex items-center gap-2">
+                <BarChart2 className="w-5 h-5" />
+                Query Specific Conquest
+              </h3>
+              <div className="flex flex-col sm:flex-row gap-4">
                 <input
                   type="text"
                   value={gameIdQuery}
                   onChange={(e) => setGameIdQuery(e.target.value)}
-                  placeholder="Enter Game ID"
-                  className="w-[200px] h-[40px] bg-[#0E1415] rounded-[8px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[14px] placeholder:text-[#455A64] placeholder:font-dmSans"
+                  placeholder="Enter Conquest ID (e.g., #12345)"
+                  className="flex-1 h-[48px] bg-[#0E1415]/50 rounded-[12px] border border-[#003B3E] outline-none px-4 text-[#17ffff] font-orbitron font-[400] text-[16px] placeholder:text-[#455A64] placeholder:font-dmSans focus:border-[#00F0FF] transition-colors"
                 />
                 <button
                   type="button"
                   onClick={handleGameIdQuery}
-                  className="relative group w-[120px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                  className="relative group w-full sm:w-auto h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
                 >
                   <svg
-                    width="120"
-                    height="40"
-                    viewBox="0 0 120 40"
+                    width="140"
+                    height="48"
+                    viewBox="0 0 140 48"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                     className="absolute top-0 left-0 w-full h-full"
                   >
                     <path
-                      d="M6 1H114C118.373 1 120.996 5.85486 118.601 9.5127L100.167 37.5127C99.151 39.0646 97.42 40 95.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                      d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 45.5127C119.151 47.0646 117.42 48 115.565 48H6C2.96244 48 0.5 45.5376 0.5 42.5V5.5C0.5 2.46243 2.96243 1 6 1Z"
                       fill="#0E1415"
                       stroke="#003B3E"
                       strokeWidth={1}
                       className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
-                    Query Game
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[14px] font-dmSans font-medium z-10">
+                    Decode Battle
                   </span>
                 </button>
               </div>
-              <p className="font-dmSans text-[14px] text-[#F0F7F7] mt-2">
-                Enter a game ID to view specific game stats (feature coming soon).
+              <p className="font-dmSans text-[14px] text-[#AFBAC0] mt-3 text-center sm:text-left">
+                Unlock detailed conquest logs – feature deploying soon.
               </p>
-            </div>
+            </section>
           </div>
         )}
 
         {/* Back to Home Button */}
-        <button
-          type="button"
-          onClick={() => router.push("/")} // Redirect to home
-          className="relative group w-[200px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer mt-4"
+        <Link
+          href="/"
+          className="relative group w-[220px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer mb-8"
         >
           <svg
-            width="200"
-            height="40"
-            viewBox="0 0 200 40"
+            width="220"
+            height="48"
+            viewBox="0 0 220 48"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className="absolute top-0 left-0 w-full h-full"
           >
             <path
-              d="M6 1H194C198.373 1 200.996 5.85486 198.601 9.5127L180.167 37.5127C179.151 39.0646 177.42 40 175.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+              d="M10 1H210C214.373 1 216.996 5.85486 214.601 9.5127L196.167 45.5127C195.151 47.0646 193.42 48 191.565 48H10C6.96244 48 4.5 45.5376 4.5 42.5V5.5C4.5 2.46243 6.96243 1 10 1Z"
               fill="#0E1415"
               stroke="#003B3E"
               strokeWidth={1}
               className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
             />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
-            Back to Home
+          <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[14px] font-dmSans font-medium z-10">
+            Return to the Block
           </span>
-        </button>
+        </Link>
       </main>
     </section>
   );

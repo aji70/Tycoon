@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag } from 'lucide-react'; // Added ShoppingBag
 import useSound from 'use-sound';
 import { useAppKitAccount } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -65,6 +65,28 @@ const NavBar = () => {
               <PiUserCircle className="w-[16px] h-[16px]" />
               <span className="text-[12px] font-[400] font-dmSans">0 friends online</span>
             </button>
+          )}
+
+          {/* Profile button (only when connected) - Made bigger with text */}
+          {isConnected && (
+            <Link
+              href="/profile"
+              className="w-[80px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+            >
+              <User className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Profile</span>
+            </Link>
+          )}
+
+          {/* Shop button (only when connected) */}
+          {isConnected && (
+            <Link
+              href="/game-shop"
+              className="w-[70px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]"
+            >
+              <ShoppingBag className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Shop</span>
+            </Link>
           )}
 
           {/* Home button */}

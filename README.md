@@ -15,9 +15,11 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 | Detail          | Info |
 |-----------------|------|
-| **Contract Address** | `0x494b240f12Ada8Cac02415c8D02b167c07331773` |
+| **Contract Base Address** | `0x8122F36B24D475E5d4F103C0787EC34b8019477b` |
 | **Network**     | Base sepolia |
 | **Status**      | ✅ Deployed — Functionality under development |
+| **ERC20 Base Address** | `0x2f382911995146c5B721b7418f9D338BAB843A9d` |
+
 
 ---
 

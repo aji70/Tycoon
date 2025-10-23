@@ -36,7 +36,7 @@ const JoinOurCommunity = () => {
                             />
                         </svg>
                         <a
-                            href="https://t.me/+JJq4-cTLznc3YTVk"
+                            href="https://t.me/+xJLEjw9tbyQwMGVk"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[13px] font-dmSans font-medium z-10"
