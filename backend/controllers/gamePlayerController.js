@@ -286,7 +286,7 @@ const payRent = async (
           createHistory(
             game_property.player_id,
             rent.owner,
-            `${owner.username} ${
+            `${owner ? owner.username : "Owner"} ${
               rent.owner > 0 ? "received" : "paid"
             } ${Number(rent.owner)}`
           )
