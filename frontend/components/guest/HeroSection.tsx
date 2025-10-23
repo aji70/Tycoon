@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Dices, BarChart2, Gamepad2, ShoppingBag } from "lucide-react"; // Added ShoppingBag
+import { Dices, BarChart2, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -13,7 +13,7 @@ import {
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
-import { User } from "@/lib/types/users";
+import { User as UserType } from "@/lib/types/users";
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
@@ -57,7 +57,6 @@ const HeroSection: React.FC = () => {
   const handleRouteToJoinRoom = () => router.push("/join-room");
   const handleRouteToCreateGame = () => router.push("/game-settings");
   const handleRouteToGameStats = () => router.push("/game-stats"); // Updated handler
-  const handleRouteToShop = () => router.push("/game-shop"); // New handler for shop
 
   const handleRequest = async () => {
     if (!address) {
@@ -83,7 +82,7 @@ const HeroSection: React.FC = () => {
     try {
       await registerPlayer(username);
 
-      const response = await apiClient.post<User>("/users", {
+      const response = await apiClient.post<UserType>("/users", {
         username,
         address,
         chain: "Base",
@@ -145,7 +144,7 @@ const HeroSection: React.FC = () => {
       </div>
       <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
         <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
-          BLOCKOPOLY
+          TYCOON
         </h1>
       </div>
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
@@ -186,7 +185,7 @@ const HeroSection: React.FC = () => {
           />
         </div>
         <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative">
-          THE BLOCK
+          TYCOON
           <span className="absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 animate-pulse">
             ?
           </span>
@@ -209,7 +208,7 @@ const HeroSection: React.FC = () => {
             className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
           />
           <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
-            Step into Blockopoly — the Web3 twist on the classic game of
+            Step into Tycoon — the Web3 twist on the classic game of
             strategy, ownership, and fortune. Collect tokens, complete quests,
             and become the ultimate blockchain tycoon.
           </p>
@@ -363,32 +362,6 @@ const HeroSection: React.FC = () => {
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
                   <BarChart2 className="mr-1.5 w-[16px] h-[16px]" />
                   Game Stats {/* Or use "Battle Stats" for a catchier name */}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={handleRouteToShop}
-                className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="140"
-                  height="40"
-                  viewBox="0 0 140 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#0E1415"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <ShoppingBag className="mr-1.5 w-[16px] h-[16px]" />
-                  Shop
                 </span>
               </button>
             </div>
