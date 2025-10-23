@@ -37,6 +37,18 @@ const payRent = async (
       return { success: false };
     }
 
+    // Get user
+    const player = await trx("users")
+      .forUpdate()
+      .where({
+        id: game_player.user_id,
+      })
+      .first();
+
+    if (!player) {
+      return { success: true };
+    }
+
     // Get game property
     const game_property = await trx("game_properties")
       .forUpdate()
@@ -66,8 +78,19 @@ const payRent = async (
       return { success: false };
     }
 
+    // Get property owner
+    const owner = await trx("users")
+      .where({ id: property_owner.user_id })
+      .forUpdate()
+      .first();
+
+    if (!owner) {
+      return { success: false };
+    }
+
     let rent = null;
     let position = new_position;
+    let comment = "";
 
     // Get players count
     const get_players_count = await trx("game_players")
@@ -92,6 +115,7 @@ const payRent = async (
       const rentAmounts = { 1: 25, 2: 50, 3: 100, 4: 200 };
       const rentAmount = rentAmounts[owned] || 0;
       rent = { player: -rentAmount, owner: rentAmount, players: 0 };
+      comment = `${user.username} paid ${rentAmount} to ${owner.username} for ${owned} railways`;
     } else if (UTILITY_IDS.includes(property.id)) {
       const ownedCountResult = await trx("game_properties")
         .where({
@@ -106,6 +130,7 @@ const payRent = async (
       const multiplier = owned === 1 ? 4 : owned === 2 ? 10 : 0;
       const rentAmount = Number(rolled || 0) * multiplier;
       rent = { player: -rentAmount, owner: rentAmount, players: 0 };
+      comment = `${user.username} paid ${rentAmount} to ${owner.username} for ${owned} utilities`;
     } else if (CHANCE_IDS.includes(property.id)) {
       const chance = await trx("chances").orderByRaw("RAND()").first();
 
@@ -172,6 +197,7 @@ const payRent = async (
             };
           }
         }
+        comment = `${user.username} picked chance - ${chance.instruction}`;
       }
     } else if (COMMUNITY_CHEST_IDS.includes(property.id)) {
       const communityChest = await trx("community_chests")
@@ -243,6 +269,7 @@ const payRent = async (
             };
           }
         }
+        comment = `${user.username} picked community chest - ${communityChest.instruction}`;
       }
     } else {
       // Normal property rent based on development level
@@ -262,6 +289,9 @@ const payRent = async (
           : 0;
 
       rent = { player: -rentAmount, owner: rentAmount, players: 0 };
+      comment = `${user.username} paid rent of ${rentAmount} to ${
+        owner.username
+      } ${development == 5 ? "for a hotel" : `for ${development} houses`}`;
     }
 
     // Process rent transfer if applicable & enabled
@@ -275,6 +305,25 @@ const payRent = async (
             .where({ id: game_player.id })
             .increment("balance", rent.player)
         );
+        updates.push(
+          trx("game_play_history").insert({
+            game_id: game.id,
+            game_player_id: game_player.id,
+            rolled,
+            old_position,
+            new_position,
+            action: PROPERTY_ACTION(new_position),
+            amount: rent.player,
+            extra: JSON.stringify({
+              description: `You ${rent.player > 0 ? "receives" : "paid"} ${
+                rent.player
+              }`,
+            }),
+            comment,
+            active: 1,
+            created_at: now,
+          })
+        );
       }
 
       if (rent.owner !== 0) {
@@ -282,6 +331,25 @@ const payRent = async (
           trx("game_players")
             .where({ id: property_owner_id })
             .increment("balance", rent.owner)
+        );
+        updates.push(
+          trx("game_play_history").insert({
+            game_id: game.id,
+            game_player_id: game_player.id,
+            rolled,
+            old_position,
+            new_position,
+            action: PROPERTY_ACTION(new_position),
+            amount: rent.owner,
+            extra: JSON.stringify({
+              description: `Owner ${rent.owner > 0 ? "receives" : "paid"} ${
+                rent.owner
+              }`,
+            }),
+            comment,
+            active: 1,
+            created_at: now,
+          })
         );
       }
 
@@ -293,6 +361,25 @@ const payRent = async (
             .where("id", "!=", game_player.id)
             .increment("balance", rent.players)
         );
+        updates.push(
+          trx("game_play_history").insert({
+            game_id: game.id,
+            game_player_id: game_player.id,
+            rolled,
+            old_position,
+            new_position,
+            action: PROPERTY_ACTION(new_position),
+            amount: rent.players,
+            extra: JSON.stringify({
+              description: `Players ${rent.players > 0 ? "receives" : "paid"} ${
+                rent.players
+              }`,
+            }),
+            comment,
+            active: 1,
+            created_at: now,
+          })
+        );
       }
 
       // Update position if changed
@@ -301,6 +388,23 @@ const payRent = async (
           trx("game_players")
             .where({ id: game_player.id })
             .update({ position: position, updated_at: now })
+        );
+        updates.push(
+          trx("game_play_history").insert({
+            game_id: game.id,
+            game_player_id: game_player.id,
+            rolled,
+            old_position: new_position,
+            new_position: position,
+            action: PROPERTY_ACTION(position),
+            amount: rent.player,
+            extra: JSON.stringify({
+              description: `Player moved from ${new_position} → ${position}`,
+            }),
+            comment,
+            active: 1,
+            created_at: now,
+          })
         );
       }
 
