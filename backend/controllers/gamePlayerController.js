@@ -65,7 +65,7 @@ const payRent = async (
       rolled,
       old_position,
       new_position: position,
-      action: `PROPERTY_${position}`,
+      action: PROPERTY_ACTION(position),
       amount,
       extra: JSON.stringify({ description: desc }),
       comment,
