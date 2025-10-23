@@ -306,7 +306,7 @@ const payRent = async (
     }
 
     // Process rent transfer if rent exists and setting allows
-    if (rent && game_settings.rent_in_prison) {
+    if (rent) {
       const updates = [];
       const historyInserts = [];
 
@@ -424,14 +424,6 @@ const payRent = async (
         await trx("game_play_history").insert(historyInserts);
       }
     }
-    console.log({
-      success: true,
-      rent,
-      position,
-      comment,
-      card: chanceCard,
-      message: comment,
-    });
 
     return {
       success: true,
