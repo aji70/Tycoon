@@ -336,9 +336,9 @@ const payRent = async (
           createHistory(
             game_player.id,
             rent.player,
-            `You ${rent.player > 0 ? "received" : "paid"} ${Math.abs(
-              rent.player
-            )}`
+            `${player.username} ${
+              rent.player > 0 ? "received" : "paid"
+            } ${Math.abs(rent.player)}`
           )
         );
       }
@@ -354,9 +354,9 @@ const payRent = async (
           createHistory(
             property_owner_id,
             rent.owner,
-            `Owner ${rent.owner > 0 ? "received" : "paid"} ${Math.abs(
-              rent.owner
-            )}`
+            `${owner.username} ${
+              rent.owner > 0 ? "received" : "paid"
+            } ${Math.abs(rent.owner)}`
           )
         );
       }
@@ -424,6 +424,14 @@ const payRent = async (
         await trx("game_play_history").insert(historyInserts);
       }
     }
+    console.log({
+      success: true,
+      rent,
+      position,
+      comment,
+      card: chanceCard,
+      message: comment,
+    });
 
     return {
       success: true,
@@ -807,6 +815,8 @@ const gamePlayerController = {
           },
           trx // Pass transaction to prevent nested transactions
         );
+
+        console.log(pay_rent);
 
         // Check rent payment result
         if (!pay_rent || !pay_rent.success) {
