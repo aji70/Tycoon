@@ -11,8 +11,6 @@ const payRent = async (
   { game_id, property_id, player_id, old_position, new_position, rolled },
   trx
 ) => {
-  const trx = await db.transaction();
-
   try {
     const now = new Date();
 
