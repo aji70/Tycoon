@@ -21,32 +21,28 @@ const payRent = async (
     const COMMUNITY_CHEST_IDS = [2, 17, 33];
 
     // Fetch all required data in parallel
-    const [property, game, game_settings, game_player] = await Promise.all([
-      trx("properties").where({ id: property_id }).first(),
-      trx("games").where({ id: game_id }).forUpdate().first(),
-      trx("game_settings").where({ game_id }).forUpdate().first(),
-      trx("game_players").where({ id: player_id }).forUpdate().first(),
-    ]);
+    const [property, game, game_settings, game_player, player] =
+      await Promise.all([
+        trx("properties").where({ id: property_id }).first(),
+        trx("games").where({ id: game_id }).forUpdate().first(),
+        trx("game_settings").where({ game_id }).forUpdate().first(),
+        trx("game_players").where({ id: player_id }).forUpdate().first(),
+        // Fetch player user info early
+        trx("game_players")
+          .where({ id: player_id })
+          .first()
+          .then((gp) =>
+            gp ? trx("users").where({ id: gp.user_id }).first() : null
+          ),
+      ]);
 
     // Validate fetched data
     if (!property || !game || game.status !== "RUNNING" || !game_settings) {
-      return { success: false };
+      return { success: false, message: "Invalid game state" };
     }
 
-    if (!game_player || game_player.game_id !== game.id) {
-      return { success: false };
-    }
-
-    // Get user
-    const player = await trx("users")
-      .forUpdate()
-      .where({
-        id: game_player.user_id,
-      })
-      .first();
-
-    if (!player) {
-      return { success: true };
+    if (!game_player || game_player.game_id !== game.id || !player) {
+      return { success: false, message: "Invalid player" };
     }
 
     // Get game property
@@ -58,44 +54,45 @@ const payRent = async (
       })
       .first();
 
+    // No rent if property unowned, owned by current player, or mortgaged
     if (
       !game_property ||
       game_property.player_id === game_player.id ||
       game_property.mortgaged
     ) {
-      return { success: true };
+      return {
+        success: true,
+        message: "No rent required",
+        position: new_position,
+      };
     }
 
     const property_owner_id = game_property.player_id;
 
-    // Get property owner
-    const property_owner = await trx("game_players")
-      .where({ id: property_owner_id })
-      .forUpdate()
-      .first();
+    // Get property owner and their user info in parallel
+    const [property_owner, owner] = await Promise.all([
+      trx("game_players").where({ id: property_owner_id }).forUpdate().first(),
+      trx("game_players")
+        .where({ id: property_owner_id })
+        .first()
+        .then((po) =>
+          po ? trx("users").where({ id: po.user_id }).first() : null
+        ),
+    ]);
 
-    if (!property_owner) {
-      return { success: false };
-    }
-
-    // Get property owner
-    const owner = await trx("users")
-      .where({ id: property_owner.user_id })
-      .forUpdate()
-      .first();
-
-    if (!owner) {
-      return { success: false };
+    if (!property_owner || !owner) {
+      return { success: false, message: "Property owner not found" };
     }
 
     let rent = null;
     let position = new_position;
     let comment = "";
+    let chanceCard = null;
 
-    // Get players count
+    // Get other players count (cached for per_player calculations)
     const get_players_count = await trx("game_players")
       .where("game_id", game.id)
-      .where("player_id", "!=", game_player.id)
+      .where("id", "!=", game_player.id)
       .count({ cnt: "*" })
       .first();
     const players_count = Number(get_players_count?.cnt || 0);
@@ -115,7 +112,9 @@ const payRent = async (
       const rentAmounts = { 1: 25, 2: 50, 3: 100, 4: 200 };
       const rentAmount = rentAmounts[owned] || 0;
       rent = { player: -rentAmount, owner: rentAmount, players: 0 };
-      comment = `${user.username} paid ${rentAmount} to ${owner.username} for ${owned} railways`;
+      comment = `${player.username} paid ${rentAmount} to ${
+        owner.username
+      } for ${owned} railway${owned > 1 ? "s" : ""}`;
     } else if (UTILITY_IDS.includes(property.id)) {
       const ownedCountResult = await trx("game_properties")
         .where({
@@ -130,11 +129,14 @@ const payRent = async (
       const multiplier = owned === 1 ? 4 : owned === 2 ? 10 : 0;
       const rentAmount = Number(rolled || 0) * multiplier;
       rent = { player: -rentAmount, owner: rentAmount, players: 0 };
-      comment = `${user.username} paid ${rentAmount} to ${owner.username} for ${owned} utilities`;
+      comment = `${player.username} paid ${rentAmount} to ${
+        owner.username
+      } for ${owned} utility${owned > 1 ? "ies" : "y"}`;
     } else if (CHANCE_IDS.includes(property.id)) {
       const chance = await trx("chances").orderByRaw("RAND()").first();
 
       if (chance) {
+        chanceCard = chance;
         const extra = chance.extra ? JSON.parse(chance.extra) : {};
         const chanceType = chance.type.trim().toLowerCase();
 
@@ -184,20 +186,21 @@ const payRent = async (
               updated_at: now,
             });
 
-            // FIX: Pass GO collection logic
+            // Deduct GO money if passed start
             rent =
               old_position > new_position
                 ? { player: -200, owner: 0, players: 0 }
                 : { player: 0, owner: 0, players: 0 };
           } else if (rule === "per_player") {
+            const totalAmount = -chance.amount * players_count;
             rent = {
-              player: chance.amount * players_count,
+              player: totalAmount,
               owner: 0,
               players: chance.amount,
             };
           }
         }
-        comment = `${user.username} picked chance - ${chance.instruction}`;
+        comment = `${player.username} drew chance: ${chance.instruction}`;
       }
     } else if (COMMUNITY_CHEST_IDS.includes(property.id)) {
       const communityChest = await trx("community_chests")
@@ -205,6 +208,7 @@ const payRent = async (
         .first();
 
       if (communityChest) {
+        chanceCard = communityChest;
         const extra = communityChest.extra
           ? JSON.parse(communityChest.extra)
           : {};
@@ -256,20 +260,21 @@ const payRent = async (
               updated_at: now,
             });
 
-            // FIX: Pass GO collection logic
+            // Deduct GO money if passed start
             rent =
               old_position > new_position
                 ? { player: -200, owner: 0, players: 0 }
                 : { player: 0, owner: 0, players: 0 };
           } else if (rule === "per_player") {
+            const totalAmount = -players_count * communityChest.amount;
             rent = {
-              player: players_count * communityChest.amount,
+              player: totalAmount,
               owner: 0,
-              players: -communityChest.amount,
+              players: communityChest.amount,
             };
           }
         }
-        comment = `${user.username} picked community chest - ${communityChest.instruction}`;
+        comment = `${player.username} drew community chest: ${communityChest.instruction}`;
       }
     } else {
       // Normal property rent based on development level
@@ -289,148 +294,151 @@ const payRent = async (
           : 0;
 
       rent = { player: -rentAmount, owner: rentAmount, players: 0 };
-      comment = `${user.username} paid rent of ${rentAmount} to ${
-        owner.username
-      } ${development == 5 ? "for a hotel" : `for ${development} houses`}`;
+
+      const devDescription =
+        development === 0
+          ? "site only"
+          : development === 5
+          ? "hotel"
+          : `${development} house${development > 1 ? "s" : ""}`;
+
+      comment = `${player.username} paid ${rentAmount} rent to ${owner.username} for ${devDescription}`;
     }
 
-    // Process rent transfer if applicable & enabled
+    // Process rent transfer if rent exists and setting allows
     if (rent && game_settings.rent_in_prison) {
-      // Prepare batch updates
       const updates = [];
+      const historyInserts = [];
 
+      // Helper to create history entry
+      const createHistory = (playerId, amount, desc) => ({
+        game_id: game.id,
+        game_player_id: playerId,
+        rolled,
+        old_position,
+        new_position: position,
+        action: PROPERTY_ACTION(position),
+        amount,
+        extra: JSON.stringify({ description: desc }),
+        comment,
+        active: 1,
+        created_at: now,
+      });
+
+      // Update player balance and create history
       if (rent.player !== 0) {
         updates.push(
           trx("game_players")
             .where({ id: game_player.id })
             .increment("balance", rent.player)
         );
-        updates.push(
-          trx("game_play_history").insert({
-            game_id: game.id,
-            game_player_id: game_player.id,
-            rolled,
-            old_position,
-            new_position,
-            action: PROPERTY_ACTION(new_position),
-            amount: rent.player,
-            extra: JSON.stringify({
-              description: `You ${rent.player > 0 ? "receives" : "paid"} ${
-                rent.player
-              }`,
-            }),
-            comment,
-            active: 1,
-            created_at: now,
-          })
+        historyInserts.push(
+          createHistory(
+            game_player.id,
+            rent.player,
+            `You ${rent.player > 0 ? "received" : "paid"} ${Math.abs(
+              rent.player
+            )}`
+          )
         );
       }
 
+      // Update owner balance and create history
       if (rent.owner !== 0) {
         updates.push(
           trx("game_players")
             .where({ id: property_owner_id })
             .increment("balance", rent.owner)
         );
-        updates.push(
-          trx("game_play_history").insert({
-            game_id: game.id,
-            game_player_id: game_player.id,
-            rolled,
-            old_position,
-            new_position,
-            action: PROPERTY_ACTION(new_position),
-            amount: rent.owner,
-            extra: JSON.stringify({
-              description: `Owner ${rent.owner > 0 ? "receives" : "paid"} ${
-                rent.owner
-              }`,
-            }),
-            comment,
-            active: 1,
-            created_at: now,
-          })
+        historyInserts.push(
+          createHistory(
+            property_owner_id,
+            rent.owner,
+            `Owner ${rent.owner > 0 ? "received" : "paid"} ${Math.abs(
+              rent.owner
+            )}`
+          )
         );
       }
 
-      // FIX: Original had forEach with async which doesn't wait
+      // Update all other players balances (bulk operation)
       if (rent.players !== 0) {
         updates.push(
           trx("game_players")
             .where("game_id", game_id)
             .where("id", "!=", game_player.id)
+            .where("id", "!=", property_owner_id)
             .increment("balance", rent.players)
         );
-        updates.push(
-          trx("game_play_history").insert({
-            game_id: game.id,
-            game_player_id: game_player.id,
-            rolled,
-            old_position,
-            new_position,
-            action: PROPERTY_ACTION(new_position),
-            amount: rent.players,
-            extra: JSON.stringify({
-              description: `Players ${rent.players > 0 ? "receives" : "paid"} ${
-                rent.players
-              }`,
-            }),
-            comment,
-            active: 1,
-            created_at: now,
-          })
+        // Note: Individual history for each player would require fetching all player IDs
+        // For now, create a single entry for the current player about other players
+        historyInserts.push(
+          createHistory(
+            game_player.id,
+            rent.players * players_count,
+            `Other players ${rent.players > 0 ? "received" : "paid"} ${Math.abs(
+              rent.players
+            )} each`
+          )
         );
       }
 
-      // Update position if changed
+      // Update position if changed (e.g., chance/community chest moved player)
       if (position !== new_position) {
         updates.push(
           trx("game_players")
             .where({ id: game_player.id })
             .update({ position: position, updated_at: now })
         );
+        historyInserts.push(
+          createHistory(
+            game_player.id,
+            0,
+            `Moved from position ${new_position} to ${position}`
+          )
+        );
+      }
+
+      // Insert trade record only if actual rent was paid (not for special cards)
+      if (rent.owner !== 0 || rent.player !== 0) {
         updates.push(
-          trx("game_play_history").insert({
-            game_id: game.id,
-            game_player_id: game_player.id,
-            rolled,
-            old_position: new_position,
-            new_position: position,
-            action: PROPERTY_ACTION(position),
-            amount: rent.player,
-            extra: JSON.stringify({
-              description: `Player moved from ${new_position} → ${position}`,
-            }),
-            comment,
-            active: 1,
+          trx("game_trades").insert({
+            game_id,
+            from_player_id: game_player.id,
+            to_player_id: property_owner_id,
+            type: "CASH",
+            status: "ACCEPTED",
+            sending_amount: Math.abs(rent.player),
+            receiving_amount: Math.abs(rent.owner),
             created_at: now,
+            updated_at: now,
           })
         );
       }
 
-      // Insert trade record
-      updates.push(
-        trx("game_trades").insert({
-          game_id,
-          from_player_id: game_player.id,
-          to_player_id: property_owner_id,
-          type: "CASH",
-          status: "ACCEPTED",
-          sending_amount: rent ? rent.player : 0,
-          receiving_amount: rent ? rent.owner : 0,
-          created_at: now,
-          updated_at: now,
-        })
-      );
-
-      // Execute all updates in parallel
+      // Execute all balance updates first, then insert histories
       await Promise.all(updates);
+
+      // Insert all history records
+      if (historyInserts.length > 0) {
+        await trx("game_play_history").insert(historyInserts);
+      }
     }
 
-    return { success: true, rent, position };
+    return {
+      success: true,
+      rent,
+      position,
+      comment,
+      card: chanceCard,
+      message: comment,
+    };
   } catch (err) {
     console.error("Error in payRent:", err);
-    return { success: false };
+    return {
+      success: false,
+      message: err.message || "Failed to process rent payment",
+    };
   }
 };
 
