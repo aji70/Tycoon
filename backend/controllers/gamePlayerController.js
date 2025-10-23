@@ -7,6 +7,256 @@ import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
 import db from "../config/database.js";
 
+const payRent = async ({
+  game_id,
+  property_id,
+  player_id,
+  old_position,
+  new_position,
+  rolled,
+}) => {
+  const trx = await db.transaction();
+
+  try {
+    const now = new Date();
+
+    // Constants
+    const RAILWAY_IDS = [5, 15, 25, 35];
+    const UTILITY_IDS = [12, 28];
+    const CHANCE_IDS = [7, 22, 36];
+    const COMMUNITY_CHEST_IDS = [2, 17, 33];
+
+    // Fetch all required data in parallel
+    const [property, game, game_settings, game_player] = await Promise.all([
+      trx("properties").where({ id: property_id }).first(),
+      trx("games").where({ id: game_id }).forUpdate().first(),
+      trx("game_settings").where({ game_id }).forUpdate().first(),
+      trx("game_players").where({ id: player_id }).forUpdate().first(),
+    ]);
+
+    // Validate fetched data
+    if (!property || !game || game.status !== "RUNNING" || !game_settings) {
+      await trx.rollback();
+      return { success: false };
+    }
+
+    if (!game_player || game_player.game_id !== game.id) {
+      await trx.rollback();
+      return { success: false };
+    }
+
+    // Get game property
+    const game_property = await trx("game_properties")
+      .forUpdate()
+      .where({
+        property_id: property.id,
+        game_id: game.id,
+      })
+      .first();
+
+    if (
+      !game_property ||
+      game_property.player_id === game_player.id ||
+      game_property.mortgaged
+    ) {
+      await trx.commit();
+      return { success: true };
+    }
+
+    const property_owner_id = game_property.player_id;
+
+    // Get property owner
+    const property_owner = await trx("game_players")
+      .where({ id: property_owner_id })
+      .forUpdate()
+      .first();
+
+    if (!property_owner) {
+      await trx.rollback();
+      return { success: false };
+    }
+
+    let rent = null;
+    let position = new_position;
+
+    // Calculate rent based on property type
+    if (RAILWAY_IDS.includes(property.id)) {
+      const ownedCountResult = await trx("game_properties")
+        .where({
+          game_id: game.id,
+          player_id: property_owner_id,
+        })
+        .whereIn("property_id", RAILWAY_IDS)
+        .count({ cnt: "*" })
+        .first();
+
+      const owned = Number(ownedCountResult?.cnt || 0);
+      const rentAmounts = { 1: 25, 2: 50, 3: 100, 4: 200 };
+      const rentAmount = rentAmounts[owned] || 0;
+      rent = { player: -rentAmount, owner: rentAmount, players: 0 };
+    } else if (UTILITY_IDS.includes(property.id)) {
+      const ownedCountResult = await trx("game_properties")
+        .where({
+          game_id: game.id,
+          player_id: property_owner_id,
+        })
+        .whereIn("property_id", UTILITY_IDS)
+        .count({ cnt: "*" })
+        .first();
+
+      const owned = Number(ownedCountResult?.cnt || 0);
+      const multiplier = owned === 1 ? 4 : owned === 2 ? 10 : 0;
+      const rentAmount = Number(rolled || 0) * multiplier;
+      rent = { player: -rentAmount, owner: rentAmount, players: 0 };
+    } else if (CHANCE_IDS.includes(property.id)) {
+      const chance = await trx("chances").orderByRaw("RAND()").first();
+
+      if (chance) {
+        const extra = chance.extra ? JSON.parse(chance.extra) : {};
+        const chanceType = chance.type.trim().toLowerCase();
+
+        switch (chanceType) {
+          case "credit_and_move":
+            rent = { player: chance.amount, owner: 0, players: 0 };
+            position = chance.position;
+            break;
+          case "debit_and_move":
+            rent = { player: -chance.amount, owner: 0, players: 0 };
+            position = chance.position;
+            break;
+          case "move":
+            position =
+              chance.position >= 0
+                ? chance.position
+                : (new_position + chance.position + 40) % 40;
+            break;
+          case "credit":
+            rent = { player: chance.amount, owner: 0, players: 0 };
+            break;
+          case "debit":
+            rent = { player: -chance.amount, owner: 0, players: 0 };
+            break;
+        }
+
+        // Handle extra rule logic
+        if (extra?.rule) {
+          const rule = extra.rule;
+
+          if (rule === "nearest_utility") {
+            position =
+              UTILITY_IDS.find((id) => id > new_position) ?? UTILITY_IDS[0];
+          } else if (rule === "nearest_railroad") {
+            position =
+              RAILWAY_IDS.find((id) => id > new_position) ?? RAILWAY_IDS[0];
+          } else if (rule === "get_out_of_jail_free") {
+            await trx("game_players")
+              .where({ id: game_player.id })
+              .update({ chance_jail_card: 1 });
+          } else if (rule === "go_to_jail") {
+            position = 10;
+            await trx("game_players").where({ id: game_player.id }).update({
+              in_jail: true,
+              in_jail_rolls: 0,
+              position: 10,
+              updated_at: now,
+            });
+
+            // FIX: Pass GO collection logic
+            rent =
+              old_position > new_position
+                ? { player: -200, owner: 0, players: 0 }
+                : { player: 0, owner: 0, players: 0 };
+          }
+        }
+      }
+    } else {
+      // Normal property rent based on development level
+      const development = Number(game_property.development || 0);
+      const rentFields = [
+        property.rent_site_only,
+        property.rent_one_house,
+        property.rent_two_houses,
+        property.rent_three_houses,
+        property.rent_four_houses,
+        property.rent_hotel,
+      ];
+
+      const rentAmount =
+        development >= 0 && development <= 5
+          ? Number(rentFields[development] || 0)
+          : 0;
+
+      rent = { player: -rentAmount, owner: rentAmount, players: 0 };
+    }
+
+    // Process rent transfer if applicable & enabled
+    if (rent && game_settings.rent_in_prison) {
+      // Prepare batch updates
+      const updates = [];
+
+      if (rent.player !== 0) {
+        updates.push(
+          trx("game_players")
+            .where({ id: game_player.id })
+            .increment("balance", rent.player)
+        );
+      }
+
+      if (rent.owner !== 0) {
+        updates.push(
+          trx("game_players")
+            .where({ id: property_owner_id })
+            .increment("balance", rent.owner)
+        );
+      }
+
+      // FIX: Original had forEach with async which doesn't wait
+      if (rent.players !== 0) {
+        updates.push(
+          trx("game_players")
+            .where("game_id", game_id)
+            .where("id", "!=", game_player.id)
+            .increment("balance", rent.players)
+        );
+      }
+
+      // Update position if changed
+      if (position !== new_position) {
+        updates.push(
+          trx("game_players")
+            .where({ id: game_player.id })
+            .update({ position: position, updated_at: now })
+        );
+      }
+
+      // Insert trade record
+      updates.push(
+        trx("game_trades").insert({
+          game_id,
+          from_player_id: game_player.id,
+          to_player_id: property_owner_id,
+          type: "CASH",
+          status: "ACCEPTED",
+          sending_amount: rent ? rent.player : 0,
+          receiving_amount: rent ? rent.owner : 0,
+          created_at: now,
+          updated_at: now,
+        })
+      );
+
+      // Execute all updates in parallel
+      await Promise.all(updates);
+    }
+
+    await trx.commit();
+    return { success: true, rent, position };
+  } catch (err) {
+    await trx.rollback();
+    console.error("Error in payRent:", err);
+    return { success: false };
+  }
+};
+
 const gamePlayerController = {
   async create(req, res) {
     try {
@@ -355,130 +605,24 @@ const gamePlayerController = {
           .where({ id: game_player.id })
           .update(updatedFields);
 
+        const pay_rent = await payRent({
+          game_id: game.id,
+          property_id: property.id,
+          player_id: game_player.id,
+          old_position: old_position,
+          new_position: new_position,
+          rolled,
+        });
+
+        if (!pay_rent.success) {
+          return await respondAndRollback({
+            success: false,
+            message: "Failed to pay rent",
+          });
+        }
+
         // 6️⃣ Log move
         await insertPlayHistory();
-
-        // 7️⃣ Handle landing on owned property (rent)
-        const game_property = await trx("game_properties")
-          .where({ game_id: game.id, property_id: property.id })
-          .first();
-
-        if (
-          game_property &&
-          game_property.player_id !== game_player.id &&
-          !game_property.mortgaged
-        ) {
-          const property_owner_id = game_property.player_id;
-
-          // Get property owner (lock to be safe for balance updates)
-          const property_owner = await trx("game_players")
-            .where({ id: property_owner_id })
-            .first();
-
-          if (property_owner) {
-            let rent = 0;
-
-            // Railways (IDs: 5,15,25,35) - number owned by owner in this game
-            const RAILWAY_IDS = [5, 15, 25, 35];
-            const UTILITY_IDS = [12, 28];
-
-            if (RAILWAY_IDS.includes(property.id)) {
-              const ownedCountResult = await trx("game_properties")
-                .where({
-                  game_id: game.id,
-                  player_id: property_owner_id,
-                })
-                .whereIn("property_id", RAILWAY_IDS)
-                .count({ cnt: "*" })
-                .first();
-              const owned = Number(ownedCountResult?.cnt || 0);
-              switch (owned) {
-                case 1:
-                  rent = 25;
-                  break;
-                case 2:
-                  rent = 50;
-                  break;
-                case 3:
-                  rent = 100;
-                  break;
-                case 4:
-                  rent = 200;
-                  break;
-                default:
-                  rent = 0;
-              }
-            } else if (UTILITY_IDS.includes(property.id)) {
-              const ownedCountResult = await trx("game_properties")
-                .where({
-                  game_id: game.id,
-                  player_id: property_owner_id,
-                })
-                .whereIn("property_id", UTILITY_IDS)
-                .count({ cnt: "*" })
-                .first();
-              const owned = Number(ownedCountResult?.cnt || 0);
-              switch (owned) {
-                case 1:
-                  rent = Number(rolled || 0) * 4;
-                  break;
-                case 2:
-                  rent = Number(rolled || 0) * 10;
-                  break;
-                default:
-                  rent = 0;
-              }
-            } else {
-              // Normal property rent based on development level
-              switch (Number(game_property.development || 0)) {
-                case 0:
-                  rent = Number(property.rent_site_only || 0);
-                  break;
-                case 1:
-                  rent = Number(property.rent_one_house || 0);
-                  break;
-                case 2:
-                  rent = Number(property.rent_two_houses || 0);
-                  break;
-                case 3:
-                  rent = Number(property.rent_three_houses || 0);
-                  break;
-                case 4:
-                  rent = Number(property.rent_four_houses || 0);
-                  break;
-                case 5:
-                  rent = Number(property.rent_hotel || 0);
-                  break;
-                default:
-                  rent = 0;
-              }
-            }
-
-            // 8️⃣ Process rent transfer if applicable & enabled
-            if (rent > 0 && game_settings.rent_in_prison) {
-              // Decrement payer balance and increment owner balance atomically in transaction
-              await trx("game_players")
-                .where({ id: game_player.id })
-                .decrement("balance", rent);
-              await trx("game_players")
-                .where({ id: property_owner_id })
-                .increment("balance", rent);
-
-              // Insert trade record
-              await trx("game_trades").insert({
-                game_id,
-                from_player_id: game_player.id,
-                to_player_id: property_owner_id,
-                type: "CASH",
-                status: "ACCEPTED",
-                sending_amount: rent,
-                receiving_amount: rent,
-                created_at: now,
-                updated_at: now,
-              });
-            }
-          }
-        }
 
         // commit everything
         await trx.commit();
