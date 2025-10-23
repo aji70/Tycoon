@@ -155,6 +155,7 @@ const payRent = async (
       comment = `${player.username} drew ${typeName}: ${card.instruction}`;
     };
 
+    let game_property = null;
     // Handle Chance and Community Chest (no owner, no game_property)
     if (PROPERTY_TYPES.CHANCE.includes(property.id)) {
       await handleCard("chances", "chance");
@@ -162,7 +163,7 @@ const payRent = async (
       await handleCard("community_chests", "community chest");
     } else {
       // Fetch game property for owned properties
-      const game_property = await trx("game_properties")
+      game_property = await trx("game_properties")
         .forUpdate()
         .where({ property_id: property.id, game_id: game.id })
         .first();
@@ -275,7 +276,7 @@ const payRent = async (
         );
       }
 
-      if (rent.owner !== 0 && game_property && game_property.player_id) {
+      if (rent.owner !== 0 && game_property && game_property?.player_id) {
         updates.push(
           trx("game_players")
             .where({ id: game_property.player_id })
