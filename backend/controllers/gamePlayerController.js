@@ -156,6 +156,7 @@ const payRent = async (
     };
 
     let game_property = null;
+    let _owner = null;
     // Handle Chance and Community Chest (no owner, no game_property)
     if (PROPERTY_TYPES.CHANCE.includes(property.id)) {
       await handleCard("chances", "chance");
@@ -198,6 +199,7 @@ const payRent = async (
       if (!property_owner || !owner) {
         return { success: false, message: "Property owner not found" };
       }
+      _owner = owner;
 
       // Calculate rent based on property type
       if (PROPERTY_TYPES.RAILWAY.includes(property.id)) {
@@ -286,7 +288,7 @@ const payRent = async (
           createHistory(
             game_property.player_id,
             rent.owner,
-            `${owner ? owner.username : "Owner"} ${
+            `${_owner ? _owner?.username : "Owner"} ${
               rent.owner > 0 ? "received" : "paid"
             } ${Number(rent.owner)}`
           )
