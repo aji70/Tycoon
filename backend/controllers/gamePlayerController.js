@@ -164,6 +164,10 @@ const payRent = async (
       await handleCard("chances", "chance");
     } else if (PROPERTY_TYPES.COMMUNITY_CHEST.includes(property.id)) {
       await handleCard("community_chests", "community chest");
+    } else if (PROPERTY_TYPES.TAX.includes(property.id)) {
+      const rentAmount = Number(property.price);
+      rent = { player: -rentAmount, owner: 0, players: 0 };
+      comment = `${player.username} paid ${rentAmount} for ${property.name}`;
     } else {
       // Fetch game property for owned properties
       game_property = await trx("game_properties")
@@ -231,10 +235,6 @@ const payRent = async (
         comment = `${player.username} paid ${rentAmount} to ${
           owner.username
         } for ${owned} utility${owned > 1 ? "ies" : "y"}`;
-      } else if (PROPERTY_TYPES.TAX.includes(property.id)) {
-        const rentAmount = Number(property.price);
-        rent = { player: -rentAmount, owner: 0, players: 0 };
-        comment = `${player.username} paid ${rentAmount} for ${property.name}`;
       } else {
         const development = Number(game_property?.development || 0);
         const rentFields = [
@@ -983,7 +983,6 @@ const gamePlayerController = {
       });
     }
   },
-
   async remove(req, res) {
     try {
       await GamePlayer.delete(req.params.id);
