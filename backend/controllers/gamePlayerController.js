@@ -271,7 +271,7 @@ const payRent = async (
             rent.player,
             `${player.username} ${
               rent.player > 0 ? "received" : "paid"
-            } ${Math.abs(rent.player)}`
+            } ${Number(rent.player)}`
           )
         );
       }
@@ -288,7 +288,7 @@ const payRent = async (
             rent.owner,
             `${owner.username} ${
               rent.owner > 0 ? "received" : "paid"
-            } ${Math.abs(rent.owner)}`
+            } ${Number(rent.owner)}`
           )
         );
       }
@@ -304,7 +304,7 @@ const payRent = async (
           createHistory(
             game_player.id,
             rent.players * (await getPlayersCount()),
-            `Other players ${rent.players > 0 ? "received" : "paid"} ${Math.abs(
+            `Other players ${rent.players > 0 ? "received" : "paid"} ${Number(
               rent.players
             )} each`
           )
@@ -338,8 +338,8 @@ const payRent = async (
             to_player_id: game_property.player_id,
             type: "CASH",
             status: "ACCEPTED",
-            sending_amount: Math.abs(rent.player),
-            receiving_amount: Math.abs(rent.owner),
+            sending_amount: Number(rent.player),
+            receiving_amount: Number(rent.owner),
             created_at: now,
             updated_at: now,
           })
