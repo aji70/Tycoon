@@ -275,7 +275,7 @@ const payRent = async (
         );
       }
 
-      if (rent.owner !== 0 && game_property?.player_id) {
+      if (rent.owner !== 0 && game_property && game_property.player_id) {
         updates.push(
           trx("game_players")
             .where({ id: game_property.player_id })
@@ -297,7 +297,6 @@ const payRent = async (
           trx("game_players")
             .where("game_id", game_id)
             .where("id", "!=", game_player.id)
-            .where("id", "!=", game_property?.player_id || null)
             .increment("balance", rent.players)
         );
         historyInserts.push(
@@ -326,7 +325,11 @@ const payRent = async (
         );
       }
 
-      if ((rent.owner !== 0 || rent.player !== 0) && game_property?.player_id) {
+      if (
+        (rent.owner !== 0 || rent.player !== 0) &&
+        game_property &&
+        game_property?.player_id
+      ) {
         updates.push(
           trx("game_trades").insert({
             game_id,
@@ -768,7 +771,10 @@ const gamePlayerController = {
             updated_at: now,
           });
 
-        await insertPlayHistory({ stayed_in_jail: true }, "You are still in jail");
+        await insertPlayHistory(
+          { stayed_in_jail: true },
+          "You are still in jail"
+        );
         await trx.commit();
 
         return res.json({
