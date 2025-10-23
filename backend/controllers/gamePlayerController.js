@@ -107,13 +107,26 @@ const payRent = async (
           position: card.position,
         },
         move: {
+          player: 0,
+          owner: 0,
+          players: 0,
           position:
             card.position >= 0
               ? card.position
               : (new_position + card.position + 40) % 40,
         },
-        credit: { player: card.amount, owner: 0, players: 0 },
-        debit: { player: -card.amount, owner: 0, players: 0 },
+        credit: {
+          player: card.amount,
+          owner: 0,
+          players: 0,
+          position: card.position ?? new_position,
+        },
+        debit: {
+          player: -card.amount,
+          owner: 0,
+          players: 0,
+          position: card.position ?? new_position,
+        },
       };
 
       rent = rentConfig[cardType] || {};
