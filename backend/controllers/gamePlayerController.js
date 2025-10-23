@@ -7,14 +7,10 @@ import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
 import db from "../config/database.js";
 
-const payRent = async ({
-  game_id,
-  property_id,
-  player_id,
-  old_position,
-  new_position,
-  rolled,
-}) => {
+const payRent = async (
+  { game_id, property_id, player_id, old_position, new_position, rolled },
+  trx
+) => {
   const trx = await db.transaction();
 
   try {
@@ -36,12 +32,10 @@ const payRent = async ({
 
     // Validate fetched data
     if (!property || !game || game.status !== "RUNNING" || !game_settings) {
-      await trx.rollback();
       return { success: false };
     }
 
     if (!game_player || game_player.game_id !== game.id) {
-      await trx.rollback();
       return { success: false };
     }
 
@@ -59,7 +53,6 @@ const payRent = async ({
       game_property.player_id === game_player.id ||
       game_property.mortgaged
     ) {
-      await trx.commit();
       return { success: true };
     }
 
@@ -72,7 +65,6 @@ const payRent = async ({
       .first();
 
     if (!property_owner) {
-      await trx.rollback();
       return { success: false };
     }
 
@@ -248,10 +240,8 @@ const payRent = async ({
       await Promise.all(updates);
     }
 
-    await trx.commit();
     return { success: true, rent, position };
   } catch (err) {
-    await trx.rollback();
     console.error("Error in payRent:", err);
     return { success: false };
   }
@@ -437,14 +427,14 @@ const gamePlayerController = {
     const trx = await db.transaction();
     const now = new Date();
 
-    // small helpers
+    // Helper for clean rollback and response
     const respondAndRollback = async (statusObj) => {
       try {
         await trx.rollback();
       } catch (e) {
         /* ignore rollback errors */
       }
-      return res.status(200).json(statusObj);
+      return res.status(statusObj.success ? 200 : 400).json(statusObj);
     };
 
     try {
@@ -456,7 +446,7 @@ const gamePlayerController = {
         is_double = false,
       } = req.body;
 
-      // basic validation
+      // Basic validation
       if (
         !user_id ||
         !game_id ||
@@ -470,12 +460,22 @@ const gamePlayerController = {
       }
 
       const position = Number(rawPosition);
+      if (isNaN(position) || position < 0 || position > 39) {
+        return await respondAndRollback({
+          success: false,
+          message: "Invalid position value.",
+        });
+      }
 
-      // 1️⃣ Lock game row
-      const game = await trx("games")
-        .where({ id: game_id })
-        .forUpdate()
-        .first();
+      // Fetch and lock all required data in parallel
+      const [game, game_settings, game_player, property] = await Promise.all([
+        trx("games").where({ id: game_id }).forUpdate().first(),
+        trx("game_settings").where({ game_id }).forUpdate().first(),
+        trx("game_players").where({ user_id, game_id }).forUpdate().first(),
+        trx("properties").where({ id: position }).first(),
+      ]);
+
+      // Validate fetched data
       if (!game) {
         return await respondAndRollback({
           success: false,
@@ -483,11 +483,6 @@ const gamePlayerController = {
         });
       }
 
-      // Get game settings and lock (settings are game-scoped)
-      const game_settings = await trx("game_settings")
-        .where({ game_id })
-        .forUpdate()
-        .first();
       if (!game_settings) {
         return await respondAndRollback({
           success: false,
@@ -495,23 +490,25 @@ const gamePlayerController = {
         });
       }
 
-      // Ensure it’s this player's turn
-      if (game.next_player_id !== user_id) {
-        return await respondAndRollback({
-          success: false,
-          message: "It is not your turn.",
-        });
-      }
-
-      // 2️⃣ Lock player row
-      const game_player = await trx("game_players")
-        .where({ user_id, game_id })
-        .forUpdate()
-        .first();
       if (!game_player) {
         return await respondAndRollback({
           success: false,
           message: "Game player not found",
+        });
+      }
+
+      if (!property) {
+        return await respondAndRollback({
+          success: false,
+          message: "Property not found",
+        });
+      }
+
+      // Ensure it's this player's turn
+      if (game.next_player_id !== user_id) {
+        return await respondAndRollback({
+          success: false,
+          message: "It is not your turn.",
         });
       }
 
@@ -523,16 +520,7 @@ const gamePlayerController = {
         });
       }
 
-      // 3️⃣ Validate position (no special lock needed)
-      const property = await trx("properties").where({ id: position }).first();
-      if (!property) {
-        return await respondAndRollback({
-          success: false,
-          message: "Property not found",
-        });
-      }
-
-      // 4️⃣ Compute new values
+      // Compute positions
       const old_position = Number(game_player.position || 0);
       const new_position = position;
 
@@ -556,82 +544,103 @@ const gamePlayerController = {
         });
       };
 
-      // JAIL logic: landing on 30 sends to jail (position 10) if not already in jail
+      // JAIL LOGIC: Landing on position 30 (Go to Jail)
       if (!game_player.in_jail && new_position === 30) {
         await trx("game_players")
           .where({ id: game_player.id })
           .update({
             in_jail: true,
             in_jail_rolls: 0,
-            position: 10,
+            position: 10, // Jail is at position 10
             rolls: Number(game_player.rolls || 0) + 1,
             updated_at: now,
           });
 
-        await insertPlayHistory();
+        await insertPlayHistory({ jail: true });
         await trx.commit();
 
         return res.json({
           success: true,
-          message: "Position updated successfully.",
+          message: "You've been sent to jail!",
         });
       }
 
-      // Determine whether player is leaving jail or normal move
-      const leavingJailCondition =
-        (!game_player.in_jail && new_position !== 30) ||
-        (game_player.in_jail &&
-          (Number(game_player.in_jail_rolls || 0) >= 3 ||
-            Number(rolled || 0) >= 12 ||
-            Boolean(is_double)));
+      // Check if player can leave jail
+      const canLeaveJail = game_player.in_jail
+        ? Number(game_player.in_jail_rolls || 0) >= 2 || // 3rd roll means 2 previous rolls
+          Number(rolled || 0) >= 12 ||
+          Boolean(is_double)
+        : true; // Not in jail, can move freely
 
-      if (leavingJailCondition) {
+      if (canLeaveJail) {
+        // Player is moving (either normal move or leaving jail)
         const passedStart = new_position < old_position;
+
+        // Build update object
         const updatedFields = {
           position: new_position,
           rolls: Number(game_player.rolls || 0) + 1,
           updated_at: now,
-          // if in jail, reset jail flags
-          ...(game_player.in_jail ? { in_jail: false, in_jail_rolls: 0 } : {}),
         };
 
+        // Reset jail flags if leaving jail
+        if (game_player.in_jail) {
+          updatedFields.in_jail = false;
+          updatedFields.in_jail_rolls = 0;
+        }
+
+        // Award GO money if passed start
         if (passedStart) {
           updatedFields.circle = Number(game_player.circle || 0) + 1;
           updatedFields.balance = Number(game_player.balance || 0) + 200;
         }
 
-        // 5️⃣ Update player
+        // Update player position and state
         await trx("game_players")
           .where({ id: game_player.id })
           .update(updatedFields);
 
-        const pay_rent = await payRent({
-          game_id: game.id,
-          property_id: property.id,
-          player_id: game_player.id,
-          old_position: old_position,
-          new_position: new_position,
-          rolled,
-        });
+        // Process rent/property action (pass transaction context)
+        const pay_rent = await payRent(
+          {
+            game_id: game.id,
+            property_id: property.id,
+            player_id: game_player.id,
+            old_position: old_position,
+            new_position: new_position,
+            rolled,
+          },
+          trx // Pass transaction to prevent nested transactions
+        );
 
-        if (!pay_rent.success) {
+        // Check rent payment result
+        if (!pay_rent || !pay_rent.success) {
           return await respondAndRollback({
             success: false,
-            message: "Failed to pay rent",
+            message: "Failed to process property action",
           });
         }
 
-        // 6️⃣ Log move
-        await insertPlayHistory();
+        // Log move to history
+        await insertPlayHistory({
+          rent: pay_rent.rent,
+          final_position: pay_rent.position || new_position,
+        });
 
-        // commit everything
+        // Commit transaction
         await trx.commit();
+
         return res.json({
           success: true,
           message: "Position updated successfully.",
+          data: {
+            new_position: pay_rent.position || new_position,
+            rent_paid: pay_rent.rent,
+            passed_go: passedStart,
+          },
         });
       } else {
-        // Player stays in jail and uses a jail roll
+        // Player stays in jail (used a roll but didn't escape)
         await trx("game_players")
           .where({ id: game_player.id })
           .update({
@@ -640,22 +649,29 @@ const gamePlayerController = {
             updated_at: now,
           });
 
+        await insertPlayHistory({ stayed_in_jail: true });
         await trx.commit();
+
         return res.json({
           success: true,
-          message: "Position updated successfully.",
+          message: "Still in jail. Try again next turn.",
+          data: {
+            in_jail: true,
+            jail_rolls: Number(game_player.in_jail_rolls || 0) + 1,
+          },
         });
       }
     } catch (error) {
       try {
         await trx.rollback();
       } catch (e) {
-        /* ignore */
+        /* ignore rollback errors */
       }
       console.error("changePosition error:", error);
-      return res
-        .status(200)
-        .json({ success: false, message: error?.message || "Internal error" });
+      return res.status(500).json({
+        success: false,
+        message: error?.message || "Internal server error",
+      });
     }
   },
   async endTurn(req, res) {
