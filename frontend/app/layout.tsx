@@ -13,9 +13,9 @@ import { SocketProvider } from "@/context/SocketContext";
 import { Toaster } from "react-hot-toast";
 
 export const metadata = getMetadata({
-  title: "Blockopoly",
+  title: "Tycoon",
   description:
-    "Blockopoly is a decentralized on-chain game inspired by the classic Monopoly game, built on Base. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
+    "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Base. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
 });
 
 export default async function RootLayout({
