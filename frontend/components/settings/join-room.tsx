@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import React, { useState, useEffect } from 'react';
 import { FaUser } from 'react-icons/fa6';
 import { IoIosAddCircle } from 'react-icons/io';
-import { IoKey } from 'react-icons/io5';
+import { IoKey, IoArrowDown, IoArrowUp } from 'react-icons/io5';
 import { RxDotFilled } from 'react-icons/rx';
-import { IoIosArrowDown, IoIosArrowUp } from 'react-icons/io';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Define settings interface
 interface GameSettings {
@@ -19,12 +19,13 @@ interface GameSettings {
   starting_cash: number;
 }
 
-// Define game interface
+// Define game interface - added is_initialised
 interface Game {
   id: number;
   code: string;
   mode: 'PUBLIC' | 'PRIVATE';
-  status: string;
+  status: 'Pending' | 'Ongoing' | 'Ended'; // Updated to include ENDED
+  is_initialised?: boolean;
   number_of_players: number;
   players_joined?: number;
   creator_id?: number;
@@ -34,13 +35,14 @@ interface Game {
 
 const JoinRoom = () => {
   const router = useRouter();
-  // Dummy data for games
+  // Dummy data for games - updated with real examples: ID 2 (ENDED), ID 12 (ONGOING), ID 20 (PENDING uninit), ID 9 (PENDING init), ID 10 (ONGOING from log)
   const [games] = useState<Game[]>([
     {
       id: 1,
       code: 'ABC123',
       mode: 'PUBLIC',
-      status: 'PENDING',
+      status: 'Pending',
+      is_initialised: true,
       number_of_players: 4,
       players_joined: 2,
       creator_id: 1,
@@ -56,21 +58,98 @@ const JoinRoom = () => {
     },
     {
       id: 2,
-      code: 'XYZ789',
-      mode: 'PRIVATE',
-      status: 'PENDING',
+      code: 'ENDED001', // Mock code
+      mode: 'PUBLIC',
+      status: 'Ended',
+      is_initialised: true,
       number_of_players: 3,
-      players_joined: 1,
-      creator_id: 2,
+      players_joined: 0,
+      creator_id: 1416585833,
       settings: {
-        auction: 0,
-        even_build: 1,
-        mortgage: 0,
-        randomize_play_order: 0,
-        rent_in_prison: 1,
-        starting_cash: 2000,
+        auction: 1,
+        even_build: 0,
+        mortgage: 1,
+        randomize_play_order: 1,
+        rent_in_prison: 0,
+        starting_cash: 1500,
       },
-      created_at: '2025-09-24T12:00:00Z',
+      created_at: '2025-11-01T00:00:00Z',
+    },
+    {
+      id: 9,
+      code: 'JOINABLE001', // Mock code
+      mode: 'PUBLIC',
+      status: 'Pending',
+      is_initialised: true,
+      number_of_players: 2,
+      players_joined: 1,
+      creator_id: 4713695840083605365,
+      settings: {
+        auction: 1,
+        even_build: 0,
+        mortgage: 1,
+        randomize_play_order: 1,
+        rent_in_prison: 0,
+        starting_cash: 1500,
+      },
+      created_at: '2025-11-01T00:00:00Z',
+    },
+    {
+      id: 10,
+      code: 'GAME10', // Mock code based on log
+      mode: 'PUBLIC',
+      status: 'Ongoing',
+      is_initialised: true,
+      number_of_players: 2,
+      players_joined: 2,
+      creator_id: 4713695840083605365,
+      settings: {
+        auction: 1,
+        even_build: 0,
+        mortgage: 1,
+        randomize_play_order: 1,
+        rent_in_prison: 0,
+        starting_cash: 1500,
+      },
+      created_at: '2025-11-01T00:00:00Z',
+    },
+    {
+      id: 12,
+      code: 'STARTED001', // Mock code
+      mode: 'PUBLIC',
+      status: 'Ongoing',
+      is_initialised: true,
+      number_of_players: 2,
+      players_joined: 2,
+      creator_id: 81782240341865,
+      settings: {
+        auction: 1,
+        even_build: 0,
+        mortgage: 1,
+        randomize_play_order: 1,
+        rent_in_prison: 0,
+        starting_cash: 1500,
+      },
+      created_at: '2025-11-01T00:00:00Z',
+    },
+    {
+      id: 20,
+      code: 'CREATED001', // Mock code
+      mode: 'PUBLIC',
+      status: 'Pending',
+      is_initialised: false,
+      number_of_players: 0, // As per real
+      players_joined: 0,
+      creator_id: 0,
+      settings: {
+        auction: 1,
+        even_build: 0,
+        mortgage: 1,
+        randomize_play_order: 1,
+        rent_in_prison: 0,
+        starting_cash: 1500,
+      },
+      created_at: new Date().toISOString(),
     },
   ]);
   const [ongoingGames, setOngoingGames] = useState<number[]>([]);
@@ -86,17 +165,39 @@ const JoinRoom = () => {
     setOngoingGames(storedGames);
   }, []);
 
-  // Helper: Find game by code or ID
+  // Helper: Find game by code or ID - for IDs not in dummy, return mock Pending game (initialized)
   const findGameByValue = (value: string): Game | null => {
     const idNum = parseInt(value);
     const isId = !isNaN(idNum) && value === idNum.toString();
     if (isId) {
-      return games.find((g) => g.id === idNum) || null;
+      // Check dummy first
+      const dummyGame = games.find((g) => g.id === idNum);
+      if (dummyGame) return dummyGame;
+      // Mock initialized Pending game for any valid ID (simulate backend fetch)
+      return {
+        id: idNum,
+        code: `MOCK${idNum.toString().padStart(3, '0')}`,
+        mode: 'PUBLIC' as const,
+        status: 'Pending' as const,
+        is_initialised: true,
+        number_of_players: 4, // Default
+        players_joined: 1, // Assume room for join
+        creator_id: 1,
+        settings: {
+          auction: 1,
+          even_build: 0,
+          mortgage: 1,
+          randomize_play_order: 1,
+          rent_in_prison: 0,
+          starting_cash: 1500,
+        },
+        created_at: new Date().toISOString(),
+      };
     }
     return games.find((g) => g.code === value.toUpperCase()) || null;
   };
 
-  // Unified join handler: Works for code or ID, always to waiting if pending
+  // Unified join handler: Check is_initialised && Pending -> waiting; polished errors
   const handleJoin = (value: string) => {
     if (!value.trim()) {
       setError('Please enter a room code or ID');
@@ -106,9 +207,15 @@ const JoinRoom = () => {
     setLoading(true);
     setError(null);
 
-    // TODO: Real backend - Replace with Starknet call, e.g.:
-    // const game = await gameContract.getGameByIdOrCode(value);
-    // if (!game.isPending) throw new Error('Game not pending');
+    // TODO: Real backend - Replace with Starknet call to retrieveGame(value), parse JSON:
+    // e.g., const response = await gameContract.retrieveGame(idOrCode);
+    // const game = {
+    //   ...response,
+    //   status: response.status.variant.Pending ? 'Pending' : response.status.variant.Ongoing ? 'ONGOING' : 'ENDED',
+    //   is_initialised: response.is_initialised,
+    //   number_of_players: parseInt(response.number_of_players),
+    //   players_joined: parseInt(response.players_joined),
+    // };
 
     const game = findGameByValue(value.trim());
     if (!game) {
@@ -116,24 +223,34 @@ const JoinRoom = () => {
       setLoading(false);
       return;
     }
-    if (game.status !== 'PENDING') {
-      setError(`Game "${value}" has already started (${game.status.toLowerCase()}). Cannot join waiting room.`);
+
+    // Check initialized and Pending
+    if (!game.is_initialised) {
+      setError('This game has not been initialized yet. Please wait for the creator to set it up.');
       setLoading(false);
       return;
     }
-    // Check if full (simulate)
+
+    if (game.status !== 'Pending') {
+      if (game.status === 'Ongoing') {
+        setError('This game has already started. If you are a player, use "Continue Existing Game" to rejoin.');
+      } else if (game.status === 'Ended') {
+        setError('This game has finished. You cannot join a completed game.');
+      } else {
+        setError(`This game is in an invalid state (${game.status}). Please contact support.`);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Check if full
     if ((game.players_joined || 0) >= game.number_of_players) {
-      setError('Game is full!');
+      setError('This game is full. No more players can join.');
       setLoading(false);
       return;
     }
 
-    // Add to ongoing (simulate join)
-    const updatedGames = [...new Set([...ongoingGames, game.id])];
-    setOngoingGames(updatedGames);
-    localStorage.setItem('ongoingGames', JSON.stringify(updatedGames));
-
-    // Redirect to waiting room for the passed ID
+    // Redirect to waiting room
     router.push(`/game-waiting?gameId=${game.id}`);
     setLoading(false);
   };
@@ -146,13 +263,41 @@ const JoinRoom = () => {
     handleJoin(inputValue);
   };
 
+  // Separate handler for continue: ONGOING only, player check
   const handleContinueGame = () => {
     if (!continueGameId || isNaN(continueGameId) || continueGameId <= 0) {
       setError('Please enter a valid game ID');
       return;
     }
-    // Reuse unified handler for consistency
-    handleJoin(continueGameId.toString());
+    setLoading(true);
+    setError(null);
+
+    const game = games.find((g) => g.id === continueGameId) || findGameByValue(continueGameId.toString());
+    if (!game) {
+      setError(`Game with ID "${continueGameId}" not found.`);
+      setLoading(false);
+      return;
+    }
+
+    // TODO: Real backend - Fetch and parse as above
+
+    // Must be initialized and ongoing
+    if (!game.is_initialised) {
+      setError('This game has not been initialized. Cannot continue.');
+      setLoading(false);
+      return;
+    }
+    if (game.status !== 'Ongoing') {
+      setError(`Cannot continue this game. It is ${game.status.toLowerCase()}.`);
+      setLoading(false);
+      return;
+    }
+
+    // TODO: Real backend - Verify player membership via contract (e.g., check if user address in game_players)
+
+    // Redirect to game play
+    router.push(`/game-play?gameId=${continueGameId}`);
+    setLoading(false);
   };
 
   const handleLeaveGame = () => {
@@ -163,7 +308,7 @@ const JoinRoom = () => {
     setLoading(true);
     setError(null);
 
-    // Simulate leaving game
+    // Simulate leaving game (remove from ongoing)
     const updatedGames = ongoingGames.filter((id) => id !== continueGameId);
     setOngoingGames(updatedGames);
     localStorage.setItem('ongoingGames', JSON.stringify(updatedGames));
@@ -183,19 +328,19 @@ const JoinRoom = () => {
 
   // Helper to render player indicators
   const renderIndicators = (game: Game) => {
-    const playersJoined = game.players_joined || 1;
+    const playersJoined = game.players_joined || 0;
     const maxPlayers = game.number_of_players;
     return (
-      <span className="flex gap-1.5 text-[#263238]">
+      <span className="flex gap-1.5">
         {Array(playersJoined)
           .fill(0)
           .map((_, i) => (
-            <FaUser key={`user-${i}`} className="text-[#F0F7F7]" />
+            <FaUser key={`user-${i}`} className="w-4 h-4 text-[#00F0FF]" />
           ))}
         {Array(maxPlayers - playersJoined)
           .fill(0)
           .map((_, i) => (
-            <RxDotFilled key={`dot-${i}`} className="w-5 h-5" />
+            <RxDotFilled key={`dot-${i}`} className="w-4 h-4 text-[#455A64]" />
           ))}
       </span>
     );
@@ -203,12 +348,12 @@ const JoinRoom = () => {
 
   // Helper for private indicator
   const renderPrivateIndicator = (game: Game) => (
-    <span className="flex gap-1.5 text-[#263238] mt-2">
-      {game.mode === 'PRIVATE' && <IoKey className="text-[#F0F7F7] w-5 h-5" />}
-      {Array(game.number_of_players - 1)
+    <span className="flex gap-1.5 mt-1">
+      {game.mode === 'PRIVATE' && <IoKey className="w-4 h-4 text-[#00F0FF]" />}
+      {Array(game.number_of_players - (game.mode === 'PRIVATE' ? 1 : 0))
         .fill(0)
         .map((_, i) => (
-          <RxDotFilled key={`key-dot-${i}`} className="w-5 h-5" />
+          <RxDotFilled key={`key-dot-${i}`} className="w-4 h-4 text-[#455A64]" />
         ))}
     </span>
   );
@@ -216,48 +361,47 @@ const JoinRoom = () => {
   // Helper to render game settings
   const renderGameSettings = (settings?: GameSettings) => {
     if (!settings) return null;
+    const settingsList = [
+      { key: 'Auction', value: settings.auction ? 'Enabled' : 'Disabled' },
+      { key: 'Even Build', value: settings.even_build ? 'Enabled' : 'Disabled' },
+      { key: 'Mortgage', value: settings.mortgage ? 'Enabled' : 'Disabled' },
+      { key: 'Randomize Play Order', value: settings.randomize_play_order ? 'Enabled' : 'Disabled' },
+      { key: 'Rent in Prison', value: settings.rent_in_prison ? 'Enabled' : 'Disabled' },
+      { key: 'Starting Cash', value: `$${settings.starting_cash}` },
+    ];
     return (
-      <div className="text-[#869298] text-[14px] font-dmSans mt-2">
-        <p>
-          <strong>Auction:</strong> {settings.auction ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Even Build:</strong> {settings.even_build ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Mortgage:</strong> {settings.mortgage ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Randomize Play Order:</strong> {settings.randomize_play_order ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Rent in Prison:</strong> {settings.rent_in_prison ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Starting Cash:</strong> ${settings.starting_cash}
-        </p>
+      <div className="grid grid-cols-1 gap-2 mt-3 text-[#869298] text-[13px] font-dmSans">
+        {settingsList.map(({ key, value }) => (
+          <p key={key} className="flex justify-between">
+            <span className="font-[500]">{key}:</span>
+            <span>{value}</span>
+          </p>
+        ))}
       </div>
     );
   };
 
+  // Filter Pending AND initialized games for the list
+  const PendingGames = games.filter((game) => game.status === 'Pending' && game.is_initialised === true);
+
   return (
     <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center">
       <main className="w-full min-h-screen py-20 flex flex-col items-center justify-start bg-[#010F101F] backdrop-blur-[12px] px-4">
-        <div className="w-full flex flex-col items-center">
+        <div className="w-full flex flex-col items-center mb-8">
           <h2 className="text-[#F0F7F7] font-orbitron md:text-[24px] text-[20px] font-[700] text-center">
             Join Room
           </h2>
-          <p className="text-[#869298] text-[16px] font-dmSans text-center">
+          <p className="text-[#869298] text-[16px] font-dmSans text-center mt-2">
             Select the room you would like to join
           </p>
         </div>
 
-        {/* Buttons */}
-        <div className="w-full max-w-[792px] mt-10 flex flex-col md:flex-row justify-between items-center gap-4">
+        {/* Action Buttons */}
+        <div className="w-full max-w-[792px] flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-4 mb-8">
           <button
             type="button"
             onClick={() => router.push('/')}
-            className="relative group w-full md:w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-full sm:w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-50"
             disabled={loading}
           >
             <svg
@@ -284,7 +428,7 @@ const JoinRoom = () => {
           <button
             type="button"
             onClick={handleCreateRoom}
-            className="relative group w-full md:w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-full sm:w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-50"
             disabled={loading}
           >
             <svg
@@ -311,7 +455,7 @@ const JoinRoom = () => {
           <button
             type="button"
             onClick={clearOngoingGames}
-            className="relative group w-full md:w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="relative group w-full sm:w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-50"
             disabled={loading}
           >
             <svg
@@ -336,93 +480,26 @@ const JoinRoom = () => {
           </button>
         </div>
 
-        {/* Rooms */}
-        <div className="w-full max-w-[792px] mt-10 bg-[#010F10] rounded-[12px] border-[1px] border-[#003B3E] md:px-20 px-6 py-12 flex flex-col gap-4">
-          {error && <p className="text-[#FF6B6B] text-center">{error}</p>}
-          {games.length === 0 ? (
-            <p className="text-[#869298] text-center">
-              No pending games available. Create one to start playing!
-            </p>
-          ) : (
-            games.map((game) => (
-              <div
-                key={game.code}
-                className="w-full p-4 border-[1px] flex flex-col items-start border-[#0E282A] rounded-[12px] cursor-pointer hover:border-[#00F0FF]"
-              >
-                <div
-                  className="w-full flex justify-between items-center"
-                  onClick={() => toggleSettings(game.code)}
-                >
-                  <h4 className="text-[#F0F7F7] text-[20px] uppercase font-dmSans font-[800]">
-                    {game.code}
-                  </h4>
-                  <div className="flex items-center gap-4">
-                    {renderIndicators(game)}
-                    {expandedGame === game.code ? (
-                      <IoIosArrowUp className="text-[#F0F7F7] w-5 h-5" />
-                    ) : (
-                      <IoIosArrowDown className="text-[#F0F7F7] w-5 h-5" />
-                    )}
-                  </div>
-                </div>
-                {renderPrivateIndicator(game)}
-                <p className="text-[#869298] text-[14px] font-dmSans mt-2">
-                  <strong>Players Joined:</strong> {game.players_joined || 1}/{game.number_of_players}
-                </p>
-                {expandedGame === game.code && (
-                  <div className="mt-2 w-full">
-                    <div className="text-[#869298] text-[14px] font-dmSans">
-                      <p>
-                        <strong>Mode:</strong> {game.mode}
-                      </p>
-                      <p>
-                        <strong>ID:</strong> {game.id} {/* Show ID for easy copy-paste */}
-                      </p>
-                      <p>
-                        <strong>Created:</strong>{' '}
-                        {game.created_at ? new Date(game.created_at).toLocaleString() : 'N/A'}
-                      </p>
-                    </div>
-                    {renderGameSettings(game.settings)}
-                    <button
-                      type="button"
-                      onClick={() => handleJoin(game.code)} // Now uses unified handler
-                      className="relative group w-[150px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer mt-4"
-                      disabled={loading}
-                    >
-                      <svg
-                        width="150"
-                        height="40"
-                        viewBox="0 0 150 40"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-                      >
-                        <path
-                          d="M6 1H144C148.373 1 150.996 5.85486 148.601 9.5127L130.167 37.5127C129.151 39.0646 127.42 40 125.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                          fill="#00F0FF"
-                          stroke="#0E282A"
-                          strokeWidth={1}
-                        />
-                      </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-[#010F10] capitalize text-[14px] font-orbitron font-[700] z-10">
-                        Join Room
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
+        {/* Rooms List */}
+        <div className="w-full max-w-[792px] bg-[#010F10] rounded-[12px] border-[1px] border-[#003B3E] p-6 md:p-8 flex flex-col gap-6">
+          {error && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-[#FF6B6B] text-center text-[14px] font-dmSans bg-[#FF6B6B]/10 p-3 rounded-[8px] border border-[#FF6B6B]/30"
+            >
+              {error}
+            </motion.p>
           )}
 
           {/* Join by Code or ID */}
-          <div className="w-full h-[52px] flex mt-8">
+          <div className="w-full flex flex-col sm:flex-row gap-4">
             <input
               type="text"
               placeholder="Input room code (e.g., ABC123) or ID (e.g., 1)"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className="w-full h-full px-4 text-[#73838B] border-[1px] border-[#0E282A] rounded-[12px] flex-1 outline-none focus:border-[#00F0FF]"
+              className="flex-1 h-[52px] px-4 text-[#73838B] border-[1px] border-[#0E282A] rounded-[12px] outline-none focus:border-[#00F0FF] bg-transparent placeholder:text-[#455A64]"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleInputJoin();
@@ -433,7 +510,7 @@ const JoinRoom = () => {
             <button
               type="button"
               onClick={handleInputJoin}
-              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer ml-2"
+              className="relative group w-full sm:w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-50"
               disabled={loading || !inputValue.trim()}
             >
               <svg
@@ -458,27 +535,27 @@ const JoinRoom = () => {
           </div>
 
           {/* Continue Existing Game */}
-          <div className="w-full flex flex-col gap-4 mt-8">
+          <div className="w-full flex flex-col gap-4 pt-6 border-t border-[#0E282A]">
             <h3 className="text-[#F0F7F7] font-orbitron text-[18px] font-[600] text-center">
               Continue Existing Game
             </h3>
             <input
               type="number"
-              placeholder="Enter game ID (e.g., 1)"
+              placeholder="Enter game ID (e.g., 12)"
               value={continueGameId ?? ''}
               onChange={(e) => setContinueGameId(e.target.value ? parseInt(e.target.value) : null)}
-              className="w-full h-[52px] px-4 text-[#73838B] border border-[#0E282A] rounded-[12px] outline-none focus:border-[#00F0FF]"
+              className="w-full h-[52px] px-4 text-[#73838B] border-[1px] border-[#0E282A] rounded-[12px] outline-none focus:border-[#00F0FF] bg-transparent placeholder:text-[#455A64]"
               disabled={loading}
             />
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <button
                 type="button"
                 onClick={handleContinueGame}
-                className="relative group w-full h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                className="relative group flex-1 h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-50"
                 disabled={loading || !continueGameId}
               >
                 <svg
-                  width="260"
+                  width="100%"
                   height="52"
                   viewBox="0 0 260 52"
                   fill="none"
@@ -499,11 +576,11 @@ const JoinRoom = () => {
               <button
                 type="button"
                 onClick={handleLeaveGame}
-                className="relative group w-full h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                className="relative group flex-1 h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-50"
                 disabled={loading || !continueGameId}
               >
                 <svg
-                  width="260"
+                  width="100%"
                   height="52"
                   viewBox="0 0 260 52"
                   fill="none"
@@ -523,6 +600,88 @@ const JoinRoom = () => {
               </button>
             </div>
           </div>
+
+          {PendingGames.length === 0 ? (
+            <p className="text-[#869298] text-center text-[16px] font-dmSans mt-8">
+              No pending games available. Create one to start playing!
+            </p>
+          ) : (
+            <div className="space-y-4 mt-8 pt-6 border-t border-[#0E282A]">
+              {PendingGames.map((game) => (
+                <motion.div
+                  key={game.code}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="w-full border-[1px] border-[#0E282A] rounded-[12px] overflow-hidden bg-[#010F10]/50 hover:border-[#00F0FF]/50 transition-all duration-300"
+                >
+                  <div
+                    className="w-full p-4 flex justify-between items-center cursor-pointer hover:bg-[#0E282A]/50 transition-colors"
+                    onClick={() => toggleSettings(game.code)}
+                  >
+                    <h4 className="text-[#F0F7F7] text-[18px] uppercase font-dmSans font-[700] tracking-wide">
+                      {game.code}
+                    </h4>
+                    <div className="flex items-center gap-4">
+                      {renderIndicators(game)}
+                      {expandedGame === game.code ? (
+                        <IoArrowUp className="text-[#F0F7F7] w-5 h-5 transition-transform" />
+                      ) : (
+                        <IoArrowDown className="text-[#F0F7F7] w-5 h-5 transition-transform" />
+                      )}
+                    </div>
+                  </div>
+                  <AnimatePresence>
+                    {expandedGame === game.code && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-4 pt-0 border-t border-[#0E282A]">
+                          {renderPrivateIndicator(game)}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-[#869298] text-[14px] font-dmSans">
+                            <p><strong>Players:</strong> {game.players_joined || 0}/{game.number_of_players}</p>
+                            <p><strong>Mode:</strong> {game.mode}</p>
+                            <p><strong>ID:</strong> {game.id}</p>
+                            <p><strong>Created:</strong> {game.created_at ? new Date(game.created_at).toLocaleString() : 'N/A'}</p>
+                          </div>
+                          {renderGameSettings(game.settings)}
+                          <button
+                            type="button"
+                            onClick={() => handleJoin(game.code)}
+                            className="relative group w-full h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer mt-4 disabled:opacity-50"
+                            disabled={loading}
+                          >
+                            <svg
+                              width="100%"
+                              height="40"
+                              viewBox="0 0 150 40"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
+                            >
+                              <path
+                                d="M6 1H144C148.373 1 150.996 5.85486 148.601 9.5127L130.167 37.5127C129.151 39.0646 127.42 40 125.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                                fill="#00F0FF"
+                                stroke="#0E282A"
+                                strokeWidth={1}
+                              />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] capitalize text-[14px] font-orbitron font-[700] z-10">
+                              Join Room
+                            </span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </section>
