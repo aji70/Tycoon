@@ -79,6 +79,7 @@ const GameWaiting = () => {
   const [playerSymbolFields, setPlayerSymbolFields] = useState<string[]>([]);
   const [availableSymbols, setAvailableSymbols] = useState<{ value: string; label: string }[]>([]);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [showNotCreatedModal, setShowNotCreatedModal] = useState(false);
 
   const numericGameId = gameId ? Number(gameId) : NaN;
   const isGameReady = playersJoined !== null && maxPlayers !== null && playersJoined === maxPlayers && isInitialised;
@@ -160,6 +161,11 @@ const GameWaiting = () => {
       setLastUpdated(Date.now());
       setError(null);
       setLoading(false);
+
+      // Check for uninitialized game and show modal
+      if (!initialised) {
+        setShowNotCreatedModal(true);
+      }
     } catch (err: any) {
       console.error('Error fetching game data:', err.message);
       setError('Failed to load game data. Retrying...');
@@ -244,6 +250,11 @@ const GameWaiting = () => {
     router.push(`/game-play?gameId=${numericGameId}`);
   };
 
+  const handleModalClose = () => {
+    setShowNotCreatedModal(false);
+    router.push('/join-room');
+  };
+
   const timeAgo = () => {
     if (!lastUpdated) return 'Never';
     const seconds = Math.floor((Date.now() - lastUpdated) / 1000);
@@ -261,168 +272,190 @@ const GameWaiting = () => {
   }
 
   return (
-    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
-      <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
-        <div className="w-full max-w-md bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-xl shadow-lg border border-[#00F0FF]/30 backdrop-blur-sm">
-          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-wide">
-            Tycoon Waiting Room
-            <span className="block text-sm text-[#00F0FF] mt-1">
-              Game ID: {gameId}
-            </span>
-          </h2>
+    <>
+      <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
+        <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
+          <div className="w-full max-w-md bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-xl shadow-lg border border-[#00F0FF]/30 backdrop-blur-sm">
+            <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-wide">
+              Tycoon Waiting Room
+              <span className="block text-sm text-[#00F0FF] mt-1">
+                Game ID: {gameId}
+              </span>
+            </h2>
 
-          {loading && playersJoined === null ? (
-            <div className="flex justify-center items-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#00F0FF]"></div>
-              <p className="ml-3 text-[#00F0FF] font-orbitron">
-                Loading game data...
-              </p>
-            </div>
-          ) : (
-            <div className="text-center space-y-3">
-              <p className="text-[#869298] text-sm">
-                {playersJoined === maxPlayers ? 'All players joined!' : 'Waiting for players to join...'}
-              </p>
-              <p className="text-[#00F0FF] text-lg font-semibold">
-                Players: {playersJoined ?? '—'}/{maxPlayers ?? '—'}
-              </p>
-              <p className="text-[#FFD700] text-sm">
-                Initialised: {isInitialised ? '✅ Yes' : '⏳ No'}
-              </p>
-              <p className="text-gray-400 text-xs">
-                Joined Status: {playerData?.joined ? '✅ Joined' : '❌ Not Joined'}
-              </p>
-              <p className="text-gray-400 text-xs">
-                Last updated: {timeAgo()}
-              </p>
-            </div>
-          )}
-
-          {/* Share Game Code Section */}
-          {showShareButtons && (
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={gameUrl}
-                  readOnly
-                  className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded border border-[#00F0FF]/30 focus:outline-none font-orbitron text-sm"
-                  title="Game URL"
-                />
-                <button
-                  onClick={handleCopyLink}
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-3 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
-                  disabled={loading}
-                >
-                  <IoCopyOutline className="w-5 h-5" />
-                </button>
+            {loading && playersJoined === null ? (
+              <div className="flex justify-center items-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#00F0FF]"></div>
+                <p className="ml-3 text-[#00F0FF] font-orbitron">
+                  Loading game data...
+                </p>
               </div>
-              {copySuccess && (
-                <p className="text-green-400 text-xs text-center">{copySuccess}</p>
-              )}
-              <div className="flex justify-center gap-4">
-                <a
-                  href={telegramShareUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
-                >
-                  <PiTelegramLogoLight className="mr-2 w-5 h-5" />
-                  Share on Telegram
-                </a>
-                <a
-                  href={twitterShareUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
-                >
-                  <FaXTwitter className="mr-2 w-5 h-5" />
-                  Share on X
-                </a>
+            ) : (
+              <div className="text-center space-y-3">
+                <p className="text-[#869298] text-sm">
+                  {playersJoined === maxPlayers ? 'All players joined!' : 'Waiting for players to join...'}
+                </p>
+                <p className="text-[#00F0FF] text-lg font-semibold">
+                  Players: {playersJoined ?? '—'}/{maxPlayers ?? '—'}
+                </p>
+                <p className="text-[#FFD700] text-sm">
+                  Initialised: {isInitialised ? '✅ Yes' : '⏳ No'}
+                </p>
+                <p className="text-gray-400 text-xs">
+                  Joined Status: {playerData?.joined ? '✅ Joined' : '❌ Not Joined'}
+                </p>
+                <p className="text-gray-400 text-xs">
+                  Last updated: {timeAgo()}
+                </p>
               </div>
-            </div>
-          )}
+            )}
 
-          {showJoinGame && (
-            <div className="mt-6 space-y-4">
-              {availableSymbols.length > 0 ? (
-                <>
-                  <div className="flex flex-col">
-                    <label className="text-sm text-gray-300 mb-1 font-orbitron">Player Symbol</label>
-                    <select
-                      value={playerSymbol}
-                      onChange={(e) => setPlayerSymbol(e.target.value)}
-                      className="bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded border border-[#00F0FF]/30 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron"
-                    >
-                      <option value="" disabled>Select a symbol</option>
-                      {availableSymbols.map((symbol) => (
-                        <option key={symbol.value} value={symbol.value}>
-                          {symbol.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            {/* Share Game Code Section */}
+            {showShareButtons && (
+              <div className="mt-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={gameUrl}
+                    readOnly
+                    className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded border border-[#00F0FF]/30 focus:outline-none font-orbitron text-sm"
+                    title="Game URL"
+                  />
                   <button
-                    onClick={handleJoinGame}
-                    className="w-full bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00D4E6] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                    onClick={handleCopyLink}
+                    className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-3 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
                     disabled={loading}
                   >
-                    Join Game
+                    <IoCopyOutline className="w-5 h-5" />
                   </button>
-                </>
-              ) : (
-                <p className="text-red-500 text-xs text-center animate-pulse">
-                  No available symbols. Please wait or try another game.
-                </p>
-              )}
-            </div>
-          )}
+                </div>
+                {copySuccess && (
+                  <p className="text-green-400 text-xs text-center">{copySuccess}</p>
+                )}
+                <div className="flex justify-center gap-4">
+                  <a
+                    href={telegramShareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
+                  >
+                    <PiTelegramLogoLight className="mr-2 w-5 h-5" />
+                    Share on Telegram
+                  </a>
+                  <a
+                    href={twitterShareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
+                  >
+                    <FaXTwitter className="mr-2 w-5 h-5" />
+                    Share on X
+                  </a>
+                </div>
+              </div>
+            )}
 
-          {showLeaveGame && (
+            {showJoinGame && (
+              <div className="mt-6 space-y-4">
+                {availableSymbols.length > 0 ? (
+                  <>
+                    <div className="flex flex-col">
+                      <label className="text-sm text-gray-300 mb-1 font-orbitron">Player Symbol</label>
+                      <select
+                        value={playerSymbol}
+                        onChange={(e) => setPlayerSymbol(e.target.value)}
+                        className="bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded border border-[#00F0FF]/30 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron"
+                      >
+                        <option value="" disabled>Select a symbol</option>
+                        {availableSymbols.map((symbol) => (
+                          <option key={symbol.value} value={symbol.value}>
+                            {symbol.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={handleJoinGame}
+                      className="w-full bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00D4E6] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                      disabled={loading}
+                    >
+                      Join Game
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-red-500 text-xs text-center animate-pulse">
+                    No available symbols. Please wait or try another game.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {showLeaveGame && (
+              <button
+                onClick={handleLeaveGame}
+                className="w-full mt-6 bg-[#FF4D4D] text-white text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#E63939] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                disabled={loading}
+              >
+                Leave Game
+              </button>
+            )}
+
+            {showStartGame && (
+              <button
+                onClick={handleStartGame}
+                className="w-full mt-6 bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00D4E6] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                disabled={playersJoined !== maxPlayers}
+              >
+                Start Game
+              </button>
+            )}
+
+            {showGoToBoard && (
+              <button
+                onClick={handleGoToBoard}
+                className="w-full mt-6 bg-[#FFD700] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#FFCA28] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                disabled={loading}
+              >
+                Go to Board
+              </button>
+            )}
+
             <button
-              onClick={handleLeaveGame}
-              className="w-full mt-6 bg-[#FF4D4D] text-white text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#E63939] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-              disabled={loading}
+              onClick={() => router.push('/join-room')}
+              className="w-full mt-3 text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200"
             >
-              Leave Game
+              Back to Join Room
             </button>
-          )}
 
-          {showStartGame && (
-            <button
-              onClick={handleStartGame}
-              className="w-full mt-6 bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00D4E6] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-              disabled={playersJoined !== maxPlayers}
-            >
-              Start Game
-            </button>
-          )}
+            {error && (
+              <p className="text-red-500 text-xs mt-4 text-center animate-pulse">
+                {error}
+              </p>
+            )}
+          </div>
+        </main>
+      </section>
 
-          {showGoToBoard && (
-            <button
-              onClick={handleGoToBoard}
-              className="w-full mt-6 bg-[#FFD700] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#FFCA28] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-              disabled={loading}
-            >
-              Go to Board
-            </button>
-          )}
-
-          <button
-            onClick={() => router.push('/join-room')}
-            className="w-full mt-3 text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200"
-          >
-            Back to Join Room
-          </button>
-
-          {error && (
-            <p className="text-red-500 text-xs mt-4 text-center animate-pulse">
-              {error}
+      {/* Game Not Created Modal */}
+      {showNotCreatedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-[#0A1A1B]/90 p-6 rounded-lg border border-[#00F0FF]/30 max-w-sm w-full mx-4 backdrop-blur-sm">
+            <h3 className="text-lg font-bold font-orbitron text-[#F0F7F7] mb-4 text-center">
+              Game Not Created
+            </h3>
+            <p className="text-[#869298] text-sm mb-6 text-center">
+              The game with this ID has not been initialized yet. Please try creating or joining another game.
             </p>
-          )}
+            <button
+              onClick={handleModalClose}
+              className="w-full bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-2 rounded-lg hover:bg-[#00D4E6] transition-all duration-300"
+            >
+              OK, Take Me Back
+            </button>
+          </div>
         </div>
-      </main>
-    </section>
+      )}
+    </>
   );
 };
 
