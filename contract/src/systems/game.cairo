@@ -1,7 +1,7 @@
-use blockopoly::model::game_model::{Game, GameCounter, GameStatus, GameTrait, GameType};
-use blockopoly::model::game_player_model::{GamePlayer, PlayerSymbol};
-use blockopoly::model::player_model::{AddressToUsername, IsRegistered, Player};
-use blockopoly::model::property_model::{
+use tycoon::model::game_model::{Game, GameCounter, GameStatus, GameTrait, GameType};
+use tycoon::model::game_player_model::{GamePlayer, PlayerSymbol};
+use tycoon::model::player_model::{AddressToUsername, IsRegistered, Player};
+use tycoon::model::property_model::{
     IdToProperty, Property, PropertyToId, PropertyTrait, PropertyType,
 };
 use starknet::ContractAddress;
@@ -163,15 +163,15 @@ pub mod game {
 
             let mut game: Game = world.read_model(game_id);
 
-            assert(game.status == GameStatus::Pending, 'GAME NOT PENDING');
+            assert(game.status == GameStatus::Pending.into(), 'GAME NOT PENDING');
 
-            game.status = GameStatus::Ongoing;
+            game.status = GameStatus::Ongoing.into();
             game.next_player = get_caller_address();
 
             let len = game.game_players.len();
             let mut i = 0;
             while i < len {
-                self.mint(*game.game_players[i], 1, 1500);
+                self.mint(*game.game_players[i], game_id, 1500);
                 i += 1;
             };
             world.write_model(@game);
@@ -185,7 +185,7 @@ pub mod game {
     // Retrieve the game
     let mut game: Game = world.read_model(game_id);
     assert(game.is_initialised, 'GAME NOT INITIALISED');
-    assert(game.status == GameStatus::Pending || game.status == GameStatus::Ongoing, 'GAME NOT ACTIVE');
+    assert(game.status == GameStatus::Pending.into() || game.status == GameStatus::Ongoing.into(), 'GAME NOT ACTIVE');
 
     // Caller info
     let caller_address = get_caller_address();
@@ -198,7 +198,7 @@ pub mod game {
     assert(player.joined, 'PLAYER NOT JOINED');
 
     // [FIX 2] Only assert for ongoing games; allow unjoin in pending
-    if game.status == GameStatus::Ongoing {
+    if game.status == GameStatus::Ongoing.into() {
         assert!(game.game_players.len() > 1, "CANNOT LEAVE LAST PLAYER IN ONGOING GAME");
         // Handle assets when leaving an ongoing game
         self.player_leaves_game(game_id, caller_address);
@@ -253,15 +253,15 @@ pub mod game {
     world.write_model(@player);
 
     // Game status logic
-    let should_end_game = game.players_joined == 1 && game.status == GameStatus::Ongoing;
-    let should_cancel_game = game.players_joined == 0 && game.status == GameStatus::Pending;
+    let should_end_game = game.players_joined == 1 && game.status == GameStatus::Ongoing.into();
+    let should_cancel_game = game.players_joined == 0 && game.status == GameStatus::Pending.into();
 
     if should_end_game {
         // [FIX 1] Write updated game BEFORE end_game to avoid overwrite
         world.write_model(@game);
         self.end_game(game_id);
     } else if should_cancel_game {
-        game.status = GameStatus::Ended;
+        game.status = GameStatus::Ended.into();
         world.write_model(@game);
     } else {
         // Normal case: persist game updates
@@ -305,7 +305,7 @@ pub mod game {
 
             // Set game status to ended
             let mut updated_game = game;
-            updated_game.status = GameStatus::Ended;
+            updated_game.status = GameStatus::Ended.into();
             updated_game.winner = winner.address;
             let mut p: Player = world.read_model(winner.address);
             p.total_games_completed += 1;
@@ -349,7 +349,7 @@ pub mod game {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
         /// can't be const.
         fn world_default(self: @ContractState) -> dojo::world::WorldStorage {
-            self.world(@"blockopoly")
+            self.world(@"tycoon")
         }
 
         fn create_new_game(
@@ -375,7 +375,7 @@ pub mod game {
             assert(!player.joined, 'player already joined');
             player.joined = true;
             player.username = caller_username;
-            player.player_symbol = player_symbol;
+            player.player_symbol = player_symbol.into();
             world.write_model(@player);
 
             // Initialize player symbols
@@ -485,7 +485,7 @@ pub mod game {
             assert(game.players_joined < game.number_of_players, 'ROOM FILLED');
 
             // Ensure the game is in the Pending state
-            assert(game.status == GameStatus::Pending, 'GAME NOT PENDING');
+            assert(game.status == GameStatus::Pending.into(), 'GAME NOT PENDING');
 
             // Get the caller's address and corresponding username
             let caller_address = get_caller_address();
@@ -498,20 +498,8 @@ pub mod game {
             // Ensure the player hasn't already joined under a different symbol
             self.assert_player_not_already_joined(game.clone().id, caller_username);
 
-            // Update the correct player symbol slot based on the chosen symbol
-            match player_symbol {
-                PlayerSymbol::Hat => game.player_hat = caller_username,
-                PlayerSymbol::Car => game.player_car = caller_username,
-                PlayerSymbol::Dog => game.player_dog = caller_username,
-                PlayerSymbol::Thimble => game.player_thimble = caller_username,
-                PlayerSymbol::Iron => game.player_iron = caller_username,
-                PlayerSymbol::Battleship => game.player_battleship = caller_username,
-                PlayerSymbol::Boot => game.player_boot = caller_username,
-                PlayerSymbol::Wheelbarrow => game.player_wheelbarrow = caller_username,
-            }
-
             // Attempt to join the game with the selected symbol
-            self.try_join_symbol(game.clone().id, player_symbol, caller_username);
+            self.try_join_symbol(game_id, player_symbol, caller_username);
 
             // Emit event for player joining
             world
@@ -525,19 +513,18 @@ pub mod game {
             game.game_players.append(caller_address);
 
             // Update players joined count
-            game.players_joined = self.count_joined_players(game.id);
-            game.players_joined += 1;
+            game.players_joined = self.count_joined_players(game_id);
 
             // Update GamePlayer model
             let mut player: GamePlayer = world.read_model((caller_address, game_id));
             assert(!player.joined, 'PLAYER ALREADY JOINED');
             player.joined = true;
             player.username = caller_username;
-            player.player_symbol = player_symbol;
+            player.player_symbol = player_symbol.into();
 
             // Start the game if all players have joined
             if game.players_joined == game.number_of_players {
-                game.status = GameStatus::Ongoing;
+                game.status = GameStatus::Ongoing.into();
                 world.emit_event(@GameStarted { game_id, timestamp: get_block_timestamp() });
             }
 
@@ -633,10 +620,10 @@ pub mod game {
         property.for_sale = true;
 
         // Decrement player's ownership counters
-        if property.property_type == PropertyType::RailRoad {
+        if property.property_type == PropertyType::RailRoad.into() {
             player.no_of_railways -= 1;
         }
-        if property.property_type == PropertyType::Utility {
+        if property.property_type == PropertyType::Utility.into() {
             player.no_of_utilities -= 1;
         }
         match property.group_id {
@@ -664,7 +651,7 @@ pub mod game {
         let mut world = self.world_default();
         
         let mut game: Game = world.read_model(game_id);
-        assert(game.status == GameStatus::Ongoing, 'Game not ongoing');
+        assert(game.status == GameStatus::Ongoing.into(), 'Game not ongoing');
 
         let mut player: GamePlayer = world.read_model((leaving_player, game_id));
 
@@ -793,6 +780,7 @@ pub mod game {
                     game.player_wheelbarrow = username;
                 },
             }
+            world.write_model(@game);
         }
 
         fn count_joined_players(ref self: ContractState, game_id: u256) -> u8 {
@@ -843,7 +831,7 @@ pub mod game {
 
             deck.append("Advance to Go (Collect $200)");
             deck.append("Advance to MakerDAO Avenue - If you pass Go, collect $200");
-            deck.append("Advance to Arbitrium Avenue - If you pass Go, collect $200");
+            deck.append("Advance to Arbitrium Avenue - If you pass Go, collect $200)");
             deck.append("Advance token to nearest Utility. Pay 10x dice.");
             deck.append("Advance token to nearest Railroad. Pay 2x rent.");
             deck.append("Bank pays you dividend of $50");
@@ -915,17 +903,18 @@ pub mod game {
                     game_id,
                     name,
                     cost_of_property,
-                    property_type,
+                    property_type.into(),
                     rent_site_only,
                     rent_one_house,
                     rent_two_houses,
                     rent_three_houses,
                     rent_four_houses,
-                    rent_hotel,
                     cost_of_house,
+                    rent_hotel,
                     group_id,
                     owner,
                 );
+            property.is_mortgaged = is_mortgaged;
 
             let property_to_id: PropertyToId = PropertyToId { name, id };
             let id_to_property: IdToProperty = IdToProperty { id, name };
@@ -954,8 +943,8 @@ pub mod game {
                     30,
                     90,
                     160,
-                    250,
                     50,
+                    250,
                     false,
                     1,
                     bank,
@@ -990,14 +979,14 @@ pub mod game {
                     60,
                     180,
                     320,
-                    450,
                     50,
+                    450,
                     false,
                     1,
                     bank,
                 );
             self
-                .generate_properties(
+                .generate_properties(  
                     4,
                     game_id,
                     'Luxury Tax',
@@ -1045,8 +1034,8 @@ pub mod game {
                     90,
                     270,
                     400,
-                    550,
                     50,
+                    550,
                     false,
                     2,
                     bank,
@@ -1081,8 +1070,8 @@ pub mod game {
                     90,
                     270,
                     400,
-                    550,
                     50,
+                    550,
                     false,
                     2,
                     bank,
@@ -1099,8 +1088,8 @@ pub mod game {
                     100,
                     300,
                     450,
-                    600,
                     50,
+                    600,
                     false,
                     2,
                     bank,
@@ -1136,8 +1125,8 @@ pub mod game {
                     150,
                     450,
                     625,
-                    750,
                     100,
+                    750,
                     false,
                     3,
                     bank,
@@ -1172,8 +1161,8 @@ pub mod game {
                     150,
                     450,
                     625,
-                    750,
                     100,
+                    750,
                     false,
                     3,
                     bank,
@@ -1190,8 +1179,8 @@ pub mod game {
                     180,
                     500,
                     700,
-                    900,
                     100,
+                    900,
                     false,
                     3,
                     bank,
@@ -1227,8 +1216,8 @@ pub mod game {
                     200,
                     550,
                     750,
-                    950,
                     100,
+                    950,
                     false,
                     4,
                     bank,
@@ -1263,8 +1252,8 @@ pub mod game {
                     200,
                     550,
                     750,
-                    950,
                     100,
+                    950,
                     false,
                     4,
                     bank,
@@ -1281,8 +1270,8 @@ pub mod game {
                     200,
                     550,
                     750,
-                    950,
                     100,
+                    950,
                     false,
                     4,
                     bank,
@@ -1318,8 +1307,8 @@ pub mod game {
                     250,
                     700,
                     875,
-                    1050,
                     150,
+                    1050,
                     false,
                     5,
                     bank,
@@ -1354,8 +1343,8 @@ pub mod game {
                     250,
                     700,
                     875,
-                    1050,
                     150,
+                    1050,
                     false,
                     5,
                     bank,
@@ -1372,8 +1361,8 @@ pub mod game {
                     300,
                     750,
                     925,
-                    1100,
                     150,
+                    1100,
                     false,
                     5,
                     bank,
@@ -1409,8 +1398,8 @@ pub mod game {
                     330,
                     800,
                     975,
-                    1150,
                     150,
+                    1150,
                     false,
                     6,
                     bank,
@@ -1427,8 +1416,8 @@ pub mod game {
                     330,
                     800,
                     975,
-                    1150,
                     150,
+                    1150,
                     false,
                     6,
                     bank,
@@ -1463,8 +1452,8 @@ pub mod game {
                     330,
                     800,
                     975,
-                    1150,
                     150,
+                    1150,
                     false,
                     6,
                     bank,
@@ -1500,8 +1489,8 @@ pub mod game {
                     390,
                     900,
                     1100,
-                    1275,
                     200,
+                    1275,
                     false,
                     7,
                     bank,
@@ -1518,8 +1507,8 @@ pub mod game {
                     390,
                     900,
                     1100,
-                    1275,
                     200,
+                    1275,
                     false,
                     7,
                     bank,
@@ -1554,8 +1543,8 @@ pub mod game {
                     390,
                     900,
                     1100,
-                    1275,
                     200,
+                    1275,
                     false,
                     7,
                     bank,
@@ -1609,8 +1598,8 @@ pub mod game {
                     500,
                     1100,
                     1300,
-                    1500,
                     200,
+                    1500,
                     false,
                     8,
                     bank,
@@ -1645,8 +1634,8 @@ pub mod game {
                     600,
                     1400,
                     1700,
-                    2000,
                     200,
+                    2000,
                     false,
                     8,
                     bank,

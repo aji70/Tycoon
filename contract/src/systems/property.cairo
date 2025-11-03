@@ -1,5 +1,5 @@
-use blockopoly::model::game_model::{Game, GameStatus};
-use blockopoly::model::property_model::{Property, PropertyTrait, PropertyType};
+use tycoon::model::game_model::{Game, GameStatus};
+use tycoon::model::property_model::{Property, PropertyTrait, PropertyType};
 // define the interfaceGame ID
 
 #[starknet::interface]
@@ -17,7 +17,7 @@ pub trait IProperty<T> {
 // dojo decorator
 #[dojo::contract]
 pub mod property {
-    use blockopoly::model::game_player_model::GamePlayer;
+    use tycoon::model::game_player_model::GamePlayer;
 
 
     use dojo::model::ModelStorage;
@@ -32,7 +32,7 @@ pub mod property {
             let mut world = self.world_default();
             // get the game and check it is ongoing
             let mut found_game: Game = world.read_model(game_id);
-            assert!(found_game.status == GameStatus::Ongoing, "game has not started yet ");
+            assert!(found_game.status == GameStatus::Ongoing.into(), "game has not started yet ");
             
             let caller = get_caller_address();
             assert!(found_game.next_player == caller, "Not your turn");
@@ -66,10 +66,10 @@ pub mod property {
             player.properties_owned.append(property.id);
 
             // Increment section or special counters
-            if property.property_type == PropertyType::RailRoad {
+            if property.property_type == PropertyType::RailRoad.into() {
                 player.no_of_railways += 1;
             }
-            if property.property_type == PropertyType::Utility {
+            if property.property_type == PropertyType::Utility.into() {
                 player.no_of_utilities += 1;
             }
             match property.group_id {
@@ -102,7 +102,7 @@ pub mod property {
 
             // Check the game is ongoing
             let mut game: Game = world.read_model(game_id);
-            assert(game.status == GameStatus::Ongoing, 'Game has not started yet');
+            assert(game.status == GameStatus::Ongoing.into(), 'Game has not started yet');
             // Load property and owner
             let mut property: Property = world.read_model((property_id, game_id));
             assert(property.id == property_id, 'Property not found');
@@ -134,7 +134,7 @@ pub mod property {
 
             // Load game and ensure it's ongoing
             let game: Game = world.read_model(game_id);
-            assert(game.status == GameStatus::Ongoing, 'Game has not started yet');
+            assert(game.status == GameStatus::Ongoing.into(), 'Game has not started yet');
 
             // Load property
             let mut property: Property = world.read_model((property_id, game_id));
@@ -177,9 +177,9 @@ pub mod property {
             assert(property.id == property_id, 'Property not found');
 
             assert(
-                (property.property_type == PropertyType::Property
-                    || property.property_type == PropertyType::RailRoad
-                    || property.property_type == PropertyType::Utility),
+                (property.property_type == PropertyType::Property.into()
+                    || property.property_type == PropertyType::RailRoad.into()
+                    || property.property_type == PropertyType::Utility.into()),
                 'not property',
             );
 
@@ -188,7 +188,7 @@ pub mod property {
 
             // Validate game
             let mut game: Game = world.read_model(game_id);
-            assert(game.status == GameStatus::Ongoing, 'Game not started');
+            assert(game.status == GameStatus::Ongoing.into(), 'Game not started');
 
             // Basic checks
             let zero_address: ContractAddress = contract_address_const::<0>();
@@ -199,8 +199,8 @@ pub mod property {
             assert(!property.is_mortgaged, 'No rent on mortgaged');
 
             // Get dynamic counts
-            let railroads = self.count_owner_railroads(property.owner, property.game_id);
-            let utilities = self.count_owner_utilities(property.owner, property.game_id);
+            let railroads = self.count_owner_railroads(property.owner, game_id);
+            let utilities = self.count_owner_utilities(property.owner, game_id);
 
             // Calculate rent
             let rent_amount = property
@@ -250,14 +250,14 @@ pub mod property {
 
             // ✅ Enforce even building
             let group_properties: Array<Property> = self
-                .get_properties_by_group(property.group_id, property.game_id);
+                .get_properties_by_group(property.group_id, game_id);
 
             let mut i = 0;
             while i < group_properties.len() {
-                let prop = group_properties[i];
-                if *prop.id != property.id {
+                let prop = *group_properties.at(i);
+                if prop.id != property.id {
                     assert!(
-                        *prop.development >= property.development,
+                        prop.development >= property.development,
                         "Must build evenly: other properties are under-developed",
                     );
                 }
@@ -317,13 +317,13 @@ pub mod property {
             let mut game: Game = world.read_model(game_id);
             let players_len = game.game_players.len();
             let mut player: GamePlayer = world.read_model((caller, game_id));
-            assert!(game.status == GameStatus::Ongoing, "Game has not started yet ");
+            assert!(game.status == GameStatus::Ongoing.into(), "Game has not started yet ");
             assert!(game.next_player == caller, "Not your turn");
             assert!(player.rolled_dice, "You must roll the dice");
 
             while index < players_len {
-                let player = game.game_players.at(index);
-                if *player == caller {
+                let player_addr = game.game_players.at(index);
+                if *player_addr == caller {
                     current_index = index;
                     break;
                 }
@@ -349,7 +349,7 @@ pub mod property {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
         /// can't be const.
         fn world_default(self: @ContractState) -> dojo::world::WorldStorage {
-            self.world(@"blockopoly")
+            self.world(@"tycoon")
         }
 
         fn get_properties_by_group(
@@ -358,7 +358,7 @@ pub mod property {
             let mut world = self.world_default();
             let mut group_properties: Array<Property> = array![];
 
-            let mut i = 0; // defaults to felt252
+            let mut i = 0_u32;
             while i < 41_u32 {
                 let prop: Property = world.read_model((i, game_id));
                 if prop.group_id == group_id {
@@ -374,10 +374,10 @@ pub mod property {
             ref self: ContractState, owner: ContractAddress, game_id: u256,
         ) -> u8 {
             let mut count = 0;
-            let mut i = 1;
+            let mut i = 1_u32;
             while i < 41_u32 {
                 let prop: Property = self.world_default().read_model((i, game_id));
-                if prop.owner == owner && prop.property_type == PropertyType::RailRoad {
+                if prop.owner == owner && prop.property_type == PropertyType::RailRoad.into() {
                     count += 1;
                 }
                 i += 1;
@@ -390,10 +390,10 @@ pub mod property {
             ref self: ContractState, owner: ContractAddress, game_id: u256,
         ) -> u8 {
             let mut count = 0;
-            let mut i = 1;
+            let mut i = 1_u32;
             while i < 41_u32 {
                 let prop: Property = self.world_default().read_model((i, game_id));
-                if prop.owner == owner && prop.property_type == PropertyType::Utility {
+                if prop.owner == owner && prop.property_type == PropertyType::Utility.into() {
                     count += 1;
                 }
                 i += 1;
@@ -402,4 +402,3 @@ pub mod property {
         }
     }
 }
-

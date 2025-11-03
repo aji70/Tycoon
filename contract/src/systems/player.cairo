@@ -1,4 +1,4 @@
-use blockopoly::model::player_model::{
+use tycoon::model::player_model::{
     AddressToUsername, IsRegistered, Player, PlayerTrait, UsernameToAddress,
 };
 use starknet::ContractAddress;
@@ -102,7 +102,7 @@ pub mod player {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
         /// can't be const.
         fn world_default(self: @ContractState) -> dojo::world::WorldStorage {
-            self.world(@"blockopoly")
+            self.world(@"tycoon")
         }
     }
 }

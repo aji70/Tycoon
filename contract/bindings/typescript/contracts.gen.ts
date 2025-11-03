@@ -17,7 +17,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_createGame_calldata(gameType, playerSymbol, numberOfPlayers),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -38,7 +38,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_endGame_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -56,7 +56,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const game_getGamePlayer = async (address: string, gameId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_game_getGamePlayer_calldata(address, gameId));
+			return await provider.call("dojo_starter", build_game_getGamePlayer_calldata(address, gameId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -73,7 +73,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const game_getGamePlayerBalance = async (address: string, gameId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_game_getGamePlayerBalance_calldata(address, gameId));
+			return await provider.call("dojo_starter", build_game_getGamePlayerBalance_calldata(address, gameId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -93,7 +93,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_getPlayerNetworth_calldata(address, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -114,7 +114,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_joinGame_calldata(playerSymbol, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -132,7 +132,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const game_lastGame = async () => {
 		try {
-			return await provider.call("blockopoly", build_game_lastGame_calldata());
+			return await provider.call("dojo_starter", build_game_lastGame_calldata());
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -152,7 +152,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_leaveGame_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -173,7 +173,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_mint_calldata(recepient, gameId, amount),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -191,7 +191,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const game_retrieveGame = async (gameId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_game_retrieveGame_calldata(gameId));
+			return await provider.call("dojo_starter", build_game_retrieveGame_calldata(gameId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -211,7 +211,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_game_startGame_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -229,7 +229,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const movement_currentPlayer = async (gameId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_movement_currentPlayer_calldata(gameId));
+			return await provider.call("dojo_starter", build_movement_currentPlayer_calldata(gameId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -246,7 +246,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const movement_currentPlayername = async (gameId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_movement_currentPlayername_calldata(gameId));
+			return await provider.call("dojo_starter", build_movement_currentPlayername_calldata(gameId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -266,7 +266,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_movePlayer_calldata(gameId, steps),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -287,7 +287,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_payJailFine_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -308,7 +308,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_payTax_calldata(taxId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -329,7 +329,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_processChanceCard_calldata(gameId, card),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -350,7 +350,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_processCommunityChestCard_calldata(gameId, card),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -371,7 +371,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_useGetoutOfJailChance_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -392,7 +392,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_movement_useGetoutOfJailCommunityChest_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -410,7 +410,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const player_getUsernameFromAddress = async (address: string) => {
 		try {
-			return await provider.call("blockopoly", build_player_getUsernameFromAddress_calldata(address));
+			return await provider.call("dojo_starter", build_player_getUsernameFromAddress_calldata(address));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -427,7 +427,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const player_isRegistered = async (address: string) => {
 		try {
-			return await provider.call("blockopoly", build_player_isRegistered_calldata(address));
+			return await provider.call("dojo_starter", build_player_isRegistered_calldata(address));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -447,7 +447,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_player_registerNewPlayer_calldata(username),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -465,7 +465,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const player_retrievePlayer = async (addr: string) => {
 		try {
-			return await provider.call("blockopoly", build_player_retrievePlayer_calldata(addr));
+			return await provider.call("dojo_starter", build_player_retrievePlayer_calldata(addr));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -485,7 +485,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_buyHouseOrHotel_calldata(propertyId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -506,7 +506,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_buyProperty_calldata(propertyId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -527,7 +527,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_finishTurn_calldata(gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -545,7 +545,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const property_getProperty = async (propertyId: BigNumberish, gameId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_property_getProperty_calldata(propertyId, gameId));
+			return await provider.call("dojo_starter", build_property_getProperty_calldata(propertyId, gameId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -565,7 +565,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_mortgageProperty_calldata(propertyId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -586,7 +586,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_payRent_calldata(propertyId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -607,7 +607,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_sellHouseOrHotel_calldata(propertyId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -628,7 +628,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_property_unmortgageProperty_calldata(propertyId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -646,7 +646,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const session_calculateRemainingTransactions = async (sessionId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_session_calculateRemainingTransactions_calldata(sessionId));
+			return await provider.call("dojo_starter", build_session_calculateRemainingTransactions_calldata(sessionId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -663,7 +663,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const session_calculateSessionTimeRemaining = async (sessionId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_session_calculateSessionTimeRemaining_calldata(sessionId));
+			return await provider.call("dojo_starter", build_session_calculateSessionTimeRemaining_calldata(sessionId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -680,7 +680,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const session_checkSessionNeedsRenewal = async (sessionId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_session_checkSessionNeedsRenewal_calldata(sessionId));
+			return await provider.call("dojo_starter", build_session_checkSessionNeedsRenewal_calldata(sessionId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -700,7 +700,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_session_createSessionKey_calldata(duration, maxTransactions, sessionType),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -718,7 +718,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const session_getSessionInfo = async (sessionId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_session_getSessionInfo_calldata(sessionId));
+			return await provider.call("dojo_starter", build_session_getSessionInfo_calldata(sessionId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -738,7 +738,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_session_renewSession_calldata(sessionId, newDuration, newMaxTx),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -759,7 +759,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_session_revokeSession_calldata(sessionId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -780,7 +780,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_session_validateSession_calldata(sessionId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -801,7 +801,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_trade_acceptTrade_calldata(tradeId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -822,7 +822,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_trade_approveCounterTrade_calldata(tradeId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -843,7 +843,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_trade_counterTrade_calldata(gameId, originalOfferId, offeredPropertyIds, requestedPropertyIds, cashOffer, cashRequest, tradeType),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -861,7 +861,7 @@ export function setupWorld(provider: DojoProvider) {
 
 	const trade_getTrade = async (tradeId: BigNumberish) => {
 		try {
-			return await provider.call("blockopoly", build_trade_getTrade_calldata(tradeId));
+			return await provider.call("dojo_starter", build_trade_getTrade_calldata(tradeId));
 		} catch (error) {
 			console.error(error);
 			throw error;
@@ -881,7 +881,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_trade_offerTrade_calldata(gameId, to, offeredPropertyIds, requestedPropertyIds, cashOffer, cashRequest, tradeType),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);
@@ -902,7 +902,7 @@ export function setupWorld(provider: DojoProvider) {
 			return await provider.execute(
 				snAccount,
 				build_trade_rejectTrade_calldata(tradeId, gameId),
-				"blockopoly",
+				"dojo_starter",
 			);
 		} catch (error) {
 			console.error(error);

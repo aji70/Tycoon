@@ -1,14 +1,14 @@
 import type { SchemaType as ISchemaType } from "@dojoengine/sdk";
 
-import { CairoCustomEnum, CairoOption, CairoOptionVariant, BigNumberish } from 'starknet';
+import { CairoOption, CairoOptionVariant, BigNumberish } from 'starknet';
 
-// Type definition for `blockopoly::model::game_model::Game` struct
+// Type definition for `tycoon::model::game_model::Game` struct
 export interface Game {
 	id: BigNumberish;
 	created_by: BigNumberish;
 	is_initialised: boolean;
-	status: GameStatusEnum;
-	mode: GameTypeEnum;
+	status: BigNumberish;
+	mode: BigNumberish;
 	ready_to_start: boolean;
 	winner: string;
 	next_player: string;
@@ -41,18 +41,18 @@ export interface Game {
 	community: Array<string>;
 }
 
-// Type definition for `blockopoly::model::game_model::GameCounter` struct
+// Type definition for `tycoon::model::game_model::GameCounter` struct
 export interface GameCounter {
 	id: BigNumberish;
 	current_val: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::game_player_model::GamePlayer` struct
+// Type definition for `tycoon::model::game_player_model::GamePlayer` struct
 export interface GamePlayer {
 	address: string;
 	game_id: BigNumberish;
 	username: BigNumberish;
-	player_symbol: PlayerSymbolEnum;
+	player_symbol: BigNumberish;
 	is_next: boolean;
 	dice_rolled: BigNumberish;
 	position: BigNumberish;
@@ -82,19 +82,19 @@ export interface GamePlayer {
 	rolled_dice: boolean;
 }
 
-// Type definition for `blockopoly::model::player_model::AddressToUsername` struct
+// Type definition for `tycoon::model::player_model::AddressToUsername` struct
 export interface AddressToUsername {
 	address: string;
 	username: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::player_model::IsRegistered` struct
+// Type definition for `tycoon::model::player_model::IsRegistered` struct
 export interface IsRegistered {
 	address: string;
 	is_registered: boolean;
 }
 
-// Type definition for `blockopoly::model::player_model::Player` struct
+// Type definition for `tycoon::model::player_model::Player` struct
 export interface Player {
 	address: string;
 	username: BigNumberish;
@@ -109,25 +109,25 @@ export interface Player {
 	updated_at: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::player_model::UsernameToAddress` struct
+// Type definition for `tycoon::model::player_model::UsernameToAddress` struct
 export interface UsernameToAddress {
 	username: BigNumberish;
 	address: string;
 }
 
-// Type definition for `blockopoly::model::property_model::IdToProperty` struct
+// Type definition for `tycoon::model::property_model::IdToProperty` struct
 export interface IdToProperty {
 	id: BigNumberish;
 	name: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::property_model::Property` struct
+// Type definition for `tycoon::model::property_model::Property` struct
 export interface Property {
 	id: BigNumberish;
 	game_id: BigNumberish;
 	name: BigNumberish;
 	owner: string;
-	property_type: PropertyTypeEnum;
+	property_type: BigNumberish;
 	cost_of_property: BigNumberish;
 	property_level: BigNumberish;
 	rent_site_only: BigNumberish;
@@ -143,19 +143,19 @@ export interface Property {
 	development: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::property_model::PropertyToId` struct
+// Type definition for `tycoon::model::property_model::PropertyToId` struct
 export interface PropertyToId {
 	name: BigNumberish;
 	id: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::property_model::TradeCounter` struct
+// Type definition for `tycoon::model::property_model::TradeCounter` struct
 export interface TradeCounter {
 	id: BigNumberish;
 	current_val: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::property_model::TradeOfferDetails` struct
+// Type definition for `tycoon::model::property_model::TradeOfferDetails` struct
 export interface TradeOfferDetails {
 	id: BigNumberish;
 	from: string;
@@ -165,13 +165,13 @@ export interface TradeOfferDetails {
 	requested_property_ids: Array<BigNumberish>;
 	cash_offer: BigNumberish;
 	cash_request: BigNumberish;
-	trade_type: TradeOfferEnum;
-	status: TradeStatusEnum;
+	trade_type: BigNumberish;
+	status: BigNumberish;
 	is_countered: boolean;
 	approve_counter: boolean;
 }
 
-// Type definition for `blockopoly::model::session::SessionAnalytics` struct
+// Type definition for `tycoon::model::session::SessionAnalytics` struct
 export interface SessionAnalytics {
 	session_id: BigNumberish;
 	total_transactions: BigNumberish;
@@ -183,7 +183,7 @@ export interface SessionAnalytics {
 	created_at: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::session::SessionKey` struct
+// Type definition for `tycoon::model::session::SessionKey` struct
 export interface SessionKey {
 	session_id: BigNumberish;
 	player_address: string;
@@ -199,7 +199,7 @@ export interface SessionKey {
 	permissions: Array<BigNumberish>;
 }
 
-// Type definition for `blockopoly::model::session::SessionOperation` struct
+// Type definition for `tycoon::model::session::SessionOperation` struct
 export interface SessionOperation {
 	session_id: BigNumberish;
 	operation_id: BigNumberish;
@@ -210,33 +210,33 @@ export interface SessionOperation {
 	error_code: CairoOption<BigNumberish>;
 }
 
-// Type definition for `blockopoly::systems::game::game::GameCreated` struct
+// Type definition for `tycoon::systems::game::game::GameCreated` struct
 export interface GameCreated {
 	game_id: BigNumberish;
 	timestamp: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::game::game::GameStarted` struct
+// Type definition for `tycoon::systems::game::game::GameStarted` struct
 export interface GameStarted {
 	game_id: BigNumberish;
 	timestamp: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::game::game::PlayerJoined` struct
+// Type definition for `tycoon::systems::game::game::PlayerJoined` struct
 export interface PlayerJoined {
 	game_id: BigNumberish;
 	username: BigNumberish;
 	timestamp: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::player::player::PlayerCreated` struct
+// Type definition for `tycoon::systems::player::player::PlayerCreated` struct
 export interface PlayerCreated {
 	username: BigNumberish;
 	player: string;
 	timestamp: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::session::session::SessionAutoRenewed` struct
+// Type definition for `tycoon::systems::session::session::SessionAutoRenewed` struct
 export interface SessionAutoRenewed {
 	session_id: BigNumberish;
 	player_address: string;
@@ -244,7 +244,7 @@ export interface SessionAutoRenewed {
 	new_max_transactions: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::session::session::SessionKeyCreated` struct
+// Type definition for `tycoon::systems::session::session::SessionKeyCreated` struct
 export interface SessionKeyCreated {
 	session_id: BigNumberish;
 	player_address: string;
@@ -253,14 +253,14 @@ export interface SessionKeyCreated {
 	session_type: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::session::session::SessionKeyRevoked` struct
+// Type definition for `tycoon::systems::session::session::SessionKeyRevoked` struct
 export interface SessionKeyRevoked {
 	session_id: BigNumberish;
 	player_address: string;
 	reason: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::session::session::SessionKeyUsed` struct
+// Type definition for `tycoon::systems::session::session::SessionKeyUsed` struct
 export interface SessionKeyUsed {
 	session_id: BigNumberish;
 	player_address: string;
@@ -268,7 +268,7 @@ export interface SessionKeyUsed {
 	gas_used: BigNumberish;
 }
 
-// Type definition for `blockopoly::systems::session::session::SessionOperationTracked` struct
+// Type definition for `tycoon::systems::session::session::SessionOperationTracked` struct
 export interface SessionOperationTracked {
 	session_id: BigNumberish;
 	operation_id: BigNumberish;
@@ -278,7 +278,7 @@ export interface SessionOperationTracked {
 	success: boolean;
 }
 
-// Type definition for `blockopoly::systems::session::session::SessionPerformanceMetrics` struct
+// Type definition for `tycoon::systems::session::session::SessionPerformanceMetrics` struct
 export interface SessionPerformanceMetrics {
 	session_id: BigNumberish;
 	average_gas_per_tx: BigNumberish;
@@ -286,80 +286,8 @@ export interface SessionPerformanceMetrics {
 	last_activity: BigNumberish;
 }
 
-// Type definition for `blockopoly::model::game_model::GameStatus` enum
-export const gameStatus = [
-	'Pending',
-	'Ongoing',
-	'Ended',
-] as const;
-export type GameStatus = { [key in typeof gameStatus[number]]: string };
-export type GameStatusEnum = CairoCustomEnum;
-
-// Type definition for `blockopoly::model::game_model::GameType` enum
-export const gameType = [
-	'PublicGame',
-	'PrivateGame',
-] as const;
-export type GameType = { [key in typeof gameType[number]]: string };
-export type GameTypeEnum = CairoCustomEnum;
-
-// Type definition for `blockopoly::model::game_player_model::PlayerSymbol` enum
-export const playerSymbol = [
-	'Hat',
-	'Car',
-	'Dog',
-	'Thimble',
-	'Iron',
-	'Battleship',
-	'Boot',
-	'Wheelbarrow',
-] as const;
-export type PlayerSymbol = { [key in typeof playerSymbol[number]]: string };
-export type PlayerSymbolEnum = CairoCustomEnum;
-
-// Type definition for `blockopoly::model::property_model::PropertyType` enum
-export const propertyType = [
-	'Go',
-	'Chance',
-	'CommunityChest',
-	'Jail',
-	'Utility',
-	'RailRoad',
-	'Tax',
-	'FreeParking',
-	'Property',
-	'VisitingJail',
-] as const;
-export type PropertyType = { [key in typeof propertyType[number]]: string };
-export type PropertyTypeEnum = CairoCustomEnum;
-
-// Type definition for `blockopoly::model::property_model::TradeOffer` enum
-export const tradeOffer = [
-	'PropertyForProperty',
-	'PropertyForCash',
-	'CashForProperty',
-	'CashPlusPropertyForProperty',
-	'PropertyForCashPlusProperty',
-	'CashForChanceJailCard',
-	'CashForCommunityJailCard',
-	'CommunityJailCardForCash',
-	'ChanceJailCardForCash',
-] as const;
-export type TradeOffer = { [key in typeof tradeOffer[number]]: string };
-export type TradeOfferEnum = CairoCustomEnum;
-
-// Type definition for `blockopoly::model::property_model::TradeStatus` enum
-export const tradeStatus = [
-	'Accepted',
-	'Rejected',
-	'Pending',
-	'Countered',
-] as const;
-export type TradeStatus = { [key in typeof tradeStatus[number]]: string };
-export type TradeStatusEnum = CairoCustomEnum;
-
 export interface SchemaType extends ISchemaType {
-	blockopoly: {
+	tycoon: {
 		Game: Game,
 		GameCounter: GameCounter,
 		GamePlayer: GamePlayer,
@@ -388,18 +316,13 @@ export interface SchemaType extends ISchemaType {
 	},
 }
 export const schema: SchemaType = {
-	blockopoly: {
+	tycoon: {
 		Game: {
 		id: 0,
 			created_by: 0,
 			is_initialised: false,
-		status: new CairoCustomEnum({ 
-					Pending: "",
-				Ongoing: undefined,
-				Ended: undefined, }),
-		mode: new CairoCustomEnum({ 
-					PublicGame: "",
-				PrivateGame: undefined, }),
+			status: 0,
+			mode: 0,
 			ready_to_start: false,
 			winner: "",
 			next_player: "",
@@ -439,15 +362,7 @@ export const schema: SchemaType = {
 			address: "",
 		game_id: 0,
 			username: 0,
-		player_symbol: new CairoCustomEnum({ 
-					Hat: "",
-				Car: undefined,
-				Dog: undefined,
-				Thimble: undefined,
-				Iron: undefined,
-				Battleship: undefined,
-				Boot: undefined,
-				Wheelbarrow: undefined, }),
+			player_symbol: 0,
 			is_next: false,
 			dice_rolled: 0,
 			position: 0,
@@ -510,17 +425,7 @@ export const schema: SchemaType = {
 		game_id: 0,
 			name: 0,
 			owner: "",
-		property_type: new CairoCustomEnum({ 
-					Go: "",
-				Chance: undefined,
-				CommunityChest: undefined,
-				Jail: undefined,
-				Utility: undefined,
-				RailRoad: undefined,
-				Tax: undefined,
-				FreeParking: undefined,
-				Property: undefined,
-				VisitingJail: undefined, }),
+			property_type: 0,
 		cost_of_property: 0,
 			property_level: 0,
 		rent_site_only: 0,
@@ -552,21 +457,8 @@ export const schema: SchemaType = {
 			requested_property_ids: [0],
 		cash_offer: 0,
 		cash_request: 0,
-		trade_type: new CairoCustomEnum({ 
-					PropertyForProperty: "",
-				PropertyForCash: undefined,
-				CashForProperty: undefined,
-				CashPlusPropertyForProperty: undefined,
-				PropertyForCashPlusProperty: undefined,
-				CashForChanceJailCard: undefined,
-				CashForCommunityJailCard: undefined,
-				CommunityJailCardForCash: undefined,
-				ChanceJailCardForCash: undefined, }),
-		status: new CairoCustomEnum({ 
-					Accepted: "",
-				Rejected: undefined,
-				Pending: undefined,
-				Countered: undefined, }),
+			trade_type: 0,
+			status: 0,
 			is_countered: false,
 			approve_counter: false,
 		},
@@ -601,7 +493,7 @@ export const schema: SchemaType = {
 			timestamp: 0,
 			gas_used: 0,
 			success: false,
-		error_code: new CairoOption(CairoOptionVariant.None),
+			error_code: new CairoOption(CairoOptionVariant.None),
 		},
 		GameCreated: {
 		game_id: 0,
@@ -662,35 +554,29 @@ export const schema: SchemaType = {
 	},
 };
 export enum ModelsMapping {
-	Game = 'blockopoly-Game',
-	GameCounter = 'blockopoly-GameCounter',
-	GameStatus = 'blockopoly-GameStatus',
-	GameType = 'blockopoly-GameType',
-	GamePlayer = 'blockopoly-GamePlayer',
-	PlayerSymbol = 'blockopoly-PlayerSymbol',
-	AddressToUsername = 'blockopoly-AddressToUsername',
-	IsRegistered = 'blockopoly-IsRegistered',
-	Player = 'blockopoly-Player',
-	UsernameToAddress = 'blockopoly-UsernameToAddress',
-	IdToProperty = 'blockopoly-IdToProperty',
-	Property = 'blockopoly-Property',
-	PropertyToId = 'blockopoly-PropertyToId',
-	PropertyType = 'blockopoly-PropertyType',
-	TradeCounter = 'blockopoly-TradeCounter',
-	TradeOffer = 'blockopoly-TradeOffer',
-	TradeOfferDetails = 'blockopoly-TradeOfferDetails',
-	TradeStatus = 'blockopoly-TradeStatus',
-	SessionAnalytics = 'blockopoly-SessionAnalytics',
-	SessionKey = 'blockopoly-SessionKey',
-	SessionOperation = 'blockopoly-SessionOperation',
-	GameCreated = 'blockopoly-GameCreated',
-	GameStarted = 'blockopoly-GameStarted',
-	PlayerJoined = 'blockopoly-PlayerJoined',
-	PlayerCreated = 'blockopoly-PlayerCreated',
-	SessionAutoRenewed = 'blockopoly-SessionAutoRenewed',
-	SessionKeyCreated = 'blockopoly-SessionKeyCreated',
-	SessionKeyRevoked = 'blockopoly-SessionKeyRevoked',
-	SessionKeyUsed = 'blockopoly-SessionKeyUsed',
-	SessionOperationTracked = 'blockopoly-SessionOperationTracked',
-	SessionPerformanceMetrics = 'blockopoly-SessionPerformanceMetrics',
+	Game = 'tycoon-Game',
+	GameCounter = 'tycoon-GameCounter',
+	GamePlayer = 'tycoon-GamePlayer',
+	AddressToUsername = 'tycoon-AddressToUsername',
+	IsRegistered = 'tycoon-IsRegistered',
+	Player = 'tycoon-Player',
+	UsernameToAddress = 'tycoon-UsernameToAddress',
+	IdToProperty = 'tycoon-IdToProperty',
+	Property = 'tycoon-Property',
+	PropertyToId = 'tycoon-PropertyToId',
+	TradeCounter = 'tycoon-TradeCounter',
+	TradeOfferDetails = 'tycoon-TradeOfferDetails',
+	SessionAnalytics = 'tycoon-SessionAnalytics',
+	SessionKey = 'tycoon-SessionKey',
+	SessionOperation = 'tycoon-SessionOperation',
+	GameCreated = 'tycoon-GameCreated',
+	GameStarted = 'tycoon-GameStarted',
+	PlayerJoined = 'tycoon-PlayerJoined',
+	PlayerCreated = 'tycoon-PlayerCreated',
+	SessionAutoRenewed = 'tycoon-SessionAutoRenewed',
+	SessionKeyCreated = 'tycoon-SessionKeyCreated',
+	SessionKeyRevoked = 'tycoon-SessionKeyRevoked',
+	SessionKeyUsed = 'tycoon-SessionKeyUsed',
+	SessionOperationTracked = 'tycoon-SessionOperationTracked',
+	SessionPerformanceMetrics = 'tycoon-SessionPerformanceMetrics',
 }

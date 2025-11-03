@@ -8,7 +8,7 @@ pub struct GamePlayer {
     #[key]
     pub game_id: u256, // unique per game
     pub username: felt252,
-    pub player_symbol: PlayerSymbol,
+    pub player_symbol: felt252,
     pub is_next: bool,
     pub dice_rolled: u8,
     pub position: u8,
@@ -54,6 +54,79 @@ pub trait GamePlayerTrait {
     fn jail_game_player(ref self: GamePlayer) -> bool;
 }
 
+#[derive(Serde, Copy, Introspect, Drop, PartialEq)]
+pub enum PlayerSymbol {
+    Hat,
+    Car,
+    Dog,
+    Thimble,
+    Iron,
+    Battleship,
+    Boot,
+    Wheelbarrow,
+}
+
+// Conversion implementations for PlayerSymbol
+impl PlayerSymbolIntoFelt252 of Into<PlayerSymbol, felt252> {
+    fn into(self: PlayerSymbol) -> felt252 {
+        match self {
+            PlayerSymbol::Hat => 'HAT',
+            PlayerSymbol::Car => 'CAR',
+            PlayerSymbol::Dog => 'DOG',
+            PlayerSymbol::Thimble => 'THIMBLE',
+            PlayerSymbol::Iron => 'IRON',
+            PlayerSymbol::Battleship => 'BATTLESHIP',
+            PlayerSymbol::Boot => 'BOOT',
+            PlayerSymbol::Wheelbarrow => 'WHEELBARROW',
+        }
+    }
+}
+
+impl Felt252TryIntoPlayerSymbol of TryInto<felt252, PlayerSymbol> {
+    fn try_into(self: felt252) -> Option<PlayerSymbol> {
+        if self == 'HAT' {
+            Option::Some(PlayerSymbol::Hat)
+        } else if self == 'CAR' {
+            Option::Some(PlayerSymbol::Car)
+        } else if self == 'DOG' {
+            Option::Some(PlayerSymbol::Dog)
+        } else if self == 'THIMBLE' {
+            Option::Some(PlayerSymbol::Thimble)
+        } else if self == 'IRON' {
+            Option::Some(PlayerSymbol::Iron)
+        } else if self == 'BATTLESHIP' {
+            Option::Some(PlayerSymbol::Battleship)
+        } else if self == 'BOOT' {
+            Option::Some(PlayerSymbol::Boot)
+        } else if self == 'WHEELBARROW' {
+            Option::Some(PlayerSymbol::Wheelbarrow)
+        } else {
+            Option::None
+        }
+    }
+}
+
+#[generate_trait]
+impl PlayerSymbolImpl of PlayerSymbolTrait {
+    fn all() -> Array<PlayerSymbol> {
+        array![
+            PlayerSymbol::Hat,
+            PlayerSymbol::Car,
+            PlayerSymbol::Dog,
+            PlayerSymbol::Thimble,
+            PlayerSymbol::Iron,
+            PlayerSymbol::Battleship,
+            PlayerSymbol::Boot,
+            PlayerSymbol::Wheelbarrow
+        ]
+    }
+
+    fn is_valid(symbol_felt: felt252) -> bool {
+        let result: Option<PlayerSymbol> = symbol_felt.try_into();
+        result.is_some()
+    }
+}
+
 impl GamePlayerImpl of GamePlayerTrait {
     fn create_game_player(
         username: felt252, address: ContractAddress, game_id: u256, player_symbol: PlayerSymbol,
@@ -63,7 +136,7 @@ impl GamePlayerImpl of GamePlayerTrait {
             game_id,
             username,
             dice_rolled: 0,
-            player_symbol: player_symbol,
+            player_symbol: player_symbol.into(),
             balance: 0,
             is_next: true,
             position: 0,
@@ -122,16 +195,3 @@ impl GamePlayerImpl of GamePlayerTrait {
         true
     }
 }
-
-#[derive(Serde, Copy, Introspect, Drop, PartialEq)]
-pub enum PlayerSymbol {
-    Hat,
-    Car,
-    Dog,
-    Thimble,
-    Iron,
-    Battleship,
-    Boot,
-    Wheelbarrow,
-}
-

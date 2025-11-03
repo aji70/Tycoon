@@ -21,10 +21,10 @@ pub trait IMovement<T> {
 // dojo decorator
 #[dojo::contract]
 pub mod movement {
-    use blockopoly::model::game_model::{Game, GameStatus};
-    use blockopoly::model::game_player_model::{GamePlayer, GamePlayerTrait};
-    use blockopoly::model::player_model::AddressToUsername;
-    use blockopoly::model::property_model::{Property, PropertyTrait, PropertyType};
+    use tycoon::model::game_model::{Game, GameStatus};
+    use tycoon::model::game_player_model::{GamePlayer, GamePlayerTrait};
+    use tycoon::model::player_model::AddressToUsername;
+    use tycoon::model::property_model::{Property, PropertyTrait, PropertyType};
 
     // use dojo::event::EventStorage;
     use dojo::model::ModelStorage;
@@ -50,7 +50,7 @@ pub mod movement {
             let mut game: Game = world.read_model(game_id);
 
             assert!(game.next_player == caller, "Not your turn");
-            assert!(game.status == GameStatus::Ongoing, "Game is not ongoing");
+            assert!(game.status == GameStatus::Ongoing.into(), "Game is not ongoing");
 
             // Handle jailed players
             if game_player.jailed {
@@ -100,9 +100,9 @@ pub mod movement {
                 game_player.paid_rent = true;
             }
 
-            if (property.property_type == PropertyType::Tax
-                || property.property_type == PropertyType::CommunityChest
-                || property.property_type == PropertyType::Chance) {
+            if (property.property_type == PropertyType::Tax.into()
+                || property.property_type == PropertyType::CommunityChest.into()
+                || property.property_type == PropertyType::Chance.into()) {
                 game_player.paid_rent = false;
             }
 
@@ -124,7 +124,7 @@ pub mod movement {
             let mut game: Game = world.read_model(game_id);
             assert(player.chance_jail_card, 'No chance card');
             assert(player.jailed, 'Not in jail');
-            assert(game.status == GameStatus::Ongoing, 'Game not started');
+            assert(game.status == GameStatus::Ongoing.into(), 'Game not started');
             // Use the card
             player.chance_jail_card = false;
             player.jailed = false;
@@ -141,7 +141,7 @@ pub mod movement {
             let mut game: Game = world.read_model(game_id);
             assert(player.comm_free_card, 'No community chest card');
             assert(player.jailed, 'Not in jail');
-            assert(game.status == GameStatus::Ongoing, 'Game not started');
+            assert(game.status == GameStatus::Ongoing.into(), 'Game not started');
             // Use the card
             player.comm_free_card = false;
             player.jailed = false;
@@ -158,7 +158,7 @@ pub mod movement {
             let mut player: GamePlayer = world.read_model((caller, game_id));
             let mut game: Game = world.read_model(game_id);
 
-            assert(game.status == GameStatus::Ongoing, 'Game not started');
+            assert(game.status == GameStatus::Ongoing.into(), 'Game not started');
             assert(player.jailed, 'Not in jail');
 
             // Pay the fine
@@ -216,7 +216,7 @@ pub mod movement {
             let mut game: Game = world.read_model(game_id);
             let mut property: Property = world.read_model((player.position, game_id));
             assert(
-                property.property_type == PropertyType::CommunityChest, 'not on community chest',
+                property.property_type == PropertyType::CommunityChest.into(), 'not on community chest',
             );
             if card == "Advance to Go (Collect $200)" {
                 player.position = 0;
@@ -269,7 +269,7 @@ pub mod movement {
 
             player.paid_rent = true;
 
-            game = self.finish(game.id);
+            game = self.finish(game_id);
             world.write_model(@player);
             world.write_model(@game);
             world.write_model(@property);
@@ -284,7 +284,7 @@ pub mod movement {
             let mut player: GamePlayer = world.read_model((get_caller_address(), game_id));
             let mut game: Game = world.read_model(game_id);
             let mut property: Property = world.read_model((player.position, game_id));
-            assert(property.property_type == PropertyType::Chance, 'not on chance');
+            assert(property.property_type == PropertyType::Chance.into(), 'not on chance');
 
             if card == "Advance to Go (Collect $200)" {
                 player.position = 0;
@@ -315,10 +315,9 @@ pub mod movement {
                 pos.append(35);
                 let rail_pos = self.find_nearest(player.position, pos);
                 player.position = rail_pos;
-                let rail: Property = world.read_model((rail_pos, game.clone().id));
-                let mut rail_owner: GamePlayer = world.read_model((rail.owner, game.id));
-                let railroads = self.count_owner_railroadss(property.owner, property.game_id);
-                let utilities = self.count_owner_utilitiess(property.owner, property.game_id);
+                let rail: Property = world.read_model((rail_pos, game.id));
+                let railroads = self.count_owner_railroadss(rail.owner, game_id);
+                let utilities = self.count_owner_utilitiess(rail.owner, game_id);
                 let mut rent_amount = PropertyTrait::get_rent_amount(
                     rail, railroads, utilities, player.dice_rolled.into(),
                 );
@@ -326,6 +325,7 @@ pub mod movement {
                     rent_amount = 0;
                 }
                 player.balance -= rent_amount;
+                let mut rail_owner: GamePlayer = world.read_model((rail.owner, game.id));
                 rail_owner.balance += rent_amount;
 
                 world.write_model(@rail_owner);
@@ -339,8 +339,8 @@ pub mod movement {
                 } else {
                     player.position -= 3;
                 }
-            } else if card == "Go to Jail" {
-                player.position = 11; // suppose jail is tile 11
+            } else if card == "Go to Jail dirctly do not pass Go do not collect $200" {
+                player.position = 10; // suppose jail is tile 10
                 player.jailed = true;
             } else if card == "Make general repairs - $25 house, $100 hotel" {
                 let houses = player.total_houses_owned;
@@ -363,7 +363,7 @@ pub mod movement {
             }
 
             player.paid_rent = true;
-            game = self.finish(game.id);
+            game = self.finish(game_id);
             world.write_model(@player);
             world.write_model(@game);
             world.write_model(@property);
@@ -390,7 +390,7 @@ pub mod movement {
         /// Use the default namespace "dojo_starter". This function is handy since the ByteArray
         /// can't be const.
         fn world_default(self: @ContractState) -> dojo::world::WorldStorage {
-            self.world(@"blockopoly")
+            self.world(@"tycoon")
         }
 
         fn count_owner_railroadss(
@@ -400,7 +400,7 @@ pub mod movement {
             let mut i = 1;
             while i < 41_u32 {
                 let prop: Property = self.world_default().read_model((i, game_id));
-                if prop.owner == owner && prop.property_type == PropertyType::RailRoad {
+                if prop.owner == owner && prop.property_type == PropertyType::RailRoad.into() {
                     count += 1;
                 }
                 i += 1;
@@ -416,13 +416,13 @@ pub mod movement {
             let mut game: Game = world.read_model(game_id);
             let players_len = game.game_players.len();
             let mut player: GamePlayer = world.read_model((caller, game_id));
-            assert!(game.status == GameStatus::Ongoing, "Game has not started yet ");
+            assert!(game.status == GameStatus::Ongoing.into(), "Game has not started yet ");
             assert!(game.next_player == caller, "Not your turn");
             assert!(player.rolled_dice, "You must roll the dice");
 
             while index < players_len {
-                let player = game.game_players.at(index);
-                if *player == caller {
+                let player_addr = game.game_players.at(index);
+                if *player_addr == caller {
                     current_index = index;
                     break;
                 }
@@ -446,7 +446,7 @@ pub mod movement {
             let mut i = 1;
             while i < 41_u32 {
                 let prop: Property = self.world_default().read_model((i, game_id));
-                if prop.owner == owner && prop.property_type == PropertyType::Utility {
+                if prop.owner == owner && prop.property_type == PropertyType::Utility.into() {
                     count += 1;
                 }
                 i += 1;
@@ -486,4 +486,3 @@ pub mod movement {
         }
     }
 }
-

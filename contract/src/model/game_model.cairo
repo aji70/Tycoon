@@ -16,8 +16,8 @@ pub struct Game {
     pub id: u256, // Unique id of the game
     pub created_by: felt252, // Address of the game creator
     pub is_initialised: bool, // Indicate whether game with given Id has been created/initialised
-    pub status: GameStatus, // Status of the game
-    pub mode: GameType, // Mode of the game
+    pub status: felt252, // Status of the game
+    pub mode: felt252, // Mode of the game
     pub ready_to_start: bool, // Indicate whether game can be started
     pub winner: ContractAddress, // First winner position 
     pub next_player: ContractAddress, // Address of the player to make the next move
@@ -205,8 +205,8 @@ impl GameImpl of GameTrait {
             id,
             created_by,
             is_initialised: true,
-            status: GameStatus::Pending,
-            mode: game_type,
+            status: GameStatus::Pending.into(),
+            mode: game_type.into(),
             ready_to_start: false,
             player_hat,
             player_car,
@@ -269,7 +269,7 @@ impl GameImpl of GameTrait {
     }
 
     fn terminate_game(ref self: Game) {
-        self.status = GameStatus::Ended;
+        self.status = GameStatus::Ended.into();
     }
 }
 
@@ -287,8 +287,8 @@ mod tests {
             let felt_val: felt252 = status.into();
             let converted_back: Option<GameStatus> = felt_val.try_into();
 
-            assert(converted_back.is_some(), 'Status conversion should succeed');
-            assert(converted_back.unwrap() == status, 'Should match original status');
+            assert(converted_back.is_some(), "Status conversion should succeed");
+            assert(converted_back.unwrap() == status, "Should match original status");
         }
     }
 
@@ -296,23 +296,23 @@ mod tests {
     fn test_game_status_transitions() {
         assert!(
             GameStatusTrait::can_transition_to(GameStatus::Pending, GameStatus::Ongoing),
-            'Pending should transition to Ongoing',
+            "Pending should transition to Ongoing",
         );
         assert!(
             GameStatusTrait::can_transition_to(GameStatus::Ongoing, GameStatus::Ended),
-            'Ongoing should transition to Ended',
+            "Ongoing should transition to Ended",
         );
         assert!(
             !GameStatusTrait::can_transition_to(GameStatus::Ended, GameStatus::Ongoing),
-            'Ended should not go back to Ongoing',
+            "Ended should not go back to Ongoing",
         );
     }
 
     #[test]
     fn test_game_status_active() {
-        assert!(!GameStatusTrait::is_active(GameStatus::Pending), 'Pending should not be active');
-        assert!(GameStatusTrait::is_active(GameStatus::Ongoing), 'Ongoing should be active');
-        assert!(!GameStatusTrait::is_active(GameStatus::Ended), 'Ended should not be active');
+        assert!(!GameStatusTrait::is_active(GameStatus::Pending), "Pending should not be active");
+        assert!(GameStatusTrait::is_active(GameStatus::Ongoing), "Ongoing should be active");
+        assert!(!GameStatusTrait::is_active(GameStatus::Ended), "Ended should not be active");
     }
 
     #[test]
@@ -324,8 +324,8 @@ mod tests {
             let felt_val: felt252 = game_type.into();
             let converted_back: Option<GameType> = felt_val.try_into();
 
-            assert(converted_back.is_some(), 'GameType conversion should succeed');
-            assert(converted_back.unwrap() == game_type, 'Should match original game type');
+            assert(converted_back.is_some(), "GameType conversion should succeed");
+            assert(converted_back.unwrap() == game_type, "Should match original game type");
         }
     }
 
@@ -333,11 +333,11 @@ mod tests {
     fn test_game_type_multiplayer() {
         assert!(
             !GameTypeTrait::is_multiplayer(GameType::PublicGame),
-            'PublicGame should not be multiplayer',
+            "PublicGame should not be multiplayer",
         );
         assert!(
             GameTypeTrait::is_multiplayer(GameType::PrivateGame),
-            'PrivateGame should be multiplayer',
+            "PrivateGame should be multiplayer",
         );
     }
 }

@@ -4,43 +4,41 @@ description = "The official Dojo Starter guide, the quickest and most streamline
 cover_uri = "file://assets/cover.png"
 icon_uri = "file://assets/icon.png"
 website = "https://github.com/dojoengine/dojo-starter"
-seed = "livetoday611772"
+seed = "tycoon"
 
 [world.socials]
 x = "https://x.com/ohayo_dojo"
 discord = "https://discord.gg/FB2wR6uF"
 github = "https://github.com/dojoengine/dojo-starter"
-
-
 telegram = "https://t.me/dojoengine"
 
 [namespace]
-default = "blockopoly"
+default = "tycoon"
 
 [env]
 # rpc_url = ""         # env: STARKNET_RPC_URL
 # account_address = "" # env: DOJO_ACCOUNT_ADDRESS
 # private_key = ""     # env: DOJO_PRIVATE_KEY
-# world_address = ""
+# world_address = "<World Address>"
 
 [writers]
-"blockopoly" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-GameCounter" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player","blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-Game" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-GamePlayer" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-Player" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"tycoon" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-GameCounter" = ["tycoon-game", "tycoon-movement", "tycoon-player","tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-Game" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-GamePlayer" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-Player" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
 
-"blockopoly-UsernameToAddress" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-AddressToUsername" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-IsRegistered" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-IdToProperty" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-PropertyToId" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player","blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-Property" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"tycoon-UsernameToAddress" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-AddressToUsername" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-IsRegistered" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-IdToProperty" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-PropertyToId" = ["tycoon-game", "tycoon-movement", "tycoon-player","tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-Property" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
 
-"blockopoly-TradeOfferDetails" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-TradeCounter" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"tycoon-TradeOfferDetails" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-TradeCounter" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
 
-"blockopoly-SessionKey" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-SessionAnalytics" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
-"blockopoly-SessionOperation" = ["blockopoly-game", "blockopoly-movement", "blockopoly-player", "blockopoly-property", "blockopoly-trade", "blockopoly-session"]
+"tycoon-SessionKey" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-SessionAnalytics" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
+"tycoon-SessionOperation" = ["tycoon-game", "tycoon-movement", "tycoon-player", "tycoon-property", "tycoon-trade", "tycoon-session"]
 

@@ -1,4 +1,4 @@
-use blockopoly::model::session::SessionKey;
+use tycoon::model::session::SessionKey;
 
 // Define the interface
 #[starknet::interface]
@@ -18,7 +18,7 @@ pub trait ISession<T> {
 // dojo decorator
 #[dojo::contract]
 pub mod session {
-    use blockopoly::model::session::{
+    use tycoon::model::session::{
         SessionKey, SessionAnalytics, SessionOperation, SESSION_STATUS_ACTIVE,
         SESSION_STATUS_EXPIRED, SESSION_STATUS_REVOKED, SESSION_TYPE_BASIC, SESSION_TYPE_PREMIUM,
         SESSION_TYPE_ADMIN, OPERATION_TYPE_CREATE, OPERATION_TYPE_USE, OPERATION_TYPE_RENEW,
@@ -369,7 +369,7 @@ pub mod session {
     #[generate_trait]
     impl InternalImpl of InternalTrait {
         fn world_default(self: @ContractState) -> dojo::world::WorldStorage {
-            self.world(@"blockopoly")
+            self.world(@"tycoon")
         }
 
         fn generate_session_id(
