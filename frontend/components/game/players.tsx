@@ -21,10 +21,16 @@ export default function GamePlayers({
   me,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const [showEmpire, setShowEmpire] = useState<boolean>(false);
+  const [showEmpire, setShowEmpire] = useState(false);
+  const [showTrade, setShowTrade] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [openTrades, setOpenTrades] = useState<any[]>([]);
+  const [tradeRequests, setTradeRequests] = useState<any[]>([]);
 
-  const toggleEmpire = useCallback(() => setShowEmpire((prev) => !prev), []);
+  const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
+  const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
+
+  const isNext = me && game.next_player_id === me.user_id;
 
   const isMortgaged = useCallback(
     (property_id: number) =>
@@ -64,11 +70,31 @@ export default function GamePlayers({
     () =>
       [...(game?.players ?? [])].sort(
         (a, b) =>
-          (a.turn_order ?? Number.POSITIVE_INFINITY) -
-          (b.turn_order ?? Number.POSITIVE_INFINITY)
+          (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity)
       ),
     [game?.players]
   );
+
+  const startTrade = (targetPlayer: Player) => {
+    if (!isNext) return;
+    const newTrade = {
+      id: Date.now(),
+      initiator: me,
+      target: targetPlayer,
+      offer: [],
+      request: [],
+      status: "pending",
+    };
+    setOpenTrades((prev) => [...prev, newTrade]);
+  };
+
+  const handleTradeAction = (id: number, action: "accept" | "decline" | "counter") => {
+    setTradeRequests((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, status: action } : t
+      )
+    );
+  };
 
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
@@ -80,13 +106,14 @@ export default function GamePlayers({
       <ul className="divide-y divide-cyan-800">
         {sortedPlayers.map((player) => {
           const isWinner = player.user_id === game.winner_id;
-          const isNext = player.user_id === game.next_player_id;
+          const isNextTurn = player.user_id === game.next_player_id;
           const isMe = player.address?.toLowerCase() === address?.toLowerCase();
+          const canTrade = isNext && !player.in_jail && !isMe;
 
           return (
             <li
               key={player.user_id}
-              className={`p-3 flex flex-col border-l-4 transition-colors ${isNext
+              className={`p-3 flex flex-col border-l-4 transition-colors ${isNextTurn
                 ? "border-cyan-800 bg-cyan-900/20"
                 : "border-transparent hover:bg-gray-900/20"
                 }`}
@@ -100,17 +127,26 @@ export default function GamePlayers({
                 </span>
                 <span className="text-xs text-gray-300">{player.balance} 💰</span>
               </div>
-              <div className="flex items-center justify-end space-x-2 text-xs text-gray-400">
+              <div className="flex items-center justify-between text-xs text-gray-400 mt-1">
                 <span>Pos: {player.position ?? "0"}</span>
                 <span>Circle: {player.circle ?? "0"}</span>
                 <span>Turn: {player.turn_order ?? "N/A"}</span>
               </div>
+
+              {canTrade && (
+                <button
+                  onClick={() => startTrade(player)}
+                  className="mt-2 text-xs bg-cyan-800/30 hover:bg-cyan-700/50 text-cyan-300 py-1 px-2 rounded transition"
+                >
+                  💱 Start Trade
+                </button>
+              )}
             </li>
           );
         })}
       </ul>
 
-      {/* My Properties Section */}
+      {/* My Empire Section */}
       <section className="border-t border-gray-800 mt-2">
         <button
           onClick={toggleEmpire}
@@ -122,14 +158,14 @@ export default function GamePlayers({
           </span>
         </button>
 
-        <AnimatePresence initial={false}>
+        <AnimatePresence>
           {showEmpire && (
             <motion.ul
               key="empire-list"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+              transition={{ duration: 0.3 }}
               className="divide-y divide-gray-800 overflow-hidden"
             >
               {my_properties.length > 0 ? (
@@ -147,18 +183,16 @@ export default function GamePlayers({
                           style={{ backgroundColor: prop.color }}
                         />
                       )}
-
                       <div className="flex justify-between items-center">
                         <span className="font-semibold">{prop.name}</span>
                         <span className="text-xs text-gray-500">#{prop.id}</span>
                       </div>
-
                       <div className="mt-1 text-xs text-gray-400">
                         <div>Price: 💵 {prop.price}</div>
                         <div>Rent: 🏠 {rentPrice(prop.id)}</div>
-                        {isMortgaged(prop.id) ? (
+                        {isMortgaged(prop.id) && (
                           <div className="text-red-500 font-medium">🔒 Mortgaged</div>
-                        ) : <></>}
+                        )}
                       </div>
                     </div>
                   </motion.li>
@@ -169,6 +203,97 @@ export default function GamePlayers({
                 </div>
               )}
             </motion.ul>
+          )}
+        </AnimatePresence>
+      </section>
+
+      {/* Trade Section */}
+      <section className="border-t border-gray-800 mt-2">
+        <button
+          onClick={toggleTrade}
+          className="w-full flex justify-between items-center px-3 py-2 text-sm font-semibold text-gray-300 hover:bg-cyan-900/20 transition"
+        >
+          <span>💱 Trade</span>
+          <span className="text-xs text-cyan-400">
+            {showTrade ? "Hide ▲" : "Show ▼"}
+          </span>
+        </button>
+
+        <AnimatePresence>
+          {showTrade && (
+            <motion.div
+              key="trade-section"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="p-3 space-y-3 text-sm text-gray-300"
+            >
+              {/* Active Trades */}
+              {openTrades.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-cyan-400 mb-2">My Trades</h4>
+                  {openTrades.map((trade) => (
+                    <div
+                      key={trade.id}
+                      className="border border-cyan-800 rounded p-2 bg-gray-900"
+                    >
+                      <div className="flex justify-between text-xs">
+                        <span>
+                          With: <b>{trade.target.username}</b>
+                        </span>
+                        <span className="text-gray-400">{trade.status}</span>
+                      </div>
+                      <div className="text-xs mt-1 text-gray-400 italic">
+                        Offer: {trade.offer.length || 0} items | Request:{" "}
+                        {trade.request.length || 0} items
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Incoming Trade Requests */}
+              {tradeRequests.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-cyan-400 mb-2">Trade Requests</h4>
+                  {tradeRequests.map((trade) => (
+                    <div
+                      key={trade.id}
+                      className="border border-gray-700 rounded p-2 bg-gray-900"
+                    >
+                      <div className="text-xs mb-1">
+                        From: <b>{trade.initiator.username}</b>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <button
+                          onClick={() => handleTradeAction(trade.id, "accept")}
+                          className="text-green-400 hover:text-green-300"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={() => handleTradeAction(trade.id, "decline")}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          Decline
+                        </button>
+                        <button
+                          onClick={() => handleTradeAction(trade.id, "counter")}
+                          className="text-cyan-400 hover:text-cyan-300"
+                        >
+                          Counter
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {openTrades.length === 0 && tradeRequests.length === 0 && (
+                <p className="text-gray-500 text-center text-xs">No trades yet..</p>
+              )}
+            </motion.div>
           )}
         </AnimatePresence>
       </section>
@@ -187,7 +312,7 @@ export default function GamePlayers({
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.85, opacity: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
+              transition={{ duration: 0.25 }}
               className="bg-gray-900 rounded-xl shadow-lg w-80 border border-cyan-900"
             >
               <div className="p-4 border-b border-cyan-800 flex justify-between items-center">
