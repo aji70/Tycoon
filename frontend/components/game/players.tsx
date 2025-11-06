@@ -165,8 +165,8 @@ export default function GamePlayers({
             <li
               key={player.user_id}
               className={`p-3 flex flex-col border-l-4 transition-colors ${isNextTurn
-                  ? "border-cyan-800 bg-cyan-900/20"
-                  : "border-transparent hover:bg-gray-900/20"
+                ? "border-cyan-800 bg-cyan-900/20"
+                : "border-transparent hover:bg-gray-900/20"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -366,6 +366,7 @@ export default function GamePlayers({
         requestCash={requestCash}
         setOfferCash={setOfferCash}
         setRequestCash={setRequestCash}
+        toggleSelect={toggleSelect}
       />
 
       {/* Counter Trade Modal */}
@@ -385,6 +386,7 @@ export default function GamePlayers({
         requestCash={requestCash}
         setOfferCash={setOfferCash}
         setRequestCash={setRequestCash}
+        toggleSelect={toggleSelect}
       />
     </aside>
   );
@@ -407,6 +409,7 @@ function TradeModal({
   requestCash,
   setOfferCash,
   setRequestCash,
+  toggleSelect
 }: any) {
   if (!open) return null;
   return (
@@ -438,8 +441,8 @@ function TradeModal({
                 <label
                   key={prop.id}
                   className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${offerProperties.includes(prop.id)
-                      ? "border-cyan-500 bg-cyan-900/30"
-                      : "border-gray-700 hover:bg-gray-800/30"
+                    ? "border-cyan-500 bg-cyan-900/30"
+                    : "border-gray-700 hover:bg-gray-800/30"
                     }`}
                 >
                   <input
@@ -467,8 +470,8 @@ function TradeModal({
                 <label
                   key={prop.id}
                   className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${requestProperties.includes(prop.id)
-                      ? "border-cyan-500 bg-cyan-900/30"
-                      : "border-gray-700 hover:bg-gray-800/30"
+                    ? "border-cyan-500 bg-cyan-900/30"
+                    : "border-gray-700 hover:bg-gray-800/30"
                     }`}
                 >
                   <input
