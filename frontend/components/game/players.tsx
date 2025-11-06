@@ -26,10 +26,19 @@ export default function GamePlayers({
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [openTrades, setOpenTrades] = useState<any[]>([]);
   const [tradeRequests, setTradeRequests] = useState<any[]>([]);
+  const [tradeModal, setTradeModal] = useState<{
+    open: boolean;
+    target: Player | null;
+  }>({ open: false, target: null });
+
+  // trade form states
+  const [offerProperties, setOfferProperties] = useState<number[]>([]);
+  const [requestProperties, setRequestProperties] = useState<number[]>([]);
+  const [offerCash, setOfferCash] = useState<number>(0);
+  const [requestCash, setRequestCash] = useState<number>(0);
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
-
   const isNext = me && game.next_player_id === me.user_id;
 
   const isMortgaged = useCallback(
@@ -69,31 +78,52 @@ export default function GamePlayers({
   const sortedPlayers = useMemo(
     () =>
       [...(game?.players ?? [])].sort(
-        (a, b) =>
-          (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity)
+        (a, b) => (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity)
       ),
     [game?.players]
   );
 
   const startTrade = (targetPlayer: Player) => {
     if (!isNext) return;
+    setTradeModal({ open: true, target: targetPlayer });
+  };
+
+  const handleCreateTrade = () => {
+    if (!me || !tradeModal.target) return;
+
     const newTrade = {
       id: Date.now(),
       initiator: me,
-      target: targetPlayer,
-      offer: [],
-      request: [],
+      target: tradeModal.target,
+      offer: {
+        properties: offerProperties,
+        cash: offerCash,
+      },
+      request: {
+        properties: requestProperties,
+        cash: requestCash,
+      },
       status: "pending",
     };
+
     setOpenTrades((prev) => [...prev, newTrade]);
+    setTradeModal({ open: false, target: null });
+    // reset fields
+    setOfferCash(0);
+    setRequestCash(0);
+    setOfferProperties([]);
+    setRequestProperties([]);
   };
 
   const handleTradeAction = (id: number, action: "accept" | "decline" | "counter") => {
     setTradeRequests((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, status: action } : t
-      )
+      prev.map((t) => (t.id === id ? { ...t, status: action } : t))
     );
+  };
+
+  const toggleSelect = (id: number, arr: number[], setter: (val: number[]) => void) => {
+    if (arr.includes(id)) setter(arr.filter((x) => x !== id));
+    else setter([...arr, id]);
   };
 
   return (
@@ -114,8 +144,8 @@ export default function GamePlayers({
             <li
               key={player.user_id}
               className={`p-3 flex flex-col border-l-4 transition-colors ${isNextTurn
-                ? "border-cyan-800 bg-cyan-900/20"
-                : "border-transparent hover:bg-gray-900/20"
+                  ? "border-cyan-800 bg-cyan-900/20"
+                  : "border-transparent hover:bg-gray-900/20"
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -245,8 +275,8 @@ export default function GamePlayers({
                         <span className="text-gray-400">{trade.status}</span>
                       </div>
                       <div className="text-xs mt-1 text-gray-400 italic">
-                        Offer: {trade.offer.length || 0} items | Request:{" "}
-                        {trade.request.length || 0} items
+                        Offer: {trade.offer.properties.length} props / {trade.offer.cash} 💰 | Request:{" "}
+                        {trade.request.properties.length} props / {trade.request.cash} 💰
                       </div>
                     </div>
                   ))}
@@ -298,54 +328,128 @@ export default function GamePlayers({
         </AnimatePresence>
       </section>
 
-      {/* Property Modal */}
+      {/* Trade Creation Modal */}
       <AnimatePresence>
-        {selectedProperty && (
+        {tradeModal.open && tradeModal.target && (
           <motion.div
-            key="property-modal"
+            key="trade-modal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
           >
             <motion.div
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.85, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="bg-gray-900 rounded-xl shadow-lg w-80 border border-cyan-900"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-gray-900 border border-cyan-900 rounded-xl w-[90%] max-w-md p-5 text-sm text-gray-200 shadow-xl"
             >
-              <div className="p-4 border-b border-cyan-800 flex justify-between items-center">
-                <h4 className="text-gray-200 font-semibold">
-                  {selectedProperty.name}
-                </h4>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-semibold text-cyan-400">
+                  Trade with {tradeModal.target.username}
+                </h3>
                 <button
-                  onClick={() => setSelectedProperty(null)}
+                  onClick={() => setTradeModal({ open: false, target: null })}
                   className="text-gray-400 hover:text-gray-200"
                 >
                   ✖
                 </button>
               </div>
 
-              <div className="p-4 space-y-2 text-sm text-gray-300">
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏠 Buy House
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏚️ Sell House
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏨 Buy Hotel
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏩 Sell Hotel
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  💰 Mortgage
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  💸 Unmortgage
-                </button>
+              <div className="space-y-4">
+                {/* Offer Section */}
+                <div>
+                  <h4 className="font-medium text-cyan-300 mb-1">Your Offer</h4>
+                  <div className="flex flex-col gap-2">
+                    {my_properties.map((prop) => (
+                      <label
+                        key={prop.id}
+                        className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${offerProperties.includes(prop.id)
+                            ? "border-cyan-500 bg-cyan-900/30"
+                            : "border-gray-700 hover:bg-gray-800/30"
+                          }`}
+                        onClick={() =>
+                          toggleSelect(prop.id, offerProperties, setOfferProperties)
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={offerProperties.includes(prop.id)}
+                          readOnly
+                        />
+                        <span>{prop.name}</span>
+                      </label>
+                    ))}
+                    <input
+                      type="number"
+                      className="w-full bg-gray-800 rounded p-2 mt-2 border border-gray-700"
+                      placeholder="💰 Offer Cash"
+                      value={offerCash || ""}
+                      onChange={(e) => setOfferCash(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                {/* Request Section */}
+                <div>
+                  <h4 className="font-medium text-cyan-300 mb-1">
+                    Request from {tradeModal.target.username}
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    {properties
+                      .filter(
+                        (p) =>
+                          game_properties.find(
+                            (gp) =>
+                              gp.property_id === p.id &&
+                              gp.address.toLowerCase() ===
+                              tradeModal.target?.address.toLowerCase()
+                          )
+                      )
+                      .map((prop) => (
+                        <label
+                          key={prop.id}
+                          className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${requestProperties.includes(prop.id)
+                              ? "border-cyan-500 bg-cyan-900/30"
+                              : "border-gray-700 hover:bg-gray-800/30"
+                            }`}
+                          onClick={() =>
+                            toggleSelect(prop.id, requestProperties, setRequestProperties)
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={requestProperties.includes(prop.id)}
+                            readOnly
+                          />
+                          <span>{prop.name}</span>
+                        </label>
+                      ))}
+
+                    <input
+                      type="number"
+                      className="w-full bg-gray-800 rounded p-2 mt-2 border border-gray-700"
+                      placeholder="💰 Request Cash"
+                      value={requestCash || ""}
+                      onChange={(e) => setRequestCash(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setTradeModal({ open: false, target: null })}
+                    className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateTrade}
+                    className="px-4 py-2 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white font-semibold"
+                  >
+                    Send Trade
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
