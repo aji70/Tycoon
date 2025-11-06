@@ -17,6 +17,7 @@ import gamePropertiesRoutes from "./routes/game-properties.js";
 import chancesRoutes from "./routes/chances.js";
 import communityChestsRoutes from "./routes/community-chests.js";
 import propertiesRoutes from "./routes/properties.js";
+import gameTradeRequestRoutes from "./routes/game-trade-requests.js";
 
 // Load environment variables
 dotenv.config();
@@ -82,6 +83,7 @@ app.use("/api/game-settings", gameSettingsRoutes);
 app.use("/api/game-players", gamePlayersRoutes);
 app.use("/api/game-play-history", gamePlayHistoryRoutes);
 app.use("/api/game-trades", gameTradesRoutes);
+app.use("/api/game-trade-requests", gameTradeRequestRoutes);
 app.use("/api/game-properties", gamePropertiesRoutes);
 app.use("/api/chances", chancesRoutes);
 app.use("/api/community-chests", communityChestsRoutes);
