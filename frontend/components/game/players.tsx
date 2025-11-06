@@ -101,8 +101,8 @@ export default function GamePlayers({
     if (!me || !game?.id) return;
     try {
       const [initiated, incoming] = await Promise.all([
-        apiClient.get<ApiResponse>(`/trade/game/${game.id}/player/${me.user_id}`),
-        apiClient.get<ApiResponse>(`/trade/game/${game.id}/player/${me.user_id}/status/pending`),
+        apiClient.get<ApiResponse>(`/game-trade-requests/game/${game.id}/player/${me.user_id}`),
+        apiClient.get<ApiResponse>(`/game-trade-requests/game/${game.id}/player/${me.user_id}/status/pending`),
       ]);
       setOpenTrades(initiated.data || []);
       setTradeRequests(incoming.data || []);
@@ -132,7 +132,7 @@ export default function GamePlayers({
         status: "pending",
       };
 
-      const res = await apiClient.post<ApiResponse>("/trade", payload);
+      const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
       toast.success("Trade created successfully");
       setOpenTrades((prev) => [...prev, res.data]);
       setTradeModal({ open: false, target: null });
@@ -151,7 +151,7 @@ export default function GamePlayers({
         if (trade) setCounterModal({ open: true, trade });
         return;
       }
-      await apiClient.put(`/trade/${id}`, { status: action });
+      await apiClient.put(`/game-trade-requests/${id}`, { status: action });
       toast.success(`Trade ${action}ed`);
       fetchTrades();
     } catch (error) {
@@ -171,7 +171,7 @@ export default function GamePlayers({
         requested_amount: requestCash,
         status: "counter",
       };
-      await apiClient.put(`/trade/${counterModal.trade.id}`, payload);
+      await apiClient.put(`/game-trade-requests/${counterModal.trade.id}`, payload);
       toast.success("Counter offer sent");
       setCounterModal({ open: false, trade: null });
       resetTradeFields();
