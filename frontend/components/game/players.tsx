@@ -26,10 +26,14 @@ export default function GamePlayers({
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [openTrades, setOpenTrades] = useState<any[]>([]);
   const [tradeRequests, setTradeRequests] = useState<any[]>([]);
-  const [tradeModal, setTradeModal] = useState<{
-    open: boolean;
-    target: Player | null;
-  }>({ open: false, target: null });
+  const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
+    open: false,
+    target: null,
+  });
+  const [counterModal, setCounterModal] = useState<{ open: boolean; trade: any | null }>({
+    open: false,
+    trade: null,
+  });
 
   // trade form states
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
@@ -90,40 +94,57 @@ export default function GamePlayers({
 
   const handleCreateTrade = () => {
     if (!me || !tradeModal.target) return;
-
     const newTrade = {
       id: Date.now(),
       initiator: me,
       target: tradeModal.target,
-      offer: {
-        properties: offerProperties,
-        cash: offerCash,
-      },
-      request: {
-        properties: requestProperties,
-        cash: requestCash,
-      },
+      offer: { properties: offerProperties, cash: offerCash },
+      request: { properties: requestProperties, cash: requestCash },
       status: "pending",
     };
-
     setOpenTrades((prev) => [...prev, newTrade]);
     setTradeModal({ open: false, target: null });
-    // reset fields
+    resetTradeFields();
+  };
+
+  const handleTradeAction = (id: number, action: "accept" | "decline" | "counter") => {
+    if (action === "counter") {
+      const trade = tradeRequests.find((t) => t.id === id);
+      if (trade) {
+        setCounterModal({ open: true, trade });
+      }
+    } else {
+      setTradeRequests((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, status: action } : t))
+      );
+    }
+  };
+
+  const resetTradeFields = () => {
     setOfferCash(0);
     setRequestCash(0);
     setOfferProperties([]);
     setRequestProperties([]);
   };
 
-  const handleTradeAction = (id: number, action: "accept" | "decline" | "counter") => {
-    setTradeRequests((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: action } : t))
-    );
-  };
-
   const toggleSelect = (id: number, arr: number[], setter: (val: number[]) => void) => {
     if (arr.includes(id)) setter(arr.filter((x) => x !== id));
     else setter([...arr, id]);
+  };
+
+  const submitCounterTrade = () => {
+    if (!me || !counterModal.trade) return;
+    const updatedTrade = {
+      ...counterModal.trade,
+      offer: { properties: offerProperties, cash: offerCash },
+      request: { properties: requestProperties, cash: requestCash },
+      status: "countered",
+    };
+    setTradeRequests((prev) =>
+      prev.map((t) => (t.id === counterModal.trade.id ? updatedTrade : t))
+    );
+    setCounterModal({ open: false, trade: null });
+    resetTradeFields();
   };
 
   return (
@@ -176,7 +197,7 @@ export default function GamePlayers({
         })}
       </ul>
 
-      {/* My Empire Section */}
+      {/* My Empire */}
       <section className="border-t border-gray-800 mt-2">
         <button
           onClick={toggleEmpire}
@@ -328,133 +349,164 @@ export default function GamePlayers({
         </AnimatePresence>
       </section>
 
-      {/* Trade Creation Modal */}
-      <AnimatePresence>
-        {tradeModal.open && tradeModal.target && (
-          <motion.div
-            key="trade-modal"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-gray-900 border border-cyan-900 rounded-xl w-[90%] max-w-md p-5 text-sm text-gray-200 shadow-xl"
-            >
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-semibold text-cyan-400">
-                  Trade with {tradeModal.target.username}
-                </h3>
-                <button
-                  onClick={() => setTradeModal({ open: false, target: null })}
-                  className="text-gray-400 hover:text-gray-200"
-                >
-                  ✖
-                </button>
-              </div>
+      {/* Create Trade Modal */}
+      <TradeModal
+        open={tradeModal.open}
+        title={`Trade with ${tradeModal.target?.username}`}
+        onClose={() => setTradeModal({ open: false, target: null })}
+        onSubmit={handleCreateTrade}
+        my_properties={my_properties}
+        properties={properties}
+        game_properties={game_properties}
+        offerProperties={offerProperties}
+        requestProperties={requestProperties}
+        setOfferProperties={setOfferProperties}
+        setRequestProperties={setRequestProperties}
+        offerCash={offerCash}
+        requestCash={requestCash}
+        setOfferCash={setOfferCash}
+        setRequestCash={setRequestCash}
+      />
 
-              <div className="space-y-4">
-                {/* Offer Section */}
-                <div>
-                  <h4 className="font-medium text-cyan-300 mb-1">Your Offer</h4>
-                  <div className="flex flex-col gap-2">
-                    {my_properties.map((prop) => (
-                      <label
-                        key={prop.id}
-                        className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${offerProperties.includes(prop.id)
-                            ? "border-cyan-500 bg-cyan-900/30"
-                            : "border-gray-700 hover:bg-gray-800/30"
-                          }`}
-                        onClick={() =>
-                          toggleSelect(prop.id, offerProperties, setOfferProperties)
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={offerProperties.includes(prop.id)}
-                          readOnly
-                        />
-                        <span>{prop.name}</span>
-                      </label>
-                    ))}
-                    <input
-                      type="number"
-                      className="w-full bg-gray-800 rounded p-2 mt-2 border border-gray-700"
-                      placeholder="💰 Offer Cash"
-                      value={offerCash || ""}
-                      onChange={(e) => setOfferCash(Number(e.target.value))}
-                    />
-                  </div>
-                </div>
-
-                {/* Request Section */}
-                <div>
-                  <h4 className="font-medium text-cyan-300 mb-1">
-                    Request from {tradeModal.target.username}
-                  </h4>
-                  <div className="flex flex-col gap-2">
-                    {properties
-                      .filter(
-                        (p) =>
-                          game_properties.find(
-                            (gp) =>
-                              gp.property_id === p.id &&
-                              gp.address.toLowerCase() ===
-                              tradeModal.target?.address.toLowerCase()
-                          )
-                      )
-                      .map((prop) => (
-                        <label
-                          key={prop.id}
-                          className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${requestProperties.includes(prop.id)
-                              ? "border-cyan-500 bg-cyan-900/30"
-                              : "border-gray-700 hover:bg-gray-800/30"
-                            }`}
-                          onClick={() =>
-                            toggleSelect(prop.id, requestProperties, setRequestProperties)
-                          }
-                        >
-                          <input
-                            type="checkbox"
-                            checked={requestProperties.includes(prop.id)}
-                            readOnly
-                          />
-                          <span>{prop.name}</span>
-                        </label>
-                      ))}
-
-                    <input
-                      type="number"
-                      className="w-full bg-gray-800 rounded p-2 mt-2 border border-gray-700"
-                      placeholder="💰 Request Cash"
-                      value={requestCash || ""}
-                      onChange={(e) => setRequestCash(Number(e.target.value))}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setTradeModal({ open: false, target: null })}
-                    className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateTrade}
-                    className="px-4 py-2 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white font-semibold"
-                  >
-                    Send Trade
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Counter Trade Modal */}
+      <TradeModal
+        open={counterModal.open}
+        title="Counter Trade Offer"
+        onClose={() => setCounterModal({ open: false, trade: null })}
+        onSubmit={submitCounterTrade}
+        my_properties={my_properties}
+        properties={properties}
+        game_properties={game_properties}
+        offerProperties={offerProperties}
+        requestProperties={requestProperties}
+        setOfferProperties={setOfferProperties}
+        setRequestProperties={setRequestProperties}
+        offerCash={offerCash}
+        requestCash={requestCash}
+        setOfferCash={setOfferCash}
+        setRequestCash={setRequestCash}
+      />
     </aside>
+  );
+}
+
+/* --- Shared Modal Component for Create/Counter --- */
+function TradeModal({
+  open,
+  title,
+  onClose,
+  onSubmit,
+  my_properties,
+  properties,
+  game_properties,
+  offerProperties,
+  requestProperties,
+  setOfferProperties,
+  setRequestProperties,
+  offerCash,
+  requestCash,
+  setOfferCash,
+  setRequestCash,
+}: any) {
+  if (!open) return null;
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="modal"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+      >
+        <motion.div
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0.9 }}
+          className="bg-gray-900 border border-cyan-900 rounded-xl w-[90%] max-w-md p-5 text-sm text-gray-200 shadow-xl max-h-[80vh] overflow-y-auto"
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold text-cyan-400">{title}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-200">
+              ✖
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-medium text-cyan-300 mb-1">Your Offer</h4>
+              {my_properties.map((prop: Property) => (
+                <label
+                  key={prop.id}
+                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${offerProperties.includes(prop.id)
+                      ? "border-cyan-500 bg-cyan-900/30"
+                      : "border-gray-700 hover:bg-gray-800/30"
+                    }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={offerProperties.includes(prop.id)}
+                    onChange={() =>
+                      toggleSelect(prop.id, offerProperties, setOfferProperties)
+                    }
+                  />
+                  <span>{prop.name}</span>
+                </label>
+              ))}
+              <input
+                type="number"
+                className="w-full bg-gray-800 rounded p-2 mt-2 border border-gray-700"
+                placeholder="💰 Offer Cash"
+                value={offerCash || ""}
+                onChange={(e) => setOfferCash(Number(e.target.value))}
+              />
+            </div>
+
+            <div>
+              <h4 className="font-medium text-cyan-300 mb-1">Request Properties</h4>
+              {properties.map((prop: Property) => (
+                <label
+                  key={prop.id}
+                  className={`flex items-center gap-2 px-2 py-1 rounded-md cursor-pointer border ${requestProperties.includes(prop.id)
+                      ? "border-cyan-500 bg-cyan-900/30"
+                      : "border-gray-700 hover:bg-gray-800/30"
+                    }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={requestProperties.includes(prop.id)}
+                    onChange={() =>
+                      toggleSelect(prop.id, requestProperties, setRequestProperties)
+                    }
+                  />
+                  <span>{prop.name}</span>
+                </label>
+              ))}
+              <input
+                type="number"
+                className="w-full bg-gray-800 rounded p-2 mt-2 border border-gray-700"
+                placeholder="💰 Request Cash"
+                value={requestCash || ""}
+                onChange={(e) => setRequestCash(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onSubmit}
+                className="px-4 py-2 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white font-semibold"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
