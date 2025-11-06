@@ -393,6 +393,8 @@ export default function GamePlayers({
 }
 
 /* --- Shared Modal Component for Create/Counter --- */
+
+
 function TradeModal({
   open,
   title,
@@ -413,6 +415,23 @@ function TradeModal({
 }: any) {
   if (!open) return null;
 
+  // Determine the target player's owned properties (filter by type)
+  const targetOwnedProps = useMemo(() => {
+    const validTypes = ["land", "railway", "utility"];
+    const ownedIds = game_properties
+      .filter(
+        (gp: any) =>
+          gp.owner_id &&
+          gp.owner_id !== undefined &&
+          validTypes.includes(
+            properties.find((p: any) => p.id === gp.property_id)?.type || ""
+          )
+      )
+      .map((gp: any) => gp.property_id);
+
+    return properties.filter((p: any) => ownedIds.includes(p.id));
+  }, [game_properties, properties]);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -426,138 +445,108 @@ function TradeModal({
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
           exit={{ scale: 0.9 }}
-          className="bg-gray-900 border border-cyan-900 rounded-xl w-[90%] max-w-lg p-5 text-sm text-gray-200 shadow-xl max-h-[85vh] overflow-y-auto"
+          className="bg-gray-900 border border-cyan-900 rounded-xl w-[90%] max-w-2xl p-5 text-sm text-gray-200 shadow-xl max-h-[85vh] overflow-y-auto"
         >
+          {/* Header */}
           <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-cyan-400 text-lg">{title}</h3>
+            <h3 className="font-semibold text-cyan-400">{title}</h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-200">
               ✖
             </button>
           </div>
 
-          <div className="space-y-6">
-            {/* --- Offer Section --- */}
+          {/* Your Offer */}
+          <div className="space-y-4">
             <div>
               <h4 className="font-medium text-cyan-300 mb-2">Your Offer</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {my_properties.length > 0 ? (
-                  my_properties.map((prop: Property) => {
-                    const selected = offerProperties.includes(prop.id);
-                    return (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {my_properties.map((prop: Property) => (
+                  <div
+                    key={prop.id}
+                    onClick={() =>
+                      toggleSelect(prop.id, offerProperties, setOfferProperties)
+                    }
+                    className={`border rounded-lg p-2 cursor-pointer transition ${offerProperties.includes(prop.id)
+                        ? "border-cyan-500 bg-cyan-900/40"
+                        : "border-gray-700 hover:bg-gray-800/40"
+                      }`}
+                  >
+                    {prop.color && (
                       <div
-                        key={prop.id}
-                        onClick={() =>
-                          toggleSelect(prop.id, offerProperties, setOfferProperties)
-                        }
-                        className={`relative border rounded-lg cursor-pointer p-2 text-center transition-all ${selected
-                            ? "border-cyan-500 bg-cyan-900/30"
-                            : "border-gray-700 hover:bg-gray-800/40"
-                          }`}
-                      >
-                        {/* Group color bar */}
-                        {prop.color && (
-                          <div
-                            className="absolute top-0 left-0 w-full h-2 rounded-t-md"
-                            style={{ backgroundColor: prop.color }}
-                          />
-                        )}
-                        <div className="pt-3">
-                          <p className="font-semibold text-gray-100 truncate">
-                            {prop.name}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">💵 {prop.price}</p>
-                        </div>
-                        {selected && (
-                          <div className="absolute top-1 right-1 text-cyan-400 text-xs">
-                            ✔
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="col-span-full text-center text-gray-500 text-xs">
-                    You own no properties
-                  </p>
-                )}
+                        className="w-full h-2 rounded-md mb-1"
+                        style={{ backgroundColor: prop.color }}
+                      />
+                    )}
+                    <div className="text-xs font-semibold text-gray-100 truncate">
+                      {prop.name}
+                    </div>
+                    <div className="text-[11px] text-gray-400">💵 {prop.price}</div>
+                  </div>
+                ))}
               </div>
-
               <input
                 type="number"
-                className="w-full bg-gray-800 rounded p-2 mt-3 border border-gray-700"
+                className="w-full bg-gray-800 rounded p-2 mt-3 border border-gray-700 text-gray-100"
                 placeholder="💰 Offer Cash"
                 value={offerCash || ""}
                 onChange={(e) => setOfferCash(Number(e.target.value))}
               />
             </div>
 
-            {/* --- Request Section --- */}
+            {/* Request Properties */}
             <div>
               <h4 className="font-medium text-cyan-300 mb-2">Request Properties</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {properties.length > 0 ? (
-                  properties.map((prop: Property) => {
-                    const selected = requestProperties.includes(prop.id);
-                    return (
-                      <div
-                        key={prop.id}
-                        onClick={() =>
-                          toggleSelect(prop.id, requestProperties, setRequestProperties)
-                        }
-                        className={`relative border rounded-lg cursor-pointer p-2 text-center transition-all ${selected
-                            ? "border-cyan-500 bg-cyan-900/30"
-                            : "border-gray-700 hover:bg-gray-800/40"
-                          }`}
-                      >
-                        {prop.color && (
-                          <div
-                            className="absolute top-0 left-0 w-full h-2 rounded-t-md"
-                            style={{ backgroundColor: prop.color }}
-                          />
-                        )}
-                        <div className="pt-3">
-                          <p className="font-semibold text-gray-100 truncate">
-                            {prop.name}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">💵 {prop.price}</p>
-                        </div>
-                        {selected && (
-                          <div className="absolute top-1 right-1 text-cyan-400 text-xs">
-                            ✔
-                          </div>
-                        )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {targetOwnedProps.length > 0 ? (
+                  targetOwnedProps.map((prop: Property) => (
+                    <div
+                      key={prop.id}
+                      onClick={() =>
+                        toggleSelect(prop.id, requestProperties, setRequestProperties)
+                      }
+                      className={`border rounded-lg p-2 cursor-pointer transition ${requestProperties.includes(prop.id)
+                          ? "border-cyan-500 bg-cyan-900/40"
+                          : "border-gray-700 hover:bg-gray-800/40"
+                        }`}
+                    >
+                      {prop.color && (
+                        <div
+                          className="w-full h-2 rounded-md mb-1"
+                          style={{ backgroundColor: prop.color }}
+                        />
+                      )}
+                      <div className="text-xs font-semibold text-gray-100 truncate">
+                        {prop.name}
                       </div>
-                    );
-                  })
+                      <div className="text-[11px] text-gray-400">💵 {prop.price}</div>
+                    </div>
+                  ))
                 ) : (
-                  <p className="col-span-full text-center text-gray-500 text-xs">
-                    No properties available
-                  </p>
+                  <p className="text-gray-500 text-xs">No tradable properties available.</p>
                 )}
               </div>
-
               <input
                 type="number"
-                className="w-full bg-gray-800 rounded p-2 mt-3 border border-gray-700"
+                className="w-full bg-gray-800 rounded p-2 mt-3 border border-gray-700 text-gray-100"
                 placeholder="💰 Request Cash"
                 value={requestCash || ""}
                 onChange={(e) => setRequestCash(Number(e.target.value))}
               />
             </div>
 
-            {/* --- Action Buttons --- */}
-            <div className="flex justify-end gap-3 pt-2">
+            {/* Buttons */}
+            <div className="flex justify-end gap-2 pt-3">
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition"
+                className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300"
               >
                 Cancel
               </button>
               <button
                 onClick={onSubmit}
-                className="px-4 py-2 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white font-semibold transition"
+                className="px-4 py-2 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white font-semibold"
               >
-                Submit
+                Submit Trade
               </button>
             </div>
           </div>
