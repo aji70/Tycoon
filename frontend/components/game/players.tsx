@@ -23,6 +23,7 @@ export default function GamePlayers({
   const { address } = useAccount();
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
+  const [targetPlayerProperties, setTargetPlayerProperties] = useState<any[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [openTrades, setOpenTrades] = useState<any[]>([]);
   const [tradeRequests, setTradeRequests] = useState<any[]>([]);
@@ -367,6 +368,7 @@ export default function GamePlayers({
         setOfferCash={setOfferCash}
         setRequestCash={setRequestCash}
         toggleSelect={toggleSelect}
+        targetPlayerAddres={tradeModal.target?.address}
       />
 
       {/* Counter Trade Modal */}
@@ -387,6 +389,7 @@ export default function GamePlayers({
         setOfferCash={setOfferCash}
         setRequestCash={setRequestCash}
         toggleSelect={toggleSelect}
+        targetPlayerAddres={tradeModal.target?.address}
       />
     </aside>
   );
@@ -412,25 +415,23 @@ function TradeModal({
   setOfferCash,
   setRequestCash,
   toggleSelect,
+  targetPlayerAddres
 }: any) {
   if (!open) return null;
 
-  // Determine the target player's owned properties (filter by type)
   const targetOwnedProps = useMemo(() => {
     const validTypes = ["land", "railway", "utility"];
-    const ownedIds = game_properties
-      .filter(
-        (gp: any) =>
-          gp.owner_id &&
-          gp.owner_id !== undefined &&
-          validTypes.includes(
-            properties.find((p: any) => p.id === gp.property_id)?.type || ""
-          )
-      )
-      .map((gp: any) => gp.property_id);
+    // Filter game_properties by player ownership and valid type
+    const ownedGameProps = game_properties.filter(
+      (gp: any) =>
+        gp.address == targetPlayerAddres
+    );
 
-    return properties.filter((p: any) => ownedIds.includes(p.id));
-  }, [game_properties, properties]);
+    // Map to property details
+    return properties.filter((p: any) =>
+      ownedGameProps.some((gp: any) => gp.property_id === p.id)
+    );
+  }, [game_properties, properties, targetPlayerAddres]);
 
   return (
     <AnimatePresence>
@@ -467,8 +468,8 @@ function TradeModal({
                       toggleSelect(prop.id, offerProperties, setOfferProperties)
                     }
                     className={`border rounded-lg p-2 cursor-pointer transition ${offerProperties.includes(prop.id)
-                        ? "border-cyan-500 bg-cyan-900/40"
-                        : "border-gray-700 hover:bg-gray-800/40"
+                      ? "border-cyan-500 bg-cyan-900/40"
+                      : "border-gray-700 hover:bg-gray-800/40"
                       }`}
                   >
                     {prop.color && (
@@ -505,8 +506,8 @@ function TradeModal({
                         toggleSelect(prop.id, requestProperties, setRequestProperties)
                       }
                       className={`border rounded-lg p-2 cursor-pointer transition ${requestProperties.includes(prop.id)
-                          ? "border-cyan-500 bg-cyan-900/40"
-                          : "border-gray-700 hover:bg-gray-800/40"
+                        ? "border-cyan-500 bg-cyan-900/40"
+                        : "border-gray-700 hover:bg-gray-800/40"
                         }`}
                     >
                       {prop.color && (
