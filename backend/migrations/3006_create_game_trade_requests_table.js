@@ -1,5 +1,5 @@
 export const up = async (knex) => {
-  await knex.schema.createTable("game_trade_request", (table) => {
+  await knex.schema.createTable("game_trade_requests", (table) => {
     table.increments("id").primary();
     table.integer("game_id").unsigned().notNullable().index();
     table.integer("player_id").unsigned().notNullable().index();
@@ -23,5 +23,5 @@ export const up = async (knex) => {
 };
 
 export const down = async (knex) => {
-  await knex.schema.dropTableIfExists("game_trade_request");
+  await knex.schema.dropTableIfExists("game_trade_requests");
 };

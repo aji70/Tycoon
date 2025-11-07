@@ -1,6 +1,6 @@
 import db from "../config/database.js";
 
-const TABLE = "game_trade_request";
+const TABLE = "game_trade_requests";
 
 export default {
   // ✅ Create new trade request
