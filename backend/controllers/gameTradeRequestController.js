@@ -94,7 +94,7 @@ export const GameTradeRequestController = {
       }
 
       // 5️⃣ Create trade request entry
-      const [tradeId] = await trx("game_trade_requests").insert({
+      const [tradeId] = await trx("game_trade_request").insert({
         id,
         game_id,
         player_id,
@@ -130,7 +130,7 @@ export const GameTradeRequestController = {
     const trx = await db.transaction();
 
     try {
-      const trade = await trx("game_trade_requests").where({ id }).first();
+      const trade = await trx("game_trade_request").where({ id }).first();
       if (!trade) {
         await trx.rollback();
         return res
@@ -202,7 +202,7 @@ export const GameTradeRequestController = {
         .update({ balance: targetNewBalance, updated_at: new Date() });
 
       // 3️⃣ Update trade status
-      await trx("game_trade_requests").where({ id }).update({
+      await trx("game_trade_request").where({ id }).update({
         status: "accept",
         updated_at: new Date(),
       });
@@ -237,7 +237,7 @@ export const GameTradeRequestController = {
   async decline(req, res) {
     try {
       const { id } = req.body;
-      await db("game_trade_requests").where({ id }).update({
+      await db("game_trade_request").where({ id }).update({
         status: "decline",
         updated_at: new Date(),
       });
