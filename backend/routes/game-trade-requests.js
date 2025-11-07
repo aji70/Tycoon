@@ -5,6 +5,10 @@ const router = express.Router();
 
 router.post("/", GameTradeRequestController.create);
 
+router.post("/accept", GameTradeRequestController.accept);
+
+router.post("/decline", GameTradeRequestController.decline);
+
 router.get("/:id", GameTradeRequestController.getById);
 
 router.put("/:id", GameTradeRequestController.update);
@@ -19,7 +23,7 @@ router.get(
 );
 
 router.get(
-  "/game/:game_id/player/:player_id/status/:status",
+  "/game/:game_id/player/:player_id",
   GameTradeRequestController.getByGameIdAndPlayerIdAndStatus
 );
 

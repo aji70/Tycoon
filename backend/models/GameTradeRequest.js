@@ -72,32 +72,6 @@ export default {
     return records.map(this._parseJsonFields);
   },
 
-  // ✅ Get all trade requests for a game involving a specific player
-  async getByGameIdAndPlayerId(game_id, player_id) {
-    const records = await knex(TABLE)
-      .where({ game_id })
-      .andWhere(function () {
-        this.where("player_id", player_id).orWhere(
-          "target_player_id",
-          player_id
-        );
-      });
-    return records.map(this._parseJsonFields);
-  },
-
-  // ✅ Get all trade requests for a game involving a specific player and status
-  async getByGameIdAndPlayerIdAndStatus(game_id, player_id, status) {
-    const records = await knex(TABLE)
-      .where({ game_id, status })
-      .andWhere(function () {
-        this.where("player_id", player_id).orWhere(
-          "target_player_id",
-          player_id
-        );
-      });
-    return records.map(this._parseJsonFields);
-  },
-
   // ✅ Helper: parse JSON fields
   _parseJsonFields(record) {
     return {
