@@ -120,7 +120,7 @@ export const GameTradeRequestController = {
       console.error("Create Trade Error:", error);
       res
         .status(500)
-        .json({ success: false, message: "Failed to create trade request" });
+        .json({ success: false, message: "Failed to create trade request" + error?.message });
     }
   },
 
