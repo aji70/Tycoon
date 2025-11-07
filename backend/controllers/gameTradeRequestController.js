@@ -110,7 +110,9 @@ export const GameTradeRequestController = {
 
       // Commit initial insert
       await trx.commit();
-      const trade = await GameTradeRequest.getByGameId(tradeId);
+      const trade = await db("game_trade_request")
+        .where({ id: tradeId })
+        .first();
 
       return res.status(201).json({ success: true, data: trade });
     } catch (error) {
