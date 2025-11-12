@@ -220,8 +220,8 @@ export const GameTradeRequestController = {
         status: "ACCEPTED",
         sending_amount: Number(offer_amount),
         receiving_amount: Number(offer_amount),
-        created_at: now,
-        updated_at: now,
+        created_at: new Date(),
+        updated_at: new Date(),
       });
       await trx.commit();
 
