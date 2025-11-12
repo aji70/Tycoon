@@ -59,6 +59,7 @@ export default function GamePlayers({
       game_properties.find((gp) => gp.property_id === property_id)?.mortgaged ?? false,
     [game_properties]
   );
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const developmentStage = useCallback(
     (property_id: number) =>
@@ -502,6 +503,60 @@ export default function GamePlayers({
           )}
         </AnimatePresence>
       </section>
+
+      {/* Property Modal */}
+      <AnimatePresence>
+        {selectedProperty && (
+          <motion.div
+            key="property-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="bg-gray-900 rounded-xl shadow-lg w-80 border border-cyan-900"
+            >
+              <div className="p-4 border-b border-cyan-800 flex justify-between items-center">
+                <h4 className="text-gray-200 font-semibold">
+                  {selectedProperty.name}
+                </h4>
+                <button
+                  onClick={() => setSelectedProperty(null)}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  ✖
+                </button>
+              </div>
+
+              <div className="p-4 space-y-2 text-sm text-gray-300">
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏠 Buy House
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏚️ Sell House
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏨 Buy Hotel
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏩 Sell Hotel
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  💰 Mortgage
+                </button>
+                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  💸 Unmortgage
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Create + Counter Modals */}
       <TradeModal
