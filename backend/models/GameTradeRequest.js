@@ -65,6 +65,24 @@ export default {
       });
     return records.map(this._parseJsonFields);
   },
+  
+  async getByGameIdAndPlayerId(game_id, player_id, status) {
+    const records = await db(TABLE)
+      .where("game_id", game_id)
+      .andWhere(function () {
+        this.where("player_id", player_id).orWhere(
+          "target_player_id",
+          player_id
+        );
+      })
+      .modify(function (query) {
+        if (status) {
+          query.andWhere("status", status);
+        }
+      });
+
+    return records.map(this._parseJsonFields);
+  },
 
   // ✅ Get all trades for a game with a specific status
   async getByStatus(game_id, status) {

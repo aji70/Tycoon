@@ -120,7 +120,10 @@ export const GameTradeRequestController = {
       console.error("Create Trade Error:", error);
       res
         .status(500)
-        .json({ success: false, message: "Failed to create trade request" + error?.message });
+        .json({
+          success: false,
+          message: "Failed to create trade request" + error?.message,
+        });
     }
   },
 
@@ -312,9 +315,11 @@ export const GameTradeRequestController = {
   async getByGameIdAndPlayerId(req, res) {
     try {
       const { game_id, player_id } = req.params;
+      const { status } = req.query;
       const trades = await GameTradeRequest.getByGameIdAndPlayerId(
         game_id,
-        player_id
+        player_id,
+        status
       );
       res.json({ success: true, data: trades });
     } catch (error) {
