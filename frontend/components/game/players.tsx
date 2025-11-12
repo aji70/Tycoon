@@ -264,21 +264,77 @@ export default function GamePlayers({
               {openTrades.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-cyan-400 mb-2">My Trades</h4>
-                  {openTrades.map((trade) => (
-                    <div
-                      key={trade.id}
-                      className="border border-cyan-800 rounded p-2 bg-gray-900"
-                    >
-                      <div className="flex justify-between text-xs">
-                        <span>With: <b>{trade.target_player_id}</b></span>
-                        <span className="text-gray-400">{trade.status}</span>
+                  {openTrades.map((trade) => {
+                    const offeredProps = properties.filter((p) =>
+                      trade.offer_properties?.includes(p.id)
+                    );
+                    const requestedProps = properties.filter((p) =>
+                      trade.requested_properties?.includes(p.id)
+                    );
+
+                    return (
+                      <div
+                        key={trade.id}
+                        className="border border-cyan-800 rounded p-2 bg-gray-900 mb-2"
+                      >
+                        <div className="flex justify-between text-xs">
+                          <span>
+                            With:{" "}
+                            <b>
+                              {
+                                game.players.find(
+                                  (pl) => pl.user_id === trade.target_player_id
+                                )?.username
+                              }
+                            </b>
+                          </span>
+                          <span className="text-gray-400 capitalize">{trade.status}</span>
+                        </div>
+
+                        {/* Offer */}
+                        <div className="mt-1 text-xs text-gray-300">
+                          <span className="font-semibold text-cyan-400">Your Offer:</span>
+                          {offeredProps.length > 0 ? (
+                            <ul className="list-disc list-inside text-gray-400">
+                              {offeredProps.map((prop) => (
+                                <li key={prop.id}>
+                                  {prop.name} — 💵 {prop.price}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-500">No properties</span>
+                          )}
+                          {trade.offer_amount > 0 && (
+                            <div className="text-gray-400 mt-1">
+                              + 💰 {trade.offer_amount} cash
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Request */}
+                        <div className="mt-2 text-xs text-gray-300">
+                          <span className="font-semibold text-cyan-400">Their Offer:</span>
+                          {requestedProps.length > 0 ? (
+                            <ul className="list-disc list-inside text-gray-400">
+                              {requestedProps.map((prop) => (
+                                <li key={prop.id}>
+                                  {prop.name} — 💵 {prop.price}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-500">No properties</span>
+                          )}
+                          {trade.requested_amount > 0 && (
+                            <div className="text-gray-400 mt-1">
+                              + 💰 {trade.requested_amount} cash
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xs mt-1 text-gray-400 italic">
-                        Offer: {trade.offer_properties?.length} props / {trade.offer_amount} 💰 |
-                        Request: {trade.requested_properties?.length} props / {trade.requested_amount} 💰
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -286,27 +342,99 @@ export default function GamePlayers({
               {tradeRequests.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-cyan-400 mb-2">Trade Requests</h4>
-                  {tradeRequests.map((trade) => (
-                    <div
-                      key={trade.id}
-                      className="border border-gray-700 rounded p-2 bg-gray-900"
-                    >
-                      <div className="text-xs mb-1">From: <b>{trade.player_id}</b></div>
-                      <div className="flex justify-between text-xs">
-                        <button onClick={() => handleTradeAction(trade.id, "accept")} className="text-green-400 hover:text-green-300">
-                          Accept
-                        </button>
-                        <button onClick={() => handleTradeAction(trade.id, "decline")} className="text-red-400 hover:text-red-300">
-                          Decline
-                        </button>
-                        <button onClick={() => handleTradeAction(trade.id, "counter")} className="text-cyan-400 hover:text-cyan-300">
-                          Counter
-                        </button>
+                  {tradeRequests.map((trade) => {
+                    const offeredProps = properties.filter((p) =>
+                      trade.offer_properties?.includes(p.id)
+                    );
+                    const requestedProps = properties.filter((p) =>
+                      trade.requested_properties?.includes(p.id)
+                    );
+
+                    return (
+                      <div
+                        key={trade.id}
+                        className="border border-gray-700 rounded p-2 bg-gray-900 mb-2"
+                      >
+                        <div className="text-xs mb-1">
+                          From:{" "}
+                          <b>
+                            {
+                              game.players.find(
+                                (pl) => pl.user_id === trade.player_id
+                              )?.username
+                            }
+                          </b>
+                        </div>
+
+                        {/* Offer */}
+                        <div className="text-xs text-gray-300">
+                          <span className="font-semibold text-cyan-400">Their Offer:</span>
+                          {offeredProps.length > 0 ? (
+                            <ul className="list-disc list-inside text-gray-400">
+                              {offeredProps.map((prop) => (
+                                <li key={prop.id}>
+                                  {prop.name} — 💵 {prop.price}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-500">No properties</span>
+                          )}
+                          {trade.offer_amount > 0 && (
+                            <div className="text-gray-400 mt-1">
+                              + 💰 {trade.offer_amount} cash
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Requested */}
+                        <div className="mt-2 text-xs text-gray-300">
+                          <span className="font-semibold text-cyan-400">Your Request:</span>
+                          {requestedProps.length > 0 ? (
+                            <ul className="list-disc list-inside text-gray-400">
+                              {requestedProps.map((prop) => (
+                                <li key={prop.id}>
+                                  {prop.name} — 💵 {prop.price}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-500">No properties</span>
+                          )}
+                          {trade.requested_amount > 0 && (
+                            <div className="text-gray-400 mt-1">
+                              + 💰 {trade.requested_amount} cash
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex justify-between text-xs mt-3">
+                          <button
+                            onClick={() => handleTradeAction(trade.id, "accept")}
+                            className="text-green-400 hover:text-green-300"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleTradeAction(trade.id, "decline")}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            onClick={() => handleTradeAction(trade.id, "counter")}
+                            className="text-cyan-400 hover:text-cyan-300"
+                          >
+                            Counter
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
+
 
               {openTrades.length === 0 && tradeRequests.length === 0 && (
                 <p className="text-gray-500 text-center text-xs">No trades yet..</p>
