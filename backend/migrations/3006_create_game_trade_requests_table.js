@@ -13,7 +13,7 @@ export const up = async (knex) => {
     table.decimal("requested_amount", 15, 2).defaultTo(0.0);
 
     table
-      .enum("status", ["accept", "decline", "counter", "pending"])
+      .enum("status", ["accepted", "declined", "counter", "pending"])
       .defaultTo("pending")
       .notNullable();
 
