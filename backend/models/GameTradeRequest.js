@@ -49,13 +49,13 @@ export default {
 
   // ✅ Get all trade requests for a given game
   async getByGameId(game_id) {
-    const records = await db(TABLE).where({ game_id });
+    return await db(TABLE).where({ game_id });
     return records.map(this._parseJsonFields);
   },
 
   // ✅ Get all trades involving a specific player (as initiator or target)
   async getByPlayer(game_id, player_id) {
-    const records = await db(TABLE)
+    return await db(TABLE)
       .where({ game_id })
       .andWhere(function () {
         this.where("player_id", player_id).orWhere(
@@ -67,7 +67,7 @@ export default {
   },
 
   async getByGameIdAndPlayerId(game_id, player_id, status) {
-    const records = await db(TABLE)
+    return await db(TABLE)
       .where("game_id", game_id)
       .andWhere(function () {
         this.where("player_id", player_id).orWhere(
@@ -85,7 +85,7 @@ export default {
   },
 
   async myTradeRequests(game_id, player_id) {
-    const records = await db(TABLE)
+    return await db(TABLE)
       .where("game_id", game_id)
       .where("player_id", player_id);
 
@@ -93,7 +93,7 @@ export default {
   },
 
   async incomingTradeRequests(game_id, player_id) {
-    const records = await db(TABLE)
+    return await db(TABLE)
       .where("game_id", game_id)
       .where("target_player_id", player_id)
       .where("status", "pending");
@@ -103,7 +103,7 @@ export default {
 
   // ✅ Get all trades for a game with a specific status
   async getByStatus(game_id, status) {
-    const records = await db(TABLE).where({ game_id, status });
+    return await db(TABLE).where({ game_id, status });
     return records.map(this._parseJsonFields);
   },
 

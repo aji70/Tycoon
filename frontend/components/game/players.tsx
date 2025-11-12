@@ -101,8 +101,8 @@ export default function GamePlayers({
     if (!me || !game?.id) return;
     try {
       const [initiated, incoming] = await Promise.all([
-        apiClient.get<ApiResponse>(`/game-trade-requests/game/${game.id}/player/${me.user_id}`),
-        apiClient.get<ApiResponse>(`/game-trade-requests/game/${game.id}/player/${me.user_id}?status=pending`),
+        apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
+        apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
       ]);
       setOpenTrades(initiated.data || []);
       setTradeRequests(incoming.data || []);
