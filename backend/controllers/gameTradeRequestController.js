@@ -216,7 +216,7 @@ export const GameTradeRequestController = {
         game_id,
         from_player_id: player.id,
         to_player_id: target_player.id,
-        type: "BOTH",
+        type: "MIXED",
         status: "ACCEPTED",
         sending_amount: Number(offer_amount),
         receiving_amount: Number(offer_amount),
