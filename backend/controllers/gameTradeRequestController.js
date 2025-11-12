@@ -164,11 +164,11 @@ export const GameTradeRequestController = {
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
         .first();
-      const target = await trx("game_players")
+      const target_player = await trx("game_players")
         .where({ game_id, user_id: target_player_id })
         .first();
 
-      if (!player || !target) {
+      if (!player || !target_player) {
         await trx.rollback();
         return res
           .status(404)
@@ -180,26 +180,29 @@ export const GameTradeRequestController = {
         await trx("game_properties")
           .whereIn("property_id", offeredProps)
           .andWhere({ game_id })
-          .update({ player_id: target.id });
+          .andWhere({ player_id: player.id })
+          .update({ player_id: target_player.id });
       }
 
       if (requestedProps.length > 0) {
         await trx("game_properties")
           .whereIn("property_id", requestedProps)
           .andWhere({ game_id })
+          .andWhere({ player_id: target_player.id })
           .update({ player_id: player.id });
       }
 
       // 2️⃣ Update balances
       const playerNewBalance = player.balance - offer_amount + requested_amount;
-      const targetNewBalance = target.balance + offer_amount - requested_amount;
+      const targetNewBalance =
+        target_player.balance + offer_amount - requested_amount;
 
       await trx("game_players")
         .where({ id: player.id })
         .update({ balance: playerNewBalance, updated_at: new Date() });
 
       await trx("game_players")
-        .where({ id: target.id })
+        .where({ id: target_player.id })
         .update({ balance: targetNewBalance, updated_at: new Date() });
 
       // 3️⃣ Update trade status
@@ -211,7 +214,7 @@ export const GameTradeRequestController = {
       await trx("game_trades").insert({
         game_id,
         from_player_id: player.id,
-        to_player_id: target.id,
+        to_player_id: target_player.id,
         type: "BOTH",
         status: "ACCEPTED",
         sending_amount: Number(offer_amount),
