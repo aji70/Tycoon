@@ -165,6 +165,8 @@ export const GameTradeRequestController = {
       const offeredProps = safeJsonParse(offer_properties);
       const requestedProps = safeJsonParse(requested_properties);
 
+      console.log(offeredProps, requestedProps)
+
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
         .first();
