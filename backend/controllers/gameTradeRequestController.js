@@ -153,10 +153,13 @@ export const GameTradeRequestController = {
         player_id,
         target_player_id,
         offer_properties,
-        offer_amount,
+        offer_amount: _offer_amount,
         requested_properties,
-        requested_amount,
+        requested_amount: _requested_amount,
       } = trade;
+
+      const offer_amount = Number(_offer_amount);
+      const requested_amount = Number(_requested_amount);
 
       // Parse JSON fields
       const offeredProps = safeJsonParse(offer_properties);
@@ -194,9 +197,10 @@ export const GameTradeRequestController = {
       }
 
       // 2️⃣ Update balances
-      const playerNewBalance = player.balance - offer_amount + requested_amount;
+      const playerNewBalance =
+        Number(player.balance) - offer_amount + requested_amount;
       const targetNewBalance =
-        target_player.balance + offer_amount - requested_amount;
+        Number(target_player.balance) + offer_amount - requested_amount;
 
       await trx("game_players")
         .where({ id: player.id })
