@@ -1,5 +1,6 @@
 import db from "../config/database.js";
 import GameTradeRequest from "../models/GameTradeRequest.js";
+import { safeJsonParse } from "../utils/string.js";
 
 export const GameTradeRequestController = {
   // CREATE TRADE REQUEST
@@ -158,8 +159,8 @@ export const GameTradeRequestController = {
       } = trade;
 
       // Parse JSON fields
-      const offeredProps = offer_properties ? JSON.parse(offer_properties) : [];
-      const requestedProps = requested_properties ? JSON.parse(requested_properties) : [];
+      const offeredProps = safeJsonParse(offer_properties);
+      const requestedProps = safeJsonParse(requested_properties);
 
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
