@@ -162,10 +162,8 @@ export const GameTradeRequestController = {
       const requested_amount = Number(_requested_amount);
 
       // Parse JSON fields
-      const offeredProps = safeJsonParse(offer_properties);
-      const requestedProps = safeJsonParse(requested_properties);
-
-      console.log(offer_properties.length, requested_properties.length)
+      const offeredProps = (offer_properties);
+      const requestedProps = (requested_properties);
 
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
