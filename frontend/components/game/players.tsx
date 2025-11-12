@@ -237,8 +237,67 @@ export default function GamePlayers({
         })}
       </ul>
 
-      {/* My Empire Section */}
-      {/* (unchanged content for brevity) */}
+      {/* My Empire Section */}  <section className="border-t border-gray-800 mt-2">
+        <button
+          onClick={toggleEmpire}
+          className="w-full flex justify-between items-center px-3 py-2 text-sm font-semibold text-gray-300 hover:bg-cyan-900/20 transition"
+        >
+          <span>🏰 My Empire</span>
+          <span className="text-xs text-cyan-400">
+            {showEmpire ? "Hide ▲" : "Show ▼"}
+          </span>
+        </button>
+
+        <AnimatePresence initial={false}>
+          {showEmpire && (
+            <motion.ul
+              key="empire-list"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="divide-y divide-gray-800 overflow-hidden"
+            >
+              {my_properties.length > 0 ? (
+                my_properties.map((prop) => (
+                  <motion.li
+                    key={prop.id}
+                    onClick={() => setSelectedProperty(prop)}
+                    whileHover={{ scale: 1.02 }}
+                    className="p-3 text-sm text-gray-200 cursor-pointer hover:bg-gray-800/50 transition"
+                  >
+                    <div className="rounded-lg border border-gray-700 shadow-sm p-2 bg-gray-900">
+                      {prop.color && (
+                        <div
+                          className="w-full h-2 rounded-t-md mb-2"
+                          style={{ backgroundColor: prop.color }}
+                        />
+                      )}
+
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">{prop.name}</span>
+                        <span className="text-xs text-gray-500">#{prop.id}</span>
+                      </div>
+
+                      <div className="mt-1 text-xs text-gray-400">
+                        <div>Price: 💵 {prop.price}</div>
+                        <div>Rent: 🏠 {rentPrice(prop.id)}</div>
+                        {isMortgaged(prop.id) ? (
+                          <div className="text-red-500 font-medium">🔒 Mortgaged</div>
+                        ) : <></>}
+                      </div>
+                    </div>
+                  </motion.li>
+                ))
+              ) : (
+                <div className="text-center text-sm font-medium text-gray-500 py-3">
+                  No properties yet..
+                </div>
+              )}
+            </motion.ul>
+          )}
+        </AnimatePresence>
+      </section>
 
       {/* Trade Section */}
       <section className="border-t border-gray-800 mt-2">
