@@ -144,14 +144,14 @@ export default function GamePlayers({
   };
 
   // 🟢 Accept, decline, or counter
-  const handleTradeAction = async (id: number, action: "accept" | "decline" | "counter") => {
+  const handleTradeAction = async (id: number, action: "accepted" | "declined" | "counter") => {
     try {
       if (action === "counter") {
         const trade = tradeRequests.find((t) => t.id === id);
         if (trade) setCounterModal({ open: true, trade });
         return;
       }
-      await apiClient.put(`/game-trade-requests/${id}`, { status: action });
+      await apiClient.post(`/game-trade-requests/${action == 'accepted' ? 'accept' : 'decline'}`, { id });
       toast.success(`Trade ${action}ed`);
       fetchTrades();
     } catch (error) {
@@ -411,13 +411,13 @@ export default function GamePlayers({
                         {/* Action buttons */}
                         <div className="flex justify-between text-xs mt-3">
                           <button
-                            onClick={() => handleTradeAction(trade.id, "accept")}
+                            onClick={() => handleTradeAction(trade.id, "accepted")}
                             className="text-green-400 hover:text-green-300"
                           >
                             Accept
                           </button>
                           <button
-                            onClick={() => handleTradeAction(trade.id, "decline")}
+                            onClick={() => handleTradeAction(trade.id, "declined")}
                             className="text-red-400 hover:text-red-300"
                           >
                             Decline
