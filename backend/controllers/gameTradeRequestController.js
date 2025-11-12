@@ -207,7 +207,7 @@ export const GameTradeRequestController = {
 
       // 3️⃣ Update trade status
       await trx("game_trade_requests").where({ id }).update({
-        status: "accept",
+        status: "accepted",
         updated_at: new Date(),
       });
 
@@ -242,7 +242,7 @@ export const GameTradeRequestController = {
     try {
       const { id } = req.body;
       await db("game_trade_requests").where({ id }).update({
-        status: "decline",
+        status: "declined",
         updated_at: new Date(),
       });
       res.json({ success: true, message: "Trade declined" });
