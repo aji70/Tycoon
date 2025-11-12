@@ -65,7 +65,7 @@ export default {
       });
     return records.map(this._parseJsonFields);
   },
-  
+
   async getByGameIdAndPlayerId(game_id, player_id, status) {
     const records = await db(TABLE)
       .where("game_id", game_id)
@@ -80,6 +80,23 @@ export default {
           query.andWhere("status", status);
         }
       });
+
+    return records.map(this._parseJsonFields);
+  },
+
+  async myTradeRequests(game_id, player_id) {
+    const records = await db(TABLE)
+      .where("game_id", game_id)
+      .where("player_id", player_id);
+
+    return records.map(this._parseJsonFields);
+  },
+
+  async incomingTradeRequests(game_id, player_id) {
+    const records = await db(TABLE)
+      .where("game_id", game_id)
+      .where("target_player_id", player_id)
+      .where("status", "pending");
 
     return records.map(this._parseJsonFields);
   },

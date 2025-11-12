@@ -118,12 +118,10 @@ export const GameTradeRequestController = {
     } catch (error) {
       await trx.rollback();
       console.error("Create Trade Error:", error);
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: "Failed to create trade request" + error?.message,
-        });
+      res.status(500).json({
+        success: false,
+        message: "Failed to create trade request" + error?.message,
+      });
     }
   },
 
@@ -346,6 +344,33 @@ export const GameTradeRequestController = {
       res
         .status(500)
         .json({ success: false, message: "Error fetching trades by status" });
+    }
+  },
+  async myTradeRequests(req, res) {
+    try {
+      const { game_id, player_id } = req.params;
+      const trades = await GameTradeRequest.myTradeRequests(game_id, player_id);
+      res.json({ success: true, data: trades });
+    } catch (error) {
+      console.error("Get By Player Error:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Error fetching trades by player" });
+    }
+  },
+  async incomingTradeRequests(req, res) {
+    try {
+      const { game_id, player_id } = req.params;
+      const trades = await GameTradeRequest.incomingTradeRequests(
+        game_id,
+        player_id
+      );
+      res.json({ success: true, data: trades });
+    } catch (error) {
+      console.error("Get By Player Error:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Error fetching trades by player" });
     }
   },
 };

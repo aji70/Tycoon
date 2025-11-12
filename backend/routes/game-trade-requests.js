@@ -23,8 +23,13 @@ router.get(
 );
 
 router.get(
-  "/game/:game_id/player/:player_id",
-  GameTradeRequestController.getByGameIdAndPlayerIdAndStatus
+  "/my/:game_id/player/:player_id",
+  GameTradeRequestController.myTradeRequests
+);
+
+router.get(
+  "/incoming/:game_id/player/:player_id",
+  GameTradeRequestController.incomingTradeRequests
 );
 
 export default router;
