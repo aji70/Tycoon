@@ -238,6 +238,30 @@ const gamePropertyController = {
         });
       }
 
+      // Ensure development difference between properties ≤ 1
+      const groupDevelopments = await trx("game_properties")
+        .whereIn("property_id", groupProperties)
+        .andWhere({ game_id, player_id: player.id })
+        .select("property_id", "development");
+
+      // If groupDevelopments contains all owned properties, validate difference
+      if (groupDevelopments.length > 0) {
+        const levels = groupDevelopments.map((p) => Number(p.development || 0));
+        const minLevel = Math.min(...levels);
+        const maxLevel = Math.max(...levels);
+        const difference = maxLevel - minLevel;
+
+        if (difference > 1) {
+          await trx.rollback();
+          return res.status(422).json({
+            success: false,
+            message:
+              "Development levels in this property group must be within 1 level of each other",
+            data: null,
+          });
+        }
+      }
+
       // 5️⃣ Check player balance
       if (Number(player.balance) < Number(property.cost_of_house)) {
         await trx.rollback();
