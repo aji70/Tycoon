@@ -182,6 +182,14 @@ const gamePropertyController = {
           .status(422)
           .json({ success: false, message: "Player not in game", data: null });
       }
+      if (player.in_jail) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot develop a property in jail",
+          data: null,
+        });
+      }
 
       // 3️⃣ Fetch property
       const property = await trx("properties")
@@ -212,6 +220,14 @@ const gamePropertyController = {
         return res.status(422).json({
           success: false,
           message: "Game property not available for development",
+          data: null,
+        });
+      }
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot develop a mortgaged property",
           data: null,
         });
       }
@@ -306,6 +322,123 @@ const gamePropertyController = {
       await trx("game_properties")
         .where({ id: game_property.id })
         .increment("development", 1);
+
+      await trx.commit();
+      return res
+        .status(200)
+        .json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      console.error("Transaction failed:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async downgrade(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      // 1️⃣ Fetch game
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Game not found", data: null });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game is currently not running",
+          data: null,
+        });
+      }
+
+      // 2️⃣ Fetch player
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Player not in game", data: null });
+      }
+
+      if (player.in_jail) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot downgrade a property in jail",
+          data: null,
+        });
+      }
+      // 3️⃣ Fetch property
+      const property = await trx("properties")
+        .where({ id: property_id })
+        .first();
+      if (!property) {
+        await trx.rollback();
+        return res
+          .status(422)
+          .json({ success: false, message: "Property not found", data: null });
+      }
+
+      if (property.group_id == "0") {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Property can not be downgraded",
+          data: null,
+        });
+      }
+
+      // 4️⃣ Check if property is owned by user
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Game property not available for downgrade",
+          data: null,
+        });
+      }
+
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Cannot downgrade a mortgaged property",
+          data: null,
+        });
+      }
+
+      // No development
+      if (game_property.development <= 0) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "No active development on this property",
+          data: null,
+        });
+      }
+
+      // Credit balance
+      await trx("game_players")
+        .where({ id: player.id })
+        .update({
+          balance: Number(player.balance) + Number(property.cost_of_house) / 2,
+          updated_at: db.fn.now(),
+        });
+
+      // Update game property development
+      await trx("game_properties")
+        .where({ id: game_property.id })
+        .decrement("development", 1);
 
       await trx.commit();
       return res
