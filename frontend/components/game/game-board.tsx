@@ -446,6 +446,16 @@ const GameBoard = ({
     return null;
   }
 
+  const getGamePropertyForSquare = useCallback((property_id: number): GameProperty | null => {
+    return game_properties.find((gp) => gp.property_id === property_id) || null;
+  }, [game_properties]);
+
+  const developmentStage = useCallback(
+    (property_id: number) =>
+      game_properties.find((gp) => gp.property_id === property_id)?.development ?? 0,
+    [game_properties]
+  );
+
   /* ---------- Activity Log Helpers ---------- */
   const logRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -574,6 +584,8 @@ const GameBoard = ({
               {/* Board Squares */}
               {boardData.map((square, index) => {
                 const playersHere = playersByPosition.get(index) ?? [];
+                const gameProp = getGamePropertyForSquare(square.id);
+                const devLevel = developmentStage(square.id);
 
                 return (
                   <motion.div
@@ -590,6 +602,13 @@ const GameBoard = ({
                       {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
                       {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                       {square.type === "corner" && <CornerCard square={square} />}
+
+                      {/* Development Level Indicator */}
+                      {square.type === "property" && devLevel > 0 && (
+                        <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
+                          {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
+                        </div>
+                      )}
 
                       <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">
                         {playersHere.map((p) => {
