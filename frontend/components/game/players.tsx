@@ -222,7 +222,7 @@ export default function GamePlayers({
     try {
       const payload = {
         game_id: game.id,
-        player_id: me.user_id,
+        user_id: me.user_id,
         property_id: id,
       };
 
@@ -234,7 +234,7 @@ export default function GamePlayers({
       toast.success("Property development successfully");
     } catch (error: any) {
       console.error(error);
-      toast.error(error?.response?.data?.message || "Failed to develop propert");
+      toast.error(error?.response?.data?.message || "Failed to develop property");
     }
   };
 

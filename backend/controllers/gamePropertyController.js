@@ -191,7 +191,7 @@ const gamePropertyController = {
 
       // 4️⃣ Check if property is owned by user
       const game_property = await trx("game_properties")
-        .where({ property_id, game_id })
+        .where({ property_id, game_id, player_id: player.id })
         .first();
       if (!game_property) {
         await trx.rollback();
@@ -208,7 +208,7 @@ const gamePropertyController = {
       // Check which of those properties the user owns in this game
       const ownedGroupProps = await trx("game_properties")
         .whereIn("property_id", groupProperties)
-        .andWhere({ game_id, owner_id: user_id }) // adjust to your owner field
+        .andWhere({ game_id, player_id: player.id }) // adjust to your owner field
         .count("id as count")
         .first();
 
