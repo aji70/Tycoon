@@ -8,6 +8,8 @@ router.post("/", gamePropertyController.create);
 router.post("/buy", gamePropertyController.buy);
 router.post("/development", gamePropertyController.development);
 router.post("/downgrade", gamePropertyController.downgrade);
+router.post("/mortgage", gamePropertyController.mortgage);
+router.post("/unmortgage", gamePropertyController.unmortgage);
 router.get("/", gamePropertyController.findAll);
 router.get("/:id", gamePropertyController.findById);
 router.put("/:id", gamePropertyController.update);
