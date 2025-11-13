@@ -60,7 +60,7 @@ class ApiClient {
     return {
       success: true,
       message: data?.message || "Request successful",
-      data: data?.data ?? data,
+      data: data,
     };
   }
 
@@ -86,4 +86,3 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
-

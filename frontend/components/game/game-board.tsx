@@ -169,7 +169,7 @@ const GameBoard = ({
   /* ---------- Fetch Updated Game ---------- */
   const fetchUpdatedGame = useCallback(async () => {
     try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`)
       if (res?.data?.success) {
         const gameData = res.data?.data;
         if (gameData && Array.isArray((gameData as any).players)) {
@@ -303,12 +303,12 @@ const GameBoard = ({
       if (!id || !lockAction("END")) return;
 
       try {
-        const resp = await apiClient.post<ApiResponse>("/game-players/end-turn", {
+        const res = await apiClient.post<ApiResponse>("/game-players/end-turn", {
           user_id: id,
           game_id: game.id,
         });
 
-        if (!resp?.success) throw new Error(resp?.message || "Server rejected turn end.");
+        if (!res?.data?.success) throw new Error(res?.data?.message || "Server rejected turn end.");
 
         const updatedGame = await fetchUpdatedGame();
         if (updatedGame?.players) {
@@ -381,7 +381,7 @@ const GameBoard = ({
             }
           );
 
-          if (!updateResp?.success) toast.error("Unable to move from current position");
+          if (!updateResp?.data?.success) toast.error("Unable to move from current position");
 
           setPendingRoll(0);
           const updatedGame = await fetchUpdatedGame();
