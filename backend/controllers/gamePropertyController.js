@@ -430,10 +430,7 @@ const gamePropertyController = {
       // Credit balance
       await trx("game_players")
         .where({ id: player.id })
-        .update({
-          balance: Number(player.balance) + Number(property.cost_of_house) / 2,
-          updated_at: db.fn.now(),
-        });
+        .increment("balance", Number(property.cost_of_house) / 2);
 
       // Update game property development
       await trx("game_properties")
