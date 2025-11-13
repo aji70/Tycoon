@@ -252,7 +252,6 @@ export default function GamePlayers({
     }
   };
 
-
   const handleDowngrade = async (id: number) => {
     if (!isNext || !me) return;
 
@@ -272,6 +271,50 @@ export default function GamePlayers({
     } catch (error: any) {
       console.error(error);
       toast.error(error?.message || "Failed to downgrade property..");
+    }
+  };
+
+  const handleMortgage = async (id: number) => {
+    if (!isNext || !me) return;
+
+    try {
+      const payload = {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", payload);
+      if (res?.data?.success) {
+        toast.success("Property mortgaged successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to mortgage property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to mortgage property..");
+    }
+  };
+
+  const handleUnmortgage = async (id: number) => {
+    if (!isNext || !me) return;
+
+    try {
+      const payload = {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", payload);
+      if (res?.data?.success) {
+        toast.success("Property unmortgaged successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to unmortgage property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to unmortgage property..");
     }
   };
 
@@ -622,10 +665,10 @@ export default function GamePlayers({
                 <button onClick={() => handleDowngrade(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
                   🏚️ Downgrade
                 </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                <button onClick={() => handleMortgage(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
                   💰 Mortgage
                 </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                <button onClick={() => handleUnmortgage(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
                   💸 Unmortgage
                 </button>
               </div>
