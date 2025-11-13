@@ -228,7 +228,7 @@ export default function GamePlayers({
 
       const res = await apiClient.post<ApiResponse>("/game-properties/development", payload);
       if (res?.data?.error) {
-        toast.error(res.data.message || "Failed to develop property.");
+        toast.error(res.data.error ?? (res.data?.message || "Failed to develop property."));
         return;
       }
       toast.success("Property development successfully");
