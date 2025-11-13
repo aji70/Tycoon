@@ -160,12 +160,12 @@ const gamePropertyController = {
       if (!game) {
         await trx.rollback();
         return res
-          .status(200)
+          .status(422)
           .json({ success: false, message: "Game not found", data: null });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
-        return res.status(200).json({
+        return res.status(422).json({
           success: false,
           message: "Game is currently not running",
           data: null,
@@ -179,7 +179,7 @@ const gamePropertyController = {
       if (!player) {
         await trx.rollback();
         return res
-          .status(200)
+          .status(422)
           .json({ success: false, message: "Player not in game", data: null });
       }
 
@@ -190,13 +190,13 @@ const gamePropertyController = {
       if (!property) {
         await trx.rollback();
         return res
-          .status(200)
+          .status(422)
           .json({ success: false, message: "Property not found", data: null });
       }
 
       if (property.group_id == "0") {
         await trx.rollback();
-        return res.status(200).json({
+        return res.status(422).json({
           success: false,
           message: "Property can not be developed",
           data: null,
@@ -209,7 +209,7 @@ const gamePropertyController = {
         .first();
       if (!game_property) {
         await trx.rollback();
-        return res.status(200).json({
+        return res.status(422).json({
           success: false,
           message: "Game property not available for development",
           data: null,
@@ -231,7 +231,7 @@ const gamePropertyController = {
       // Compare counts
       if (Number(ownedGroupProps.count) !== groupProperties.length) {
         await trx.rollback();
-        return res.status(200).json({
+        return res.status(422).json({
           success: false,
           message: "You must own all properties in this group to develop",
           data: null,
@@ -241,7 +241,7 @@ const gamePropertyController = {
       // 5️⃣ Check player balance
       if (Number(player.balance) < Number(property.cost_of_house)) {
         await trx.rollback();
-        return res.status(200).json({
+        return res.status(422).json({
           success: false,
           message: "Insufficient balance",
           data: null,
@@ -250,7 +250,7 @@ const gamePropertyController = {
 
       if (game_property.development >= 5) {
         await trx.rollback();
-        return res.status(200).json({
+        return res.status(422).json({
           success: false,
           message: "Property developed to the max",
           data: null,
