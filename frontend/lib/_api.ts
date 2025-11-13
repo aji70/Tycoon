@@ -91,18 +91,5 @@ class ApiClient {
 }
 
 // Create and export the API client instance
-export const apiClient = new ApiClient(API_BASE_URL);
+export const _apiClient = new ApiClient(API_BASE_URL);
 export { ApiError };
-
-// Health check utility
-export const checkApiHealth = async (): Promise<{
-  status: string;
-  timestamp: string;
-}> => {
-  try {
-    return await apiClient.get("/health");
-  } catch (error) {
-    console.error("API health check failed:", error);
-    throw error;
-  }
-};

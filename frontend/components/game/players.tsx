@@ -159,10 +159,14 @@ export default function GamePlayers({
       };
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-      toast.success("Trade created successfully");
-      setOpenTrades((prev) => [...prev, res.data]);
-      setTradeModal({ open: false, target: null });
-      resetTradeFields();
+      if (res?.data?.success) {
+        toast.success("Trade created successfully");
+        setOpenTrades((prev) => [...prev, res.data]);
+        setTradeModal({ open: false, target: null });
+        resetTradeFields();
+        return;
+      }
+      toast.error(res?.data?.message || "Failed to create trade");
     } catch (error: any) {
       console.error(error);
       toast.error(error?.response?.data?.message || "Failed to create trade");
@@ -177,9 +181,13 @@ export default function GamePlayers({
         if (trade) setCounterModal({ open: true, trade });
         return;
       }
-      await apiClient.post(`/game-trade-requests/${action == 'accepted' ? 'accept' : 'decline'}`, { id });
-      toast.success(`Trade ${action}ed`);
-      fetchTrades();
+      const res = await apiClient.post<ApiResponse>(`/game-trade-requests/${action == 'accepted' ? 'accept' : 'decline'}`, { id });
+      if (res?.data?.success) {
+        toast.success(`Trade ${action}`);
+        fetchTrades();
+        return;
+      }
+      toast.error("Failed to update trade");
     } catch (error) {
       console.error(error);
       toast.error("Failed to update trade");
@@ -197,11 +205,15 @@ export default function GamePlayers({
         requested_amount: requestCash,
         status: "counter",
       };
-      await apiClient.put(`/game-trade-requests/${counterModal.trade.id}`, payload);
-      toast.success("Counter offer sent");
-      setCounterModal({ open: false, trade: null });
-      resetTradeFields();
-      fetchTrades();
+      const res = await apiClient.put<ApiResponse>(`/game-trade-requests/${counterModal.trade.id}`, payload);
+      if (res?.data?.success) {
+        toast.success("Counter offer sent");
+        setCounterModal({ open: false, trade: null });
+        resetTradeFields();
+        fetchTrades();
+        return;
+      }
+      toast.error("Failed to send counter trade");
     } catch (error) {
       console.error(error);
       toast.error("Failed to send counter trade");

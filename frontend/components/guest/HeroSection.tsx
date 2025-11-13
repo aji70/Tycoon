@@ -14,6 +14,7 @@ import {
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
+import { ApiResponse } from "@/types/api";
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
@@ -82,25 +83,26 @@ const HeroSection: React.FC = () => {
     try {
       await registerPlayer(username);
 
-      const response = await apiClient.post<UserType>("/users", {
+      const res = await apiClient.post<ApiResponse>("/users", {
         username,
         address,
         chain: "Base",
       });
 
-      if (!response) {
-        toast.error("Failed to register. Please try again.");
+      if (res?.data?.success) {
+        toast.update(toastId, {
+          render: "Registration successful!",
+          type: "success",
+          isLoading: false,
+          autoClose: 3000,
+          onClose: () => {
+            router.refresh();
+          },
+        });
+        return;
       }
+      toast.error("Failed to register. Please try again.");
 
-      toast.update(toastId, {
-        render: "Registration successful!",
-        type: "success",
-        isLoading: false,
-        autoClose: 3000,
-        onClose: () => {
-          router.refresh();
-        },
-      });
     } catch (err: any) {
       console.error("Registration error:", err);
       let errorMessage =

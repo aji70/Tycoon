@@ -30,8 +30,8 @@ export default function GamePlayPage() {
     queryKey: ["game", gameCode],
     queryFn: async () => {
       if (!gameCode) throw new Error("No game code found");
-      const res = await apiClient.get<ApiResponse<Game>>(`/games/code/${gameCode}`);
-      return res.data!;
+      const res = await apiClient.get<ApiResponse>(`/games/code/${gameCode}`);
+      return res.data?.success ? res.data.data : null;
     },
     enabled: !!gameCode,
     refetchInterval: 5000,
@@ -51,8 +51,8 @@ export default function GamePlayPage() {
   } = useQuery<Property[]>({
     queryKey: ["properties"],
     queryFn: async () => {
-      const res = await apiClient.get<ApiResponse<Property[]>>("/properties");
-      return res.data || [];
+      const res = await apiClient.get<ApiResponse>("/properties");
+      return res.data?.success ? res.data.data : [];
     }
   });
 
@@ -64,15 +64,15 @@ export default function GamePlayPage() {
     queryKey: ["game_properties", game?.id],
     queryFn: async () => {
       if (!game?.id) return [];
-      const res = await apiClient.get<ApiResponse<GameProperty[]>>(
+      const res = await apiClient.get<ApiResponse>(
         `/game-properties/game/${game.id}`
       );
-      return res.data || [];
+      return res.data?.success ? res.data.data : [];
     },
     enabled: !!game?.id,
     refetchInterval: 15000,
   });
-  
+
   const my_properties: Property[] = useMemo(() => {
     if (!game_properties?.length || !properties?.length || !address) return [];
 

@@ -144,13 +144,15 @@ export default function GameWaiting(): JSX.Element {
     const fetchOnce = async () => {
       setError(null);
       try {
-        const res = await apiClient.get<ApiResponse<Game>>(
+        const res = await apiClient.get<ApiResponse>(
           `/games/code/${encodeURIComponent(gameCode)}`
         );
 
         if (!mountedRef.current) return;
 
-        const gameData = res?.data;
+        if (!res?.data?.success) return;
+
+        const gameData = res?.data?.data;
         if (!gameData) throw new Error(`Game ${gameCode} not found`);
 
         // Redirect if already running
@@ -271,14 +273,14 @@ export default function GameWaiting(): JSX.Element {
       }
 
       // persist to API
-      const resp = await apiClient.post<ApiResponse>("/game-players/join", {
+      const res = await apiClient.post<ApiResponse>("/game-players/join", {
         address,
         symbol: playerSymbol.value,
         code: game.code,
       });
 
-      if (resp?.success === false) {
-        throw new Error(resp?.message ?? "Failed to join game");
+      if (res?.data?.success === false) {
+        throw new Error(res?.data?.message ?? "Failed to join game");
       }
 
       if (mountedRef.current) {
@@ -300,12 +302,12 @@ export default function GameWaiting(): JSX.Element {
     setActionLoading(true);
     setError(null);
     try {
-      const resp = await apiClient.post<ApiResponse>("/game-players/leave", {
+      const res = await apiClient.post<ApiResponse>("/game-players/leave", {
         address,
         code: game.code,
       });
-      if (resp?.success === false)
-        throw new Error(resp?.message ?? "Failed to leave game");
+      if (res?.data?.success === false)
+        throw new Error(res?.message ?? "Failed to leave game");
       if (mountedRef.current) {
         setIsJoined(false);
         setPlayerSymbol(null);

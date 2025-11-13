@@ -87,11 +87,3 @@ class ApiClient {
 
 export const apiClient = new ApiClient(API_BASE_URL);
 
-export const checkApiHealth = async (): Promise<ApiResponse> => {
-  try {
-    return await apiClient.get("/health");
-  } catch (error) {
-    console.error("API health check failed:", error);
-    throw error;
-  }
-};

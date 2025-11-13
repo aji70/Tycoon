@@ -169,15 +169,17 @@ const GameBoard = ({
   /* ---------- Fetch Updated Game ---------- */
   const fetchUpdatedGame = useCallback(async () => {
     try {
-      const { data } = await apiClient.get<Record<string, Game>>(`/games/code/${game.code}`);
-      const gameData = data as unknown as Game;
-      if (gameData && Array.isArray((gameData as any).players)) {
-        setPlayers((prev) => {
-          const changed = JSON.stringify(prev) !== JSON.stringify((gameData as any).players);
-          return changed ? (gameData as any).players : prev;
-        });
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      if (res?.data?.success) {
+        const gameData = res.data?.data;
+        if (gameData && Array.isArray((gameData as any).players)) {
+          setPlayers((prev) => {
+            const changed = JSON.stringify(prev) !== JSON.stringify((gameData as any).players);
+            return changed ? (gameData as any).players : prev;
+          });
+        }
+        return gameData;
       }
-      return gameData;
     } catch (err) {
       console.error("fetchUpdatedGame error:", err);
       return null;
@@ -189,11 +191,11 @@ const GameBoard = ({
     if (!me?.user_id) return;
 
     try {
-      const res = await apiClient.post<ApiResponse<{ canRoll: boolean }>>(
+      const res = await apiClient.post<ApiResponse>(
         "/game-players/can-roll",
         { user_id: me.user_id, game_id: game.id }
       );
-      const allowed = Boolean(res?.data?.canRoll);
+      const allowed = Boolean(res?.data?.data?.canRoll);
       setCanRoll(allowed);
 
       if (allowed) toast.success("🎲 It's your turn — roll the dice!");
@@ -208,7 +210,7 @@ const GameBoard = ({
     const poll = async () => {
       await fetchUpdatedGame();
     };
-    poll(); 
+    poll();
     const interval = setInterval(poll, 10000);
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, checkCanRoll]);
@@ -281,14 +283,14 @@ const GameBoard = ({
         }
       );
 
-      if (res?.data?.error) {
-        toast.error(res.data.message || "Failed to buy property.");
-        return;
-      }
+      if (res?.data?.success) {
 
-      toast.success(`🏠 You bought ${currentProperty.name}!`);
-      await fetchUpdatedGame();
-      forceRefetch();
+        toast.success(`🏠 You bought ${currentProperty.name}!`);
+        await fetchUpdatedGame();
+        forceRefetch();
+      }
+      toast.error(res.data?.message || "Failed to buy property.");
+      return;
     } catch (err) {
       console.error("BUY_PROPERTY error:", err);
       toast.error("Unable to complete property purchase.");
@@ -340,12 +342,12 @@ const GameBoard = ({
     setIsRolling(true);
 
     try {
-      const res = await apiClient.post<ApiResponse<{ canRoll: boolean }>>(
+      const res = await apiClient.post<ApiResponse>(
         "/game-players/can-roll",
         { user_id: me?.user_id, game_id: game.id }
       );
 
-      const allowed = Boolean(res?.data?.canRoll);
+      const allowed = Boolean(res?.data?.data?.canRoll);
       if (!allowed) {
         toast.error("⏳ Not your turn! Wait for your turn to roll.");
         setIsRolling(false);
