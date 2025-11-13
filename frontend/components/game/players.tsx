@@ -252,6 +252,29 @@ export default function GamePlayers({
     }
   };
 
+
+  const handleDowngrade = async (id: number) => {
+    if (!isNext || !me) return;
+
+    try {
+      const payload = {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", payload);
+      if (res?.data?.success) {
+        toast.success("Property downgraded successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to downgrade property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to downgrade property..");
+    }
+  };
+
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
       {/* Players List */}
@@ -596,7 +619,7 @@ export default function GamePlayers({
                 <button onClick={() => handleDevelopment(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
                   🏠 Development
                 </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                <button onClick={() => handleDowngrade(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
                   🏚️ Downgrade
                 </button>
                 <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
