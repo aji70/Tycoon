@@ -641,7 +641,7 @@ const gamePropertyController = {
       //  Debit balance
       await trx("game_players")
         .where({ id: player.id })
-        .increment("balance", Number(property.price));
+        .decrement("balance", Number(property.price));
 
       //  Update game property mortgaged
       await trx("game_properties")
