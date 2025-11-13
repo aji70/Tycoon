@@ -45,6 +45,12 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
+interface CardPopup {
+  type: "chance" | "community_chest";
+  message: string;
+  action?: string;
+}
+
 /* ============================================
    ERROR BOUNDARY
    ============================================ */
@@ -88,6 +94,31 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
 
 const isTopHalf = (square: any) => {
   return square.grid_row === 1;
+};
+
+const getMockCardMessage = (type: "chance" | "community_chest"): { message: string; action?: string } => {
+  // Mock card data - replace with actual card drawing logic/API if available
+  const chanceCards = [
+    { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
+    { message: "Bank pays you dividend of $50", action: "collect_dividend" },
+    { message: "Pay poor tax of $15", action: "pay_tax" },
+    { message: "Take a trip to Reading Railroad ($200)", action: "advance_to_railroad" },
+    { message: "You have been elected Chairman of the Board. Pay each player $50", action: "pay_players" },
+    // Add more as needed
+  ];
+
+  const communityCards = [
+    { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
+    { message: "Doctor's fee. Pay $50", action: "pay_fee" },
+    { message: "From sale of stock you get $50", action: "collect_stock" },
+    { message: "Get Out of Jail Free", action: "get_out_of_jail_free" },
+    { message: "Go to Jail. Go directly to Jail. Do not pass Go, do not collect $200", action: "go_to_jail" },
+    // Add more as needed
+  ];
+
+  const cards = type === "chance" ? chanceCards : communityCards;
+  const randomCard = cards[Math.floor(Math.random() * cards.length)];
+  return randomCard;
 };
 
 /* ============================================
@@ -142,6 +173,7 @@ const GameBoard = ({
   const [pendingRoll, setPendingRoll] = useSafeState<number>(0);
   const [canRoll, setCanRoll] = useSafeState<boolean>(false);
   const [actionLock, setActionLock] = useSafeState<"ROLL" | "END" | null>(null);
+  const [currentCard, setCurrentCard] = useSafeState<CardPopup | null>(null);
 
   /* ---------- Locks ---------- */
   const lockAction = useCallback(
@@ -160,6 +192,9 @@ const GameBoard = ({
   const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
   const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
+
+  // Track last processed position to prevent multiple triggers
+  const lastProcessedPosition = useRef<number | null>(null);
 
   /* ---------- React Query Utilities ---------- */
   const forceRefetch = useCallback(() => {
@@ -215,26 +250,39 @@ const GameBoard = ({
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, checkCanRoll]);
 
-  // Property Action
+  // Property Action & Card Trigger
 
   const stableProperties = useMemo(() => properties, [properties]);
 
   useEffect(() => {
     if (!stableProperties.length || !me?.position || !game?.players) return;
 
-    const property = stableProperties.find((p) => p.id === me.position);
-    if (!property) return;
+    // Only process if position has changed
+    if (me.position === lastProcessedPosition.current) return;
+
+    lastProcessedPosition.current = me.position;
+
+    const square = stableProperties.find((p) => p.id === me.position);
+    if (!square) return;
 
     const game_property =
       game_properties.length === 0
         ? null
-        : game_properties.find((p) => p.property_id === property.id);
+        : game_properties.find((p) => p.property_id === square.id);
 
-    const action = PROPERTY_ACTION(property.id);
+    const action = PROPERTY_ACTION(square.id);
 
-    setCurrentProperty(property);
+    setCurrentProperty(square);
     setCurrentGameProperty(game_property || null);
     setCurrentAction(action);
+
+    // Handle Chance/Community Chest
+    if (["chance", "community_chest"].includes(square.type)) {
+      const cardType = square.type as "chance" | "community_chest";
+      const { message, action: cardAction } = getMockCardMessage(cardType);
+      setCurrentCard({ type: cardType, message, action: cardAction });
+      return;
+    }
 
     const meInGame = game.players.find((p) => p.user_id === me?.user_id);
     const hasRolled = (meInGame?.rolls ?? 0) > 0;
@@ -580,6 +628,69 @@ const GameBoard = ({
                   {(!game.history || game.history.length === 0) && <p className="text-xs text-gray-500 italic">No actions yet</p>}
                 </div>
               </div>
+
+              {/* Card Popup Modal */}
+              <AnimatePresence>
+                {currentCard && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.7, y: 100, rotate: -5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.7, y: 100, rotate: 5 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      ease: [0.25, 0.46, 0.45, 0.94], 
+                      type: "spring", 
+                      stiffness: 300, 
+                      damping: 25 
+                    }}
+                    className="fixed inset-0 flex items-center justify-center z-50 bg-black/70"
+                    onClick={() => setCurrentCard(null)} // Close on backdrop click
+                  >
+                    <motion.div
+                      layout
+                      className={`max-w-lg w-96 p-8 rounded-2xl shadow-2xl backdrop-blur-sm border border-cyan-500/30 relative ${
+                        currentCard.type === "chance"
+                          ? "bg-gradient-to-br from-orange-500/30 to-yellow-500/30 text-orange-100"
+                          : "bg-gradient-to-br from-blue-500/30 to-indigo-500/30 text-blue-100"
+                      }`}
+                      onClick={(e) => e.stopPropagation()} // Prevent close on card click
+                    >
+                      <button
+                        onClick={() => setCurrentCard(null)}
+                        className="absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-800/50"
+                      >
+                        &times;
+                      </button>
+                      <motion.h3 
+                        className="text-xl font-bold mb-6 text-center uppercase tracking-wide"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.2, duration: 0.4 }}
+                      >
+                        {currentCard.type === "chance" ? "Chance" : "Community Chest"}
+                      </motion.h3>
+                      <motion.p 
+                        className="text-base leading-relaxed text-center italic mb-6"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.3, duration: 0.4 }}
+                      >
+                        "{currentCard.message}"
+                      </motion.p>
+                      {currentCard.action && (
+                        <motion.p 
+                          className="text-sm text-center opacity-80 bg-white/10 p-2 rounded-lg"
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: 0.4, duration: 0.4 }}
+                        >
+                          Action: {currentCard.action}
+                        </motion.p>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Board Squares */}
               {boardData.map((square, index) => {
