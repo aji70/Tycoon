@@ -562,8 +562,7 @@ const GameBoard = ({
                   <h3 className="text-sm font-semibold text-cyan-300 mb-2">Action Log</h3>
                   {(game.history ?? []).map((h, i) => (
                     <p key={i} className="text-xs text-gray-300 mb-1 last:mb-0">
-                      {/* {`${h.player_name} ${h.comment}`} */}
-                      {`${h.comment}`}
+                      {`${h.player_name} ${h.comment}`}
                     </p>
                   ))}
                   {(!game.history || game.history.length === 0) && <p className="text-xs text-gray-500 italic">No actions yet</p>}

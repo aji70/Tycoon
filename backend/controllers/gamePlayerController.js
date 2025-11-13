@@ -167,7 +167,7 @@ const payRent = async (
         }
       }
 
-      comment = `${player.username} drew ${typeName}: ${card.instruction}`;
+      comment = `drew ${typeName}: ${card.instruction}`;
     };
 
     let game_property = null;
@@ -180,7 +180,7 @@ const payRent = async (
     } else if (PROPERTY_TYPES.TAX.includes(property.id)) {
       const rentAmount = Number(property.price);
       rent = { player: -rentAmount, owner: 0, players: 0 };
-      comment = `${player.username} paid ${rentAmount} for ${property.name}`;
+      comment = `paid ${rentAmount} for ${property.name}`;
     } else {
       // Fetch game property for owned properties
       game_property = await trx("game_properties")
@@ -231,7 +231,7 @@ const payRent = async (
 
         const rentAmount = RAILWAY_RENT[owned] || 0;
         rent = { player: -rentAmount, owner: rentAmount, players: 0 };
-        comment = `${player.username} paid ${rentAmount} to ${
+        comment = `paid ${rentAmount} to ${
           owner.username
         } for ${owned} railway${owned > 1 ? "s" : ""}`;
       } else if (PROPERTY_TYPES.UTILITY.includes(property.id)) {
@@ -245,7 +245,7 @@ const payRent = async (
         const rentAmount =
           Number(rolled || 0) * (UTILITY_MULTIPLIER[owned] || 0);
         rent = { player: -rentAmount, owner: rentAmount, players: 0 };
-        comment = `${player.username} paid ${rentAmount} to ${
+        comment = `paid ${rentAmount} to ${
           owner.username
         } for ${owned} utility${owned > 1 ? "ies" : "y"}`;
       } else {
@@ -263,9 +263,7 @@ const payRent = async (
             ? Number(rentFields[development] || 0)
             : 0;
         rent = { player: -rentAmount, owner: rentAmount, players: 0 };
-        comment = `${player.username} paid ${rentAmount} rent to ${
-          owner.username
-        } for ${
+        comment = `paid ${rentAmount} rent to ${owner.username} for ${
           development === 0
             ? "site only"
             : development === 5
@@ -290,9 +288,7 @@ const payRent = async (
           createHistory(
             game_player.id,
             rent.player,
-            `${player.username} ${
-              rent.player > 0 ? "received" : "paid"
-            } ${Number(rent.player)}`
+            `${rent.player > 0 ? "received" : "paid"} ${Number(rent.player)}`
           )
         );
       }
