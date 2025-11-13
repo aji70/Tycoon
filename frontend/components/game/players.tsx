@@ -551,7 +551,7 @@ export default function GamePlayers({
 
       {/* Property Modal */}
       <AnimatePresence>
-        {selectedProperty && (
+        {isNext && selectedProperty && (
           <motion.div
             key="property-modal"
             initial={{ opacity: 0 }}
