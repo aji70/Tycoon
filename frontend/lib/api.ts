@@ -1,104 +1,93 @@
-// API Configuration and Base Client
-const API_BASE_URL = "https://base-monopoly-production.up.railway.app/api";
-class ApiError extends Error {
+import { ApiResponse } from "@/types/api";
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+
+export class ApiError extends Error {
   constructor(public status: number, message: string, public data?: any) {
     super(message);
     this.name = "ApiError";
   }
 }
 
+const API_BASE_URL = "https://base-monopoly-production.up.railway.app/api";
+
 class ApiClient {
-  private baseURL: string;
+  private axiosInstance: AxiosInstance;
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL;
+    this.axiosInstance = axios.create({
+      baseURL,
+      headers: { "Content-Type": "application/json" },
+      timeout: 15000,
+    });
+
+    this.axiosInstance.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem("token");
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response) {
+          const { status, data } = error.response;
+          const apiError = new ApiError(
+            status,
+            data?.message || data?.error || "API request failed",
+            data
+          );
+          return Promise.reject(apiError);
+        } else if (error.request) {
+          return Promise.reject(new ApiError(0, "No response from server"));
+        } else {
+          return Promise.reject(new ApiError(0, error.message));
+        }
+      }
+    );
   }
 
   private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    config: AxiosRequestConfig
+  ): Promise<ApiResponse<T>> {
+    const response: AxiosResponse = await this.axiosInstance.request(config);
+    const data = response.data;
 
-    const token = localStorage.getItem("token");
-
-    const config: RequestInit = {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
-      ...options,
+    return {
+      success: true,
+      message: data?.message || "Request successful",
+      data: data?.data ?? data,
     };
-
-    try {
-      const response = await fetch(url, config);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new ApiError(
-          response.status,
-          errorData.message || errorData.error || `HTTP ${response.status}`,
-          errorData
-        );
-      }
-
-      // Handle empty responses
-      const contentType = response.headers.get("content-type");
-      if (contentType?.includes("application/json")) {
-        return await response.json();
-      }
-
-      return {} as T;
-    } catch (error) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
-
-      // Network or other errors
-      throw new ApiError(0, "Network error or server unavailable");
-    }
   }
 
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: "GET" });
+  async get<T>(endpoint: string, params?: any): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: "GET", url: endpoint, params });
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "POST",
-      body: data ? JSON.stringify(data) : undefined,
-    });
+  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: "POST", url: endpoint, data });
   }
 
-  async put<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "PUT",
-      body: data ? JSON.stringify(data) : undefined,
-    });
+  async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: "PUT", url: endpoint, data });
   }
 
-  async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: "DELETE" });
+  async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: "PATCH", url: endpoint, data });
   }
 
-  async patch<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "PATCH",
-      body: data ? JSON.stringify(data) : undefined,
-    });
+  async delete<T>(endpoint: string, params?: any): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: "DELETE", url: endpoint, params });
   }
 }
 
-// Create and export the API client instance
 export const apiClient = new ApiClient(API_BASE_URL);
-export { ApiError };
 
-// Health check utility
-export const checkApiHealth = async (): Promise<{
-  status: string;
-  timestamp: string;
-}> => {
+export const checkApiHealth = async (): Promise<ApiResponse> => {
   try {
     return await apiClient.get("/health");
   } catch (error) {
