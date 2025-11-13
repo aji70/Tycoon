@@ -97,7 +97,6 @@ export default function GamePlayers({
     [game?.players]
   );
 
-  // 🟢 Fetch trades (open + incoming)
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
     try {
@@ -193,6 +192,7 @@ export default function GamePlayers({
     setTradeModal({ open: true, target: targetPlayer });
   };
 
+  setInterval(fetchTrades, 5000);
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
       {/* Players List */}
