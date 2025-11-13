@@ -237,7 +237,7 @@ const gamePropertyController = {
       // Compare counts
       if (Number(ownedGroupProps.count) !== groupProperties.length) {
         await trx.rollback();
-        return res.status(200).json({
+        res.status(200).json({
           success: false,
           data: null,
           message: "You must own all properties in this group to develop",
