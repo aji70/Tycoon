@@ -203,14 +203,13 @@ const GameBoard = ({
     }
   }, [me?.user_id, game.id, setCanRoll]);
 
-  /* ---------- Poll every 5 seconds ---------- */
   useEffect(() => {
     checkCanRoll();
     const poll = async () => {
       await fetchUpdatedGame();
     };
-    poll(); // initial
-    const interval = setInterval(poll, 5000); // 5s refresh
+    poll(); 
+    const interval = setInterval(poll, 10000);
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, checkCanRoll]);
 

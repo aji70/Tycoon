@@ -192,7 +192,7 @@ export default function GamePlayers({
     setTradeModal({ open: true, target: targetPlayer });
   };
 
-  setInterval(fetchTrades, 5000);
+  setInterval(() => fetchTrades, 5000);
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
       {/* Players List */}
