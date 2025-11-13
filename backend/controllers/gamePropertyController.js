@@ -238,25 +238,38 @@ const gamePropertyController = {
         });
       }
 
-      // Ensure development difference between properties ≤ 1
+      // Get current development levels for all properties in the group
       const groupDevelopments = await trx("game_properties")
         .whereIn("property_id", groupProperties)
         .andWhere({ game_id, player_id: player.id })
-        .select("property_id", "development");
+        .select("property_id", "development"); // assumes this column exists
 
-      // If groupDevelopments contains all owned properties, validate difference
       if (groupDevelopments.length > 0) {
         const levels = groupDevelopments.map((p) => Number(p.development || 0));
         const minLevel = Math.min(...levels);
         const maxLevel = Math.max(...levels);
-        const difference = maxLevel - minLevel;
 
-        if (difference > 1) {
+        // No property may have a difference greater than 1
+        if (maxLevel - minLevel > 1) {
           await trx.rollback();
           return res.status(422).json({
             success: false,
             message:
-              "Development levels in this property group must be within 1 level of each other",
+              "Development levels in this property group must be within 1 level of each other.",
+            data: null,
+          });
+        }
+
+        // The property being upgraded cannot exceed the lowest by more than 1
+        const currentPropertyLevel = Number(game_property.development || 0);
+        const proposedLevel = currentPropertyLevel + 1;
+
+        if (proposedLevel - minLevel > 1) {
+          await trx.rollback();
+          return res.status(422).json({
+            success: false,
+            message:
+              "You must build evenly across all properties in this group (cannot upgrade this one yet).",
             data: null,
           });
         }
