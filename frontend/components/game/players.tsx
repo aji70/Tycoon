@@ -113,8 +113,32 @@ export default function GamePlayers({
   }, [me, game?.id]);
 
   useEffect(() => {
-    fetchTrades();
-  }, [fetchTrades]);
+    if (!me || !game?.id) return;
+    let isFetching = false;
+    let interval: NodeJS.Timeout;
+
+    const startPolling = async () => {
+      // Initial load
+      await fetchTrades();
+
+      // Poll every 5 seconds
+      interval = setInterval(async () => {
+        if (isFetching) return; // avoid overlap
+        isFetching = true;
+        try {
+          await fetchTrades();
+        } finally {
+          isFetching = false;
+        }
+      }, 5000);
+    };
+
+    startPolling();
+
+    // cleanup on unmount
+    return () => clearInterval(interval);
+  }, [fetchTrades, me, game?.id]);
+
 
   // 🟢 Create new trade
   const handleCreateTrade = async () => {
@@ -192,7 +216,6 @@ export default function GamePlayers({
     setTradeModal({ open: true, target: targetPlayer });
   };
 
-  setInterval(() => fetchTrades, 5000);
   return (
     <aside className="w-72 h-full border-r border-white/10 bg-[#010F10] overflow-y-auto">
       {/* Players List */}
