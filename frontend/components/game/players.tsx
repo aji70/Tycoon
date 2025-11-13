@@ -363,7 +363,8 @@ export default function GamePlayers({
         })}
       </ul>
 
-      {/* My Empire Section */}  <section className="border-t border-gray-800 mt-2">
+      {/* My Empire Section */}
+      <section className="border-t border-gray-800 mt-2">
         <button
           onClick={toggleEmpire}
           className="w-full flex justify-between items-center px-3 py-2 text-sm font-semibold text-gray-300 hover:bg-cyan-900/20 transition"
@@ -376,51 +377,78 @@ export default function GamePlayers({
 
         <AnimatePresence initial={false}>
           {showEmpire && (
-            <motion.ul
-              key="empire-list"
+            <motion.div
+              key="empire-grid"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="divide-y divide-gray-800 overflow-hidden"
+              className="overflow-hidden"
             >
               {my_properties.length > 0 ? (
-                my_properties.map((prop) => (
-                  <motion.li
-                    key={prop.id}
-                    onClick={() => setSelectedProperty(prop)}
-                    whileHover={{ scale: 1.02 }}
-                    className="p-3 text-sm text-gray-200 cursor-pointer hover:bg-gray-800/50 transition"
-                  >
-                    <div className="rounded-lg border border-gray-700 shadow-sm p-2 bg-gray-900">
-                      {prop.color && (
-                        <div
-                          className="w-full h-2 rounded-t-md mb-2"
-                          style={{ backgroundColor: prop.color }}
-                        />
-                      )}
+                <div className="grid grid-cols-2 gap-2 p-2">
+                  {my_properties.map((prop, index) => (
+                    <motion.div
+                      key={prop.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05, duration: 0.3 }}
+                      onClick={() => setSelectedProperty(prop)}
+                      whileHover={{ scale: 1.02 }}
+                      className="text-sm text-gray-200 cursor-pointer hover:bg-gray-800/50 transition"
+                    >
+                      <motion.div
+                        whileHover={{ y: -1 }}
+                        className="rounded-lg border border-gray-700/50 shadow-sm p-2 bg-gradient-to-br from-gray-900/80 to-gray-800/80 h-full"
+                      >
+                        {prop.color && (
+                          <div
+                            className="w-full h-2 rounded mb-2 shadow"
+                            style={{ backgroundColor: prop.color }}
+                          />
+                        )}
 
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold">{prop.name}</span>
-                        <span className="text-xs text-gray-500">#{prop.id}</span>
-                      </div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-semibold text-gray-100 text-xs">{prop.name}</span>
+                          <span className="text-xs bg-cyan-900/40 text-cyan-300 px-1 py-0.5 rounded">
+                            #{prop.id}
+                          </span>
+                        </div>
 
-                      <div className="mt-1 text-xs text-gray-400">
-                        <div>Price: 💵 {prop.price}</div>
-                        <div>Rent: 🏠 {rentPrice(prop.id)}</div>
-                        {isMortgaged(prop.id) ? (
-                          <div className="text-red-500 font-medium">🔒 Mortgaged</div>
-                        ) : <></>}
-                      </div>
-                    </div>
-                  </motion.li>
-                ))
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">💵 Price</span>
+                            <span className="font-medium text-gray-200">{prop.price}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">🏠 Rent</span>
+                            <span className="font-medium text-green-400">{rentPrice(prop.id)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">🏗️ Level</span>
+                            <span className="font-medium text-cyan-400">{developmentStage(prop.id)}</span>
+                          </div>
+                        </div>
+
+                        {isMortgaged(prop.id) && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="mt-2 p-1 bg-red-900/30 border border-red-500/30 rounded text-center"
+                          >
+                            <span className="text-red-400 text-xs font-medium">🔒 Mortgaged</span>
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    </motion.div>
+                  ))}
+                </div>
               ) : (
                 <div className="text-center text-sm font-medium text-gray-500 py-3">
                   No properties yet..
                 </div>
               )}
-            </motion.ul>
+            </motion.div>
           )}
         </AnimatePresence>
       </section>
@@ -448,181 +476,220 @@ export default function GamePlayers({
               {/* My Trades */}
               {openTrades.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-cyan-400 mb-2">My Trades</h4>
-                  {openTrades.map((trade) => {
-                    const offeredProps = properties.filter((p) =>
-                      trade.offer_properties?.includes(p.id)
-                    );
-                    const requestedProps = properties.filter((p) =>
-                      trade.requested_properties?.includes(p.id)
-                    );
+                  <h4 className="font-semibold text-cyan-400 mb-2 flex items-center space-x-1">
+                    <span>📤</span>
+                    <span>My Active Trades</span>
+                  </h4>
+                  <AnimatePresence>
+                    {openTrades.map((trade, index) => {
+                      const offeredProps = properties.filter((p) =>
+                        trade.offer_properties?.includes(p.id)
+                      );
+                      const requestedProps = properties.filter((p) =>
+                        trade.requested_properties?.includes(p.id)
+                      );
+                      const targetPlayer = game.players.find(
+                        (pl) => pl.user_id === trade.target_player_id
+                      );
 
-                    return (
-                      <div
-                        key={trade.id}
-                        className="border border-cyan-800 rounded p-2 bg-gray-900 mb-2"
-                      >
-                        <div className="flex justify-between text-xs">
-                          <span>
-                            With:{" "}
-                            <b>
-                              {
-                                game.players.find(
-                                  (pl) => pl.user_id === trade.target_player_id
-                                )?.username
-                              }
-                            </b>
-                          </span>
-                          <span className="text-gray-400 capitalize">{trade.status}</span>
-                        </div>
+                      return (
+                        <motion.div
+                          key={trade.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="border border-cyan-800/50 rounded-lg p-2 bg-gradient-to-br from-gray-900/50 to-gray-800/50 mb-2"
+                        >
+                          <div className="flex justify-between items-center mb-1 text-xs">
+                            <span className="text-gray-200">
+                              With {targetPlayer?.username || targetPlayer?.address?.slice(0, 6)}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${trade.status === 'accepted' 
+                              ? 'bg-green-900/40 text-green-300' 
+                              : trade.status === 'declined' 
+                              ? 'bg-red-900/40 text-red-300' 
+                              : 'bg-yellow-900/40 text-yellow-300'
+                            }`}>
+                              {trade.status}
+                            </span>
+                          </div>
 
-                        {/* Offer */}
-                        <div className="mt-1 text-xs text-gray-300">
-                          <span className="font-semibold text-cyan-400">Your Offer:</span>
-                          {offeredProps.length > 0 ? (
-                            <ul className="list-disc list-inside text-gray-400">
-                              {offeredProps.map((prop) => (
-                                <li key={prop.id}>
-                                  {prop.name} — 💵 {prop.price}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-gray-500">No properties</span>
-                          )}
-                          {trade.offer_amount > 0 && (
-                            <div className="text-gray-400 mt-1">
-                              + 💰 {trade.offer_amount} cash
+                          {/* Your Offer */}
+                          <div className="mb-1">
+                            <h5 className="font-medium text-cyan-300 mb-1 text-xs">📤 Your Offer</h5>
+                            <div className="space-y-1 text-xs">
+                              {offeredProps.length > 0 ? (
+                                offeredProps.map((prop) => (
+                                  <div key={prop.id} className="flex justify-between items-center bg-gray-800/30 p-1 rounded">
+                                    <span className="text-gray-300 truncate flex-1">{prop.name}</span>
+                                    <span className="text-green-400 ml-1">💵 {prop.price}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-gray-500 italic p-1">No properties</div>
+                              )}
+                              {trade.offer_amount > 0 && (
+                                <div className="flex justify-between items-center bg-green-900/20 p-1 rounded">
+                                  <span className="text-gray-300">💰 Cash</span>
+                                  <span className="text-green-400 font-medium">{trade.offer_amount}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Request */}
-                        <div className="mt-2 text-xs text-gray-300">
-                          <span className="font-semibold text-cyan-400">Their Offer:</span>
-                          {requestedProps.length > 0 ? (
-                            <ul className="list-disc list-inside text-gray-400">
-                              {requestedProps.map((prop) => (
-                                <li key={prop.id}>
-                                  {prop.name} — 💵 {prop.price}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-gray-500">No properties</span>
-                          )}
-                          {trade.requested_amount > 0 && (
-                            <div className="text-gray-400 mt-1">
-                              + 💰 {trade.requested_amount} cash
+                          {/* Their Offer */}
+                          <div className="mb-1">
+                            <h5 className="font-medium text-cyan-300 mb-1 text-xs">📥 Their Offer</h5>
+                            <div className="space-y-1 text-xs">
+                              {requestedProps.length > 0 ? (
+                                requestedProps.map((prop) => (
+                                  <div key={prop.id} className="flex justify-between items-center bg-gray-800/30 p-1 rounded">
+                                    <span className="text-gray-300 truncate flex-1">{prop.name}</span>
+                                    <span className="text-green-400 ml-1">💵 {prop.price}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-gray-500 italic p-1">No properties</div>
+                              )}
+                              {trade.requested_amount > 0 && (
+                                <div className="flex justify-between items-center bg-green-900/20 p-1 rounded">
+                                  <span className="text-gray-300">💰 Cash</span>
+                                  <span className="text-green-400 font-medium">{trade.requested_amount}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
                 </div>
               )}
 
               {/* Trade Requests */}
               {tradeRequests.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-cyan-400 mb-2">Trade Requests</h4>
-                  {tradeRequests.map((trade) => {
-                    const offeredProps = properties.filter((p) =>
-                      trade.offer_properties?.includes(p.id)
-                    );
-                    const requestedProps = properties.filter((p) =>
-                      trade.requested_properties?.includes(p.id)
-                    );
+                  <h4 className="font-semibold text-cyan-400 mb-2 flex items-center space-x-1">
+                    <span>📥</span>
+                    <span>Incoming Requests</span>
+                  </h4>
+                  <AnimatePresence>
+                    {tradeRequests.map((trade, index) => {
+                      const offeredProps = properties.filter((p) =>
+                        trade.offer_properties?.includes(p.id)
+                      );
+                      const requestedProps = properties.filter((p) =>
+                        trade.requested_properties?.includes(p.id)
+                      );
+                      const fromPlayer = game.players.find(
+                        (pl) => pl.user_id === trade.player_id
+                      );
 
-                    return (
-                      <div
-                        key={trade.id}
-                        className="border border-gray-700 rounded p-2 bg-gray-900 mb-2"
-                      >
-                        <div className="text-xs mb-1">
-                          From:{" "}
-                          <b>
-                            {
-                              game.players.find(
-                                (pl) => pl.user_id === trade.player_id
-                              )?.username
-                            }
-                          </b>
-                        </div>
+                      return (
+                        <motion.div
+                          key={trade.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="border border-gray-700/50 rounded-lg p-2 bg-gradient-to-br from-gray-900/50 to-gray-800/50 mb-2"
+                        >
+                          <div className="flex justify-between items-center mb-1 text-xs">
+                            <span className="text-gray-200">
+                              From {fromPlayer?.username || fromPlayer?.address?.slice(0, 6)}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-900/40 text-yellow-300">
+                              Pending
+                            </span>
+                          </div>
 
-                        {/* Offer */}
-                        <div className="text-xs text-gray-300">
-                          <span className="font-semibold text-cyan-400">Their Offer:</span>
-                          {offeredProps.length > 0 ? (
-                            <ul className="list-disc list-inside text-gray-400">
-                              {offeredProps.map((prop) => (
-                                <li key={prop.id}>
-                                  {prop.name} — 💵 {prop.price}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-gray-500">No properties</span>
-                          )}
-                          {trade.offer_amount > 0 && (
-                            <div className="text-gray-400 mt-1">
-                              + 💰 {trade.offer_amount} cash
+                          {/* Their Offer */}
+                          <div className="mb-1">
+                            <h5 className="font-medium text-cyan-300 mb-1 text-xs">📤 Their Offer</h5>
+                            <div className="space-y-1 text-xs">
+                              {offeredProps.length > 0 ? (
+                                offeredProps.map((prop) => (
+                                  <div key={prop.id} className="flex justify-between items-center bg-gray-800/30 p-1 rounded">
+                                    <span className="text-gray-300 truncate flex-1">{prop.name}</span>
+                                    <span className="text-green-400 ml-1">💵 {prop.price}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-gray-500 italic p-1">No properties</div>
+                              )}
+                              {trade.offer_amount > 0 && (
+                                <div className="flex justify-between items-center bg-green-900/20 p-1 rounded">
+                                  <span className="text-gray-300">💰 Cash</span>
+                                  <span className="text-green-400 font-medium">{trade.offer_amount}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Requested */}
-                        <div className="mt-2 text-xs text-gray-300">
-                          <span className="font-semibold text-cyan-400">Your Request:</span>
-                          {requestedProps.length > 0 ? (
-                            <ul className="list-disc list-inside text-gray-400">
-                              {requestedProps.map((prop) => (
-                                <li key={prop.id}>
-                                  {prop.name} — 💵 {prop.price}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-gray-500">No properties</span>
-                          )}
-                          {trade.requested_amount > 0 && (
-                            <div className="text-gray-400 mt-1">
-                              + 💰 {trade.requested_amount} cash
+                          {/* Your Request */}
+                          <div className="mb-2">
+                            <h5 className="font-medium text-cyan-300 mb-1 text-xs">📥 Your Request</h5>
+                            <div className="space-y-1 text-xs">
+                              {requestedProps.length > 0 ? (
+                                requestedProps.map((prop) => (
+                                  <div key={prop.id} className="flex justify-between items-center bg-gray-800/30 p-1 rounded">
+                                    <span className="text-gray-300 truncate flex-1">{prop.name}</span>
+                                    <span className="text-green-400 ml-1">💵 {prop.price}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-gray-500 italic p-1">No properties</div>
+                              )}
+                              {trade.requested_amount > 0 && (
+                                <div className="flex justify-between items-center bg-green-900/20 p-1 rounded">
+                                  <span className="text-gray-300">💰 Cash</span>
+                                  <span className="text-green-400 font-medium">{trade.requested_amount}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Action buttons */}
-                        <div className="flex justify-between text-xs mt-3">
-                          <button
-                            onClick={() => handleTradeAction(trade.id, "accepted")}
-                            className="text-green-400 hover:text-green-300"
-                          >
-                            Accept
-                          </button>
-                          <button
-                            onClick={() => handleTradeAction(trade.id, "declined")}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            Decline
-                          </button>
-                          <button
-                            onClick={() => handleTradeAction(trade.id, "counter")}
-                            className="text-cyan-400 hover:text-cyan-300"
-                          >
-                            Counter
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                          {/* Action buttons */}
+                          <div className="flex justify-center space-x-2 pt-1 border-t border-gray-700/50 text-xs">
+                            <motion.button
+                              onClick={() => handleTradeAction(trade.id, "accepted")}
+                              whileHover={{ scale: 1.05 }}
+                              className="px-2 py-1 bg-green-800/60 hover:bg-green-700/70 rounded text-green-200 font-medium border border-green-500/30 transition flex-1 mr-0.5"
+                            >
+                              ✅ Accept
+                            </motion.button>
+                            <motion.button
+                              onClick={() => handleTradeAction(trade.id, "declined")}
+                              whileHover={{ scale: 1.05 }}
+                              className="px-2 py-1 bg-red-800/60 hover:bg-red-700/70 rounded text-red-200 font-medium border border-red-500/30 transition flex-1 mx-0.5"
+                            >
+                              ❌ Decline
+                            </motion.button>
+                            <motion.button
+                              onClick={() => handleTradeAction(trade.id, "counter")}
+                              whileHover={{ scale: 1.05 }}
+                              className="px-2 py-1 bg-cyan-800/60 hover:bg-cyan-700/70 rounded text-cyan-200 font-medium border border-cyan-500/30 transition flex-1 ml-0.5"
+                            >
+                              💱 Counter
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
                 </div>
               )}
 
-
               {openTrades.length === 0 && tradeRequests.length === 0 && (
-                <p className="text-gray-500 text-center text-xs">No trades yet..</p>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center text-gray-500 py-3"
+                >
+                  <div className="text-xl mb-1">💱</div>
+                  <p className="text-xs">No trades yet..</p>
+                </motion.div>
               )}
             </motion.div>
           )}
@@ -644,33 +711,90 @@ export default function GamePlayers({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.85, opacity: 0 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="bg-gray-900 rounded-xl shadow-lg w-80 border border-cyan-900"
+              className="bg-gray-900 rounded-2xl shadow-2xl w-96 border border-cyan-900/50 backdrop-blur-sm"
             >
-              <div className="p-4 border-b border-cyan-800 flex justify-between items-center">
-                <h4 className="text-gray-200 font-semibold">
+              {/* Header */}
+              <div className="p-6 border-b border-cyan-800/50 flex justify-between items-center">
+                <h4 className="text-xl font-bold text-gray-100">
                   {selectedProperty.name}
                 </h4>
-                <button
+                <motion.button
                   onClick={() => setSelectedProperty(null)}
-                  className="text-gray-400 hover:text-gray-200"
+                  whileHover={{ scale: 1.1 }}
+                  className="text-gray-400 hover:text-gray-200 p-1 rounded-full transition"
                 >
                   ✖
-                </button>
+                </motion.button>
               </div>
 
-              <div className="p-4 space-y-2 text-sm text-gray-300">
-                <button onClick={() => handleDevelopment(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏠 Development
-                </button>
-                <button onClick={() => handleDowngrade(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏚️ Downgrade
-                </button>
-                <button onClick={() => handleMortgage(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  💰 Mortgage
-                </button>
-                <button onClick={() => handleUnmortgage(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  💸 Unmortgage
-                </button>
+              {/* Property Details */}
+              <div className="p-6 space-y-4">
+                {selectedProperty.color && (
+                  <div
+                    className="w-full h-4 rounded-xl shadow-inner"
+                    style={{ backgroundColor: selectedProperty.color }}
+                  />
+                )}
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide">Price</div>
+                    <div className="font-bold text-gray-100">💵 {selectedProperty.price}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide">Current Rent</div>
+                    <div className="font-bold text-gray-100">🏠 {rentPrice(selectedProperty.id)}</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide">Development</div>
+                    <div className="font-bold text-gray-100">{developmentStage(selectedProperty.id)} 🏠</div>
+                  </div>
+                  {isMortgaged(selectedProperty.id) && (
+                    <div className="bg-red-900/30 rounded-lg p-3 border border-red-500/30">
+                      <div className="text-red-400 text-xs uppercase tracking-wide">Status</div>
+                      <div className="font-bold text-red-300">🔒 Mortgaged</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="p-6 border-t border-gray-700/50 pt-6">
+                <h5 className="text-cyan-400 font-semibold mb-4 text-center">Quick Actions</h5>
+                <div className="grid grid-cols-2 gap-3">
+                  <motion.button
+                    onClick={() => handleDevelopment(selectedProperty.id)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="py-3 px-4 bg-gradient-to-r from-green-800/60 to-green-700/60 hover:from-green-700/70 hover:to-green-600/70 rounded-xl text-green-200 font-medium shadow-lg border border-green-500/30 transition-all"
+                  >
+                    🏗️ Develop
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleDowngrade(selectedProperty.id)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="py-3 px-4 bg-gradient-to-r from-yellow-800/60 to-yellow-700/60 hover:from-yellow-700/70 hover:to-yellow-600/70 rounded-xl text-yellow-200 font-medium shadow-lg border border-yellow-500/30 transition-all"
+                  >
+                    🏚️ Downgrade
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleMortgage(selectedProperty.id)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="py-3 px-4 bg-gradient-to-r from-blue-800/60 to-blue-700/60 hover:from-blue-700/70 hover:to-blue-600/70 rounded-xl text-blue-200 font-medium shadow-lg border border-blue-500/30 transition-all"
+                  >
+                    💰 Mortgage
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleUnmortgage(selectedProperty.id)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="py-3 px-4 bg-gradient-to-r from-purple-800/60 to-purple-700/60 hover:from-purple-700/70 hover:to-purple-600/70 rounded-xl text-purple-200 font-medium shadow-lg border border-purple-500/30 transition-all"
+                  >
+                    💸 Unmortgage
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -695,7 +819,7 @@ export default function GamePlayers({
         setOfferCash={setOfferCash}
         setRequestCash={setRequestCash}
         toggleSelect={toggleSelect}
-        targetPlayerAddres={tradeModal.target?.address}
+        targetPlayerAddress={tradeModal.target?.address}
       />
 
       <TradeModal
@@ -715,17 +839,13 @@ export default function GamePlayers({
         setOfferCash={setOfferCash}
         setRequestCash={setRequestCash}
         toggleSelect={toggleSelect}
-        targetPlayerAddres={counterModal.trade?.target_player_id}
+        targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
       />
     </aside>
   );
 }
 
-/* --- Shared TradeModal (unchanged from your version) --- */
-
-
-/* --- Shared Modal Component for Create/Counter --- */
-
+/* --- Shared TradeModal --- */
 
 function TradeModal({
   open,
@@ -744,7 +864,7 @@ function TradeModal({
   setOfferCash,
   setRequestCash,
   toggleSelect,
-  targetPlayerAddres
+  targetPlayerAddress
 }: any) {
   if (!open) return null;
 
@@ -753,14 +873,14 @@ function TradeModal({
     // Filter game_properties by player ownership and valid type
     const ownedGameProps = game_properties.filter(
       (gp: any) =>
-        gp.address == targetPlayerAddres
+        gp.address == targetPlayerAddress
     );
 
     // Map to property details
     return properties.filter((p: any) =>
       ownedGameProps.some((gp: any) => gp.property_id === p.id)
     );
-  }, [game_properties, properties, targetPlayerAddres]);
+  }, [game_properties, properties, targetPlayerAddress]);
 
   return (
     <AnimatePresence>
@@ -772,113 +892,162 @@ function TradeModal({
         className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
       >
         <motion.div
-          initial={{ scale: 0.9 }}
-          animate={{ scale: 1 }}
-          exit={{ scale: 0.9 }}
-          className="bg-gray-900 border border-cyan-900 rounded-xl w-[90%] max-w-2xl p-5 text-sm text-gray-200 shadow-xl max-h-[85vh] overflow-y-auto"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="bg-gray-900 border border-cyan-900/50 rounded-2xl w-[95%] max-w-4xl p-6 text-sm text-gray-200 shadow-2xl max-h-[90vh] overflow-y-auto backdrop-blur-sm"
         >
           {/* Header */}
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-cyan-400">{title}</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-200">
+          <div className="flex justify-between items-center mb-6 pb-4 border-b border-cyan-800/30">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-cyan-900/30 rounded-xl">💱</div>
+              <h3 className="font-bold text-xl text-cyan-300">{title}</h3>
+            </div>
+            <motion.button 
+              onClick={onClose} 
+              whileHover={{ scale: 1.1 }}
+              className="text-gray-400 hover:text-gray-200 p-2 rounded-full transition"
+            >
               ✖
-            </button>
+            </motion.button>
           </div>
 
-          {/* Your Offer */}
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-medium text-cyan-300 mb-2">Your Offer</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {/* Trade Sections */}
+          <div className="space-y-6">
+            {/* Your Offer */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50"
+            >
+              <h4 className="font-semibold text-cyan-300 mb-4 flex items-center space-x-2">
+                <div className="p-1 bg-green-900/30 rounded">📤</div>
+                <span>Your Offer</span>
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {my_properties.map((prop: Property) => (
-                  <div
+                  <motion.div
                     key={prop.id}
+                    whileHover={{ scale: 1.05 }}
                     onClick={() =>
                       toggleSelect(prop.id, offerProperties, setOfferProperties)
                     }
-                    className={`border rounded-lg p-2 cursor-pointer transition ${offerProperties.includes(prop.id)
-                      ? "border-cyan-500 bg-cyan-900/40"
-                      : "border-gray-700 hover:bg-gray-800/40"
+                    className={`border rounded-lg p-3 cursor-pointer transition-all shadow-md hover:shadow-cyan-500/25 ${offerProperties.includes(prop.id)
+                      ? "border-cyan-500 bg-cyan-900/40 ring-2 ring-cyan-500/30"
+                      : "border-gray-700 hover:bg-gray-700/40"
                       }`}
                   >
                     {prop.color && (
                       <div
-                        className="w-full h-2 rounded-md mb-1"
+                        className="w-full h-3 rounded-md mb-2 shadow-inner"
                         style={{ backgroundColor: prop.color }}
                       />
                     )}
-                    <div className="text-xs font-semibold text-gray-100 truncate">
+                    <div className="text-xs font-bold text-gray-100 truncate">
                       {prop.name}
                     </div>
-                    <div className="text-[11px] text-gray-400">💵 {prop.price}</div>
-                  </div>
+                    <div className="text-[10px] text-gray-400">💵 {prop.price}</div>
+                  </motion.div>
                 ))}
               </div>
               <input
                 type="number"
-                className="w-full bg-gray-800 rounded p-2 mt-3 border border-gray-700 text-gray-100"
-                placeholder="💰 Offer Cash"
+                className="w-full bg-gray-800/70 rounded-xl p-3 border border-gray-700/50 text-gray-100 placeholder-gray-500 focus:border-cyan-500/50 focus:outline-none transition"
+                placeholder="💰 Additional Cash"
                 value={offerCash || ""}
                 onChange={(e) => setOfferCash(Number(e.target.value))}
               />
+            </motion.div>
+
+            {/* Exchange Arrow */}
+            <div className="flex justify-center">
+              <motion.div
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="text-2xl text-cyan-400"
+              >
+                ➡️
+              </motion.div>
             </div>
 
-            {/* Request Properties */}
-            <div>
-              <h4 className="font-medium text-cyan-300 mb-2">Request Properties</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {/* Request */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50"
+            >
+              <h4 className="font-semibold text-cyan-300 mb-4 flex items-center space-x-2">
+                <div className="p-1 bg-red-900/30 rounded">📥</div>
+                <span>Request From Them</span>
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {targetOwnedProps.length > 0 ? (
                   targetOwnedProps.map((prop: Property) => (
-                    <div
+                    <motion.div
                       key={prop.id}
+                      whileHover={{ scale: 1.05 }}
                       onClick={() =>
                         toggleSelect(prop.id, requestProperties, setRequestProperties)
                       }
-                      className={`border rounded-lg p-2 cursor-pointer transition ${requestProperties.includes(prop.id)
-                        ? "border-cyan-500 bg-cyan-900/40"
-                        : "border-gray-700 hover:bg-gray-800/40"
+                      className={`border rounded-lg p-3 cursor-pointer transition-all shadow-md hover:shadow-cyan-500/25 ${requestProperties.includes(prop.id)
+                        ? "border-cyan-500 bg-cyan-900/40 ring-2 ring-cyan-500/30"
+                        : "border-gray-700 hover:bg-gray-700/40"
                         }`}
                     >
                       {prop.color && (
                         <div
-                          className="w-full h-2 rounded-md mb-1"
+                          className="w-full h-3 rounded-md mb-2 shadow-inner"
                           style={{ backgroundColor: prop.color }}
                         />
                       )}
-                      <div className="text-xs font-semibold text-gray-100 truncate">
+                      <div className="text-xs font-bold text-gray-100 truncate">
                         {prop.name}
                       </div>
-                      <div className="text-[11px] text-gray-400">💵 {prop.price}</div>
-                    </div>
+                      <div className="text-[10px] text-gray-400">💵 {prop.price}</div>
+                    </motion.div>
                   ))
                 ) : (
-                  <p className="text-gray-500 text-xs">No tradable properties available.</p>
+                  <div className="col-span-full text-center py-6 text-gray-500">
+                    <div className="text-3xl mb-2">🤷</div>
+                    <p className="text-xs">No tradable properties available.</p>
+                  </div>
                 )}
               </div>
               <input
                 type="number"
-                className="w-full bg-gray-800 rounded p-2 mt-3 border border-gray-700 text-gray-100"
+                className="w-full bg-gray-800/70 rounded-xl p-3 border border-gray-700/50 text-gray-100 placeholder-gray-500 focus:border-cyan-500/50 focus:outline-none transition"
                 placeholder="💰 Request Cash"
                 value={requestCash || ""}
                 onChange={(e) => setRequestCash(Number(e.target.value))}
               />
-            </div>
+            </motion.div>
 
             {/* Buttons */}
-            <div className="flex justify-end gap-2 pt-3">
-              <button
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="flex justify-end gap-3 pt-6 border-t border-cyan-800/30"
+            >
+              <motion.button
                 onClick={onClose}
-                className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300"
+                whileHover={{ scale: 1.02 }}
+                className="px-6 py-3 rounded-xl bg-gray-700/70 hover:bg-gray-600/70 text-gray-300 font-medium shadow-lg border border-gray-600/30 transition-all"
               >
                 Cancel
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 onClick={onSubmit}
-                className="px-4 py-2 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white font-semibold"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-700/80 to-cyan-600/80 hover:from-cyan-600/90 hover:to-cyan-500/90 text-white font-semibold shadow-lg border border-cyan-500/30 transition-all"
               >
                 Submit Trade
-              </button>
-            </div>
+              </motion.button>
+            </motion.div>
           </div>
         </motion.div>
       </motion.div>
