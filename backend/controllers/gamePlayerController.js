@@ -385,6 +385,7 @@ const payRent = async (
     };
   }
 };
+
 const gamePlayerController = {
   async create(req, res) {
     try {
@@ -750,8 +751,6 @@ const gamePlayerController = {
           },
           trx // Pass transaction to prevent nested transactions
         );
-
-        console.log(pay_rent);
 
         // Check rent payment result
         if (!pay_rent || !pay_rent.success) {
