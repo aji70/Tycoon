@@ -184,6 +184,11 @@ const gamePropertyController = {
         return res.status(404).json({ error: "Property not found" });
       }
 
+      if (property.group_id == "0") {
+        await trx.rollback();
+        return res.status(404).json({ error: "Property can not be developed" });
+      }
+
       // 4️⃣ Check if property is owned by user
       const game_property = await trx("game_properties")
         .where({ property_id, game_id })
@@ -193,6 +198,26 @@ const gamePropertyController = {
         return res
           .status(422)
           .json({ error: "Game property not available for development" });
+      }
+
+      // Get all property IDs in that group
+      const groupProperties = await trx("properties")
+        .where("group_id", property.group_id)
+        .pluck("id");
+
+      // Check which of those properties the user owns in this game
+      const ownedGroupProps = await trx("game_properties")
+        .whereIn("property_id", groupProperties)
+        .andWhere({ game_id, owner_id: user_id }) // adjust to your owner field
+        .count("id as count")
+        .first();
+
+      // Compare counts
+      if (Number(ownedGroupProps.count) !== groupProperties.length) {
+        await trx.rollback();
+        return res.status(422).json({
+          error: "You must own all properties in this group to develop",
+        });
       }
 
       // 5️⃣ Check player balance
