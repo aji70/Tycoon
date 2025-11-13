@@ -268,10 +268,7 @@ const gamePropertyController = {
       // 7️⃣ Update game property development
       await trx("game_properties")
         .where({ id: game_property.id })
-        .update({
-          development: Number(game_property.development) + 1,
-          updated_at: new Date(),
-        });
+        .increment("development", 1);
 
       await trx.commit();
       return res

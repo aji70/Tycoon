@@ -100,12 +100,14 @@ export default function GamePlayers({
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
     try {
-      const [initiated, incoming] = await Promise.all([
+      const [_initiated, _incoming] = await Promise.all([
         apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
         apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
       ]);
-      setOpenTrades(initiated.data || []);
-      setTradeRequests(incoming.data || []);
+      const initiated = _initiated.data?.data || []
+      const incoming = _incoming.data?.data || []
+      setOpenTrades(initiated);
+      setTradeRequests(incoming);
     } catch (err) {
       console.error("Error loading trades:", err);
       toast.error("Failed to load trades");
