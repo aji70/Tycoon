@@ -140,7 +140,7 @@ export default function GamePlayers({
   }, [fetchTrades, me, game?.id]);
 
 
-  // 🟢 Create new trade
+  // Create new trade
   const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
 
@@ -167,7 +167,7 @@ export default function GamePlayers({
     }
   };
 
-  // 🟢 Accept, decline, or counter
+  // Accept, decline, or counter
   const handleTradeAction = async (id: number, action: "accepted" | "declined" | "counter") => {
     try {
       if (action === "counter") {
@@ -184,7 +184,7 @@ export default function GamePlayers({
     }
   };
 
-  // 🟢 Submit counter trade update
+  // Submit counter trade update
   const submitCounterTrade = async () => {
     if (!me || !counterModal.trade) return;
     try {
@@ -214,6 +214,28 @@ export default function GamePlayers({
   const startTrade = (targetPlayer: Player) => {
     if (!isNext) return;
     setTradeModal({ open: true, target: targetPlayer });
+  };
+
+  const handleDevelopment = async (id: number) => {
+    if (!me) return;
+
+    try {
+      const payload = {
+        game_id: game.id,
+        player_id: me.user_id,
+        property_id: id,
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", payload);
+      if (res?.data?.error) {
+        toast.error(res.data.message || "Failed to develop property.");
+        return;
+      }
+      toast.success("Property development successfully");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Failed to develop propert");
+    }
   };
 
   return (
@@ -557,17 +579,11 @@ export default function GamePlayers({
               </div>
 
               <div className="p-4 space-y-2 text-sm text-gray-300">
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏠 Buy House
+                <button onClick={() => handleDevelopment(selectedProperty.id)} className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
+                  🏠 Development
                 </button>
                 <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏚️ Sell House
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏨 Buy Hotel
-                </button>
-                <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
-                  🏩 Sell Hotel
+                  🏚️ Downgrade
                 </button>
                 <button className="w-full py-2 bg-cyan-800/30 hover:bg-cyan-700/50 rounded-md">
                   💰 Mortgage
