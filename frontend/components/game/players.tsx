@@ -217,7 +217,7 @@ export default function GamePlayers({
   };
 
   const handleDevelopment = async (id: number) => {
-    if (!me) return;
+    if (!isNext || !me) return;
 
     try {
       const payload = {
