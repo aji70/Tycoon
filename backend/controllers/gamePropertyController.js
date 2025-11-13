@@ -159,11 +159,19 @@ const gamePropertyController = {
       const game = await trx("games").where({ id: game_id }).first();
       if (!game) {
         await trx.rollback();
-        return res.status(404).json({ error: "Game not found" });
+        return res
+          .status(200)
+          .json({ success: false, data: null, message: "Game not found" });
       }
       if (game.status !== "RUNNING") {
         await trx.rollback();
-        return res.status(422).json({ error: "Game is currently not running" });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            data: null,
+            message: "Game is currently not running",
+          });
       }
 
       // 2️⃣ Fetch player
@@ -172,7 +180,9 @@ const gamePropertyController = {
         .first();
       if (!player) {
         await trx.rollback();
-        return res.status(404).json({ error: "Player not in game" });
+        return res
+          .status(200)
+          .json({ success: false, data: null, message: "Player not in game" });
       }
 
       // 3️⃣ Fetch property
@@ -181,12 +191,20 @@ const gamePropertyController = {
         .first();
       if (!property) {
         await trx.rollback();
-        return res.status(404).json({ error: "Property not found" });
+        return res
+          .status(200)
+          .json({ success: false, data: null, message: "Property not found" });
       }
 
       if (property.group_id == "0") {
         await trx.rollback();
-        return res.status(404).json({ error: "Property can not be developed" });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            data: null,
+            message: "Property can not be developed",
+          });
       }
 
       // 4️⃣ Check if property is owned by user
@@ -196,8 +214,12 @@ const gamePropertyController = {
       if (!game_property) {
         await trx.rollback();
         return res
-          .status(422)
-          .json({ error: "Game property not available for development" });
+          .status(200)
+          .json({
+            success: false,
+            data: null,
+            message: "Game property not available for development",
+          });
       }
 
       // Get all property IDs in that group
@@ -215,20 +237,34 @@ const gamePropertyController = {
       // Compare counts
       if (Number(ownedGroupProps.count) !== groupProperties.length) {
         await trx.rollback();
-        return res.status(422).json({
-          error: "You must own all properties in this group to develop",
+        return res.status(200).json({
+          success: false,
+          data: null,
+          message: "You must own all properties in this group to develop",
         });
       }
 
       // 5️⃣ Check player balance
       if (Number(player.balance) < Number(property.cost_of_house)) {
         await trx.rollback();
-        return res.status(422).json({ error: "Insufficient balance" });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            data: null,
+            message: "Insufficient balance",
+          });
       }
 
       if (game_property.development >= 5) {
         await trx.rollback();
-        return res.status(422).json({ error: "Property developed to the max" });
+        return res
+          .status(200)
+          .json({
+            success: false,
+            data: null,
+            message: "Property developed to the max",
+          });
       }
 
       // 6️⃣ Deduct balance
@@ -245,7 +281,9 @@ const gamePropertyController = {
       });
 
       await trx.commit();
-      return res.json({ success: true, message: "successful", data: null });
+      return res
+        .status(200)
+        .json({ success: true, message: "successful", data: null });
     } catch (error) {
       await trx.rollback();
       console.error("Transaction failed:", error);

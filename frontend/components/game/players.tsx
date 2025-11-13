@@ -234,7 +234,7 @@ export default function GamePlayers({
       toast.success("Property development successfully");
     } catch (error: any) {
       console.error(error);
-      toast.error(error?.response?.data?.message || "Failed to develop property");
+      toast.error(error?.response?.data?.error ?? (error?.response?.data?.message || "Failed to develop property."));
     }
   };
 

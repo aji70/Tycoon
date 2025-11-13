@@ -20,7 +20,6 @@ class ApiClient {
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
-    // Get auth token from localStorage
     const token = localStorage.getItem("token");
 
     const config: RequestInit = {
