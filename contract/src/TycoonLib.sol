@@ -36,6 +36,7 @@ library TycoonLib {
         uint256 id;
         string username;
         address playerAddress;
+        // address playerWallet;
         uint64 registeredAt;
         uint256 gamesPlayed;
         uint256 gamesWon;
@@ -55,6 +56,7 @@ library TycoonLib {
         uint8 numberOfPlayers;
         uint8 joinedPlayers;
         GameType mode;
+        bool ai;
         uint64 createdAt;
         uint64 endedAt;
         uint256 totalStaked; // Track total stakes for this game
