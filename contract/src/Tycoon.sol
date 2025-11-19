@@ -27,6 +27,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
     mapping(string => TycoonLib.User) public users;
     mapping(address => bool) public registered;
+    mapping(address => string) public addressToUsername;
     mapping(uint256 => TycoonLib.Game) public games;
     mapping(uint256 => TycoonLib.GameSettings) public gameSettings;
     mapping(uint256 => mapping(uint8 => TycoonLib.Property)) public properties; // GameId => PropertyId => Property
@@ -111,6 +112,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         });
 
         registered[msg.sender] = true;
+        addressToUsername[msg.sender] = username;
         emit PlayerCreated(username, msg.sender, nowTime);
         return totalUsers;
     }

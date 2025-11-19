@@ -11,7 +11,7 @@ import { Address } from 'viem';
 import PlayerABI from './abi.json';
 
 const CONTRACT_ADDRESS =
-  '0xFbb5440D57bcd6802973459E4526A909dC023dd9' as Address;
+  '0x494b240f12Ada8Cac02415c8D02b167c07331773' as Address;
 
 
 
@@ -87,7 +87,7 @@ type GamePlayerData = {
   username: string;
 };
 type GamePlayerDataTuple = [bigint, Address, bigint, number, bigint, number, boolean, boolean, string];
-const STAKE = 1e14;
+
 /* ----------------------- Hooks ----------------------- */
 export function useIsRegistered(
   address?: Address,
@@ -96,7 +96,7 @@ export function useIsRegistered(
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
-    functionName: 'registered',
+    functionName: 'isRegistered',
     args: address ? [address] : undefined,
     query: { enabled: options.enabled },
   });
@@ -195,38 +195,6 @@ export function useCreateGame(
     if (!result) throw new Error('Invalid game ID returned from contract');
     return result as string;
   }, [writeContractAsync, gameType, playerSymbol, numberOfPlayers, settings]);
-
-  return { write, isPending, error, txHash, isSuccess };
-}
-
-export function useCreateAiGame(
-  username: string,
-  gameType: string,
-  playerSymbol: string,
-  numberOfPlayers: number,
-  gameCode: string,
-  startingCash: number,
-) {
-  const {
-    writeContractAsync,
-    isPending,
-    error,
-    data: txHash,
-  } = useWriteContract();
-  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const write = useCallback(async (): Promise<string> => {
-    const result = await writeContractAsync({
-      address: CONTRACT_ADDRESS,
-      abi: PlayerABI,
-      functionName: 'createAIGame',
-      args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, startingCash],
-      value: BigInt(STAKE),
-    });
-
-    if (!result) throw new Error('Invalid game ID returned from contract');
-    return result as string;
-  }, [writeContractAsync, username, gameType, playerSymbol, numberOfPlayers, startingCash]);
 
   return { write, isPending, error, txHash, isSuccess };
 }

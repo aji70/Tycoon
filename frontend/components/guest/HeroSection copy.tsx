@@ -57,7 +57,7 @@ const HeroSection: React.FC = () => {
   const handleRouteToPrivateRoom = () => router.push("/game-settings");
   const handleRouteToJoinRoom = () => router.push("/join-room");
   const handleRouteToCreateGame = () => router.push("/game-settings");
-  const handleRouteToPlayWithAI = () => router.push("/play-ai"); // New AI route
+  const handleRouteToGameStats = () => router.push("/game-stats"); // Updated handler
 
   const handleRequest = async () => {
     if (!address) {
@@ -144,13 +144,11 @@ const HeroSection: React.FC = () => {
           quality={100}
         />
       </div>
-
       <div className="w-full h-auto absolute top-0 left-0 flex items-center justify-center">
         <h1 className="text-center uppercase font-kronaOne font-normal text-transparent big-hero-text w-full text-[40px] sm:text-[40px] md:text-[80px] lg:text-[135px] relative before:absolute before:content-[''] before:w-full before:h-full before:bg-gradient-to-b before:from-transparent lg:before:via-[#010F10]/80 before:to-[#010F10] before:top-0 before:left-0 before:z-1">
           TYCOON
         </h1>
       </div>
-
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
         {isUserRegistered && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
@@ -166,7 +164,6 @@ const HeroSection: React.FC = () => {
             </p>
           </div>
         )}
-
         <div className="flex justify-center items-center md:gap-6 gap-3 mt-4 md:mt-6 lg:mt-4">
           <TypeAnimation
             sequence={[
@@ -176,8 +173,6 @@ const HeroSection: React.FC = () => {
               1200,
               "Conquer • Build • Trade On",
               1800,
-              "Play Solo vs AI",
-              2000,
               "Conquer • Build",
               1000,
               "Conquer",
@@ -191,26 +186,22 @@ const HeroSection: React.FC = () => {
             className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
           />
         </div>
-
         <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative">
           TYCOON
           <span className="absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 animate-pulse">
             ?
           </span>
         </h1>
-
         <div className="w-full px-4 md:w-[70%] lg:w-[55%] text-center text-[#F0F7F7] -tracking-[2%]">
           <TypeAnimation
             sequence={[
-              "Roll the dice",
+              "Roll the dice 🎲",
               2000,
-              "Buy properties",
+              "Buy properties 🏠",
               2000,
-              "Collect rent",
+              "Collect rent 💰",
               2000,
-              "Play against AI opponents",
-              2200,
-              "Become the top tycoon",
+              "Become the top tycoon 👑",
               2000,
             ]}
             wrapper="span"
@@ -220,14 +211,11 @@ const HeroSection: React.FC = () => {
           />
           <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
             Step into Tycoon — the Web3 twist on the classic game of
-            strategy, ownership, and fortune. Play solo against AI, compete in
-            multiplayer rooms, collect tokens, complete quests, and become the
-            ultimate blockchain tycoon.
+            strategy, ownership, and fortune. Collect tokens, complete quests,
+            and become the ultimate blockchain tycoon.
           </p>
         </div>
-
         <div className="z-1 w-full flex flex-col justify-center items-center mt-3 gap-3">
-          {/* Registration Form */}
           {address && !isUserRegistered && !loading && (
             <>
               <input
@@ -293,17 +281,13 @@ const HeroSection: React.FC = () => {
               </button>
             </>
           )}
-
           {!address && (
             <p className="text-gray-400 text-sm text-center mt-2">
               Please connect your wallet to continue.
             </p>
           )}
-
-          {/* Action Buttons for Registered Users */}
           {address && isUserRegistered && (
             <div className="flex flex-wrap justify-center items-center mt-2 gap-4">
-              {/* Create Game */}
               <button
                 type="button"
                 onClick={handleRouteToCreateGame}
@@ -330,8 +314,6 @@ const HeroSection: React.FC = () => {
                   Create Game
                 </span>
               </button>
-
-              {/* Join Room */}
               <button
                 type="button"
                 onClick={handleRouteToJoinRoom}
@@ -358,11 +340,9 @@ const HeroSection: React.FC = () => {
                   Join Room
                 </span>
               </button>
-
-              {/* PLAY WITH AI - NEW */}
               <button
                 type="button"
-                onClick={handleRouteToPlayWithAI}
+                onClick={handleRouteToGameStats} // Updated handler
                 className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
               >
                 <svg
@@ -378,26 +358,12 @@ const HeroSection: React.FC = () => {
                     fill="#003B3E"
                     stroke="#003B3E"
                     strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out group-hover:fill-[#00F0FF]/10"
+                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <svg
-                    className="mr-2 w-5 h-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <circle cx="9" cy="15" r="1.5" />
-                    <circle cx="15" cy="15" r="1.5" />
-                    <path d="M9 11v-1a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1" />
-                    <path d="M12 17v4" />
-                  </svg>
-                  Play with AI
+                  <BarChart2 className="mr-1.5 w-[16px] h-[16px]" />
+                  Game Stats {/* Or use "Battle Stats" for a catchier name */}
                 </span>
               </button>
             </div>
