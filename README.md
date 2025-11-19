@@ -1,8 +1,8 @@
-# 🎲 Tycoon — Monopoly Tycoon on Base
+# 🎲 Tycoon — Monopoly Tycoon on Chain
 
 ## Overview
 
-**Tycoon** is an exciting blockchain-based tycoon game inspired by the classic **Monopoly** board game, built on the **Base Network (Ethereum Layer 2 by Coinbase)**.  
+**Tycoon** is an exciting blockchain-\ tycoon game inspired by the classic **Monopoly** board game, built on the **Base and Celo Network**.  
 Players can **buy, sell, and trade virtual properties as NFTs**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**.
 
 This project combines **strategic gameplay** with **true ownership** and **transparent mechanics** using smart contracts.
@@ -29,7 +29,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 - 💰 **Rent & Tycoon Mechanics** — Earn passive income; upgrade for higher yields  
 - 🧾 **On-Chain Events** — Dice rolls, Chance, Community Chest, Tax, Jail  
 - 📊 **Interactive Dashboard** — Real-time board with rotatable cards (e.g., Income Tax $200, Luxury Tax $100)  
-- ⛽ **Gas Efficient** — Leverages Base’s low fees  
+- ⛽ **Gas Efficient** — Leverages Base and Celo’s low fees  
 - 👛 **Wallet Integration** — MetaMask, WalletConnect ready  
 
 ---
@@ -48,8 +48,8 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 | Layer      | Tools |
 |------------|------|
 | **Frontend** | React, Next.js, Tailwind CSS |
-| **Blockchain** | Solidity on Base |
-| **Interactions** | ethers.js, Basescan |
+| **Blockchain** | Solidity on Base and Celo |
+| **Interactions** | ethers.js, Basescan celoscan|
 | **UI Components** | Custom Monopoly board renderer |
 
 Visit: https://base-monopoly.vercel.app
