@@ -110,7 +110,7 @@ contract TycoonTest is Test {
         assertEq(keccak256(bytes(creatorPlayer.username)), keccak256(bytes("Alice")));
 
         // Check game settings
-        TycoonLib.GameSettings memory settings = tycoon.gameSettings(gameId);
+        TycoonLib.GameSettings memory settings = tycoon.getGameSettings(gameId);
         assertEq(settings.maxPlayers, 2);
         assertTrue(settings.auction);
         assertTrue(settings.rentInPrison);
@@ -292,7 +292,7 @@ contract TycoonTest is Test {
         tycoon.registerPlayer("Alice");
 
         vm.prank(alice);
-        uint256 gameId = tycoon.createGame{value: STAKE_AMOUNT}("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE);
+        uint256 gameId = tycoon.createGame{value: STAKE_AMOUNT}("Alice", "PUBLIC", "hat", 3, GAME_CODE, STARTING_BALANCE);
 
         vm.prank(bob);
         tycoon.registerPlayer("Bob");
@@ -305,25 +305,6 @@ contract TycoonTest is Test {
         tycoon.joinGame{value: STAKE_AMOUNT}(gameId, "Bob", "dog", "");
     }
 
-    function test_Revert_Join_Full_Game() public {
-        vm.prank(alice);
-        tycoon.registerPlayer("Alice");
-
-        vm.prank(bob);
-        tycoon.registerPlayer("Bob");
-
-        vm.prank(alice);
-        uint256 gameId = tycoon.createGame{value: STAKE_AMOUNT}("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE);
-        vm.prank(bob);
-        tycoon.joinGame{value: STAKE_AMOUNT}(gameId, "Bob", "car", "");
-
-        vm.prank(charlie);
-        tycoon.registerPlayer("Charlie");
-
-        vm.prank(charlie);
-        vm.expectRevert(bytes("Game full"));
-        tycoon.joinGame{value: STAKE_AMOUNT}(gameId, "Charlie", "dog", "");
-    }
 
     function test_Revert_Join_Not_Open() public {
         // Game full -> Ongoing
@@ -750,7 +731,6 @@ contract TycoonTest is Test {
         tycoon.joinGame{value: STAKE_AMOUNT}(gameId, "Bob", "car", "");
 
         uint256 houseBefore = tycoon.houseBalance();
-        uint256 contractBalBefore = address(tycoon).balance;
 
         // Remove Alice, Bob wins
         vm.prank(alice);

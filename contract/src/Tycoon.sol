@@ -582,6 +582,11 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return properties[gameId][propertyId];
     }
 
+    function getGameSettings(uint256 gameId) public view returns(TycoonLib.GameSettings memory settings){
+        settings = gameSettings[gameId];
+        return settings;
+    }
+
     // Helper for uint to string (for AI usernames)
     function uint2str(uint256 _i) internal pure returns (string memory str) {
         if (_i == 0) return "0";
