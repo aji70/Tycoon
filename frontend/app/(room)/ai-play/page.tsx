@@ -1,6 +1,6 @@
 "use client";
 
-import GameBoard from "@/components/game/ai-board";
+import AiBoard from "@/components/game/ai-board";
 import GameRoom from "@/components/game/game-room";
 import GamePlayers from "@/components/game/players";
 import { apiClient } from "@/lib/api";
@@ -113,7 +113,7 @@ export default function GamePlayPage() {
       />
 
       <div className="lg:flex-1 w-full">
-        <GameBoard
+        <AiBoard
           game={game}
           properties={properties}
           game_properties={game_properties}
