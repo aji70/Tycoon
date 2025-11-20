@@ -176,7 +176,7 @@ const getMockCardMessage = (type: "chance" | "community_chest") => {
 const isTopHalf = (square: Property) => square.grid_row === 1;
 
 // ==================== MAIN COMPONENT ====================
-const GameBoard = ({
+const AiBoard = ({
   game,
   properties,
   game_properties,
@@ -613,4 +613,4 @@ const GameBoard = ({
   );
 };
 
-export default GameBoard;
+export default AiBoard;
