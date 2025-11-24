@@ -231,6 +231,70 @@ export function useCreateAiGame(
   return { write, isPending, error, txHash, isSuccess };
 }
 
+export function useUpdatePlayerPosition(
+  gameId: bigint | number,
+  targetPlayer: `0x${string}`,
+  newPosition: number,
+  newBalance: bigint | number,
+  balanceDelta: bigint | number, // signed integer (can be negative)
+  propertyIds: number[] // uint8[]
+) {
+  const {
+    writeContractAsync,
+    isPending,
+    error,
+    data: txHash,
+  } = useWriteContract();
+
+  const { isSuccess, isLoading: isConfirming, isError: isTxError } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  const updatePosition = useCallback(async (): Promise<`0x${string}`> => {
+    if (!gameId || !targetPlayer || propertyIds.length === undefined) {
+      throw new Error('Missing required parameters');
+    }
+
+    const hash = await writeContractAsync({
+      address: CONTRACT_ADDRESS,
+      abi: PlayerABI,
+      functionName: 'updatePlayerPosition',
+      args: [
+        BigInt(gameId),
+        targetPlayer,
+        Number(newPosition),           // uint8
+        BigInt(newBalance),            // uint256
+        BigInt(balanceDelta),          // int256 (supports negative values)
+        propertyIds.map(id => Number(id)) satisfies number[], // uint8[]
+      ],
+    });
+
+    if (!hash) {
+      throw new Error('Transaction failed - no hash returned');
+    }
+
+    return hash;
+  }, [
+    writeContractAsync,
+    gameId,
+    targetPlayer,
+    newPosition,
+    newBalance,
+    balanceDelta,
+    propertyIds,
+  ]);
+
+  return {
+    updatePosition,
+    isPending,
+    isConfirming,
+    isSuccess,
+    isError: !!error || isTxError,
+    error: error || null,
+    txHash,
+  };
+}
+
 export function useJoinGame(gameId: number, playerSymbol: string) {
   const {
     writeContractAsync,
