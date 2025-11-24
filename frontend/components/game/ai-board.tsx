@@ -10,6 +10,7 @@ import React, {
 import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
+import { getPlayerSymbol } from "@/lib/types/symbol";
 import {
   Game,
   GameProperty,
@@ -17,7 +18,6 @@ import {
   Player,
   PROPERTY_ACTION,
 } from "@/types/game";
-import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -251,6 +251,49 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [fetchUpdatedGame]);
 
+  // ==================== END TURN ====================
+  const END_TURN = useCallback(async () => {
+    if (!currentPlayerId || !lockAction("END")) return;
+
+    try {
+      await apiClient.post("/game-players/end-turn", {
+        user_id: currentPlayerId,
+        game_id: game.id,
+      });
+      toast.success("Turn ended", { icon: "check" });
+      setRoll(null);
+      setBuyPrompted(false);
+      rolledForPlayerId.current = null;
+      await fetchUpdatedGame();
+    } catch {
+      toast.error("Failed to end turn");
+    } finally {
+      unlockAction();
+    }
+  }, [currentPlayerId, game.id, fetchUpdatedGame, lockAction, unlockAction]);
+
+  // ==================== BUY PROPERTY ====================
+  const BUY_PROPERTY = useCallback(async () => {
+    if (!currentPlayer?.position || actionLock) return;
+    const square = properties.find((p) => p.id === currentPlayer.position);
+    if (!square || game_properties.some((gp) => gp.property_id === square.id)) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    try {
+      await apiClient.post("/game-properties/buy", {
+        user_id: currentPlayer.user_id,
+        game_id: game.id,
+        property_id: square.id,
+      });
+      setBuyPrompted(false);
+      await fetchUpdatedGame();
+    } catch {
+      toast.error("Purchase failed");
+    }
+  }, [currentPlayer, properties, game_properties, game.id, fetchUpdatedGame, actionLock]);
+
   // ==================== ROLL DICE ====================
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -292,6 +335,8 @@ const AiBoard = ({
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch {
         toast.error("Move failed");
+        if (forAI) rolledForPlayerId.current = currentPlayerId;
+        END_TURN();
       } finally {
         setIsRolling(false);
         unlockAction();
@@ -300,7 +345,7 @@ const AiBoard = ({
   }, [
     isRolling, actionLock, lockAction, unlockAction,
     currentPlayerId, me, players, pendingRoll, game.id,
-    fetchUpdatedGame, currentPlayer?.username,
+    fetchUpdatedGame, currentPlayer?.username, END_TURN
   ]);
 
   // ==================== AI AUTO-ROLL ====================
@@ -335,49 +380,6 @@ const AiBoard = ({
     game_properties,
     currentPlayerId,
   ]);
-
-  // ==================== BUY PROPERTY ====================
-  const BUY_PROPERTY = useCallback(async () => {
-    if (!currentPlayer?.position || actionLock) return;
-    const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square || game_properties.some((gp) => gp.property_id === square.id)) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    try {
-      await apiClient.post("/game-properties/buy", {
-        user_id: currentPlayer.user_id,
-        game_id: game.id,
-        property_id: square.id,
-      });
-      setBuyPrompted(false);
-      await fetchUpdatedGame();
-    } catch {
-      toast.error("Purchase failed");
-    }
-  }, [currentPlayer, properties, game_properties, game.id, fetchUpdatedGame]);
-
-  // ==================== END TURN ====================
-  const END_TURN = useCallback(async () => {
-    if (!currentPlayerId || !lockAction("END")) return;
-
-    try {
-      await apiClient.post("/game-players/end-turn", {
-        user_id: currentPlayerId,
-        game_id: game.id,
-      });
-      toast.success("Turn ended", { icon: "check" });
-      setRoll(null);
-      setBuyPrompted(false);
-      rolledForPlayerId.current = null;
-      await fetchUpdatedGame();
-    } catch {
-      toast.error("Failed to end turn");
-    } finally {
-      unlockAction();
-    }
-  }, [currentPlayerId, game.id, fetchUpdatedGame, lockAction, unlockAction]);
 
   // ==================== AI AUTO-DECISION (BUY OR SKIP) ====================
   useEffect(() => {
@@ -434,7 +436,7 @@ const AiBoard = ({
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
-        <div className="w-full bg-[#mas010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+        <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
 
             {/* CENTER PANEL */}
@@ -570,32 +572,59 @@ const AiBoard = ({
               return (
                 <motion.div
                   key={square.id}
-                  style={{ gridRowStart: square.grid_row, gridColumnStart: square.grid_col }}
-                  className="w-full h-full p-[2px] relative group hover:z-10"
+                  style={{
+                    gridRowStart: square.grid_row,
+                    gridColumnStart: square.grid_col,
+                  }}
+                  className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
                   whileHover={{ scale: 1.75, zIndex: 50 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  <div className={`w-full h-full rounded-md overflow-hidden bg-black/20 border border-cyan-500/20 ${isTopHalf(square) ? "origin-top group-hover:origin-bottom group-hover:translate-y-[100px]" : ""} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-all`}>
+                  <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1`}>
                     {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
                     {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                     {square.type === "corner" && <CornerCard square={square} />}
 
                     {square.type === "property" && devLevel > 0 && (
-                      <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20">
-                        {devLevel === 5 ? "Hotel" : `House ${devLevel}`}
+                      <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
+                        {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
                       </div>
                     )}
 
-                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-1 z-10">
+                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">
                       {playersHere.map((p) => {
-                        const isCurrent = p.user_id === game.next_player_id;
+                        const isCurrentPlayer = p.user_id === game.next_player_id;
                         return (
                           <motion.span
                             key={p.user_id}
-                            title={`${p.username} ($${p.balance})`}
-                            className={`text-3xl border-3 rounded-full shadow-lg ${isCurrent ? "border-yellow-400 shadow-yellow-400/50 animate-pulse" : "border-cyan-400/50"}`}
-                            animate={{ y: isCurrent ? [0, -10, 0] : 0 }}
-                            transition={{ repeat: Infinity, duration: isCurrent ? 1.2 : 2 }}
+                            title={`${p.username} (${p.balance})`}
+                            className={`text-xl md:text-2xl lg:text-3xl border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`}
+                            initial={{ scale: 1 }}
+                            animate={{
+                              y: isCurrentPlayer 
+                                ? [0, -8, 0]  // Bouncy animation for current player
+                                : [0, -3, 0], // Subtle float for others
+                              scale: isCurrentPlayer ? [1, 1.1, 1] : 1,
+                              rotate: isCurrentPlayer ? [0, 5, -5, 0] : 0, // Slight wobble for current
+                            }}
+                            transition={{
+                              y: {
+                                duration: isCurrentPlayer ? 1.2 : 2,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                              },
+                              scale: {
+                                duration: isCurrentPlayer ? 1.2 : 0,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                              },
+                              rotate: {
+                                duration: isCurrentPlayer ? 1.5 : 0,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                              },
+                            }}
+                            whileHover={{ scale: 1.2, y: -2 }}
                           >
                             {getPlayerSymbol(p.symbol)}
                           </motion.span>
