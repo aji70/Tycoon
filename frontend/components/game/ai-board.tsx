@@ -19,7 +19,7 @@ import {
   PROPERTY_ACTION,
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface CardPopup {
@@ -217,6 +217,16 @@ const AiBoard = ({
     return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
+  // Toast helper to prevent multiples
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    // Dismiss any existing toast first
+    toast.dismiss();
+
+    if (type === "success") toast.success(message);
+    else if (type === "error") toast.error(message);
+    else toast(message, { icon: "➤" });
+  }, []);
+
   useEffect(() => {
     if (game?.players) setPlayers(game.players);
   }, [game?.players]);
@@ -260,17 +270,17 @@ const AiBoard = ({
         user_id: currentPlayerId,
         game_id: game.id,
       });
-      toast.success("Turn ended", { icon: "check" });
+      showToast("Turn ended", "success");
       setRoll(null);
       setBuyPrompted(false);
       rolledForPlayerId.current = null;
       await fetchUpdatedGame();
     } catch {
-      toast.error("Failed to end turn");
+      showToast("Failed to end turn", "error");
     } finally {
       unlockAction();
     }
-  }, [currentPlayerId, game.id, fetchUpdatedGame, lockAction, unlockAction]);
+  }, [currentPlayerId, game.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
 
   // ==================== BUY PROPERTY ====================
   const BUY_PROPERTY = useCallback(async () => {
@@ -287,12 +297,17 @@ const AiBoard = ({
         game_id: game.id,
         property_id: square.id,
       });
+
+      showToast(`You bought ${square.name}!`, "success");
       setBuyPrompted(false);
       await fetchUpdatedGame();
-    } catch {
-      toast.error("Purchase failed");
+
+      // AUTO END TURN AFTER BUYING
+      setTimeout(END_TURN, 1000);
+    } catch (err) {
+      showToast("Purchase failed", "error");
     }
-  }, [currentPlayer, properties, game_properties, game.id, fetchUpdatedGame, actionLock]);
+  }, [currentPlayer, properties, game_properties, game.id, fetchUpdatedGame, actionLock, END_TURN, showToast]);
 
   // ==================== ROLL DICE ====================
   const ROLL_DICE = useCallback(async (forAI = false) => {
@@ -304,7 +319,7 @@ const AiBoard = ({
     setTimeout(async () => {
       const value = getDiceValues();
       if (!value) {
-        toast.success("DOUBLES! Roll again!", { icon: "fire" });
+        showToast("DOUBLES! Roll again!", "success");
         setIsRolling(false);
         unlockAction();
         return;
@@ -327,14 +342,14 @@ const AiBoard = ({
         setPendingRoll(0);
         await fetchUpdatedGame();
 
-        toast.success(
+        showToast(
           `${currentPlayer?.username} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
-          { icon: "game-die" }
+          "success"
         );
 
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch {
-        toast.error("Move failed");
+        showToast("Move failed", "error");
         if (forAI) rolledForPlayerId.current = currentPlayerId;
         END_TURN();
       } finally {
@@ -345,14 +360,13 @@ const AiBoard = ({
   }, [
     isRolling, actionLock, lockAction, unlockAction,
     currentPlayerId, me, players, pendingRoll, game.id,
-    fetchUpdatedGame, currentPlayer?.username, END_TURN
+    fetchUpdatedGame, currentPlayer?.username, END_TURN, showToast
   ]);
 
   // ==================== AI AUTO-ROLL ====================
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || (currentPlayer?.rolls ?? 0) > 0 || rolledForPlayerId.current === currentPlayerId) return;
 
-    toast.success(`${currentPlayer?.username}'s turn!`, { duration: 1200 });
     const timer = setTimeout(() => ROLL_DICE(true), 1200);
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, currentPlayer?.rolls, currentPlayerId, ROLL_DICE]);
@@ -389,10 +403,10 @@ const AiBoard = ({
       const shouldBuy = buyScore >= 60; // Tune this threshold!
 
       if (shouldBuy) {
-        toast.success(`AI ${currentPlayer.username} buys ${currentProperty.name}! (${buyScore}% confidence)`);
+        showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
         await BUY_PROPERTY();
       } else {
-        toast(`AI ${currentPlayer.username} skips ${currentProperty.name} (${buyScore}% confidence)`, { icon: "cross" });
+        showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
       }
 
       // End turn after decision
@@ -400,7 +414,7 @@ const AiBoard = ({
     }, 1800);
 
     return () => clearTimeout(timer);
-  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN]);
+  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
   // ==================== AI AUTO-END TURN (no buy needed) ====================
   useEffect(() => {
@@ -412,6 +426,38 @@ const AiBoard = ({
 
     return () => clearTimeout(timer);
   }, [isAITurn, currentPlayer?.rolls, buyPrompted, actionLock, END_TURN]);
+
+  // ==================== HUMAN AUTO-END TURN (no buy needed) ====================
+  useEffect(() => {
+    if (!isMyTurn || isRolling || actionLock) return;
+    if (!currentPlayer?.rolls || currentPlayer.rolls === 0) return;
+
+    const square = currentProperty;
+    if (!square) return;
+
+    const isOwned = game_properties.some(gp => gp.property_id === square.id);
+    const action = PROPERTY_ACTION(square.id);
+    const canBuy = !isOwned && action && ["land", "railway", "utility"].includes(action);
+
+    // If player CAN buy → wait for decision (buyPrompted handles it)
+    // If player CANNOT buy → auto-end turn
+    if (!canBuy && !buyPrompted) {
+      const timer = setTimeout(() => {
+        END_TURN();
+      }, 1200); // Small delay for visual clarity
+
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isMyTurn,
+    isRolling,
+    actionLock,
+    currentPlayer?.rolls,
+    currentProperty,
+    game_properties,
+    buyPrompted,
+    END_TURN
+  ]);
 
   // ==================== UTILITIES ====================
   const playersByPosition = useMemo(() => {
@@ -498,34 +544,50 @@ const AiBoard = ({
                 >
                   {isRolling ? "Rolling..." : "Roll Dice"}
                 </button>
-              ) : isMyTurn ? (
-                <div className="flex gap-4">
+              ) : isMyTurn && currentPlayer?.rolls ? (
+                <div className="flex gap-4 flex-wrap justify-center">
                   {buyPrompted && (
-                    <button onClick={BUY_PROPERTY} className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg">
-                      Buy Property
-                    </button>
+                    <>
+                      <button
+                        onClick={BUY_PROPERTY}
+                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
+                      >
+                        Buy for ${currentProperty?.price}
+                      </button>
+                      <button
+                        onClick={() => {
+                          showToast("Skipped purchase");
+                          setBuyPrompted(false);
+                          setTimeout(END_TURN, 800);
+                        }}
+                        className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+                      >
+                        Skip
+                      </button>
+                    </>
                   )}
-                  <button onClick={END_TURN} className="px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold rounded-full hover:from-red-600 hover:to-rose-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg">
-                    End Turn
-                  </button>
                 </div>
               ) : null}
 
-              {/* AI TURN — Fully Autonomous */}
+              {/* AI TURN — Cooler text without background */}
               {isAITurn && (
-                <div className="mt-5 p-6 rounded-2xl bg-gradient-to-br from-purple-900/95 to-pink-900/95 border-2 border-purple-500 shadow-2xl z-10 max-w-lg w-full backdrop-blur-sm">
-                  <h2 className="text-2xl font-bold text-pink-300 text-center mb-3">
+                <div className="mt-5 text-center z-10">
+                  <motion.h2
+                    className="text-2xl font-bold text-pink-300 mb-3"
+                    animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  >
                     AI {currentPlayer?.username} is playing…
-                  </h2>
+                  </motion.h2>
                   {buyPrompted && buyScore !== null && (
-                    <p className="text-lg text-center text-yellow-300 font-bold">
+                    <p className="text-lg text-yellow-300 font-bold">
                       Buy Confidence: {buyScore}%
                     </p>
                   )}
                   <div className="flex justify-center mt-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
                   </div>
-                  <p className="text-pink-200 text-sm italic mt-3 text-center">
+                  <p className="text-pink-200 text-sm italic mt-3">
                     Smart AI • Decides automatically
                   </p>
                 </div>
@@ -638,6 +700,34 @@ const AiBoard = ({
           </div>
         </div>
       </div>
+      <Toaster
+        position="top-center"
+        reverseOrder={false}
+        gutter={12}
+        containerClassName="z-50"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: "rgba(15, 23, 42, 0.95)",
+            color: "#fff",
+            border: "1px solid rgba(34, 211, 238, 0.3)",
+            borderRadius: "12px",
+            padding: "12px 20px",
+            fontSize: "16px",
+            fontWeight: "600",
+            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
+            backdropFilter: "blur(10px)",
+          },
+          success: {
+            icon: "✔",
+            style: { borderColor: "#10b981" },
+          },
+          error: {
+            icon: "✖",
+            style: { borderColor: "#ef4444" },
+          },
+        }}
+      />
     </div>
   );
 };

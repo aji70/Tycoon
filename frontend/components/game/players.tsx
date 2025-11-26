@@ -332,7 +332,7 @@ export default function GamePlayers({
                   <span className="text-3xl">{getPlayerSymbol(p.symbol)}</span>
                   <div className="font-bold text-cyan-200">
                     {displayName}
-                    {isMe && " (YOU)"}
+                    {isMe && " (ME)"}
                     {isAI && " (AI)"}
                   </div>
                 </div>
