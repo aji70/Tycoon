@@ -11,7 +11,7 @@ import { Address } from 'viem';
 import PlayerABI from './abi.json';
 
 const CONTRACT_ADDRESS =
-  '0xFbb5440D57bcd6802973459E4526A909dC023dd9' as Address;
+  '0x8f7397C4A189EE145E82f304e1274f82A8Ad3DbF' as Address;
 
 
 
@@ -170,11 +170,12 @@ export function useRetrievePlayer(
 }
 
 export function useCreateGame(
+  username: string,
   gameType: string,
   playerSymbol: string,
   numberOfPlayers: number,
   gameCode: string,
-  settings: GameSettings
+  starting_cash: number
 ) {
   const {
     writeContractAsync,
@@ -189,12 +190,13 @@ export function useCreateGame(
       address: CONTRACT_ADDRESS,
       abi: PlayerABI,
       functionName: 'createGame',
-      args: [gameType, playerSymbol, numberOfPlayers, gameCode, settings.startingCash],
+      args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, starting_cash],
+       value: BigInt(STAKE),
     });
 
     if (!result) throw new Error('Invalid game ID returned from contract');
     return result as string;
-  }, [writeContractAsync, gameType, playerSymbol, numberOfPlayers, settings]);
+  }, [writeContractAsync, username, gameType, playerSymbol, numberOfPlayers, gameCode, starting_cash]);
 
   return { write, isPending, error, txHash, isSuccess };
 }
@@ -233,47 +235,54 @@ export function useCreateAiGame(
 
 export function useUpdatePlayerPosition(
   gameId: bigint | number,
-  targetPlayer: `0x${string}`,
-  newPosition: number,
+  targetPlayer: `0x${string}` | undefined,
+  newPosition: number,           // uint8 → 0–39
   newBalance: bigint | number,
-  balanceDelta: bigint | number, // signed integer (can be negative)
-  propertyIds: number[] // uint8[]
+  balanceDelta: bigint | number, // int256 → can be negative
+  propertyIds: number[]          // uint8[]
 ) {
   const {
     writeContractAsync,
     isPending,
     error,
     data: txHash,
+    reset,
   } = useWriteContract();
 
-  const { isSuccess, isLoading: isConfirming, isError: isTxError } = useWaitForTransactionReceipt({
+  const {
+    isLoading: isConfirming,
+    isSuccess,
+    isError: isTxError,
+  } = useWaitForTransactionReceipt({
     hash: txHash,
   });
 
-  const updatePosition = useCallback(async (): Promise<`0x${string}`> => {
-    if (!gameId || !targetPlayer || propertyIds.length === undefined) {
-      throw new Error('Missing required parameters');
+  const updatePosition = useCallback(async (): Promise<`0x${string}` | null> => {
+    if (
+      !gameId ||
+      !targetPlayer ||
+      newPosition < 0 ||
+      newPosition > 39 ||
+      propertyIds.some(id => id < 0 || id > 39)
+    ) {
+      throw new Error("Invalid parameters for updatePlayerPosition");
     }
 
     const hash = await writeContractAsync({
       address: CONTRACT_ADDRESS,
       abi: PlayerABI,
-      functionName: 'updatePlayerPosition',
+      functionName: "updatePlayerPosition",
       args: [
         BigInt(gameId),
         targetPlayer,
-        Number(newPosition),           // uint8
-        BigInt(newBalance),            // uint256
-        BigInt(balanceDelta),          // int256 (supports negative values)
-        propertyIds.map(id => Number(id)) satisfies number[], // uint8[]
+        Number(newPosition),                    // uint8
+        BigInt(newBalance),                     // uint256
+        BigInt(balanceDelta),                   // int256 (signed)
+        propertyIds.map(id => Number(id)),      // uint8[]
       ],
     });
 
-    if (!hash) {
-      throw new Error('Transaction failed - no hash returned');
-    }
-
-    return hash;
+    return hash ?? null;
   }, [
     writeContractAsync,
     gameId,
@@ -290,12 +299,13 @@ export function useUpdatePlayerPosition(
     isConfirming,
     isSuccess,
     isError: !!error || isTxError,
-    error: error || null,
+    error: error,
     txHash,
+    reset, // useful to clear state after success/error
   };
 }
 
-export function useJoinGame(gameId: number, playerSymbol: string) {
+export function useJoinGame(gameId: number, username: string, playerSymbol: string, code: string) {
   const {
     writeContractAsync,
     isPending,
@@ -309,7 +319,8 @@ export function useJoinGame(gameId: number, playerSymbol: string) {
       address: CONTRACT_ADDRESS,
       abi: PlayerABI,
       functionName: 'joinGame',
-      args: [gameId, playerSymbol],
+      args: [gameId, username, playerSymbol, code],
+       value: BigInt(STAKE),
     });
 
     if (!result) throw new Error('Invalid game ID returned from contract');

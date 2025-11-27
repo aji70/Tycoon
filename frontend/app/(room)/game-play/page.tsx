@@ -1,6 +1,6 @@
 "use client";
 
-import GameBoard from "@/components/game/ai-board";
+import GameBoard from "@/components/game/game-board";
 import GameRoom from "@/components/game/game-room";
 import GamePlayers from "@/components/game/players";
 import { apiClient } from "@/lib/api";
@@ -117,7 +117,7 @@ export default function GamePlayPage() {
           game={game}
           properties={properties}
           game_properties={game_properties}
-          // my_properties={my_properties}
+          my_properties={my_properties}
           me={me}
         />
       </div>

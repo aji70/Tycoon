@@ -24,11 +24,10 @@ export default function GamePlayers({
   me,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const [showEmpire, setShowEmpire] = useState(true);
-  const [showTrades, setShowTrades] = useState(true);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-
-  // Trade modals
+  const [showEmpire, setShowEmpire] = useState(false);
+  const [showTrade, setShowTrade] = useState(false);
+  const [openTrades, setOpenTrades] = useState<any[]>([]);
+  const [tradeRequests, setTradeRequests] = useState<any[]>([]);
   const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
     open: false,
     target: null,
@@ -38,16 +37,14 @@ export default function GamePlayers({
     trade: null,
   });
 
-  // Trade form
+  // trade form states
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
-  const [offerCash, setOfferCash] = useState(0);
-  const [requestCash, setRequestCash] = useState(0);
+  const [offerCash, setOfferCash] = useState<number>(0);
+  const [requestCash, setRequestCash] = useState<number>(0);
 
-  // Trade data
-  const [openTrades, setOpenTrades] = useState<any[]>([]);
-  const [incomingTrades, setIncomingTrades] = useState<any[]>([]);
-
+  const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
+  const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = me && game.next_player_id === me.user_id;
 
   const resetTradeFields = () => {
@@ -57,31 +54,37 @@ export default function GamePlayers({
     setRequestProperties([]);
   };
 
-  // Helpers
   const isMortgaged = useCallback(
-    (id: number) => game_properties.find((gp) => gp.property_id === id)?.mortgaged ?? false,
+    (property_id: number) =>
+      game_properties.find((gp) => gp.property_id === property_id)?.mortgaged ?? false,
     [game_properties]
   );
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const developmentStage = useCallback(
-    (id: number) => game_properties.find((gp) => gp.property_id === id)?.development ?? 0,
+    (property_id: number) =>
+      game_properties.find((gp) => gp.property_id === property_id)?.development ?? 0,
     [game_properties]
   );
 
   const rentPrice = useCallback(
-    (id: number): number => {
-      const p = properties.find((prop) => prop.id === id);
-      if (!p) return 0;
-      const dev = developmentStage(id);
-      const rents = [
-        p.rent_site_only,
-        p.rent_one_house,
-        p.rent_two_houses,
-        p.rent_three_houses,
-        p.rent_four_houses,
-        p.rent_hotel,
-      ];
-      return rents[dev] ?? 0;
+    (property_id: number) => {
+      const property = properties.find((p) => p.id === property_id);
+      const dev = developmentStage(property_id);
+      switch (dev) {
+        case 1:
+          return property?.rent_one_house;
+        case 2:
+          return property?.rent_two_houses;
+        case 3:
+          return property?.rent_three_houses;
+        case 4:
+          return property?.rent_four_houses;
+        case 5:
+          return property?.rent_hotel;
+        default:
+          return property?.rent_site_only;
+      }
     },
     [properties, developmentStage]
   );
@@ -89,82 +92,57 @@ export default function GamePlayers({
   const sortedPlayers = useMemo(
     () =>
       [...(game?.players ?? [])].sort(
-        (a: Player, b: Player) => (a.turn_order ?? 99) - (b.turn_order ?? 99)
+        (a, b) => (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity)
       ),
     [game?.players]
   );
 
-  const toggleSelect = (
-    id: number,
-    arr: number[],
-    setter: React.Dispatch<React.SetStateAction<number[]>>
-  ) => {
-    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
-  const startTrade = (p: Player) => {
-    if (!isNext) {
-      toast.error("Not your turn!");
-      return;
-    }
-    setTradeModal({ open: true, target: p });
-    resetTradeFields();
-  };
-
-  // ———— TRADE POLLING + AI AUTO-ACCEPT (FULLY WORKING) ————
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
-
     try {
-      const [outRes, inRes] = await Promise.all([
+      const [_initiated, _incoming] = await Promise.all([
         apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
         apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
       ]);
-
-      setOpenTrades(outRes.data?.data || []);
-      setIncomingTrades(inRes.data?.data || []);
-
-      // ———— AI INSTANT ACCEPT LOGIC ————
-      const incoming = inRes.data?.data || [];
-      for (const trade of incoming) {
-        if (trade.status !== "pending") continue;
-
-        const fromPlayer = game.players.find((p: Player) => p.user_id === trade.player_id);
-        const username = (fromPlayer?.username || "").toLowerCase();
-        const isAI = username.includes("ai") || username.includes("bot") || username.includes("computer");
-
-        if (!isAI) continue;
-
-        const givesProperty = (trade.offer_properties?.length || 0) > 0;
-        const cashFair = (trade.offer_amount || 0) >= (trade.requested_amount || 0);
-
-        if (givesProperty || cashFair) {
-          try {
-            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
-            toast.success(`${fromPlayer?.username || "AI"} accepted instantly!`, {
-              icon: "Robot",
-              duration: 4000,
-            });
-            // Refetch to update UI immediately
-            fetchTrades();
-          } catch (err) {
-            console.error("AI failed to accept trade", err);
-          }
-        }
-      }
+      const initiated = _initiated.data?.data || []
+      const incoming = _incoming.data?.data || []
+      setOpenTrades(initiated);
+      setTradeRequests(incoming);
     } catch (err) {
-      console.error("Failed to fetch trades", err);
+      console.error("Error loading trades:", err);
+      toast.error("Failed to load trades");
     }
-  }, [me, game?.id, game.players]);
+  }, [me, game?.id]);
 
   useEffect(() => {
     if (!me || !game?.id) return;
-    fetchTrades();
-    const interval = setInterval(fetchTrades, 4000);
-    return () => clearInterval(interval);
-  }, [fetchTrades]);
+    let isFetching = false;
+    let interval: NodeJS.Timeout;
 
-  // ———— TRADE ACTIONS ————
+    const startPolling = async () => {
+      // Initial load
+      await fetchTrades();
+
+      // Poll every 5 seconds
+      interval = setInterval(async () => {
+        if (isFetching) return; // avoid overlap
+        isFetching = true;
+        try {
+          await fetchTrades();
+        } finally {
+          isFetching = false;
+        }
+      }, 5000);
+    };
+
+    startPolling();
+
+    // cleanup on unmount
+    return () => clearInterval(interval);
+  }, [fetchTrades, me, game?.id]);
+
+
+  // Create new trade
   const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
 
@@ -177,126 +155,166 @@ export default function GamePlayers({
         offer_amount: offerCash,
         requested_properties: requestProperties,
         requested_amount: requestCash,
+        status: "pending",
       };
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-      if (res.data?.success) {
-        toast.success("Trade sent successfully!");
+      if (res?.data?.success) {
+        toast.success("Trade created successfully");
+        setOpenTrades((prev) => [...prev, res.data]);
         setTradeModal({ open: false, target: null });
         resetTradeFields();
-        fetchTrades();
-      } else {
-        toast.error(res.data?.message || "Failed to send trade");
+        return;
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Trade failed");
+      toast.error(res?.data?.message || "Failed to create trade");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Failed to create trade");
     }
   };
 
+  // Accept, decline, or counter
   const handleTradeAction = async (id: number, action: "accepted" | "declined" | "counter") => {
     try {
       if (action === "counter") {
-        const trade = incomingTrades.find((t) => t.id === id);
-        if (trade) {
-          setCounterModal({ open: true, trade });
-          setOfferProperties(trade.requested_properties || []);
-          setRequestProperties(trade.offer_properties || []);
-          setOfferCash(trade.requested_amount || 0);
-          setRequestCash(trade.offer_amount || 0);
-        }
+        const trade = tradeRequests.find((t) => t.id === id);
+        if (trade) setCounterModal({ open: true, trade });
         return;
       }
-
-      const endpoint = action === "accepted" ? "accept" : "decline";
-      const res = await apiClient.post<ApiResponse>(`/game-trade-requests/${endpoint}`, { id });
-      if (res.data?.success) {
-        toast.success(`Trade ${action}!`);
+      const res = await apiClient.post<ApiResponse>(`/game-trade-requests/${action == 'accepted' ? 'accept' : 'decline'}`, { id });
+      if (res?.data?.success) {
+        toast.success(`Trade ${action}`);
         fetchTrades();
+        return;
       }
-    } catch (err: any) {
-      toast.error("Action failed");
+      toast.error("Failed to update trade");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update trade");
     }
   };
 
+  // Submit counter trade update
   const submitCounterTrade = async () => {
-    if (!counterModal.trade) return;
+    if (!me || !counterModal.trade) return;
     try {
       const payload = {
         offer_properties: offerProperties,
         offer_amount: offerCash,
         requested_properties: requestProperties,
         requested_amount: requestCash,
+        status: "counter",
       };
       const res = await apiClient.put<ApiResponse>(`/game-trade-requests/${counterModal.trade.id}`, payload);
-      if (res.data?.success) {
-        toast.success("Counter offer sent!");
+      if (res?.data?.success) {
+        toast.success("Counter offer sent");
         setCounterModal({ open: false, trade: null });
         resetTradeFields();
         fetchTrades();
+        return;
       }
-    } catch (err: any) {
-      toast.error("Counter failed");
+      toast.error("Failed to send counter trade");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to send counter trade");
     }
   };
 
-  // ———— PROPERTY ACTIONS ————
+  const toggleSelect = (id: number, arr: number[], setter: (val: number[]) => void) => {
+    if (arr.includes(id)) setter(arr.filter((x) => x !== id));
+    else setter([...arr, id]);
+  };
+
+  const startTrade = (targetPlayer: Player) => {
+    if (!isNext) return;
+    setTradeModal({ open: true, target: targetPlayer });
+  };
+
   const handleDevelopment = async (id: number) => {
     if (!isNext || !me) return;
+
     try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+      const payload = {
         game_id: game.id,
         user_id: me.user_id,
         property_id: id,
-      });
-      if (res.data?.success) toast.success("House built!");
-      else toast.error(res.data?.message || "Cannot build");
-    } catch (err: any) {
-      toast.error("Build failed");
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", payload);
+      if (res?.data?.success) {
+        toast.success("Property development successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to develop property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to develop property..");
     }
   };
 
   const handleDowngrade = async (id: number) => {
     if (!isNext || !me) return;
+
     try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+      const payload = {
         game_id: game.id,
         user_id: me.user_id,
         property_id: id,
-      });
-      if (res.data?.success) toast.success("House sold");
-      else toast.error(res.data?.message || "Cannot sell");
-    } catch (err: any) {
-      toast.error("Downgrade failed");
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", payload);
+      if (res?.data?.success) {
+        toast.success("Property downgraded successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to downgrade property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to downgrade property..");
     }
   };
 
   const handleMortgage = async (id: number) => {
     if (!isNext || !me) return;
+
     try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+      const payload = {
         game_id: game.id,
         user_id: me.user_id,
         property_id: id,
-      });
-      if (res.data?.success) toast.success("Mortgaged");
-      else toast.error(res.data?.message || "Cannot mortgage");
-    } catch (err: any) {
-      toast.error("Mortgage failed");
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", payload);
+      if (res?.data?.success) {
+        toast.success("Property mortgaged successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to mortgage property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to mortgage property..");
     }
   };
 
   const handleUnmortgage = async (id: number) => {
     if (!isNext || !me) return;
+
     try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+      const payload = {
         game_id: game.id,
         user_id: me.user_id,
         property_id: id,
-      });
-      if (res.data?.success) toast.success("Unmortgaged");
-      else toast.error(res.data?.message || "Cannot unmortgage");
-    } catch (err: any) {
-      toast.error("Unmortgage failed");
+      };
+
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", payload);
+      if (res?.data?.success) {
+        toast.success("Property unmortgaged successfully");
+        return;
+      }
+      toast.error(res.data?.message ?? "Failed to unmortgage property.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message || "Failed to unmortgage property..");
     }
   };
 
@@ -313,37 +331,40 @@ export default function GamePlayers({
           PLAYERS
         </motion.h2>
 
-        {/* Players List */}
-        {sortedPlayers.map((p: Player) => {
-          const isMe = p.address?.toLowerCase() === address?.toLowerCase();
-          const isTurn = p.user_id === game.next_player_id;
-          const canTrade = isNext && !p.in_jail && !isMe;
-          const displayName = p.username || p.address?.slice(0, 6) || "Player";
-          const isAI = displayName.toLowerCase().includes("ai") || displayName.toLowerCase().includes("bot");
+        {sortedPlayers.map((player) => {
+          const isWinner = player.user_id === game.winner_id;
+          const isNextTurn = player.user_id === game.next_player_id;
+          const isMe = player.address?.toLowerCase() === address?.toLowerCase();
+          const canTrade = isNext && !player.in_jail && !isMe;
 
           return (
             <motion.div
-              key={p.user_id}
+              key={player.user_id}
               whileHover={{ scale: 1.02 }}
-              className={`p-4 rounded-xl border-2 transition-all ${isTurn ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-400/60" : "border-purple-800 bg-purple-900/20"}`}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                isNextTurn
+                  ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-400/60"
+                  : "border-purple-800 bg-purple-900/20"
+              }`}
             >
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">{getPlayerSymbol(p.symbol)}</span>
+                  <span className="text-3xl">{getPlayerSymbol(player.symbol)}</span>
                   <div className="font-bold text-cyan-200">
-                    {displayName}
-                    {isMe && " (ME)"}
-                    {isAI && " (AI)"}
+                    {player.username || player.address?.slice(0, 6)}
+                    {isMe && " (YOU)"}
+                    {isWinner && " 👑"}
                   </div>
                 </div>
                 <div className="text-xl font-bold text-yellow-400">
-                  ${p.balance.toLocaleString()}
+                  ${player.balance.toLocaleString()}
                 </div>
               </div>
+
               {canTrade && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => startTrade(p)}
+                  onClick={() => startTrade(player)}
                   className="mt-3 w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg font-bold text-white shadow-lg"
                 >
                   TRADE
@@ -353,23 +374,20 @@ export default function GamePlayers({
           );
         })}
 
-        {/* My Empire */}
         <div className="border-t-4 border-purple-600 pt-4">
-     <button
-  onClick={() => setShowEmpire(v => !v)}
-  className="w-full text-xl font-bold text-purple-300 flex justify-between items-center"
->
-  <span>MY EMPIRE</span>
-
-  <motion.span
-    animate={{ rotate: showEmpire ? 180 : 0, textShadow: ["0 0 10px #0ff", "0 0 20px #0ff"] }}
-    transition={{ duration: 0.25 }}
-    className="text-3xl text-cyan-400"
-  >
-    ▼
-  </motion.span>
-</button>
-
+          <button
+            onClick={toggleEmpire}
+            className="w-full text-xl font-bold text-purple-300 flex justify-between items-center"
+          >
+            <span>MY EMPIRE</span>
+            <motion.span
+              animate={{ rotate: showEmpire ? 180 : 0 }}
+              transition={{ duration: 0.25 }}
+              className="text-3xl text-cyan-400"
+            >
+              ▼
+            </motion.span>
+          </button>
 
           <AnimatePresence>
             {showEmpire && (
@@ -379,95 +397,181 @@ export default function GamePlayers({
                 exit={{ height: 0 }}
                 className="overflow-hidden mt-3 grid grid-cols-2 gap-3"
               >
-                {my_properties.map((prop, i) => (
-                  <motion.div
-                    key={prop.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => isNext && setSelectedProperty(prop)}
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-black/60 border-2 border-cyan-600 rounded-lg p-3 cursor-pointer shadow-md"
-                  >
-                    {prop.color && <div className="h-3 rounded" style={{ backgroundColor: prop.color }} />}
-                    <div className="mt-2 text-sm font-bold text-cyan-200 truncate">{prop.name}</div>
-                    <div className="text-xs text-green-400">Rent: ${rentPrice(prop.id)}</div>
-                    {isMortgaged(prop.id) && (
-                      <div className="text-red-500 text-xs mt-1 font-bold animate-pulse">MORTGAGED</div>
-                    )}
-                  </motion.div>
-                ))}
+                {my_properties.length > 0 ? (
+                  my_properties.map((prop, index) => (
+                    <motion.div
+                      key={prop.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => setSelectedProperty(prop)}
+                      whileHover={{ scale: 1.05 }}
+                      className="bg-black/60 border-2 border-cyan-600 rounded-lg p-3 cursor-pointer shadow-md"
+                    >
+                      {prop.color && (
+                        <div className="h-3 rounded" style={{ backgroundColor: prop.color }} />
+                      )}
+
+                      <div className="mt-2 text-sm font-bold text-cyan-200 truncate">{prop.name}</div>
+                      <div className="text-xs text-green-400">Rent: ${rentPrice(prop.id)}</div>
+                      {isMortgaged(prop.id) && (
+                        <div className="text-red-500 text-xs mt-1 font-bold animate-pulse">MORTGAGED</div>
+                      )}
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center text-sm font-medium text-gray-500 py-3 col-span-2">
+                    No properties yet..
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Incoming Trades */}
         <div className="border-t-4 border-pink-600 pt-4">
           <button
-            onClick={() => setShowTrades((v) => !v)}
+            onClick={toggleTrade}
             className="w-full text-xl font-bold text-pink-300 flex justify-between items-center"
           >
-            <span>TRADES {incomingTrades.length > 0 && `(${incomingTrades.length} pending)`}</span>
-            <motion.span animate={{ rotate: showTrades ? 180 : 0 }} className="text-3xl text-cyan-400">
+            <span>TRADES {tradeRequests.length > 0 && `(${tradeRequests.length} pending)`}</span>
+            <motion.span animate={{ rotate: showTrade ? 180 : 0 }} className="text-3xl text-cyan-400">
               ▼
             </motion.span>
           </button>
 
           <AnimatePresence>
-            {showTrades && incomingTrades.length > 0 && (
+            {showTrade && (
               <motion.div
                 initial={{ height: 0 }}
                 animate={{ height: "auto" }}
                 exit={{ height: 0 }}
                 className="overflow-hidden mt-4 space-y-4"
               >
-                {incomingTrades.map((trade: any) => {
-                  const from = game.players.find((p: Player) => p.user_id === trade.player_id);
-                  const offerProps = properties.filter((p: Property) => trade.offer_properties?.includes(p.id));
-                  const requestProps = properties.filter((p: Property) => trade.requested_properties?.includes(p.id));
+                {openTrades.length > 0 && (
+                  <div>
+                    <h4 className="text-xl font-bold text-cyan-400 mb-2 flex items-center space-x-1">
+                      <span>📤</span>
+                      <span>MY ACTIVE TRADES</span>
+                    </h4>
+                    <AnimatePresence>
+                      {openTrades.map((trade, index) => {
+                        const offeredProps = properties.filter((p) =>
+                          trade.offer_properties?.includes(p.id)
+                        );
+                        const requestedProps = properties.filter((p) =>
+                          trade.requested_properties?.includes(p.id)
+                        );
+                        const targetPlayer = game.players.find(
+                          (pl) => pl.user_id === trade.target_player_id
+                        );
 
-                  return (
-                    <motion.div
-                      key={trade.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="bg-gradient-to-br from-purple-900/60 to-cyan-900/40 border-2 border-cyan-500 rounded-xl p-5"
-                    >
-                      <div className="font-bold text-cyan-300 mb-3">
-                        From {from?.username || "Player"}
-                      </div>
-                      <div className="text-sm space-y-2 mb-4">
-                        <div className="text-green-400">
-                          Gives: {offerProps.length ? offerProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.offer_amount || 0}
-                        </div>
-                        <div className="text-red-400">
-                          Wants: {requestProps.length ? requestProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.requested_amount || 0}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          onClick={() => handleTradeAction(trade.id, "accepted")}
-                          className="py-2 bg-green-600 rounded font-bold text-white hover:bg-green-500"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => handleTradeAction(trade.id, "declined")}
-                          className="py-2 bg-red-600 rounded font-bold text-white hover:bg-red-500"
-                        >
-                          Decline
-                        </button>
-                        <button
-                          onClick={() => handleTradeAction(trade.id, "counter")}
-                          className="py-2 bg-yellow-600 rounded font-bold text-black hover:bg-yellow-500"
-                        >
-                          Counter
-                        </button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                        return (
+                          <motion.div
+                            key={trade.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-gradient-to-br from-purple-900/60 to-cyan-900/40 border-2 border-cyan-500 rounded-xl p-5"
+                          >
+                            <div className="font-bold text-cyan-300 mb-3">
+                              With {targetPlayer?.username || targetPlayer?.address?.slice(0, 6)}
+                            </div>
+                            <div className="text-sm space-y-2 mb-4">
+                              <div className="text-green-400">
+                                Gives: {offeredProps.length ? offeredProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.offer_amount || 0}
+                              </div>
+                              <div className="text-red-400">
+                                Wants: {requestedProps.length ? requestedProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.requested_amount || 0}
+                              </div>
+                            </div>
+                            <span className={`px-3 py-1 rounded text-sm font-medium ${trade.status === 'accepted' 
+                              ? 'bg-green-900/40 text-green-300' 
+                              : trade.status === 'declined' 
+                              ? 'bg-red-900/40 text-red-300' 
+                              : 'bg-yellow-900/40 text-yellow-300'
+                            }`}>
+                              {trade.status.toUpperCase()}
+                            </span>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {tradeRequests.length > 0 && (
+                  <div>
+                    <h4 className="text-xl font-bold text-cyan-400 mb-2 flex items-center space-x-1">
+                      <span>📥</span>
+                      <span>INCOMING REQUESTS</span>
+                    </h4>
+                    <AnimatePresence>
+                      {tradeRequests.map((trade, index) => {
+                        const offeredProps = properties.filter((p) =>
+                          trade.offer_properties?.includes(p.id)
+                        );
+                        const requestedProps = properties.filter((p) =>
+                          trade.requested_properties?.includes(p.id)
+                        );
+                        const fromPlayer = game.players.find(
+                          (pl) => pl.user_id === trade.player_id
+                        );
+
+                        return (
+                          <motion.div
+                            key={trade.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-gradient-to-br from-purple-900/60 to-cyan-900/40 border-2 border-cyan-500 rounded-xl p-5"
+                          >
+                            <div className="font-bold text-cyan-300 mb-3">
+                              From {fromPlayer?.username || fromPlayer?.address?.slice(0, 6)}
+                            </div>
+                            <div className="text-sm space-y-2 mb-4">
+                              <div className="text-green-400">
+                                Gives: {offeredProps.length ? offeredProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.offer_amount || 0}
+                              </div>
+                              <div className="text-red-400">
+                                Wants: {requestedProps.length ? requestedProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.requested_amount || 0}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <button
+                                onClick={() => handleTradeAction(trade.id, "accepted")}
+                                className="py-2 bg-green-600 rounded font-bold text-white hover:bg-green-500"
+                              >
+                                ACCEPT
+                              </button>
+                              <button
+                                onClick={() => handleTradeAction(trade.id, "declined")}
+                                className="py-2 bg-red-600 rounded font-bold text-white hover:bg-red-500"
+                              >
+                                DECLINE
+                              </button>
+                              <button
+                                onClick={() => handleTradeAction(trade.id, "counter")}
+                                className="py-2 bg-yellow-600 rounded font-bold text-black hover:bg-yellow-500"
+                              >
+                                COUNTER
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {openTrades.length === 0 && tradeRequests.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center text-gray-500 py-3"
+                  >
+                    <div className="text-3xl mb-1">💱</div>
+                    <p className="text-sm">No trades yet..</p>
+                  </motion.div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -508,11 +612,11 @@ export default function GamePlayers({
         )}
       </AnimatePresence>
 
-      {/* Create Trade Modal */}
+      {/* Create + Counter Modals */}
       <TradeModal
         open={tradeModal.open}
-        title="CREATE TRADE"
-        onClose={() => { setTradeModal({ open: false, target: null }); resetTradeFields(); }}
+        title={`Trade with ${tradeModal.target?.username}`}
+        onClose={() => setTradeModal({ open: false, target: null })}
         onSubmit={handleCreateTrade}
         my_properties={my_properties}
         properties={properties}
@@ -529,11 +633,10 @@ export default function GamePlayers({
         targetPlayerAddress={tradeModal.target?.address}
       />
 
-      {/* Counter Trade Modal - FULLY FIXED */}
       <TradeModal
         open={counterModal.open}
-        title="COUNTER OFFER"
-        onClose={() => { setCounterModal({ open: false, trade: null }); resetTradeFields(); }}
+        title="Counter Trade Offer"
+        onClose={() => setCounterModal({ open: false, trade: null })}
         onSubmit={submitCounterTrade}
         my_properties={my_properties}
         properties={properties}
@@ -553,7 +656,8 @@ export default function GamePlayers({
   );
 }
 
-// ———— CLEAN & WORKING TRADE MODAL ————
+/* --- Shared TradeModal --- */
+
 function TradeModal({
   open,
   title,
@@ -571,34 +675,23 @@ function TradeModal({
   setOfferCash,
   setRequestCash,
   toggleSelect,
-  targetPlayerAddress,
-}: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  onSubmit: () => void;
-  my_properties: Property[];
-  properties: Property[];
-  game_properties: GameProperty[];
-  offerProperties: number[];
-  requestProperties: number[];
-  setOfferProperties: React.Dispatch<React.SetStateAction<number[]>>;
-  setRequestProperties: React.Dispatch<React.SetStateAction<number[]>>;
-  offerCash: number;
-  requestCash: number;
-  setOfferCash: React.Dispatch<React.SetStateAction<number>>;
-  setRequestCash: React.Dispatch<React.SetStateAction<number>>;
-  toggleSelect: (id: number, arr: number[], setter: React.Dispatch<React.SetStateAction<number[]>>) => void;
-  targetPlayerAddress?: string | null;
-}) {
+  targetPlayerAddress
+}: any) {
   if (!open) return null;
 
-  const targetProps = useMemo(() => {
-    if (!targetPlayerAddress) return [];
-    return properties.filter((p) =>
-      game_properties.some((gp) => gp.property_id === p.id && gp.address === targetPlayerAddress)
+  const targetOwnedProps = useMemo(() => {
+    const validTypes = ["land", "railway", "utility"];
+    // Filter game_properties by player ownership and valid type
+    const ownedGameProps = game_properties.filter(
+      (gp: any) =>
+        gp.address == targetPlayerAddress
     );
-  }, [properties, game_properties, targetPlayerAddress]);
+
+    // Map to property details
+    return properties.filter((p: any) =>
+      ownedGameProps.some((gp: any) => gp.property_id === p.id)
+    );
+  }, [game_properties, properties, targetPlayerAddress]);
 
   const PropertyCard = ({ prop, isSelected, onClick }: { prop: Property; isSelected: boolean; onClick: () => void }) => (
     <div
@@ -640,7 +733,7 @@ function TradeModal({
           <div>
             <h3 className="text-2xl font-bold text-green-400 mb-4 text-center">YOU GIVE</h3>
             <div className="grid grid-cols-3 gap-3">
-              {my_properties.map((p) => (
+              {my_properties.map((p: Property) => (
                 <PropertyCard
                   key={p.id}
                   prop={p}
@@ -661,8 +754,8 @@ function TradeModal({
           <div>
             <h3 className="text-2xl font-bold text-red-400 mb-4 text-center">YOU GET</h3>
             <div className="grid grid-cols-3 gap-3">
-              {targetProps.length > 0 ? (
-                targetProps.map((p) => (
+              {targetOwnedProps.length > 0 ? (
+                targetOwnedProps.map((p: Property) => (
                   <PropertyCard
                     key={p.id}
                     prop={p}

@@ -13,7 +13,7 @@ import { FaXTwitter } from "react-icons/fa6";
 import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
 import { useAccount } from "wagmi";
 import {
-  useIsInGame,
+  useGetUsername,
   useJoinGame,
   useGetGameByCode,
 } from "@/context/ContractProvider";
@@ -21,16 +21,6 @@ import { apiClient } from "@/lib/api";
 import { Game } from "@/lib/types/games";
 import { getPlayerSymbolData, PlayerSymbol, symbols } from "@/lib/types/symbol";
 import { ApiResponse } from "@/types/api";
-
-/**
- * Production-ready GameWaiting component
- * - Full TypeScript typing
- * - Robust network/error handling (AbortController)
- * - Visibility-aware polling (stops while tab is hidden)
- * - Optimistic UI & disabled states during network actions
- * - Accessibility improvements
- * - Defensive checks (window origin, signer presence)
- */
 
 const POLL_INTERVAL = 5000; // ms
 const COPY_FEEDBACK_MS = 2000;
@@ -62,6 +52,7 @@ export default function GameWaiting(): JSX.Element {
   } = useGetGameByCode(gameCode, { enabled: !!gameCode });
 
   const contractId = contractGame?.id ?? null;
+  const { data: username } = useGetUsername(address);
 
   const {
     write: joinGame,
@@ -69,7 +60,9 @@ export default function GameWaiting(): JSX.Element {
     error: joinError,
   } = useJoinGame(
     contractId ? Number(contractId) : 0,
-    playerSymbol?.value ?? ""
+    username ?? "",
+    playerSymbol?.value ?? "",
+    gameCode,
   );
 
   // Keep a ref to mounted state to avoid state updates after unmount
@@ -97,7 +90,7 @@ export default function GameWaiting(): JSX.Element {
   );
   const shareText = useMemo(
     () =>
-      `Join my Blockopoly game! Code: ${gameCode}. Waiting room: ${gameUrl}`,
+      `Join my Tycoon game! Code: ${gameCode}. Waiting room: ${gameUrl}`,
     [gameCode, gameUrl]
   );
   const telegramShareUrl = useMemo(
@@ -327,9 +320,12 @@ export default function GameWaiting(): JSX.Element {
   if (loading || contractGameLoading) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
-        <p className="text-[#00F0FF] text-xl font-semibold font-orbitron animate-pulse">
-          Loading game...
-        </p>
+        <div className="flex flex-col items-center space-y-3">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-3 border-[#00F0FF] border-opacity-50"></div>
+          <p className="text-[#00F0FF] text-lg font-semibold font-orbitron animate-pulse">
+            Entering the Lobby...
+          </p>
+        </div>
       </section>
     );
   }
@@ -337,24 +333,24 @@ export default function GameWaiting(): JSX.Element {
   if (error || !game) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
-        <div className="space-y-4 text-center">
-          <p className="text-red-500 text-xl font-semibold font-orbitron">
-            {error ?? "Game not found"}
+        <div className="space-y-3 text-center bg-[#0A1A1B]/80 p-6 rounded-xl shadow-lg border border-red-500/50">
+          <p className="text-red-400 text-lg font-bold font-orbitron animate-pulse">
+            {error ?? "Game Portal Closed"}
           </p>
           <div className="flex gap-3 justify-center">
             <button
               type="button"
               onClick={() => router.push("/join-room")}
-              className="bg-[#00F0FF] text-black px-4 py-2 rounded font-orbitron"
+              className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              Back to Join Room
+              Retry Join
             </button>
             <button
               type="button"
               onClick={handleGoHome}
-              className="bg-[#00F0FF] text-black px-4 py-2 rounded font-orbitron"
+              className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              Go to Home
+              Return to Base
             </button>
           </div>
         </div>
@@ -367,92 +363,105 @@ export default function GameWaiting(): JSX.Element {
   return (
     <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
       <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
-        <div className="w-full max-w-md bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-xl shadow-lg border border-[#00F0FF]/30 backdrop-blur-sm">
-          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-wide">
-            Blockopoly Waiting Room
-            <span className="block text-sm text-[#00F0FF] mt-1 font-bold">
+        <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-5 sm:p-6 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
+          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
+            Tycoon Lobby
+            <span className="block text-base text-[#00F0FF] mt-1 font-extrabold shadow-text">
               Code: {gameCode}
             </span>
           </h2>
 
           <div className="text-center space-y-3 mb-6">
-            <p className="text-[#869298] text-sm">
+            <p className="text-[#869298] text-sm font-semibold">
               {playersJoined === maxPlayers
-                ? "All players joined! Ready to start..."
-                : "Waiting for players to join..."}
+                ? "Full House! Game Starting Soon..."
+                : "Assemble Your Rivals..."}
             </p>
-            <p className="text-[#00F0FF] text-lg font-semibold">
-              Players: {playersJoined}/{maxPlayers}
+            <div className="w-full bg-[#003B3E]/50 h-2 rounded-full overflow-hidden shadow-inner">
+              <div 
+                className="bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] h-full transition-all duration-500 ease-out"
+                style={{ width: `${(playersJoined / maxPlayers) * 100}%` }}
+              ></div>
+            </div>
+            <p className="text-[#00F0FF] text-lg font-bold">
+              Players Ready: {playersJoined}/{maxPlayers}
             </p>
-            <div className="w-full items-center flex space-x-4 justify-center flex-wrap">
-              {game.players.map((player) => (
-                <span
-                  key={player.user_id}
-                  className="text-sm text-[#F0F7F7] flex items-center justify-center gap-2"
-                >
-                  {symbols.find((t) => t.value === player.symbol)?.emoji}{" "}
-                  <span className="truncate max-w-[130px]">
-                    {player.username}
-                  </span>
-                </span>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 justify-center">
+              {Array.from({ length: maxPlayers }).map((_, index) => {
+                const player = game.players[index];
+                return (
+                  <div
+                    key={index}
+                    className="bg-[#010F10]/70 p-3 rounded-lg border border-[#00F0FF]/30 flex flex-col items-center justify-center shadow-md hover:shadow-[#00F0FF]/50 transition-shadow duration-300"
+                  >
+                    <span className="text-4xl mb-1 animate-bounce-slow">
+                      {player 
+                        ? symbols.find((s) => s.value === player.symbol)?.emoji 
+                        : "❓"}
+                    </span>
+                    <p className="text-[#F0F7F7] text-xs font-semibold truncate max-w-[80px]">
+                      {player?.username || "Slot Open"}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           {showShare && (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-5 bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
+              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">Summon Allies!</h3>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   aria-label="game url"
                   value={gameUrl}
                   readOnly
-                  className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded border border-[#00F0FF]/30 focus:outline-none font-orbitron text-sm"
+                  className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
                 />
                 <button
                   type="button"
                   onClick={handleCopyLink}
                   disabled={actionLoading}
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-3 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
+                  className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
                 >
                   <IoCopyOutline className="w-5 h-5" />
                 </button>
               </div>
               {copySuccess && (
-                <p className="text-green-400 text-xs text-center">
+                <p className="text-green-400 text-xs text-center animate-fade-in">
                   {copySuccess}
                 </p>
               )}
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-5">
                 <a
                   href={telegramShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
                 >
-                  <PiTelegramLogoLight className="mr-2 w-5 h-5" />
-                  Telegram
+                  <PiTelegramLogoLight className="w-6 h-6" />
                 </a>
                 <a
                   href={twitterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] text-sm font-orbitron font-semibold py-2 px-4 rounded-lg border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-all duration-300"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
                 >
-                  <FaXTwitter className="mr-2 w-5 h-5" />X
+                  <FaXTwitter className="w-6 h-6" />
                 </a>
               </div>
             </div>
           )}
 
           {game.players.length < game.number_of_players && !isJoined && (
-            <div className="mt-6 space-y-4">
-              <div className="flex flex-col">
+            <div className="mt-6 space-y-5">
+              <div className="flex flex-col bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
                 <label
                   htmlFor="symbol"
-                  className="text-sm text-gray-300 mb-1 font-orbitron"
+                  className="text-sm text-[#00F0FF] mb-1 font-orbitron font-bold"
                 >
-                  Choose Your Symbol
+                  Pick Your Token
                 </label>
                 <select
                   id="symbol"
@@ -460,19 +469,19 @@ export default function GameWaiting(): JSX.Element {
                   onChange={(e) =>
                     setPlayerSymbol(getPlayerSymbolData(e.target.value) ?? null)
                   }
-                  className="bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded border border-[#00F0FF]/30 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron"
+                  className="bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm shadow-inner"
                 >
                   <option value="" disabled>
-                    Select a symbol
+                    Select Token
                   </option>
                   {availableSymbols.length > 0 ? (
                     availableSymbols.map((symbol) => (
                       <option key={symbol.value} value={symbol.value}>
-                        {symbol.name}
+                        {symbol.emoji} {symbol.name}
                       </option>
                     ))
                   ) : (
-                    <option disabled>No symbols available</option>
+                    <option disabled>No Tokens Left</option>
                   )}
                 </select>
               </div>
@@ -480,10 +489,10 @@ export default function GameWaiting(): JSX.Element {
               <button
                 type="button"
                 onClick={handleJoinGame}
-                className="w-full bg-[#00F0FF] text-black text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#00D4E6] transition-all duration-300 shadow-md"
+                className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!playerSymbol || actionLoading || isJoining}
               >
-                {actionLoading || isJoining ? "Joining..." : "Join Game"}
+                {actionLoading || isJoining ? "Entering..." : "Join the Battle"}
               </button>
             </div>
           )}
@@ -492,37 +501,37 @@ export default function GameWaiting(): JSX.Element {
             <button
               type="button"
               onClick={handleLeaveGame}
-              className="w-full mt-6 bg-[#FF4D4D] text-white text-sm font-orbitron font-semibold py-3 rounded-lg hover:bg-[#E63939] transition-all duration-300 shadow-md"
+              className="w-full mt-6 bg-gradient-to-r from-[#FF4D4D] to-[#FF00AA] text-white text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-red-500/50 transform hover:scale-105 disabled:opacity-50"
               disabled={actionLoading}
             >
-              {actionLoading ? "Processing..." : "Leave Game"}
+              {actionLoading ? "Exiting..." : "Abandon Ship"}
             </button>
           )}
 
-          <div className="flex justify-between mt-3">
+          <div className="flex justify-between mt-5 px-3">
             <button
               type="button"
               onClick={() => router.push("/join-room")}
-              className="text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200"
+              className="text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200 hover:underline"
             >
-              Back to Join Room
+              Switch Portal
             </button>
             <button
               type="button"
               onClick={handleGoHome}
-              className="flex items-center text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200"
+              className="flex items-center text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200 hover:underline"
             >
               <IoHomeOutline className="mr-1 w-4 h-4" />
-              Go to Home
+              Back to HQ
             </button>
           </div>
 
           {(error || joinError || contractGameError) && (
-            <p className="text-red-500 text-xs mt-4 text-center animate-pulse">
+            <p className="text-red-400 text-xs mt-3 text-center bg-red-900/50 p-2 rounded-lg animate-pulse">
               {error ??
                 joinError?.message ??
                 contractGameError?.message ??
-                "An error occurred"}
+                "System Glitch Detected"}
             </p>
           )}
         </div>

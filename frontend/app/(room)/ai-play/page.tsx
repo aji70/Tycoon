@@ -2,7 +2,7 @@
 
 import AiBoard from "@/components/game/ai-board";
 import GameRoom from "@/components/game/game-room";
-import GamePlayers from "@/components/game/players";
+import GamePlayers from "@/components/game/ai-player";
 import { apiClient } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";

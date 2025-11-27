@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { FaUsers, FaUser } from "react-icons/fa6";
-import { House } from "lucide-react"; // Import House icon for the button
+import { House } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,7 +15,6 @@ import { RiAuctionFill } from "react-icons/ri";
 import { GiBank, GiPrisoner } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { FaHandHoldingDollar } from "react-icons/fa6";
-import { AiOutlineDollarCircle } from "react-icons/ai";
 import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -23,10 +22,9 @@ import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import { useIsRegistered, useCreateGame } from "@/context/ContractProvider";
+import { useIsRegistered, useGetUsername, useCreateGame } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 
-// Define settings interface
 interface Settings {
   code: string;
   symbol: string;
@@ -52,34 +50,24 @@ const GameSettings = () => {
     rentInPrison: false,
     mortgage: false,
     evenBuild: false,
-    startingCash: "100",
+    startingCash: "1500",
     randomPlayOrder: false,
   });
 
   const { data: isUserRegistered, isLoading: isRegisteredLoading } =
-    useIsRegistered(address, {
-      enabled: !!address,
-    });
+    useIsRegistered(address, { enabled: !!address });
 
   const gameType = settings.privateRoom ? "PRIVATE" : "PUBLIC";
   const gameCode = settings.code;
   const playerSymbol = settings.symbol;
   const numberOfPlayers = Number.parseInt(settings.maxPlayers, 10);
 
+  const { data: username } = useGetUsername(address);
   const {
     write: createGame,
     isPending,
     error: contractError,
-  } = useCreateGame(gameType, playerSymbol, numberOfPlayers, gameCode, {
-    maxPlayers: numberOfPlayers,
-    privateRoom: gameType,
-    auction: settings.auction,
-    rentInPrison: settings.rentInPrison,
-    mortgage: settings.mortgage,
-    evenBuild: settings.evenBuild,
-    startingCash: BigInt(settings.startingCash),
-    randomizePlayOrder: settings.randomPlayOrder,
-  });
+  } = useCreateGame(username ?? "", gameType, playerSymbol, numberOfPlayers, gameCode, Number(settings.startingCash));
 
   const handleSettingChange = (
     key: keyof Settings,
@@ -164,342 +152,158 @@ const GameSettings = () => {
 
   if (isRegisteredLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center">
-        <p className="font-orbitron text-[#00F0FF] text-[16px]">
-          Checking registration status...
-        </p>
+      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
+        <p className="text-[#00F0FF] text-3xl font-orbitron animate-pulse">LOADING ARENA...</p>
       </div>
     );
   }
 
   return (
-    <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center">
-      <main className="w-full h-auto py-20 flex flex-col items-center justify-start bg-[#010F101F] backdrop-blur-[12px] px-4">
-        {/* Go Back to Home Button */}
-        <div className="w-full max-w-[792px] flex justify-start mb-6">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl bg-black/60 backdrop-blur-xl rounded-2xl border border-cyan-500/50 shadow-2xl p-6 md:p-10">
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
           <button
-            type="button"
             onClick={() => router.push("/")}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
           >
-            <svg
-              width="227"
-              height="40"
-              viewBox="0 0 227 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="absolute top-0 left-0 w-full h-full"
-            >
-              <path
-                d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                fill="#0E1415"
-                stroke="#003B3E"
-                strokeWidth={1}
-                className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
-              />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[13px] font-dmSans font-medium z-10">
-              <House className="mr-1 w-[14px] h-[14px]" />
-              Go Back Home
-            </span>
+            <House className="w-4 h-4" />
+            <span className="font-medium text-sm">BACK</span>
           </button>
+          <h1 className="text-3xl md:text-4xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+            CREATE GAME
+          </h1>
+          <div className="w-16" />
         </div>
 
-        <div className="w-full flex flex-col items-center mb-4">
-          <h2 className="text-[#F0F7F7] font-orbitron md:text-[24px] text-[20px] font-[700] text-center">
-            Game Settings
-          </h2>
-          <p className="text-[#869298] text-[16px] font-dmSans text-center">
-            Since you&apos;re creating a private game room, you get to choose
-            how you want your game to go
-          </p>
-        </div>
+        {/* Main Grid */}
+        <div className="grid lg:grid-cols-2 gap-6">
 
-        {/* First Setting */}
-        <div className="w-full max-w-[792px] bg-[#010F10] rounded-[12px] border-[1px] border-[#003B3E] md:p-[40px] p-[20px] flex flex-col gap-4">
-          {/* Select Your Avatar */}
-          <div className="w-full flex justify-between items-center">
-            <div className="flex items-start md:gap-3 gap-2">
-              <FaUser className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600]">
-                  Select Your Avatar
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Please choose your preferred avatar
-                </p>
+          {/* Left Column – Core Settings */}
+          <div className="space-y-5">
+
+            {/* Avatar */}
+            <div className="bg-gradient-to-br from-cyan-900/50 to-blue-900/50 rounded-xl p-5 border border-cyan-500/30">
+              <div className="flex items-center gap-2 mb-3">
+                <FaUser className="w-6 h-6 text-cyan-400" />
+                <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
               </div>
+              <Select value={settings.symbol} onValueChange={v => handleSettingChange("symbol", v)}>
+                <SelectTrigger className="h-12 bg-black/40 border-cyan-500/50 text-white text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GamePieces.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={settings.symbol}
-              onValueChange={(value) => handleSettingChange("symbol", value)}
-            >
-              <SelectTrigger className="w-[160px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
-                <SelectValue className="text-[#F0F7F7]">
-                  {settings.symbol}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {GamePieces.map((piece) => (
-                  <SelectItem key={piece.id} value={piece.id}>
-                    {piece.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* Max Players */}
+            <div className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-xl p-5 border border-purple-500/30">
+              <div className="flex items-center gap-2 mb-3">
+                <FaUsers className="w-6 h-6 text-purple-400" />
+                <h3 className="text-xl font-bold text-purple-300">Max Players</h3>
+              </div>
+              <Select value={settings.maxPlayers} onValueChange={v => handleSettingChange("maxPlayers", v)}>
+                <SelectTrigger className="h-12 bg-black/40 border-purple-500/50 text-white text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2,3,4,5,6,7,8].map(n => (
+                    <SelectItem key={n} value={n.toString()}>{n} Players</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Private Room */}
+            <div className="bg-gradient-to-br from-emerald-900/50 to-teal-900/50 rounded-xl p-5 border border-emerald-500/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MdPrivateConnectivity className="w-6 h-6 text-emerald-400" />
+                  <h3 className="text-xl font-bold text-emerald-300">Private Room</h3>
+                </div>
+                <Switch
+                  checked={settings.privateRoom}
+                  onCheckedChange={v => handleSettingChange("privateRoom", v)}
+                />
+              </div>
+              <p className="text-gray-400 text-xs mt-1">Only joinable via link</p>
+            </div>
+
+            {/* Starting Cash */}
+            <div className="bg-gradient-to-br from-yellow-900/50 to-amber-900/50 rounded-xl p-5 border border-yellow-500/30">
+              <div className="flex items-center gap-2 mb-3">
+                <FaHandHoldingDollar className="w-6 h-6 text-yellow-400" />
+                <h3 className="text-xl font-bold text-yellow-300">Starting Cash</h3>
+              </div>
+              <Select value={settings.startingCash} onValueChange={v => handleSettingChange("startingCash", v)}>
+                <SelectTrigger className="h-12 bg-black/40 border-yellow-500/50 text-white text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="500">$500</SelectItem>
+                  <SelectItem value="1000">$1,000</SelectItem>
+                  <SelectItem value="1500">$1,500</SelectItem>
+                  <SelectItem value="2000">$2,000</SelectItem>
+                  <SelectItem value="5000">$5,000</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
           </div>
 
-          {/* Maximum Players */}
-          <div className="w-full flex justify-between items-center">
-            <div className="flex items-start md:gap-3 gap-2">
-              <FaUsers className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600]">
-                  Maximum Players
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  How many players can join the game.
-                </p>
-              </div>
+          {/* Right Column – House Rules */}
+          <div className="bg-black/70 rounded-xl p-6 border border-cyan-500/40">
+            <h3 className="text-2xl font-orbitron font-bold text-cyan-300 mb-6 text-center">
+              HOUSE RULES
+            </h3>
+            <div className="space-y-5">
+              {[
+                { icon: RiAuctionFill, label: "Auction", key: "auction" },
+                { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
+                { icon: GiBank, label: "Mortgage", key: "mortgage" },
+                { icon: IoBuild, label: "Even Build", key: "evenBuild" },
+                { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
+              ].map(item => (
+                <div key={item.key} className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <item.icon className="w-7 h-7 text-cyan-400" />
+                    <span className="text-white text-lg font-medium">{item.label}</span>
+                  </div>
+                  <Switch
+                    checked={settings[item.key as keyof Settings] as boolean}
+                    onCheckedChange={v => handleSettingChange(item.key as keyof Settings, v)}
+                  />
+                </div>
+              ))}
             </div>
-            <Select
-              value={settings.maxPlayers}
-              onValueChange={(value) =>
-                handleSettingChange("maxPlayers", value)
-              }
-            >
-              <SelectTrigger className="w-[80px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
-                <SelectValue className="text-[#F0F7F7]">
-                  {settings.maxPlayers}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2">2</SelectItem>
-                <SelectItem value="3">3</SelectItem>
-                <SelectItem value="4">4</SelectItem>
-                <SelectItem value="5">5</SelectItem>
-                <SelectItem value="6">6</SelectItem>
-                <SelectItem value="7">7</SelectItem>
-                <SelectItem value="8">8</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Private Room */}
-          <div className="w-full flex justify-between items-center">
-            <div className="flex items-start md:gap-3 gap-2">
-              <MdPrivateConnectivity className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600]">
-                  Private Room
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Private rooms can be accessed using the room URL only.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="private-room"
-              checked={settings.privateRoom}
-              onCheckedChange={(checked) =>
-                handleSettingChange("privateRoom", checked)
-              }
-            />
-          </div>
-        </div>
-
-        <div className="w-full flex flex-col items-center mt-20 mb-4">
-          <h2 className="text-[#F0F7F7] font-orbitron md:text-[24px] text-[20px] font-[700] text-center">
-            Gameplay Rules
-          </h2>
-          <p className="text-[#869298] text-[16px] font-dmSans text-center">
-            Set the rules for the game in your private game room
-          </p>
-        </div>
-
-        {/* Second Setting */}
-        <div className="w-full max-w-[792px] bg-[#010F10] rounded-[12px] border-[1px] border-[#003B3E] md:p-[40px] p-[20px] flex flex-col gap-5">
-          {/* Auction */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex items-start md:gap-3 gap-2 max-w-[550px]">
-              <RiAuctionFill className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col flex-1">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600]">
-                  Auction
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  If someone skips purchasing a property during auction, it will
-                  be sold to the highest bidder.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="auction"
-              checked={settings.auction}
-              onCheckedChange={(checked) =>
-                handleSettingChange("auction", checked)
-              }
-            />
-          </div>
-
-          {/* Rent In Prison */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex items-start md:gap-3 gap-2 max-w-[550px]">
-              <GiPrisoner className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col flex-1">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600] capitalize">
-                  Rent In Prison
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Rent will be collected when landing on properties of a player
-                  in prison.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="rent-in-prison"
-              checked={settings.rentInPrison}
-              onCheckedChange={(checked) =>
-                handleSettingChange("rentInPrison", checked)
-              }
-            />
-          </div>
-
-          {/* Mortgage */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex items-start md:gap-3 gap-2 max-w-[550px]">
-              <GiBank className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col flex-1">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600]">
-                  Mortgage
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Mortgage properties to earn 50% of their cost, but you
-                  won&apos;t get paid rent when players land on them.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="mortgage"
-              checked={settings.mortgage}
-              onCheckedChange={(checked) =>
-                handleSettingChange("mortgage", checked)
-              }
-            />
-          </div>
-
-          {/* Even Build */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex items-start md:gap-3 gap-2 max-w-[550px]">
-              <IoBuild className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col flex-1">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600] capitalize">
-                  Even Build
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Houses and hotels must be built up and sold off evenly within
-                  a property set.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="even-build"
-              checked={settings.evenBuild}
-              onCheckedChange={(checked) =>
-                handleSettingChange("evenBuild", checked)
-              }
-            />
-          </div>
-
-          {/* Starting Cash */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex items-start md:gap-3 gap-2 max-w-[550px]">
-              <FaHandHoldingDollar className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col flex-1">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600] capitalize">
-                  Starting Cash
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Adjust how much players can start the game with.
-                </p>
-              </div>
-            </div>
-            <Select
-              value={settings.startingCash}
-              onValueChange={(value) =>
-                handleSettingChange("startingCash", value)
-              }
-            >
-              <SelectTrigger className="w-[120px] data-[size=default]:h-[40px] text-[#73838B] border-[1px] border-[#263238]">
-                <AiOutlineDollarCircle className="md:w-3 md:h-3 text-[#73838B]" />
-                <SelectValue className="text-[#F0F7F7]">
-                  {settings.startingCash}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-                <SelectItem value="300">300</SelectItem>
-                <SelectItem value="400">400</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-                <SelectItem value="1000">1000</SelectItem>
-                <SelectItem value="1500">1500</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Randomize Play Order */}
-          <div className="w-full flex justify-between items-start">
-            <div className="flex items-start md:gap-3 gap-2 max-w-[550px]">
-              <FaRandom className="md:w-6 md:h-6 w-5 h-5 mt-1.5 text-[#F0F7F7]" />
-              <div className="flex flex-col flex-1">
-                <h4 className="text-[#F0F7F7] md:text-[22px] text-[20px] font-dmSans font-[600] capitalize">
-                  Randomize Play Order
-                </h4>
-                <p className="text-[#455A64] font-[500] font-dmSans text-[16px]">
-                  Randomly reorder players at the beginning of the game.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="random-play"
-              checked={settings.randomPlayOrder}
-              onCheckedChange={(checked) =>
-                handleSettingChange("randomPlayOrder", checked)
-              }
-            />
           </div>
         </div>
 
-        <div className="w-full max-w-[792px] flex justify-end mt-12">
+        {/* Create Game Button */}
+        <div className="flex justify-center mt-10">
           <button
-            type="button"
             onClick={handlePlay}
-            className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
             disabled={isPending || isRegisteredLoading}
+            className="px-16 py-5 text-2xl font-orbitron font-bold tracking-wider
+                       bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-purple-600 hover:to-pink-600
+                       rounded-xl shadow-2xl transform hover:scale-105 transition-all duration-300
+                       disabled:opacity-60 disabled:cursor-not-allowed
+                       border-4 border-cyan-400/80 relative overflow-hidden"
           >
-            <svg
-              width="260"
-              height="52"
-              viewBox="0 0 260 52"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-            >
-              <path
-                d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                fill="#00F0FF"
-                stroke="#0E282A"
-                strokeWidth={1}
-              />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-10">
-              {isPending ? "Creating..." : "Play"}
+            <span className="relative z-10 text-black drop-shadow-lg">
+              {isPending ? "CREATING..." : "CREATE GAME"}
             </span>
+            <div className="absolute inset-0 bg-white opacity-0 hover:opacity-30 transition-opacity" />
           </button>
         </div>
-      </main>
-    </section>
+
+      </div>
+    </div>
   );
 };
 
