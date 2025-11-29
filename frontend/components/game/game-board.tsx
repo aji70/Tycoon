@@ -29,6 +29,10 @@ import toast from "react-hot-toast";
 import { ApiResponse } from "@/types/api";
 import { motion, AnimatePresence } from "framer-motion";
 
+/* ============================================
+   TYPES
+   ============================================ */
+
 interface GameProps {
   game: Game;
   properties: Property[];
@@ -46,6 +50,10 @@ interface CardPopup {
   message: string;
   action?: string;
 }
+
+/* ============================================
+   ERROR BOUNDARY
+   ============================================ */
 
 class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false };
@@ -66,14 +74,22 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   }
 }
 
+/* ============================================
+   CONSTANTS
+   ============================================ */
+
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
 
-const getDiceValues = (): { die1: number; die2: number; total: number } => {
+/* ============================================
+   HELPERS
+   ============================================ */
+
+const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   const total = die1 + die2;
-  return { die1, die2, total };
+  return total === 12 ? null : { die1, die2, total };
 };
 
 const isTopHalf = (square: any) => {
@@ -81,12 +97,14 @@ const isTopHalf = (square: any) => {
 };
 
 const getMockCardMessage = (type: "chance" | "community_chest"): { message: string; action?: string } => {
+  // Mock card data - replace with actual card drawing logic/API if available
   const chanceCards = [
     { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
     { message: "Bank pays you dividend of $50", action: "collect_dividend" },
     { message: "Pay poor tax of $15", action: "pay_tax" },
     { message: "Take a trip to Reading Railroad ($200)", action: "advance_to_railroad" },
     { message: "You have been elected Chairman of the Board. Pay each player $50", action: "pay_players" },
+    // Add more as needed
   ];
 
   const communityCards = [
@@ -95,12 +113,17 @@ const getMockCardMessage = (type: "chance" | "community_chest"): { message: stri
     { message: "From sale of stock you get $50", action: "collect_stock" },
     { message: "Get Out of Jail Free", action: "get_out_of_jail_free" },
     { message: "Go to Jail. Go directly to Jail. Do not pass Go, do not collect $200", action: "go_to_jail" },
+    // Add more as needed
   ];
 
   const cards = type === "chance" ? chanceCards : communityCards;
   const randomCard = cards[Math.floor(Math.random() * cards.length)];
   return randomCard;
 };
+
+/* ============================================
+   SAFE STATE HOOK
+   ============================================ */
 
 function useSafeState<S>(initial: S) {
   const isMounted = useRef(false);
@@ -123,32 +146,9 @@ function useSafeState<S>(initial: S) {
   return [state, safeSetState] as const;
 }
 
-const DiceFace = ({ value }: { value: number }) => {
-  const dotPositions: Record<number, [number, number][]> = {
-    1: [[50, 50]],
-    2: [[28, 28], [72, 72]],
-    3: [[28, 28], [50, 50], [72, 72]],
-    4: [[28, 28], [28, 72], [72, 28], [72, 72]],
-    5: [[28, 28], [28, 72], [50, 50], [72, 28], [72, 72]],
-    6: [[28, 28], [28, 50], [28, 72], [72, 28], [72, 50], [72, 72]],
-  };
-
-  return (
-    <>
-      {dotPositions[value].map(([x, y], i) => (
-        <div
-          key={i}
-          className="absolute w-7 h-7 bg-black rounded-full shadow-inner"
-          style={{
-            top: `${y}%`,
-            left: `${x}%`,
-            transform: "translate(-50%, -50%)",
-          }}
-        />
-      ))}
-    </>
-  );
-};
+/* ============================================
+   GAME BOARD COMPONENT
+   ============================================ */
 
 const GameBoard = ({
   game,
@@ -161,17 +161,21 @@ const GameBoard = ({
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  /* ---------- State ---------- */
   const [players, setPlayers] = useSafeState<Player[]>(game?.players ?? []);
   const [boardData] = useSafeState<Property[]>(properties ?? []);
   const [error, setError] = useSafeState<string | null>(null);
   const [isRolling, setIsRolling] = useSafeState(false);
+  const [rollAgain, setRollAgain] = useSafeState(false);
   const [roll, setRoll] = useSafeState<{ die1: number; die2: number; total: number } | null>(
     null
   );
+  const [pendingRoll, setPendingRoll] = useSafeState<number>(0);
   const [canRoll, setCanRoll] = useSafeState<boolean>(false);
   const [actionLock, setActionLock] = useSafeState<"ROLL" | "END" | null>(null);
   const [currentCard, setCurrentCard] = useSafeState<CardPopup | null>(null);
 
+  /* ---------- Locks ---------- */
   const lockAction = useCallback(
     (type: "ROLL" | "END") => {
       if (actionLock) return false;
@@ -186,15 +190,18 @@ const GameBoard = ({
   const [currentAction, setCurrentAction] = useSafeState<string | null>(null);
   const [currentProperty, setCurrentProperty] = useSafeState<Property | null>(null);
   const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
-  const [buyPrompted, setBuyPrompted] = useSafeState(false);
+  const [buyPrompted, setBuyPrompted] = useState(false);
   const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
 
+  // Track last processed position to prevent multiple triggers
   const lastProcessedPosition = useRef<number | null>(null);
 
+  /* ---------- React Query Utilities ---------- */
   const forceRefetch = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["game", game.code] });
   }, [queryClient, game.code]);
 
+  /* ---------- Fetch Updated Game ---------- */
   const fetchUpdatedGame = useCallback(async () => {
     try {
       const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`)
@@ -214,6 +221,7 @@ const GameBoard = ({
     }
   }, [game.code, setPlayers]);
 
+  /* ---------- Turn Management ---------- */
   const checkCanRoll = useCallback(async () => {
     if (!me?.user_id) return;
 
@@ -225,7 +233,7 @@ const GameBoard = ({
       const allowed = Boolean(res?.data?.data?.canRoll);
       setCanRoll(allowed);
 
-      if (allowed) toast.success("It's your turn — roll the dice!");
+      if (allowed) toast.success("🎲 It's your turn — roll the dice!");
     } catch (err) {
       console.error("checkCanRoll error:", err);
       setCanRoll(false);
@@ -242,11 +250,14 @@ const GameBoard = ({
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, checkCanRoll]);
 
+  // Property Action & Card Trigger
+
   const stableProperties = useMemo(() => properties, [properties]);
 
   useEffect(() => {
     if (!stableProperties.length || !me?.position || !game?.players) return;
 
+    // Only process if position has changed
     if (me.position === lastProcessedPosition.current) return;
 
     lastProcessedPosition.current = me.position;
@@ -265,6 +276,7 @@ const GameBoard = ({
     setCurrentGameProperty(game_property || null);
     setCurrentAction(action);
 
+    // Handle Chance/Community Chest
     if (["chance", "community_chest"].includes(square.type)) {
       const cardType = square.type as "chance" | "community_chest";
       const { message, action: cardAction } = getMockCardMessage(cardType);
@@ -281,9 +293,10 @@ const GameBoard = ({
       hasRolled &&
       isRolling === false &&
       roll !== null &&
-      ["land", "railway", "utility"].includes(action || "") &&
+      action === "land" &&
       !game_property
     ) {
+      toast("💰 You can buy this property!", { icon: "🏠" });
       setBuyPrompted(true);
     }
 
@@ -304,6 +317,7 @@ const GameBoard = ({
     buyPrompted,
   ]);
 
+  /* ---------- Buy Property ---------- */
   const BUY_PROPERTY = useCallback(async () => {
     if (!me?.user_id || !currentProperty) return;
 
@@ -318,20 +332,20 @@ const GameBoard = ({
       );
 
       if (res?.data?.success) {
-        toast.success(`You bought ${currentProperty.name}!`);
-        setBuyPrompted(false);
+
+        toast.success(`🏠 You bought ${currentProperty.name}!`);
         await fetchUpdatedGame();
         forceRefetch();
-        setTimeout(() => END_TURN(me?.user_id), 1000);
-      } else {
-        toast.error(res.data?.message || "Failed to buy property.");
       }
+      toast.error(res.data?.message || "Failed to buy property.");
+      return;
     } catch (err) {
       console.error("BUY_PROPERTY error:", err);
       toast.error("Unable to complete property purchase.");
     }
   }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch]);
 
+  /* ---------- End Turn ---------- */
   const END_TURN = useCallback(
     async (id?: number) => {
       if (!id || !lockAction("END")) return;
@@ -364,10 +378,15 @@ const GameBoard = ({
     [game.id, fetchUpdatedGame, lockAction, unlockAction, forceRefetch, setPlayers, setCanRoll, setRoll]
   );
 
+  /* ---------- Roll Dice ---------- */
   const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
     setError(null);
+    if (rollAgain) {
+      setPendingRoll(12);
+    }
+    setRollAgain(false);
     setIsRolling(true);
 
     try {
@@ -378,18 +397,25 @@ const GameBoard = ({
 
       const allowed = Boolean(res?.data?.data?.canRoll);
       if (!allowed) {
-        toast.error("Not your turn! Wait for your turn to roll.");
+        toast.error("⏳ Not your turn! Wait for your turn to roll.");
         setIsRolling(false);
         unlockAction();
         return;
       }
 
+      // Animation delay
       setTimeout(async () => {
         const value = getDiceValues();
+        if (!value) {
+          setRollAgain(true);
+          setIsRolling(false);
+          unlockAction();
+          return;
+        }
 
         setRoll(value);
         const currentPos = me?.position ?? 0;
-        const newPosition = (currentPos + value.total) % BOARD_SQUARES;
+        const newPosition = (currentPos + value.total + pendingRoll) % BOARD_SQUARES;
 
         try {
           const updateResp = await apiClient.post<ApiResponse>(
@@ -398,22 +424,20 @@ const GameBoard = ({
               position: newPosition,
               user_id: me?.user_id,
               game_id: game.id,
-              rolled: value.total,
-              is_double: value.die1 === value.die2
+              rolled: value.total + pendingRoll,
+              is_double: value.die1 == value.die2
             }
           );
 
           if (!updateResp?.data?.success) toast.error("Unable to move from current position");
 
+          setPendingRoll(0);
           const updatedGame = await fetchUpdatedGame();
           if (updatedGame?.players) {
             setPlayers(updatedGame.players);
           }
-          await checkCanRoll();
 
-          if (value.die1 === value.die2) {
-            toast.success("Doubles! Roll again!");
-          }
+          setCanRoll(false);
         } catch (err) {
           console.error("Persist move error:", err);
           toast.error("Position update failed, syncing...");
@@ -440,31 +464,14 @@ const GameBoard = ({
     game.id,
     setIsRolling,
     setPlayers,
+    setRollAgain,
     setRoll,
     fetchUpdatedGame,
     forceRefetch,
-    checkCanRoll,
+    setCanRoll,
   ]);
 
-  useEffect(() => {
-    if (!isMyTurn || isRolling || actionLock) return;
-    if ((me?.rolls ?? 0) === 0) return;
-
-    const square = properties.find((p) => p.id === me?.position);
-    if (!square) return;
-
-    const isOwned = game_properties.some((gp) => gp.property_id === square.id);
-    const action = PROPERTY_ACTION(square.id);
-    const canBuy = !isOwned && ["land", "railway", "utility"].includes(action || "");
-
-    if (!canBuy && !buyPrompted && !currentCard) {
-      const timer = setTimeout(() => {
-        END_TURN(me?.user_id);
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [isMyTurn, isRolling, actionLock, me?.rolls, me?.position, properties, game_properties, buyPrompted, currentCard, END_TURN, me?.user_id]);
-
+  /* ---------- Derived Data ---------- */
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
@@ -474,6 +481,7 @@ const GameBoard = ({
     });
     return map;
   }, [players]);
+
 
   const propertyOwner = (property_id: number) => {
     const gp = game_properties.find((gp) => gp.property_id === property_id);
@@ -496,168 +504,132 @@ const GameBoard = ({
     [game_properties]
   );
 
+  /* ---------- Activity Log Helpers ---------- */
   const logRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
+    // auto-scroll to bottom when history changes
     if (!logRef.current) return;
     logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [game.history]);
 
+  /* ---------- Render ---------- */
   return (
     <ErrorBoundary>
       <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
         <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
           <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
             <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
-              <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden">
-                <AnimatePresence>
-                  {isRolling && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      className="absolute inset-0 flex items-center justify-center gap-16 z-20 pointer-events-none"
-                    >
-                      <motion.div
-                        animate={{ rotateX: [0, 360, 720, 1080], rotateY: [0, 360, -360, 720] }}
-                        transition={{ duration: 1.2, ease: "easeOut" }}
-                        className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
-                        style={{
-                          boxShadow:
-                            "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)",
-                        }}
-                      >
-                        {roll ? (
-                          <DiceFace value={roll.die1} />
-                        ) : (
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }}
-                            className="flex h-full items-center justify-center text-6xl font-bold text-gray-400"
-                          >
-                            ?
-                          </motion.div>
-                        )}
-                      </motion.div>
-                      <motion.div
-                        animate={{ rotateX: [0, -720, 360, 1080], rotateY: [0, -360, 720, -360] }}
-                        transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
-                        className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
-                        style={{
-                          boxShadow:
-                            "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)",
-                        }}
-                      >
-                        {roll ? (
-                          <DiceFace value={roll.die2} />
-                        ) : (
-                          <motion.div
-                            animate={{ rotate: -360 }}
-                            transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }}
-                            className="flex h-full items-center justify-center text-6xl font-bold text-gray-400"
-                          >
-                            ?
-                          </motion.div>
-                        )}
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                {roll && !isRolling && (
-                  <motion.div
-                    initial={{ scale: 0, y: 50 }}
-                    animate={{ scale: 1, y: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    className="flex items-center gap-6 text-7xl font-bold mb-6 z-10"
-                  >
-                    <span className="text-cyan-400 drop-shadow-2xl">{roll.die1}</span>
-                    <span className="text-white text-6xl">+</span>
-                    <span className="text-pink-400 drop-shadow-2xl">{roll.die2}</span>
-                    <span className="text-white mx-4 text-6xl">=</span>
-                    <span className="text-yellow-400 text-9xl drop-shadow-2xl">{roll.total}</span>
-                  </motion.div>
-                )}
+              {/* Center Area */}
+              <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative">
                 <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
                   Tycoon
                 </h1>
 
                 {isMyTurn ? (
-                  <div className="flex flex-col items-center gap-4">
-                    {(() => {
-                      const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
-                      const hasRolled = (myPlayer?.rolls ?? 0) > 0;
+                  <div
+                    className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
+                    }}
+                  >
+                    <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
+                    <div className="flex flex-col gap-2">
+                      {(() => {
+                        const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
+                        const hasRolled = (myPlayer?.rolls ?? 0) > 0;
 
-                      if (!hasRolled) {
-                        return (
-                          <button
-                            onClick={ROLL_DICE}
-                            disabled={isRolling}
-                            className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
-                          >
-                            {isRolling ? "Rolling..." : "Roll Dice"}
-                          </button>
-                        );
-                      }
-
-                      if (buyPrompted) {
-                        return (
-                          <div className="flex gap-4 flex-wrap justify-center">
+                        if (!hasRolled) {
+                          return (
                             <button
-                              onClick={BUY_PROPERTY}
-                              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
+                              onClick={ROLL_DICE}
+                              disabled={isRolling}
+                              aria-label="Roll the dice to move your player"
+                              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60"
                             >
-                              Buy for ${currentProperty?.price}
+                              {isRolling ? "Rolling..." : "Roll Dice"}
                             </button>
+                          );
+                        }
+
+                        return (
+                          <div className="flex flex-row items-center gap-2">
+                            {
+                              currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
+                                <button
+                                  onClick={BUY_PROPERTY}
+                                  aria-label="Buy the current property"
+                                  className="px-2 py-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs rounded-full hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200"
+                                >
+                                  Buy Property
+                                </button>
+                              )
+                            }
                             <button
-                              onClick={() => {
-                                setBuyPrompted(false);
-                                END_TURN(me?.user_id);
-                              }}
-                              className="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold rounded-full hover:from-gray-700 hover:to-gray-800 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+                              onClick={() => END_TURN(me?.user_id)}
+                              disabled={actionLock === "ROLL"}
+                              aria-label="End your turn"
+                              className="px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60"
                             >
-                              Skip
+                              End Turn
                             </button>
                           </div>
                         );
-                      }
+                      })()}
 
-                      return null;
-                    })()}
+                      {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
+                      {roll && (
+                        <p className="text-center text-gray-300 text-xs">
+                          🎲 You Rolled - {" "}
+                          <span className="font-bold text-white">
+                            {roll.die1} + {roll.die2} = {roll.total}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center">
-                    <p className="text-xl text-gray-400 mb-2">Waiting for your turn...</p>
-                    {game.history?.length > 0 && (
-                      <div className="text-sm text-gray-500">
-                        <p>{game.history[0].player_name} - {game.history[0].comment}</p>
-                        {game.history[0].rolled && (
-                          <p className="text-cyan-400 font-bold">
-                            Rolled {game.history[0].rolled}
-                          </p>
+                  <div
+                    className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
+                    }}
+                  >
+                    <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
+                    <div className="flex flex-col gap-2">
+                      <div className="w-full flex flex-col gap-1 items-center">
+                        <button
+                          disabled
+                          className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
+                        >
+                          Waiting for your turn...
+                        </button>
+                        {game.history?.length > 0 && (
+                          <div className="w-full flex flex-col gap-1 items-center">
+                            <p className="text-center text-gray-300 text-xs italic">
+                              {game.history[0].player_name} - {game.history[0].comment}
+                            </p>
+                            {!roll && (<p className="text-center text-gray-300 text-xs underline">
+                              [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
+                            </p>)}
+                          </div>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
-                <div className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
-                  <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
-                    <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600">
-                    {(!game.history || game.history.length === 0) ? (
-                      <p className="text-center text-gray-500 text-xs italic py-8">No actions yet</p>
-                    ) : (
-                      game.history.map((h, i) => (
-                        <motion.p key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-gray-300">
-                          <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
-                          {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
-                        </motion.p>
-                      ))
-                    )}
-                  </div>
+                <div className="mt-4 p-2 bg-gray-800 rounded max-h-40 overflow-y-auto w-full max-w-sm">
+                  <h3 className="text-sm font-semibold text-cyan-300 mb-2">Action Log</h3>
+                  {(game.history ?? []).map((h, i) => (
+                    <p key={i} className="text-xs text-gray-300 mb-1 last:mb-0">
+                      {`${h.player_name} ${h.comment}`}
+                    </p>
+                  ))}
+                  {(!game.history || game.history.length === 0) && <p className="text-xs text-gray-500 italic">No actions yet</p>}
                 </div>
               </div>
 
+              {/* Card Popup Modal */}
               <AnimatePresence>
                 {currentCard && (
                   <motion.div
@@ -672,10 +644,7 @@ const GameBoard = ({
                       damping: 25 
                     }}
                     className="fixed inset-0 flex items-center justify-center z-50 bg-black/70"
-                    onClick={() => {
-                      setCurrentCard(null);
-                      if (isMyTurn) END_TURN(me?.user_id);
-                    }}
+                    onClick={() => setCurrentCard(null)} // Close on backdrop click
                   >
                     <motion.div
                       layout
@@ -684,19 +653,16 @@ const GameBoard = ({
                           ? "bg-gradient-to-br from-orange-500/30 to-yellow-500/30 text-orange-100"
                           : "bg-gradient-to-br from-blue-500/30 to-indigo-500/30 text-blue-100"
                       }`}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()} // Prevent close on card click
                     >
                       <button
-                        onClick={() => {
-                          setCurrentCard(null);
-                          if (isMyTurn) END_TURN(me?.user_id);
-                        }}
+                        onClick={() => setCurrentCard(null)}
                         className="absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-800/50"
                       >
-                        ×
+                        &times;
                       </button>
                       <motion.h3 
-                        className="text-2xl font-bold text-center uppercase tracking-widest"
+                        className="text-xl font-bold mb-6 text-center uppercase tracking-wide"
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.2, duration: 0.4 }}
@@ -704,18 +670,29 @@ const GameBoard = ({
                         {currentCard.type === "chance" ? "Chance" : "Community Chest"}
                       </motion.h3>
                       <motion.p 
-                        className="text-center italic mt-6 text-lg leading-relaxed"
+                        className="text-base leading-relaxed text-center italic mb-6"
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: 0.3, duration: 0.4 }}
                       >
                         "{currentCard.message}"
                       </motion.p>
+                      {currentCard.action && (
+                        <motion.p 
+                          className="text-sm text-center opacity-80 bg-white/10 p-2 rounded-lg"
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: 0.4, duration: 0.4 }}
+                        >
+                          Action: {currentCard.action}
+                        </motion.p>
+                      )}
                     </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
+              {/* Board Squares */}
               {boardData.map((square, index) => {
                 const playersHere = playersByPosition.get(index) ?? [];
                 const gameProp = getGamePropertyForSquare(square.id);
@@ -737,9 +714,10 @@ const GameBoard = ({
                       {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                       {square.type === "corner" && <CornerCard square={square} />}
 
+                      {/* Development Level Indicator */}
                       {square.type === "property" && devLevel > 0 && (
                         <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
-                          {devLevel === 5 ? 'Hotel' : `House ${devLevel}`}
+                          {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
                         </div>
                       )}
 
@@ -754,10 +732,10 @@ const GameBoard = ({
                               initial={{ scale: 1 }}
                               animate={{
                                 y: isCurrentPlayer 
-                                  ? [0, -8, 0]
-                                  : [0, -3, 0],
+                                  ? [0, -8, 0]  // Bouncy animation for current player
+                                  : [0, -3, 0], // Subtle float for others
                                 scale: isCurrentPlayer ? [1, 1.1, 1] : 1,
-                                rotate: isCurrentPlayer ? [0, 5, -5, 0] : 0,
+                                rotate: isCurrentPlayer ? [0, 5, -5, 0] : 0, // Slight wobble for current
                               }}
                               transition={{
                                 y: {
