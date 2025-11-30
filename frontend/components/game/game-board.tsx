@@ -25,7 +25,7 @@ import { useAccount } from "wagmi";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import { ApiResponse } from "@/types/api";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -149,6 +149,33 @@ function useSafeState<S>(initial: S) {
 /* ============================================
    GAME BOARD COMPONENT
    ============================================ */
+
+const DiceFace = ({ value }: { value: number }) => {
+  const dotPositions: Record<number, [number, number][]> = {
+    1: [[50, 50]],
+    2: [[28, 28], [72, 72]],
+    3: [[28, 28], [50, 50], [72, 72]],
+    4: [[28, 28], [28, 72], [72, 28], [72, 72]],
+    5: [[28, 28], [28, 72], [50, 50], [72, 28], [72, 72]],
+    6: [[28, 28], [28, 50], [28, 72], [72, 28], [72, 50], [72, 72]],
+  };
+
+  return (
+    <>
+      {dotPositions[value].map(([x, y], i) => (
+        <div
+          key={i}
+          className="absolute w-7 h-7 bg-black rounded-full shadow-inner"
+          style={{
+            top: `${y}%`,
+            left: `${x}%`,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+      ))}
+    </>
+  );
+};
 
 const GameBoard = ({
   game,
@@ -525,6 +552,49 @@ const GameBoard = ({
                   Tycoon
                 </h1>
 
+                {/* Rolling Dice Animation */}
+                <AnimatePresence>
+                  {isRolling && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      className="absolute inset-0 flex items-center justify-center gap-16 z-20 pointer-events-none"
+                    >
+                      <motion.div
+                        animate={{ rotateX: [0, 360, 720, 1080], rotateY: [0, 360, -360, 720] }}
+                        transition={{ duration: 1.2, ease: "easeOut" }}
+                        className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
+                        style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)" }}
+                      >
+                        {roll ? <DiceFace value={roll.die1} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-6xl font-bold text-gray-400">?</motion.div>}
+                      </motion.div>
+                      <motion.div
+                        animate={{ rotateX: [0, -720, 360, 1080], rotateY: [0, -360, 720, -360] }}
+                        transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
+                        className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
+                        style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)" }}
+                      >
+                        {roll ? <DiceFace value={roll.die2} /> : <motion.div animate={{ rotate: -360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-6xl font-bold text-gray-400">?</motion.div>}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {roll && !isRolling && (
+                  <motion.div
+                    initial={{ scale: 0, y: 50 }}
+                    animate={{ scale: 1, y: 0 }}
+                    className="flex items-center gap-6 text-7xl font-bold mb-4"
+                  >
+                    <span className="text-cyan-400 drop-shadow-2xl">{roll.die1}</span>
+                    <span className="text-white text-6xl">+</span>
+                    <span className="text-pink-400 drop-shadow-2xl">{roll.die2}</span>
+                    <span className="text-white mx-4 text-6xl">=</span>
+                    <span className="text-yellow-400 text-9xl drop-shadow-2xl">{roll.total}</span>
+                  </motion.div>
+                )}
+
                 {isMyTurn ? (
                   <div
                     className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
@@ -560,7 +630,7 @@ const GameBoard = ({
                                   aria-label="Buy the current property"
                                   className="px-2 py-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs rounded-full hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200"
                                 >
-                                  Buy Property
+                                  Buy for ${currentProperty?.price}
                                 </button>
                               )
                             }
@@ -577,14 +647,6 @@ const GameBoard = ({
                       })()}
 
                       {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
-                      {roll && (
-                        <p className="text-center text-gray-300 text-xs">
-                          🎲 You Rolled - {" "}
-                          <span className="font-bold text-white">
-                            {roll.die1} + {roll.die2} = {roll.total}
-                          </span>
-                        </p>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -618,14 +680,22 @@ const GameBoard = ({
                   </div>
                 )}
 
-                <div className="mt-4 p-2 bg-gray-800 rounded max-h-40 overflow-y-auto w-full max-w-sm">
-                  <h3 className="text-sm font-semibold text-cyan-300 mb-2">Action Log</h3>
-                  {(game.history ?? []).map((h, i) => (
-                    <p key={i} className="text-xs text-gray-300 mb-1 last:mb-0">
-                      {`${h.player_name} ${h.comment}`}
-                    </p>
-                  ))}
-                  {(!game.history || game.history.length === 0) && <p className="text-xs text-gray-500 italic">No actions yet</p>}
+                <div ref={logRef} className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
+                  <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
+                    <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600">
+                    {(!game.history || game.history.length === 0) ? (
+                      <p className="text-center text-gray-500 text-xs italic py-8">No actions yet</p>
+                    ) : (
+                      game.history.map((h, i) => (
+                        <motion.p key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-gray-300">
+                          <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
+                          {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
+                        </motion.p>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -693,8 +763,8 @@ const GameBoard = ({
               </AnimatePresence>
 
               {/* Board Squares */}
-              {boardData.map((square, index) => {
-                const playersHere = playersByPosition.get(index) ?? [];
+              {boardData.map((square) => {
+                const playersHere = playersByPosition.get(square.id) ?? [];
                 const gameProp = getGamePropertyForSquare(square.id);
                 const devLevel = developmentStage(square.id);
 
@@ -769,6 +839,34 @@ const GameBoard = ({
           </div>
         </div>
       </div>
+      <Toaster
+        position="top-center"
+        reverseOrder={false}
+        gutter={12}
+        containerClassName="z-50"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: "rgba(15, 23, 42, 0.95)",
+            color: "#fff",
+            border: "1px solid rgba(34, 211, 238, 0.3)",
+            borderRadius: "12px",
+            padding: "12px 20px",
+            fontSize: "16px",
+            fontWeight: "600",
+            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
+            backdropFilter: "blur(10px)",
+          },
+          success: {
+            icon: "✔",
+            style: { borderColor: "#10b981" },
+          },
+          error: {
+            icon: "✖",
+            style: { borderColor: "#ef4444" },
+          },
+        }}
+      />
     </ErrorBoundary>
   );
 };
