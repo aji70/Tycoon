@@ -96,31 +96,6 @@ const isTopHalf = (square: any) => {
   return square.grid_row === 1;
 };
 
-const getMockCardMessage = (type: "chance" | "community_chest"): { message: string; action?: string } => {
-  // Mock card data - replace with actual card drawing logic/API if available
-  const chanceCards = [
-    { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
-    { message: "Bank pays you dividend of $50", action: "collect_dividend" },
-    { message: "Pay poor tax of $15", action: "pay_tax" },
-    { message: "Take a trip to Reading Railroad ($200)", action: "advance_to_railroad" },
-    { message: "You have been elected Chairman of the Board. Pay each player $50", action: "pay_players" },
-    // Add more as needed
-  ];
-
-  const communityCards = [
-    { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
-    { message: "Doctor's fee. Pay $50", action: "pay_fee" },
-    { message: "From sale of stock you get $50", action: "collect_stock" },
-    { message: "Get Out of Jail Free", action: "get_out_of_jail_free" },
-    { message: "Go to Jail. Go directly to Jail. Do not pass Go, do not collect $200", action: "go_to_jail" },
-    // Add more as needed
-  ];
-
-  const cards = type === "chance" ? chanceCards : communityCards;
-  const randomCard = cards[Math.floor(Math.random() * cards.length)];
-  return randomCard;
-};
-
 /* ============================================
    SAFE STATE HOOK
    ============================================ */
@@ -303,14 +278,6 @@ const GameBoard = ({
     setCurrentGameProperty(game_property || null);
     setCurrentAction(action);
 
-    // Handle Chance/Community Chest
-    if (["chance", "community_chest"].includes(square.type)) {
-      const cardType = square.type as "chance" | "community_chest";
-      const { message, action: cardAction } = getMockCardMessage(cardType);
-      setCurrentCard({ type: cardType, message, action: cardAction });
-      return;
-    }
-
     const meInGame = game.players.find((p) => p.user_id === me?.user_id);
     const hasRolled = (meInGame?.rolls ?? 0) > 0;
 
@@ -343,6 +310,42 @@ const GameBoard = ({
     setCurrentAction,
     buyPrompted,
   ]);
+
+  // Extract real card message from action log
+  const latestCardEntry = useMemo<CardPopup | null>(() => {
+    if (!game.history || game.history.length === 0) return null;
+
+    const entry = game.history[game.history.length - 1];
+    const rawComment = entry.comment ?? "";
+    const comment = rawComment.toLowerCase();
+    if (
+      !comment.includes("drew chance") &&
+      !comment.includes("drew community chest") &&
+      !comment.includes("chance:") &&
+      !comment.includes("community chest:")
+    ) return null;
+
+    const isChance = comment.includes("chance");
+
+    const match = rawComment.match(/(?:drew chance|drew community chest)[:-]?\s*(.+)/i);
+    const message = match ? match[1].trim() : rawComment;
+
+    return {
+      type: isChance ? ("chance" as const) : ("community_chest" as const),
+      message: message || "Card drawn",
+    };
+  }, [game.history]);
+
+  // Auto-show card when a new card appears in the log
+  const historyLengthRef = useRef(0);
+  useEffect(() => {
+    if (latestCardEntry && game.history.length > historyLengthRef.current) {
+      setCurrentCard(latestCardEntry);
+      const timer = setTimeout(() => setCurrentCard(null), 8000);
+      historyLengthRef.current = game.history.length;
+      return () => clearTimeout(timer);
+    }
+  }, [game.history, latestCardEntry, setCurrentCard]);
 
   /* ---------- Buy Property ---------- */
   const BUY_PROPERTY = useCallback(async () => {
@@ -676,60 +679,69 @@ const GameBoard = ({
               <AnimatePresence>
                 {currentCard && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.7, y: 100, rotate: -5 }}
-                    animate={{ opacity: 1, scale: 1, y: 0, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0.7, y: 100, rotate: 5 }}
-                    transition={{ 
-                      duration: 0.5, 
-                      ease: [0.25, 0.46, 0.45, 0.94], 
-                      type: "spring", 
-                      stiffness: 300, 
-                      damping: 25 
-                    }}
-                    className="fixed inset-0 flex items-center justify-center z-50 bg-black/70"
-                    onClick={() => setCurrentCard(null)} // Close on backdrop click
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                    onClick={() => setCurrentCard(null)}
                   >
                     <motion.div
-                      layout
-                      className={`max-w-lg w-96 p-8 rounded-2xl shadow-2xl backdrop-blur-sm border border-cyan-500/30 relative ${
-                        currentCard.type === "chance"
-                          ? "bg-gradient-to-br from-orange-500/30 to-yellow-500/30 text-orange-100"
-                          : "bg-gradient-to-br from-blue-500/30 to-indigo-500/30 text-blue-100"
-                      }`}
-                      onClick={(e) => e.stopPropagation()} // Prevent close on card click
+                      initial={{ scale: 0, rotateY: -180 }}
+                      animate={{ scale: 1, rotateY: 0 }}
+                      exit={{ scale: 0, rotateY: 180 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      className={`relative w-96 max-w-full mx-4 p-10 rounded-3xl shadow-2xl overflow-hidden border
+                        ${currentCard.type === "chance"
+                          ? "bg-gradient-to-br from-orange-600/90 to-amber-600/90 border-orange-400"
+                          : "bg-gradient-to-br from-indigo-600/90 to-purple-600/90 border-purple-400"
+                        }`}
+                      onClick={(e) => e.stopPropagation()}
                     >
+                      {/* Card Back Pattern */}
+                      <div className ="absolute inset-0 opacity-10">
+                        {currentCard.type === "chance" ? "Chance" : "Community Chest"}
+                      </div>
+
+                      {/* Glow effect */}
+                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
+
+                      {/* Header */}
+                      <motion.div
+                        initial={{ y: -30, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-center mb-6"
+                      >
+                        <h2 className="text-4xl font-bold uppercase tracking-widest text-white drop-shadow-lg">
+                          {currentCard.type === "chance" ? "Chance" : "Community Chest"}
+                        </h2>
+                        {currentCard.type === "chance" ? (
+                          <span className="text-6xl">?</span>
+                        ) : (
+                          <span className="text-6xl">Chest</span>
+                        )}
+                      </motion.div>
+
+                      {/* Message */}
+                      <motion.p
+                        initial={{ y: 30, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.4 }}
+                        className="text-xl md:text-2xl text-center font-medium text-white leading-relaxed px-4 drop-shadow-md"
+                      >
+                        {currentCard.message}
+                      </motion.p>
+
+                      {/* Close button */}
                       <button
                         onClick={() => setCurrentCard(null)}
-                        className="absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-800/50"
+                        className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl transition"
                       >
-                        &times;
+                        ×
                       </button>
-                      <motion.h3 
-                        className="text-xl font-bold mb-6 text-center uppercase tracking-wide"
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.2, duration: 0.4 }}
-                      >
-                        {currentCard.type === "chance" ? "Chance" : "Community Chest"}
-                      </motion.h3>
-                      <motion.p 
-                        className="text-base leading-relaxed text-center italic mb-6"
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.3, duration: 0.4 }}
-                      >
-                        "{currentCard.message}"
-                      </motion.p>
-                      {currentCard.action && (
-                        <motion.p 
-                          className="text-sm text-center opacity-80 bg-white/10 p-2 rounded-lg"
-                          initial={{ y: 20, opacity: 0 }}
-                          animate={{ y: 0, opacity: 1 }}
-                          transition={{ delay: 0.4, duration: 0.4 }}
-                        >
-                          Action: {currentCard.action}
-                        </motion.p>
-                      )}
+
+                      {/* Decorative bottom glow */}
+                      <div className="absolute bottom-0 left-0 right-0 h-2 bg-white/30" />
                     </motion.div>
                   </motion.div>
                 )}
