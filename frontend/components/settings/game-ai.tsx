@@ -84,44 +84,45 @@ export default function PlayWithAI() {
     settings.startingCash
   );
 
-  const handlePlay = async () => {
-    if (!address || !username || !isUserRegistered) {
-      toast.error("Connect wallet & register first");
-      return;
-    }
+const handlePlay = async () => {
+  if (!address || !username || !isUserRegistered) {
+    toast.error("Connect wallet & register first");
+    return;
+  }
 
-    const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
+  const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
 
-    try {
-      const onChainGameId = await createAiGame();
-      if (!onChainGameId) throw new Error("On-chain failed");
+  try {
+    const onChainGameId = await createAiGame();
+    if (!onChainGameId) throw new Error("On-chain failed");
 
-      toast.update(toastId, { render: "Saving arena..." });
+    toast.update(toastId, { render: "Saving arena..." });
 
-      const saveRes = await apiClient.post<any>("/games", {
-        id: onChainGameId,
-        code: gameCode,
-        mode: "PRIVATE",
-        address,
-        symbol: settings.symbol,
-        number_of_players: totalPlayers,
-        ai_opponents: settings.aiCount,
-        ai_difficulty: settings.aiDifficulty,
-        settings: {
-          auction: settings.auction,
-          rent_in_prison: settings.rentInPrison,
-          mortgage: settings.mortgage,
-          even_build: settings.evenBuild,
-          starting_cash: settings.startingCash,
-          randomize_play_order: settings.randomPlayOrder,
-        },
-      });
+    const saveRes = await apiClient.post<any>("/games", {
+      id: onChainGameId,
+      code: gameCode,
+      mode: "PRIVATE",
+      address,
+      symbol: settings.symbol,
+      number_of_players: totalPlayers,
+      ai_opponents: settings.aiCount,
+      ai_difficulty: settings.aiDifficulty,
+      settings: {
+        auction: settings.auction,
+        rent_in_prison: settings.rentInPrison,
+        mortgage: settings.mortgage,
+        even_build: settings.evenBuild,
+        starting_cash: settings.startingCash,
+        randomize_play_order: settings.randomPlayOrder,
+      },
+    });
 
-      const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
-      if (!dbGameId) throw new Error("No game ID");
+    const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
+    if (!dbGameId) throw new Error("No game ID");
 
-      const usedSymbols = [settings.symbol];
-      for (let i = 0; i < settings.aiCount; i++) {
+    const usedSymbols = [settings.symbol];
+    for (let i = 0; i < settings.aiCount; i++) {
+      try {
         const aiAddress = generateAiAddress();
         const aiName = await generateUniqueAiUsername();
 
@@ -134,7 +135,7 @@ export default function PlayWithAI() {
         const available = GamePieces.filter(p => !usedSymbols.includes(p.id));
         const aiSymbol = available.length > 0
           ? available[Math.floor(Math.random() * available.length)].id
-          : "dog";
+          : "dog";  // Consider making this a random valid fallback if "dog" is invalid
         usedSymbols.push(aiSymbol);
 
         await apiClient.post("/game-players/join", {
@@ -142,27 +143,31 @@ export default function PlayWithAI() {
           symbol: aiSymbol,
           code: gameCode,
         });
+      } catch (innerErr: any) {
+        toast.error(`Failed to create AI player ${i + 1}: ${innerErr.message || "Unknown error"}`);
+        throw innerErr;  // Abort the whole process if an AI fails
       }
-
-      await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
-
-      toast.update(toastId, {
-        render: "Battle begins!",
-        type: "success",
-        isLoading: false,
-        autoClose: 3000,
-      });
-
-      router.push(`/ai-play?gameCode=${gameCode}`);
-    } catch (err: any) {
-      toast.update(toastId, {
-        render: `Error: ${err.message || "Try again"}`,
-        type: "error",
-        isLoading: false,
-        autoClose: 6000,
-      });
     }
-  };
+
+    await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
+
+    toast.update(toastId, {
+      render: "Battle begins!",
+      type: "success",
+      isLoading: false,
+      autoClose: 3000,
+    });
+
+    router.push(`/ai-play?gameCode=${gameCode}`);
+  } catch (err: any) {
+    toast.update(toastId, {
+      render: `Error: ${err.message || "Try again"}`,
+      type: "error",
+      isLoading: false,
+      autoClose: 6000,
+    });
+  }
+};
 
   if (isRegisteredLoading) {
     return (
