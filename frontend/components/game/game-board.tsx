@@ -531,6 +531,8 @@ const GameBoard = ({
     [game_properties]
   );
 
+  const currentPlayer = players.find((p) => p.user_id === game.next_player_id);
+
   /* ---------- Activity Log Helpers ---------- */
   const logRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -614,7 +616,7 @@ const GameBoard = ({
                               onClick={ROLL_DICE}
                               disabled={isRolling}
                               aria-label="Roll the dice to move your player"
-                              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm rounded-full hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60"
+                              className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
                             >
                               {isRolling ? "Rolling..." : "Roll Dice"}
                             </button>
@@ -628,7 +630,7 @@ const GameBoard = ({
                                 <button
                                   onClick={BUY_PROPERTY}
                                   aria-label="Buy the current property"
-                                  className="px-2 py-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs rounded-full hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200"
+                                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
                                 >
                                   Buy for ${currentProperty?.price}
                                 </button>
@@ -650,32 +652,16 @@ const GameBoard = ({
                     </div>
                   </div>
                 ) : (
-                  <div
-                    className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
-                    style={{
-                      backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
-                    }}
-                  >
-                    <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
-                    <div className="flex flex-col gap-2">
-                      <div className="w-full flex flex-col gap-1 items-center">
-                        <button
-                          disabled
-                          className="px-4 py-2 bg-gray-300 text-gray-600 text-sm rounded-full cursor-not-allowed"
-                        >
-                          Waiting for your turn...
-                        </button>
-                        {game.history?.length > 0 && (
-                          <div className="w-full flex flex-col gap-1 items-center">
-                            <p className="text-center text-gray-300 text-xs italic">
-                              {game.history[0].player_name} - {game.history[0].comment}
-                            </p>
-                            {!roll && (<p className="text-center text-gray-300 text-xs underline">
-                              [🎲 Rolled - <b>{game.history[0].rolled}</b> | {game.history[0].extra?.description}]
-                            </p>)}
-                          </div>
-                        )}
-                      </div>
+                  <div className="mt-5 text-center z-10">
+                    <motion.h2
+                      className="text-2xl font-bold text-pink-300 mb-3"
+                      animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      {currentPlayer?.username} is playing…
+                    </motion.h2>
+                    <div className="flex justify-center mt-4">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
                     </div>
                   </div>
                 )}
