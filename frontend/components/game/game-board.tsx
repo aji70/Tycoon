@@ -19,6 +19,7 @@ import {
   Property,
   Player,
   PROPERTY_ACTION,
+  CardTypes,
 } from "@/types/game";
 import { useAccount } from "wagmi";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -42,6 +43,12 @@ interface GameProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+}
+
+interface CardPopup {
+  type: "chance" | "community_chest";
+  message: string;
+  action?: string;
 }
 
 /* ============================================
@@ -87,6 +94,31 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
 
 const isTopHalf = (square: any) => {
   return square.grid_row === 1;
+};
+
+const getMockCardMessage = (type: "chance" | "community_chest"): { message: string; action?: string } => {
+  // Mock card data - replace with actual card drawing logic/API if available
+  const chanceCards = [
+    { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
+    { message: "Bank pays you dividend of $50", action: "collect_dividend" },
+    { message: "Pay poor tax of $15", action: "pay_tax" },
+    { message: "Take a trip to Reading Railroad ($200)", action: "advance_to_railroad" },
+    { message: "You have been elected Chairman of the Board. Pay each player $50", action: "pay_players" },
+    // Add more as needed
+  ];
+
+  const communityCards = [
+    { message: "Advance to Go (Collect $200)", action: "advance_to_go" },
+    { message: "Doctor's fee. Pay $50", action: "pay_fee" },
+    { message: "From sale of stock you get $50", action: "collect_stock" },
+    { message: "Get Out of Jail Free", action: "get_out_of_jail_free" },
+    { message: "Go to Jail. Go directly to Jail. Do not pass Go, do not collect $200", action: "go_to_jail" },
+    // Add more as needed
+  ];
+
+  const cards = type === "chance" ? chanceCards : communityCards;
+  const randomCard = cards[Math.floor(Math.random() * cards.length)];
+  return randomCard;
 };
 
 /* ============================================
@@ -168,6 +200,7 @@ const GameBoard = ({
   const [pendingRoll, setPendingRoll] = useSafeState<number>(0);
   const [canRoll, setCanRoll] = useSafeState<boolean>(false);
   const [actionLock, setActionLock] = useSafeState<"ROLL" | "END" | null>(null);
+  const [currentCard, setCurrentCard] = useSafeState<CardPopup | null>(null);
 
   /* ---------- Locks ---------- */
   const lockAction = useCallback(
@@ -184,7 +217,7 @@ const GameBoard = ({
   const [currentAction, setCurrentAction] = useSafeState<string | null>(null);
   const [currentProperty, setCurrentProperty] = useSafeState<Property | null>(null);
   const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
-  const [buyPrompted, setBuyPrompted] = useSafeState<boolean>(false);
+  const [buyPrompted, setBuyPrompted] = useState(false);
   const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
 
   // Track last processed position to prevent multiple triggers
@@ -198,13 +231,13 @@ const GameBoard = ({
   /* ---------- Fetch Updated Game ---------- */
   const fetchUpdatedGame = useCallback(async () => {
     try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`)
       if (res?.data?.success) {
         const gameData = res.data?.data;
-        if (gameData && Array.isArray(gameData.players)) {
+        if (gameData && Array.isArray((gameData as any).players)) {
           setPlayers((prev) => {
-            const changed = JSON.stringify(prev) !== JSON.stringify(gameData.players);
-            return changed ? gameData.players : prev;
+            const changed = JSON.stringify(prev) !== JSON.stringify((gameData as any).players);
+            return changed ? (gameData as any).players : prev;
           });
         }
         return gameData;
@@ -244,13 +277,14 @@ const GameBoard = ({
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, checkCanRoll]);
 
-  // Property Action Trigger
+  // Property Action & Card Trigger
 
   const stableProperties = useMemo(() => properties, [properties]);
 
   useEffect(() => {
     if (!stableProperties.length || !me?.position || !game?.players) return;
 
+    // Only process if position has changed
     if (me.position === lastProcessedPosition.current) return;
 
     lastProcessedPosition.current = me.position;
@@ -258,18 +292,37 @@ const GameBoard = ({
     const square = stableProperties.find((p) => p.id === me.position);
     if (!square) return;
 
-    const game_property = game_properties.find((p) => p.property_id === square.id) || null;
+    const game_property =
+      game_properties.length === 0
+        ? null
+        : game_properties.find((p) => p.property_id === square.id);
 
     const action = PROPERTY_ACTION(square.id);
 
     setCurrentProperty(square);
-    setCurrentGameProperty(game_property);
+    setCurrentGameProperty(game_property || null);
     setCurrentAction(action);
+
+    // Handle Chance/Community Chest
+    if (["chance", "community_chest"].includes(square.type)) {
+      const cardType = square.type as "chance" | "community_chest";
+      const { message, action: cardAction } = getMockCardMessage(cardType);
+      setCurrentCard({ type: cardType, message, action: cardAction });
+      return;
+    }
 
     const meInGame = game.players.find((p) => p.user_id === me?.user_id);
     const hasRolled = (meInGame?.rolls ?? 0) > 0;
 
-    if (isMyTurn && hasRolled && !isRolling && roll !== null && action === "land" && !game_property) {
+    if (
+      isMyTurn &&
+      !buyPrompted &&
+      hasRolled &&
+      isRolling === false &&
+      roll !== null &&
+      action === "land" &&
+      !game_property
+    ) {
       toast("💰 You can buy this property!", { icon: "🏠" });
       setBuyPrompted(true);
     }
@@ -277,7 +330,47 @@ const GameBoard = ({
     if (!isMyTurn || roll === null || meInGame?.rolls === 0) {
       setBuyPrompted(false);
     }
-  }, [me?.position, stableProperties, game_properties, game?.players, isMyTurn, isRolling, roll, setCurrentProperty, setCurrentGameProperty, setCurrentAction, setBuyPrompted]);
+  }, [
+    me?.position,
+    stableProperties,
+    game_properties,
+    game?.players,
+    isMyTurn,
+    isRolling,
+    roll,
+    setCurrentProperty,
+    setCurrentGameProperty,
+    setCurrentAction,
+    buyPrompted,
+  ]);
+
+  /* ---------- Buy Property ---------- */
+  const BUY_PROPERTY = useCallback(async () => {
+    if (!me?.user_id || !currentProperty) return;
+
+    try {
+      const res = await apiClient.post<ApiResponse>(
+        "/game-properties/buy",
+        {
+          user_id: me.user_id,
+          game_id: game.id,
+          property_id: currentProperty.id,
+        }
+      );
+
+      if (res?.data?.success) {
+
+        toast.success(`🏠 You bought ${currentProperty.name}!`);
+        await fetchUpdatedGame();
+        forceRefetch();
+      }
+      toast.error(res.data?.message || "Failed to buy property.");
+      return;
+    } catch (err) {
+      console.error("BUY_PROPERTY error:", err);
+      toast.error("Unable to complete property purchase.");
+    }
+  }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch]);
 
   /* ---------- End Turn ---------- */
   const END_TURN = useCallback(
@@ -298,7 +391,6 @@ const GameBoard = ({
           toast.success("Turn ended. Waiting for next player...");
           setCanRoll(false);
           setRoll(null);
-          setBuyPrompted(false);
         }
 
         forceRefetch();
@@ -310,34 +402,8 @@ const GameBoard = ({
         unlockAction();
       }
     },
-    [game.id, fetchUpdatedGame, lockAction, unlockAction, forceRefetch, setPlayers, setCanRoll, setRoll, setBuyPrompted]
+    [game.id, fetchUpdatedGame, lockAction, unlockAction, forceRefetch, setPlayers, setCanRoll, setRoll]
   );
-
-  /* ---------- Buy Property ---------- */
-  const BUY_PROPERTY = useCallback(async () => {
-    if (!me?.user_id || !currentProperty) return;
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/buy", {
-        user_id: me.user_id,
-        game_id: game.id,
-        property_id: currentProperty.id,
-      });
-
-      if (res?.data?.success) {
-        toast.success(`🏠 You bought ${currentProperty.name}!`);
-        await fetchUpdatedGame();
-        forceRefetch();
-        setBuyPrompted(false);
-        setTimeout(() => END_TURN(me.user_id), 1000);
-      } else {
-        toast.error(res.data?.message || "Failed to buy property.");
-      }
-    } catch (err) {
-      console.error("BUY_PROPERTY error:", err);
-      toast.error("Unable to complete property purchase.");
-    }
-  }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch, END_TURN, setBuyPrompted]);
 
   /* ---------- Roll Dice ---------- */
   const ROLL_DICE = useCallback(async () => {
@@ -431,19 +497,6 @@ const GameBoard = ({
     forceRefetch,
     setCanRoll,
   ]);
-
-  /* ---------- Auto End Turn ---------- */
-  useEffect(() => {
-    if (!isMyTurn || isRolling || actionLock) return;
-
-    const myPlayer = players.find(p => p.user_id === me?.user_id);
-    if (!myPlayer?.rolls || myPlayer.rolls === 0) return;
-
-    if (!buyPrompted) {
-      const timer = setTimeout(() => END_TURN(me?.user_id), 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [isMyTurn, isRolling, actionLock, players, me?.user_id, buyPrompted, END_TURN]);
 
   /* ---------- Derived Data ---------- */
   const playersByPosition = useMemo(() => {
@@ -549,7 +602,6 @@ const GameBoard = ({
                     const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
                     const hasRolled = (myPlayer?.rolls ?? 0) > 0;
 
-                    // 1. Haven't rolled yet → Roll Dice button
                     if (!hasRolled) {
                       return (
                         <button
@@ -562,40 +614,26 @@ const GameBoard = ({
                       );
                     }
 
-                    // 2. Landed on a buyable property → show Buy + Skip
-                    if (buyPrompted && currentProperty) {
-                      return (
-                        <div className="flex gap-4 flex-wrap justify-center">
-                          <button
-                            onClick={BUY_PROPERTY}
-                            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
-                          >
-                            Buy for ${currentProperty.price}
-                          </button>
-                          <button
-                            onClick={() => {
-                              toast("Purchase skipped");
-                              setBuyPrompted(false);
-                              END_TURN(me?.user_id);
-                            }}
-                            className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
-                          >
-                            Skip
-                          </button>
-                        </div>
-                      );
-                    }
-
-                    // 3. Has rolled + NOT on a buyable property → show End Turn immediately
-                    // This covers: Chance, Community Chest, Tax, Go to Jail, Free Parking, owned properties, etc.
                     return (
-                      <button
-                        onClick={() => END_TURN(me?.user_id)}
-                        disabled={actionLock === "ROLL"}
-                        className="px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-xl rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
-                      >
-                        End Turn
-                      </button>
+                      <div className="flex gap-4 flex-wrap justify-center">
+                        {
+                          currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
+                            <button
+                              onClick={BUY_PROPERTY}
+                              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
+                            >
+                              Buy for ${currentProperty?.price}
+                            </button>
+                          )
+                        }
+                        <button
+                          onClick={() => END_TURN(me?.user_id)}
+                          disabled={actionLock === "ROLL"}
+                          className="px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-xl rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
+                        >
+                          End Turn
+                        </button>
+                      </div>
                     );
                   })()
                 ) : (
@@ -612,6 +650,8 @@ const GameBoard = ({
                     </div>
                   </div>
                 )}
+
+                {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
 
                 <div ref={logRef} className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
                   <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
@@ -631,6 +671,69 @@ const GameBoard = ({
                   </div>
                 </div>
               </div>
+
+              {/* Card Popup Modal */}
+              <AnimatePresence>
+                {currentCard && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.7, y: 100, rotate: -5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.7, y: 100, rotate: 5 }}
+                    transition={{ 
+                      duration: 0.5, 
+                      ease: [0.25, 0.46, 0.45, 0.94], 
+                      type: "spring", 
+                      stiffness: 300, 
+                      damping: 25 
+                    }}
+                    className="fixed inset-0 flex items-center justify-center z-50 bg-black/70"
+                    onClick={() => setCurrentCard(null)} // Close on backdrop click
+                  >
+                    <motion.div
+                      layout
+                      className={`max-w-lg w-96 p-8 rounded-2xl shadow-2xl backdrop-blur-sm border border-cyan-500/30 relative ${
+                        currentCard.type === "chance"
+                          ? "bg-gradient-to-br from-orange-500/30 to-yellow-500/30 text-orange-100"
+                          : "bg-gradient-to-br from-blue-500/30 to-indigo-500/30 text-blue-100"
+                      }`}
+                      onClick={(e) => e.stopPropagation()} // Prevent close on card click
+                    >
+                      <button
+                        onClick={() => setCurrentCard(null)}
+                        className="absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-800/50"
+                      >
+                        &times;
+                      </button>
+                      <motion.h3 
+                        className="text-xl font-bold mb-6 text-center uppercase tracking-wide"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.2, duration: 0.4 }}
+                      >
+                        {currentCard.type === "chance" ? "Chance" : "Community Chest"}
+                      </motion.h3>
+                      <motion.p 
+                        className="text-base leading-relaxed text-center italic mb-6"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.3, duration: 0.4 }}
+                      >
+                        "{currentCard.message}"
+                      </motion.p>
+                      {currentCard.action && (
+                        <motion.p 
+                          className="text-sm text-center opacity-80 bg-white/10 p-2 rounded-lg"
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: 0.4, duration: 0.4 }}
+                        >
+                          Action: {currentCard.action}
+                        </motion.p>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Board Squares */}
               {boardData.map((square) => {
