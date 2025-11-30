@@ -217,7 +217,7 @@ const GameBoard = ({
   const [currentAction, setCurrentAction] = useSafeState<string | null>(null);
   const [currentProperty, setCurrentProperty] = useSafeState<Property | null>(null);
   const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
-  const [buyPrompted, setBuyPrompted] = useSafeState<boolean>(false);
+  const [buyPrompted, setBuyPrompted] = useState(false);
   const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
 
   // Track last processed position to prevent multiple triggers
@@ -314,22 +314,20 @@ const GameBoard = ({
     const meInGame = game.players.find((p) => p.user_id === me?.user_id);
     const hasRolled = (meInGame?.rolls ?? 0) > 0;
 
-    const canBuy = action && ["land", "railway", "utility"].includes(action) && !game_property;
-
     if (
       isMyTurn &&
+      !buyPrompted &&
       hasRolled &&
       isRolling === false &&
       roll !== null &&
-      canBuy
+      action === "land" &&
+      !game_property
     ) {
       toast("💰 You can buy this property!", { icon: "🏠" });
       setBuyPrompted(true);
-    } else {
-      setBuyPrompted(false);
     }
 
-  if (!isMyTurn || roll === null || meInGame?.rolls === 0) {
+    if (!isMyTurn || roll === null || meInGame?.rolls === 0) {
       setBuyPrompted(false);
     }
   }, [
@@ -343,8 +341,36 @@ const GameBoard = ({
     setCurrentProperty,
     setCurrentGameProperty,
     setCurrentAction,
-    setBuyPrompted,
+    buyPrompted,
   ]);
+
+  /* ---------- Buy Property ---------- */
+  const BUY_PROPERTY = useCallback(async () => {
+    if (!me?.user_id || !currentProperty) return;
+
+    try {
+      const res = await apiClient.post<ApiResponse>(
+        "/game-properties/buy",
+        {
+          user_id: me.user_id,
+          game_id: game.id,
+          property_id: currentProperty.id,
+        }
+      );
+
+      if (res?.data?.success) {
+
+        toast.success(`🏠 You bought ${currentProperty.name}!`);
+        await fetchUpdatedGame();
+        forceRefetch();
+      }
+      toast.error(res.data?.message || "Failed to buy property.");
+      return;
+    } catch (err) {
+      console.error("BUY_PROPERTY error:", err);
+      toast.error("Unable to complete property purchase.");
+    }
+  }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch]);
 
   /* ---------- End Turn ---------- */
   const END_TURN = useCallback(
@@ -379,36 +405,6 @@ const GameBoard = ({
     [game.id, fetchUpdatedGame, lockAction, unlockAction, forceRefetch, setPlayers, setCanRoll, setRoll]
   );
 
-  /* ---------- Buy Property ---------- */
-  const BUY_PROPERTY = useCallback(async () => {
-    if (!me?.user_id || !currentProperty) return;
-
-    try {
-      const res = await apiClient.post<ApiResponse>(
-        "/game-properties/buy",
-        {
-          user_id: me.user_id,
-          game_id: game.id,
-          property_id: currentProperty.id,
-        }
-      );
-
-      if (res?.data?.success) {
-
-        toast.success(`🏠 You bought ${currentProperty.name}!`);
-        await fetchUpdatedGame();
-        forceRefetch();
-        setBuyPrompted(false);
-        setTimeout(() => END_TURN(me.user_id), 1000);
-      }
-      toast.error(res.data?.message || "Failed to buy property.");
-      return;
-    } catch (err) {
-      console.error("BUY_PROPERTY error:", err);
-      toast.error("Unable to complete property purchase.");
-    }
-  }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch, setBuyPrompted, END_TURN]);
-
   /* ---------- Roll Dice ---------- */
   const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -438,7 +434,6 @@ const GameBoard = ({
       setTimeout(async () => {
         const value = getDiceValues();
         if (!value) {
-          toast.success("DOUBLES! Roll again!");
           setRollAgain(true);
           setIsRolling(false);
           unlockAction();
@@ -502,19 +497,6 @@ const GameBoard = ({
     forceRefetch,
     setCanRoll,
   ]);
-
-  /* ---------- Auto End Turn ---------- */
-  useEffect(() => {
-    if (!isMyTurn || isRolling || actionLock) return;
-
-    const myPlayer = players.find(p => p.user_id === me?.user_id);
-    if (!myPlayer?.rolls || myPlayer.rolls === 0) return;
-
-    if (!buyPrompted) {
-      const timer = setTimeout(() => END_TURN(me?.user_id), 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [isMyTurn, isRolling, actionLock, players, me?.user_id, buyPrompted, END_TURN]);
 
   /* ---------- Derived Data ---------- */
   const playersByPosition = useMemo(() => {
@@ -616,48 +598,59 @@ const GameBoard = ({
                 )}
 
                 {isMyTurn ? (
-                  (() => {
-                    const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
-                    const hasRolled = (myPlayer?.rolls ?? 0) > 0;
+                  <div
+                    className="p-4 rounded-lg w-full max-w-sm bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url('https://images.unsplash.com/photo-1620283088057-7d4241262d45'), linear-gradient(to bottom, rgba(14, 40, 42, 0.8), rgba(14, 40, 42, 0.8))`,
+                    }}
+                  >
+                    <h2 className="text-base font-semibold text-cyan-300 mb-3">Game Actions</h2>
+                    <div className="flex flex-col gap-2">
+                      {(() => {
+                        const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
+                        const hasRolled = (myPlayer?.rolls ?? 0) > 0;
 
-                    if (!hasRolled) {
-                      return (
-                        <button
-                          onClick={ROLL_DICE}
-                          disabled={isRolling}
-                          aria-label="Roll the dice to move your player"
-                          className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
-                        >
-                          {isRolling ? "Rolling..." : "Roll Dice"}
-                        </button>
-                      );
-                    }
+                        if (!hasRolled) {
+                          return (
+                            <button
+                              onClick={ROLL_DICE}
+                              disabled={isRolling}
+                              aria-label="Roll the dice to move your player"
+                              className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
+                            >
+                              {isRolling ? "Rolling..." : "Roll Dice"}
+                            </button>
+                          );
+                        }
 
-                    if (buyPrompted) {
-                      return (
-                        <div className="flex gap-4 flex-wrap justify-center">
-                          <button
-                            onClick={BUY_PROPERTY}
-                            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
-                          >
-                            Buy for ${currentProperty?.price}
-                          </button>
-                          <button
-                            onClick={() => {
-                              toast("Skipped purchase");
-                              setBuyPrompted(false);
-                              setTimeout(() => END_TURN(me?.user_id), 800);
-                            }}
-                            className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
-                          >
-                            Skip
-                          </button>
-                        </div>
-                      );
-                    }
+                        return (
+                          <div className="flex flex-row items-center gap-2">
+                            {
+                              currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
+                                <button
+                                  onClick={BUY_PROPERTY}
+                                  aria-label="Buy the current property"
+                                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
+                                >
+                                  Buy for ${currentProperty?.price}
+                                </button>
+                              )
+                            }
+                            <button
+                              onClick={() => END_TURN(me?.user_id)}
+                              disabled={actionLock === "ROLL"}
+                              aria-label="End your turn"
+                              className="px-2 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-105 transition-all duration-200 disabled:opacity-60"
+                            >
+                              End Turn
+                            </button>
+                          </div>
+                        );
+                      })()}
 
-                    return null;
-                  })()
+                      {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
+                    </div>
+                  </div>
                 ) : (
                   <div className="mt-5 text-center z-10">
                     <motion.h2
