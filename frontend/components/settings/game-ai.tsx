@@ -29,30 +29,16 @@ import {
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { checksumAddress } from "viem";
 
-function generateAiAddress(): `0x${string}` {
-  const pk = generatePrivateKey();
-  const addr = privateKeyToAddress(pk);
-  return checksumAddress(("0xA1FF" + addr.slice(6)) as `0x${string}`);
-}
-
-async function generateUniqueAiUsername(): Promise<string> {
-  const names = [
-    "DeepLord", "NeuralKing", "AI_Tycoon", "Bot_X9", "Quantum", "AlgoBoss",
-    "CyberMogul", "ChainRival", "NodeBeast", "ZeroForge", "SynthOverlord", "ByteBaron"
-  ];
-
-  for (const name of names) {
-    try {
-      const res = await apiClient.get<any>(`/users/check-username/${name}`);
-      if (res.data && !res.data.exists && !res.data.data?.exists) {
-        return name;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return `AI_${Math.random().toString(36).slice(2, 9).toUpperCase()}`;
-}
+const ai_address = [
+  "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
+  "0xB2EE17D003e63985f3648f6c1d213BE86B474B11",
+  "0xC3FF882E779aCbc112165fa1E7fFC093e9353B21",
+  "0xD4FFDE5296C3EE6992bAf871418CC3BE84C99C32",
+  "0xE5FF75Fcf243C4cE05B9F3dc5Aeb9F901AA361D1",
+  "0xF6FF469692a259eD5920C15A78640571ee845E8",
+  "0xA7FFE1f969Fa6029Ff2246e79B6A623A665cE69",
+  "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
+];
 
 export default function PlayWithAI() {
   const router = useRouter();
@@ -123,15 +109,8 @@ const handlePlay = async () => {
     const usedSymbols = [settings.symbol];
     for (let i = 0; i < settings.aiCount; i++) {
       try {
-        const aiAddress = generateAiAddress();
-        const aiName = await generateUniqueAiUsername();
-
-        await apiClient.post("/users", {
-          username: aiName,
-          address: aiAddress,
-          chain: "Base",
-        });
-
+        const aiAddress = ai_address[i];
+  
         const available = GamePieces.filter(p => !usedSymbols.includes(p.id));
         const aiSymbol = available.length > 0
           ? available[Math.floor(Math.random() * available.length)].id

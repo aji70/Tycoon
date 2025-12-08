@@ -393,7 +393,7 @@ export default function GamePlayers({
                 </motion.button>
               )}
 
-              {isMe && isNext && (
+              {/* {isMe && isNext && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={handleUpdatePosition}
@@ -402,7 +402,7 @@ export default function GamePlayers({
                 >
                   {isPending || isConfirming ? "UPDATING POSITION..." : "UPDATE POSITION →"}
                 </motion.button>
-              )}
+              )} */}
             </motion.div>
           );
         })}
