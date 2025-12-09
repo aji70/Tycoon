@@ -89,7 +89,7 @@ const HeroSection: React.FC = () => {
         chain: "Base",
       });
 
-      if (res?.data?.success) {
+      if (res?.success) {
         toast.update(toastId, {
           render: "Registration successful!",
           type: "success",
