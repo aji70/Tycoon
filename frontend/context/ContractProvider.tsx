@@ -10,8 +10,13 @@ import {
 import { Address } from 'viem';
 import PlayerABI from './abi.json';
 
-const CONTRACT_ADDRESS =
-  '0x8f7397C4A189EE145E82f304e1274f82A8Ad3DbF' as Address;
+// Base Sepolia
+// const CONTRACT_ADDRESS =
+//   '0x8f7397C4A189EE145E82f304e1274f82A8Ad3DbF' as Address;
+
+// Celo Mainnet
+  const CONTRACT_ADDRESS =
+  '0xcc63bD649ce1D74ccD3937fa7d525528208F787d' as Address;
 
 
 
