@@ -327,7 +327,7 @@ const HeroSection: React.FC = () => {
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
                   <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                  Create Game
+                 Play with Friends
                 </span>
               </button>
 
