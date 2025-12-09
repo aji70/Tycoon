@@ -11,6 +11,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
 import { Toaster } from "react-hot-toast";
+import FarcasterInit from "@/components/FarcasterInit";
 
 export const metadata = getMetadata({
   title: "Tycoon",
@@ -33,6 +34,7 @@ export default async function RootLayout({
       className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}
     >
       <body className="antialiased bg-[#010F10] w-full">
+        <FarcasterInit />
         <ContextProvider cookies={cookies}>
           <PlayerContractProvider>
             <AppKitProviderWrapper>

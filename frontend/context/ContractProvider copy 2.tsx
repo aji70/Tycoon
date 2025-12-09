@@ -6,17 +6,27 @@ import {
   useWriteContract,
   useAccount,
   useWaitForTransactionReceipt,
+  usePublicClient,
 } from 'wagmi';
 import { Address } from 'viem';
 import PlayerABI from './abi.json';
 
-// Base Sepolia
-// const CONTRACT_ADDRESS =
-//   '0x8f7397C4A189EE145E82f304e1274f82A8Ad3DbF' as Address;
+const getContractAddress = (chainId?: number): Address | undefined => {
+  if (!chainId) return undefined;
 
-// Celo Mainnet
-  const CONTRACT_ADDRESS =
-   process.env.NEXT_PUBLIC_CELO as Address;
+  switch (chainId) {
+    case 84532: // Base Sepolia
+      return process.env.NEXT_PUBLIC_BASE_SEPOLIA as Address;
+    case 8453: // Base mainnet
+      return process.env.NEXT_PUBLIC_BASE as Address;
+    case 42220: // Celo mainnet
+      return process.env.NEXT_PUBLIC_CELO as Address;
+    default:
+      return undefined;
+  }
+};
+
+
 
 
 
@@ -98,6 +108,14 @@ export function useIsRegistered(
   address?: Address,
   options = { enabled: true }
 ) {
+  const client = usePublicClient();
+  const chainId = client?.chain?.id;
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+    if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
+  
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -118,6 +136,14 @@ export function useIsInGame(
   address?: Address,
   options = { enabled: true }
 ) {
+  const client = usePublicClient();
+  const chainId = client?.chain?.id;
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+    if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
+  
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -134,6 +160,14 @@ export function useIsInGame(
 }
 
 export function useGetUsername(address?: Address, options = { enabled: true }) {
+  const client = usePublicClient();
+  const chainId = client?.chain?.id;
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+    if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
+  
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -153,6 +187,14 @@ export function useRetrievePlayer(
   address?: Address,
   options = { enabled: true }
 ) {
+  const client = usePublicClient();
+  const chainId = client?.chain?.id;
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+    if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
+  
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -182,26 +224,56 @@ export function useCreateGame(
   gameCode: string,
   starting_cash: number
 ) {
+  const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const {
     writeContractAsync,
     isPending,
     error,
     data: txHash,
   } = useWriteContract();
-  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const { isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
 
   const write = useCallback(async (): Promise<string> => {
     const result = await writeContractAsync({
       address: CONTRACT_ADDRESS,
       abi: PlayerABI,
-      functionName: 'createGame',
-      args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, starting_cash],
-       value: BigInt(STAKE),
+      functionName: "createGame",
+      args: [
+        username,
+        gameType,
+        playerSymbol,
+        numberOfPlayers,
+        gameCode,
+        starting_cash,
+      ],
+      value: BigInt(STAKE),
     });
 
-    if (!result) throw new Error('Invalid game ID returned from contract');
+    if (!result)
+      throw new Error("Invalid game ID returned from contract");
+
     return result as string;
-  }, [writeContractAsync, username, gameType, playerSymbol, numberOfPlayers, gameCode, starting_cash]);
+  }, [
+    writeContractAsync,
+    username,
+    gameType,
+    playerSymbol,
+    numberOfPlayers,
+    gameCode,
+    starting_cash,
+    CONTRACT_ADDRESS,
+  ]);
 
   return { write, isPending, error, txHash, isSuccess };
 }
@@ -214,6 +286,15 @@ export function useCreateAiGame(
   gameCode: string,
   startingCash: number,
 ) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const {
     writeContractAsync,
     isPending,
@@ -246,6 +327,15 @@ export function useUpdatePlayerPosition(
   balanceDelta: bigint | number, // int256 → can be negative
   propertyIds: number[]          // uint8[]
 ) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const {
     writeContractAsync,
     isPending,
@@ -311,6 +401,15 @@ export function useUpdatePlayerPosition(
 }
 
 export function useJoinGame(gameId: number, username: string, playerSymbol: string, code: string) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const {
     writeContractAsync,
     isPending,
@@ -336,6 +435,15 @@ export function useJoinGame(gameId: number, username: string, playerSymbol: stri
 }
 
 export function useGetGame(gameId?: string, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -362,6 +470,15 @@ export function useGetGame(gameId?: string, options = { enabled: true }) {
 }
 
 export function useGetPlayer(address?: Address, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -391,6 +508,15 @@ export function useGetPlayer(address?: Address, options = { enabled: true }) {
 }
 
 export function useGetPlayerById(id?: number, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -420,6 +546,15 @@ export function useGetPlayerById(id?: number, options = { enabled: true }) {
 }
 
 export function useGetGameByCode(code?: string, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -455,6 +590,15 @@ export function useGetGameByCode(code?: string, options = { enabled: true }) {
 
 
 export function useGetGamePlayer(gameId?: number, address?: Address, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -483,6 +627,15 @@ export function useGetGamePlayer(gameId?: number, address?: Address, options = {
 }
 
 export function useStartGame(gameId: number) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const { writeContractAsync, isPending, error, data: txHash } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -499,6 +652,15 @@ export function useStartGame(gameId: number) {
 }
 
 export function useEndGame(gameId: number, winnerAddr: Address) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const { writeContractAsync, isPending, error, data: txHash } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -515,10 +677,20 @@ export function useEndGame(gameId: number, winnerAddr: Address) {
 }
 
 export function useRollDice(gameId: number) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const { writeContractAsync, isPending, error, data: txHash } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const write = useCallback(async (): Promise<void> => {
+
     await writeContractAsync({
       address: CONTRACT_ADDRESS,
       abi: PlayerABI,
@@ -531,6 +703,15 @@ export function useRollDice(gameId: number) {
 }
 
 export function useDrawChanceCard(gameId?: number, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -547,6 +728,15 @@ export function useDrawChanceCard(gameId?: number, options = { enabled: true }) 
 }
 
 export function useDrawCommunityCard(gameId?: number, options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -563,6 +753,15 @@ export function useDrawCommunityCard(gameId?: number, options = { enabled: true 
 }
 
 export function useTotalUsers(options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -578,6 +777,15 @@ export function useTotalUsers(options = { enabled: true }) {
 }
 
 export function useTotalGames(options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -593,6 +801,15 @@ export function useTotalGames(options = { enabled: true }) {
 }
 
 export function useBoardSize(options = { enabled: true }) {
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
   const result = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PlayerABI,
@@ -622,6 +839,15 @@ export const PlayerContractProvider: React.FC<{
 }> = ({ children }) => {
   const { address: userAddress } = useAccount();
   const { writeContractAsync } = useWriteContract();
+    const client = usePublicClient();
+  const chainId = client?.chain?.id;
+
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
+
+  if (!CONTRACT_ADDRESS) {
+    throw new Error("Contract address not found for this chain ID");
+  }
+
 
   const registerPlayer = useCallback(
     async (username: string) => {

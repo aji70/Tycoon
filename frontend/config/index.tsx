@@ -4,13 +4,14 @@ import { mainnet, celo, base, sepolia, arbitrum, baseSepolia } from '@reown/appk
 
 // Get projectId from https://dashboard.reown.com
 // export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
-export const projectId = '912f9a3279905a7dd417a7bf68e04209'
+// export const projectId = '912f9a3279905a7dd417a7bf68e04209'
+export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
 
 if (!projectId) {
   throw new Error('Project ID is not defined')
 }
 
-export const networks = [mainnet, celo, base, sepolia, arbitrum, baseSepolia]
+export const networks = [mainnet, base, celo]
 
 //Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({

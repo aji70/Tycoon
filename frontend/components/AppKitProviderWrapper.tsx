@@ -4,13 +4,13 @@
 import { ReactNode, useEffect } from 'react';
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { baseSepolia } from '@reown/appkit/networks';
+import { baseSepolia, base, celo } from '@reown/appkit/networks';
 
 const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || '912f9a3279905a7dd417a7bf68e04209';
 
 // Setup wagmi adapter
 const wagmiAdapter = new WagmiAdapter({
-  networks: [baseSepolia],
+  networks: [baseSepolia, base, celo],
   projectId,
   ssr: true, // Important for Next.js
 });
@@ -27,13 +27,13 @@ export default function AppKitProviderWrapper({
       console.log('Initializing AppKit'); // Debug initialization
       createAppKit({
         adapters: [wagmiAdapter],
-        networks: [baseSepolia],
+        networks: [baseSepolia, base, celo],
         projectId,
         themeVariables: {
           '--w3m-z-index': 10000, // Set high z-index for Reown modal
         },
         metadata: {
-          name: 'Blockopoly',
+          name: 'Tycoon',
           description: 'Play Monopoly onchain',
           url: 'http://localhost:3000', // Update to your deployed URL
           icons: ['https://avatars.githubusercontent.com/u/37784886'], // Replace with your logo
