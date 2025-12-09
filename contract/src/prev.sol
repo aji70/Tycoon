@@ -575,7 +575,11 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return gamePlayers[gameId][playerAddr];
     }
 
-    function getGamePlayerByAddress(uint256 gameId, address playerAddr) public view returns (TycoonLib.GamePlayer memory) {
+    function getGamePlayerByAddress(uint256 gameId, address playerAddr)
+        public
+        view
+        returns (TycoonLib.GamePlayer memory)
+    {
         return gamePlayers[gameId][playerAddr];
     }
 
@@ -584,7 +588,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return properties[gameId][propertyId];
     }
 
-    function getGameSettings(uint256 gameId) public view returns(TycoonLib.GameSettings memory settings){
+    function getGameSettings(uint256 gameId) public view returns (TycoonLib.GameSettings memory settings) {
         settings = gameSettings[gameId];
         return settings;
     }

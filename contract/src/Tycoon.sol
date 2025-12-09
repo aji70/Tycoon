@@ -48,7 +48,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
     event AIGameEnded(uint256 indexed gameId, address indexed player, uint64 timestamp);
     event HouseWithdrawn(uint256 amount, address indexed owner);
 
-
     constructor(address initialOwner) Ownable(initialOwner) {}
 
     // -------------------------
