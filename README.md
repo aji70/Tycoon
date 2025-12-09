@@ -16,6 +16,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 | Detail          | Info |
 |-----------------|------|
 | **Contract Base Address** | `0x8122F36B24D475E5d4F103C0787EC34b8019477b` |
+| **Contract Celo Address** | `0xcc63bD649ce1D74ccD3937fa7d525528208F787d` |
 | **Network**     | Base sepolia |
 | **Status**      | ✅ Deployed — Functionality under development |
 | **ERC20 Base Address** | `0x2f382911995146c5B721b7418f9D338BAB843A9d` |
