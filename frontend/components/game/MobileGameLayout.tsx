@@ -559,7 +559,7 @@ const MobileGameLayout = ({
                   animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  AI {currentPlayer?.username} is playing…
+                 {currentPlayer?.username} is playing…
                 </motion.h2>
                 {buyPrompted && buyScore !== null && (
                   <p className="text-sm text-yellow-300 font-bold"> {/* Smaller */}
@@ -570,7 +570,7 @@ const MobileGameLayout = ({
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div> {/* Smaller spinner */}
                 </div>
                 <p className="text-pink-200 text-xs italic mt-2"> {/* Smaller */}
-                  Smart AI • Decides automatically
+                  {currentPlayer?.username}• Decides automatically
                 </p>
               </div>
             )}
@@ -845,3 +845,4 @@ const MobileGameLayout = ({
 };
 
 export default MobileGameLayout;
+
