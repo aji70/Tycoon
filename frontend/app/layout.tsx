@@ -11,16 +11,35 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
 import { Toaster } from "react-hot-toast";
-import FarcasterReady from "@/components/FarcasterReady"; // New import
+import FarcasterReady from "@/components/FarcasterReady"; 
+import { minikitConfig } from "../minikit.config";
+import type { Metadata } from "next";
+let cookies: string|null;
 
-export const metadata = getMetadata({
-  title: "Tycoon",
+
+export async function generateMetadata(): Promise<Metadata> {
+   const headersObj = await headers();
+   cookies = headersObj.get("cookie");
+  return {
+    title: "Tycoon",
   description:
     "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Base. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
-     other: {
-    'base:app_id': '693a9b718a7c4e55fec73df7',
-  },
-});
+    other: {
+      "base:app_id": "693a9b718a7c4e55fec73df7", 
+      "fc:frame": JSON.stringify({
+        version: minikitConfig.miniapp.version,
+        imageUrl: minikitConfig.miniapp.heroImageUrl,
+        button: {
+          title: `Join the ${minikitConfig.miniapp.name} Waitlist`,
+          action: {
+            name: `Launch ${minikitConfig.miniapp.name}`,
+            type: "launch_frame",
+          },
+        },
+      }),
+    },
+  };
+}
 
 export default async function RootLayout({
   children,
