@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import PropertyCard from "./cards/property-card";
+import PropertyCardMobile from "./cards/property-card-mobile";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -208,6 +208,8 @@ const MobileGameLayout = ({
   const logRef = useRef<HTMLDivElement>(null);
   const rolledForPlayerId = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+
+  
 
   // Current landed property
   const currentProperty = currentPlayer?.position
@@ -481,6 +483,8 @@ const MobileGameLayout = ({
   const developmentStage = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.development ?? 0;
 
+  
+
   // Auto-focus on current position after roll
   useEffect(() => {
     if (boardRef.current && currentProperty) {
@@ -591,7 +595,7 @@ const MobileGameLayout = ({
                 onClick={() => setFocusedProperty(square)} // Tap to inspect
               >
                 <div className={`w-full h-full transform group-hover:scale-150 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5`}> {/* Smaller padding, reduced transform */}
-                  {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
+                  {square.type === "property" && <PropertyCardMobile square={square} owner={propertyOwner(square.id)} />}
                   {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                   {square.type === "corner" && <CornerCard square={square} />}
 
@@ -737,25 +741,76 @@ const MobileGameLayout = ({
             >
               <button onClick={() => setFocusedProperty(null)} className="absolute top-2 right-2 text-xl hover:text-white">X</button>
               {/* Render enlarged PropertyCard or details here */}
-              {focusedProperty.type === "property" && <PropertyCard square={focusedProperty} owner={propertyOwner(focusedProperty.id)} />}
+              {focusedProperty.type === "property" && <PropertyCardMobile square={focusedProperty} owner={propertyOwner(focusedProperty.id)} />}
               {/* Add more details like rent, owner, etc. */}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Card Popup - Kept as is, but smaller */}
+   
+
+      {/* BIG CARD MODAL */}
       <AnimatePresence>
-        {currentCard && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center z-50 bg-black/70" onClick={() => setCurrentCard(null)}>
-            <motion.div className={`max-w-md w-4/5 p-6 rounded-2xl shadow-2xl backdrop-blur-sm border border-cyan-500/30 ${currentCard.type === "chance" ? "bg-gradient-to-br from-orange-500/30 to-yellow-500/30" : "bg-gradient-to-br from-blue-500/30 to-indigo-500/30"}`} onClick={e => e.stopPropagation()}>
-              <button onClick={() => setCurrentCard(null)} className="absolute top-2 right-2 text-xl hover:text-white">X</button>
-              <h3 className="text-xl font-bold text-center uppercase">{currentCard.type.replace("_", " ")}</h3>
-              <p className="text-center italic mt-3 text-sm">"{currentCard.message}"</p>
+        {focusedProperty && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+            onClick={() => setFocusedProperty(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative max-w-lg w-full bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-cyan-500/40 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setFocusedProperty(null)}
+                className="absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-black/50 flex items-center justify-center text-2xl hover:bg-black/70 transition"
+              >
+                ×
+              </button>
+
+              {/* Large card */}
+              <div className="p-6 pt-12">
+                {["community_chest", "chance", "luxury_tax", "income_tax"].includes(focusedProperty.type) && (
+                  <SpecialCard square={focusedProperty} />
+                )}
+                {focusedProperty.type === "corner" && (
+                  <CornerCard square={focusedProperty} />
+                )}
+              </div>
+
+              {/* Extra info below the card */}
+              <div className="px-6 pb-6 text-center space-y-2">
+                <p className="text-2xl font-bold">{focusedProperty.name}</p>
+                {propertyOwner(focusedProperty.id) ? (
+                  <p className="text-lg text-cyan-300">
+                    Owner: {propertyOwner(focusedProperty.id)}
+                  </p>
+                ) : (
+                  <p className="text-lg text-gray-400">Available for purchase</p>
+                )}
+                {focusedProperty.price && (
+                  <p className="text-lg">Price: <span className="text-yellow-400 font-bold">${focusedProperty.price}</span></p>
+                )}
+                {focusedProperty.type === "property" && developmentStage(focusedProperty.id) > 0 && (
+                  <p className="text-lg">
+                    Development: {developmentStage(focusedProperty.id) === 5 ? "Hotel" : `${developmentStage(focusedProperty.id)} Houses`}
+                  </p>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+
+    
 
       <Toaster
         position="top-center"
