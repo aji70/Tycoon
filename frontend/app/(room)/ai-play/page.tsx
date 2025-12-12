@@ -10,10 +10,15 @@ import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
+import { useMediaQuery } from "@/components/useMediaQuery";
+import MobileGameLayout  from "@/components/game/MobileGameLayout";
+import MobilePlayerLayout from "@/components/game/MobilePlayerLayout";
 
 export default function GamePlayPage() {
   const searchParams = useSearchParams();
   const [gameCode, setGameCode] = useState<string>("");
+
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const { address } = useAccount();
 
@@ -85,6 +90,8 @@ export default function GamePlayPage() {
       .sort((a, b) => a.id - b.id);
   }, [game_properties, properties, address]);
 
+  const [activeTab, setActiveTab] = useState<'board' | 'players'>('board');
+
   if (gameLoading) {
     return (
       <div className="w-full min-h-screen flex items-center justify-center text-lg font-medium text-white">
@@ -101,6 +108,47 @@ export default function GamePlayPage() {
     );
   }
 
+  if (isMobile) {
+    if (!game) return null;
+
+    return (
+      <main className="w-full h-screen flex flex-col overflow-hidden">
+        <div className="flex-1 w-full overflow-hidden">
+          {activeTab === 'board' && (
+            <MobileGameLayout
+              game={game}
+              properties={properties}
+              game_properties={game_properties}
+              me={me}
+            />
+          )}
+          {activeTab === 'players' && (
+            <MobilePlayerLayout
+              game={game}
+              properties={properties}
+              game_properties={game_properties}
+              my_properties={my_properties}
+              me={me}
+            />
+          )}
+        </div>
+        <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-cyan-500 flex justify-around items-center h-16 z-50">
+          <button
+            onClick={() => setActiveTab('board')}
+            className={`flex-1 py-2 text-center font-bold ${activeTab === 'board' ? 'text-cyan-300 bg-cyan-900/40' : 'text-white'}`}
+          >
+            Board
+          </button>
+          <button
+            onClick={() => setActiveTab('players')}
+            className={`flex-1 py-2 text-center font-bold ${activeTab === 'players' ? 'text-cyan-300 bg-cyan-900/40' : 'text-white'}`}
+          >
+            Players
+          </button>
+        </nav>
+      </main>
+    );
+  }
 
   return game && !propertiesLoading && !gamePropertiesLoading ? (
     <main className="w-full h-screen overflow-x-hidden relative flex flex-row lg:gap-2">

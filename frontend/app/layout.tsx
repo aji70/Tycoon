@@ -29,8 +29,13 @@ export async function generateMetadata(): Promise<Metadata> {
       "fc:frame": JSON.stringify({
         version: minikitConfig.miniapp.version,
         imageUrl: minikitConfig.miniapp.heroImageUrl,
+         images: 
+        {
+          url: minikitConfig.miniapp.heroImageUrl,
+          alt: "Tycoon - Monopoly Game Onchain",
+        },
         button: {
-          title: `Join the ${minikitConfig.miniapp.name} Waitlist`,
+          title: `Play ${minikitConfig.miniapp.name} `,
           action: {
             name: `Launch ${minikitConfig.miniapp.name}`,
             type: "launch_frame",
