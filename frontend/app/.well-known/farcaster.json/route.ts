@@ -11,4 +11,3 @@ export async function GET() {
 const URL = "https://base-monopoly.vercel.app/" as string;
 return Response.json(minikitConfig); // see the next step for the manifest_json_object
 }
-
