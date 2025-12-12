@@ -3,7 +3,8 @@
 ## Overview
 
 **Tycoon** is an exciting blockchain-\ tycoon game inspired by the classic **Monopoly** board game, built on the **Base and Celo Network**.  
-Players can **buy, sell, and trade virtual properties as NFTs**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**.
+Players can **buy, sell, and trade virtual properties as NFTs**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**. 
+Now Available on Base and Stacks
 
 This project combines **strategic gameplay** with **true ownership** and **transparent mechanics** using smart contracts.
 
@@ -17,6 +18,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 |-----------------|------|
 | **Contract Base Address** | `0x8122F36B24D475E5d4F103C0787EC34b8019477b` |
 | **Contract Celo Address** | `0x8654ca15F361740C45c92E4728aEf32197D01A5c` |
+| **Contract Stacks  Address** | `ST81CZF1YK81CPAMS6PRS3GJSKK35MGZ2VWEPSEN.tycc` |
 | **Network**     | Base sepolia |
 | **Status**      | ✅ Deployed — Functionality under development |
 | **ERC20 Base Address** | `0x2f382911995146c5B721b7418f9D338BAB843A9d` |
