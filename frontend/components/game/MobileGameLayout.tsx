@@ -690,13 +690,13 @@ const MobileGameLayout = ({
       {/* Buy Prompt as Bottom Sheet */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && currentProperty && (
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 20 }}
-            className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md p-4 rounded-t-2xl shadow-2xl z-40 flex flex-col items-center gap-4"
-          >
+        <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 20 }}
+        className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md p-4 rounded-t-2xl shadow-2xl z-[60] flex flex-col items-center gap-4"  // Changed to z-[60]
+        >
             <h3 className="text-lg font-bold text-white">Buy {currentProperty.name}?</h3>
             <p className="text-sm text-gray-300">Price: ${currentProperty.price}</p>
             <div className="flex gap-4 w-full justify-center">
