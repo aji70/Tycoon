@@ -11,12 +11,15 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
 import { Toaster } from "react-hot-toast";
-import FarcasterInit from "@/components/FarcasterInit";
+import FarcasterReady from "@/components/FarcasterReady"; // New import
 
 export const metadata = getMetadata({
   title: "Tycoon",
   description:
     "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Base. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
+     other: {
+    'base:app_id': '693a9b718a7c4e55fec73df7',
+  },
 });
 
 export default async function RootLayout({
@@ -34,7 +37,7 @@ export default async function RootLayout({
       className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}
     >
       <body className="antialiased bg-[#010F10] w-full">
-        <FarcasterInit />
+        <FarcasterReady />
         <ContextProvider cookies={cookies}>
           <PlayerContractProvider>
             <AppKitProviderWrapper>

@@ -24,6 +24,7 @@ export const getMetadata = ({
   title: string;
   description: string;
   imageRelativePath?: string;
+  other: {};
 }): Metadata => {
   const imageUrl = `${baseUrl}${imageRelativePath}`;
 
