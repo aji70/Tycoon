@@ -32,6 +32,10 @@ const HeroSection: React.FC = () => {
     enabled: !!address,
   });
 
+  // New: Local state for optimistic updates after registration
+  const [localRegistered, setLocalRegistered] = useState(false);
+  const [localUsername, setLocalUsername] = useState("");
+
   useEffect(() => {
     if (registeredError) {
       console.error("Registered error:", registeredError);
@@ -43,12 +47,13 @@ const HeroSection: React.FC = () => {
         }
       );
     }
-    if (isUserRegistered) {
-      setUsername(fetchedUsername || "Unknown");
+    // New: Check local state as fallback for immediate UI update
+    if (isUserRegistered || localRegistered) {
+      setUsername(fetchedUsername || localUsername || "Unknown");
     } else {
       setUsername("");
     }
-  }, [isUserRegistered, fetchedUsername, registeredError]);
+  }, [isUserRegistered, fetchedUsername, registeredError, localRegistered, localUsername]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUsername(e.target.value);
@@ -59,67 +64,104 @@ const HeroSection: React.FC = () => {
   const handleRouteToCreateGame = () => router.push("/game-settings");
   const handleRouteToPlayWithAI = () => router.push("/play-ai"); // New AI route
 
-  const handleRequest = async () => {
-    if (!address) {
-      toast.error("Please connect your wallet", {
-        position: "top-right",
-        autoClose: 5000,
-      });
-      return;
-    }
-    if (!username) {
-      toast.error("Please enter a username", {
-        position: "top-right",
-        autoClose: 5000,
-      });
-      return;
-    }
-    setLoading(true);
+const handleRequest = async () => {
+  if (!address) {
+    toast.error("Please connect your wallet", { autoClose: 4000 });
+    return;
+  }
+  if (!username.trim()) {
+    toast.warn("Please enter a username", { autoClose: 3000 });
+    return;
+  }
 
-    const toastId = toast.loading("Registering on blockchain...", {
-      position: "top-right",
+  setLoading(true);
+  const toastId = toast.loading("Waiting for wallet approval...", {
+    position: "top-right",
+  });
+
+  try {
+    await registerPlayer(username);
+
+    const res = await apiClient.post<ApiResponse>("/users", {
+      username,
+      address,
+      chain: "Base",
     });
 
-    try {
-      await registerPlayer(username);
+    if (res?.success) {
+      setLocalRegistered(true);
+      setLocalUsername(username);
 
-      const res = await apiClient.post<ApiResponse>("/users", {
-        username,
-        address,
-        chain: "Base",
-      });
-
-      if (res?.success) {
-        toast.update(toastId, {
-          render: "Registration successful!",
-          type: "success",
-          isLoading: false,
-          autoClose: 3000,
-          onClose: () => {
-            router.refresh();
-          },
-        });
-        return;
-      }
-      toast.error("Failed to register. Please try again.");
-
-    } catch (err: any) {
-      console.error("Registration error:", err);
-      let errorMessage =
-        err?.message || "Failed to register. Please try again.";
-      if (err.message.includes("InvalidAddressError")) {
-        errorMessage = "Invalid contract address. Please contact support.";
-      }
       toast.update(toastId, {
-        render: errorMessage,
-        type: "error",
+        render: "Registered successfully! Welcome to Tycoon",
+        type: "success",
         isLoading: false,
-        autoClose: 5000,
+        autoClose: 4000,
+        closeButton: true,
       });
-    } finally {
-      setLoading(false);
+
+      router.refresh();
+    } else {
+      throw new Error("Backend registration failed");
     }
-  };
+  } catch (err: any) {
+    // USER REJECTED – most common case
+    if (
+      err?.code === 4001 || 
+      err?.message?.includes("User rejected") ||
+      err?.message?.includes("User denied")
+    ) {
+      toast.update(toastId, {
+        render: "You cancelled the transaction – no worries!",
+        type: "info",
+        isLoading: false,
+        autoClose: 3500,
+      });
+      return;
+    }
+
+    // SIGNATURE REJECTED (e.g. permit2, signTypedData)
+    if (err?.code === "ACTION_REJECTED") {
+      toast.update(toastId, {
+        render: "Signature declined",
+        type: "info",
+        isLoading: false,
+        autoClose: 3000,
+      });
+      return;
+    }
+
+    // REAL ERRORS – show friendly message + optional details
+    let message = "Something went wrong. Please try again.";
+
+    if (err?.message?.includes("insufficient funds")) {
+      message = "Not enough funds for gas";
+    } else if (err?.reason) {
+      message = err.reason;
+    } else if (err?.shortMessage) {
+      message = err.shortMessage;
+    }
+
+    toast.update(toastId, {
+      render: (
+        <div>
+          <div>{message}</div>
+          {/* Optional: uncomment if you want a tiny "details" toggle for devs */}
+          <details className="text-xs mt-2 opacity-70">
+            <summary className="cursor-pointer">Show details</summary>
+            <pre className="mt-1 text-left overflow-x-auto">{err?.message}</pre>
+          </details>
+        </div>
+      ),
+      type: "error",
+      isLoading: false,
+      autoClose: 6000,
+      closeOnClick: true,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (isConnecting) {
     return (
@@ -152,7 +194,8 @@ const HeroSection: React.FC = () => {
       </div>
 
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
-        {isUserRegistered && !loading && (
+        {/* New: Use localRegistered as fallback */}
+        {(isUserRegistered || localRegistered) && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
               Welcome back, {username}!
@@ -228,7 +271,7 @@ const HeroSection: React.FC = () => {
 
         <div className="z-1 w-full flex flex-col justify-center items-center mt-3 gap-3">
           {/* Registration Form */}
-          {address && !isUserRegistered && !loading && (
+          {address && !(isUserRegistered || localRegistered) && !loading && (
             <>
               <input
                 type="text"
@@ -301,7 +344,7 @@ const HeroSection: React.FC = () => {
           )}
 
           {/* Action Buttons for Registered Users */}
-          {address && isUserRegistered && (
+          {address && (isUserRegistered || localRegistered) && (
             <div className="flex flex-wrap justify-center items-center mt-2 gap-4">
               {/* Create Game */}
               <button
@@ -327,7 +370,7 @@ const HeroSection: React.FC = () => {
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
                   <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                 Play with Friends
+                  Play with Friends
                 </span>
               </button>
 
@@ -359,31 +402,31 @@ const HeroSection: React.FC = () => {
                 </span>
               </button>
 
-              {/* PLAY WITH AI - NEW */}
+              {/* PLAY WITH AI - Updated to be more attractive/shouty */}
               <button
                 type="button"
                 onClick={handleRouteToPlayWithAI}
-                className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
               >
                 <svg
-                  width="227"
-                  height="40"
-                  viewBox="0 0 227 40"
+                  width="260"
+                  height="52"
+                  viewBox="0 0 260 52"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1]"
+                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
                 >
                   <path
-                    d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
                     strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out group-hover:fill-[#00F0FF]/10"
+                    className="group-hover:fill-[#00F0FF]/80 transition-all duration-300 ease-in-out"
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
                   <svg
-                    className="mr-2 w-5 h-5"
+                    className="mr-2 w-6 h-6"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -397,7 +440,7 @@ const HeroSection: React.FC = () => {
                     <path d="M9 11v-1a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1" />
                     <path d="M12 17v4" />
                   </svg>
-                  Play with AI
+                  Challenge AI!
                 </span>
               </button>
             </div>
