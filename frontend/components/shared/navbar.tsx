@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, User, ShoppingBag } from 'lucide-react'; // Added ShoppingBag
+import { House, Volume2, VolumeOff, User, ShoppingBag, Globe } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -13,6 +13,7 @@ import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
 import WalletConnectModal from './wallet-connect-modal';
 import WalletDisconnectModal from './wallet-disconnect-modal';
+import NetworkSwitcherModal from './network-switcher-modal';
 
 const NavBar = () => {
   const { scrollYProgress } = useScroll();
@@ -30,6 +31,7 @@ const NavBar = () => {
     loop: true,
   });
 
+  const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
 
@@ -67,7 +69,7 @@ const NavBar = () => {
             </button>
           )}
 
-          {/* Profile button (only when connected) - Made bigger with text */}
+          {/* Profile button (only when connected) */}
           {isConnected && (
             <Link
               href="/profile"
@@ -114,31 +116,41 @@ const NavBar = () => {
           {!isConnected ? (
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
+               className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
             >
               Connect
             </button>
           ) : (
             <div className="flex items-center gap-3">
-              {/* Wallet display */}
-              <div className="flex items-center gap-2 px-4 py-2 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] font-orbitron">
-                <div className="h-6 w-6 rounded-full border border-[#0FF0FC] overflow-hidden">
+              {/* Network Switcher Button */}
+              <button
+                onClick={() => setIsNetworkModalOpen(true)}
+                className="px-4 py-3 rounded-[12px] bg-[#003B3E] hover:bg-[#005458] border border-[#00F0FF]/30 text-[#00F0FF] font-orbitron font-medium text-sm transition-all flex items-center gap-2 shadow-md"
+              >
+                <Globe className="w-4 h-4" />
+                <span>Network</span>
+              </button>
+
+              {/* Wallet Address + Avatar */}
+              <div className="flex items-center gap-3 px-5 py-3 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] font-orbitron">
+                <div className="h-8 w-8 rounded-full border-2 border-[#0FF0FC] overflow-hidden shadow-lg">
                   <Image
                     src={avatar}
-                    alt="Wallet Avatar"
+                    alt="Wallet"
                     width={200}
                     height={200}
                     className="object-cover w-full h-full"
                   />
                 </div>
-                <span className="text-[14px]">
-                  {address ? `${address.slice(0, 4)}…${address.slice(-4)}` : 'Connected'}
+                <span className="text-sm tracking-wider">
+                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
                 </span>
               </div>
-              {/* Disconnect button */}
+
+              {/* Disconnect Button */}
               <button
                 onClick={() => setIsDisconnectModalOpen(true)}
-                className="px-3 py-2 rounded-[12px] bg-[#003B3E] hover:bg-[#005458] text-[#0FF0FC] text-sm font-medium transition"
+                className="px-4 py-3 rounded-[12px] bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-600/40 font-medium text-sm transition-all"
               >
                 Disconnect
               </button>
@@ -146,6 +158,12 @@ const NavBar = () => {
           )}
         </div>
       </header>
+
+      {/* Network Switcher Modal */}
+      <NetworkSwitcherModal
+        isOpen={isNetworkModalOpen}
+        onClose={() => setIsNetworkModalOpen(false)}
+      />
 
       {/* Wallet Connect Modal */}
       <WalletConnectModal

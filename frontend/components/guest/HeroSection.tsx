@@ -36,24 +36,7 @@ const HeroSection: React.FC = () => {
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
 
-  // useEffect(() => {
-  //   if (registeredError) {
-  //     console.error("Registered error:", registeredError);
-  //     toast.error(
-  //       registeredError?.message || "Failed to check registration status",
-  //       {
-  //         position: "top-right",
-  //         autoClose: 5000,
-  //       }
-  //     );
-  //   }
-  //   // New: Check local state as fallback for immediate UI update
-  //   if (isUserRegistered || localRegistered) {
-  //     setUsername(fetchedUsername || localUsername || "Unknown");
-  //   } else {
-  //     setUsername("");
-  //   }
-  // }, [isUserRegistered, fetchedUsername, registeredError, localRegistered, localUsername]);
+  
 
   useEffect(() => {
   if (registeredError) {
@@ -71,13 +54,14 @@ const HeroSection: React.FC = () => {
       msg.includes("the contract function") // common viem error prefix
     ) {
       // Silently ignore — very common and not a real problem for the user
-      return;
+      console.log("errr message", msg)
+      // return;
     }
 
     // Only show a gentle toast for actual issues
-    toast.warn("Having trouble checking your status. Are you on the Celo network?", {
-      autoClose: 7000,
-    });
+    toast.warn("Having trouble checking your status. Please switch to Celo or Base.", {
+  autoClose: 70000,
+});
   }
 
   // Always update the username state (optimistic + real data)
