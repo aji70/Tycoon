@@ -9,7 +9,7 @@ import { useAccount } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
-  usePlayerContract,
+  useRegister
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
@@ -19,9 +19,14 @@ import { ApiResponse } from "@/types/api";
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
-  const { registerPlayer } = usePlayerContract();
+  
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState("");
+// Remove the username argument
+const {
+  write: registerPlayer,
+  isPending,
+} = useRegister(); // ← no args
 
   const {
     data: isUserRegistered,
@@ -96,7 +101,7 @@ const handleRequest = async () => {
   });
 
   try {
-    await registerPlayer(username);
+    await registerPlayer(username.trim());
 
     const res = await apiClient.post<ApiResponse>("/users", {
       username,

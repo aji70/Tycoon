@@ -259,6 +259,61 @@ export function useCreateGame(
   };
 }
 
+export function useRegister() {
+  const chainId = useChainId();
+  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+
+  const {
+    writeContractAsync,
+    isPending,
+    error: writeError,
+    data: txHash,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  const write = useCallback(
+    async (username: string): Promise<string> => {
+      if (!contractAddress) {
+        throw new Error(`Contract not deployed on chain ${chainId}.`);
+      }
+
+      if (!username.trim()) {
+        throw new Error("Username cannot be empty");
+      }
+
+      const hash = await writeContractAsync({
+        chainId,
+        address: contractAddress,
+        abi: PlayerABI,
+        functionName: "registerPlayer",
+        args: [username.trim()],
+      });
+
+      if (!hash) {
+        throw new Error("Transaction failed: no hash returned");
+      }
+
+      return hash;
+    },
+    [writeContractAsync, contractAddress, chainId]
+  );
+
+  return {
+    write,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
+
 
 export function useCreateAiGame(
   username: string,
@@ -746,6 +801,8 @@ export function useEndGame(gameId: number, winnerAddr: Address) {
     reset,
   };
 }
+
+
 
 export function useTotalUsers(options = { enabled: true }) {
   const chainId = useChainId();
