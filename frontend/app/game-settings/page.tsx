@@ -1,8 +1,6 @@
 "use client";
 
 import { useMediaQuery } from "@/components/useMediaQuery";
-import PlayWithAISettings from "@/components/settings/game-ai";
-import PlayWithAISettingsMobile from "@/components/settings/game-ai-mobile";
 import GameSettings from "@/components/settings/game-settings"
 import GameSttingsMobile from "@/components/settings/game-settings-mobile"
 
