@@ -36,25 +36,57 @@ const HeroSection: React.FC = () => {
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
 
-  useEffect(() => {
-    if (registeredError) {
-      console.error("Registered error:", registeredError);
-      toast.error(
-        registeredError?.message || "Failed to check registration status",
-        {
-          position: "top-right",
-          autoClose: 5000,
-        }
-      );
-    }
-    // New: Check local state as fallback for immediate UI update
-    if (isUserRegistered || localRegistered) {
-      setUsername(fetchedUsername || localUsername || "Unknown");
-    } else {
-      setUsername("");
-    }
-  }, [isUserRegistered, fetchedUsername, registeredError, localRegistered, localUsername]);
+  // useEffect(() => {
+  //   if (registeredError) {
+  //     console.error("Registered error:", registeredError);
+  //     toast.error(
+  //       registeredError?.message || "Failed to check registration status",
+  //       {
+  //         position: "top-right",
+  //         autoClose: 5000,
+  //       }
+  //     );
+  //   }
+  //   // New: Check local state as fallback for immediate UI update
+  //   if (isUserRegistered || localRegistered) {
+  //     setUsername(fetchedUsername || localUsername || "Unknown");
+  //   } else {
+  //     setUsername("");
+  //   }
+  // }, [isUserRegistered, fetchedUsername, registeredError, localRegistered, localUsername]);
 
+  useEffect(() => {
+  if (registeredError) {
+    console.error("Registration check error:", registeredError);
+
+    const msg = registeredError?.message?.toLowerCase() || "";
+
+    // Suppress annoying viem errors that happen on wallet connect / wrong chain
+    if (
+      msg.includes("contract not found") ||
+      msg.includes("invalid address") ||
+      msg.includes("could not detect network") ||
+      msg.includes("connector not connected") ||
+      msg.includes("network changed") ||
+      msg.includes("the contract function") // common viem error prefix
+    ) {
+      // Silently ignore — very common and not a real problem for the user
+      return;
+    }
+
+    // Only show a gentle toast for actual issues
+    toast.warn("Having trouble checking your status. Are you on the Celo network?", {
+      autoClose: 7000,
+    });
+  }
+
+  // Always update the username state (optimistic + real data)
+  if (isUserRegistered || localRegistered) {
+    setUsername(fetchedUsername || localUsername || "Unknown");
+  } else {
+    setUsername("");
+  }
+}, [isUserRegistered, fetchedUsername, registeredError, localRegistered, localUsername]);
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUsername(e.target.value);
   };
