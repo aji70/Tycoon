@@ -14,7 +14,7 @@ import { Toaster } from "react-hot-toast";
 import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
-import ClientLayout from "./ClientLayout"; // ← Import the new wrapper
+import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
 
 // Remove the duplicate 'cookies' global variable—it's not needed
 
