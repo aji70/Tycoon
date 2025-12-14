@@ -76,79 +76,92 @@ const GameSettings = () => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handlePlay = async () => {
-    if (!address) {
-      toast.error("Please connect your wallet", {
-        position: "top-right",
-        autoClose: 5000,
-      });
-      return;
+const handlePlay = async () => {
+  if (!address) {
+    toast.error("Please connect your wallet first!", { autoClose: 5000 });
+    return;
+  }
+
+  if (!isUserRegistered) {
+    toast.warn("You need to register before creating a game", { autoClose: 5000 });
+    router.push("/");
+    return;
+  }
+
+  const toastId = toast.loading("Creating your game room...", {
+    position: "top-center",
+  });
+
+  try {
+    const gameId = await createGame();
+
+    if (!gameId) {
+      throw new Error("Failed to get game ID from contract");
     }
 
-    if (!isUserRegistered) {
-      toast.error("Please register before creating a game", {
-        position: "top-right",
-        autoClose: 5000,
-      });
-      router.push("/");
-      return;
-    }
-
-    const toastId = toast.loading("Creating game...", {
-      position: "top-right",
+    await apiClient.post<ApiResponse>("/games", {
+      id: gameId,
+      code: gameCode,
+      mode: gameType,
+      address,
+      symbol: playerSymbol,
+      number_of_players: numberOfPlayers,
+      settings: {
+        auction: settings.auction,
+        rent_in_prison: settings.rentInPrison,
+        mortgage: settings.mortgage,
+        even_build: settings.evenBuild,
+        starting_cash: Number(settings.startingCash),
+        randomize_play_order: settings.randomPlayOrder,
+      },
     });
 
-    try {
-      console.log("Calling createGame with settings:", settings);
-      const gameId = await createGame();
-      if (!gameId) {
-        throw new Error("Invalid game ID retrieved");
-      }
-      const gameIdStr = gameId.toString();
-      console.log("Game created with ID:", gameIdStr);
-
-      const response = await apiClient.post<ApiResponse>("/games", {
-        id: gameId,
-        code: gameCode,
-        mode: gameType,
-        address,
-        symbol: playerSymbol,
-        number_of_players: numberOfPlayers,
-        settings: {
-          auction: settings.auction,
-          rent_in_prison: settings.rentInPrison,
-          mortgage: settings.mortgage,
-          even_build: settings.evenBuild,
-          starting_cash: Number(settings.startingCash),
-          randomize_play_order: settings.randomPlayOrder,
-        },
-      });
-
+    toast.update(toastId, {
+      render: `Game created! Share code: ${gameCode}`,
+      type: "success",
+      isLoading: false,
+      autoClose: 4000,
+      onClose: () => {
+        router.push(`/game-waiting?gameCode=${gameCode}`);
+      },
+    });
+  } catch (err: any) {
+    // Wallet rejection
+    if (
+      err?.code === 4001 ||
+      err?.message?.includes("User rejected") ||
+      err?.message?.includes("User denied") ||
+      err?.message?.includes("ACTION_REJECTED")
+    ) {
       toast.update(toastId, {
-        render: `Game created! Code: ${gameCode}`,
-        type: "success",
+        render: "You cancelled the transaction – no worries!",
+        type: "info",
         isLoading: false,
-        autoClose: 3000,
-        onClose: () => {
-          setTimeout(
-            () => router.push(`/game-waiting?gameCode=${gameCode}`),
-            100
-          );
-        },
+        autoClose: 4000,
       });
-    } catch (err: any) {
-      console.error("Error creating game:", err);
-      toast.update(toastId, {
-        render:
-          contractError?.message ||
-          err.message ||
-          "Failed to create game. Please try again.",
-        type: "error",
-        isLoading: false,
-        autoClose: 5000,
-      });
+      return;
     }
-  };
+
+    let message = "Failed to create game. Please try again.";
+
+    if (err?.message?.includes("insufficient funds")) {
+      message = "Not enough funds for gas fees";
+    } else if (err?.shortMessage) {
+      message = err.shortMessage;
+    } else if (err?.reason) {
+      message = err.reason;
+    } else if (contractError?.message) {
+      message = contractError.message;
+    }
+
+    toast.update(toastId, {
+      render: message,
+      type: "error",
+      isLoading: false,
+      autoClose: 6000,
+    });
+  }
+};
 
   if (isRegisteredLoading) {
     return (

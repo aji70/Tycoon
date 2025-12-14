@@ -1,9 +1,17 @@
-import GameSettings from "@/components/settings/game-settings";
+"use client";
+
+import { useMediaQuery } from "@/components/useMediaQuery";
+import PlayWithAISettings from "@/components/settings/game-ai";
+import PlayWithAISettingsMobile from "@/components/settings/game-ai-mobile";
+import GameSettings from "@/components/settings/game-settings"
+import GameSttingsMobile from "@/components/settings/game-settings-mobile"
 
 export default function GameSettingsPage() {
-    return (
-        <main className="w-full overflow-x-hidden">
-            <GameSettings />
-        </main>
-    );
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
+  return (
+    <main className="w-full overflow-x-hidden">
+      {isMobile ? <GameSttingsMobile /> : <GameSettings />}
+    </main>
+  );
 }
