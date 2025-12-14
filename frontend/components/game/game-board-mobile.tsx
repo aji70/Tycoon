@@ -623,7 +623,7 @@ const MobileGameLayout = ({
   /* ---------- Render ---------- */
   return (
     <ErrorBoundary>
-      <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
+      <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden pt-[70px] md:pt-0">
         {/* Board Section - Scaled and Zoomable */}
         <div
           ref={boardRef}

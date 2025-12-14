@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Globe, Menu, X } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount } from '@reown/appkit/react';
 import Image from 'next/image';
@@ -49,92 +49,31 @@ const NavBarMobile = () => {
 
   return (
     <>
-      {/* Progress Bar */}
+      {/* Scroll Progress Bar */}
       <motion.div
-        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] origin-[0%] h-[2px] z-[60]"
+        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] h-[3px] origin-left z-[70]"
         style={{ scaleX }}
       />
 
-      {/* Desktop Navbar - Hidden on mobile */}
-      <header className="hidden md:flex w-full h-[87px] items-center justify-between px-8 bg-[linear-gradient(180deg,rgba(1,15,16,0.12)_0%,rgba(8,50,52,0.12)_100%)] backdrop-blur-sm z-50">
-        <Logo className="cursor-pointer w-[50px]" image={LogoIcon} href="/" />
+      {/* Mobile Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[60] border-b border-[#003B3E]/50">
+        <Logo className="w-[42px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-4">
-          {isConnected && (
-            <>
-              <button className="w-[133px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#AFBAC0]">
-                <User className="w-4 h-4" />
-                <span className="text-xs font-dmSans">0 friends</span>
-              </button>
-
-              <Link href="/profile" className="w-[80px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]">
-                <User className="w-4 h-4" />
-                <span className="text-xs font-dmSans">Profile</span>
-              </Link>
-
-              <Link href="/game-shop" className="w-[70px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]">
-                <ShoppingBag className="w-4 h-4" />
-                <span className="text-xs font-dmSans">Shop</span>
-              </Link>
-            </>
-          )}
-
-          <Link href="/" className="w-10 h-10 border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center bg-[#011112]">
-            <House className="w-4 h-4" />
-          </Link>
-
-          <button onClick={toggleSound} className="w-10 h-10 border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center bg-[#011112]">
-            {isSoundPlaying ? <Volume2 className="w-4 h-4" /> : <VolumeOff className="w-4 h-4" />}
-          </button>
-
-          {/* Wallet Section - Desktop */}
-          {!isConnected ? (
-            <button onClick={() => setIsConnectModalOpen(true)} className="px-6 py-3 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC] text-[#0D191B] font-medium transition">
-              Connect
-            </button>
-          ) : (
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsNetworkModalOpen(true)} className="px-4 py-3 rounded-[12px] bg-[#003B3E] hover:bg-[#005458] border border-[#00F0FF]/30 text-[#00F0FF] font-orbitron text-sm flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                Network
-              </button>
-
-              <div className="flex items-center gap-3 px-5 py-3 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] font-orbitron">
-                <div className="h-8 w-8 rounded-full border-2 border-[#0FF0FC] overflow-hidden">
-                  <Image src={avatar} alt="Avatar" width={32} height={32} className="object-cover" />
-                </div>
-                <span className="text-sm">
-                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
-                </span>
-              </div>
-
-              <button onClick={() => setIsDisconnectModalOpen(true)} className="px-4 py-3 rounded-[12px] bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-600/40 font-medium text-sm">
-                Disconnect
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Mobile Navbar - Visible only on small screens */}
-      <header className="md:hidden fixed top-0 left-0 right-0 h-[70px] flex items-center justify-between px-4 bg-[linear-gradient(180deg,rgba(1,15,16,0.3)_0%,rgba(8,50,52,0.3)_100%)] backdrop-blur-md z-50 border-b border-[#003B3E]/30">
-        <Logo className="w-[40px]" image={LogoIcon} href="/" />
-
-        <div className="flex items-center gap-3">
           {/* Sound Toggle */}
           <button
             onClick={toggleSound}
-            className="w-10 h-10 rounded-xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-center text-white"
+            className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
           >
-            {isSoundPlaying ? <Volume2 size={18} /> : <VolumeOff size={18} />}
+            {isSoundPlaying ? <Volume2 size={22} /> : <VolumeOff size={22} />}
           </button>
 
           {/* Hamburger Menu */}
           <button
             onClick={() => setIsMobileMenuOpen(true)}
-            className="w-10 h-10 rounded-xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-center text-[#00F0FF]"
+            className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 transition"
           >
-            <Menu size={20} />
+            <Menu size={24} />
           </button>
         </div>
       </header>
@@ -144,42 +83,42 @@ const NavBarMobile = () => {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/70 z-[55] md:hidden"
+            className="fixed inset-0 bg-black/70 z-[55]"
             onClick={closeMobileMenu}
           />
 
-          {/* Sheet */}
+          {/* Bottom Sheet */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 bg-[#010F10]/95 backdrop-blur-xl rounded-t-3xl border-t border-[#003B3E] z-[60] md:hidden overflow-hidden"
+            transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[60] max-h-[90vh] overflow-y-auto"
           >
-            <div className="p-6 pb-8">
-              {/* Handle bar */}
-              <div className="w-12 h-1.5 bg-[#00F0FF]/40 rounded-full mx-auto mb-6" />
+            <div className="p-6 pb-10">
+              {/* Drag Handle */}
+              <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
 
-              {/* Wallet Status - Prominent */}
+              {/* Wallet Section */}
               {!isConnected ? (
                 <button
                   onClick={() => {
                     setIsConnectModalOpen(true);
                     closeMobileMenu();
                   }}
-                  className="w-full py-4 rounded-2xl bg-[#0FF0FC]/20 hover:bg-[#0FF0FC]/30 border border-[#00F0FF]/50 text-[#00F0FF] font-orbitron text-lg font-medium mb-6"
+                  className="w-full py-5 rounded-2xl bg-gradient-to-r from-[#00F0FF]/20 to-[#0FF0FC]/20 border border-[#00F0FF]/60 text-[#00F0FF] font-orbitron text-xl font-bold tracking-wide mb-8 hover:from-[#00F0FF]/30 hover:to-[#0FF0FC]/30 transition"
                 >
                   Connect Wallet
                 </button>
               ) : (
-                <div className="mb-6 space-y-4">
-                  {/* Address + Avatar */}
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-[#011112] border border-[#003B3E]">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full border-2 border-[#0FF0FC] overflow-hidden">
-                        <Image src={avatar} alt="Avatar" width={40} height={40} className="object-cover" />
+                <div className="mb-8 space-y-5">
+                  {/* Connected Address */}
+                  <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-full border-3 border-[#0FF0FC] overflow-hidden shadow-lg">
+                        <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover" />
                       </div>
-                      <span className="text-[#00F0FF] font-orbitron">
+                      <span className="text-[#00F0FF] font-orbitron text-lg">
                         {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
                       </span>
                     </div>
@@ -191,22 +130,22 @@ const NavBarMobile = () => {
                       setIsNetworkModalOpen(true);
                       closeMobileMenu();
                     }}
-                    className="w-full py-4 rounded-2xl bg-[#003B3E]/50 hover:bg-[#003B3E] border border-[#00F0FF]/30 text-[#00F0FF] font-orbitron flex items-center justify-center gap-3"
+                    className="w-full py-5 rounded-2xl bg-[#003B3E]/70 hover:bg-[#003B3E] border border-[#00F0FF]/40 text-[#00F0FF] font-orbitron text-lg flex items-center justify-center gap-4 transition"
                   >
-                    <Globe size={20} />
+                    <Globe size={24} />
                     Change Network
                   </button>
                 </div>
               )}
 
               {/* Navigation Links */}
-              <div className="space-y-3">
+              <nav className="space-y-4 mb-10">
                 <Link
                   href="/"
                   onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-2xl bg-[#011112]/50 hover:bg-[#011112] text-white font-medium"
+                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition"
                 >
-                  <House size={20} />
+                  <House size={24} />
                   Home
                 </Link>
 
@@ -215,32 +154,32 @@ const NavBarMobile = () => {
                     <Link
                       href="/profile"
                       onClick={closeMobileMenu}
-                      className="flex items-center gap-4 py-4 px-5 rounded-2xl bg-[#011112]/50 hover:bg-[#011112] text-[#00F0FF] font-medium"
+                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
                     >
-                      <User size={20} />
+                      <User size={24} />
                       Profile
                     </Link>
 
                     <Link
                       href="/game-shop"
                       onClick={closeMobileMenu}
-                      className="flex items-center gap-4 py-4 px-5 rounded-2xl bg-[#011112]/50 hover:bg-[#011112] text-[#0FF0FC] font-medium"
+                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition"
                     >
-                      <ShoppingBag size={20} />
+                      <ShoppingBag size={24} />
                       Shop
                     </Link>
                   </>
                 )}
-              </div>
+              </nav>
 
-              {/* Disconnect Button (if connected) */}
+              {/* Disconnect Button */}
               {isConnected && (
                 <button
                   onClick={() => {
                     setIsDisconnectModalOpen(true);
                     closeMobileMenu();
                   }}
-                  className="w-full mt-8 py-4 rounded-2xl bg-red-900/30 hover:bg-red-900/50 border border-red-600/40 text-red-400 font-orbitron font-medium"
+                  className="w-full py-5 rounded-2xl bg-red-900/40 hover:bg-red-900/60 border border-red-600/50 text-red-400 font-orbitron text-lg font-medium transition"
                 >
                   Disconnect Wallet
                 </button>
@@ -249,9 +188,9 @@ const NavBarMobile = () => {
               {/* Close Button */}
               <button
                 onClick={closeMobileMenu}
-                className="absolute top-4 right-4 p-2 rounded-xl bg-[#011112]/50 text-white"
+                className="absolute top-5 right-5 w-10 h-10 rounded-full bg-[#011112]/70 flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
               >
-                <X size={24} />
+                <X size={26} />
               </button>
             </div>
           </motion.div>
@@ -259,9 +198,18 @@ const NavBarMobile = () => {
       )}
 
       {/* Modals */}
-      <NetworkSwitcherModal isOpen={isNetworkModalOpen} onClose={() => setIsNetworkModalOpen(false)} />
-      <WalletConnectModal isOpen={isConnectModalOpen} onClose={() => setIsConnectModalOpen(false)} />
-      <WalletDisconnectModal isOpen={isDisconnectModalOpen} onClose={() => setIsDisconnectModalOpen(false)} />
+      <NetworkSwitcherModal
+        isOpen={isNetworkModalOpen}
+        onClose={() => setIsNetworkModalOpen(false)}
+      />
+      <WalletConnectModal
+        isOpen={isConnectModalOpen}
+        onClose={() => setIsConnectModalOpen(false)}
+      />
+      <WalletDisconnectModal
+        isOpen={isDisconnectModalOpen}
+        onClose={() => setIsDisconnectModalOpen(false)}
+      />
     </>
   );
 };

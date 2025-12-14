@@ -112,7 +112,7 @@ export default function GamePlayPage() {
     if (!game) return null;
 
     return (
-      <main className="w-full h-screen flex flex-col overflow-hidden">
+      <main className="w-full h-screen flex flex-col overflow-hidden bg-[#010F10] mt-[100px]" >
         <div className="flex-1 w-full overflow-hidden">
           {activeTab === 'board' && (
             <MobileGameLayout
