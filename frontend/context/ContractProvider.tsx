@@ -87,7 +87,8 @@ type GamePlayerData = {
   username: string;
 };
 type GamePlayerDataTuple = [bigint, Address, bigint, number, bigint, number, boolean, boolean, string];
-const STAKE = 1;
+const STAKE = 1e14;
+// const BSTAKE = 1;
 /* ----------------------- Hooks ----------------------- */
 export function useIsRegistered(address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
@@ -198,6 +199,11 @@ export function useCreateGame(
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  let stake = STAKE
+  if(chainId !== 42220){
+   stake = 1
+  }
+
 
   const {
     writeContractAsync,
@@ -222,7 +228,7 @@ export function useCreateGame(
       abi: PlayerABI,
       functionName: "createGame",
       args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, startingCash],
-      value: BigInt(STAKE),
+      value: BigInt(stake),
     });
 
     if (!hash) {
@@ -264,7 +270,10 @@ export function useCreateAiGame(
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-
+    let stake = STAKE
+ if(chainId !== 42220){
+   stake = 1
+  }
   const {
     writeContractAsync,
     isPending,
@@ -288,7 +297,7 @@ export function useCreateAiGame(
       abi: PlayerABI,
       functionName: 'createAIGame',
       args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, startingCash],
-      value: BigInt(STAKE),
+      value: BigInt(stake),
     });
 
     if (!hash) {
@@ -410,6 +419,10 @@ export function useJoinGame(
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+    let stake = STAKE
+  if(chainId !== 42220){
+   stake = 1
+  }
 
   const {
     writeContractAsync,
@@ -440,7 +453,7 @@ export function useJoinGame(
       abi: PlayerABI,
       functionName: 'joinGame',
       args: [gameId, username, playerSymbol, code],
-      value: BigInt(STAKE),
+      value: BigInt(stake),
     });
 
     if (!hash) {

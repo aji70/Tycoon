@@ -19,7 +19,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
     uint256 private nextGameId = 1; // Start at 1 for cleaner IDs
     uint256 public houseBalance; // Tracks protocol fees from losers' pool
     address public immutable token; // in-game ERC20 token for staking/rewards
-    uint256 public constant STAKE_AMOUNT = 1 * 10 ** 14; // 1 token stake per player
+    // uint256 public constant STAKE_AMOUNT = 1 * 10 ** 14; // 1 token stake per player
+    uint256 public constant STAKE_AMOUNT = 1; // 1 token stake per player
     // Add to storage (for efficient winner detection on low player counts)
     mapping(uint256 => mapping(uint8 => address)) public gameOrderToPlayer; // GameId => Order => Address (max 8)
 

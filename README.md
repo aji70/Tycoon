@@ -16,7 +16,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 | Detail          | Info |
 |-----------------|------|
-| **Contract Base Address** | `0x8122F36B24D475E5d4F103C0787EC34b8019477b` |
+| **Contract Base Address** | `0x68a6AF433f0a86216571d12818dA5d4612c14E19` |
 | **Contract Celo Address** | `0x8654ca15F361740C45c92E4728aEf32197D01A5c` |
 | **Contract Stacks  Address** | `ST81CZF1YK81CPAMS6PRS3GJSKK35MGZ2VWEPSEN.tycc` |
 | **Network**     | Base | Celo | Stacks|
