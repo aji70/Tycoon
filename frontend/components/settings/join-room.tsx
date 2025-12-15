@@ -107,7 +107,7 @@ export default function JoinRoom(): JSX.Element {
   const handleCreateNew = () => router.push("/create-room");
 
   return (
-    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
+    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center bg-[#010F10] mt-[100px]">
       <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
         <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
           <h2 className="text-3xl sm:text-4xl font-bold font-orbitron mb-8 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
