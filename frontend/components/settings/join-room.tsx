@@ -1,348 +1,212 @@
-'use client';
-import { House } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import React, { useState, useEffect } from 'react';
-import { FaUser } from 'react-icons/fa6';
-import { IoIosAddCircle } from 'react-icons/io';
-import { IoKey } from 'react-icons/io5';
-import { RxDotFilled } from 'react-icons/rx';
-import { IoIosArrowDown, IoIosArrowUp } from 'react-icons/io'; // Icons for dropdown toggle
+"use client";
 
-// Define settings interface
-interface GameSettings {
-  auction: number;
-  even_build: number;
-  mortgage: number;
-  randomize_play_order: number;
-  rent_in_prison: number;
-  starting_cash: number;
-}
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { IoHomeOutline, IoArrowForwardOutline } from "react-icons/io5";
+import { useAccount } from "wagmi";
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
+import { Game } from "@/lib/types/games";
 
-// Define game interface with settings
-interface Game {
-  id: number;
-  code: string;
-  mode: 'PUBLIC' | 'PRIVATE';
-  status: string;
-  number_of_players: number; // maxPlayers
-  players_joined?: number; // Populated from API
-  creator_id?: number;
-  settings?: GameSettings; // Add settings to the interface
-  created_at?: string;
-}
-
-const JoinRoom = () => {
+export default function JoinRoom(): JSX.Element {
   const router = useRouter();
-  const [games, setGames] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [inputCode, setInputCode] = useState<string>('');
-  const [expandedGame, setExpandedGame] = useState<string | null>(null); // Track expanded game by code
+  const { address, isConnected } = useAccount();
 
+  const [code, setCode] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recentGames, setRecentGames] = useState<Game[]>([]);
+  const [fetchingRecent, setFetchingRecent] = useState<boolean>(true);
+
+  // Uppercase and trim code input
+  const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
+
+  // Fetch recent games where user is a player (for "Continue Game" section)
   useEffect(() => {
-    const fetchGames = async () => {
+    if (!isConnected || !address) {
+      setFetchingRecent(false);
+      return;
+    }
+
+    const fetchRecent = async () => {
       try {
-        const response = await fetch('https://base-monopoly-production.up.railway.app/api/games?status=PENDING');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch games: ${response.status} ${response.statusText}`);
+        const res = await apiClient.get<ApiResponse>("/games/my-games");
+        if (res?.data?.success && Array.isArray(res.data.data)) {
+          setRecentGames(res.data.data as Game[]);
         }
-        const data: Game[] = await response.json();
-        console.log('Fetched all pending games:', data);
-        setGames(data);
-      } catch (err: any) {
-        console.error('Error fetching games:', err);
-        setError(err.message);
-        setGames([]);
+      } catch (err) {
+        console.error("Failed to fetch recent games:", err);
       } finally {
-        setLoading(false);
+        setFetchingRecent(false);
       }
     };
 
-    fetchGames();
-  }, []);
+    fetchRecent();
+  }, [address, isConnected]);
 
-  const handleJoinByCode = async (code: string) => {
+  const handleJoinByCode = useCallback(async () => {
+    if (!normalizedCode) {
+      setError("Please enter a game code.");
+      return;
+    }
+
+    if (!isConnected) {
+      setError("Please connect your wallet to join a game.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
     try {
-      const response = await fetch(`https://base-monopoly-production.up.railway.app/api/games/code/${code}`);
-      if (!response.ok) {
-        throw new Error(`Game ${code} not found: ${response.status} ${response.statusText}`);
+      const res = await apiClient.get<ApiResponse>(
+        `/games/code/${encodeURIComponent(normalizedCode)}`
+      );
+
+      if (!res?.data?.success || !res.data.data) {
+        throw new Error("Game not found. Check the code and try again.");
       }
-      const gameData = await response.json();
-      if (gameData.status !== 'PENDING') {
-        throw new Error(`Game ${code} has already started or ended.`);
+
+      const game: Game = res.data.data;
+
+      if (game.status === "RUNNING") {
+        // Game already started — go directly to play if player is in it
+        const isPlayerInGame = game.players.some(
+          (p) => p.address.toLowerCase() === address?.toLowerCase()
+        );
+
+        if (isPlayerInGame) {
+          router.push(`/game-play?gameCode=${encodeURIComponent(normalizedCode)}`);
+        } else {
+          throw new Error("This game has already started and you are not a player.");
+        }
+      } else if (game.status === "PENDING") {
+        // Game waiting — go to waiting room
+        router.push(`/game-waiting?gameCode=${encodeURIComponent(normalizedCode)}`);
+      } else {
+        throw new Error("This game is no longer active.");
       }
-      router.push(`/game-waiting?gameCode=${code}`);
     } catch (err: any) {
-      console.error('Error verifying game code:', err);
-      alert(err.message);
+      setError(err?.message ?? "Failed to join game. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [normalizedCode, address, isConnected, router]);
 
-  const handleCreateRoom = () => {
-    router.push('/game-settings');
-  };
-
-  const handleInputJoin = () => {
-    if (inputCode.trim()) {
-      handleJoinByCode(inputCode.trim().toUpperCase());
-    }
-  };
-
-  // Toggle dropdown for a specific game
-  const toggleSettings = (code: string) => {
-    setExpandedGame(expandedGame === code ? null : code);
-  };
-
-  // Helper to render player indicators
-  const renderIndicators = (game: Game) => {
-    const playersJoined = game.players_joined || 1; // Fallback to 1 (creator)
-    const maxPlayers = game.number_of_players;
-    return (
-      <span className="flex gap-1.5 text-[#263238]">
-        {Array(playersJoined)
-          .fill(0)
-          .map((_, i) => (
-            <FaUser key={`user-${i}`} className="text-[#F0F7F7]" />
-          ))}
-        {Array(maxPlayers - playersJoined)
-          .fill(0)
-          .map((_, i) => (
-            <RxDotFilled key={`dot-${i}`} className="w-5 h-5" />
-          ))}
-      </span>
-    );
-  };
-
-  // Helper for private indicator
-  const renderPrivateIndicator = (game: Game) => (
-    <span className="flex gap-1.5 text-[#263238] mt-2">
-      {game.mode === 'PRIVATE' && <IoKey className="text-[#F0F7F7] w-5 h-5" />}
-      {Array(game.number_of_players - 1)
-        .fill(0)
-        .map((_, i) => (
-          <RxDotFilled key={`key-dot-${i}`} className="w-5 h-5" />
-        ))}
-    </span>
+  const handleContinueGame = useCallback(
+    (game: Game) => {
+      if (game.status === "RUNNING") {
+        router.push(`/game-play?gameCode=${encodeURIComponent(game.code)}`);
+      } else if (game.status === "PENDING") {
+        router.push(`/game-waiting?gameCode=${encodeURIComponent(game.code)}`);
+      }
+    },
+    [router]
   );
 
-  // Helper to render game settings
-  const renderGameSettings = (settings?: GameSettings) => {
-    if (!settings) return null;
-    return (
-      <div className="text-[#869298] text-[14px] font-dmSans mt-2">
-        <p>
-          <strong>Auction:</strong> {settings.auction ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Even Build:</strong> {settings.even_build ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Mortgage:</strong> {settings.mortgage ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Randomize Play Order:</strong> {settings.randomize_play_order ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Rent in Prison:</strong> {settings.rent_in_prison ? 'Enabled' : 'Disabled'}
-        </p>
-        <p>
-          <strong>Starting Cash:</strong> ${settings.starting_cash}
-        </p>
-      </div>
-    );
-  };
-
-  if (loading) {
-    return (
-      <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center flex items-center justify-center">
-        <p className="text-[#00F0FF] font-orbitron text-lg">Loading games...</p>
-      </section>
-    );
-  }
+  const handleCreateNew = () => router.push("/create-room");
 
   return (
-    <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center">
-      <main className="w-full min-h-screen py-20 flex flex-col items-center justify-start bg-[#010F101F] backdrop-blur-[12px] px-4">
-        <div className="w-full flex flex-col items-center">
-          <h2 className="text-[#F0F7F7] font-orbitron md:text-[24px] text-[20px] font-[700] text-center">
-            Join Room
+    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
+      <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
+        <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
+          <h2 className="text-3xl sm:text-4xl font-bold font-orbitron mb-8 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
+            Join Tycoon
           </h2>
-          <p className="text-[#869298] text-[16px] font-dmSans text-center">
-            Select the room you would like to join
-          </p>
-        </div>
-        {/* buttons */}
-        <div className="w-full max-w-[792px] mt-10 flex justify-between items-center">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-          >
-            <svg
-              width="227"
-              height="40"
-              viewBox="0 0 227 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="absolute top-0 left-0 w-full h-full"
-            >
-              <path
-                d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                fill="#0E1415"
-                stroke="#003B3E"
-                strokeWidth={1}
-                className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
+
+          {/* Join by Code Section */}
+          <div className="space-y-6 mb-10">
+            <h3 className="text-xl font-bold text-[#00F0FF] text-center font-orbitron">
+              Enter Game Code
+            </h3>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleJoinByCode()}
+                placeholder="ABCD1234"
+                className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
+                maxLength={12}
               />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[13px] font-dmSans font-medium z-10">
-              <House className="mr-1 w-[14px] h-[14px]" />
-              Go Back Home
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={handleCreateRoom}
-            className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-          >
-            <svg
-              width="227"
-              height="40"
-              viewBox="0 0 227 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1]"
-            >
-              <path
-                d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                fill="#003B3E"
-                stroke="#003B3E"
-                strokeWidth={1}
-                className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
-              />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-10">
-              <IoIosAddCircle className="mr-1 w-[14px] h-[14px]" />
-              Create New Room
-            </span>
-          </button>
-        </div>
-        {/* rooms */}
-        <div className="w-full max-w-[792px] mt-10 bg-[#010F10] rounded-[12px] border-[1px] border-[#003B3E] md:px-20 px-6 py-12 flex flex-col gap-4">
-          {error ? (
-            <p className="text-[#FF6B6B] text-center">{error}</p>
-          ) : games.length === 0 ? (
-            <p className="text-[#869298] text-center">
-              No pending games available. Create one to start playing!
-            </p>
-          ) : (
-            games.map((game) => (
-              <div
-                key={game.code}
-                className="w-full p-4 border-[1px] flex flex-col items-start border-[#0E282A] rounded-[12px] cursor-pointer hover:border-[#00F0FF]"
+              <button
+                onClick={handleJoinByCode}
+                disabled={loading || !normalizedCode}
+                className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <div
-                  className="w-full flex justify-between items-center"
-                  onClick={() => toggleSettings(game.code)}
-                >
-                  <h4 className="text-[#F0F7F7] text-[20px] uppercase font-dmSans font-[800]">
-                    {game.code}
-                  </h4>
-                  <div className="flex items-center gap-4">
-                    {renderIndicators(game)}
-                    {expandedGame === game.code ? (
-                      <IoIosArrowUp className="text-[#F0F7F7] w-5 h-5" />
-                    ) : (
-                      <IoIosArrowDown className="text-[#F0F7F7] w-5 h-5" />
-                    )}
-                  </div>
-                </div>
-                {renderPrivateIndicator(game)}
-                <p className="text-[#869298] text-[14px] font-dmSans mt-2">
-                  <strong>Players Joined:</strong> {/* Placeholder for players joined */}
-                </p>
-                {expandedGame === game.code && (
-                  <div className="mt-2 w-full">
-                    <div className="text-[#869298] text-[14px] font-dmSans">
-                      <p>
-                        <strong>Mode:</strong> {game.mode}
+                {loading ? "Checking..." : "Join"}
+                <IoArrowForwardOutline className="w-6 h-6" />
+              </button>
+            </div>
+
+            {error && (
+              <p className="text-red-400 text-sm text-center bg-red-900/50 p-3 rounded-lg animate-pulse font-orbitron">
+                {error}
+              </p>
+            )}
+          </div>
+
+          {/* Continue Existing Games */}
+          {isConnected && recentGames.length > 0 && (
+            <div className="space-y-6 mb-10">
+              <h3 className="text-xl font-bold text-[#00F0FF] text-center font-orbitron">
+                Continue Game
+              </h3>
+
+              <div className="grid gap-4">
+                {recentGames.map((game) => (
+                  <button
+                    key={game.id}
+                    onClick={() => handleContinueGame(game)}
+                    className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex items-center justify-between group"
+                  >
+                    <div className="text-left">
+                      <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
+                        Code: {game.code}
                       </p>
-                      <p>
-                        <strong>Created:</strong>{' '}
-                        {game.created_at ? new Date(game.created_at).toLocaleString() : 'N/A'}
+                      <p className="text-[#869298] text-sm">
+                        Players: {game.players.length}/{game.number_of_players} •{" "}
+                        {game.status === "PENDING" ? "Waiting" : "In Progress"}
                       </p>
                     </div>
-                    {renderGameSettings(game.settings)}
-                    <button
-                      type="button"
-                      onClick={() => handleJoinByCode(game.code)}
-                      className="relative group w-[150px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer mt-4"
-                    >
-                      <svg
-                        width="150"
-                        height="40"
-                        viewBox="0 0 150 40"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-                      >
-                        <path
-                          d="M6 1H144C148.373 1 150.996 5.85486 148.601 9.5127L130.167 37.5127C129.151 39.0646 127.42 40 125.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                          fill="#00F0FF"
-                          stroke="#0E282A"
-                          strokeWidth={1}
-                        />
-                      </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-[#010F10] capitalize text-[14px] font-orbitron font-[700] z-10">
-                        Join Room
-                      </span>
-                    </button>
-                  </div>
-                )}
+                    <IoArrowForwardOutline className="w-8 h-8 text-[#00F0FF] group-hover:translate-x-2 transition-transform" />
+                  </button>
+                ))}
               </div>
-            ))
+            </div>
           )}
-          <div className="w-full h-[52px] flex mt-8">
-            <input
-              type="text"
-              placeholder="Input room code"
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value)}
-              className="w-full h-full px-4 text-[#73838B] border-[1px] border-[#0E282A] rounded-[12px] flex-1 outline-none focus:border-[#00F0FF]"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleInputJoin();
-                }
-              }}
-            />
+
+          {/* Create New Game */}
+          <div className="text-center">
+            <p className="text-[#869298] text-sm mb-4">Want to host?</p>
             <button
-              type="button"
-              onClick={handleInputJoin}
-              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+              onClick={handleCreateNew}
+              className="bg-gradient-to-r from-[#00FFAA] to-[#00F0FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00FFAA]/50 transform hover:scale-105"
             >
-              <svg
-                width="260"
-                height="52"
-                viewBox="0 0 260 52"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-              >
-                <path
-                  d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                  fill="#00F0FF"
-                  stroke="#0E282A"
-                  strokeWidth={1}
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] capitalize text-[18px] -tracking-[2%] font-orbitron font-[700] z-10">
-                Join Room
-              </span>
+              Create New Game
             </button>
           </div>
+
+          {/* Footer Links */}
+          <div className="flex justify-center mt-10">
+            <button
+              onClick={() => router.push("/")}
+              className="flex items-center text-[#0FF0FC] text-base font-orbitron hover:text-[#00D4E6] transition-colors hover:underline gap-2"
+            >
+              <IoHomeOutline className="w-5 h-5" />
+              Back to HQ
+            </button>
+          </div>
+
+          {/* Wallet Warning */}
+          {!isConnected && (
+            <p className="text-yellow-400 text-sm text-center mt-6 bg-yellow-900/30 p-3 rounded-lg font-orbitron">
+              Connect your wallet to join or continue games.
+            </p>
+          )}
         </div>
       </main>
     </section>
   );
-};
-
-export default JoinRoom;
+}
