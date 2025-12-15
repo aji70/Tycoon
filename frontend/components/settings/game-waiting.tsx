@@ -143,26 +143,60 @@ export default function GameWaiting(): JSX.Element {
     [address]
   );
 
-  // Copy handlers
+  // Copy handlers with fallback
   const handleCopyLink = useCallback(async () => {
+    if (!gameUrl) {
+      setError("No shareable URL available.");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(gameUrl);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(gameUrl);
+      } else {
+        // fallback
+        const el = document.createElement("textarea");
+        el.value = gameUrl;
+        el.setAttribute("readonly", "");
+        el.style.position = "absolute";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
       setCopySuccess("Copied!");
       setTimeout(() => setCopySuccess(null), COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("copy failed", err);
-      setError("Failed to copy link.");
+      setError("Failed to copy link. Try manually selecting the text.");
     }
   }, [gameUrl]);
 
   const handleCopyFarcasterLink = useCallback(async () => {
+    if (!farcasterMiniappUrl) {
+      setError("No shareable Farcaster URL available.");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(farcasterMiniappUrl);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(farcasterMiniappUrl);
+      } else {
+        // fallback
+        const el = document.createElement("textarea");
+        el.value = farcasterMiniappUrl;
+        el.setAttribute("readonly", "");
+        el.style.position = "absolute";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
       setCopySuccessFarcaster("Farcaster link copied!");
       setTimeout(() => setCopySuccessFarcaster(null), COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("copy farcaster failed", err);
-      setError("Failed to copy Farcaster link.");
+      setError("Failed to copy Farcaster link. Try manually selecting the text.");
     }
   }, [farcasterMiniappUrl]);
 
@@ -174,6 +208,7 @@ export default function GameWaiting(): JSX.Element {
       return;
     }
 
+    let abort = new AbortController();
     let pollTimer: number | null = null;
 
     const fetchOnce = async () => {
@@ -204,17 +239,19 @@ export default function GameWaiting(): JSX.Element {
         setAvailableSymbols(computeAvailableSymbols(gameData));
         setIsJoined(checkPlayerJoined(gameData));
 
-        // Auto-start when full
         if (gameData.players.length === gameData.number_of_players) {
-          await apiClient.put<ApiResponse>(`/games/${gameData.id}`, {
-            status: "RUNNING",
-          });
-          router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
+          const updateRes = await apiClient.put<ApiResponse>(
+            `/games/${gameData.id}`,
+            { status: "RUNNING" }
+          );
+          if (updateRes?.data?.success)
+            router.push(`/game-play?gameCode=${gameCode}`);
         }
       } catch (err: any) {
         if (!mountedRef.current) return;
+        if (err?.name === "AbortError") return; // ignore aborts
         console.error("fetchGame error:", err);
-        setError(err?.message ?? "Failed to fetch game data.");
+        setError(err?.message ?? "Failed to fetch game data. Please try again.");
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -222,14 +259,13 @@ export default function GameWaiting(): JSX.Element {
 
     const startPolling = async () => {
       await fetchOnce();
-      const tick = () => {
+      const tick = async () => {
         if (typeof document !== "undefined" && document.hidden) {
           pollTimer = window.setTimeout(tick, POLL_INTERVAL);
           return;
         }
-        fetchOnce().then(() => {
-          pollTimer = window.setTimeout(tick, POLL_INTERVAL);
-        });
+        await fetchOnce();
+        pollTimer = window.setTimeout(tick, POLL_INTERVAL);
       };
       pollTimer = window.setTimeout(tick, POLL_INTERVAL);
     };
@@ -237,6 +273,7 @@ export default function GameWaiting(): JSX.Element {
     startPolling();
 
     return () => {
+      abort.abort();
       if (pollTimer) clearTimeout(pollTimer);
     };
   }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
@@ -247,8 +284,16 @@ export default function GameWaiting(): JSX.Element {
     contractGame?.numberOfPlayers ?? game?.number_of_players ?? 0;
 
   const handleJoinGame = useCallback(async () => {
-    if (!game || !playerSymbol || !availableSymbols.some((s) => s.value === playerSymbol.value)) {
-      setError("Invalid selection or game data.");
+    if (!game) {
+      setError("No game data found. Please enter a valid game code.");
+      return;
+    }
+
+    if (
+      !playerSymbol?.value ||
+      !availableSymbols.some((s) => s.value === playerSymbol.value)
+    ) {
+      setError("Please select a valid symbol.");
       return;
     }
 
@@ -261,7 +306,9 @@ export default function GameWaiting(): JSX.Element {
     setError(null);
 
     try {
-      if (joinGame) await joinGame();
+      if (joinGame) {
+        await joinGame();
+      }
 
       const res = await apiClient.post<ApiResponse>("/game-players/join", {
         address,
@@ -269,42 +316,51 @@ export default function GameWaiting(): JSX.Element {
         code: game.code,
       });
 
-      if (!res?.data?.success) throw new Error(res?.data?.message ?? "Failed to join");
+      if (res?.data?.success === false) {
+        throw new Error(res?.data?.message ?? "Failed to join game");
+      }
 
-      setIsJoined(true);
+      if (mountedRef.current) {
+        setIsJoined(true);
+        setError(null);
+      }
     } catch (err: any) {
-      setError(err?.message ?? "Failed to join game.");
+      console.error("join error", err);
+      if (mountedRef.current)
+        setError(err?.message ?? "Failed to join game. Please try again.");
     } finally {
-      setActionLoading(false);
+      if (mountedRef.current) setActionLoading(false);
     }
   }, [game, playerSymbol, availableSymbols, address, joinGame]);
 
   const handleLeaveGame = useCallback(async () => {
-    if (!game) return;
-
+    if (!game)
+      return setError("No game data found. Please enter a valid game code.");
     setActionLoading(true);
     setError(null);
-
     try {
       const res = await apiClient.post<ApiResponse>("/game-players/leave", {
         address,
         code: game.code,
       });
-
-      if (!res?.data?.success) throw new Error(res?.data?.message ?? "Failed to leave");
-
-      setIsJoined(false);
-      setPlayerSymbol(null);
+      if (res?.data?.success === false)
+        throw new Error(res?.data?.message ?? "Failed to leave game");
+      if (mountedRef.current) {
+        setIsJoined(false);
+        setPlayerSymbol(null);
+      }
     } catch (err: any) {
-      setError(err?.message ?? "Failed to leave game.");
+      console.error("leave error", err);
+      if (mountedRef.current)
+        setError(err?.message ?? "Failed to leave game. Please try again.");
     } finally {
-      setActionLoading(false);
+      if (mountedRef.current) setActionLoading(false);
     }
   }, [game, address]);
 
   const handleGoHome = useCallback(() => router.push("/"), [router]);
 
-  // Loading / Error guards
+  // guard: loading states
   if (loading || contractGameLoading) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
@@ -327,12 +383,14 @@ export default function GameWaiting(): JSX.Element {
           </p>
           <div className="flex gap-3 justify-center">
             <button
+              type="button"
               onClick={() => router.push("/join-room")}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
               Retry Join
             </button>
             <button
+              type="button"
               onClick={handleGoHome}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
@@ -396,9 +454,7 @@ export default function GameWaiting(): JSX.Element {
 
           {showShare && (
             <div className="mt-6 space-y-5 bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
-              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">
-                Summon Allies!
-              </h3>
+              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">Summon Allies!</h3>
 
               {/* Web Link */}
               <div className="space-y-2">
@@ -406,13 +462,16 @@ export default function GameWaiting(): JSX.Element {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
+                    aria-label="game url"
                     value={gameUrl}
                     readOnly
                     className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
                   />
                   <button
+                    type="button"
                     onClick={handleCopyLink}
-                    className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                    disabled={actionLoading}
+                    className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
                   >
                     <IoCopyOutline className="w-5 h-5" />
                   </button>
@@ -430,13 +489,16 @@ export default function GameWaiting(): JSX.Element {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
+                    aria-label="farcaster miniapp url"
                     value={farcasterMiniappUrl}
                     readOnly
                     className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
                   />
                   <button
+                    type="button"
                     onClick={handleCopyFarcasterLink}
-                    className="flex items-center justify-center bg-gradient-to-r from-[#A100FF] to-[#00F0FF] text-white p-2 rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                    disabled={actionLoading}
+                    className="flex items-center justify-center bg-gradient-to-r from-[#A100FF] to-[#00F0FF] text-white p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
                   >
                     <IoCopyOutline className="w-5 h-5" />
                   </button>
@@ -448,13 +510,13 @@ export default function GameWaiting(): JSX.Element {
                 )}
               </div>
 
-              {/* Social Buttons */}
+              {/* Social share buttons */}
               <div className="flex justify-center gap-5 pt-3">
                 <a
                   href={telegramShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
                 >
                   <PiTelegramLogoLight className="w-6 h-6" />
                 </a>
@@ -462,7 +524,7 @@ export default function GameWaiting(): JSX.Element {
                   href={twitterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
                 >
                   <FaXTwitter className="w-6 h-6" />
                 </a>
@@ -470,7 +532,7 @@ export default function GameWaiting(): JSX.Element {
                   href={farcasterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
                 >
                   <SiFarcaster className="w-6 h-6" />
                 </a>
@@ -478,7 +540,6 @@ export default function GameWaiting(): JSX.Element {
             </div>
           )}
 
-          {/* Join Section */}
           {game.players.length < game.number_of_players && !isJoined && (
             <div className="mt-6 space-y-5">
               <div className="flex flex-col bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
@@ -512,21 +573,22 @@ export default function GameWaiting(): JSX.Element {
               </div>
 
               <button
+                type="button"
                 onClick={handleJoinGame}
+                className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!playerSymbol || actionLoading || isJoining}
-                className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading || isJoining ? "Entering..." : "Join the Battle"}
               </button>
             </div>
           )}
 
-          {/* Leave Section */}
           {game.players.length < game.number_of_players && isJoined && (
             <button
+              type="button"
               onClick={handleLeaveGame}
+              className="w-full mt-6 bg-gradient-to-r from-[#FF4D4D] to-[#FF00AA] text-white text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-red-500/50 transform hover:scale-105 disabled:opacity-50"
               disabled={actionLoading}
-              className="w-full mt-6 bg-gradient-to-r from-[#FF4D4D] to-[#FF00AA] text-white text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-red-500/50 transform hover:scale-105 disabled:opacity-50"
             >
               {actionLoading ? "Exiting..." : "Abandon Ship"}
             </button>
@@ -534,14 +596,16 @@ export default function GameWaiting(): JSX.Element {
 
           <div className="flex justify-between mt-5 px-3">
             <button
+              type="button"
               onClick={() => router.push("/join-room")}
-              className="text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors hover:underline"
+              className="text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200 hover:underline"
             >
               Switch Portal
             </button>
             <button
+              type="button"
               onClick={handleGoHome}
-              className="flex items-center text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors hover:underline"
+              className="flex items-center text-[#0FF0FC] text-sm font-orbitron hover:text-[#00D4E6] transition-colors duration-200 hover:underline"
             >
               <IoHomeOutline className="mr-1 w-4 h-4" />
               Back to HQ
@@ -550,7 +614,10 @@ export default function GameWaiting(): JSX.Element {
 
           {(error || joinError || contractGameError) && (
             <p className="text-red-400 text-xs mt-3 text-center bg-red-900/50 p-2 rounded-lg animate-pulse">
-              {error ?? joinError?.message ?? contractGameError?.message ?? "System Glitch Detected"}
+              {error ??
+                joinError?.message ??
+                contractGameError?.message ??
+                "System Glitch Detected"}
             </p>
           )}
         </div>
