@@ -143,6 +143,20 @@ export default function GameWaiting(): JSX.Element {
     [address]
   );
 
+  // Determine if current user is the creator
+  const isCreator = useMemo(() => {
+    if (!game || !address) return false;
+    return address.toLowerCase() === address.toLowerCase();
+  }, [game, address]);
+
+  console.log("game", game);
+
+  // Show share section if there are open slots OR if user is the creator
+  const showShare = useMemo(() => {
+    if (!game) return false;
+    return game.players.length < game.number_of_players || isCreator;
+  }, [game, isCreator]);
+
   // Copy handlers with fallback
   const handleCopyLink = useCallback(async () => {
     if (!gameUrl) {
@@ -249,7 +263,7 @@ export default function GameWaiting(): JSX.Element {
         }
       } catch (err: any) {
         if (!mountedRef.current) return;
-        if (err?.name === "AbortError") return; // ignore aborts
+        if (err?.name === "AbortError") return;
         console.error("fetchGame error:", err);
         setError(err?.message ?? "Failed to fetch game data. Please try again.");
       } finally {
@@ -360,7 +374,7 @@ export default function GameWaiting(): JSX.Element {
 
   const handleGoHome = useCallback(() => router.push("/"), [router]);
 
-  // guard: loading states
+  // Loading / Error guards
   if (loading || contractGameLoading) {
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
@@ -401,8 +415,6 @@ export default function GameWaiting(): JSX.Element {
       </section>
     );
   }
-
-  const showShare = game.players.length < game.number_of_players;
 
   return (
     <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
@@ -454,7 +466,9 @@ export default function GameWaiting(): JSX.Element {
 
           {showShare && (
             <div className="mt-6 space-y-5 bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
-              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">Summon Allies!</h3>
+              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">
+                Summon Allies!
+              </h3>
 
               {/* Web Link */}
               <div className="space-y-2">
