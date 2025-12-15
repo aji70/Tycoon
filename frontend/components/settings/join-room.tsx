@@ -104,7 +104,7 @@ export default function JoinRoom(): JSX.Element {
     [router]
   );
 
-  const handleCreateNew = () => router.push("/create-room");
+  const handleCreateNew = () => router.push("/game-settings");
 
   return (
     <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center bg-[#010F10] mt-[100px]">
