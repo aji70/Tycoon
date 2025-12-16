@@ -577,7 +577,7 @@ const AiBoard = ({
                     animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    AI {currentPlayer?.username} is playing…
+                   {currentPlayer?.username} is playing…
                   </motion.h2>
                   {buyPrompted && buyScore !== null && (
                     <p className="text-lg text-yellow-300 font-bold">

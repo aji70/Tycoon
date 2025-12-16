@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
@@ -7,7 +7,6 @@ import { getPlayerSymbol } from "@/lib/types/symbol";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import { useUpdatePlayerPosition } from "@/context/ContractProvider";
 
 interface GamePlayersProps {
   game: Game;
@@ -26,10 +25,10 @@ export default function GamePlayers({
 }: GamePlayersProps) {
   const { address } = useAccount();
 
-  const [showEmpire, setShowEmpire] = useState(true);
-  const [showTrades, setShowTrades] = useState(true);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-
+  const [showEmpire, setShowEmpire] = useState(false);
+  const [showTrade, setShowTrade] = useState(false);
+  const [openTrades, setOpenTrades] = useState<any[]>([]);
+  const [tradeRequests, setTradeRequests] = useState<any[]>([]);
   const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
     open: false,
     target: null,
@@ -38,15 +37,18 @@ export default function GamePlayers({
     open: false,
     trade: null,
   });
+  const [aiTradePopup, setAiTradePopup] = useState<any | null>(null);
+  const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
 
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
-  const [offerCash, setOfferCash] = useState(0);
-  const [requestCash, setRequestCash] = useState(0);
+  const [offerCash, setOfferCash] = useState<number>(0);
+  const [requestCash, setRequestCash] = useState<number>(0);
 
-  const [openTrades, setOpenTrades] = useState<any[]>([]);
-  const [incomingTrades, setIncomingTrades] = useState<any[]>([]);
+  const processedAiTradeIds = useRef<Set<number>>(new Set());
 
+  const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
+  const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = me && game.next_player_id === me.user_id;
 
   const resetTradeFields = () => {
@@ -57,29 +59,31 @@ export default function GamePlayers({
   };
 
   const isMortgaged = useCallback(
-    (id: number) => game_properties.find((gp) => gp.property_id === id)?.mortgaged ?? false,
+    (property_id: number) =>
+      game_properties.find((gp) => gp.property_id === property_id)?.mortgaged ?? false,
     [game_properties]
   );
 
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
   const developmentStage = useCallback(
-    (id: number) => game_properties.find((gp) => gp.property_id === id)?.development ?? 0,
+    (property_id: number) =>
+      game_properties.find((gp) => gp.property_id === property_id)?.development ?? 0,
     [game_properties]
   );
 
   const rentPrice = useCallback(
-    (id: number): number => {
-      const p = properties.find((prop) => prop.id === id);
-      if (!p) return 0;
-      const dev = developmentStage(id);
-      const rents = [
-        p.rent_site_only,
-        p.rent_one_house,
-        p.rent_two_houses,
-        p.rent_three_houses,
-        p.rent_four_houses,
-        p.rent_hotel,
-      ];
-      return rents[dev] ?? 0;
+    (property_id: number) => {
+      const property = properties.find((p) => p.id === property_id);
+      const dev = developmentStage(property_id);
+      switch (dev) {
+        case 1: return property?.rent_one_house || 0;
+        case 2: return property?.rent_two_houses || 0;
+        case 3: return property?.rent_three_houses || 0;
+        case 4: return property?.rent_four_houses || 0;
+        case 5: return property?.rent_hotel || 0;
+        default: return property?.rent_site_only || 0;
+      }
     },
     [properties, developmentStage]
   );
@@ -87,110 +91,201 @@ export default function GamePlayers({
   const sortedPlayers = useMemo(
     () =>
       [...(game?.players ?? [])].sort(
-        (a: Player, b: Player) => (a.turn_order ?? 99) - (b.turn_order ?? 99)
+        (a, b) => (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity)
       ),
     [game?.players]
   );
 
-  const toggleSelect = (
-    id: number,
-    arr: number[],
-    setter: React.Dispatch<React.SetStateAction<number[]>>
-  ) => {
-    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const calculateFavorability = useCallback(
+    (trade: any) => {
+      const offerValue =
+        trade.offer_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        ) + (trade.offer_amount || 0);
 
-  const startTrade = (p: Player) => {
-    if (!isNext) {
-      toast.error("Not your turn!");
-      return;
-    }
-    setTradeModal({ open: true, target: p });
-    resetTradeFields();
-  };
+      const requestValue =
+        trade.requested_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        ) + (trade.requested_amount || 0);
+
+      if (requestValue === 0) return 100;
+      const ratio = ((offerValue - requestValue) / requestValue) * 100;
+      return Math.min(100, Math.max(-100, Math.round(ratio)));
+    },
+    [properties]
+  );
+
+  const calculateAiFavorability = useCallback(
+    (trade: any) => {
+      const aiGetsValue =
+        (trade.offer_amount || 0) +
+        trade.offer_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        );
+
+      const aiGivesValue =
+        (trade.requested_amount || 0) +
+        trade.requested_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        );
+
+      if (aiGivesValue === 0) return 100;
+      const ratio = ((aiGetsValue - aiGivesValue) / aiGivesValue) * 100;
+      return Math.min(100, Math.max(-100, Math.round(ratio)));
+    },
+    [properties]
+  );
 
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
-
     try {
-      const [outRes, inRes] = await Promise.all([
+      const [_initiated, _incoming] = await Promise.all([
         apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
         apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
       ]);
+      const initiated = _initiated.data?.data || [];
+      const incoming = _incoming.data?.data || [];
+      setOpenTrades(initiated);
+      setTradeRequests(incoming);
 
-      setOpenTrades(outRes.data?.data || []);
-      setIncomingTrades(inRes.data?.data || []);
+      const pendingAiTrades = incoming.filter((t: any) => {
+        if (t.status !== "pending") return false;
+        if (processedAiTradeIds.current.has(t.id)) return false;
 
-      const incoming = inRes.data?.data || [];
-      for (const trade of incoming) {
-        if (trade.status !== "pending") continue;
-
-        const fromPlayer = game.players.find((p: Player) => p.user_id === trade.player_id);
+        const fromPlayer = game.players.find((p: Player) => p.user_id === t.player_id);
         const username = (fromPlayer?.username || "").toLowerCase();
-        const isAI = username.includes("ai_") || username.includes("bot") || username.includes("computer");
+        const isAI =
+          username.includes("ai_") ||
+          username.includes("bot") ||
+          username.includes("computer");
 
-        if (!isAI) continue;
+        return isAI;
+      });
 
-        const givesProperty = (trade.offer_properties?.length || 0) > 0;
-        const cashFair = (trade.offer_amount || 0) >= (trade.requested_amount || 0);
-
-        if (givesProperty || cashFair) {
-          try {
-            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
-            toast.success(`${fromPlayer?.username || "AI"} accepted instantly!`, {
-              icon: "Robot",
-              duration: 4000,
-            });
-            fetchTrades();
-          } catch (err) {
-            console.error("AI failed to accept trade", err);
-          }
-        }
+      if (pendingAiTrades.length > 0) {
+        const trade = pendingAiTrades[0];
+        setAiTradePopup(trade);
+        processedAiTradeIds.current.add(trade.id);
       }
     } catch (err) {
-      console.error("Failed to fetch trades", err);
+      console.error("Error loading trades:", err);
+      toast.error("Failed to load trades");
     }
   }, [me, game?.id, game.players]);
 
   useEffect(() => {
     if (!me || !game?.id) return;
-    fetchTrades();
-    const interval = setInterval(fetchTrades, 4000);
+    let isFetching = false;
+    let interval: NodeJS.Timeout;
+
+    const startPolling = async () => {
+      await fetchTrades();
+      interval = setInterval(async () => {
+        if (isFetching) return;
+        isFetching = true;
+        try {
+          await fetchTrades();
+        } finally {
+          isFetching = false;
+        }
+      }, 5000);
+    };
+
+    startPolling();
     return () => clearInterval(interval);
   }, [fetchTrades]);
 
+  useEffect(() => {
+    processedAiTradeIds.current.clear();
+  }, [game?.id]);
+
   const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
+
+    const targetPlayer = tradeModal.target;
+    const username = (targetPlayer.username || "").toLowerCase();
+    const isAI = username.includes("ai_") || username.includes("bot") || username.includes("computer");
 
     try {
       const payload = {
         game_id: game.id,
         player_id: me.user_id,
-        target_player_id: tradeModal.target.user_id,
+        target_player_id: targetPlayer.user_id,
         offer_properties: offerProperties,
         offer_amount: offerCash,
         requested_properties: requestProperties,
         requested_amount: requestCash,
+        status: "pending",
       };
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-      if (res.data?.success) {
+      if (res?.data?.success) {
         toast.success("Trade sent successfully!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
         fetchTrades();
+
+        if (isAI) {
+          const sentTrade = {
+            ...payload,
+            id: res.data?.data?.id || Date.now(),
+          };
+
+          const favorability = calculateAiFavorability(sentTrade);
+
+          let decision: "accepted" | "declined" = "declined";
+          let remark = "";
+
+          if (favorability >= 30) {
+            decision = "accepted";
+            remark = "This is a fantastic deal! 🤖";
+          } else if (favorability >= 10) {
+            decision = Math.random() < 0.7 ? "accepted" : "declined";
+            remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
+          } else if (favorability >= 0) {
+            decision = Math.random() < 0.3 ? "accepted" : "declined";
+            remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
+          } else {
+            remark = "This deal is terrible for me! 😤";
+          }
+
+          if (decision === "accepted") {
+            try {
+              await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
+              toast.success("AI accepted your trade instantly! 🎉");
+              fetchTrades();
+            } catch (err) {
+              console.error("Auto-accept failed", err);
+            }
+          }
+
+          setAiResponsePopup({
+            trade: sentTrade,
+            favorability,
+            decision,
+            remark,
+          });
+        }
       } else {
-        toast.error(res.data?.message || "Failed to send trade");
+        toast.error(res?.data?.message || "Failed to create trade");
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Trade failed");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to create trade");
     }
   };
 
   const handleTradeAction = async (id: number, action: "accepted" | "declined" | "counter") => {
     try {
       if (action === "counter") {
-        const trade = incomingTrades.find((t) => t.id === id);
+        const trade = tradeRequests.find((t) => t.id === id);
         if (trade) {
           setCounterModal({ open: true, trade });
           setOfferProperties(trade.requested_properties || []);
@@ -200,37 +295,56 @@ export default function GamePlayers({
         }
         return;
       }
-
-      const endpoint = action === "accepted" ? "accept" : "decline";
-      const res = await apiClient.post<ApiResponse>(`/game-trade-requests/${endpoint}`, { id });
-      if (res.data?.success) {
-        toast.success(`Trade ${action}!`);
+      const res = await apiClient.post<ApiResponse>(
+        `/game-trade-requests/${action === "accepted" ? "accept" : "decline"}`,
+        { id }
+      );
+      if (res?.data?.success) {
+        toast.success(`Trade ${action}`);
+        setAiTradePopup(null);
         fetchTrades();
+      } else {
+        toast.error("Failed to update trade");
       }
-    } catch (err: any) {
-      toast.error("Action failed");
+    } catch (error) {
+      toast.error("Failed to update trade");
     }
   };
 
   const submitCounterTrade = async () => {
-    if (!counterModal.trade) return;
+    if (!me || !counterModal.trade) return;
     try {
       const payload = {
         offer_properties: offerProperties,
         offer_amount: offerCash,
         requested_properties: requestProperties,
         requested_amount: requestCash,
+        status: "counter",
       };
       const res = await apiClient.put<ApiResponse>(`/game-trade-requests/${counterModal.trade.id}`, payload);
-      if (res.data?.success) {
-        toast.success("Counter offer sent!");
+      if (res?.data?.success) {
+        toast.success("Counter offer sent");
         setCounterModal({ open: false, trade: null });
         resetTradeFields();
         fetchTrades();
+      } else {
+        toast.error("Failed to send counter trade");
       }
-    } catch (err: any) {
-      toast.error("Counter failed");
+    } catch (error) {
+      toast.error("Failed to send counter trade");
     }
+  };
+
+  const toggleSelect = (id: number, arr: number[], setter: React.Dispatch<React.SetStateAction<number[]>>) => {
+    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const startTrade = (targetPlayer: Player) => {
+    if (!isNext) {
+      toast.error("Not your turn!");
+      return;
+    }
+    setTradeModal({ open: true, target: targetPlayer });
   };
 
   const handleDevelopment = async (id: number) => {
@@ -241,10 +355,10 @@ export default function GamePlayers({
         user_id: me.user_id,
         property_id: id,
       });
-      if (res.data?.success) toast.success("House built!");
-      else toast.error(res.data?.message || "Cannot build");
-    } catch (err: any) {
-      toast.error("Build failed");
+      if (res?.data?.success) toast.success("Property developed successfully");
+      else toast.error(res.data?.message ?? "Failed to develop property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to develop property");
     }
   };
 
@@ -256,10 +370,10 @@ export default function GamePlayers({
         user_id: me.user_id,
         property_id: id,
       });
-      if (res.data?.success) toast.success("House sold");
-      else toast.error(res.data?.message || "Cannot sell");
-    } catch (err: any) {
-      toast.error("Downgrade failed");
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
     }
   };
 
@@ -271,10 +385,10 @@ export default function GamePlayers({
         user_id: me.user_id,
         property_id: id,
       });
-      if (res.data?.success) toast.success("Mortgaged");
-      else toast.error(res.data?.message || "Cannot mortgage");
-    } catch (err: any) {
-      toast.error("Mortgage failed");
+      if (res?.data?.success) toast.success("Property mortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to mortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to mortgage property");
     }
   };
 
@@ -286,58 +400,12 @@ export default function GamePlayers({
         user_id: me.user_id,
         property_id: id,
       });
-      if (res.data?.success) toast.success("Unmortgaged");
-      else toast.error(res.data?.message || "Cannot unmortgage");
-    } catch (err: any) {
-      toast.error("Unmortgage failed");
+      if (res?.data?.success) toast.success("Property unmortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unmortgage property");
     }
   };
-
-  // ———— Update Position ————
-  const myPropertyIds = my_properties.map((p) => p.id);
-
-  const {
-    updatePosition,
-    isPending,
-    isConfirming,
-    isSuccess,
-    isError,
-    error: txError,
-  } = useUpdatePlayerPosition(
-    game.id,
-    me?.address as `0x${string}`,
-    me?.position ?? 0,
-    me?.balance ?? 0,
-    0,
-    myPropertyIds
-  );
-
-  const handleUpdatePosition = async () => {
-    if (!isNext) {
-      toast.error("Not your turn!");
-      return;
-    }
-    if (isPending || isConfirming) {
-      toast.loading("Transaction in progress...");
-      return;
-    }
-
-    try {
-      await updatePosition();
-      toast.success("Turn ended! Next player →");
-    } catch (err: any) {
-      toast.error("Failed to update position");
-    }
-  };
-
-  useEffect(() => {
-    if (isSuccess) {
-      toast.success("Turn passed successfully!");
-    }
-    if (isError) {
-      toast.error(txError?.message || "Transaction failed");
-    }
-  }, [isSuccess, isError, txError]);
 
   return (
     <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 overflow-y-auto relative">
@@ -352,64 +420,52 @@ export default function GamePlayers({
           PLAYERS
         </motion.h2>
 
-        {sortedPlayers.map((p: Player) => {
-          const isMe = p.address?.toLowerCase() === address?.toLowerCase();
-          const isTurn = p.user_id === game.next_player_id;
-          const canTrade = isNext && !p.in_jail && !isMe;
-          const displayName = p.username || p.address?.slice(0, 6) || "Player";
-          const isAI = displayName.toLowerCase().includes("ai_") || displayName.toLowerCase().includes("bot");
+        {sortedPlayers.map((player) => {
+          const isWinner = player.user_id === game.winner_id;
+          const isNextTurn = player.user_id === game.next_player_id;
+          const isMe = player.address?.toLowerCase() === address?.toLowerCase();
+          const canTrade = isNext && !player.in_jail && !isMe;
 
           return (
             <motion.div
-              key={p.user_id}
+              key={player.user_id}
               whileHover={{ scale: 1.02 }}
               className={`p-4 rounded-xl border-2 transition-all ${
-                isTurn
+                isNextTurn
                   ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-400/60"
                   : "border-purple-800 bg-purple-900/20"
               }`}
             >
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">{getPlayerSymbol(p.symbol)}</span>
+                  <span className="text-3xl">{getPlayerSymbol(player.symbol)}</span>
                   <div className="font-bold text-cyan-200">
-                    {displayName}
+                    {player.username || player.address?.slice(0, 6)}
                     {isMe && " (YOU)"}
-                    {isAI && " (AI)"}
+                    {isWinner && " 👑"}
                   </div>
                 </div>
                 <div className="text-xl font-bold text-yellow-400">
-                  ${p.balance.toLocaleString()}
+                  ${player.balance.toLocaleString()}
                 </div>
               </div>
 
               {canTrade && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => startTrade(p)}
+                  onClick={() => startTrade(player)}
                   className="mt-3 w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg font-bold text-white shadow-lg"
                 >
                   TRADE
                 </motion.button>
               )}
-
-              {/* {isMe && isNext && (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleUpdatePosition}
-                  disabled={isPending || isConfirming}
-                  className="mt-4 w-full py-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white text-xl shadow-2xl shadow-green-500/50 disabled:opacity-70"
-                >
-                  {isPending || isConfirming ? "UPDATING POSITION..." : "UPDATE POSITION →"}
-                </motion.button>
-              )} */}
             </motion.div>
           );
         })}
 
         <div className="border-t-4 border-purple-600 pt-4">
           <button
-            onClick={() => setShowEmpire((v) => !v)}
+            onClick={toggleEmpire}
             className="w-full text-xl font-bold text-purple-300 flex justify-between items-center"
           >
             <span>MY EMPIRE</span>
@@ -430,100 +486,181 @@ export default function GamePlayers({
                 exit={{ height: 0 }}
                 className="overflow-hidden mt-3 grid grid-cols-2 gap-3"
               >
-                {my_properties.map((prop, i) => (
-                  <motion.div
-                    key={prop.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => isNext && setSelectedProperty(prop)}
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-black/60 border-2 border-cyan-600 rounded-lg p-3 cursor-pointer shadow-md"
-                  >
-                    {prop.color && <div className="h-3 rounded" style={{ backgroundColor: prop.color }} />}
-                    <div className="mt-2 text-sm font-bold text-cyan-200 truncate">{prop.name}</div>
-                    <div className="text-xs text-green-400">Rent: ${rentPrice(prop.id)}</div>
-                    {isMortgaged(prop.id) && (
-                      <div className="text-red-500 text-xs mt-1 font-bold animate-pulse">MORTGAGED</div>
-                    )}
-                  </motion.div>
-                ))}
+                {my_properties.length > 0 ? (
+                  my_properties.map((prop, index) => (
+                    <motion.div
+                      key={prop.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => setSelectedProperty(prop)}
+                      whileHover={{ scale: 1.05 }}
+                      className="bg-black/60 border-2 border-cyan-600 rounded-lg p-3 cursor-pointer shadow-md"
+                    >
+                      {prop.color && (
+                        <div className="h-3 rounded" style={{ backgroundColor: prop.color }} />
+                      )}
+                      <div className="mt-2 text-sm font-bold text-cyan-200 truncate">{prop.name}</div>
+                      <div className="text-xs text-green-400">Rent: ${rentPrice(prop.id)}</div>
+                      {isMortgaged(prop.id) && (
+                        <div className="text-red-500 text-xs mt-1 font-bold animate-pulse">MORTGAGED</div>
+                      )}
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center text-sm font-medium text-gray-500 py-3 col-span-2">
+                    No properties yet..
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
+        {/* COMPACT TRADES SECTION */}
         <div className="border-t-4 border-pink-600 pt-4">
           <button
-            onClick={() => setShowTrades((v) => !v)}
+            onClick={toggleTrade}
             className="w-full text-xl font-bold text-pink-300 flex justify-between items-center"
           >
-            <span>TRADES {incomingTrades.length > 0 && `(${incomingTrades.length} pending)`}</span>
-            <motion.span animate={{ rotate: showTrades ? 180 : 0 }} className="text-3xl text-cyan-400">
+            <span>TRADES {tradeRequests.length > 0 && `(${tradeRequests.length} pending)`}</span>
+            <motion.span animate={{ rotate: showTrade ? 180 : 0 }} className="text-3xl text-cyan-400">
               ▼
             </motion.span>
           </button>
 
           <AnimatePresence>
-            {showTrades && incomingTrades.length > 0 && (
+            {showTrade && (
               <motion.div
                 initial={{ height: 0 }}
                 animate={{ height: "auto" }}
                 exit={{ height: 0 }}
-                className="overflow-hidden mt-4 space-y-4"
+                className="overflow-hidden mt-3 space-y-3"
               >
-                {incomingTrades.map((trade: any) => {
-                  const from = game.players.find((p: Player) => p.user_id === trade.player_id);
-                  const offerProps = properties.filter((p: Property) => trade.offer_properties?.includes(p.id));
-                  const requestProps = properties.filter((p: Property) => trade.requested_properties?.includes(p.id));
+                {openTrades.length > 0 && (
+                  <div>
+                    <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
+                      <span>📤</span>
+                      <span>MY ACTIVE TRADES</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {openTrades.map((trade) => {
+                        const offeredProps = properties.filter((p) =>
+                          trade.offer_properties?.includes(p.id)
+                        );
+                        const requestedProps = properties.filter((p) =>
+                          trade.requested_properties?.includes(p.id)
+                        );
+                        const targetPlayer = game.players.find(
+                          (pl) => pl.user_id === trade.target_player_id
+                        );
 
-                  return (
-                    <motion.div
-                      key={trade.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="bg-gradient-to-br from-purple-900/60 to-cyan-900/40 border-2 border-cyan-500 rounded-xl p-5"
-                    >
-                      <div className="font-bold text-cyan-300 mb-3">
-                        From {from?.username || "Player"}
-                      </div>
-                      <div className="text-sm space-y-2 mb-4">
-                        <div className="text-green-400">
-                          Gives: {offerProps.length ? offerProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.offer_amount || 0}
-                        </div>
-                        <div className="text-red-400">
-                          Wants: {requestProps.length ? requestProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.requested_amount || 0}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          onClick={() => handleTradeAction(trade.id, "accepted")}
-                          className="py-2 bg-green-600 rounded font-bold text-white hover:bg-green-500"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => handleTradeAction(trade.id, "declined")}
-                          className="py-2 bg-red-600 rounded font-bold text-white hover:bg-red-500"
-                        >
-                          Decline
-                        </button>
-                        <button
-                          onClick={() => handleTradeAction(trade.id, "counter")}
-                          className="py-2 bg-yellow-600 rounded font-bold text-black hover:bg-yellow-500"
-                        >
-                          Counter
-                        </button>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                        return (
+                          <div
+                            key={trade.id}
+                            className="bg-black/40 border border-cyan-800 rounded-lg p-3 text-sm"
+                          >
+                            <div className="font-medium text-cyan-200 mb-1">
+                              To {targetPlayer?.username || "Player"}
+                            </div>
+                            <div className="text-xs space-y-1">
+                              <div className="text-green-400">
+                                Offer: {offeredProps.length ? offeredProps.map((p) => p.name).join(", ") : "nothing"} {trade.offer_amount > 0 && `+ $${trade.offer_amount}`}
+                              </div>
+                              <div className="text-red-400">
+                                Want: {requestedProps.length ? requestedProps.map((p) => p.name).join(", ") : "nothing"} {trade.requested_amount > 0 && `+ $${trade.requested_amount}`}
+                              </div>
+                            </div>
+                            <span className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium ${
+                              trade.status === 'accepted' 
+                                ? 'bg-green-900/50 text-green-300' 
+                                : trade.status === 'declined' 
+                                ? 'bg-red-900/50 text-red-300' 
+                                : 'bg-yellow-900/50 text-yellow-300'
+                            }`}>
+                              {trade.status.toUpperCase()}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {tradeRequests.length > 0 && (
+                  <div>
+                    <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
+                      <span>📥</span>
+                      <span>INCOMING REQUESTS</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {tradeRequests.map((trade) => {
+                        const offeredProps = properties.filter((p) =>
+                          trade.offer_properties?.includes(p.id)
+                        );
+                        const requestedProps = properties.filter((p) =>
+                          trade.requested_properties?.includes(p.id)
+                        );
+                        const fromPlayer = game.players.find(
+                          (pl) => pl.user_id === trade.player_id
+                        );
+
+                        return (
+                          <div
+                            key={trade.id}
+                            className="bg-black/40 border border-cyan-800 rounded-lg p-3 text-sm"
+                          >
+                            <div className="font-medium text-cyan-200 mb-1">
+                              From {fromPlayer?.username || "Player"}
+                            </div>
+                            <div className="text-xs space-y-1 mb-2">
+                              <div className="text-green-400">
+                                Gives: {offeredProps.length ? offeredProps.map((p) => p.name).join(", ") : "nothing"} {trade.offer_amount > 0 && `+ $${trade.offer_amount}`}
+                              </div>
+                              <div className="text-red-400">
+                                Wants: {requestedProps.length ? requestedProps.map((p) => p.name).join(", ") : "nothing"} {trade.requested_amount > 0 && `+ $${trade.requested_amount}`}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              <button
+                                onClick={() => handleTradeAction(trade.id, "accepted")}
+                                className="py-1.5 bg-green-600 rounded text-xs font-bold text-white hover:bg-green-500"
+                              >
+                                ACCEPT
+                              </button>
+                              <button
+                                onClick={() => handleTradeAction(trade.id, "declined")}
+                                className="py-1.5 bg-red-600 rounded text-xs font-bold text-white hover:bg-red-500"
+                              >
+                                DECLINE
+                              </button>
+                              <button
+                                onClick={() => handleTradeAction(trade.id, "counter")}
+                                className="py-1.5 bg-yellow-600 rounded text-xs font-bold text-black hover:bg-yellow-500"
+                              >
+                                COUNTER
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {openTrades.length === 0 && tradeRequests.length === 0 && (
+                  <div className="text-center text-gray-500 py-4">
+                    <div className="text-3xl mb-1">💱</div>
+                    <p className="text-sm">No trades yet..</p>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
 
+      {/* Property Action Modal */}
       <AnimatePresence>
         {isNext && selectedProperty && (
           <motion.div
@@ -537,29 +674,237 @@ export default function GamePlayers({
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-gradient-to-br from-purple-900 to-cyan-900 rounded-2xl border-4 border-cyan-400 shadow-2xl p-8 max-w-sm w-full"
+              className="relative bg-gradient-to-br from-purple-900 via-black to-cyan-900 rounded-2xl border-4 border-cyan-400 shadow-2xl shadow-cyan-500/50 p-8 max-w-sm w-full"
             >
+              <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/10 to-cyan-400/10 rounded-2xl" />
               <button
                 onClick={() => setSelectedProperty(null)}
                 className="absolute top-4 right-4 text-3xl text-red-400 hover:text-red-300 transition"
               >
                 X
               </button>
-              <h3 className="text-3xl font-bold text-cyan-300 text-center mb-6">{selectedProperty.name}</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => { handleDevelopment(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-green-600 rounded-xl font-bold text-white shadow-lg">BUILD</button>
-                <button onClick={() => { handleDowngrade(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-orange-600 rounded-xl font-bold text-white shadow-lg">SELL</button>
-                <button onClick={() => { handleMortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-blue-600 rounded-xl font-bold text-white shadow-lg">MORTGAGE</button>
-                <button onClick={() => { handleUnmortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-purple-600 rounded-xl font-bold text-white shadow-lg">REDEEM</button>
+              <h3 className="text-3xl font-bold text-cyan-300 text-center mb-6 relative z-10">{selectedProperty.name}</h3>
+              <div className="grid grid-cols-2 gap-4 relative z-10">
+                <button onClick={() => { handleDevelopment(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white shadow-lg hover:shadow-green-500/50">BUILD</button>
+                <button onClick={() => { handleDowngrade(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-gradient-to-r from-orange-600 to-red-700 rounded-xl font-bold text-white shadow-lg hover:shadow-orange-500/50">SELL</button>
+                <button onClick={() => { handleMortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl font-bold text-white shadow-lg hover:shadow-blue-500/50">MORTGAGE</button>
+                <button onClick={() => { handleUnmortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-4 bg-gradient-to-r from-purple-600 to-pink-700 rounded-xl font-bold text-white shadow-lg hover:shadow-purple-500/50">REDEEM</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* AI Trade Offer Popup (AI → You) */}
+      <AnimatePresence>
+        {aiTradePopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-50 p-4"
+            onClick={() => setAiTradePopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-gradient-to-br from-cyan-900 via-purple-900 to-pink-900 rounded-3xl border-4 border-cyan-400 shadow-2xl shadow-cyan-600/60 overflow-hidden max-w-md w-full"
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute inset-0 opacity-30">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-pink-500/20 animate-pulse" />
+              </div>
+              <button
+                onClick={() => setAiTradePopup(null)}
+                className="absolute top-4 right-4 text-3xl text-red-300 hover:text-red-200 transition z-20"
+              >
+                X
+              </button>
+
+              <div className="relative z-10 p-8">
+                <h3 className="text-4xl font-bold text-cyan-300 text-center mb-6 drop-shadow-lg">
+                  🤖 AI Trade Offer!
+                </h3>
+
+                <div className="text-center mb-8 bg-black/50 backdrop-blur-md rounded-2xl py-6 px-8 border border-cyan-500/50">
+                  <p className="text-2xl text-white mb-2">
+                    This deal is
+                  </p>
+                  <span
+                    className={`text-5xl font-bold drop-shadow-2xl ${
+                      calculateFavorability(aiTradePopup) >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {calculateFavorability(aiTradePopup) >= 0 ? "+" : ""}
+                    {calculateFavorability(aiTradePopup)}%
+                  </span>
+                  <p className="text-xl text-white mt-2">favorable for you</p>
+                  <p className="text-sm text-gray-300 mt-4">
+                    {calculateFavorability(aiTradePopup) >= 30
+                      ? "🟢 Amazing opportunity!"
+                      : calculateFavorability(aiTradePopup) >= 0
+                      ? "🟡 Decent deal"
+                      : "🔴 Think twice"}
+                  </p>
+                </div>
+
+                <div className="space-y-4 text-base mb-10">
+                  <div className="bg-gradient-to-r from-green-900/60 to-emerald-900/60 rounded-xl p-4 border border-green-500/50">
+                    <span className="font-bold text-green-300">AI Gives:</span>{" "}
+                    <span className="text-white">
+                      {properties
+                        .filter((p) => aiTradePopup.offer_properties?.includes(p.id))
+                        .map((p) => p.name)
+                        .join(", ") || "nothing"}{" "}
+                      {aiTradePopup.offer_amount > 0 && `+ $${aiTradePopup.offer_amount}`}
+                    </span>
+                  </div>
+                  <div className="bg-gradient-to-r from-red-900/60 to-pink-900/60 rounded-xl p-4 border border-red-500/50">
+                    <span className="font-bold text-red-300">AI Wants:</span>{" "}
+                    <span className="text-white">
+                      {properties
+                        .filter((p) => aiTradePopup.requested_properties?.includes(p.id))
+                        .map((p) => p.name)
+                        .join(", ") || "nothing"}{" "}
+                      {aiTradePopup.requested_amount > 0 && `+ $${aiTradePopup.requested_amount}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <button
+                    onClick={() => {
+                      handleTradeAction(aiTradePopup.id, "accepted");
+                      setAiTradePopup(null);
+                    }}
+                    className="py-4 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl font-bold text-white text-lg shadow-lg hover:shadow-green-500/60 transition"
+                  >
+                    ACCEPT
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleTradeAction(aiTradePopup.id, "declined");
+                      setAiTradePopup(null);
+                    }}
+                    className="py-4 bg-gradient-to-r from-red-600 to-pink-600 rounded-xl font-bold text-white text-lg shadow-lg hover:shadow-red-500/60 transition"
+                  >
+                    DECLINE
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleTradeAction(aiTradePopup.id, "counter");
+                      setAiTradePopup(null);
+                    }}
+                    className="py-4 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl font-bold text-black text-lg shadow-lg hover:shadow-yellow-500/60 transition"
+                  >
+                    COUNTER
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Response Popup (You → AI) */}
+      <AnimatePresence>
+        {aiResponsePopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-50 p-4"
+            onClick={() => setAiResponsePopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-gradient-to-br from-purple-900 via-indigo-900 to-cyan-900 rounded-3xl border-4 border-yellow-400 shadow-2xl shadow-yellow-600/60 overflow-hidden max-w-md w-full"
+            >
+              <div className="absolute inset-0 bg-gradient-to-tl from-yellow-500/20 via-transparent to-purple-500/20 animate-pulse" />
+              <button
+                onClick={() => setAiResponsePopup(null)}
+                className="absolute top-4 right-4 text-3xl text-red-300 hover:text-red-200 transition z-20"
+              >
+                X
+              </button>
+
+              <div className="relative z-10 p-8">
+                <h3 className="text-4xl font-bold text-yellow-300 text-center mb-8 drop-shadow-2xl">
+                  🤖 AI Responds...
+                </h3>
+
+                <div className="text-center mb-8 bg-black/60 backdrop-blur-md rounded-2xl py-6 px-8 border border-yellow-500/50">
+                  <p className="text-2xl text-white mb-3">
+                    Your offer was
+                  </p>
+                  <span
+                    className={`text-5xl font-bold drop-shadow-2xl ${
+                      aiResponsePopup.favorability >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {aiResponsePopup.favorability >= 0 ? "+" : ""}
+                    {aiResponsePopup.favorability}%
+                  </span>
+                  <p className="text-xl text-white mt-3">favorable for the AI</p>
+                </div>
+
+                <div className="text-center mb-8">
+                  <div className={`text-4xl font-bold ${aiResponsePopup.decision === "accepted" ? "text-green-400" : "text-red-400"}`}>
+                    {aiResponsePopup.decision === "accepted" ? "✅ ACCEPTED!" : "❌ DECLINED"}
+                  </div>
+                  <p className="text-2xl italic text-gray-200 mt-4">
+                    "{aiResponsePopup.remark}"
+                  </p>
+                </div>
+
+                <div className="space-y-4 text-base">
+                  <div className="bg-gradient-to-r from-green-900/60 to-emerald-900/60 rounded-xl p-4 border border-green-500/50">
+                    <span className="font-bold text-green-300">You Offered:</span>{" "}
+                    <span className="text-white">
+                      {properties
+                        .filter((p) => aiResponsePopup.trade.offer_properties?.includes(p.id))
+                        .map((p) => p.name)
+                        .join(", ") || "nothing"}{" "}
+                      {aiResponsePopup.trade.offer_amount > 0 && `+ $${aiResponsePopup.trade.offer_amount}`}
+                    </span>
+                  </div>
+                  <div className="bg-gradient-to-r from-red-900/60 to-pink-900/60 rounded-xl p-4 border border-red-500/50">
+                    <span className="font-bold text-red-300">You Asked For:</span>{" "}
+                    <span className="text-white">
+                      {properties
+                        .filter((p) => aiResponsePopup.trade.requested_properties?.includes(p.id))
+                        .map((p) => p.name)
+                        .join(", ") || "nothing"}{" "}
+                      {aiResponsePopup.trade.requested_amount > 0 && `+ $${aiResponsePopup.trade.requested_amount}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-10 text-center">
+                  <button
+                    onClick={() => setAiResponsePopup(null)}
+                    className="px-16 py-5 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl font-bold text-black text-2xl shadow-2xl hover:shadow-yellow-500/80 transition"
+                  >
+                    CLOSE
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Trade Modal (Create & Counter) */}
       <TradeModal
         open={tradeModal.open}
-        title="CREATE TRADE"
+        title={`Trade with ${tradeModal.target?.username || "Player"}`}
         onClose={() => { setTradeModal({ open: false, target: null }); resetTradeFields(); }}
         onSubmit={handleCreateTrade}
         my_properties={my_properties}
@@ -579,7 +924,7 @@ export default function GamePlayers({
 
       <TradeModal
         open={counterModal.open}
-        title="COUNTER OFFER"
+        title="Counter Trade Offer"
         onClose={() => { setCounterModal({ open: false, trade: null }); resetTradeFields(); }}
         onSubmit={submitCounterTrade}
         my_properties={my_properties}
@@ -617,48 +962,35 @@ function TradeModal({
   setOfferCash,
   setRequestCash,
   toggleSelect,
-  targetPlayerAddress,
-}: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  onSubmit: () => void;
-  my_properties: Property[];
-  properties: Property[];
-  game_properties: GameProperty[];
-  offerProperties: number[];
-  requestProperties: number[];
-  setOfferProperties: React.Dispatch<React.SetStateAction<number[]>>;
-  setRequestProperties: React.Dispatch<React.SetStateAction<number[]>>;
-  offerCash: number;
-  requestCash: number;
-  setOfferCash: React.Dispatch<React.SetStateAction<number>>;
-  setRequestCash: React.Dispatch<React.SetStateAction<number>>;
-  toggleSelect: (id: number, arr: number[], setter: React.Dispatch<React.SetStateAction<number[]>>) => void;
-  targetPlayerAddress?: string | null;
-}) {
+  targetPlayerAddress
+}: any) {
   if (!open) return null;
 
-  const targetProps = useMemo(() => {
-    if (!targetPlayerAddress) return [];
-    return properties.filter((p) =>
-      game_properties.some((gp) => gp.property_id === p.id && gp.address === targetPlayerAddress)
+  const targetOwnedProps = useMemo(() => {
+    const ownedGameProps = game_properties.filter(
+      (gp: any) => gp.address === targetPlayerAddress
     );
-  }, [properties, game_properties, targetPlayerAddress]);
+    return properties.filter((p: any) =>
+      ownedGameProps.some((gp: any) => gp.property_id === p.id)
+    );
+  }, [game_properties, properties, targetPlayerAddress]);
 
   const PropertyCard = ({ prop, isSelected, onClick }: { prop: Property; isSelected: boolean; onClick: () => void }) => (
     <div
       onClick={onClick}
-      className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex flex-col gap-2 ${
+      className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden ${
         isSelected
-          ? "border-cyan-400 bg-cyan-900/50 shadow-lg shadow-cyan-400/50"
-          : "border-gray-700 hover:border-gray-500"
+          ? "border-cyan-400 bg-cyan-900/60 shadow-lg shadow-cyan-400/70"
+          : "border-gray-700 hover:border-gray-500 bg-black/40"
       }`}
     >
+      {isSelected && (
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 animate-pulse" />
+      )}
       {prop.color && (
         <div className="h-6 rounded-t-md -m-3 -mt-3 mb-2" style={{ backgroundColor: prop.color }} />
       )}
-      <div className="text-xs font-bold text-cyan-200 text-center leading-tight">{prop.name}</div>
+      <div className="text-xs font-bold text-cyan-200 text-center leading-tight relative z-10">{prop.name}</div>
     </div>
   );
 
@@ -667,81 +999,88 @@ function TradeModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
+        initial={{ scale: 0.9, rotateY: 10 }}
+        animate={{ scale: 1, rotateY: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-br from-purple-900 to-black rounded-2xl border-4 border-cyan-500 shadow-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="relative bg-gradient-to-br from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl shadow-cyan-600/70 overflow-hidden max-w-5xl w-full max-h-[95vh] overflow-y-auto"
       >
-        <button onClick={onClose} className="absolute top-4 right-6 text-4xl text-red-400 hover:text-red-300 transition z-10">
+        <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/10 via-cyan-500/10 to-purple-500/10" />
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-purple-600/20 animate-pulse" />
+        </div>
+
+        <button onClick={onClose} className="absolute top-6 right-8 text-5xl text-red-400 hover:text-red-300 transition z-20">
           X
         </button>
 
-        <h2 className="text-4xl font-bold text-cyan-300 text-center mb-8">{title}</h2>
+        <div className="relative z-10 p-10">
+          <h2 className="text-5xl font-bold text-cyan-300 text-center mb-12 drop-shadow-2xl">{title}</h2>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          <div>
-            < h3 className="text-2xl font-bold text-green-400 mb-4 text-center">YOU GIVE</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {my_properties.map((p) => (
-                <PropertyCard
-                  key={p.id}
-                  prop={p}
-                  isSelected={offerProperties.includes(p.id)}
-                  onClick={() => toggleSelect(p.id, offerProperties, setOfferProperties)}
-                />
-              ))}
-            </div>
-            <input
-              type="number"
-              placeholder="+$ CASH"
-              value={offerCash || ""}
-              onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
-              className="w-full mt-6 bg-black/60 border-2 border-green-500 rounded-lg px-4 py-4 text-green-400 font-bold text-2xl text-center placeholder-green-700"
-            />
-          </div>
-
-          <div>
-            <h3 className="text-2xl font-bold text-red-400 mb-4 text-center">YOU GET</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {targetProps.length > 0 ? (
-                targetProps.map((p) => (
+          <div className="grid lg:grid-cols-2 gap-12">
+            <div>
+              <h3 className="text-3xl font-bold text-green-400 mb-6 text-center drop-shadow-lg">YOU GIVE</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {my_properties.map((p: Property) => (
                   <PropertyCard
                     key={p.id}
                     prop={p}
-                    isSelected={requestProperties.includes(p.id)}
-                    onClick={() => toggleSelect(p.id, requestProperties, setRequestProperties)}
+                    isSelected={offerProperties.includes(p.id)}
+                    onClick={() => toggleSelect(p.id, offerProperties, setOfferProperties)}
                   />
-                ))
-              ) : (
-                <div className="col-span-3 text-center text-gray-500 py-8">
-                  No properties available
-                </div>
-              )}
+                ))}
+              </div>
+              <input
+                type="number"
+                placeholder="+$ CASH"
+                value={offerCash || ""}
+                onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full mt-8 bg-black/70 border-4 border-green-500 rounded-2xl px-6 py-6 text-green-400 font-bold text-3xl text-center placeholder-green-700 focus:outline-none focus:ring-4 focus:ring-green-500/50 transition"
+              />
             </div>
-            <input
-              type="number"
-              placeholder="+$ CASH"
-              value={requestCash || ""}
-              onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-              className="w-full mt-6 bg-black/60 border-2 border-red-500 rounded-lg px-4 py-4 text-red-400 font-bold text-2xl text-center placeholder-red-700"
-            />
-          </div>
-        </div>
 
-        <div className="flex justify-center gap-8 mt-12">
-          <button onClick={onClose} className="px-12 py-5 bg-gray-800 rounded-xl font-bold text-2xl text-gray-300 hover:bg-gray-700 transition">
-            CANCEL
-          </button>
-          <button
-            onClick={onSubmit}
-            className="px-16 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl font-bold text-2xl text-white shadow-lg hover:shadow-cyan-500/50 transition"
-          >
-            SEND DEAL
-          </button>
+            <div>
+              <h3 className="text-3xl font-bold text-red-400 mb-6 text-center drop-shadow-lg">YOU GET</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {targetOwnedProps.length > 0 ? (
+                  targetOwnedProps.map((p: Property) => (
+                    <PropertyCard
+                      key={p.id}
+                      prop={p}
+                      isSelected={requestProperties.includes(p.id)}
+                      onClick={() => toggleSelect(p.id, requestProperties, setRequestProperties)}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-3 text-center text-gray-500 py-12 text-xl">
+                    No properties available
+                  </div>
+                )}
+              </div>
+              <input
+                type="number"
+                placeholder="+$ CASH"
+                value={requestCash || ""}
+                onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full mt-8 bg-black/70 border-4 border-red-500 rounded-2xl px-6 py-6 text-red-400 font-bold text-3xl text-center placeholder-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 transition"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-12 mt-16">
+            <button onClick={onClose} className="px-16 py-6 bg-gradient-to-r from-gray-700 to-gray-800 rounded-2xl font-bold text-3xl text-gray-300 hover:from-gray-600 hover:to-gray-700 transition shadow-2xl">
+              CANCEL
+            </button>
+            <button
+              onClick={onSubmit}
+              className="px-20 py-6 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-2xl font-bold text-3xl text-white shadow-2xl hover:shadow-cyan-500/80 transition"
+            >
+              SEND DEAL
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>
