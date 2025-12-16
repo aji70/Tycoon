@@ -199,7 +199,7 @@ const AiBoard = ({
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
   const isMyTurn = me?.user_id === currentPlayerId;
   const isAITurn =
-    currentPlayer?.username?.toLowerCase().includes("ai") ||
+    currentPlayer?.username?.toLowerCase().includes("ai_") ||
     currentPlayer?.username?.toLowerCase().includes("bot");
 
   const lastProcessed = useRef<number | null>(null);

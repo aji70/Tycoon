@@ -127,7 +127,7 @@ export default function GamePlayers({
 
         const fromPlayer = game.players.find((p: Player) => p.user_id === trade.player_id);
         const username = (fromPlayer?.username || "").toLowerCase();
-        const isAI = username.includes("ai") || username.includes("bot") || username.includes("computer");
+        const isAI = username.includes("ai_") || username.includes("bot") || username.includes("computer");
 
         if (!isAI) continue;
 
@@ -357,7 +357,7 @@ export default function GamePlayers({
           const isTurn = p.user_id === game.next_player_id;
           const canTrade = isNext && !p.in_jail && !isMe;
           const displayName = p.username || p.address?.slice(0, 6) || "Player";
-          const isAI = displayName.toLowerCase().includes("ai") || displayName.toLowerCase().includes("bot");
+          const isAI = displayName.toLowerCase().includes("ai_") || displayName.toLowerCase().includes("bot");
 
           return (
             <motion.div
