@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
@@ -29,7 +29,6 @@ export default function MobileGameLayout({
   const [showEmpire, setShowEmpire] = useState(true);
   const [showTrades, setShowTrades] = useState(true);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-
   const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
     open: false,
     target: null,
@@ -38,14 +37,16 @@ export default function MobileGameLayout({
     open: false,
     trade: null,
   });
-
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
   const [offerCash, setOfferCash] = useState(0);
   const [requestCash, setRequestCash] = useState(0);
-
   const [openTrades, setOpenTrades] = useState<any[]>([]);
   const [incomingTrades, setIncomingTrades] = useState<any[]>([]);
+  const [aiTradePopup, setAiTradePopup] = useState<any | null>(null);
+  const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
+
+  const processedAiTradeIds = useRef<Set<number>>(new Set());
 
   const isNext = me && game.next_player_id === me.user_id;
 
@@ -109,43 +110,79 @@ export default function MobileGameLayout({
     resetTradeFields();
   };
 
+  const calculateFavorability = useCallback(
+    (trade: any) => {
+      const offerValue =
+        trade.offer_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        ) + (trade.offer_amount || 0);
+
+      const requestValue =
+        trade.requested_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        ) + (trade.requested_amount || 0);
+
+      if (requestValue === 0) return 100;
+      const ratio = ((offerValue - requestValue) / requestValue) * 100;
+      return Math.min(100, Math.max(-100, Math.round(ratio)));
+    },
+    [properties]
+  );
+
+  const calculateAiFavorability = useCallback(
+    (trade: any) => {
+      const aiGetsValue =
+        (trade.offer_amount || 0) +
+        trade.offer_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        );
+
+      const aiGivesValue =
+        (trade.requested_amount || 0) +
+        trade.requested_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        );
+
+      if (aiGivesValue === 0) return 100;
+      const ratio = ((aiGetsValue - aiGivesValue) / aiGivesValue) * 100;
+      return Math.min(100, Math.max(-100, Math.round(ratio)));
+    },
+    [properties]
+  );
+
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
-
     try {
       const [outRes, inRes] = await Promise.all([
         apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
         apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
       ]);
-
       setOpenTrades(outRes.data?.data || []);
       setIncomingTrades(inRes.data?.data || []);
 
       const incoming = inRes.data?.data || [];
-      for (const trade of incoming) {
-        if (trade.status !== "pending") continue;
-
-        const fromPlayer = game.players.find((p: Player) => p.user_id === trade.player_id);
+      const pendingAiTrades = incoming.filter((t: any) => {
+        if (t.status !== "pending") return false;
+        if (processedAiTradeIds.current.has(t.id)) return false;
+        const fromPlayer = game.players.find((p: Player) => p.user_id === t.player_id);
         const username = (fromPlayer?.username || "").toLowerCase();
-        const isAI = username.includes("ai") || username.includes("bot") || username.includes("computer");
+        const isAI =
+          username.includes("ai") || username.includes("bot") || username.includes("computer");
+        return isAI;
+      });
 
-        if (!isAI) continue;
-
-        const givesProperty = (trade.offer_properties?.length || 0) > 0;
-        const cashFair = (trade.offer_amount || 0) >= (trade.requested_amount || 0);
-
-        if (givesProperty || cashFair) {
-          try {
-            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
-            toast.success(`${fromPlayer?.username || "AI"} accepted instantly!`, {
-              icon: "Robot",
-              duration: 4000,
-            });
-            fetchTrades();
-          } catch (err) {
-            console.error("AI failed to accept trade", err);
-          }
-        }
+      if (pendingAiTrades.length > 0) {
+        const trade = pendingAiTrades[0];
+        setAiTradePopup(trade);
+        processedAiTradeIds.current.add(trade.id);
       }
     } catch (err) {
       console.error("Failed to fetch trades", err);
@@ -159,14 +196,22 @@ export default function MobileGameLayout({
     return () => clearInterval(interval);
   }, [fetchTrades]);
 
+  useEffect(() => {
+    processedAiTradeIds.current.clear();
+  }, [game?.id]);
+
   const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
+
+    const targetPlayer = tradeModal.target;
+    const username = (targetPlayer.username || "").toLowerCase();
+    const isAI = username.includes("ai") || username.includes("bot") || username.includes("computer");
 
     try {
       const payload = {
         game_id: game.id,
         player_id: me.user_id,
-        target_player_id: tradeModal.target.user_id,
+        target_player_id: targetPlayer.user_id,
         offer_properties: offerProperties,
         offer_amount: offerCash,
         requested_properties: requestProperties,
@@ -174,13 +219,55 @@ export default function MobileGameLayout({
       };
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-      if (res.data?.success) {
+      if (res?.data?.success) {
         toast.success("Trade sent successfully!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
         fetchTrades();
+
+        if (isAI) {
+          const sentTrade = {
+            ...payload,
+            id: res.data?.data?.id || Date.now(),
+          };
+
+          const favorability = calculateAiFavorability(sentTrade);
+
+          let decision: "accepted" | "declined" = "declined";
+          let remark = "";
+
+          if (favorability >= 30) {
+            decision = "accepted";
+            remark = "This is a fantastic deal! 🤖";
+          } else if (favorability >= 10) {
+            decision = Math.random() < 0.7 ? "accepted" : "declined";
+            remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
+          } else if (favorability >= 0) {
+            decision = Math.random() < 0.3 ? "accepted" : "declined";
+            remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
+          } else {
+            remark = "This deal is terrible for me! 😤";
+          }
+
+          if (decision === "accepted") {
+            try {
+              await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
+              toast.success("AI accepted your trade instantly! 🎉");
+              fetchTrades();
+            } catch (err) {
+              console.error("Auto-accept failed", err);
+            }
+          }
+
+          setAiResponsePopup({
+            trade: sentTrade,
+            favorability,
+            decision,
+            remark,
+          });
+        }
       } else {
-        toast.error(res.data?.message || "Failed to send trade");
+        toast.error(res?.data?.message || "Failed to send trade");
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Trade failed");
@@ -200,11 +287,11 @@ export default function MobileGameLayout({
         }
         return;
       }
-
       const endpoint = action === "accepted" ? "accept" : "decline";
       const res = await apiClient.post<ApiResponse>(`/game-trade-requests/${endpoint}`, { id });
       if (res.data?.success) {
         toast.success(`Trade ${action}!`);
+        setAiTradePopup(null);
         fetchTrades();
       }
     } catch (err: any) {
@@ -293,9 +380,7 @@ export default function MobileGameLayout({
     }
   };
 
-  // ———— Update Position ————
   const myPropertyIds = my_properties.map((p) => p.id);
-
   const {
     updatePosition,
     isPending,
@@ -321,7 +406,6 @@ export default function MobileGameLayout({
       toast.loading("Transaction in progress...");
       return;
     }
-
     try {
       await updatePosition();
       toast.success("Turn ended! Next player →");
@@ -331,23 +415,18 @@ export default function MobileGameLayout({
   };
 
   useEffect(() => {
-    if (isSuccess) {
-      toast.success("Turn passed successfully!");
-    }
-    if (isError) {
-      toast.error(txError?.message || "Transaction failed");
-    }
+    if (isSuccess) toast.success("Turn passed successfully!");
+    if (isError) toast.error(txError?.message || "Transaction failed");
   }, [isSuccess, isError, txError]);
 
   return (
-    <aside className="w-full md:w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 md:border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 overflow-y-auto relative">
+    <aside className="w-full h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] overflow-y-auto relative">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80" />
-
-      <div className="p-2 md:p-4 space-y-4 md:space-y-6">
+      <div className="p-3 space-y-4">
         <motion.h2
           animate={{ textShadow: ["0 0 10px #0ff", "0 0 20px #0ff", "0 0 10px #0ff"] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="text-xl md:text-2xl font-bold text-cyan-300 text-center tracking-widest"
+          className="text-xl font-bold text-cyan-300 text-center tracking-widest"
         >
           PLAYERS
         </motion.h2>
@@ -363,72 +442,59 @@ export default function MobileGameLayout({
             <motion.div
               key={p.user_id}
               whileHover={{ scale: 1.02 }}
-              className={`p-3 md:p-4 rounded-xl border-2 transition-all ${
+              className={`p-3 rounded-xl border-2 transition-all ${
                 isTurn
                   ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-400/60"
                   : "border-purple-800 bg-purple-900/20"
               }`}
             >
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2 md:gap-3">
-                  <span className="text-2xl md:text-3xl">{getPlayerSymbol(p.symbol)}</span>
-                  <div className="font-bold text-cyan-200 text-sm md:text-base">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{getPlayerSymbol(p.symbol)}</span>
+                  <div className="font-bold text-cyan-200 text-sm">
                     {displayName}
                     {isMe && " (YOU)"}
                     {isAI && " (AI)"}
                   </div>
                 </div>
-                <div className="text-lg md:text-xl font-bold text-yellow-400">
+                <div className="text-base font-bold text-yellow-400">
                   ${p.balance.toLocaleString()}
                 </div>
               </div>
-
               {canTrade && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={() => startTrade(p)}
-                  className="mt-2 md:mt-3 w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg font-bold text-white shadow-lg text-sm md:text-base"
+                  className="mt-2 w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg font-bold text-white shadow-lg text-sm"
                 >
                   TRADE
                 </motion.button>
               )}
-
-              {/* {isMe && isNext && (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleUpdatePosition}
-                  disabled={isPending || isConfirming}
-                  className="mt-3 md:mt-4 w-full py-3 md:py-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white text-lg md:text-xl shadow-2xl shadow-green-500/50 disabled:opacity-70"
-                >
-                  {isPending || isConfirming ? "UPDATING POSITION..." : "UPDATE POSITION →"}
-                </motion.button>
-              )} */}
             </motion.div>
           );
         })}
 
-        <div className="border-t-4 border-purple-600 pt-3 md:pt-4">
+        <div className="border-t-4 border-purple-600 pt-3">
           <button
             onClick={() => setShowEmpire((v) => !v)}
-            className="w-full text-lg md:text-xl font-bold text-purple-300 flex justify-between items-center"
+            className="w-full text-lg font-bold text-purple-300 flex justify-between items-center"
           >
             <span>MY EMPIRE</span>
             <motion.span
               animate={{ rotate: showEmpire ? 180 : 0 }}
               transition={{ duration: 0.25 }}
-              className="text-2xl md:text-3xl text-cyan-400"
+              className="text-2xl text-cyan-400"
             >
               ▼
             </motion.span>
           </button>
-
           <AnimatePresence>
             {showEmpire && (
               <motion.div
                 initial={{ height: 0 }}
                 animate={{ height: "auto" }}
                 exit={{ height: 0 }}
-                className="overflow-hidden mt-2 md:mt-3 grid grid-cols-2 md:grid-cols-2 gap-2 md:gap-3"
+                className="overflow-hidden mt-2 grid grid-cols-2 gap-2"
               >
                 {my_properties.map((prop, i) => (
                   <motion.div
@@ -438,13 +504,13 @@ export default function MobileGameLayout({
                     transition={{ delay: i * 0.05 }}
                     onClick={() => isNext && setSelectedProperty(prop)}
                     whileHover={{ scale: 1.05 }}
-                    className="bg-black/60 border-2 border-cyan-600 rounded-lg p-2 md:p-3 cursor-pointer shadow-md"
+                    className="bg-black/60 border-2 border-cyan-600 rounded-lg p-2 cursor-pointer shadow-md"
                   >
-                    {prop.color && <div className="h-2 md:h-3 rounded" style={{ backgroundColor: prop.color }} />}
-                    <div className="mt-1 md:mt-2 text-xs md:text-sm font-bold text-cyan-200 truncate">{prop.name}</div>
-                    <div className="text-xxs md:text-xs text-green-400">Rent: ${rentPrice(prop.id)}</div>
+                    {prop.color && <div className="h-2 rounded" style={{ backgroundColor: prop.color }} />}
+                    <div className="mt-1 text-xs font-bold text-cyan-200 truncate">{prop.name}</div>
+                    <div className="text-xxs text-green-400">Rent: ${rentPrice(prop.id)}</div>
                     {isMortgaged(prop.id) && (
-                      <div className="text-red-500 text-xxs md:text-xs mt-1 font-bold animate-pulse">MORTGAGED</div>
+                      <div className="text-red-500 text-xxs mt-1 font-bold animate-pulse">MORTGAGED</div>
                     )}
                   </motion.div>
                 ))}
@@ -453,24 +519,23 @@ export default function MobileGameLayout({
           </AnimatePresence>
         </div>
 
-        <div className="border-t-4 border-pink-600 pt-3 md:pt-4">
+        <div className="border-t-4 border-pink-600 pt-3">
           <button
             onClick={() => setShowTrades((v) => !v)}
-            className="w-full text-lg md:text-xl font-bold text-pink-300 flex justify-between items-center"
+            className="w-full text-lg font-bold text-pink-300 flex justify-between items-center"
           >
             <span>TRADES {incomingTrades.length > 0 && `(${incomingTrades.length} pending)`}</span>
-            <motion.span animate={{ rotate: showTrades ? 180 : 0 }} className="text-2xl md:text-3xl text-cyan-400">
+            <motion.span animate={{ rotate: showTrades ? 180 : 0 }} className="text-2xl text-cyan-400">
               ▼
             </motion.span>
           </button>
-
           <AnimatePresence>
             {showTrades && incomingTrades.length > 0 && (
               <motion.div
                 initial={{ height: 0 }}
                 animate={{ height: "auto" }}
                 exit={{ height: 0 }}
-                className="overflow-hidden mt-3 md:mt-4 space-y-3 md:space-y-4"
+                className="overflow-hidden mt-3 space-y-3"
               >
                 {incomingTrades.map((trade: any) => {
                   const from = game.players.find((p: Player) => p.user_id === trade.player_id);
@@ -482,12 +547,12 @@ export default function MobileGameLayout({
                       key={trade.id}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="bg-gradient-to-br from-purple-900/60 to-cyan-900/40 border-2 border-cyan-500 rounded-xl p-4 md:p-5"
+                      className="bg-gradient-to-br from-purple-900/60 to-cyan-900/40 border-2 border-cyan-500 rounded-xl p-4"
                     >
-                      <div className="font-bold text-cyan-300 mb-2 md:mb-3 text-sm md:text-base">
+                      <div className="font-bold text-cyan-300 mb-2 text-sm">
                         From {from?.username || "Player"}
                       </div>
-                      <div className="text-xs md:text-sm space-y-1 md:space-y-2 mb-3 md:mb-4">
+                      <div className="text-xs space-y-1 mb-3">
                         <div className="text-green-400">
                           Gives: {offerProps.length ? offerProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.offer_amount || 0}
                         </div>
@@ -495,22 +560,22 @@ export default function MobileGameLayout({
                           Wants: {requestProps.length ? requestProps.map((p) => p.name).join(", ") : "nothing"} + ${trade.requested_amount || 0}
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-1 md:gap-2">
+                      <div className="grid grid-cols-3 gap-1.5">
                         <button
                           onClick={() => handleTradeAction(trade.id, "accepted")}
-                          className="py-1 md:py-2 bg-green-600 rounded font-bold text-white hover:bg-green-500 text-xs md:text-sm"
+                          className="py-1.5 bg-green-600 rounded text-xs font-bold text-white hover:bg-green-500"
                         >
                           Accept
                         </button>
                         <button
                           onClick={() => handleTradeAction(trade.id, "declined")}
-                          className="py-1 md:py-2 bg-red-600 rounded font-bold text-white hover:bg-red-500 text-xs md:text-sm"
+                          className="py-1.5 bg-red-600 rounded text-xs font-bold text-white hover:bg-red-500"
                         >
                           Decline
                         </button>
                         <button
                           onClick={() => handleTradeAction(trade.id, "counter")}
-                          className="py-1 md:py-2 bg-yellow-600 rounded font-bold text-black hover:bg-yellow-500 text-xs md:text-sm"
+                          className="py-1.5 bg-yellow-600 rounded text-xs font-bold text-black hover:bg-yellow-500"
                         >
                           Counter
                         </button>
@@ -524,39 +589,144 @@ export default function MobileGameLayout({
         </div>
       </div>
 
+      {/* Property Action Modal - Mobile Optimized */}
       <AnimatePresence>
         {isNext && selectedProperty && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4"
             onClick={() => setSelectedProperty(null)}
           >
             <motion.div
-              initial={{ scale: 0.8 }}
+              initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-gradient-to-br from-purple-900 to-cyan-900 rounded-2xl border-4 border-cyan-400 shadow-2xl p-6 md:p-8 max-w-sm w-full"
+              className="relative bg-gradient-to-br from-purple-900 via-black to-cyan-900 rounded-2xl border-4 border-cyan-400 shadow-2xl p-6 w-full max-w-xs"
             >
               <button
                 onClick={() => setSelectedProperty(null)}
-                className="absolute top-2 md:top-4 right-2 md:right-4 text-2xl md:text-3xl text-red-400 hover:text-red-300 transition"
+                className="absolute top-3 right-3 text-2xl text-red-400 hover:text-red-300 transition"
               >
                 X
               </button>
-              <h3 className="text-2xl md:text-3xl font-bold text-cyan-300 text-center mb-4 md:mb-6">{selectedProperty.name}</h3>
-              <div className="grid grid-cols-2 gap-2 md:gap-4">
-                <button onClick={() => { handleDevelopment(selectedProperty.id); setSelectedProperty(null); }} className="py-3 md:py-4 bg-green-600 rounded-xl font-bold text-white shadow-lg text-sm md:text-base">BUILD</button>
-                <button onClick={() => { handleDowngrade(selectedProperty.id); setSelectedProperty(null); }} className="py-3 md:py-4 bg-orange-600 rounded-xl font-bold text-white shadow-lg text-sm md:text-base">SELL</button>
-                <button onClick={() => { handleMortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-3 md:py-4 bg-blue-600 rounded-xl font-bold text-white shadow-lg text-sm md:text-base">MORTGAGE</button>
-                <button onClick={() => { handleUnmortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-3 md:py-4 bg-purple-600 rounded-xl font-bold text-white shadow-lg text-sm md:text-base">REDEEM</button>
+              <h3 className="text-2xl font-bold text-cyan-300 text-center mb-6">{selectedProperty.name}</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => { handleDevelopment(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white shadow-lg text-sm">BUILD</button>
+                <button onClick={() => { handleDowngrade(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-orange-600 to-red-700 rounded-xl font-bold text-white shadow-lg text-sm">SELL</button>
+                <button onClick={() => { handleMortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl font-bold text-white shadow-lg text-sm">MORTGAGE</button>
+                <button onClick={() => { handleUnmortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-purple-600 to-pink-700 rounded-xl font-bold text-white shadow-lg text-sm">REDEEM</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* AI Trade Offer Popup - Mobile Optimized */}
+      <AnimatePresence>
+        {aiTradePopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4"
+            onClick={() => setAiTradePopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-gradient-to-br from-cyan-900 via-purple-900 to-pink-900 rounded-2xl border-4 border-cyan-400 shadow-2xl p-6 w-full max-w-sm"
+            >
+              <button
+                onClick={() => setAiTradePopup(null)}
+                className="absolute top-3 right-3 text-2xl text-red-300 hover:text-red-200 transition"
+              >
+                X
+              </button>
+              <h3 className="text-2xl font-bold text-cyan-300 text-center mb-5">
+                🤖 AI Offer!
+              </h3>
+              <div className="text-center mb-6 bg-black/50 rounded-xl py-4 px-6">
+                <p className="text-lg text-white mb-1">Deal rating:</p>
+                <span className={`text-4xl font-bold ${calculateFavorability(aiTradePopup) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {calculateFavorability(aiTradePopup) >= 0 ? "+" : ""}
+                  {calculateFavorability(aiTradePopup)}%
+                </span>
+                <p className="text-sm text-gray-300 mt-2">
+                  {calculateFavorability(aiTradePopup) >= 30 ? "🟢 Great!" : calculateFavorability(aiTradePopup) >= 0 ? "🟡 Okay" : "🔴 Bad"}
+                </p>
+              </div>
+              <div className="space-y-3 text-sm mb-6">
+                <div className="bg-green-900/60 rounded-lg p-3">
+                  <span className="font-bold text-green-300">Gives:</span> {properties.filter((p) => aiTradePopup.offer_properties?.includes(p.id)).map((p) => p.name).join(", ") || "nothing"} {aiTradePopup.offer_amount > 0 && `+ $${aiTradePopup.offer_amount}`}
+                </div>
+                <div className="bg-red-900/60 rounded-lg p-3">
+                  <span className="font-bold text-red-300">Wants:</span> {properties.filter((p) => aiTradePopup.requested_properties?.includes(p.id)).map((p) => p.name).join(", ") || "nothing"} {aiTradePopup.requested_amount > 0 && `+ $${aiTradePopup.requested_amount}`}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <button onClick={() => { handleTradeAction(aiTradePopup.id, "accepted"); setAiTradePopup(null); }} className="py-3 bg-green-600 rounded-xl font-bold text-white text-sm">ACCEPT</button>
+                <button onClick={() => { handleTradeAction(aiTradePopup.id, "declined"); setAiTradePopup(null); }} className="py-3 bg-red-600 rounded-xl font-bold text-white text-sm">DECLINE</button>
+                <button onClick={() => { handleTradeAction(aiTradePopup.id, "counter"); setAiTradePopup(null); }} className="py-3 bg-yellow-600 rounded-xl font-bold text-black text-sm">COUNTER</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Response Popup - Mobile Optimized */}
+      <AnimatePresence>
+        {aiResponsePopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4"
+            onClick={() => setAiResponsePopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-gradient-to-br from-purple-900 via-indigo-900 to-cyan-900 rounded-2xl border-4 border-yellow-400 shadow-2xl p-6 w-full max-w-sm"
+            >
+              <button
+                onClick={() => setAiResponsePopup(null)}
+                className="absolute top-3 right-3 text-2xl text-red-300 hover:text-red-200 transition"
+              >
+                X
+              </button>
+              <h3 className="text-2xl font-bold text-yellow-300 text-center mb-5">
+                🤖 AI Responds
+              </h3>
+              <div className="text-center mb-6 bg-black/50 rounded-xl py-4 px-6">
+                <p className="text-lg text-white mb-1">Your offer was</p>
+                <span className={`text-4xl font-bold ${aiResponsePopup.favorability >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {aiResponsePopup.favorability >= 0 ? "+" : ""}
+                  {aiResponsePopup.favorability}%
+                </span>
+                <p className="text-lg text-white mt-2">for the AI</p>
+              </div>
+              <div className="text-center mb-6 text-3xl font-bold">
+                {aiResponsePopup.decision === "accepted" ? "✅ ACCEPTED!" : "❌ DECLINED"}
+              </div>
+              <p className="text-center text-sm italic text-gray-300 mb-6">
+                "{aiResponsePopup.remark}"
+              </p>
+              <button
+                onClick={() => setAiResponsePopup(null)}
+                className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl font-bold text-black text-lg"
+              >
+                CLOSE
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Trade Modal - Mobile Optimized (Single Column) */}
       <TradeModal
         open={tradeModal.open}
         title="CREATE TRADE"
@@ -618,47 +788,30 @@ function TradeModal({
   setRequestCash,
   toggleSelect,
   targetPlayerAddress,
-}: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  onSubmit: () => void;
-  my_properties: Property[];
-  properties: Property[];
-  game_properties: GameProperty[];
-  offerProperties: number[];
-  requestProperties: number[];
-  setOfferProperties: React.Dispatch<React.SetStateAction<number[]>>;
-  setRequestProperties: React.Dispatch<React.SetStateAction<number[]>>;
-  offerCash: number;
-  requestCash: number;
-  setOfferCash: React.Dispatch<React.SetStateAction<number>>;
-  setRequestCash: React.Dispatch<React.SetStateAction<number>>;
-  toggleSelect: (id: number, arr: number[], setter: React.Dispatch<React.SetStateAction<number[]>>) => void;
-  targetPlayerAddress?: string | null;
-}) {
+}: any) {
   if (!open) return null;
 
   const targetProps = useMemo(() => {
     if (!targetPlayerAddress) return [];
-    return properties.filter((p) =>
-      game_properties.some((gp) => gp.property_id === p.id && gp.address === targetPlayerAddress)
+    return properties.filter((p: Property) =>
+      game_properties.some((gp: GameProperty) => gp.property_id === p.id && gp.address === targetPlayerAddress)
     );
   }, [properties, game_properties, targetPlayerAddress]);
 
   const PropertyCard = ({ prop, isSelected, onClick }: { prop: Property; isSelected: boolean; onClick: () => void }) => (
     <div
       onClick={onClick}
-      className={`p-2 md:p-3 rounded-lg border-2 cursor-pointer transition-all flex flex-col gap-1 md:gap-2 ${
+      className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex flex-col gap-2 relative overflow-hidden ${
         isSelected
-          ? "border-cyan-400 bg-cyan-900/50 shadow-lg shadow-cyan-400/50"
-          : "border-gray-700 hover:border-gray-500"
+          ? "border-cyan-400 bg-cyan-900/70 shadow-lg shadow-cyan-400/60"
+          : "border-gray-700 hover:border-gray-500 bg-black/40"
       }`}
     >
+      {isSelected && <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 animate-pulse" />}
       {prop.color && (
-        <div className="h-4 md:h-6 rounded-t-md -m-2 md:-m-3 -mt-2 md:-mt-3 mb-1 md:mb-2" style={{ backgroundColor: prop.color }} />
+        <div className="h-6 rounded-t-md -m-3 -mt-3 mb-2" style={{ backgroundColor: prop.color }} />
       )}
-      <div className="text-xxs md:text-xs font-bold text-cyan-200 text-center leading-tight">{prop.name}</div>
+      <div className="text-xs font-bold text-cyan-200 text-center leading-tight relative z-10">{prop.name}</div>
     </div>
   );
 
@@ -667,26 +820,27 @@ function TradeModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9 }}
+        initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-br from-purple-900 to-black rounded-2xl border-4 border-cyan-500 shadow-2xl p-4 md:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="relative bg-gradient-to-br from-purple-950 via-black to-cyan-950 rounded-2xl border-4 border-cyan-500 shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
       >
-        <button onClick={onClose} className="absolute top-2 md:top-4 right-4 md:right-6 text-3xl md:text-4xl text-red-400 hover:text-red-300 transition z-10">
+        <button onClick={onClose} className="absolute top-4 right-4 text-3xl text-red-400 hover:text-red-300 transition z-10">
           X
         </button>
 
-        <h2 className="text-3xl md:text-4xl font-bold text-cyan-300 text-center mb-6 md:mb-8">{title}</h2>
+        <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8">{title}</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        {/* Single column layout for mobile */}
+        <div className="space-y-8">
           <div>
-            < h3 className="text-xl md:text-2xl font-bold text-green-400 mb-3 md:mb-4 text-center">YOU GIVE</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-              {my_properties.map((p) => (
+            <h3 className="text-2xl font-bold text-green-400 mb-4 text-center">YOU GIVE</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {my_properties.map((p: Property) => (
                 <PropertyCard
                   key={p.id}
                   prop={p}
@@ -700,15 +854,15 @@ function TradeModal({
               placeholder="+$ CASH"
               value={offerCash || ""}
               onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
-              className="w-full mt-4 md:mt-6 bg-black/60 border-2 border-green-500 rounded-lg px-3 md:px-4 py-3 md:py-4 text-green-400 font-bold text-xl md:text-2xl text-center placeholder-green-700"
+              className="w-full mt-5 bg-black/60 border-2 border-green-500 rounded-lg px-4 py-4 text-green-400 font-bold text-2xl text-center placeholder-green-700"
             />
           </div>
 
           <div>
-            <h3 className="text-xl md:text-2xl font-bold text-red-400 mb-3 md:mb-4 text-center">YOU GET</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
+            <h3 className="text-2xl font-bold text-red-400 mb-4 text-center">YOU GET</h3>
+            <div className="grid grid-cols-3 gap-3">
               {targetProps.length > 0 ? (
-                targetProps.map((p) => (
+                targetProps.map((p: Property) => (
                   <PropertyCard
                     key={p.id}
                     prop={p}
@@ -717,7 +871,7 @@ function TradeModal({
                   />
                 ))
               ) : (
-                <div className="col-span-2 md:col-span-3 text-center text-gray-500 py-6 md:py-8 text-sm md:text-base">
+                <div className="col-span-3 text-center text-gray-500 py-8">
                   No properties available
                 </div>
               )}
@@ -727,18 +881,18 @@ function TradeModal({
               placeholder="+$ CASH"
               value={requestCash || ""}
               onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-              className="w-full mt-4 md:mt-6 bg-black/60 border-2 border-red-500 rounded-lg px-3 md:px-4 py-3 md:py-4 text-red-400 font-bold text-xl md:text-2xl text-center placeholder-red-700"
+              className="w-full mt-5 bg-black/60 border-2 border-red-500 rounded-lg px-4 py-4 text-red-400 font-bold text-2xl text-center placeholder-red-700"
             />
           </div>
         </div>
 
-        <div className="flex justify-center gap-4 md:gap-8 mt-8 md:mt-12">
-          <button onClick={onClose} className="px-8 md:px-12 py-4 md:py-5 bg-gray-800 rounded-xl font-bold text-xl md:text-2xl text-gray-300 hover:bg-gray-700 transition">
+        <div className="flex flex-col gap-4 mt-10">
+          <button onClick={onClose} className="w-full py-4 bg-gray-800 rounded-xl font-bold text-2xl text-gray-300 hover:bg-gray-700 transition">
             CANCEL
           </button>
           <button
             onClick={onSubmit}
-            className="px-12 md:px-16 py-4 md:py-5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl font-bold text-xl md:text-2xl text-white shadow-lg hover:shadow-cyan-500/50 transition"
+            className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl font-bold text-2xl text-white shadow-lg hover:shadow-cyan-500/50 transition"
           >
             SEND DEAL
           </button>
