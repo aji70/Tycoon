@@ -25,6 +25,7 @@ import { ApiResponse } from "@/types/api";
 
 const POLL_INTERVAL = 5000; // ms
 const COPY_FEEDBACK_MS = 2000;
+const ERROR_THRESHOLD = 3; // Number of consecutive failures before showing error
 
 export default function GameWaiting(): JSX.Element {
   const router = useRouter();
@@ -45,6 +46,7 @@ export default function GameWaiting(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [consecutiveErrors, setConsecutiveErrors] = useState<number>(0);
 
   // Contract hooks
   const {
@@ -226,7 +228,6 @@ export default function GameWaiting(): JSX.Element {
     let pollTimer: number | null = null;
 
     const fetchOnce = async () => {
-      setError(null);
       try {
         const res = await apiClient.get<ApiResponse>(
           `/games/code/${encodeURIComponent(gameCode)}`
@@ -261,11 +262,18 @@ export default function GameWaiting(): JSX.Element {
           if (updateRes?.data?.success)
             router.push(`/game-play?gameCode=${gameCode}`);
         }
+
+        // Success: reset errors
+        setConsecutiveErrors(0);
+        setError(null);
       } catch (err: any) {
         if (!mountedRef.current) return;
         if (err?.name === "AbortError") return;
         console.error("fetchGame error:", err);
-        setError(err?.message ?? "Failed to fetch game data. Please try again.");
+        setConsecutiveErrors((prev) => prev + 1);
+        if (consecutiveErrors + 1 >= ERROR_THRESHOLD) {
+          setError(err?.message ?? "Failed to fetch game data. Please try again.");
+        }
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -290,7 +298,7 @@ export default function GameWaiting(): JSX.Element {
       abort.abort();
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
+  }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router, consecutiveErrors]);
 
   const playersJoined =
     contractGame?.joinedPlayers ?? game?.players.length ?? 0;
