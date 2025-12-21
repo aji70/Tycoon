@@ -46,12 +46,12 @@ export default function MobileGamePlayers({
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = me && game.next_player_id === me.user_id;
 
-  const resetTradeFields = () => {
-    setOfferCash(0);
-    setRequestCash(0);
-    setOfferProperties([]);
-    setRequestProperties([]);
-  };
+  // const resetTradeFields = () => {
+  //   setOfferCash(0);
+  //   setRequestCash(0);
+  //   setOfferProperties([]);
+  //   setRequestProperties([]);
+  // };
 
   const isMortgaged = useCallback(
     (property_id: number) =>
