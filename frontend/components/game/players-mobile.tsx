@@ -37,7 +37,6 @@ export default function MobileGamePlayers({
     trade: null,
   });
 
-  // trade form states
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
   const [offerCash, setOfferCash] = useState<number>(0);
