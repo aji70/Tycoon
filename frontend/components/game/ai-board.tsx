@@ -438,26 +438,45 @@ const AiBoard = ({
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       {/* Winner Screen */}
-      <AnimatePresence>
-        {winner && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className="bg-gradient-to-br from-yellow-600 to-orange-600 p-16 rounded-3xl shadow-2xl text-center max-w-lg"
-            >
-              <h1 className="text-6xl font-bold mb-6">🏆 Congratulations! 🏆</h1>
-              <p className="text-4xl font-bold">{winner.username} wins the game!</p>
-              <p className="text-2xl mt-8 text-yellow-200">Game Over</p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+  <AnimatePresence>
+  {winner && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.8, rotate: -5 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+        className="bg-gradient-to-br from-yellow-600 to-orange-600 p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 border-yellow-400"
+      >
+        <h1 className="text-6xl font-bold mb-6 drop-shadow-2xl">🏆 Congratulations! 🏆</h1>
+        <p className="text-5xl font-bold text-white mb-4 drop-shadow-lg">
+          {winner.username}
+        </p>
+        <p className="text-3xl font-semibold text-yellow-200 mb-12">wins the game!</p>
+        <p className="text-2xl text-yellow-100 mb-10">Game Over</p>
+
+        {/* Claim Prize Button */}
+        <button
+          onClick={() => {
+            // Redirect to home page
+            window.location.href = "/";
+          }}
+          className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
+        >
+          ✨ Claim Your Prize ✨
+        </button>
+
+        <p className="text-lg text-yellow-200 mt-8 opacity-80">
+          Thank you for playing Tycoon!
+        </p>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
