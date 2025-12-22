@@ -45,6 +45,7 @@ export default function MobileGameLayout({
   const [incomingTrades, setIncomingTrades] = useState<any[]>([]);
   const [aiTradePopup, setAiTradePopup] = useState<any | null>(null);
   const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
+  const [winner, setWinner] = useState<Player | null>(null);
 
   const processedAiTradeIds = useRef<Set<number>>(new Set());
 
@@ -92,6 +93,16 @@ export default function MobileGameLayout({
       ),
     [game?.players]
   );
+
+  // Winner detection
+  useEffect(() => {
+    const activePlayers = game.players.filter(p => p.balance > 0);
+    if (activePlayers.length === 1) {
+      setWinner(activePlayers[0]);
+    } else {
+      setWinner(null);
+    }
+  }, [game.players]);
 
   const toggleSelect = (
     id: number,
@@ -422,6 +433,46 @@ export default function MobileGameLayout({
   return (
     <aside className="w-full h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] overflow-y-auto relative">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80" />
+
+      {/* Winner Screen */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, rotate: -5 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-gradient-to-br from-yellow-600 to-orange-600 p-12 rounded-3xl shadow-2xl text-center max-w-sm w-full border-8 border-yellow-400"
+            >
+              <h1 className="text-5xl font-bold mb-6 drop-shadow-2xl">🏆 Congratulations! 🏆</h1>
+              <p className="text-4xl font-bold text-white mb-4 drop-shadow-lg">
+                {winner.username}
+              </p>
+              <p className="text-2xl font-semibold text-yellow-200 mb-10">wins the game!</p>
+              <p className="text-xl text-yellow-100 mb-8">Game Over</p>
+
+              <button
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+                className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
+              >
+                ✨ Claim Your Prize ✨
+              </button>
+
+              <p className="text-sm text-yellow-200 mt-6 opacity-80">
+                Thank you for playing Tycoon!
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="p-3 space-y-4">
         <motion.h2
           animate={{ textShadow: ["0 0 10px #0ff", "0 0 20px #0ff", "0 0 10px #0ff"] }}
@@ -589,7 +640,7 @@ export default function MobileGameLayout({
         </div>
       </div>
 
-      {/* Property Action Modal - Mobile Optimized */}
+      {/* Property Action Modal */}
       <AnimatePresence>
         {isNext && selectedProperty && (
           <motion.div
@@ -623,7 +674,7 @@ export default function MobileGameLayout({
         )}
       </AnimatePresence>
 
-      {/* AI Trade Offer Popup - Mobile Optimized */}
+      {/* AI Trade Offer Popup */}
       <AnimatePresence>
         {aiTradePopup && (
           <motion.div
@@ -676,7 +727,7 @@ export default function MobileGameLayout({
         )}
       </AnimatePresence>
 
-      {/* AI Response Popup - Mobile Optimized */}
+      {/* AI Response Popup */}
       <AnimatePresence>
         {aiResponsePopup && (
           <motion.div
@@ -726,7 +777,7 @@ export default function MobileGameLayout({
         )}
       </AnimatePresence>
 
-      {/* Trade Modal - Mobile Optimized (Single Column) */}
+      {/* Trade Modal */}
       <TradeModal
         open={tradeModal.open}
         title="CREATE TRADE"
@@ -835,7 +886,6 @@ function TradeModal({
 
         <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8">{title}</h2>
 
-        {/* Single column layout for mobile */}
         <div className="space-y-8">
           <div>
             <h3 className="text-2xl font-bold text-green-400 mb-4 text-center">YOU GIVE</h3>
