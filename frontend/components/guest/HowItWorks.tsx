@@ -91,7 +91,7 @@ const HowItWorks = () => {
                             />
                         ))}
                     </div>
-
+{/* 
                     <button
                         type="button"
                         className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
@@ -114,7 +114,7 @@ const HowItWorks = () => {
                         <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-1">
                             Let&apos;s Go!
                         </span>
-                    </button>
+                    </button> */}
                 </div>
 
             </div>
