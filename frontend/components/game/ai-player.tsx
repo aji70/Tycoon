@@ -14,6 +14,9 @@ interface GamePlayersProps {
   game_properties: GameProperty[];
   my_properties: Property[];
   me: Player | null;
+  currentPlayer: Player | null;
+  roll: { die1: number; die2: number; total: number } | null;
+  isAITurn: boolean;
 }
 
 export default function GamePlayers({
@@ -22,6 +25,9 @@ export default function GamePlayers({
   game_properties,
   my_properties,
   me,
+  currentPlayer,
+  roll,
+  isAITurn,
 }: GamePlayersProps) {
   const { address } = useAccount();
 
@@ -45,6 +51,8 @@ export default function GamePlayers({
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
 
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
   const processedAiTradeIds = useRef<Set<number>>(new Set());
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
@@ -63,8 +71,6 @@ export default function GamePlayers({
       game_properties.find((gp) => gp.property_id === property_id)?.mortgaged ?? false,
     [game_properties]
   );
-
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const developmentStage = useCallback(
     (property_id: number) =>
@@ -406,6 +412,76 @@ export default function GamePlayers({
       toast.error(error?.message || "Failed to unmortgage property");
     }
   };
+
+  // ==================== AI AUTO-LIQUIDATION ====================
+  const aiSellHouses = async (needed: number) => {
+    const improved = game_properties
+      .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
+      .sort((a, b) => {
+        const pa = properties.find(p => p.id === a.property_id);
+        const pb = properties.find(p => p.id === b.property_id);
+        return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
+      });
+
+    let raised = 0;
+    for (const gp of improved) {
+      if (raised >= needed) break;
+      const prop = properties.find(p => p.id === gp.property_id);
+      if (!prop?.cost_of_house) continue;
+
+      const sellValue = Math.floor(prop.cost_of_house / 2);
+      const houses = gp.development ?? 0;
+
+      for (let i = 0; i < houses && raised < needed; i++) {
+        try {
+          await handleDowngrade(gp.property_id);
+          raised += sellValue;
+          toast(`AI sold a house on ${prop.name}`);
+        } catch {
+          break;
+        }
+      }
+    }
+    return raised;
+  };
+
+  const aiMortgageProperties = async (needed: number) => {
+    const unmortgaged = game_properties
+      .filter(gp => gp.address === currentPlayer?.address && !gp.mortgaged && gp.development === 0)
+      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
+      .filter(({ prop }) => prop?.price)
+      .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
+
+    let raised = 0;
+    for (const { gp, prop } of unmortgaged) {
+      if (raised >= needed || !prop) continue;
+      const mortgageValue = Math.floor(prop.price / 2);
+      try {
+        await handleMortgage(gp.property_id);
+        raised += mortgageValue;
+        toast(`AI mortgaged ${prop.name}`);
+      } catch {
+        break;
+      }
+    }
+    return raised;
+  };
+
+  useEffect(() => {
+    if (!isAITurn || !currentPlayer || !roll) return;
+
+    const liquidateIfNeeded = async () => {
+      if (currentPlayer.balance < 300) {
+        toast(`${currentPlayer.username} is low on cash — liquidating assets...`);
+        const needed = 500 - currentPlayer.balance;
+        await aiSellHouses(needed);
+        await aiMortgageProperties(needed);
+      }
+    };
+
+    const timer = setTimeout(liquidateIfNeeded, 2500);
+    return () => clearTimeout(timer);
+  }, [isAITurn, currentPlayer, roll, game_properties, properties]);
 
   return (
     <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 overflow-y-auto relative">
@@ -1001,7 +1077,7 @@ function TradeModal({
         initial={{ scale: 0.9, rotateY: 10 }}
         animate={{ scale: 1, rotateY: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-br from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl shadow-cyan-600/70 overflow-hidden max-w-5xl w-full max-h-[95vh] overflow-y-auto"
+      className="relative bg-gradient-to-br from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl shadow-cyan-600/70 overflow-hidden max-w-5xl w-full max-h-[95vh] overflow-y-auto"
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/10 via-cyan-500/10 to-purple-500/10" />
         <div className="absolute inset-0 opacity-20">
@@ -1060,7 +1136,7 @@ function TradeModal({
                 placeholder="+$ CASH"
                 value={requestCash || ""}
                 onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full mt-8 bg-black/70 border-4 border-red-500 rounded-2xl px-6 py-6 text-red-400 font-bold text-3xl text-center placeholder-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 transition"
+                className="w-full mt-8 bg-black/70 border-4 border-red-500 rounded-2xl px-6 py-6 text-red-400 font-bold text-3xl text-center placeholder-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 Вона transition"
               />
             </div>
           </div>
