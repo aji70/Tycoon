@@ -207,14 +207,29 @@ const AiBoard = ({
   }, [game.history?.length]);
 
   // Winner detection
+   // Winner detection & set game to FINISHED
   useEffect(() => {
     const activePlayers = players.filter(p => p.balance > 0);
+
     if (activePlayers.length === 1) {
-      setWinner(activePlayers[0]);
-    } else if (activePlayers.length === 0) {
+      const theWinner = activePlayers[0];
+
+      // Update backend: set game status to FINISHED and declare winner
+      apiClient
+        .put<ApiResponse>(`/games/${game.id}`, {
+          status: "FINISHED",
+          winner_id: theWinner.user_id,
+        })
+        .catch(err => {
+          console.error("Failed to mark game as finished:", err);
+          toast.error("Game ended but failed to save result");
+        });
+
+      setWinner(theWinner);
+    } else {
       setWinner(null);
     }
-  }, [players]);
+  }, [players, game.id]);
 
   // === RESET TURN STATE ON TURN CHANGE ===
   useEffect(() => {
