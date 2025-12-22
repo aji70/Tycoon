@@ -187,7 +187,9 @@ const MobileGameLayout = ({
   game_properties: GameProperty[];
   me: Player | null;
 }) => {
+  const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
+  const [currentGameProperties, setCurrentGameProperties] = useState<GameProperty[]>(game_properties);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
   const [pendingRoll, setPendingRoll] = useState(0);
@@ -197,7 +199,7 @@ const MobileGameLayout = ({
   const [showLog, setShowLog] = useState(false);
   const [focusedProperty, setFocusedProperty] = useState<Property | null>(null);
 
-  const currentPlayerId = game.next_player_id;
+  const currentPlayerId = currentGame.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
   const isMyTurn = me?.user_id === currentPlayerId;
   const isAITurn =
@@ -215,8 +217,8 @@ const MobileGameLayout = ({
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty) return null;
-    return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
-  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
+    return calculateBuyScore(currentProperty, currentPlayer, currentGameProperties, properties);
+  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, currentGameProperties, properties]);
 
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     toast.dismiss();
@@ -226,14 +228,14 @@ const MobileGameLayout = ({
   }, []);
 
   useEffect(() => {
-    if (game?.players) setPlayers(game.players);
-  }, [game?.players]);
+    if (currentGame?.players) setPlayers(currentGame.players);
+  }, [currentGame?.players]);
 
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
-  }, [game.history?.length]);
+  }, [currentGame.history?.length]);
 
   // === RESET TURN-SPECIFIC STATE WHEN TURN CHANGES ===
   useEffect(() => {
@@ -254,17 +256,22 @@ const MobileGameLayout = ({
 
   const fetchUpdatedGame = useCallback(async () => {
     try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
-      if (res?.data?.success && res.data.data?.players) {
-        setPlayers(res.data.data.players);
+      const gameRes = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
+      if (gameRes?.data?.success && gameRes.data.data) {
+        setCurrentGame(gameRes.data.data);
+        setPlayers(gameRes.data.data.players);
+      }
+      const propertiesRes = await apiClient.get<ApiResponse<GameProperty[]>>(`/game-properties/game/${game.id}`);
+      if (propertiesRes?.data?.success && propertiesRes.data.data) {
+        setCurrentGameProperties(propertiesRes.data.data);
       }
     } catch (err) {
       console.error("Sync failed:", err);
     }
-  }, [game.code]);
+  }, [game.code, game.id]);
 
   useEffect(() => {
-    const interval = setInterval(fetchUpdatedGame, 8000);
+    const interval = setInterval(fetchUpdatedGame, 3000);
     return () => clearInterval(interval);
   }, [fetchUpdatedGame]);
 
@@ -275,7 +282,7 @@ const MobileGameLayout = ({
     try {
       await apiClient.post("/game-players/end-turn", {
         user_id: currentPlayerId,
-        game_id: game.id,
+        game_id: currentGame.id,
       });
       showToast("Turn ended", "success");
       await fetchUpdatedGame();
@@ -284,13 +291,13 @@ const MobileGameLayout = ({
     } finally {
       unlockAction();
     }
-  }, [currentPlayerId, game.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
+  }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
 
   // ==================== BUY PROPERTY ====================
   const BUY_PROPERTY = useCallback(async () => {
     if (!currentPlayer?.position || actionLock) return;
     const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square || game_properties.some((gp) => gp.property_id === square.id)) {
+    if (!square || currentGameProperties.some((gp) => gp.property_id === square.id)) {
       setBuyPrompted(false);
       return;
     }
@@ -298,7 +305,7 @@ const MobileGameLayout = ({
     try {
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
-        game_id: game.id,
+        game_id: currentGame.id,
         property_id: square.id,
       });
 
@@ -309,7 +316,7 @@ const MobileGameLayout = ({
     } catch (err) {
       showToast("Purchase failed", "error");
     }
-  }, [currentPlayer, properties, game_properties, game.id, fetchUpdatedGame, actionLock, END_TURN, showToast]);
+  }, [currentPlayer, properties, currentGameProperties, currentGame.id, fetchUpdatedGame, actionLock, END_TURN, showToast]);
 
   // ==================== ROLL DICE ====================
   const ROLL_DICE = useCallback(async (forAI = false) => {
@@ -335,7 +342,7 @@ const MobileGameLayout = ({
       try {
         await apiClient.post("/game-players/change-position", {
           user_id: playerId,
-          game_id: game.id,
+          game_id: currentGame.id,
           position: newPos,
           rolled: value.total + pendingRoll,
           is_double: value.die1 === value.die2,
@@ -361,7 +368,7 @@ const MobileGameLayout = ({
     }, ROLL_ANIMATION_MS);
   }, [
     isRolling, actionLock, lockAction, unlockAction,
-    currentPlayerId, me, players, pendingRoll, game.id,
+    currentPlayerId, me, players, pendingRoll, currentGame.id,
     fetchUpdatedGame, currentPlayer?.username, END_TURN, showToast
   ]);
 
@@ -382,14 +389,14 @@ const MobileGameLayout = ({
     if (!square) return;
 
     const hasRolled = !!roll;
-    const isOwned = game_properties.some((gp) => gp.property_id === square.id);
+    const isOwned = currentGameProperties.some((gp) => gp.property_id === square.id);
     const action = PROPERTY_ACTION(square.id);
 
     setBuyPrompted(false);
 
     const canBuy = hasRolled && !isOwned && action && ["land", "railway", "utility"].includes(action);
     if (canBuy) setBuyPrompted(true);
-  }, [currentPlayer?.position, roll, properties, game_properties]);
+  }, [currentPlayer?.position, roll, properties, currentGameProperties]);
 
   // ==================== AI AUTO-DECISION ====================
   useEffect(() => {
@@ -426,7 +433,7 @@ const MobileGameLayout = ({
     const square = currentProperty;
     if (!square) return;
 
-    const isOwned = game_properties.some(gp => gp.property_id === square.id);
+    const isOwned = currentGameProperties.some(gp => gp.property_id === square.id);
     const action = PROPERTY_ACTION(square.id);
     const canBuy = !isOwned && action && ["land", "railway", "utility"].includes(action);
 
@@ -434,7 +441,7 @@ const MobileGameLayout = ({
       const timer = setTimeout(() => END_TURN(), 1200);
       return () => clearTimeout(timer);
     }
-  }, [isMyTurn, roll, buyPrompted, actionLock, currentProperty, game_properties, END_TURN]);
+  }, [isMyTurn, roll, buyPrompted, actionLock, currentProperty, currentGameProperties, END_TURN]);
 
   // ==================== UTILITIES ====================
   const playersByPosition = useMemo(() => {
@@ -448,12 +455,12 @@ const MobileGameLayout = ({
   }, [players]);
 
   const propertyOwner = (id: number) => {
-    const gp = game_properties.find((gp) => gp.property_id === id);
+    const gp = currentGameProperties.find((gp) => gp.property_id === id);
     return gp ? players.find((p) => p.address === gp.address)?.username || null : null;
   };
 
   const developmentStage = (id: number) =>
-    game_properties.find((gp) => gp.property_id === id)?.development ?? 0;
+    currentGameProperties.find((gp) => gp.property_id === id)?.development ?? 0;
 
   // Auto-scroll to current position
   useEffect(() => {
@@ -468,6 +475,12 @@ const MobileGameLayout = ({
   // ==================== RENDER ====================
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
+      <button
+        onClick={fetchUpdatedGame}
+        className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
+      >
+        Refresh
+      </button>
       <div ref={boardRef} className="w-full max-w-[95vw] max-h-[60vh] overflow-auto touch-pinch-zoom touch-pan-x touch-pan-y aspect-square relative shadow-2xl shadow-cyan-500/10 mt-4">
         <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100">
           <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden">
@@ -571,7 +584,7 @@ const MobileGameLayout = ({
 
                   <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-10">
                     {playersHere.map((p) => {
-                      const isCurrentPlayer = p.user_id === game.next_player_id;
+                      const isCurrentPlayer = p.user_id === currentGame.next_player_id;
                       return (
                         <motion.span
                           key={p.user_id}
@@ -624,10 +637,10 @@ const MobileGameLayout = ({
           </button>
           {showLog && (
             <div ref={logRef} className="max-h-32 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600">
-              {(!game.history || game.history.length === 0) ? (
+              {(!currentGame.history || currentGame.history.length === 0) ? (
                 <p className="text-center text-gray-500 text-xs italic py-4">No actions yet</p>
               ) : (
-                game.history.slice(-5).map((h, i) => (
+                currentGame.history.slice(-5).map((h, i) => (
                   <motion.p key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-gray-300">
                     <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
                     {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
