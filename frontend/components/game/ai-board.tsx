@@ -421,6 +421,9 @@ const AiBoard = ({
   const developmentStage = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.development ?? 0;
 
+  const isPropertyMortgaged = (id: number) =>
+    game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
@@ -475,7 +478,7 @@ const AiBoard = ({
                 Tycoon
               </h1>
 
-              {/* ROLL BUTTON — NOW FIXED */}
+              {/* ROLL BUTTON */}
               {isMyTurn && !roll && !isRolling && (
                 <button
                   onClick={() => ROLL_DICE(false)}
@@ -556,6 +559,7 @@ const AiBoard = ({
             {properties.map((square) => {
               const playersHere = playersByPosition.get(square.id) ?? [];
               const devLevel = developmentStage(square.id);
+              const mortgaged = isPropertyMortgaged(square.id);
 
               return (
                 <motion.div
@@ -568,18 +572,33 @@ const AiBoard = ({
                   whileHover={{ scale: 1.75, zIndex: 50 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1`}>
+                  <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1 relative`}>
                     {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
                     {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                     {square.type === "corner" && <CornerCard square={square} />}
 
+                    {/* Development indicator */}
                     {square.type === "property" && devLevel > 0 && (
                       <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
                         {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
                       </div>
                     )}
 
-                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">
+                    {/* MORTGAGED OVERLAY */}
+                    {mortgaged && (
+                      <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center z-30 pointer-events-none">
+                        <span className="text-white text-lg font-bold rotate-12 tracking-wider drop-shadow-2xl">
+                          MORTGAGED
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Dim card if mortgaged */}
+                    {mortgaged && (
+                      <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none" />
+                    )}
+
+                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-40">
                       {playersHere.map((p) => {
                         const isCurrentPlayer = p.user_id === game.next_player_id;
                         return (
