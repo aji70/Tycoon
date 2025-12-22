@@ -434,10 +434,15 @@ export default function GamePlayers({
 
       for (let i = 0; i < houses && raised < needed; i++) {
         try {
-          await handleDowngrade(gp.property_id);
+          await apiClient.post("/game-properties/downgrade", {
+            game_id: game.id,
+            user_id: currentPlayer!.user_id,
+            property_id: gp.property_id,
+          });
           raised += sellValue;
-          toast(`AI sold a house on ${prop.name}`);
-        } catch {
+          toast(`AI sold a house on ${prop.name} (raised $${raised})`);
+        } catch (err) {
+          console.error("AI failed to sell house", err);
           break;
         }
       }
@@ -457,31 +462,51 @@ export default function GamePlayers({
       if (raised >= needed || !prop) continue;
       const mortgageValue = Math.floor(prop.price / 2);
       try {
-        await handleMortgage(gp.property_id);
+        await apiClient.post("/game-properties/mortgage", {
+          game_id: game.id,
+          user_id: currentPlayer!.user_id,
+          property_id: gp.property_id,
+        });
         raised += mortgageValue;
-        toast(`AI mortgaged ${prop.name}`);
-      } catch {
-        break;
+        toast(`AI mortgaged ${prop.name} (raised $${raised})`);
+      } catch (err) {
+        console.error("AI failed to mortgage", err);
       }
     }
     return raised;
   };
 
   useEffect(() => {
-    if (!isAITurn || !currentPlayer || !roll) return;
+    if (!isAITurn || !currentPlayer) return;
 
     const liquidateIfNeeded = async () => {
-      if (currentPlayer.balance < 300) {
-        toast(`${currentPlayer.username} is low on cash — liquidating assets...`);
-        const needed = 500 - currentPlayer.balance;
-        await aiSellHouses(needed);
-        await aiMortgageProperties(needed);
+      const balance = currentPlayer.balance;
+      if (balance >= 200) return;
+
+      toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
+
+      const needed = Math.max(600, 200 - balance);
+
+      let raised = 0;
+      raised += await aiSellHouses(needed);
+      raised += await aiMortgageProperties(needed - raised);
+
+      if (currentPlayer.balance < 0) {
+        toast(`${currentPlayer.username} is bankrupt!`);
+        try {
+          await apiClient.post("/game-players/bankrupt", {
+            user_id: currentPlayer.user_id,
+            game_id: game.id,
+          });
+        } catch (err) {
+          console.error("Bankruptcy failed", err);
+        }
       }
     };
 
-    const timer = setTimeout(liquidateIfNeeded, 2500);
+    const timer = setTimeout(liquidateIfNeeded, 3000);
     return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer, roll, game_properties, properties]);
+  }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
 
   return (
     <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 overflow-y-auto relative">
@@ -1077,7 +1102,7 @@ function TradeModal({
         initial={{ scale: 0.9, rotateY: 10 }}
         animate={{ scale: 1, rotateY: 0 }}
         onClick={(e) => e.stopPropagation()}
-      className="relative bg-gradient-to-br from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl shadow-cyan-600/70 overflow-hidden max-w-5xl w-full max-h-[95vh] overflow-y-auto"
+        className="relative bg-gradient-to-br from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl shadow-cyan-600/70 overflow-hidden max-w-5xl w-full max-h-[95vh] overflow-y-auto"
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-pink-500/10 via-cyan-500/10 to-purple-500/10" />
         <div className="absolute inset-0 opacity-20">
@@ -1136,7 +1161,7 @@ function TradeModal({
                 placeholder="+$ CASH"
                 value={requestCash || ""}
                 onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full mt-8 bg-black/70 border-4 border-red-500 rounded-2xl px-6 py-6 text-red-400 font-bold text-3xl text-center placeholder-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 Вона transition"
+                className="w-full mt-8 bg-black/70 border-4 border-red-500 rounded-2xl px-6 py-6 text-red-400 font-bold text-3xl text-center placeholder-red-700 focus:outline-none focus:ring-4 focus:ring-red-500/50 transition"
               />
             </div>
           </div>
