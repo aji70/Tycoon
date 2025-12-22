@@ -67,12 +67,10 @@ const calculateBuyScore = (
   const cash = player.balance;
   let score = 50;
 
-  // 1. Cash safety
   if (cash < price * 1.3) score -= 70;
   else if (cash > price * 3) score += 20;
   else if (cash > price * 2) score += 10;
 
-  // 2. Color set completion
   const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(property.id));
   if (group && !["railroad", "utility"].includes(property.color!)) {
     const owned = group.filter(id =>
@@ -83,7 +81,6 @@ const calculateBuyScore = (
     else if (owned >= 1) score += 35;
   }
 
-  // 3. Railroads & Utilities
   if (property.color === "railroad") {
     const owned = gameProperties.filter(gp =>
       gp.address === player.address &&
@@ -99,16 +96,13 @@ const calculateBuyScore = (
     score += owned * 35;
   }
 
-  // 4. Landing frequency
   const rank = (MONOPOLY_STATS.landingRank as Record<number, number>)[property.id] ?? 25;
   score += (30 - rank);
 
-  // 5. ROI
   const roi = baseRent / price;
   if (roi > 0.12) score += 25;
   else if (roi > 0.08) score += 12;
 
-  // 6. Block opponent
   if (group) {
     const opponentOwns = group.some(id => {
       const gp = gameProperties.find(gp => gp.property_id === id);
@@ -202,6 +196,7 @@ const MobileGameLayout = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [focusedProperty, setFocusedProperty] = useState<Property | null>(null);
+  const [winner, setWinner] = useState<Player | null>(null);
 
   const currentPlayerId = currentGame.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -240,6 +235,16 @@ const MobileGameLayout = ({
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [currentGame.history?.length]);
+
+  // Winner detection
+  useEffect(() => {
+    const activePlayers = players.filter(p => p.balance > 0);
+    if (activePlayers.length === 1) {
+      setWinner(activePlayers[0]);
+    } else {
+      setWinner(null);
+    }
+  }, [players]);
 
   // === RESET TURN-SPECIFIC STATE WHEN TURN CHANGES ===
   useEffect(() => {
@@ -466,6 +471,9 @@ const MobileGameLayout = ({
   const developmentStage = (id: number) =>
     currentGameProperties.find((gp) => gp.property_id === id)?.development ?? 0;
 
+  const isPropertyMortgaged = (id: number) =>
+    currentGameProperties.find((gp) => gp.property_id === id)?.mortgaged === true;
+
   // Auto-scroll to current position
   useEffect(() => {
     if (boardRef.current && currentProperty) {
@@ -485,6 +493,46 @@ const MobileGameLayout = ({
       >
         Refresh
       </button>
+
+      {/* Winner Screen */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, rotate: -5 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-gradient-to-br from-yellow-600 to-orange-600 p-12 rounded-3xl shadow-2xl text-center max-w-sm w-full border-8 border-yellow-400"
+            >
+              <h1 className="text-5xl font-bold mb-6 drop-shadow-2xl">🏆 Congratulations! 🏆</h1>
+              <p className="text-4xl font-bold text-white mb-4 drop-shadow-lg">
+                {winner.username}
+              </p>
+              <p className="text-2xl font-semibold text-yellow-200 mb-10">wins the game!</p>
+              <p className="text-xl text-yellow-100 mb-8">Game Over</p>
+
+              <button
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+                className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
+              >
+                ✨ Claim Your Prize ✨
+              </button>
+
+              <p className="text-sm text-yellow-200 mt-6 opacity-80">
+                Thank you for playing Tycoon!
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div ref={boardRef} className="w-full max-w-[95vw] max-h-[60vh] overflow-auto touch-pinch-zoom touch-pan-x touch-pan-y aspect-square relative shadow-2xl shadow-cyan-500/10 mt-4">
         <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100">
           <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden">
@@ -561,6 +609,7 @@ const MobileGameLayout = ({
           {properties.map((square) => {
             const playersHere = playersByPosition.get(square.id) ?? [];
             const devLevel = developmentStage(square.id);
+            const mortgaged = isPropertyMortgaged(square.id);
 
             // Determine development badge position
             let devPositionClass = "";
@@ -568,7 +617,7 @@ const MobileGameLayout = ({
             else if (isBottomRow(square)) devPositionClass = "top-1 left-1/2 -translate-x-1/2";
             else if (isLeftColumn(square)) devPositionClass = "top-1/2 -translate-y-1/2 right-1";
             else if (isRightColumn(square)) devPositionClass = "top-1/2 -translate-y-1/2 left-1";
-            else devPositionClass = "top-0.5 right-0.5"; // fallback
+            else devPositionClass = "top-0.5 right-0.5";
 
             return (
               <motion.div
@@ -588,15 +637,29 @@ const MobileGameLayout = ({
                   {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                   {square.type === "corner" && <CornerCard square={square} />}
 
-                  {/* Development Badge - Houses/Hotel */}
+                  {/* Development Badge */}
                   {square.type === "property" && devLevel > 0 && (
                     <div className={`absolute ${devPositionClass} z-20 bg-yellow-500 text-black text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center shadow-lg`}>
                       {devLevel === 5 ? "🏨" : devLevel}
                     </div>
                   )}
 
-                  {/* Player Tokens - Always on top */}
-                  <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-30 pointer-events-none">
+                  {/* MORTGAGED OVERLAY */}
+                  {mortgaged && (
+                    <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center z-30 pointer-events-none rounded-sm">
+                      <span className="text-white text-xs font-bold rotate-12 tracking-wider drop-shadow-2xl px-2 py-1 bg-red-800/80 rounded">
+                        MORTGAGED
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Dim if mortgaged */}
+                  {mortgaged && (
+                    <div className="absolute inset-0 bg-black/60 z-10 pointer-events-none rounded-sm" />
+                  )}
+
+                  {/* Player Tokens */}
+                  <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-40 pointer-events-none">
                     {playersHere.map((p) => {
                       const isCurrentPlayer = p.user_id === currentGame.next_player_id;
                       return (
@@ -627,7 +690,7 @@ const MobileGameLayout = ({
         </div>
       </div>
 
-      {/* Rest of UI (Roll button, log, buy prompt, modal, toaster) remains unchanged */}
+      {/* Rest of UI */}
       <div className="w-full max-w-[95vw] flex flex-col items-center p-4 gap-4">
         {isMyTurn && !roll && !isRolling && (
           <button
@@ -664,6 +727,7 @@ const MobileGameLayout = ({
         </div>
       </div>
 
+      {/* Buy Prompt */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && currentProperty && (
           <motion.div
@@ -697,6 +761,7 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
+      {/* Focused Property Modal */}
       <AnimatePresence>
         {focusedProperty && (
           <motion.div
@@ -749,6 +814,9 @@ const MobileGameLayout = ({
                   <p className="text-lg">
                     Development: {developmentStage(focusedProperty.id) === 5 ? "Hotel" : `${developmentStage(focusedProperty.id)} Houses`}
                   </p>
+                )}
+                {isPropertyMortgaged(focusedProperty.id) && (
+                  <p className="text-lg text-red-400 font-bold animate-pulse">MORTGAGED</p>
                 )}
               </div>
             </motion.div>
