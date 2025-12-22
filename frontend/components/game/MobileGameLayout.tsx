@@ -173,7 +173,11 @@ const getMockCardMessage = (type: "chance" | "community_chest") => {
   return cards[Math.floor(Math.random() * cards.length)];
 };
 
-const isTopHalf = (square: Property) => square.grid_row === 1;
+// ==================== POSITION HELPERS ====================
+const isTopRow = (square: Property) => square.grid_row === 1;
+const isBottomRow = (square: Property) => square.grid_row === 11;
+const isLeftColumn = (square: Property) => square.grid_col === 1;
+const isRightColumn = (square: Property) => square.grid_col === 11;
 
 // ==================== MAIN COMPONENT ====================
 const MobileGameLayout = ({
@@ -558,6 +562,14 @@ const MobileGameLayout = ({
             const playersHere = playersByPosition.get(square.id) ?? [];
             const devLevel = developmentStage(square.id);
 
+            // Determine development badge position
+            let devPositionClass = "";
+            if (isTopRow(square)) devPositionClass = "bottom-1 left-1/2 -translate-x-1/2";
+            else if (isBottomRow(square)) devPositionClass = "top-1 left-1/2 -translate-x-1/2";
+            else if (isLeftColumn(square)) devPositionClass = "top-1/2 -translate-y-1/2 right-1";
+            else if (isRightColumn(square)) devPositionClass = "top-1/2 -translate-y-1/2 left-1";
+            else devPositionClass = "top-0.5 right-0.5"; // fallback
+
             return (
               <motion.div
                 key={square.id}
@@ -571,37 +583,37 @@ const MobileGameLayout = ({
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={() => setFocusedProperty(square)}
               >
-                <div className={`w-full h-full transform group-hover:scale-150 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5`}>
+                <div className={`w-full h-full transform group-hover:scale-150 ${isTopRow(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5 relative`}>
                   {square.type === "property" && <PropertyCardMobile square={square} owner={propertyOwner(square.id)} />}
                   {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                   {square.type === "corner" && <CornerCard square={square} />}
 
+                  {/* Development Badge - Houses/Hotel */}
                   {square.type === "property" && devLevel > 0 && (
-                    <div className="absolute top-0.5 right-0.5 bg-yellow-500 text-black text-xxs font-bold rounded px-0.5 z-20 flex items-center gap-0.5">
-                      {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
+                    <div className={`absolute ${devPositionClass} z-20 bg-yellow-500 text-black text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center shadow-lg`}>
+                      {devLevel === 5 ? "🏨" : devLevel}
                     </div>
                   )}
 
-                  <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-10">
+                  {/* Player Tokens - Always on top */}
+                  <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-30 pointer-events-none">
                     {playersHere.map((p) => {
                       const isCurrentPlayer = p.user_id === currentGame.next_player_id;
                       return (
                         <motion.span
                           key={p.user_id}
                           title={`${p.username} (${p.balance})`}
-                          className={`text-lg border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`}
+                          className={`text-xl border-2 rounded-full ${isCurrentPlayer ? 'border-cyan-300 shadow-lg shadow-cyan-400/50' : 'border-gray-600'}`}
                           initial={{ scale: 1 }}
                           animate={{
                             y: isCurrentPlayer ? [0, -4, 0] : [0, -2, 0],
-                            scale: isCurrentPlayer ? [1, 1.05, 1] : 1,
-                            rotate: isCurrentPlayer ? [0, 3, -3, 0] : 0,
+                            scale: isCurrentPlayer ? [1, 1.1, 1] : 1,
                           }}
                           transition={{
                             y: { duration: isCurrentPlayer ? 1.2 : 2, repeat: Infinity, ease: "easeInOut" },
-                            scale: { duration: isCurrentPlayer ? 1.2 : 0, repeat: Infinity, ease: "easeInOut" },
-                            rotate: { duration: isCurrentPlayer ? 1.5 : 0, repeat: Infinity, ease: "easeInOut" },
+                            scale: { duration: isCurrentPlayer ? 1.2 : 0, repeat: Infinity },
                           }}
-                          whileHover={{ scale: 1.1, y: -1 }}
+                          whileHover={{ scale: 1.2, y: -2 }}
                         >
                           {getPlayerSymbol(p.symbol)}
                         </motion.span>
@@ -615,8 +627,8 @@ const MobileGameLayout = ({
         </div>
       </div>
 
+      {/* Rest of UI (Roll button, log, buy prompt, modal, toaster) remains unchanged */}
       <div className="w-full max-w-[95vw] flex flex-col items-center p-4 gap-4">
-        {/* ROLL BUTTON - NOW RELIABLE */}
         {isMyTurn && !roll && !isRolling && (
           <button
             onClick={() => ROLL_DICE(false)}
@@ -652,7 +664,6 @@ const MobileGameLayout = ({
         </div>
       </div>
 
-      {/* BUY PROMPT */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && currentProperty && (
           <motion.div
@@ -686,7 +697,6 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
-      {/* PROPERTY INSPECT MODAL */}
       <AnimatePresence>
         {focusedProperty && (
           <motion.div
