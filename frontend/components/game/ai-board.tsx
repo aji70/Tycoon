@@ -167,6 +167,7 @@ const AiBoard = ({
   const [pendingRoll, setPendingRoll] = useState(0);
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
+  const [winner, setWinner] = useState<Player | null>(null);
 
   const currentPlayerId = game.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -204,6 +205,16 @@ const AiBoard = ({
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [game.history?.length]);
+
+  // Winner detection
+  useEffect(() => {
+    const activePlayers = players.filter(p => p.balance > 0);
+    if (activePlayers.length === 1) {
+      setWinner(activePlayers[0]);
+    } else if (activePlayers.length === 0) {
+      setWinner(null);
+    }
+  }, [players]);
 
   // === RESET TURN STATE ON TURN CHANGE ===
   useEffect(() => {
@@ -426,6 +437,28 @@ const AiBoard = ({
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
+      {/* Winner Screen */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="bg-gradient-to-br from-yellow-600 to-orange-600 p-16 rounded-3xl shadow-2xl text-center max-w-lg"
+            >
+              <h1 className="text-6xl font-bold mb-6">🏆 Congratulations! 🏆</h1>
+              <p className="text-4xl font-bold">{winner.username} wins the game!</p>
+              <p className="text-2xl mt-8 text-yellow-200">Game Over</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
