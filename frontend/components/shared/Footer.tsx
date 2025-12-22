@@ -13,32 +13,49 @@ const Footer = () => {
         <Logo className="md:w-[60px] w-[55px]" image={logo} href="/" />
 
         <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400]">
-          ©{new Date().getFullYear()} Blockopoly &bull; All rights reserved.{" "}
+          ©{new Date().getFullYear()} Tycoon &bull; All rights reserved.
         </p>
 
         <div className="flex items-center gap-5">
           <Link
-            href="/"
+            href="https://facebook.com/ajidokwu"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[#F0F7F7] hover:text-[#00F0FF] transition-colors duration-300 ease-in-out text-[20px]"
+            aria-label="Facebook"
           >
             <FiFacebook />
           </Link>
+
           <Link
-            href="/"
+            href="https://x.com/blockopoly1"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[#F0F7F7] hover:text-[#00F0FF] transition-colors duration-300 ease-in-out text-[20px]"
+            aria-label="X (Twitter)"
           >
             <RiTwitterXFill />
           </Link>
+
           <Link
-            href="/"
+            href="https://github.com/Tyoon"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[#F0F7F7] hover:text-[#00F0FF] transition-colors duration-300 ease-in-out text-[20px]"
+            aria-label="GitHub"
           >
             <FiGithub />
           </Link>
+
           <Link
-            href="/"
+            href="https://t.me/+xJLEjw9tbyQwMGVk"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[#F0F7F7] hover:text-[#00F0FF] transition-colors duration-300 ease-in-out text-[20px]"
+            aria-label="Telegram"
           >
+            {/* Note: react-icons doesn't have a Telegram icon in the free set, so keeping Discord as placeholder */}
+            {/* If you install react-icons/tg or use a custom SVG, replace RxDiscordLogo with the correct icon */}
             <RxDiscordLogo />
           </Link>
         </div>
