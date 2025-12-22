@@ -517,7 +517,6 @@ export default function GamePlayers({
           </AnimatePresence>
         </div>
 
-        {/* COMPACT TRADES SECTION */}
         <div className="border-t-4 border-pink-600 pt-4">
           <button
             onClick={toggleTrade}
@@ -660,7 +659,6 @@ export default function GamePlayers({
         </div>
       </div>
 
-      {/* Property Action Modal */}
       <AnimatePresence>
         {isNext && selectedProperty && (
           <motion.div
@@ -695,7 +693,6 @@ export default function GamePlayers({
         )}
       </AnimatePresence>
 
-      {/* AI Trade Offer Popup (AI → You) */}
       <AnimatePresence>
         {aiTradePopup && (
           <motion.div
@@ -809,7 +806,6 @@ export default function GamePlayers({
         )}
       </AnimatePresence>
 
-      {/* AI Response Popup (You → AI) */}
       <AnimatePresence>
         {aiResponsePopup && (
           <motion.div
@@ -901,7 +897,6 @@ export default function GamePlayers({
         )}
       </AnimatePresence>
 
-      {/* Trade Modal (Create & Counter) */}
       <TradeModal
         open={tradeModal.open}
         title={`Trade with ${tradeModal.target?.username || "Player"}`}
