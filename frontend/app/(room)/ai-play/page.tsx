@@ -94,6 +94,22 @@ export default function GamePlayPage() {
       .sort((a, b) => a.id - b.id);
   }, [game_properties, properties, address]);
 
+  // Compute current player and AI status
+  const currentPlayer = useMemo<Player | null>(() => {
+    if (!game?.next_player_id || !game?.players) return null;
+    return game.players.find(p => p.user_id === game.next_player_id) || null;
+  }, [game]);
+
+  const isAITurn = useMemo<boolean>(() => {
+    if (!currentPlayer) return false;
+    const username = currentPlayer.username?.toLowerCase() || "";
+    return username.includes("ai_") || username.includes("bot") || username.includes("computer");
+  }, [currentPlayer]);
+
+  // roll is not available here (managed inside AiBoard), so pass null
+  // The AI liquidation uses low balance as trigger, so null is safe
+  const roll = null;
+
   const [activeTab, setActiveTab] = useState<"board" | "players">("board");
 
   if (gameLoading || propertiesLoading) {
@@ -116,11 +132,10 @@ export default function GamePlayPage() {
     );
   }
 
-  // Mobile Layout with mt-[100px]
+  // Mobile Layout
   if (isMobile) {
     return (
       <main className="w-full h-screen flex flex-col overflow-hidden bg-[#010F10] mt-[100px]">
-        {/* Main Content Area */}
         <div className="flex-1 w-full overflow-hidden">
           {activeTab === "board" ? (
             <MobileGameLayout
@@ -140,7 +155,6 @@ export default function GamePlayPage() {
           )}
         </div>
 
-        {/* Bottom Tab Bar */}
         <nav className="fixed bottom-0 left-0 right-0 h-20 pb-safe bg-[#010F10]/95 backdrop-blur-xl border-t border-[#003B3E] flex items-center justify-around z-50 shadow-2xl">
           <button
             onClick={() => setActiveTab("board")}
@@ -170,7 +184,7 @@ export default function GamePlayPage() {
     );
   }
 
-  // Desktop Layout (no top margin needed)
+  // Desktop Layout
   return (
     <main className="w-full h-screen overflow-hidden relative flex flex-row bg-[#010F10] lg:gap-4 p-4">
       <div className="hidden lg:block w-80 flex-shrink-0">
@@ -180,6 +194,9 @@ export default function GamePlayPage() {
           game_properties={game_properties}
           my_properties={my_properties}
           me={me}
+          currentPlayer={currentPlayer}
+          roll={roll}
+          isAITurn={isAITurn}
         />
       </div>
 
@@ -191,10 +208,6 @@ export default function GamePlayPage() {
           me={me}
         />
       </div>
-
-      {/* <div className="hidden lg:block w-80 flex-shrink-0">
-        <GameRoom />
-      </div> */}
 
       <button
         onClick={() => setActiveTab("players")}
