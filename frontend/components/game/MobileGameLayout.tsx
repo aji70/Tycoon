@@ -122,7 +122,7 @@ const calculateBuyScore = (
 
 // ==================== DICE & MOCK CARDS ====================
 const BOARD_SQUARES = 40;
-const ROLL_ANIMATION_MS = 800; // Reduced for mobile snappiness
+const ROLL_ANIMATION_MS = 800;
 
 const DiceFace = ({ value }: { value: number }) => {
   const dotPositions: Record<number, [number, number][]> = {
@@ -139,7 +139,7 @@ const DiceFace = ({ value }: { value: number }) => {
       {dotPositions[value].map(([x, y], i) => (
         <div
           key={i}
-          className="absolute w-5 h-5 bg-black rounded-full shadow-inner" // Smaller dots for mobile
+          className="absolute w-5 h-5 bg-black rounded-full shadow-inner"
           style={{
             top: `${y}%`,
             left: `${x}%`,
@@ -194,8 +194,8 @@ const MobileGameLayout = ({
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [currentCard, setCurrentCard] = useState<CardPopup | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
-  const [showLog, setShowLog] = useState(false); // For collapsible log
-  const [focusedProperty, setFocusedProperty] = useState<Property | null>(null); // For modal inspect
+  const [showLog, setShowLog] = useState(false);
+  const [focusedProperty, setFocusedProperty] = useState<Property | null>(null);
 
   const currentPlayerId = game.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -209,24 +209,17 @@ const MobileGameLayout = ({
   const rolledForPlayerId = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
 
-  
-
-  // Current landed property
   const currentProperty = currentPlayer?.position
     ? properties.find(p => p.id === currentPlayer.position)
     : null;
 
-  // AI Buy Confidence
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty) return null;
     return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
-  // Toast helper to prevent multiples
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    // Dismiss any existing toast first
     toast.dismiss();
-
     if (type === "success") toast.success(message);
     else if (type === "error") toast.error(message);
     else toast(message, { icon: "➤" });
@@ -241,6 +234,15 @@ const MobileGameLayout = ({
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [game.history?.length]);
+
+  // === RESET TURN-SPECIFIC STATE WHEN TURN CHANGES ===
+  useEffect(() => {
+    setRoll(null);
+    setBuyPrompted(false);
+    setIsRolling(false);
+    setPendingRoll(0);
+    rolledForPlayerId.current = null;
+  }, [currentPlayerId]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -276,9 +278,6 @@ const MobileGameLayout = ({
         game_id: game.id,
       });
       showToast("Turn ended", "success");
-      setRoll(null);
-      setBuyPrompted(false);
-      rolledForPlayerId.current = null;
       await fetchUpdatedGame();
     } catch {
       showToast("Failed to end turn", "error");
@@ -306,8 +305,6 @@ const MobileGameLayout = ({
       showToast(`You bought ${square.name}!`, "success");
       setBuyPrompted(false);
       await fetchUpdatedGame();
-
-      // AUTO END TURN AFTER BUYING
       setTimeout(END_TURN, 1000);
     } catch (err) {
       showToast("Purchase failed", "error");
@@ -370,11 +367,11 @@ const MobileGameLayout = ({
 
   // ==================== AI AUTO-ROLL ====================
   useEffect(() => {
-    if (!isAITurn || isRolling || actionLock || (currentPlayer?.rolls ?? 0) > 0 || rolledForPlayerId.current === currentPlayerId) return;
+    if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
 
     const timer = setTimeout(() => ROLL_DICE(true), 1200);
     return () => clearTimeout(timer);
-  }, [isAITurn, isRolling, actionLock, currentPlayer?.rolls, currentPlayerId, ROLL_DICE]);
+  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
   // ==================== LANDING LOGIC + BUY PROMPT ====================
   useEffect(() => {
@@ -384,7 +381,7 @@ const MobileGameLayout = ({
     const square = properties.find((p) => p.id === currentPlayer.position);
     if (!square) return;
 
-    const hasRolled = (currentPlayer.rolls ?? 0) > 0;
+    const hasRolled = !!roll;
     const isOwned = game_properties.some((gp) => gp.property_id === square.id);
     const action = PROPERTY_ACTION(square.id);
 
@@ -392,20 +389,14 @@ const MobileGameLayout = ({
 
     const canBuy = hasRolled && !isOwned && action && ["land", "railway", "utility"].includes(action);
     if (canBuy) setBuyPrompted(true);
-  }, [
-    currentPlayer?.position,
-    currentPlayer?.rolls,
-    properties,
-    game_properties,
-    currentPlayerId,
-  ]);
+  }, [currentPlayer?.position, roll, properties, game_properties]);
 
-  // ==================== AI AUTO-DECISION (BUY OR SKIP) ====================
+  // ==================== AI AUTO-DECISION ====================
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
 
     const timer = setTimeout(async () => {
-      const shouldBuy = buyScore >= 60; // Tune this threshold!
+      const shouldBuy = buyScore >= 60;
 
       if (shouldBuy) {
         showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
@@ -414,28 +405,23 @@ const MobileGameLayout = ({
         showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
       }
 
-      // End turn after decision
       setTimeout(END_TURN, shouldBuy ? 1300 : 900);
     }, 1800);
 
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // ==================== AI AUTO-END TURN (no buy needed) ====================
+  // ==================== AI AUTO-END TURN (no action needed) ====================
   useEffect(() => {
-    if (!isAITurn || (currentPlayer?.rolls ?? 0) === 0 || buyPrompted || actionLock) return;
+    if (!isAITurn || !roll || buyPrompted || actionLock) return;
 
-    const timer = setTimeout(() => {
-      END_TURN();
-    }, 1500);
-
+    const timer = setTimeout(() => END_TURN(), 1500);
     return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer?.rolls, buyPrompted, actionLock, END_TURN]);
+  }, [isAITurn, roll, buyPrompted, actionLock, END_TURN]);
 
   // ==================== HUMAN AUTO-END TURN (no buy needed) ====================
   useEffect(() => {
-    if (!isMyTurn || isRolling || actionLock) return;
-    if (!currentPlayer?.rolls || currentPlayer.rolls === 0) return;
+    if (!isMyTurn || !roll || buyPrompted || actionLock) return;
 
     const square = currentProperty;
     if (!square) return;
@@ -444,25 +430,11 @@ const MobileGameLayout = ({
     const action = PROPERTY_ACTION(square.id);
     const canBuy = !isOwned && action && ["land", "railway", "utility"].includes(action);
 
-    // If player CAN buy → wait for decision (buyPrompted handles it)
-    // If player CANNOT buy → auto-end turn
-    if (!canBuy && !buyPrompted) {
-      const timer = setTimeout(() => {
-        END_TURN();
-      }, 1200); // Small delay for visual clarity
-
+    if (!canBuy) {
+      const timer = setTimeout(() => END_TURN(), 1200);
       return () => clearTimeout(timer);
     }
-  }, [
-    isMyTurn,
-    isRolling,
-    actionLock,
-    currentPlayer?.rolls,
-    currentProperty,
-    game_properties,
-    buyPrompted,
-    END_TURN
-  ]);
+  }, [isMyTurn, roll, buyPrompted, actionLock, currentProperty, game_properties, END_TURN]);
 
   // ==================== UTILITIES ====================
   const playersByPosition = useMemo(() => {
@@ -483,9 +455,7 @@ const MobileGameLayout = ({
   const developmentStage = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.development ?? 0;
 
-  
-
-  // Auto-focus on current position after roll
+  // Auto-scroll to current position
   useEffect(() => {
     if (boardRef.current && currentProperty) {
       const squareElement = boardRef.current.querySelector(`[data-position="${currentProperty.id}"]`);
@@ -498,25 +468,21 @@ const MobileGameLayout = ({
   // ==================== RENDER ====================
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
-      {/* Board Section - Scaled and Zoomable */}
       <div ref={boardRef} className="w-full max-w-[95vw] max-h-[60vh] overflow-auto touch-pinch-zoom touch-pan-x touch-pan-y aspect-square relative shadow-2xl shadow-cyan-500/10 mt-4">
-        <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100"> {/* Reduced gap and scale for mobile */}
-          {/* CENTER PANEL */}
-          <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden"> {/* Reduced padding */}
-
-            {/* Rolling Dice Animation */}
+        <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100">
+          <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden">
             <AnimatePresence>
               {isRolling && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
-                  className="absolute inset-0 flex items-center justify-center gap-8 z-20 pointer-events-none" // Smaller gap
+                  className="absolute inset-0 flex items-center justify-center gap-8 z-20 pointer-events-none"
                 >
                   <motion.div
                     animate={{ rotateX: [0, 360, 720, 1080], rotateY: [0, 360, -360, 720] }}
-                    transition={{ duration: 0.8, ease: "easeOut" }} // Shorter duration
-                    className="relative w-20 h-20 bg-white rounded-xl shadow-2xl border-2 border-gray-800" // Smaller dice
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="relative w-20 h-20 bg-white rounded-xl shadow-2xl border-2 border-gray-800"
                     style={{ boxShadow: "0 15px 30px rgba(0,0,0,0.7), inset 0 5px 10px rgba(255,255,255,0.5)" }}
                   >
                     {roll ? <DiceFace value={roll.die1} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-4xl font-bold text-gray-400">?</motion.div>}
@@ -537,7 +503,7 @@ const MobileGameLayout = ({
               <motion.div
                 initial={{ scale: 0, y: 50 }}
                 animate={{ scale: 1, y: 0 }}
-                className="flex items-center gap-4 text-5xl font-bold mb-2" // Smaller text
+                className="flex items-center gap-4 text-5xl font-bold mb-2"
               >
                 <span className="text-cyan-400 drop-shadow-2xl">{roll.die1}</span>
                 <span className="text-white text-4xl">+</span>
@@ -547,36 +513,34 @@ const MobileGameLayout = ({
               </motion.div>
             )}
 
-            <h1 className="text-2xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4 z-10"> {/* Smaller title */}
+            <h1 className="text-2xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4 z-10">
               Tycoon
             </h1>
 
-            {/* AI TURN Indicator */}
             {isAITurn && (
               <div className="mt-2 text-center z-10">
                 <motion.h2
-                  className="text-lg font-bold text-pink-300 mb-2" // Smaller text
+                  className="text-lg font-bold text-pink-300 mb-2"
                   animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                 >
-                 {currentPlayer?.username} is playing…
+                  {currentPlayer?.username} is playing…
                 </motion.h2>
                 {buyPrompted && buyScore !== null && (
-                  <p className="text-sm text-yellow-300 font-bold"> {/* Smaller */}
+                  <p className="text-sm text-yellow-300 font-bold">
                     Buy Confidence: {buyScore}%
                   </p>
                 )}
                 <div className="flex justify-center mt-2">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div> {/* Smaller spinner */}
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div>
                 </div>
-                <p className="text-pink-200 text-xs italic mt-2"> {/* Smaller */}
-                  {currentPlayer?.username}• Decides automatically
+                <p className="text-pink-200 text-xs italic mt-2">
+                  {currentPlayer?.username} • Decides automatically
                 </p>
               </div>
             )}
           </div>
 
-          {/* Board Squares */}
           {properties.map((square) => {
             const playersHere = playersByPosition.get(square.id) ?? [];
             const devLevel = developmentStage(square.id);
@@ -584,59 +548,45 @@ const MobileGameLayout = ({
             return (
               <motion.div
                 key={square.id}
-                data-position={square.id} // For scrolling to
+                data-position={square.id}
                 style={{
                   gridRowStart: square.grid_row,
                   gridColumnStart: square.grid_col,
                 }}
-                className="w-full h-full p-[1px] relative box-border group hover:z-10 transition-transform duration-200" // Reduced padding
-                whileHover={{ scale: 1.5, zIndex: 50 }} // Reduced hover scale for mobile
+                className="w-full h-full p-[1px] relative box-border group hover:z-10 transition-transform duration-200"
+                whileHover={{ scale: 1.5, zIndex: 50 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                onClick={() => setFocusedProperty(square)} // Tap to inspect
+                onClick={() => setFocusedProperty(square)}
               >
-                <div className={`w-full h-full transform group-hover:scale-150 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5`}> {/* Smaller padding, reduced transform */}
+                <div className={`w-full h-full transform group-hover:scale-150 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5`}>
                   {square.type === "property" && <PropertyCardMobile square={square} owner={propertyOwner(square.id)} />}
                   {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                   {square.type === "corner" && <CornerCard square={square} />}
 
                   {square.type === "property" && devLevel > 0 && (
-                    <div className="absolute top-0.5 right-0.5 bg-yellow-500 text-black text-xxs font-bold rounded px-0.5 z-20 flex items-center gap-0.5"> {/* Smaller */}
+                    <div className="absolute top-0.5 right-0.5 bg-yellow-500 text-black text-xxs font-bold rounded px-0.5 z-20 flex items-center gap-0.5">
                       {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
                     </div>
                   )}
 
-                  <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-10"> {/* Stack vertically for multiple players */}
+                  <div className="absolute bottom-0.5 left-0.5 flex flex-col gap-1 z-10">
                     {playersHere.map((p) => {
                       const isCurrentPlayer = p.user_id === game.next_player_id;
                       return (
                         <motion.span
                           key={p.user_id}
                           title={`${p.username} (${p.balance})`}
-                          className={`text-lg border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`} // Smaller symbols
+                          className={`text-lg border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`}
                           initial={{ scale: 1 }}
                           animate={{
-                            y: isCurrentPlayer 
-                              ? [0, -4, 0]  // Less bouncy
-                              : [0, -2, 0],
+                            y: isCurrentPlayer ? [0, -4, 0] : [0, -2, 0],
                             scale: isCurrentPlayer ? [1, 1.05, 1] : 1,
                             rotate: isCurrentPlayer ? [0, 3, -3, 0] : 0,
                           }}
                           transition={{
-                            y: {
-                              duration: isCurrentPlayer ? 1.2 : 2,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            },
-                            scale: {
-                              duration: isCurrentPlayer ? 1.2 : 0,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            },
-                            rotate: {
-                              duration: isCurrentPlayer ? 1.5 : 0,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            },
+                            y: { duration: isCurrentPlayer ? 1.2 : 2, repeat: Infinity, ease: "easeInOut" },
+                            scale: { duration: isCurrentPlayer ? 1.2 : 0, repeat: Infinity, ease: "easeInOut" },
+                            rotate: { duration: isCurrentPlayer ? 1.5 : 0, repeat: Infinity, ease: "easeInOut" },
                           }}
                           whileHover={{ scale: 1.1, y: -1 }}
                         >
@@ -652,20 +602,18 @@ const MobileGameLayout = ({
         </div>
       </div>
 
-      {/* Controls Section - Below Board */}
       <div className="w-full max-w-[95vw] flex flex-col items-center p-4 gap-4">
-        {/* HUMAN TURN Controls */}
-        {isMyTurn && !currentPlayer?.rolls ? (
+        {/* ROLL BUTTON - NOW RELIABLE */}
+        {isMyTurn && !roll && !isRolling && (
           <button
             onClick={() => ROLL_DICE(false)}
             disabled={isRolling}
-            className="w-[80vw] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl" // Enlarged for touch
+            className="w-[80vw] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
           >
             {isRolling ? "Rolling..." : "Roll Dice"}
           </button>
-        ) : null}
+        )}
 
-        {/* Action Log - Collapsible */}
         <div className="w-full bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden">
           <button 
             onClick={() => setShowLog(!showLog)}
@@ -675,11 +623,11 @@ const MobileGameLayout = ({
             <span>{showLog ? '▲' : '▼'}</span>
           </button>
           {showLog && (
-            <div ref={logRef} className="max-h-32 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600"> {/* Limited height */}
+            <div ref={logRef} className="max-h-32 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600">
               {(!game.history || game.history.length === 0) ? (
                 <p className="text-center text-gray-500 text-xs italic py-4">No actions yet</p>
               ) : (
-                game.history.slice(-5).map((h, i) => ( // Show last 5 for brevity
+                game.history.slice(-5).map((h, i) => (
                   <motion.p key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-gray-300">
                     <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
                     {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
@@ -691,16 +639,16 @@ const MobileGameLayout = ({
         </div>
       </div>
 
-      {/* Buy Prompt as Bottom Sheet */}
+      {/* BUY PROMPT */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && currentProperty && (
-        <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 20 }}
-        className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md p-4 rounded-t-2xl shadow-2xl z-[60] flex flex-col items-center gap-4"  // Changed to z-[60]
-        >
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 20 }}
+            className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md p-4 rounded-t-2xl shadow-2xl z-[60] flex flex-col items-center gap-4"
+          >
             <h3 className="text-lg font-bold text-white">Buy {currentProperty.name}?</h3>
             <p className="text-sm text-gray-300">Price: ${currentProperty.price}</p>
             <div className="flex gap-4 w-full justify-center">
@@ -725,32 +673,7 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
-      {/* Property Inspect Modal */}
-      <AnimatePresence>
-        {focusedProperty && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 flex items-center justify-center z-50 bg-black/70"
-            onClick={() => setFocusedProperty(null)}
-          >
-            <motion.div
-              className="max-w-md w-4/5 p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-cyan-500/30"
-              onClick={e => e.stopPropagation()}
-            >
-              <button onClick={() => setFocusedProperty(null)} className="absolute top-2 right-2 text-xl hover:text-white">X</button>
-              {/* Render enlarged PropertyCard or details here */}
-              {focusedProperty.type === "property" && <PropertyCardMobile square={focusedProperty} owner={propertyOwner(focusedProperty.id)} />}
-              {/* Add more details like rent, owner, etc. */}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-   
-
-      {/* BIG CARD MODAL */}
+      {/* PROPERTY INSPECT MODAL */}
       <AnimatePresence>
         {focusedProperty && (
           <motion.div
@@ -768,7 +691,6 @@ const MobileGameLayout = ({
               className="relative max-w-lg w-full bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-cyan-500/40 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Close button */}
               <button
                 onClick={() => setFocusedProperty(null)}
                 className="absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-black/50 flex items-center justify-center text-2xl hover:bg-black/70 transition"
@@ -776,7 +698,6 @@ const MobileGameLayout = ({
                 ×
               </button>
 
-              {/* Large card */}
               <div className="p-6 pt-12">
                 {["community_chest", "chance", "luxury_tax", "income_tax"].includes(focusedProperty.type) && (
                   <SpecialCard square={focusedProperty} />
@@ -784,9 +705,11 @@ const MobileGameLayout = ({
                 {focusedProperty.type === "corner" && (
                   <CornerCard square={focusedProperty} />
                 )}
+                {focusedProperty.type === "property" && (
+                  <PropertyCardMobile square={focusedProperty} owner={propertyOwner(focusedProperty.id)} />
+                )}
               </div>
 
-              {/* Extra info below the card */}
               <div className="px-6 pb-6 text-center space-y-2">
                 <p className="text-2xl font-bold">{focusedProperty.name}</p>
                 {propertyOwner(focusedProperty.id) ? (
@@ -808,9 +731,7 @@ const MobileGameLayout = ({
             </motion.div>
           </motion.div>
         )}
-        </AnimatePresence>
-
-    
+      </AnimatePresence>
 
       <Toaster
         position="top-center"
@@ -824,20 +745,14 @@ const MobileGameLayout = ({
             color: "#fff",
             border: "1px solid rgba(34, 211, 238, 0.3)",
             borderRadius: "12px",
-            padding: "8px 16px", // Smaller padding
-            fontSize: "14px", // Smaller font
+            padding: "8px 16px",
+            fontSize: "14px",
             fontWeight: "600",
             boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
             backdropFilter: "blur(10px)",
           },
-          success: {
-            icon: "✔",
-            style: { borderColor: "#10b981" },
-          },
-          error: {
-            icon: "✖",
-            style: { borderColor: "#ef4444" },
-          },
+          success: { icon: "✔", style: { borderColor: "#10b981" } },
+          error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
     </div>
@@ -845,4 +760,3 @@ const MobileGameLayout = ({
 };
 
 export default MobileGameLayout;
-
