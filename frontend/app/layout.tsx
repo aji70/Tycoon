@@ -16,18 +16,11 @@ import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
 
-const imageRelativePath = "/thumbnail.png";
 // Remove the duplicate 'cookies' global variable—it's not needed
-const isProduction = process.env.NODE_ENV === "production";
-const baseUrl = isProduction
-  ? "https://tycoonworld.xyz/"
-  : `http://localhost:${process.env.PORT || 3000}`;
-  
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersObj = await headers();
   const cookies = headersObj.get("cookie"); // Local var is fine here
-  const imageUrl = `${baseUrl}${imageRelativePath}`;
   return {
     title: "Tycoon",
     description:
@@ -38,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
         version: minikitConfig.miniapp.version,
         imageUrl: minikitConfig.miniapp.heroImageUrl,
         images: {
-          url: imageUrl,
+          url: minikitConfig.miniapp.heroImageUrl,
           alt: "Tycoon - Monopoly Game Onchain",
         },
         button: {
