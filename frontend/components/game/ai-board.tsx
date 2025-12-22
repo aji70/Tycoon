@@ -453,7 +453,7 @@ const AiBoard = ({
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       {/* Winner Screen */}
-  <AnimatePresence>
+<AnimatePresence>
   {winner && (
     <motion.div
       initial={{ opacity: 0 }}
@@ -465,29 +465,59 @@ const AiBoard = ({
         initial={{ scale: 0.8, rotate: -5 }}
         animate={{ scale: 1, rotate: 0 }}
         transition={{ type: "spring", stiffness: 200, damping: 20 }}
-        className="bg-gradient-to-br from-yellow-600 to-orange-600 p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 border-yellow-400"
+        className={`p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
+          winner.user_id === me?.user_id
+            ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
+            : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
+        }`}
       >
-        <h1 className="text-6xl font-bold mb-6 drop-shadow-2xl">🏆 Congratulations! 🏆</h1>
-        <p className="text-5xl font-bold text-white mb-4 drop-shadow-lg">
-          {winner.username}
-        </p>
-        <p className="text-3xl font-semibold text-yellow-200 mb-12">wins the game!</p>
-        <p className="text-2xl text-yellow-100 mb-10">Game Over</p>
+        {winner.user_id === me?.user_id ? (
+          <>
+            <h1 className="text-6xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
+            <p className="text-5xl font-bold text-white mb-8 drop-shadow-lg">
+              Congratulations, Champion!
+            </p>
+            <p className="text-3xl font-semibold text-yellow-200 mb-12">
+              You are the Tycoon!
+            </p>
 
-        {/* Claim Prize Button */}
-        <button
-          onClick={() => {
-            // Redirect to home page
-            window.location.href = "/";
-          }}
-          className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
-        >
-          ✨ Claim Your Prize ✨
-        </button>
+            <button
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
+            >
+              ✨ Claim Your Prize ✨
+            </button>
 
-        <p className="text-lg text-yellow-200 mt-8 opacity-80">
-          Thank you for playing Tycoon!
-        </p>
+            <p className="text-lg text-yellow-200 mt-8 opacity-80">
+              Thank you for playing Tycoon!
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-5xl font-bold mb-6 text-gray-300">Game Over</h1>
+            <p className="text-4xl font-bold text-white mb-4">
+              {winner.username} wins!
+            </p>
+            <p className="text-2xl text-gray-400 mb-12">
+              Better luck next time!
+            </p>
+
+            <button
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="px-12 py-5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-2xl font-bold rounded-2xl shadow-xl hover:shadow-gray-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-gray-500"
+            >
+              Return to Home
+            </button>
+
+            <p className="text-md text-gray-500 mt-8 opacity-80">
+              Thanks for playing!
+            </p>
+          </>
+        )}
       </motion.div>
     </motion.div>
   )}

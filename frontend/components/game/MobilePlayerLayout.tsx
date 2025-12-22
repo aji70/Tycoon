@@ -435,44 +435,75 @@ export default function MobileGameLayout({
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80" />
 
       {/* Winner Screen */}
-      <AnimatePresence>
-        {winner && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, rotate: -5 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className="bg-gradient-to-br from-yellow-600 to-orange-600 p-12 rounded-3xl shadow-2xl text-center max-w-sm w-full border-8 border-yellow-400"
+     <AnimatePresence>
+  {winner && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.8, rotate: -5 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+        className={`p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
+          winner.user_id === me?.user_id
+            ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
+            : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
+        }`}
+      >
+        {winner.user_id === me?.user_id ? (
+          <>
+            <h1 className="text-6xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
+            <p className="text-5xl font-bold text-white mb-8 drop-shadow-lg">
+              Congratulations, Champion!
+            </p>
+            <p className="text-3xl font-semibold text-yellow-200 mb-12">
+              You are the Tycoon!
+            </p>
+
+            <button
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
             >
-              <h1 className="text-5xl font-bold mb-6 drop-shadow-2xl">🏆 Congratulations! 🏆</h1>
-              <p className="text-4xl font-bold text-white mb-4 drop-shadow-lg">
-                {winner.username}
-              </p>
-              <p className="text-2xl font-semibold text-yellow-200 mb-10">wins the game!</p>
-              <p className="text-xl text-yellow-100 mb-8">Game Over</p>
+              ✨ Claim Your Prize ✨
+            </button>
 
-              <button
-                onClick={() => {
-                  window.location.href = "/";
-                }}
-                className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
-              >
-                ✨ Claim Your Prize ✨
-              </button>
+            <p className="text-lg text-yellow-200 mt-8 opacity-80">
+              Thank you for playing Tycoon!
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-5xl font-bold mb-6 text-gray-300">Game Over</h1>
+            <p className="text-4xl font-bold text-white mb-4">
+              {winner.username} wins!
+            </p>
+            <p className="text-2xl text-gray-400 mb-12">
+              Better luck next time!
+            </p>
 
-              <p className="text-sm text-yellow-200 mt-6 opacity-80">
-                Thank you for playing Tycoon!
-              </p>
-            </motion.div>
-          </motion.div>
+            <button
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="px-12 py-5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-2xl font-bold rounded-2xl shadow-xl hover:shadow-gray-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-gray-500"
+            >
+              Return to Home
+            </button>
+
+            <p className="text-md text-gray-500 mt-8 opacity-80">
+              Thanks for playing!
+            </p>
+          </>
         )}
-      </AnimatePresence>
-
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
       <div className="p-3 space-y-4">
         <motion.h2
           animate={{ textShadow: ["0 0 10px #0ff", "0 0 20px #0ff", "0 0 10px #0ff"] }}
