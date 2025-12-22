@@ -192,9 +192,9 @@ export default function GamePlayPage() {
         />
       </div>
 
-      <div className="hidden lg:block w-80 flex-shrink-0">
+      {/* <div className="hidden lg:block w-80 flex-shrink-0">
         <GameRoom />
-      </div>
+      </div> */}
 
       <button
         onClick={() => setActiveTab("players")}
