@@ -496,24 +496,34 @@ export default function MobileGameLayout({
                 exit={{ height: 0 }}
                 className="overflow-hidden mt-2 grid grid-cols-2 gap-2"
               >
-                {my_properties.map((prop, i) => (
-                  <motion.div
-                    key={prop.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => isNext && setSelectedProperty(prop)}
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-black/60 border-2 border-cyan-600 rounded-lg p-2 cursor-pointer shadow-md"
-                  >
-                    {prop.color && <div className="h-2 rounded" style={{ backgroundColor: prop.color }} />}
-                    <div className="mt-1 text-xs font-bold text-cyan-200 truncate">{prop.name}</div>
-                    <div className="text-xxs text-green-400">Rent: ${rentPrice(prop.id)}</div>
-                    {isMortgaged(prop.id) && (
-                      <div className="text-red-500 text-xxs mt-1 font-bold animate-pulse">MORTGAGED</div>
-                    )}
-                  </motion.div>
-                ))}
+                {my_properties.length > 0 ? (
+                  my_properties.map((prop, i) => (
+                    <motion.div
+                      key={prop.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      onClick={() => isNext && setSelectedProperty(prop)}
+                      whileHover={isNext ? { scale: 1.05 } : {}}
+                      className={`bg-black/60 border-2 rounded-lg p-2 shadow-md ${
+                        isNext
+                          ? "border-cyan-600 cursor-pointer"
+                          : "border-gray-700 opacity-75"
+                      }`}
+                    >
+                      {prop.color && <div className="h-2 rounded" style={{ backgroundColor: prop.color }} />}
+                      <div className="mt-1 text-xs font-bold text-cyan-200 truncate">{prop.name}</div>
+                      <div className="text-xxs text-green-400">Rent: ${rentPrice(prop.id)}</div>
+                      {isMortgaged(prop.id) && (
+                        <div className="text-red-500 text-xxs mt-1 font-bold animate-pulse">MORTGAGED</div>
+                      )}
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="col-span-2 text-center text-gray-500 py-4 text-sm">
+                    No properties yet..
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -589,7 +599,7 @@ export default function MobileGameLayout({
         </div>
       </div>
 
-      {/* Property Action Modal - Mobile Optimized */}
+      {/* Property Action Modal - Mobile */}
       <AnimatePresence>
         {isNext && selectedProperty && (
           <motion.div
@@ -613,17 +623,49 @@ export default function MobileGameLayout({
               </button>
               <h3 className="text-2xl font-bold text-cyan-300 text-center mb-6">{selectedProperty.name}</h3>
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => { handleDevelopment(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white shadow-lg text-sm">BUILD</button>
-                <button onClick={() => { handleDowngrade(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-orange-600 to-red-700 rounded-xl font-bold text-white shadow-lg text-sm">SELL</button>
-                <button onClick={() => { handleMortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl font-bold text-white shadow-lg text-sm">MORTGAGE</button>
-                <button onClick={() => { handleUnmortgage(selectedProperty.id); setSelectedProperty(null); }} className="py-3 bg-gradient-to-r from-purple-600 to-pink-700 rounded-xl font-bold text-white shadow-lg text-sm">REDEEM</button>
+                <button
+                  onClick={() => {
+                    handleDevelopment(selectedProperty.id);
+                    setSelectedProperty(null);
+                  }}
+                  className="py-3 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white shadow-lg text-sm"
+                >
+                  BUILD
+                </button>
+                <button
+                  onClick={() => {
+                    handleDowngrade(selectedProperty.id);
+                    setSelectedProperty(null);
+                  }}
+                  className="py-3 bg-gradient-to-r from-orange-600 to-red-700 rounded-xl font-bold text-white shadow-lg text-sm"
+                >
+                  SELL
+                </button>
+                <button
+                  onClick={() => {
+                    handleMortgage(selectedProperty.id);
+                    setSelectedProperty(null);
+                  }}
+                  className="py-3 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl font-bold text-white shadow-lg text-sm"
+                >
+                  MORTGAGE
+                </button>
+                <button
+                  onClick={() => {
+                    handleUnmortgage(selectedProperty.id);
+                    setSelectedProperty(null);
+                  }}
+                  className="py-3 bg-gradient-to-r from-purple-600 to-pink-700 rounded-xl font-bold text-white shadow-lg text-sm"
+                >
+                  REDEEM
+                </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* AI Trade Offer Popup - Mobile Optimized */}
+      {/* AI Trade Offer Popup */}
       <AnimatePresence>
         {aiTradePopup && (
           <motion.div
@@ -676,7 +718,7 @@ export default function MobileGameLayout({
         )}
       </AnimatePresence>
 
-      {/* AI Response Popup - Mobile Optimized */}
+      {/* AI Response Popup */}
       <AnimatePresence>
         {aiResponsePopup && (
           <motion.div
@@ -726,7 +768,7 @@ export default function MobileGameLayout({
         )}
       </AnimatePresence>
 
-      {/* Trade Modal - Mobile Optimized (Single Column) */}
+      {/* Trade Modals */}
       <TradeModal
         open={tradeModal.open}
         title="CREATE TRADE"
@@ -835,7 +877,6 @@ function TradeModal({
 
         <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8">{title}</h2>
 
-        {/* Single column layout for mobile */}
         <div className="space-y-8">
           <div>
             <h3 className="text-2xl font-bold text-green-400 mb-4 text-center">YOU GIVE</h3>
