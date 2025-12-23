@@ -21,15 +21,13 @@ import {
 import { apiClient } from "@/lib/api";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAiGame } from "@/context/ContractProvider";
 
 interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data?: T;
 }
-
- 
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -168,6 +166,9 @@ const AiBoard = ({
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
+  const [showInsolvencyModal, setShowInsolvencyModal] = useState(false);
+  const [insolvencyDebt, setInsolvencyDebt] = useState(0);
+  const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -197,24 +198,11 @@ const AiBoard = ({
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
   const {
-    data: contractGame,
-    isLoading: contractGameLoading,
-    error: contractGameError,
-  } = useGetGameByCode(game.code, { enabled: !!game.code });
-
-  const id = contractGame?.id;
-  console.log("Contract Game ID:",id);
-  
-  
-  const {
     write: endGame,
     isPending,
-    isSuccess,
-    isError,
-    error,
     reset,
   } = useEndAiGame(
-    Number(id),
+    game.id,
     endGameCandidate.position,
     endGameCandidate.balance,
     !!endGameCandidate.winner
@@ -237,27 +225,36 @@ const AiBoard = ({
     }
   }, [game.history?.length]);
 
+  // Insolvency detection
+  useEffect(() => {
+    if (!isMyTurn || !currentPlayer) return;
+
+    if (currentPlayer.balance <= 0 && !showInsolvencyModal && !isRaisingFunds) {
+      setInsolvencyDebt(Math.abs(currentPlayer.balance));
+      setShowInsolvencyModal(true);
+      showToast(`You're broke! You owe $${Math.abs(currentPlayer.balance)}`, "error");
+    }
+  }, [currentPlayer?.balance, isMyTurn, showInsolvencyModal, isRaisingFunds, showToast]);
+
+  // Winner detection
   useEffect(() => {
     const activePlayers = players.filter(p => p.balance > 0);
 
-    if (activePlayers.length === 1 && game.status !== "FINISHED") {
+    if (activePlayers.length === 1 && game.status !== "FINISHED" && !showInsolvencyModal) {
       const theWinner = activePlayers[0];
-      const position = theWinner.position ?? 0;
-      const balance = BigInt(Math.max(0, theWinner.balance));
-
-      setEndGameCandidate({ winner: theWinner, position, balance });
       setWinner(theWinner);
+      setEndGameCandidate({
+        winner: theWinner,
+        position: theWinner.position ?? 0,
+        balance: BigInt(Math.max(0, theWinner.balance)),
+      });
 
-      apiClient
-        .put<ApiResponse>(`/games/${game.id}`, {
-          status: "FINISHED",
-          winner_id: theWinner.user_id,
-        })
-        .catch(err => {
-          console.error("Failed to mark game as finished:", err);
-        });
+      apiClient.put<ApiResponse>(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: theWinner.user_id,
+      }).catch(console.error);
     }
-  }, [players, game.id, game.status]);
+  }, [players, game.id, game.status, showInsolvencyModal]);
 
   useEffect(() => {
     setRoll(null);
@@ -266,13 +263,11 @@ const AiBoard = ({
     setIsRolling(false);
     setPendingRoll(0);
     rolledForPlayerId.current = null;
+    setIsRaisingFunds(false);
   }, [currentPlayerId]);
 
-  // Reset acted flag on new roll (new landing)
   useEffect(() => {
-    if (roll) {
-      setHasActedOnCurrentLanding(false);
-    }
+    if (roll) setHasActedOnCurrentLanding(false);
   }, [roll]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
@@ -333,7 +328,7 @@ const AiBoard = ({
 
       showToast(`You bought ${square.name}!`, "success");
       setBuyPrompted(false);
-      setHasActedOnCurrentLanding(true); // Mark as acted
+      setHasActedOnCurrentLanding(true);
       await fetchUpdatedGame();
       setTimeout(END_TURN, 1000);
     } catch (err) {
@@ -381,7 +376,6 @@ const AiBoard = ({
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch {
         showToast("Move failed", "error");
-        if (forAI) rolledForPlayerId.current = currentPlayerId;
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -401,7 +395,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // LANDING LOGIC + BUY PROMPT (only once per landing)
+  // Buy prompt logic
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -422,7 +416,7 @@ const AiBoard = ({
 
       const canAfford = square.price != null && currentPlayer.balance >= square.price;
       if (!canAfford) {
-        showToast(`Not enough money to buy ${square.name} (need $${square.price})`, "error");
+        showToast(`Not enough money to buy ${square.name}`, "error");
       }
     }
   }, [
@@ -480,6 +474,7 @@ const AiBoard = ({
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
+      if (p.balance <= 0) return; // Hide broke players
       const pos = p.position ?? 0;
       if (!map.has(pos)) map.set(pos, []);
       map.get(pos)!.push(p);
@@ -497,6 +492,36 @@ const AiBoard = ({
 
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
+
+  const handleRaiseFunds = () => {
+    setShowInsolvencyModal(false);
+    setIsRaisingFunds(true);
+    showToast("Raise funds (mortgage, sell houses, trade) then click 'Try Again'", "default");
+  };
+
+  const handleDeclareBankruptcy = () => {
+    setShowInsolvencyModal(false);
+    setIsRaisingFunds(false);
+    showToast("You declared bankruptcy!", "error");
+    END_TURN(); // Ends turn → winner check runs
+  };
+
+  const handleRetryAfterFunds = () => {
+    fetchUpdatedGame(); // Refresh state
+
+    if (!currentPlayer) {
+      showToast("Current player not found", "error");
+      return;
+    }
+
+    if (currentPlayer.balance > 0) {
+      setIsRaisingFunds(false);
+      showToast("Funds raised successfully! Your turn continues.", "success");
+    } else {
+      showToast("Still not enough money. Raise more or declare bankruptcy.", "error");
+      setShowInsolvencyModal(true);
+    }
+  };
 
   const handleExitAttempt = (shouldTryFinalize: boolean) => {
     if (!endGameCandidate.winner) {
@@ -544,118 +569,172 @@ const AiBoard = ({
     }
   };
 
-  
-
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-   <AnimatePresence>
-  {winner && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-    >
-      <motion.div
-        initial={{ scale: 0.8, rotate: -5 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: "spring", stiffness: 200, damping: 20 }}
-        className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
-          winner.user_id === me?.user_id
-            ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
-            : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
-        }`}
-      >
-        {winner.user_id === me?.user_id ? (
-          <>
-            <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
-            <p className="text-4xl md:text-5xl font-bold text-white mb-8">
-              Congratulations, Champion!
-            </p>
-            <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
-              You're the Tycoon of this game!
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
-            <p className="text-3xl md:text-4xl font-bold text-white mb-6">
-              {winner.username} is the winner!
-            </p>
-            <p className="text-xl md:text-2xl text-gray-300 mb-10">
-              Better luck next time — you played well!
-            </p>
-          </>
+
+      {/* Winner / Game Over Screen */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, rotate: -5 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
+                winner.user_id === me?.user_id
+                  ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
+                  : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
+              }`}
+            >
+              {winner.user_id === me?.user_id ? (
+                <>
+                  <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
+                  <p className="text-4xl md:text-5xl font-bold text-white mb-8">
+                    Congratulations, Champion!
+                  </p>
+                  <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
+                    You're the Tycoon of this game!
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
+                  <p className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    {winner.username} is the winner!
+                  </p>
+                  <p className="text-xl md:text-2xl text-gray-300 mb-10">
+                    Better luck next time — you played well!
+                  </p>
+                </>
+              )}
+
+              <div className="flex justify-center">
+                <button
+                  onClick={() => handleExitAttempt(true)}
+                  className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
+                >
+                  {winner.user_id === me?.user_id ? "Claim Rewards" : "Finish Game"}
+                </button>
+              </div>
+
+              <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
+                Thanks for playing Tycoon!
+              </p>
+            </motion.div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        <div className="flex justify-center">
-          <button
-            onClick={() => handleExitAttempt(true)} // Always try to finalize
-            className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
+      {/* Exit Confirmation */}
+      <AnimatePresence>
+        {showExitPrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
           >
-            {winner.user_id === me?.user_id ? "Claim Rewards" : "Finish Game"}
-          </button>
-        </div>
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
+            >
+              <h2 className="text-3xl font-bold text-white mb-6">
+                One last thing!
+              </h2>
 
-        <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
-          Thanks for playing Tycoon!
-        </p>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+              {winner?.user_id === me?.user_id ? (
+                <p className="text-xl text-cyan-300 mb-8">
+                  Finalize the game to claim your rewards.
+                </p>
+              ) : (
+                <p className="text-xl text-gray-300 mb-8">
+                  Finalize the game to wrap things up.
+                </p>
+              )}
 
-<AnimatePresence>
-  {showExitPrompt && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
-    >
-      <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.8 }}
-        className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
-      >
-        <h2 className="text-3xl font-bold text-white mb-6">
-          One last thing!
-        </h2>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={handleFinalizeAndLeave}
+                  disabled={isPending}
+                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
+                >
+                  {isPending ? "Processing..." : "Yes, Finish Game"}
+                </button>
 
-        {winner?.user_id === me?.user_id ? (
-          <p className="text-xl text-cyan-300 mb-8">
-            Finalize the game to claim your rewards and close this match properly.
-          </p>
-        ) : (
-          <p className="text-xl text-gray-300 mb-8">
-            Finalize the game to wrap things up nicely — it helps everyone!
-          </p>
+                <button
+                  onClick={() => {
+                    setShowExitPrompt(false);
+                    setTimeout(() => window.location.href = "/", 300);
+                  }}
+                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
+                >
+                  Skip & Leave
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button
-            onClick={handleFinalizeAndLeave}
-            disabled={isPending}
-            className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
+      {/* Insolvency Modal */}
+      <AnimatePresence>
+        {showInsolvencyModal && isMyTurn && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4"
           >
-            {isPending ? "Processing..." : "Yes, Finish Game"}
-          </button>
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-red-500/50 shadow-2xl"
+            >
+              <h2 className="text-4xl font-bold text-red-400 mb-6">You're Broke!</h2>
+              <p className="text-xl text-white mb-8">
+                You owe <span className="text-yellow-400 font-bold">${insolvencyDebt}</span>
+              </p>
+              <div className="flex flex-col sm:flex-row gap-6 justify-center">
+                <button
+                  onClick={handleRaiseFunds}
+                  className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xl rounded-2xl shadow-xl hover:scale-105 transition-all"
+                >
+                  Raise Funds & Retry
+                </button>
+                <button
+                  onClick={handleDeclareBankruptcy}
+                  className="px-10 py-5 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold text-xl rounded-2xl shadow-xl hover:scale-105 transition-all"
+                >
+                  Declare Bankruptcy
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Persistent "I've Raised Funds" Button */}
+      {isRaisingFunds && isMyTurn && currentPlayer && (
+        <motion.div
+          initial={{ y: 100 }}
+          animate={{ y: 0 }}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[65] w-[90vw] max-w-md"
+        >
           <button
-            onClick={() => {
-              setShowExitPrompt(false);
-              setTimeout(() => window.location.href = "/", 300);
-            }}
-            className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
+            onClick={handleRetryAfterFunds}
+            className="w-full py-5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-bold text-xl rounded-full shadow-2xl hover:from-yellow-600 hover:to-amber-700 transform hover:scale-105 active:scale-95 transition-all"
           >
-            Skip & Leave
+            I've Raised Funds — Try Again
           </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+        </motion.div>
+      )}
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
@@ -709,7 +788,7 @@ const AiBoard = ({
                 Tycoon
               </h1>
 
-              {isMyTurn && !roll && !isRolling && (
+              {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                 <button
                   onClick={() => ROLL_DICE(false)}
                   disabled={isRolling}
@@ -736,7 +815,7 @@ const AiBoard = ({
                     onClick={() => {
                       showToast("Skipped purchase");
                       setBuyPrompted(false);
-                      setHasActedOnCurrentLanding(true); // Prevent reprompt
+                      setHasActedOnCurrentLanding(true);
                       setTimeout(END_TURN, 800);
                     }}
                     className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
@@ -833,7 +912,7 @@ const AiBoard = ({
                         return (
                           <motion.span
                             key={p.user_id}
-                            title={`${p.username} (${p.balance})`}
+                            title={`${p.username} ($${p.balance})`}
                             className={`text-xl md:text-2xl lg:text-3xl border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`}
                             initial={{ scale: 1 }}
                             animate={{
