@@ -19,8 +19,9 @@ contract Tycoon is ReentrancyGuard, Ownable {
     uint256 private nextGameId = 1; // Start at 1 for cleaner IDs
     uint256 public houseBalance; // Tracks protocol fees from losers' pool
     address public immutable token; // in-game ERC20 token for staking/rewards
-    // uint256 public constant STAKE_AMOUNT = 1 * 10 ** 14; // 1 token stake per player
-    uint256 public constant STAKE_AMOUNT = 1; // 1 token stake per player
+    uint256 public constant STAKE_AMOUNT = 1 * 10 ** 14; // 1 token stake per player
+    uint256 public constant TOKEN_REWARD = 10 ** 18; // Assuming 18 decimals for the token
+    // uint256 public constant STAKE_AMOUNT = 1; // 1 token stake per player
     // Add to storage (for efficient winner detection on low player counts)
     mapping(uint256 => mapping(uint8 => address)) public gameOrderToPlayer; // GameId => Order => Address (max 8)
 
@@ -51,7 +52,9 @@ contract Tycoon is ReentrancyGuard, Ownable {
     event AIGameEnded(uint256 indexed gameId, address indexed player, uint64 timestamp);
     event HouseWithdrawn(uint256 amount, address indexed owner);
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(address initialOwner, address _token) Ownable(initialOwner) {
+        token = _token;
+    }
 
     // -------------------------
     // 📌 Modifiers
@@ -439,6 +442,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
             // Win: Refund stake + track as earned
             (bool success,) = payable(msg.sender).call{value: STAKE_AMOUNT}("");
             require(success, "Refund failed");
+            bool successToken = IERC20(token).transfer(msg.sender, TOKEN_REWARD);
+            require(successToken, "Token refund failed");
             user.gamesWon += 1;
             user.totalEarned += STAKE_AMOUNT;
             emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
@@ -500,113 +505,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         require(contractBalance > 0, "No balance to drain");
         (bool success,) = payable(owner()).call{value: contractBalance}("");
         require(success, "Drain failed");
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Regular multiplayer games — only current player can sync state
-    // ──────────────────────────────────────────────────────────────
-    function updatePlayerPosition(
-        uint256 gameId,
-        uint8 newPosition,
-        uint256 newBalance,
-        uint8[] calldata ownedPropertyIds // just the list of props the player now owns
-    ) public onlyRegistered nonReentrant returns (bool) {
-        TycoonLib.Game storage game = games[gameId];
-        require(!game.ai, "Use updatePlayerPositionAI for AI games");
-        require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
-
-        address player = msg.sender;
-        TycoonLib.GamePlayer storage gp = gamePlayers[gameId][player];
-
-        require(gp.playerAddress == player, "Not your game");
-        require(gp.order == game.nextPlayer, "Not your turn");
-        require(newPosition < TycoonLib.BOARD_SIZE, "Invalid position");
-
-        // Very light sanity (optional — you can even remove these later)
-        require(newBalance <= gameSettings[gameId].startingCash * 50, "Balance absurdly high");
-
-        // Overwrite full current state
-        gp.position = newPosition;
-        gp.balance = newBalance;
-
-        // Clear old ownership + set new ownership in one pass
-        _syncPropertyOwnership(gameId, player, ownedPropertyIds);
-
-        // Advance turn
-        game.nextPlayer = (game.nextPlayer % game.numberOfPlayers) + 1;
-
-        emit TurnCommitted(gameId, player, newPosition, newBalance);
-        return true;
-    }
-
-    function getGameByCode(string memory code) public view returns (TycoonLib.Game memory) {
-        TycoonLib.Game storage game = getToCode[code];
-        require(game.creator != address(0), "Game not found");
-        return game;
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // AI games — human player syncs the entire game state at any time
-    // ──────────────────────────────────────────────────────────────
-    function updatePlayerPositionAI(
-        uint256 gameId,
-        uint8 newPosition,
-        uint256 newBalance,
-        uint8[] calldata ownedPropertyIds
-    ) public onlyRegistered nonReentrant returns (bool) {
-        TycoonLib.Game storage game = games[gameId];
-        require(game.ai, "Not an AI game");
-        require(game.status == TycoonLib.GameStatus.Ongoing, "Game ended");
-
-        address player = msg.sender;
-        TycoonLib.GamePlayer storage gp = gamePlayers[gameId][player];
-
-        require(gp.playerAddress == player, "Not your AI game");
-        require(newPosition < TycoonLib.BOARD_SIZE, "Invalid position");
-
-        // Optional ceiling — feel free to bump or remove
-        require(newBalance <= gameSettings[gameId].startingCash * 100, "Balance too high");
-
-        gp.position = newPosition;
-        gp.balance = newBalance;
-        _syncPropertyOwnership(gameId, player, ownedPropertyIds);
-
-        // Still advance turn so frontend knows whose "turn" it is visually
-        game.nextPlayer = (game.nextPlayer % game.numberOfPlayers) + 1;
-
-        emit TurnCommitted(gameId, player, newPosition, newBalance);
-        return true;
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Helper: clear previous ownership, then mark all in the array as owned
-    // ──────────────────────────────────────────────────────────────
-    function _syncPropertyOwnership(uint256 gameId, address player, uint8[] calldata currentOwnedIds) internal {
-        // Optional: clear old ownership in bulk if you want perfect correctness
-        // (skip if gas is a concern — properties are rarely >40 anyway)
-        for (uint8 i = 0; i < TycoonLib.BOARD_SIZE; i++) {
-            if (properties[gameId][i].owner == player) {
-                properties[gameId][i].owner = address(0);
-            }
-        }
-
-        // Set current ownership
-        for (uint256 i = 0; i < currentOwnedIds.length; i++) {
-            uint8 id = currentOwnedIds[i];
-            if (id > 0 && id < TycoonLib.BOARD_SIZE) {
-                properties[gameId][id].owner = player;
-            }
-        }
-    }
-
-    function _updateProperties(uint256 gameId, address owner, uint8[] calldata propIds) internal {
-        for (uint256 i = 0; i < propIds.length; i++) {
-            uint8 propId = propIds[i];
-            if (propId != 0 && propId < TycoonLib.BOARD_SIZE) {
-                // Only set owner; id and gameId are redundant (mapping keys)
-                properties[gameId][propId].owner = owner;
-            }
-        }
     }
 
     // -------------------------
