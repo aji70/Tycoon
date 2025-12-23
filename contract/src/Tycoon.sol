@@ -412,7 +412,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint256 gameId,
         uint8 finalPosition,
         uint256 finalBalance,
-        uint8 finalPropertyId,
         bool isWin // New param: true for win (refund + earned), false for loss (no refund)
     ) public nonReentrant isPlayerInGame(gameId, msg.sender) returns (bool) {
         TycoonLib.Game storage game = games[gameId];
@@ -426,12 +425,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         TycoonLib.GamePlayer storage gp = gamePlayers[gameId][msg.sender];
         gp.position = finalPosition;
         gp.balance = finalBalance;
-
-        if (finalPropertyId != 0 && finalPropertyId < TycoonLib.BOARD_SIZE) {
-            // Only set owner; id and gameId are redundant (mapping keys)
-            properties[gameId][finalPropertyId].owner = msg.sender;
-        }
-
+        
         // End game
         game.status = TycoonLib.GameStatus.Ended;
         game.winner = isWin ? msg.sender : address(0);

@@ -537,6 +537,74 @@ export function useJoinGame(
     reset, // Useful for clearing state after success/error
   };
 }
+
+export function useEndAiGame(
+  gameId: number,
+  finalPosition: string,
+  finalBalance: string,
+  win: boolean,
+) {
+  const chainId = useChainId();
+  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+
+  const {
+    writeContractAsync,
+    isPending,
+    error: writeError,
+    data: txHash,
+    reset,
+  } = useWriteContract();
+
+  const {
+    isLoading: isConfirming,
+    isSuccess,
+    isError: isTxError,
+  } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const write = useCallback(async (): Promise<string> => {
+    if (!contractAddress) {
+      throw new Error(`Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`);
+    }
+
+    if (!gameId || !finalBalance || !finalPosition) {
+      throw new Error("Missing required parameters to end game");
+    }
+
+    const hash = await writeContractAsync({
+      chainId, // Enforce correct chain
+      address: contractAddress,
+      abi: PlayerABI,
+      functionName: 'endAIGame',
+      args: [gameId, finalPosition, finalBalance, win],
+    });
+
+    if (!hash) {
+      throw new Error('Transaction failed: no hash returned');
+    }
+
+    return hash; // Return transaction hash
+  }, [
+    writeContractAsync,
+    contractAddress,
+    chainId,
+    gameId,
+    finalPosition,
+    finalBalance,
+    win,
+  ]);
+
+  return {
+    write,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    isError: !!writeError || isTxError,
+    error: writeError,
+    txHash,
+    reset, // Useful for clearing state after success/error
+  };
+}
+
 export function useGetGame(gameId?: string, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
