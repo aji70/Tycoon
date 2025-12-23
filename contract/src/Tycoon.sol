@@ -413,7 +413,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint8 finalPosition,
         uint256 finalBalance,
         bool isWin // New param: true for win (refund + earned), false for loss (no refund)
-    ) public nonReentrant isPlayerInGame(gameId, msg.sender) returns (bool) {
+    ) public nonReentrant returns (bool) {
         TycoonLib.Game storage game = games[gameId];
         require(game.ai == true, "Not an AI game");
         require(game.status == TycoonLib.GameStatus.Ongoing, "Game already ended");

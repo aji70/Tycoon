@@ -379,7 +379,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // LANDING LOGIC + BUY PROMPT with affordability check
+  // LANDING LOGIC + BUY PROMPT (prompt always shows if buyable, buy button disabled if can't afford)
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -394,12 +394,12 @@ const AiBoard = ({
     setBuyPrompted(false);
 
     const canBuy = hasRolled && !isOwned && action && ["land", "railway", "utility"].includes(action);
-    const canAfford = square.price != null && currentPlayer.balance >= square.price;
 
     if (canBuy) {
-      if (canAfford) {
-        setBuyPrompted(true);
-      } else {
+      setBuyPrompted(true);
+
+      const canAfford = square.price != null && currentPlayer.balance >= square.price;
+      if (!canAfford) {
         showToast(`Not enough money to buy ${square.name} (need $${square.price})`, "error");
       }
     }
@@ -701,26 +701,31 @@ const AiBoard = ({
                 </button>
               )}
 
-              {isMyTurn && buyPrompted && currentProperty && (
-                <div className="flex gap-4 flex-wrap justify-center mt-4">
-                  <button
-                    onClick={BUY_PROPERTY}
-                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
-                  >
-                    Buy for ${currentProperty.price}
-                  </button>
-                  <button
-                    onClick={() => {
-                      showToast("Skipped purchase");
-                      setBuyPrompted(false);
-                      setTimeout(END_TURN, 800);
-                    }}
-                    className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
-                  >
-                    Skip
-                  </button>
-                </div>
-              )}
+           {isMyTurn && buyPrompted && currentProperty && currentPlayer && (
+  <div className="flex gap-4 flex-wrap justify-center mt-4">
+    <button
+      onClick={BUY_PROPERTY}
+      disabled={currentProperty.price != null && currentPlayer.balance < currentProperty.price}
+      className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
+        currentProperty.price != null && currentPlayer.balance < currentProperty.price
+          ? "opacity-50 cursor-not-allowed"
+          : ""
+      }`}
+    >
+      Buy for ${currentProperty.price}
+    </button>
+    <button
+      onClick={() => {
+        showToast("Skipped purchase");
+        setBuyPrompted(false);
+        setTimeout(END_TURN, 800);
+      }}
+      className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+    >
+      Skip
+    </button>
+  </div>
+)}
 
               {isAITurn && (
                 <div className="mt-5 text-center z-10">
