@@ -165,6 +165,7 @@ const AiBoard = ({
   const [pendingRoll, setPendingRoll] = useState(0);
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
+  const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -249,10 +250,18 @@ const AiBoard = ({
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
+    setHasActedOnCurrentLanding(false);
     setIsRolling(false);
     setPendingRoll(0);
     rolledForPlayerId.current = null;
   }, [currentPlayerId]);
+
+  // Reset acted flag on new roll (new landing)
+  useEffect(() => {
+    if (roll) {
+      setHasActedOnCurrentLanding(false);
+    }
+  }, [roll]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -312,6 +321,7 @@ const AiBoard = ({
 
       showToast(`You bought ${square.name}!`, "success");
       setBuyPrompted(false);
+      setHasActedOnCurrentLanding(true); // Mark as acted
       await fetchUpdatedGame();
       setTimeout(END_TURN, 1000);
     } catch (err) {
@@ -379,7 +389,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // LANDING LOGIC + BUY PROMPT (prompt always shows if buyable, buy button disabled if can't afford)
+  // LANDING LOGIC + BUY PROMPT (only once per landing)
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -395,7 +405,7 @@ const AiBoard = ({
 
     const canBuy = hasRolled && !isOwned && action && ["land", "railway", "utility"].includes(action);
 
-    if (canBuy) {
+    if (canBuy && !hasActedOnCurrentLanding) {
       setBuyPrompted(true);
 
       const canAfford = square.price != null && currentPlayer.balance >= square.price;
@@ -409,6 +419,7 @@ const AiBoard = ({
     properties,
     game_properties,
     currentPlayer?.balance,
+    hasActedOnCurrentLanding,
     showToast
   ]);
 
@@ -701,20 +712,32 @@ const AiBoard = ({
                 </button>
               )}
 
-           {isMyTurn && buyPrompted && currentProperty && currentPlayer && (
-  <div className="flex gap-4 flex-wrap justify-center mt-4">
-    <button
-      onClick={() => {
-        showToast("Skipped purchase");
-        setBuyPrompted(false);
-        setTimeout(END_TURN, 800);
-      }}
-      className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
-    >
-      Skip
-    </button>
-  </div>
-)}
+              {isMyTurn && buyPrompted && currentProperty && currentPlayer && (
+                <div className="flex gap-4 flex-wrap justify-center mt-4">
+                  <button
+                    onClick={BUY_PROPERTY}
+                    disabled={currentProperty.price != null && currentPlayer.balance < currentProperty.price}
+                    className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
+                      currentProperty.price != null && currentPlayer.balance < currentProperty.price
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }`}
+                  >
+                    Buy for ${currentProperty.price}
+                  </button>
+                  <button
+                    onClick={() => {
+                      showToast("Skipped purchase");
+                      setBuyPrompted(false);
+                      setHasActedOnCurrentLanding(true); // Prevent reprompt
+                      setTimeout(END_TURN, 800);
+                    }}
+                    className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+                  >
+                    Skip
+                  </button>
+                </div>
+              )}
 
               {isAITurn && (
                 <div className="mt-5 text-center z-10">
