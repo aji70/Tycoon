@@ -222,28 +222,30 @@ const MobileGameLayout = ({
     return calculateBuyScore(currentProperty, currentPlayer, currentGameProperties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, currentGameProperties, properties]);
 
- const {
-    data: contractGame,
-    isLoading: contractGameLoading,
-    error: contractGameError,
-  } = useGetGameByCode(game.code, { enabled: !!game.code });
-
-  const id = contractGame?.id;
-  
-  
   const {
-    write: endGame,
-    isPending,
-    isSuccess,
-    isError,
-    error,
-    reset,
-  } = useEndAiGame(
-    Number(id),
-    endGameCandidate.position,
-    endGameCandidate.balance,
-    !!endGameCandidate.winner
-  );
+     data: contractGame,
+     isLoading: contractGameLoading,
+     error: contractGameError,
+   } = useGetGameByCode(game.code, { enabled: !!game.code });
+ 
+   const id = contractGame?.id;
+   console.log("Contract Game ID:",id);
+   
+   
+   const {
+     write: endGame,
+     isPending,
+     isSuccess,
+     isError,
+     error,
+     reset,
+   } = useEndAiGame(
+     Number(id),
+     endGameCandidate.position,
+     endGameCandidate.balance,
+     !!endGameCandidate.winner
+   );
+
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     toast.dismiss();
     if (type === "success") toast.success(message);

@@ -283,6 +283,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
             });
         }
 
+        getToCode[code] = games[gameId];
+
         totalGames++;
         emit GameCreated(gameId, creator, uint64(block.timestamp));
         return gameId;
@@ -542,6 +544,12 @@ contract Tycoon is ReentrancyGuard, Ownable {
     function getGameSettings(uint256 gameId) public view returns (TycoonLib.GameSettings memory settings) {
         settings = gameSettings[gameId];
         return settings;
+    }
+
+    function getGameByCode(string memory code) public view returns (TycoonLib.Game memory) {
+        TycoonLib.Game storage game = getToCode[code];
+        require(game.creator != address(0), "Game not found");
+        return game;
     }
 
     // Helper for uint to string (for AI usernames)

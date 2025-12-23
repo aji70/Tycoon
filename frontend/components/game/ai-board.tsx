@@ -203,6 +203,7 @@ const AiBoard = ({
   } = useGetGameByCode(game.code, { enabled: !!game.code });
 
   const id = contractGame?.id;
+  console.log("Contract Game ID:",id);
   
   
   const {
