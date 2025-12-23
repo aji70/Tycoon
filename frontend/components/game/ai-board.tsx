@@ -21,13 +21,15 @@ import {
 import { apiClient } from "@/lib/api";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEndAiGame } from "@/context/ContractProvider";
+import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
 interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data?: T;
 }
+
+ 
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -195,6 +197,15 @@ const AiBoard = ({
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
   const {
+    data: contractGame,
+    isLoading: contractGameLoading,
+    error: contractGameError,
+  } = useGetGameByCode(game.code, { enabled: !!game.code });
+
+  const id = contractGame?.id;
+  
+  
+  const {
     write: endGame,
     isPending,
     isSuccess,
@@ -202,7 +213,7 @@ const AiBoard = ({
     error,
     reset,
   } = useEndAiGame(
-    game.id,
+    Number(id),
     endGameCandidate.position,
     endGameCandidate.balance,
     !!endGameCandidate.winner
@@ -531,6 +542,8 @@ const AiBoard = ({
       reset();
     }
   };
+
+  
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">

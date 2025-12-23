@@ -21,7 +21,7 @@ import {
 import { apiClient } from "@/lib/api";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEndAiGame } from "@/context/ContractProvider";
+import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
 interface CardPopup {
   type: "chance" | "community_chest";
@@ -222,6 +222,15 @@ const MobileGameLayout = ({
     return calculateBuyScore(currentProperty, currentPlayer, currentGameProperties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, currentGameProperties, properties]);
 
+ const {
+    data: contractGame,
+    isLoading: contractGameLoading,
+    error: contractGameError,
+  } = useGetGameByCode(game.code, { enabled: !!game.code });
+
+  const id = contractGame?.id;
+  
+  
   const {
     write: endGame,
     isPending,
@@ -230,12 +239,11 @@ const MobileGameLayout = ({
     error,
     reset,
   } = useEndAiGame(
-    currentGame.id,
+    Number(id),
     endGameCandidate.position,
     endGameCandidate.balance,
     !!endGameCandidate.winner
   );
-
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     toast.dismiss();
     if (type === "success") toast.success(message);
