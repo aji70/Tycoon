@@ -547,121 +547,114 @@ const AiBoard = ({
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-      <AnimatePresence>
-        {winner && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, rotate: -5 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
-                winner.user_id === me?.user_id
-                  ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
-                  : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
-              }`}
-            >
-              {winner.user_id === me?.user_id ? (
-                <>
-                  <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
-                  <p className="text-4xl md:text-5xl font-bold text-white mb-8">
-                    Congratulations, Champion!
-                  </p>
-                  <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
-                    You're the Tycoon of this game!
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
-                  <p className="text-3xl md:text-4xl font-bold text-white mb-6">
-                    {winner.username} is the winner!
-                  </p>
-                  <p className="text-xl md:text-2xl text-gray-300 mb-10">
-                    Better luck next time — you played well!
-                  </p>
-                </>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                <button
-                  onClick={() => handleExitAttempt(true)}
-                  className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
-                >
-                  {winner.user_id === me?.user_id ? "Claim Your Prize" : "Finish Game & Leave"}
-                </button>
-
-                <button
-                  onClick={() => handleExitAttempt(false)}
-                  className="px-10 py-5 bg-gray-700 text-white text-xl md:text-2xl font-bold rounded-2xl hover:bg-gray-600 transition-all duration-300 border border-gray-500"
-                >
-                  Return to Home
-                </button>
-              </div>
-
-              <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
-                Thanks for playing Tycoon!
-              </p>
-            </motion.div>
-          </motion.div>
+   <AnimatePresence>
+  {winner && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.8, rotate: -5 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+        className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
+          winner.user_id === me?.user_id
+            ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
+            : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
+        }`}
+      >
+        {winner.user_id === me?.user_id ? (
+          <>
+            <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
+            <p className="text-4xl md:text-5xl font-bold text-white mb-8">
+              Congratulations, Champion!
+            </p>
+            <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
+              You're the Tycoon of this game!
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
+            <p className="text-3xl md:text-4xl font-bold text-white mb-6">
+              {winner.username} is the winner!
+            </p>
+            <p className="text-xl md:text-2xl text-gray-300 mb-10">
+              Better luck next time — you played well!
+            </p>
+          </>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {showExitPrompt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleExitAttempt(true)} // Always try to finalize
+            className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
           >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
-            >
-              <h2 className="text-3xl font-bold text-white mb-6">
-                One last thing!
-              </h2>
+            {winner.user_id === me?.user_id ? "Claim Rewards" : "Finish Game"}
+          </button>
+        </div>
 
-              {winner?.user_id === me?.user_id ? (
-                <p className="text-xl text-cyan-300 mb-8">
-                  Finalize the game to claim your prize and close this match properly.
-                </p>
-              ) : (
-                <p className="text-xl text-gray-300 mb-8">
-                  Finalize the game to wrap things up nicely — it helps everyone!
-                </p>
-              )}
+        <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
+          Thanks for playing Tycoon!
+        </p>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={handleFinalizeAndLeave}
-                  disabled={isPending}
-                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
-                >
-                  {isPending ? "Processing..." : "Yes, Finish Game"}
-                </button>
+<AnimatePresence>
+  {showExitPrompt && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.8 }}
+        animate={{ scale: 1 }}
+        exit={{ scale: 0.8 }}
+        className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
+      >
+        <h2 className="text-3xl font-bold text-white mb-6">
+          One last thing!
+        </h2>
 
-                <button
-                  onClick={() => {
-                    setShowExitPrompt(false);
-                    setTimeout(() => window.location.href = "/", 300);
-                  }}
-                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
-                >
-                  Skip & Leave
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+        {winner?.user_id === me?.user_id ? (
+          <p className="text-xl text-cyan-300 mb-8">
+            Finalize the game to claim your rewards and close this match properly.
+          </p>
+        ) : (
+          <p className="text-xl text-gray-300 mb-8">
+            Finalize the game to wrap things up nicely — it helps everyone!
+          </p>
         )}
-      </AnimatePresence>
+
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <button
+            onClick={handleFinalizeAndLeave}
+            disabled={isPending}
+            className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
+          >
+            {isPending ? "Processing..." : "Yes, Finish Game"}
+          </button>
+
+          <button
+            onClick={() => {
+              setShowExitPrompt(false);
+              setTimeout(() => window.location.href = "/", 300);
+            }}
+            className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
+          >
+            Skip & Leave
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
