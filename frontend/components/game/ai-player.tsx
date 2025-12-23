@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, GameProperty, Player, Property } from "@/types/game";
@@ -7,6 +8,7 @@ import { getPlayerSymbol } from "@/lib/types/symbol";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
+import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
 interface GamePlayersProps {
   game: Game;
@@ -53,7 +55,25 @@ export default function GamePlayers({
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+  }>({ winner: null, position: 0, balance: BigInt(0) });
+
   const processedAiTradeIds = useRef<Set<number>>(new Set());
+
+  // Contract hooks
+  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+  const onChainGameId = contractGame?.id;
+  const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
+    Number(onChainGameId),
+    endGameCandidate.position,
+    endGameCandidate.balance,
+    !!endGameCandidate.winner
+  );
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
@@ -508,7 +528,60 @@ export default function GamePlayers({
     return () => clearTimeout(timer);
   }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
 
+  // ==================== WINNER DETECTION (AI BANKRUPT) ====================
+  useEffect(() => {
+    if (!me || game.players.length !== 2) return;
+
+    const aiPlayer = game.players.find(p => p.user_id !== me.user_id);
+    const humanPlayer = me;
+
+    if (aiPlayer && humanPlayer && aiPlayer.balance <= 0 && humanPlayer.balance > 0) {
+      setWinner(humanPlayer);
+      setEndGameCandidate({
+        winner: humanPlayer,
+        position: humanPlayer.position ?? 0,
+        balance: BigInt(humanPlayer.balance),
+      });
+    }
+  }, [game.players, me]);
+
+  // ==================== FINALIZE GAME & CLAIM REWARDS ====================
+  const handleFinalizeAndLeave = async () => {
+    setShowExitPrompt(false);
+
+    const toastId = toast.loading(
+      winner?.user_id === me?.user_id
+        ? "Claiming your prize..."
+        : "Finalizing game..."
+    );
+
+    try {
+      if (endGame) {
+        await endGame();
+      }
+
+      toast.success(
+        winner?.user_id === me?.user_id
+          ? "Prize claimed! 🎉"
+          : "Game completed — thanks for playing!",
+        { id: toastId, duration: 5000 }
+      );
+
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+    } catch (err: any) {
+      toast.error(
+        err?.message || "Something went wrong — try again later",
+        { id: toastId, duration: 8000 }
+      );
+    } finally {
+      if (endGameReset) endGameReset();
+    }
+  };
+
   return (
+  <>
     <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 overflow-y-auto relative">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80" />
 
@@ -522,7 +595,6 @@ export default function GamePlayers({
         </motion.h2>
 
         {sortedPlayers.map((player) => {
-          const isWinner = player.user_id === game.winner_id;
           const isNextTurn = player.user_id === game.next_player_id;
           const isMe = player.address?.toLowerCase() === address?.toLowerCase();
           const canTrade = isNext && !player.in_jail && !isMe;
@@ -543,7 +615,6 @@ export default function GamePlayers({
                   <div className="font-bold text-cyan-200">
                     {player.username || player.address?.slice(0, 6)}
                     {isMe && " (YOU)"}
-                    {isWinner && " 👑"}
                   </div>
                 </div>
                 <div className="text-xl font-bold text-yellow-400">
@@ -998,6 +1069,67 @@ export default function GamePlayers({
         )}
       </AnimatePresence>
 
+      {/* VICTORY MODAL - YOU WIN! */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, rotate: -5 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
+                winner.user_id === me?.user_id
+                  ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
+                  : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
+              }`}
+            >
+              {winner.user_id === me?.user_id ? (
+                <>
+                  <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
+                  <p className="text-4xl md:text-5xl font-bold text-white mb-8">
+                    Congratulations, Champion!
+                  </p>
+                  <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
+                    You bankrupted the AI and became the ultimate Tycoon!
+                  </p>
+                  <button
+                    onClick={handleFinalizeAndLeave}
+                    disabled={endGamePending}
+                    className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40 disabled:opacity-70"
+                  >
+                    {endGamePending ? "Claiming..." : "Claim Your Rewards 🎉"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
+                  <p className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    {winner.username} wins!
+                  </p>
+                  <p className="text-xl md:text-2xl text-gray-300 mb-10">
+                    Better luck next time!
+                  </p>
+                  <button
+                    onClick={() => window.location.href = "/"}
+                    className="px-12 py-6 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-gray-500/50 hover:scale-105 transition-all duration-300 border-4 border-gray-500"
+                  >
+                    Return Home
+                  </button>
+                </>
+              )}
+              <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
+                Thanks for playing Tycoon!
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <TradeModal
         open={tradeModal.open}
         title={`Trade with ${tradeModal.target?.username || "Player"}`}
@@ -1038,7 +1170,8 @@ export default function GamePlayers({
         targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
       />
     </aside>
-  );
+  </>
+);
 }
 
 function TradeModal({
