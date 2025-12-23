@@ -578,7 +578,7 @@ const AiBoard = ({
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
 
       {/* Winner / Game Over Screen */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {winner && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -633,10 +633,10 @@ const AiBoard = ({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Exit Confirmation */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {showExitPrompt && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -686,7 +686,7 @@ const AiBoard = ({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Insolvency Modal */}
       <AnimatePresence>
