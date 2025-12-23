@@ -222,26 +222,6 @@ const AiBoard = ({
     }
   }, [game.history?.length]);
 
-  // Winner detection
-  useEffect(() => {
-    const activePlayers = players.filter(p => p.balance > 0);
-
-    if (activePlayers.length === 1 && game.status !== "FINISHED") {
-      const theWinner = activePlayers[0];
-      setWinner(theWinner);
-      setEndGameCandidate({
-        winner: theWinner,
-        position: theWinner.position ?? 0,
-        balance: BigInt(Math.max(0, theWinner.balance)),
-      });
-
-      apiClient.put<ApiResponse>(`/games/${game.id}`, {
-        status: "FINISHED",
-        winner_id: theWinner.user_id,
-      }).catch(console.error);
-    }
-  }, [players, game.id, game.status]);
-
   // Reset turn state when turn changes
   useEffect(() => {
     setRoll(null);
@@ -555,13 +535,13 @@ const AiBoard = ({
     }
   };
 
-  // Player is bankrupt if balance <= 0 and it's their turn
-  const isBankrupt = isMyTurn && currentPlayer && currentPlayer.balance <= 0;
+  // Player cannot roll if balance <= 0 on their turn
+  const playerCanRoll = isMyTurn && currentPlayer && currentPlayer.balance > 0;
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
 
-      {/* Winner / Game Over Screen */}
+      {/* Winner / Game Over Screen - only shows when game.status === "FINISHED" and winner is set */}
       <AnimatePresence>
         {winner && (
           <motion.div
@@ -724,26 +704,27 @@ const AiBoard = ({
                 Tycoon
               </h1>
 
-              {/* Roll Dice Button - HIDDEN when bankrupt */}
-              {isMyTurn && !roll && !isRolling && !isBankrupt && (
-                <button
-                  onClick={() => ROLL_DICE(false)}
-                  disabled={isRolling || actionLock !== null}
-                  className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
-                >
-                  {isRolling ? "Rolling..." : "Roll Dice"}
-                </button>
-              )}
-
-              {/* Declare Bankruptcy Button - SHOWN when balance <= 0 */}
-              {isBankrupt && (
-                <button
-                  onClick={handleDeclareBankruptcy}
-                  disabled={isPending}
-                  className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50"
-                >
-                  {isPending ? "Ending Game..." : "💥 Declare Bankruptcy"}
-                </button>
+              {/* Main Action Button: Roll Dice OR Declare Bankruptcy */}
+              {isMyTurn && !roll && !isRolling && (
+                <>
+                  {playerCanRoll ? (
+                    <button
+                      onClick={() => ROLL_DICE(false)}
+                      disabled={isRolling || actionLock !== null}
+                      className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
+                    >
+                      Roll Dice
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleDeclareBankruptcy}
+                      disabled={isPending}
+                      className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50 disabled:opacity-70"
+                    >
+                      {isPending ? "Ending Game..." : "💔 Declare Bankruptcy"}
+                    </button>
+                  )}
+                </>
               )}
 
               {/* Buy Prompt */}
