@@ -236,11 +236,16 @@ const AiBoard = ({
     }
   }, [currentPlayer?.balance, isMyTurn, showInsolvencyModal, isRaisingFunds, showToast]);
 
-  // Winner detection
+  // Winner detection — BLOCKED while player is insolvent or raising funds
   useEffect(() => {
     const activePlayers = players.filter(p => p.balance > 0);
 
-    if (activePlayers.length === 1 && game.status !== "FINISHED" && !showInsolvencyModal) {
+    if (
+      activePlayers.length === 1 &&
+      game.status !== "FINISHED" &&
+      !showInsolvencyModal &&
+      !isRaisingFunds
+    ) {
       const theWinner = activePlayers[0];
       setWinner(theWinner);
       setEndGameCandidate({
@@ -254,7 +259,7 @@ const AiBoard = ({
         winner_id: theWinner.user_id,
       }).catch(console.error);
     }
-  }, [players, game.id, game.status, showInsolvencyModal]);
+  }, [players, game.id, game.status, showInsolvencyModal, isRaisingFunds]);
 
   useEffect(() => {
     setRoll(null);
@@ -503,7 +508,7 @@ const AiBoard = ({
     setShowInsolvencyModal(false);
     setIsRaisingFunds(false);
     showToast("You declared bankruptcy!", "error");
-    END_TURN(); // Ends turn → winner check runs
+    END_TURN(); // Ends turn → winner check runs only after this
   };
 
   const handleRetryAfterFunds = () => {
