@@ -16,12 +16,13 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 | Detail          | Info |
 |-----------------|------|
-| **Contract Base Address** | `0x68a6AF433f0a86216571d12818dA5d4612c14E19` |
-| **Contract Celo Address** | `0x8654ca15F361740C45c92E4728aEf32197D01A5c` |
+| **Contract Base Address** | `0xc6c2ccc0cA40d700DE2e5696f2a5e71dd838A1c4` |
+| **Contract Celo Address** | `0x7cd34f84Cf5c389C34FE9525b812A041e2299594` |
 | **Contract Stacks  Address** | `ST81CZF1YK81CPAMS6PRS3GJSKK35MGZ2VWEPSEN.tyc` |
 | **Network**     | Base | Celo | Stacks|
 | **Status**      | ✅ Deployed — Functionality under development |
-| **ERC20 Base Address** | `0x2f382911995146c5B721b7418f9D338BAB843A9d` |
+| **ERC20 Base Address** | `0x8A867F46f1A0e8bA1AF573E83B26F86Aa23e07D3` |
+| **ERC20 Celo Address** | `0x40C7c0c9277d8ACF7bCe32ed33e37865f5Ed3310` |
 
 
 ---

@@ -437,7 +437,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
             (bool success,) = payable(msg.sender).call{value: STAKE_AMOUNT}("");
             require(success, "Refund failed");
             bool successToken = IERC20(token).transfer(msg.sender, TOKEN_REWARD);
-            require(successToken, "Token refund failed");
+            require(successToken, "Token reward failed");
             user.gamesWon += 1;
             user.totalEarned += STAKE_AMOUNT;
             emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
@@ -445,6 +445,9 @@ contract Tycoon is ReentrancyGuard, Ownable {
             // Loss: No refund (stake to house), track loss
             houseBalance += STAKE_AMOUNT;
             user.gamesLost += 1;
+            uint256 amount = TOKEN_REWARD / 2; // Half token reward on loss
+            bool successToken = IERC20(token).transfer(msg.sender, amount);
+            require(successToken, "Token reward failed");
             emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp)); // Reuse event, or add Loss variant
         }
 
