@@ -379,6 +379,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
+  // LANDING LOGIC + BUY PROMPT with affordability check
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -393,8 +394,23 @@ const AiBoard = ({
     setBuyPrompted(false);
 
     const canBuy = hasRolled && !isOwned && action && ["land", "railway", "utility"].includes(action);
-    if (canBuy) setBuyPrompted(true);
-  }, [currentPlayer?.position, roll, properties, game_properties]);
+    const canAfford = square.price != null && currentPlayer.balance >= square.price;
+
+    if (canBuy) {
+      if (canAfford) {
+        setBuyPrompted(true);
+      } else {
+        showToast(`Not enough money to buy ${square.name} (need $${square.price})`, "error");
+      }
+    }
+  }, [
+    currentPlayer?.position,
+    roll,
+    properties,
+    game_properties,
+    currentPlayer?.balance,
+    showToast
+  ]);
 
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
@@ -472,38 +488,38 @@ const AiBoard = ({
     }
   };
 
-const handleFinalizeAndLeave = async () => {
-  setShowExitPrompt(false);
+  const handleFinalizeAndLeave = async () => {
+    setShowExitPrompt(false);
 
-  const toastId = toast.loading(
-    winner?.user_id === me?.user_id
-      ? "Claiming your prize..."
-      : "Finalizing game results..."
-  );
-
-  try {
-    await endGame();
-
-    toast.success(
+    const toastId = toast.loading(
       winner?.user_id === me?.user_id
-        ? "Prize claimed! 🎉"
-        : "Game completed — thanks for playing!",
-      { id: toastId, duration: 5000 }
+        ? "Claiming your prize..."
+        : "Finalizing game results..."
     );
 
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 1500);
+    try {
+      await endGame();
 
-  } catch (err: any) {
-    toast.error(
-      err?.message || "Something went wrong — you can try again later",
-      { id: toastId, duration: 8000 }
-    );
-  } finally {
-    reset();
-  }
-};
+      toast.success(
+        winner?.user_id === me?.user_id
+          ? "Prize claimed! 🎉"
+          : "Game completed — thanks for playing!",
+        { id: toastId, duration: 5000 }
+      );
+
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+
+    } catch (err: any) {
+      toast.error(
+        err?.message || "Something went wrong — you can try again later",
+        { id: toastId, duration: 8000 }
+      );
+    } finally {
+      reset();
+    }
+  };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
