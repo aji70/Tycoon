@@ -704,17 +704,6 @@ const AiBoard = ({
            {isMyTurn && buyPrompted && currentProperty && currentPlayer && (
   <div className="flex gap-4 flex-wrap justify-center mt-4">
     <button
-      onClick={BUY_PROPERTY}
-      disabled={currentProperty.price != null && currentPlayer.balance < currentProperty.price}
-      className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
-        currentProperty.price != null && currentPlayer.balance < currentProperty.price
-          ? "opacity-50 cursor-not-allowed"
-          : ""
-      }`}
-    >
-      Buy for ${currentProperty.price}
-    </button>
-    <button
       onClick={() => {
         showToast("Skipped purchase");
         setBuyPrompted(false);
