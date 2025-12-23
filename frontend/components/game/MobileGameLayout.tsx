@@ -413,6 +413,7 @@ const MobileGameLayout = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
+  // LANDING LOGIC + BUY PROMPT with affordability check
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -427,8 +428,23 @@ const MobileGameLayout = ({
     setBuyPrompted(false);
 
     const canBuy = hasRolled && !isOwned && action && ["land", "railway", "utility"].includes(action);
-    if (canBuy) setBuyPrompted(true);
-  }, [currentPlayer?.position, roll, properties, currentGameProperties]);
+    const canAfford = square.price != null && currentPlayer.balance >= square.price;
+
+    if (canBuy) {
+      if (canAfford) {
+        setBuyPrompted(true);
+      } else {
+        showToast(`Not enough money to buy ${square.name} (need $${square.price})`, "error");
+      }
+    }
+  }, [
+    currentPlayer?.position,
+    roll,
+    properties,
+    currentGameProperties,
+    currentPlayer?.balance,
+    showToast
+  ]);
 
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
@@ -557,7 +573,6 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      {/* Winner Screen */}
       <AnimatePresence>
         {winner && (
           <motion.div
@@ -622,7 +637,6 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
-      {/* Exit Confirmation Prompt */}
       <AnimatePresence>
         {showExitPrompt && (
           <motion.div
