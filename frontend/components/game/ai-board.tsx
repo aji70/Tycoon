@@ -21,7 +21,7 @@ import {
 import { apiClient } from "@/lib/api";
 import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEndAiGame } from "@/context/ContractProvider";
+import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -194,12 +194,12 @@ const AiBoard = ({
     return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
-  const {
-    write: endGame,
-    isPending,
-    reset,
-  } = useEndAiGame(
-    game.id,
+  // Get on-chain game ID
+  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+  const onChainGameId = contractGame?.id;
+
+  const { write: endGame, isPending, reset } = useEndAiGame(
+    Number(onChainGameId),
     endGameCandidate.position,
     endGameCandidate.balance,
     !!endGameCandidate.winner
@@ -242,6 +242,7 @@ const AiBoard = ({
     }
   }, [players, game.id, game.status]);
 
+  // Reset turn state when turn changes
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -249,6 +250,7 @@ const AiBoard = ({
     setIsRolling(false);
     setPendingRoll(0);
     rolledForPlayerId.current = null;
+    lastProcessed.current = null;
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -380,7 +382,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt logic
+  // Buy prompt logic - only for buyable properties
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -414,6 +416,7 @@ const AiBoard = ({
     showToast
   ]);
 
+  // AI Buy Decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
 
@@ -433,6 +436,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
+  // AI Auto-end turn when no action needed
   useEffect(() => {
     if (!isAITurn || !roll || buyPrompted || actionLock) return;
 
@@ -440,6 +444,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, roll, buyPrompted, actionLock, END_TURN]);
 
+  // Human Auto-end turn when no buy possible
   useEffect(() => {
     if (!isMyTurn || !roll || buyPrompted || actionLock) return;
 
@@ -477,21 +482,27 @@ const AiBoard = ({
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
+  // Declare Bankruptcy - ends both backend and contract game
   const handleDeclareBankruptcy = async () => {
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      // Mark backend as finished
-      await apiClient.put<ApiResponse>(`/games/${game.id}`, {
+      // Mark backend game as finished
+      const opponent = players.find(p => p.user_id !== me?.user_id);
+      await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
-        winner_id: players.find(p => p.user_id !== me?.user_id)?.user_id || null,
+        winner_id: opponent?.user_id || null,
       });
 
-      // Call contract endGame
-      await endGame();
+      // End game on-chain
+      if (endGame) {
+        await endGame();
+      }
 
-      showToast("Game over!", "error");
-      setTimeout(() => window.location.href = "/", 2000);
+      showToast("Game over! You have declared bankruptcy.", "error");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2000);
     } catch (err) {
       showToast("Failed to end game", "error");
     }
@@ -520,7 +531,9 @@ const AiBoard = ({
     );
 
     try {
-      await endGame();
+      if (endGame) {
+        await endGame();
+      }
 
       toast.success(
         winner?.user_id === me?.user_id
@@ -532,16 +545,18 @@ const AiBoard = ({
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
-
     } catch (err: any) {
       toast.error(
         err?.message || "Something went wrong — you can try again later",
         { id: toastId, duration: 8000 }
       );
     } finally {
-      reset();
+      if (reset) reset();
     }
   };
+
+  // Player is bankrupt if balance <= 0 and it's their turn
+  const isBankrupt = isMyTurn && currentPlayer && currentPlayer.balance <= 0;
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
@@ -709,16 +724,29 @@ const AiBoard = ({
                 Tycoon
               </h1>
 
-              {isMyTurn && !roll && !isRolling && (
+              {/* Roll Dice Button - HIDDEN when bankrupt */}
+              {isMyTurn && !roll && !isRolling && !isBankrupt && (
                 <button
                   onClick={() => ROLL_DICE(false)}
-                  disabled={isRolling}
+                  disabled={isRolling || actionLock !== null}
                   className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
                 >
                   {isRolling ? "Rolling..." : "Roll Dice"}
                 </button>
               )}
 
+              {/* Declare Bankruptcy Button - SHOWN when balance <= 0 */}
+              {isBankrupt && (
+                <button
+                  onClick={handleDeclareBankruptcy}
+                  disabled={isPending}
+                  className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50"
+                >
+                  {isPending ? "Ending Game..." : "💥 Declare Bankruptcy"}
+                </button>
+              )}
+
+              {/* Buy Prompt */}
               {isMyTurn && buyPrompted && currentProperty && currentPlayer && (
                 <div className="flex gap-4 flex-wrap justify-center mt-4">
                   <button
@@ -746,6 +774,7 @@ const AiBoard = ({
                 </div>
               )}
 
+              {/* AI Turn Indicator */}
               {isAITurn && (
                 <div className="mt-5 text-center z-10">
                   <motion.h2
@@ -769,6 +798,7 @@ const AiBoard = ({
                 </div>
               )}
 
+              {/* Action Log */}
               <div ref={logRef} className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
                 <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
                   <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
@@ -788,6 +818,7 @@ const AiBoard = ({
               </div>
             </div>
 
+            {/* Board Squares */}
             {properties.map((square) => {
               const playersHere = playersByPosition.get(square.id) ?? [];
               const devLevel = developmentStage(square.id);
