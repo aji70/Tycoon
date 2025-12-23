@@ -166,9 +166,6 @@ const AiBoard = ({
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
-  const [showInsolvencyModal, setShowInsolvencyModal] = useState(false);
-  const [insolvencyDebt, setInsolvencyDebt] = useState(0);
-  const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -225,27 +222,11 @@ const AiBoard = ({
     }
   }, [game.history?.length]);
 
-  // Insolvency detection
-  useEffect(() => {
-    if (!isMyTurn || !currentPlayer) return;
-
-    if (currentPlayer.balance <= 0 && !showInsolvencyModal && !isRaisingFunds) {
-      setInsolvencyDebt(Math.abs(currentPlayer.balance));
-      setShowInsolvencyModal(true);
-      showToast(`You're broke! You owe $${Math.abs(currentPlayer.balance)}`, "error");
-    }
-  }, [currentPlayer?.balance, isMyTurn, showInsolvencyModal, isRaisingFunds, showToast]);
-
-  // Winner detection — BLOCKED while player is insolvent or raising funds
+  // Winner detection
   useEffect(() => {
     const activePlayers = players.filter(p => p.balance > 0);
 
-    if (
-      activePlayers.length === 1 &&
-      game.status !== "FINISHED" &&
-      !showInsolvencyModal &&
-      !isRaisingFunds
-    ) {
+    if (activePlayers.length === 1 && game.status !== "FINISHED") {
       const theWinner = activePlayers[0];
       setWinner(theWinner);
       setEndGameCandidate({
@@ -259,7 +240,7 @@ const AiBoard = ({
         winner_id: theWinner.user_id,
       }).catch(console.error);
     }
-  }, [players, game.id, game.status, showInsolvencyModal, isRaisingFunds]);
+  }, [players, game.id, game.status]);
 
   useEffect(() => {
     setRoll(null);
@@ -268,7 +249,6 @@ const AiBoard = ({
     setIsRolling(false);
     setPendingRoll(0);
     rolledForPlayerId.current = null;
-    setIsRaisingFunds(false);
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -479,7 +459,6 @@ const AiBoard = ({
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
-      if (p.balance <= 0) return; // Hide broke players
       const pos = p.position ?? 0;
       if (!map.has(pos)) map.set(pos, []);
       map.get(pos)!.push(p);
@@ -498,33 +477,23 @@ const AiBoard = ({
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
-  const handleRaiseFunds = () => {
-    setShowInsolvencyModal(false);
-    setIsRaisingFunds(true);
-    showToast("Raise funds (mortgage, sell houses, trade) then click 'Try Again'", "default");
-  };
+  const handleDeclareBankruptcy = async () => {
+    showToast("Declaring bankruptcy...", "default");
 
-  const handleDeclareBankruptcy = () => {
-    setShowInsolvencyModal(false);
-    setIsRaisingFunds(false);
-    showToast("You declared bankruptcy!", "error");
-    END_TURN(); // Ends turn → winner check runs only after this
-  };
+    try {
+      // Mark backend as finished
+      await apiClient.put<ApiResponse>(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: players.find(p => p.user_id !== me?.user_id)?.user_id || null,
+      });
 
-  const handleRetryAfterFunds = () => {
-    fetchUpdatedGame(); // Refresh state
+      // Call contract endGame
+      await endGame();
 
-    if (!currentPlayer) {
-      showToast("Current player not found", "error");
-      return;
-    }
-
-    if (currentPlayer.balance > 0) {
-      setIsRaisingFunds(false);
-      showToast("Funds raised successfully! Your turn continues.", "success");
-    } else {
-      showToast("Still not enough money. Raise more or declare bankruptcy.", "error");
-      setShowInsolvencyModal(true);
+      showToast("Game over!", "error");
+      setTimeout(() => window.location.href = "/", 2000);
+    } catch (err) {
+      showToast("Failed to end game", "error");
     }
   };
 
@@ -578,7 +547,7 @@ const AiBoard = ({
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
 
       {/* Winner / Game Over Screen */}
-      {/* <AnimatePresence>
+      <AnimatePresence>
         {winner && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -633,10 +602,10 @@ const AiBoard = ({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence> */}
+      </AnimatePresence>
 
       {/* Exit Confirmation */}
-      {/* <AnimatePresence>
+      <AnimatePresence>
         {showExitPrompt && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -686,60 +655,7 @@ const AiBoard = ({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence> */}
-
-      {/* Insolvency Modal */}
-      <AnimatePresence>
-        {showInsolvencyModal && isMyTurn && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-red-500/50 shadow-2xl"
-            >
-              <h2 className="text-4xl font-bold text-red-400 mb-6">You're Broke!</h2>
-              <p className="text-xl text-white mb-8">
-                You owe <span className="text-yellow-400 font-bold">${insolvencyDebt}</span>
-              </p>
-              <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                <button
-                  onClick={handleRaiseFunds}
-                  className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xl rounded-2xl shadow-xl hover:scale-105 transition-all"
-                >
-                  Raise Funds & Retry
-                </button>
-                <button
-                  onClick={handleDeclareBankruptcy}
-                  className="px-10 py-5 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold text-xl rounded-2xl shadow-xl hover:scale-105 transition-all"
-                >
-                  Declare Bankruptcy
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
       </AnimatePresence>
-
-      {/* Persistent "I've Raised Funds" Button */}
-      {isRaisingFunds && isMyTurn && currentPlayer && (
-        <motion.div
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[65] w-[90vw] max-w-md"
-        >
-          <button
-            onClick={handleRetryAfterFunds}
-            className="w-full py-5 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-bold text-xl rounded-full shadow-2xl hover:from-yellow-600 hover:to-amber-700 transform hover:scale-105 active:scale-95 transition-all"
-          >
-            I've Raised Funds — Try Again
-          </button>
-        </motion.div>
-      )}
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
@@ -793,7 +709,7 @@ const AiBoard = ({
                 Tycoon
               </h1>
 
-              {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+              {isMyTurn && !roll && !isRolling && (
                 <button
                   onClick={() => ROLL_DICE(false)}
                   disabled={isRolling}
