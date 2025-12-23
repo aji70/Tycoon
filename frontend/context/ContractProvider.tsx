@@ -537,12 +537,11 @@ export function useJoinGame(
     reset, // Useful for clearing state after success/error
   };
 }
-
 export function useEndAiGame(
   gameId: number,
-  finalPosition: string,
-  finalBalance: string,
-  win: boolean,
+  finalPosition: number,       // should be 0–39 in Monopoly → safe for uint8
+  finalBalance: string | bigint,
+  isWin: boolean               // renamed for clarity
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
@@ -559,38 +558,58 @@ export function useEndAiGame(
     isLoading: isConfirming,
     isSuccess,
     isError: isTxError,
-  } = useWaitForTransactionReceipt({ hash: txHash });
+  } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
 
   const write = useCallback(async (): Promise<string> => {
     if (!contractAddress) {
-      throw new Error(`Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`);
+      throw new Error(
+        `Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`
+      );
     }
 
-    if (!gameId || !finalBalance || !finalPosition) {
-      throw new Error("Missing required parameters to end game");
+    if (gameId === undefined || finalPosition === undefined || finalBalance === undefined) {
+      throw new Error("Missing required parameters to end AI game");
+    }
+
+    // Critical: uint8 safety check
+    if (!Number.isInteger(finalPosition) || finalPosition < 0 || finalPosition > 255) {
+      throw new Error("finalPosition must be an integer between 0 and 255 (valid uint8)");
+    }
+
+    // Monopoly specific recommendation (optional but very useful)
+    if (finalPosition < 0 || finalPosition >= 40) {
+      console.warn("Unusual board position:", finalPosition);
+      // You can throw here if you want to be strict
     }
 
     const hash = await writeContractAsync({
-      chainId, // Enforce correct chain
+      chainId,
       address: contractAddress,
       abi: PlayerABI,
-      functionName: 'endAIGame',
-      args: [gameId, finalPosition, finalBalance, win],
+      functionName: "endAIGame",
+      args: [
+        BigInt(gameId),                  // uint256
+        BigInt(finalPosition),           // ← key fix: number → BigInt for uint8
+        typeof finalBalance === "string" ? BigInt(finalBalance) : finalBalance, // uint256
+        isWin,                           // bool
+      ],
     });
 
     if (!hash) {
-      throw new Error('Transaction failed: no hash returned');
+      throw new Error("Transaction failed: no hash returned");
     }
 
-    return hash; // Return transaction hash
+    return hash;
   }, [
-    writeContractAsync,
-    contractAddress,
     chainId,
+    contractAddress,
+    writeContractAsync,
     gameId,
     finalPosition,
     finalBalance,
-    win,
+    isWin,
   ]);
 
   return {
@@ -601,10 +620,9 @@ export function useEndAiGame(
     isError: !!writeError || isTxError,
     error: writeError,
     txHash,
-    reset, // Useful for clearing state after success/error
+    reset,
   };
 }
-
 export function useGetGame(gameId?: string, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];

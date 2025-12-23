@@ -19,8 +19,9 @@ import {
   PROPERTY_ACTION,
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
-import toast, { Toaster } from "react-hot-toast";
+import { toast, Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEndAiGame } from "@/context/ContractProvider";
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -28,7 +29,6 @@ interface ApiResponse<T = any> {
   data?: T;
 }
 
-// ==================== AI DECISION ENGINE ====================
 const MONOPOLY_STATS = {
   landingRank: {
     5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
@@ -109,7 +109,6 @@ const calculateBuyScore = (
   return Math.max(5, Math.min(98, score));
 };
 
-// ==================== DICE ====================
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
 
@@ -149,7 +148,6 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
 
 const isTopHalf = (square: Property) => square.grid_row === 1;
 
-// ==================== MAIN COMPONENT ====================
 const AiBoard = ({
   game,
   properties,
@@ -168,6 +166,12 @@ const AiBoard = ({
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+  }>({ winner: null, position: 0, balance: BigInt(0) });
 
   const currentPlayerId = game.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -189,6 +193,20 @@ const AiBoard = ({
     return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
+  const {
+    write: endGame,
+    isPending,
+    isSuccess,
+    isError,
+    error,
+    reset,
+  } = useEndAiGame(
+    game.id,
+    endGameCandidate.position,
+    endGameCandidate.balance,
+    !!endGameCandidate.winner
+  );
+
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     toast.dismiss();
     if (type === "success") toast.success(message);
@@ -206,15 +224,17 @@ const AiBoard = ({
     }
   }, [game.history?.length]);
 
-  // Winner detection
-   // Winner detection & set game to FINISHED
   useEffect(() => {
     const activePlayers = players.filter(p => p.balance > 0);
 
-    if (activePlayers.length === 1) {
+    if (activePlayers.length === 1 && game.status !== "FINISHED") {
       const theWinner = activePlayers[0];
+      const position = theWinner.position ?? 0;
+      const balance = BigInt(Math.max(0, theWinner.balance));
 
-      // Update backend: set game status to FINISHED and declare winner
+      setEndGameCandidate({ winner: theWinner, position, balance });
+      setWinner(theWinner);
+
       apiClient
         .put<ApiResponse>(`/games/${game.id}`, {
           status: "FINISHED",
@@ -222,16 +242,10 @@ const AiBoard = ({
         })
         .catch(err => {
           console.error("Failed to mark game as finished:", err);
-          toast.error("Game ended but failed to save result");
         });
-
-      setWinner(theWinner);
-    } else {
-      setWinner(null);
     }
-  }, [players, game.id]);
+  }, [players, game.id, game.status]);
 
-  // === RESET TURN STATE ON TURN CHANGE ===
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -358,7 +372,6 @@ const AiBoard = ({
     fetchUpdatedGame, currentPlayer?.username, END_TURN, showToast
   ]);
 
-  // AI Auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
 
@@ -366,7 +379,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -384,7 +396,6 @@ const AiBoard = ({
     if (canBuy) setBuyPrompted(true);
   }, [currentPlayer?.position, roll, properties, game_properties]);
 
-  // AI Buy Decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
 
@@ -404,7 +415,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // AI Auto-end turn when no action needed
   useEffect(() => {
     if (!isAITurn || !roll || buyPrompted || actionLock) return;
 
@@ -412,7 +422,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, roll, buyPrompted, actionLock, END_TURN]);
 
-  // Human Auto-end turn when no buy possible
   useEffect(() => {
     if (!isMyTurn || !roll || buyPrompted || actionLock) return;
 
@@ -450,78 +459,169 @@ const AiBoard = ({
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
+  const handleExitAttempt = (shouldTryFinalize: boolean) => {
+    if (!endGameCandidate.winner) {
+      window.location.href = "/";
+      return;
+    }
+
+    if (shouldTryFinalize) {
+      setShowExitPrompt(true);
+    } else {
+      window.location.href = "/";
+    }
+  };
+
+const handleFinalizeAndLeave = async () => {
+  setShowExitPrompt(false);
+
+  const toastId = toast.loading(
+    winner?.user_id === me?.user_id
+      ? "Claiming your prize..."
+      : "Finalizing game results..."
+  );
+
+  try {
+    await endGame();
+
+    toast.success(
+      winner?.user_id === me?.user_id
+        ? "Prize claimed! 🎉"
+        : "Game completed — thanks for playing!",
+      { id: toastId, duration: 5000 }
+    );
+
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 1500);
+
+  } catch (err: any) {
+    toast.error(
+      err?.message || "Something went wrong — you can try again later",
+      { id: toastId, duration: 8000 }
+    );
+  } finally {
+    reset();
+  }
+};
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-      {/* Winner Screen */}
-<AnimatePresence>
-  {winner && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-    >
-      <motion.div
-        initial={{ scale: 0.8, rotate: -5 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: "spring", stiffness: 200, damping: 20 }}
-        className={`p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
-          winner.user_id === me?.user_id
-            ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
-            : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
-        }`}
-      >
-        {winner.user_id === me?.user_id ? (
-          <>
-            <h1 className="text-6xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
-            <p className="text-5xl font-bold text-white mb-8 drop-shadow-lg">
-              Congratulations, Champion!
-            </p>
-            <p className="text-3xl font-semibold text-yellow-200 mb-12">
-              You are the Tycoon!
-            </p>
-
-            <button
-              onClick={() => {
-                window.location.href = "/";
-              }}
-              className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-white/50"
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, rotate: -5 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
+                winner.user_id === me?.user_id
+                  ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
+                  : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
+              }`}
             >
-              ✨ Claim Your Prize ✨
-            </button>
+              {winner.user_id === me?.user_id ? (
+                <>
+                  <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
+                  <p className="text-4xl md:text-5xl font-bold text-white mb-8">
+                    Congratulations, Champion!
+                  </p>
+                  <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
+                    You're the Tycoon of this game!
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
+                  <p className="text-3xl md:text-4xl font-bold text-white mb-6">
+                    {winner.username} is the winner!
+                  </p>
+                  <p className="text-xl md:text-2xl text-gray-300 mb-10">
+                    Better luck next time — you played well!
+                  </p>
+                </>
+              )}
 
-            <p className="text-lg text-yellow-200 mt-8 opacity-80">
-              Thank you for playing Tycoon!
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 className="text-5xl font-bold mb-6 text-gray-300">Game Over</h1>
-            <p className="text-4xl font-bold text-white mb-4">
-              {winner.username} wins!
-            </p>
-            <p className="text-2xl text-gray-400 mb-12">
-              Better luck next time!
-            </p>
+              <div className="flex flex-col sm:flex-row gap-6 justify-center">
+                <button
+                  onClick={() => handleExitAttempt(true)}
+                  className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
+                >
+                  {winner.user_id === me?.user_id ? "Claim Your Prize" : "Finish Game & Leave"}
+                </button>
 
-            <button
-              onClick={() => {
-                window.location.href = "/";
-              }}
-              className="px-12 py-5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-2xl font-bold rounded-2xl shadow-xl hover:shadow-gray-500/50 hover:scale-105 transform transition-all duration-300 border-4 border-gray-500"
-            >
-              Return to Home
-            </button>
+                <button
+                  onClick={() => handleExitAttempt(false)}
+                  className="px-10 py-5 bg-gray-700 text-white text-xl md:text-2xl font-bold rounded-2xl hover:bg-gray-600 transition-all duration-300 border border-gray-500"
+                >
+                  Return to Home
+                </button>
+              </div>
 
-            <p className="text-md text-gray-500 mt-8 opacity-80">
-              Thanks for playing!
-            </p>
-          </>
+              <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
+                Thanks for playing Tycoon!
+              </p>
+            </motion.div>
+          </motion.div>
         )}
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showExitPrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
+            >
+              <h2 className="text-3xl font-bold text-white mb-6">
+                One last thing!
+              </h2>
+
+              {winner?.user_id === me?.user_id ? (
+                <p className="text-xl text-cyan-300 mb-8">
+                  Finalize the game to claim your prize and close this match properly.
+                </p>
+              ) : (
+                <p className="text-xl text-gray-300 mb-8">
+                  Finalize the game to wrap things up nicely — it helps everyone!
+                </p>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={handleFinalizeAndLeave}
+                  disabled={isPending}
+                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
+                >
+                  {isPending ? "Processing..." : "Yes, Finish Game"}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowExitPrompt(false);
+                    setTimeout(() => window.location.href = "/", 300);
+                  }}
+                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
+                >
+                  Skip & Leave
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
@@ -575,7 +675,6 @@ const AiBoard = ({
                 Tycoon
               </h1>
 
-              {/* ROLL BUTTON */}
               {isMyTurn && !roll && !isRolling && (
                 <button
                   onClick={() => ROLL_DICE(false)}
@@ -586,7 +685,6 @@ const AiBoard = ({
                 </button>
               )}
 
-              {/* BUY PROMPT */}
               {isMyTurn && buyPrompted && currentProperty && (
                 <div className="flex gap-4 flex-wrap justify-center mt-4">
                   <button
@@ -608,7 +706,6 @@ const AiBoard = ({
                 </div>
               )}
 
-              {/* AI TURN */}
               {isAITurn && (
                 <div className="mt-5 text-center z-10">
                   <motion.h2
@@ -632,7 +729,6 @@ const AiBoard = ({
                 </div>
               )}
 
-              {/* Action Log */}
               <div ref={logRef} className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
                 <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
                   <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
@@ -652,7 +748,6 @@ const AiBoard = ({
               </div>
             </div>
 
-            {/* Board Squares */}
             {properties.map((square) => {
               const playersHere = playersByPosition.get(square.id) ?? [];
               const devLevel = developmentStage(square.id);
@@ -674,14 +769,12 @@ const AiBoard = ({
                     {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                     {square.type === "corner" && <CornerCard square={square} />}
 
-                    {/* Development indicator */}
                     {square.type === "property" && devLevel > 0 && (
                       <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
                         {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
                       </div>
                     )}
 
-                    {/* MORTGAGED OVERLAY */}
                     {mortgaged && (
                       <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center z-30 pointer-events-none">
                         <span className="text-white text-lg font-bold rotate-12 tracking-wider drop-shadow-2xl">
@@ -690,7 +783,6 @@ const AiBoard = ({
                       </div>
                     )}
 
-                    {/* Dim card if mortgaged */}
                     {mortgaged && (
                       <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none" />
                     )}
