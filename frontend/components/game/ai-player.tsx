@@ -62,6 +62,7 @@ export default function GamePlayers({
   const [requestCash, setRequestCash] = useState<number>(0);
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
 
   const [winner, setWinner] = useState<Player | null>(null);
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -288,14 +289,197 @@ export default function GamePlayers({
     }
   };
 
-  const handleDowngrade = async (id: number) => { /* same pattern as above */ };
-  const handleMortgage = async (id: number) => { /* ... */ };
-  const handleUnmortgage = async (id: number) => { /* ... */ };
+   const handleDowngrade = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
+    }
+  };
+
+  const handleMortgage = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property mortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to mortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to mortgage property");
+    }
+  };
+
+  const handleUnmortgage = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property unmortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unmortgage property");
+    }
+  };
 
   // AI liquidation & winner detection logic remains the same (omitted for brevity – copy from original)
 
+ const aiSellHouses = async (needed: number) => {
+    const improved = game_properties
+      .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
+      .sort((a, b) => {
+        const pa = properties.find(p => p.id === a.property_id);
+        const pb = properties.find(p => p.id === b.property_id);
+        return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
+      });
+
+    let raised = 0;
+    for (const gp of improved) {
+      if (raised >= needed) break;
+      const prop = properties.find(p => p.id === gp.property_id);
+      if (!prop?.cost_of_house) continue;
+
+      const sellValue = Math.floor(prop.cost_of_house / 2);
+      const houses = gp.development ?? 0;
+
+      for (let i = 0; i < houses && raised < needed; i++) {
+        try {
+          await apiClient.post("/game-properties/downgrade", {
+            game_id: game.id,
+            user_id: currentPlayer!.user_id,
+            property_id: gp.property_id,
+          });
+          raised += sellValue;
+          toast(`AI sold a house on ${prop.name} (raised $${raised})`);
+        } catch (err) {
+          console.error("AI failed to sell house", err);
+          break;
+        }
+      }
+    }
+    return raised;
+  };
+
+  const aiMortgageProperties = async (needed: number) => {
+    const unmortgaged = game_properties
+      .filter(gp => gp.address === currentPlayer?.address && !gp.mortgaged && gp.development === 0)
+      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
+      .filter(({ prop }) => prop?.price)
+      .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
+
+    let raised = 0;
+    for (const { gp, prop } of unmortgaged) {
+      if (raised >= needed || !prop) continue;
+      const mortgageValue = Math.floor(prop.price / 2);
+      try {
+        await apiClient.post("/game-properties/mortgage", {
+          game_id: game.id,
+          user_id: currentPlayer!.user_id,
+          property_id: gp.property_id,
+        });
+        raised += mortgageValue;
+        toast(`AI mortgaged ${prop.name} (raised $${raised})`);
+      } catch (err) {
+        console.error("AI failed to mortgage", err);
+      }
+    }
+    return raised;
+  };
+
+  useEffect(() => {
+    if (!isAITurn || !currentPlayer) return;
+
+    const liquidateIfNeeded = async () => {
+      const balance = currentPlayer.balance;
+      if (balance >= 200) return;
+
+      toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
+
+      const needed = Math.max(600, 200 - balance);
+
+      let raised = 0;
+      raised += await aiSellHouses(needed);
+      raised += await aiMortgageProperties(needed - raised);
+
+      if (currentPlayer.balance < 0) {
+        toast(`${currentPlayer.username} is bankrupt!`);
+        try {
+          await apiClient.post("/game-players/bankrupt", {
+            user_id: currentPlayer.user_id,
+            game_id: game.id,
+          });
+        } catch (err) {
+          console.error("Bankruptcy failed", err);
+        }
+      }
+    };
+
+    const timer = setTimeout(liquidateIfNeeded, 3000);
+    return () => clearTimeout(timer);
+  }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
+
+  // ==================== WINNER DETECTION (AI BANKRUPT) ====================
+  useEffect(() => {
+    if (!me || game.players.length !== 2) return;
+
+    const aiPlayer = game.players.find(p => p.user_id !== me.user_id);
+    const humanPlayer = me;
+
+    if (aiPlayer && humanPlayer && aiPlayer.balance <= 0 && humanPlayer.balance > 0) {
+      setWinner(humanPlayer);
+      setEndGameCandidate({
+        winner: humanPlayer,
+        position: humanPlayer.position ?? 0,
+        balance: BigInt(humanPlayer.balance),
+      });
+    }
+  }, [game.players, me]);
+
+  // ==================== FINALIZE GAME & CLAIM REWARDS ====================
   const handleFinalizeAndLeave = async () => {
-    // same as original
+    setShowExitPrompt(false);
+
+    const toastId = toast.loading(
+      winner?.user_id === me?.user_id
+        ? "Claiming your prize..."
+        : "Finalizing game..."
+    );
+
+    try {
+      if (endGame) {
+        await endGame();
+      }
+
+      toast.success(
+        winner?.user_id === me?.user_id
+          ? "Prize claimed! 🎉"
+          : "Game completed — thanks for playing!",
+        { id: toastId, duration: 5000 }
+      );
+
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+    } catch (err: any) {
+      toast.error(
+        err?.message || "Something went wrong — try again later",
+        { id: toastId, duration: 8000 }
+      );
+    } finally {
+      if (endGameReset) endGameReset();
+    }
   };
 
   return (
