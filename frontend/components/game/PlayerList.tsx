@@ -11,6 +11,15 @@ interface PlayerListProps {
   isNext: boolean;
 }
 
+// Simple helper to determine balance "health" color
+const getBalanceColor = (balance: number): string => {
+  if (balance >= 1000000) return "text-cyan-300";     // plenty - bright cyan/blue
+  if (balance >= 250000)  return "text-emerald-400";  // good - green
+  if (balance >= 75000)   return "text-yellow-400";   // drying up - yellow
+  if (balance >= 15000)   return "text-orange-400";   // danger - orange
+  return "text-red-500 animate-pulse";                // almost broke - red + subtle blink
+};
+
 export const PlayerList: React.FC<PlayerListProps> = ({
   game,
   sortedPlayers,
@@ -26,36 +35,58 @@ export const PlayerList: React.FC<PlayerListProps> = ({
         const isMe = player.address?.toLowerCase() === address?.toLowerCase();
         const canTrade = isNext && !player.in_jail && !isMe;
 
+        const balanceColor = getBalanceColor(player.balance);
+
         return (
           <motion.div
             key={player.user_id}
-            whileHover={{ scale: 1.02 }}
-            className={`p-4 rounded-xl border-2 transition-all ${
-              isNextTurn
-                ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-400/60"
-                : "border-purple-800 bg-purple-900/20"
-            }`}
+            whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+            className={`
+              p-4 rounded-xl border-2 transition-all duration-300
+              ${isNextTurn
+                ? "border-cyan-400 bg-cyan-950/50 shadow-lg shadow-cyan-500/40"
+                : "border-purple-800/70 bg-purple-950/30"
+              }
+              ${player.in_jail ? "opacity-60 bg-gray-900/40" : ""}
+            `}
           >
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <span className="text-3xl">{getPlayerSymbol(player.symbol)}</span>
-                <div className="font-bold text-cyan-200">
-                  {player.username || player.address?.slice(0, 6)}
-                  {isMe && " (YOU)"}
+                <span className="text-3xl sm:text-4xl drop-shadow-md">
+                  {getPlayerSymbol(player.symbol)}
+                </span>
+                <div className="font-bold text-lg sm:text-xl text-cyan-100">
+                  {player.username || player.address?.slice(0, 6) + "..."}
+                  {isMe && <span className="text-cyan-300 ml-1.5">(YOU)</span>}
+                  {player.in_jail && (
+                    <span className="text-red-400 ml-2 text-sm font-medium">
+                      [JAIL]
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="text-xl font-bold text-yellow-400">
+
+              <div className={`text-xl sm:text-2xl font-black ${balanceColor}`}>
                 ${player.balance.toLocaleString()}
               </div>
             </div>
 
             {canTrade && (
               <motion.button
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
                 onClick={() => startTrade(player)}
-                className="mt-3 w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg font-bold text-white shadow-lg"
+                className="
+                  mt-4 w-full py-2.5 md:py-3
+                  bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600
+                  hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500
+                  text-white font-bold rounded-lg
+                  shadow-md shadow-purple-900/40
+                  transition-all duration-300
+                  text-sm sm:text-base
+                "
               >
-                TRADE
+                TRADE WITH {player.username?.split(" ")[0] || "PLAYER"}
               </motion.button>
             )}
           </motion.div>
