@@ -100,7 +100,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     >
       <motion.div
         initial={{ y: 400, opacity: 0 }}           // start lower off-screen
-        animate={{ y: -200, opacity: 1 }}           // ← move 200px HIGHER than center
+        animate={{ y: -100, opacity: 1 }}           // ← move 200px HIGHER than center
         exit={{ y: 400, opacity: 0 }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
