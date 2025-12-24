@@ -20,7 +20,7 @@ interface TradeModalProps {
   setRequestCash: React.Dispatch<React.SetStateAction<number>>;
   toggleSelect: (id: number, arr: number[], setter: any) => void;
   targetPlayerAddress?: string | null;
-  isAITrade?: boolean; // ← new optional prop to show AI incentive field
+  isAITrade?: boolean;
 }
 
 const PropertyCard = ({
@@ -79,7 +79,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     setRequestCash,
     toggleSelect,
     targetPlayerAddress,
-    isAITrade = false, // default false
+    isAITrade = false,
   } = props;
 
   const targetOwnedProps = useMemo(() => {
@@ -117,7 +117,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           ×
         </button>
 
-        <div className="pt-12 pb-8 px-5">
+        <div className="pt-12 pb-10 px-5">
           <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8 drop-shadow-lg">
             {title}
           </h2>
@@ -187,7 +187,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               />
             </div>
 
-            {/* Special AI Incentive Field */}
+            {/* AI Extra Incentive */}
             {isAITrade && (
               <div className="bg-yellow-900/30 border-2 border-yellow-600/50 rounded-xl p-4">
                 <h4 className="text-lg font-bold text-yellow-300 text-center mb-3">
@@ -208,22 +208,24 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
             )}
           </div>
 
-          {/* Action Buttons - Now inside scrollable area, smaller, no overlap */}
-          <div className="mt-10 space-y-3 px-4">
-            <button
-              onClick={onClose}
-              className="w-full py-3.5 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-lg text-gray-300 hover:bg-gray-700 transition"
-            >
-              CANCEL
-            </button>
+          {/* SIDE-BY-SIDE BUTTONS */}
+          <div className="mt-10 px-4">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={onClose}
+                className="py-3.5 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-lg text-gray-300 hover:bg-gray-700 transition shadow-md"
+              >
+                CANCEL
+              </button>
 
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={onSubmit}
-              className="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/50 transition"
-            >
-              SEND DEAL
-            </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={onSubmit}
+                className="py-3.5 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/50 transition"
+              >
+                SEND DEAL
+              </motion.button>
+            </div>
           </div>
         </div>
       </motion.div>
