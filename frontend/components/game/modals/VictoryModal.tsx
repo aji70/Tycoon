@@ -1,13 +1,15 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Player } from "@/types/game";
-import { Trophy, Sparkles, Crown, RotateCcw } from "lucide-react";
+import { Trophy, Sparkles, Crown, RotateCcw, AlertCircle } from "lucide-react";
 
 interface VictoryModalProps {
   winner: Player | null;
   me: Player | null;
   onClaim: () => void;
   claiming: boolean;
+  claimError?: string | null;        // ← New prop for error message
+  onClearError?: () => void;         // Optional: clear error when retrying
 }
 
 export const VictoryModal: React.FC<VictoryModalProps> = ({
@@ -15,10 +17,17 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   me,
   onClaim,
   claiming,
+  claimError = null,
+  onClearError,
 }) => {
   if (!winner) return null;
 
   const isWinner = winner.user_id === me?.user_id;
+
+  const handleClaimClick = () => {
+    onClearError?.(); // clear previous error when user retries
+    onClaim();
+  };
 
   return (
     <AnimatePresence>
@@ -58,7 +67,6 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             }
           `}
         >
-          {/* Decorative glow effect */}
           {isWinner && (
             <motion.div
               className="absolute -inset-20 bg-gradient-radial from-amber-400/20 via-transparent to-transparent pointer-events-none"
@@ -96,7 +104,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                   transition={{ delay: 0.5 }}
                   className="text-2xl md:text-3xl font-bold text-amber-100/90 mb-8"
                 >
-                  Congratulations, Tycoon Legend! 👑
+                  Congratulations, Tycoon Legend! Crown
                 </motion.p>
 
                 <motion.div
@@ -115,11 +123,29 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                   </div>
                 </motion.div>
 
+                {/* Error banner (only shown on error) */}
+                <AnimatePresence>
+                  {claimError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="mb-6 p-4 bg-red-900/60 border border-red-500/50 rounded-2xl flex items-center gap-3 text-red-200"
+                    >
+                      <AlertCircle className="w-6 h-6 flex-shrink-0" />
+                      <div className="text-left">
+                        <p className="font-semibold">Claim failed</p>
+                        <p className="text-sm mt-1">{claimError}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <motion.button
                   whileHover={{ scale: 1.06, y: -4 }}
                   whileTap={{ scale: 0.96 }}
                   disabled={claiming}
-                  onClick={onClaim}
+                  onClick={handleClaimClick}
                   className={`
                     relative px-10 py-5 md:px-14 md:py-7
                     text-xl md:text-2xl font-bold
@@ -136,7 +162,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                   `}
                 >
                   <span className="relative z-10">
-                    {claiming ? "Claiming your empire..." : "Claim Your Rewards 🎁"}
+                    {claiming ? "Claiming your empire..." : "Claim Your Rewards Gift"}
                   </span>
                   
                   <motion.div
@@ -195,7 +221,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             )}
 
             <p className="mt-12 text-base md:text-lg text-white/50 font-light">
-              Thanks for playing <span className="text-amber-300/70 font-medium">Tycoon</span> ✨
+              Thanks for playing <span className="text-amber-300/70 font-medium">Tycoon</span> Sparkles
             </p>
           </div>
         </motion.div>

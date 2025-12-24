@@ -85,6 +85,7 @@ export default function GamePlayers({
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = !!me && game.next_player_id === me.user_id;
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   const resetTradeFields = () => {
     setOfferCash(0);
@@ -450,6 +451,7 @@ export default function GamePlayers({
   // ==================== FINALIZE GAME & CLAIM REWARDS ====================
   const handleFinalizeAndLeave = async () => {
     setShowExitPrompt(false);
+    setClaimError(null);
 
     const toastId = toast.loading(
       winner?.user_id === me?.user_id
