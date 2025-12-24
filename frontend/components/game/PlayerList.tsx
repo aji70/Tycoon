@@ -65,9 +65,9 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                   )}
                 </div>
               </div>
-
+                  <br/>
               <div className={`text-xl sm:text-2xl font-black ${balanceColor}`}>
-                ${player.balance.toLocaleString()}
+                ${ player.balance.toLocaleString()}
               </div>
             </div>
 
