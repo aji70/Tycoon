@@ -20,6 +20,7 @@ interface TradeModalProps {
   setRequestCash: React.Dispatch<React.SetStateAction<number>>;
   toggleSelect: (id: number, arr: number[], setter: any) => void;
   targetPlayerAddress?: string | null;
+  isAITrade?: boolean; // ← new optional prop to show AI incentive field
 }
 
 const PropertyCard = ({
@@ -78,6 +79,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     setRequestCash,
     toggleSelect,
     targetPlayerAddress,
+    isAITrade = false, // default false
   } = props;
 
   const targetOwnedProps = useMemo(() => {
@@ -95,18 +97,17 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 px-4"  // ← changed from items-end to items-center
+      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 px-4"
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: 400, opacity: 0 }}           // start lower off-screen
-        animate={{ y: -100, opacity: 1 }}           // ← move 200px HIGHER than center
+        initial={{ y: 400, opacity: 0 }}
+        animate={{ y: -50, opacity: 1 }}
         exit={{ y: 400, opacity: 0 }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
         className="relative bg-gradient-to-b from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
       >
-        {/* Optional: subtle handle bar at top */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-cyan-400/60 rounded-full" />
 
         <button
@@ -116,12 +117,12 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           ×
         </button>
 
-        <div className="pt-12 pb-6 px-5">
+        <div className="pt-12 pb-8 px-5">
           <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8 drop-shadow-lg">
             {title}
           </h2>
 
-          <div className="space-y-10 pb-24">
+          <div className="space-y-10">
             {/* YOU GIVE */}
             <div>
               <h3 className="text-2xl font-bold text-green-400 text-center mb-4">
@@ -150,7 +151,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                 placeholder="+$ CASH"
                 value={offerCash || ""}
                 onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full mt-5 bg-black/60 border-2 border-green-500 rounded-xl px-4 py-4 text-green-400 font-bold text-2xl text-center placeholder-green-700 focus:outline-none focus:border-green-400 transition"
+                className="w-full mt-5 bg-black/60 border-2 border-green-500 rounded-xl px-4 py-3.5 text-green-400 font-bold text-xl text-center placeholder-green-700 focus:outline-none focus:border-green-400 transition"
               />
             </div>
 
@@ -182,28 +183,47 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                 placeholder="+$ CASH"
                 value={requestCash || ""}
                 onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full mt-5 bg-black/60 border-2 border-red-500 rounded-xl px-4 py-4 text-red-400 font-bold text-2xl text-center placeholder-red-700 focus:outline-none focus:border-red-400 transition"
+                className="w-full mt-5 bg-black/60 border-2 border-red-500 rounded-xl px-4 py-3.5 text-red-400 font-bold text-xl text-center placeholder-red-700 focus:outline-none focus:border-red-400 transition"
               />
             </div>
+
+            {/* Special AI Incentive Field */}
+            {isAITrade && (
+              <div className="bg-yellow-900/30 border-2 border-yellow-600/50 rounded-xl p-4">
+                <h4 className="text-lg font-bold text-yellow-300 text-center mb-3">
+                  🤖 Extra Amount to Send for AI
+                </h4>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="$0"
+                  value={offerCash || ""}
+                  onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full bg-black/70 border-2 border-yellow-500 rounded-lg px-4 py-3 text-yellow-300 font-bold text-2xl text-center placeholder-yellow-600 focus:outline-none focus:border-yellow-400 transition"
+                />
+                <p className="text-xs text-yellow-200/80 text-center mt-2">
+                  AI loves good deals! Extra cash increases acceptance chance.
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Bottom buttons - fixed position */}
-          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent pt-10 pb-8 px-4">
-            <div className="max-w-md mx-auto space-y-3">
-              <button
-                onClick={onClose}
-                className="w-full py-4 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-xl text-gray-300 hover:bg-gray-700 transition"
-              >
-                CANCEL
-              </button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={onSubmit}
-                className="w-full py-4 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-xl font-bold text-xl text-white shadow-lg hover:shadow-cyan-500/50 transition"
-              >
-                SEND DEAL
-              </motion.button>
-            </div>
+          {/* Action Buttons - Now inside scrollable area, smaller, no overlap */}
+          <div className="mt-10 space-y-3 px-4">
+            <button
+              onClick={onClose}
+              className="w-full py-3.5 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-lg text-gray-300 hover:bg-gray-700 transition"
+            >
+              CANCEL
+            </button>
+
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={onSubmit}
+              className="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/50 transition"
+            >
+              SEND DEAL
+            </motion.button>
           </div>
         </div>
       </motion.div>
