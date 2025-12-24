@@ -23,9 +23,8 @@ interface MobileGameLayoutProps {
   game_properties: GameProperty[];
   my_properties: Property[];
   me: Player | null;
-  currentPlayer: Player | null;
-  roll: { die1: number; die2: number; total: number } | null;
-  isAITurn: boolean;
+  currentPlayer?: Player | null;
+  isAITurn?: boolean;
 }
 
 export default function MobileGameLayout({
@@ -35,8 +34,7 @@ export default function MobileGameLayout({
   my_properties,
   me,
   currentPlayer,
-  roll,
-  isAITurn,
+  isAITurn = false,
 }: MobileGameLayoutProps) {
   const { address } = useAccount();
 
@@ -63,36 +61,46 @@ export default function MobileGameLayout({
   const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
   const [winner, setWinner] = useState<Player | null>(null);
 
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+  }>({ winner: null, position: 0, balance: BigInt(0) });
+
   const processedAiTradeIds = useRef<Set<number>>(new Set());
   const isNext = !!me && game.next_player_id === me.user_id;
-  const [claimError, setClaimError] = useState<string | null>(null);
-  const [showExitPrompt, setShowExitPrompt] = useState(false);
-   const [endGameCandidate, setEndGameCandidate] = useState<{
-      winner: Player | null;
-      position: number;
-      balance: bigint;
-    }>({ winner: null, position: 0, balance: BigInt(0) });
 
-  // Winner detection
+  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+  const onChainGameId = contractGame?.id;
+  const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
+    Number(onChainGameId),
+    endGameCandidate.position,
+    endGameCandidate.balance,
+    !!endGameCandidate.winner
+  );
+
+  // ==================== WINNER DETECTION ====================
   useEffect(() => {
-    const active = game.players.filter((p) => p.balance > 0);
-    setWinner(active.length === 1 ? active[0] : null);
-  }, [game.players]);
+    if (game.players.length !== 2 || !me) return;
+    const aiPlayer = game.players.find(p => p.user_id !== me.user_id);
+    if (aiPlayer && aiPlayer.balance <= 0 && me.balance > 0) {
+      setWinner(me);
+      setEndGameCandidate({
+        winner: me,
+        position: me.position ?? 0,
+        balance: BigInt(me.balance),
+      });
+    } else {
+      setWinner(null);
+    }
+  }, [game.players, me]);
 
-    const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
-    const onChainGameId = contractGame?.id;
-   const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
-      Number(onChainGameId),
-      endGameCandidate.position,
-      endGameCandidate.balance,
-      !!endGameCandidate.winner
-    );
-
-  // Trade polling (simplified – move to hook later if needed)
+  // ==================== TRADE POLLING ====================
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
     try {
-      const [outRes, inRes] = await Promise.all([
+      const [, inRes] = await Promise.all([
         apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
         apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
       ]);
@@ -125,6 +133,33 @@ export default function MobileGameLayout({
     processedAiTradeIds.current.clear();
   }, [game?.id]);
 
+  // ==================== AI FAVORABILITY CALCULATION ====================
+  const calculateAiFavorability = useCallback(
+    (trade: any) => {
+      const aiGetsValue =
+        (trade.offer_amount || 0) +
+        trade.offer_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        );
+
+      const aiGivesValue =
+        (trade.requested_amount || 0) +
+        trade.requested_properties.reduce(
+          (sum: number, id: number) =>
+            sum + (properties.find((p) => p.id === id)?.price || 0),
+          0
+        );
+
+      if (aiGivesValue === 0) return 100;
+      const ratio = ((aiGetsValue - aiGivesValue) / aiGivesValue) * 100;
+      return Math.min(100, Math.max(-100, Math.round(ratio)));
+    },
+    [properties]
+  );
+
+  // ==================== TRADE UTILITIES ====================
   const resetTradeFields = () => {
     setOfferCash(0);
     setRequestCash(0);
@@ -132,35 +167,8 @@ export default function MobileGameLayout({
     setRequestProperties([]);
   };
 
-    const calculateAiFavorability = useCallback(
-      (trade: any) => {
-        const aiGetsValue =
-          (trade.offer_amount || 0) +
-          trade.offer_properties.reduce(
-            (sum: number, id: number) =>
-              sum + (properties.find((p) => p.id === id)?.price || 0),
-            0
-          );
-  
-        const aiGivesValue =
-          (trade.requested_amount || 0) +
-          trade.requested_properties.reduce(
-            (sum: number, id: number) =>
-              sum + (properties.find((p) => p.id === id)?.price || 0),
-            0
-          );
-  
-        if (aiGivesValue === 0) return 100;
-        const ratio = ((aiGetsValue - aiGivesValue) / aiGivesValue) * 100;
-        return Math.min(100, Math.max(-100, Math.round(ratio)));
-      },
-      [properties]
-    );
-
-  const toggleSelect = (id: number, arr: number[], setter: any) => {
-    setter((prev: number[]) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+  const toggleSelect = (id: number, arr: number[], setter: React.Dispatch<React.SetStateAction<number[]>>) => {
+    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const startTrade = (player: Player) => {
@@ -169,38 +177,8 @@ export default function MobileGameLayout({
     resetTradeFields();
   };
 
-
-     const handleMortgage = async (id: number) => {
-        if (!isNext || !me) return;
-        try {
-          const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
-            game_id: game.id,
-            user_id: me.user_id,
-            property_id: id,
-          });
-          if (res.data?.success) toast.success("Mortgaged");
-          else toast.error(res.data?.message || "Cannot mortgage");
-        } catch (err: any) {
-          toast.error("Mortgage failed");
-        }
-      };
-    
-      const handleUnmortgage = async (id: number) => {
-        if (!isNext || !me) return;
-        try {
-          const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
-            game_id: game.id,
-            user_id: me.user_id,
-            property_id: id,
-          });
-          if (res.data?.success) toast.success("Unmortgaged");
-          else toast.error(res.data?.message || "Cannot unmortgage");
-        } catch (err: any) {
-          toast.error("Unmortgage failed");
-        }
-      };
-
-     const handleDevelopment = async (id: number) => {
+  // ==================== PROPERTY ACTIONS ====================
+  const handleDevelopment = async (id: number) => {
     if (!isNext || !me) return;
     try {
       const res = await apiClient.post<ApiResponse>("/game-properties/development", {
@@ -210,7 +188,7 @@ export default function MobileGameLayout({
       });
       if (res.data?.success) toast.success("House built!");
       else toast.error(res.data?.message || "Cannot build");
-    } catch (err: any) {
+    } catch {
       toast.error("Build failed");
     }
   };
@@ -225,17 +203,48 @@ export default function MobileGameLayout({
       });
       if (res.data?.success) toast.success("House sold");
       else toast.error(res.data?.message || "Cannot sell");
-    } catch (err: any) {
+    } catch {
       toast.error("Downgrade failed");
     }
   };
 
-    const handleCreateTrade = async () => {
+  const handleMortgage = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res.data?.success) toast.success("Mortgaged");
+      else toast.error(res.data?.message || "Cannot mortgage");
+    } catch {
+      toast.error("Mortgage failed");
+    }
+  };
+
+  const handleUnmortgage = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res.data?.success) toast.success("Unmortgaged");
+      else toast.error(res.data?.message || "Cannot unmortgage");
+    } catch {
+      toast.error("Unmortgage failed");
+    }
+  };
+
+  // ==================== TRADE HANDLERS ====================
+  const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
 
     const targetPlayer = tradeModal.target;
-    const username = (targetPlayer.username || "").toLowerCase();
-    const isAI = username.includes("ai") || username.includes("bot") || username.includes("computer");
+    const isAI = (targetPlayer.username || "").toLowerCase().includes("ai") ||
+                 (targetPlayer.username || "").toLowerCase().includes("bot");
 
     try {
       const payload = {
@@ -256,11 +265,7 @@ export default function MobileGameLayout({
         fetchTrades();
 
         if (isAI) {
-          const sentTrade = {
-            ...payload,
-            id: res.data?.data?.id || Date.now(),
-          };
-
+          const sentTrade = { ...payload, id: res.data?.data?.id || Date.now() };
           const favorability = calculateAiFavorability(sentTrade);
 
           let decision: "accepted" | "declined" = "declined";
@@ -280,24 +285,13 @@ export default function MobileGameLayout({
           }
 
           if (decision === "accepted") {
-            try {
-              await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
-              toast.success("AI accepted your trade instantly! 🎉");
-              fetchTrades();
-            } catch (err) {
-              console.error("Auto-accept failed", err);
-            }
+            await apiClient.post<ApiResponse>("/game-trade-requests/accept", { id: sentTrade.id });
+            toast.success("AI accepted your trade instantly! 🎉");
+            fetchTrades();
           }
 
-          setAiResponsePopup({
-            trade: sentTrade,
-            favorability,
-            decision,
-            remark,
-          });
+          setAiResponsePopup({ trade: sentTrade, favorability, decision, remark });
         }
-      } else {
-        toast.error(res?.data?.message || "Failed to send trade");
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Trade failed");
@@ -305,18 +299,19 @@ export default function MobileGameLayout({
   };
 
   const handleTradeAction = async (id: number, action: "accepted" | "declined" | "counter") => {
-    try {
-      if (action === "counter") {
-        const trade = incomingTrades.find((t) => t.id === id);
-        if (trade) {
-          setCounterModal({ open: true, trade });
-          setOfferProperties(trade.requested_properties || []);
-          setRequestProperties(trade.offer_properties || []);
-          setOfferCash(trade.requested_amount || 0);
-          setRequestCash(trade.offer_amount || 0);
-        }
-        return;
+    if (action === "counter") {
+      const trade = incomingTrades.find((t) => t.id === id);
+      if (trade) {
+        setCounterModal({ open: true, trade });
+        setOfferProperties(trade.requested_properties || []);
+        setRequestProperties(trade.offer_properties || []);
+        setOfferCash(trade.requested_amount || 0);
+        setRequestCash(trade.offer_amount || 0);
       }
+      return;
+    }
+
+    try {
       const endpoint = action === "accepted" ? "accept" : "decline";
       const res = await apiClient.post<ApiResponse>(`/game-trade-requests/${endpoint}`, { id });
       if (res.data?.success) {
@@ -324,186 +319,157 @@ export default function MobileGameLayout({
         setAiTradePopup(null);
         fetchTrades();
       }
-    } catch (err: any) {
+    } catch {
       toast.error("Action failed");
     }
   };
+
   const submitCounterTrade = async () => {
-      if (!counterModal.trade) return;
-      try {
-        const payload = {
-          offer_properties: offerProperties,
-          offer_amount: offerCash,
-          requested_properties: requestProperties,
-          requested_amount: requestCash,
-        };
-        const res = await apiClient.put<ApiResponse>(`/game-trade-requests/${counterModal.trade.id}`, payload);
-        if (res.data?.success) {
-          toast.success("Counter offer sent!");
-          setCounterModal({ open: false, trade: null });
-          resetTradeFields();
-          fetchTrades();
+    if (!counterModal.trade) return;
+    try {
+      const payload = {
+        offer_properties: offerProperties,
+        offer_amount: offerCash,
+        requested_properties: requestProperties,
+        requested_amount: requestCash,
+      };
+      const res = await apiClient.put<ApiResponse>(`/game-trade-requests/${counterModal.trade.id}`, payload);
+      if (res.data?.success) {
+        toast.success("Counter offer sent!");
+        setCounterModal({ open: false, trade: null });
+        resetTradeFields();
+        fetchTrades();
+      }
+    } catch {
+      toast.error("Counter failed");
+    }
+  };
+
+  // ==================== AI LIQUIDATION TACTICS ====================
+  const aiSellHouses = async (needed: number) => {
+    const improved = game_properties
+      .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
+      .sort((a, b) => {
+        const pa = properties.find(p => p.id === a.property_id);
+        const pb = properties.find(p => p.id === b.property_id);
+        return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
+      });
+
+    let raised = 0;
+    for (const gp of improved) {
+      if (raised >= needed) break;
+      const prop = properties.find(p => p.id === gp.property_id);
+      if (!prop?.cost_of_house) continue;
+
+      const sellValue = Math.floor(prop.cost_of_house / 2);
+      const houses = gp.development ?? 0;
+
+      for (let i = 0; i < houses && raised < needed; i++) {
+        try {
+          await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+            game_id: game.id,
+            user_id: currentPlayer!.user_id,
+            property_id: gp.property_id,
+          });
+          raised += sellValue;
+          toast(`🤖 AI sold a house on ${prop.name} (raised $${raised})`);
+        } catch (err) {
+          console.error("AI failed to sell house", err);
+          break;
         }
-      } catch (err: any) {
-        toast.error("Counter failed");
+      }
+    }
+    return raised;
+  };
+
+  const aiMortgageProperties = async (needed: number) => {
+    const unmortgaged = game_properties
+      .filter(gp => gp.address === currentPlayer?.address && !gp.mortgaged && gp.development === 0)
+      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
+      .filter(({ prop }) => prop?.price)
+      .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
+
+    let raised = 0;
+    for (const { gp, prop } of unmortgaged) {
+      if (raised >= needed || !prop) continue;
+      const mortgageValue = Math.floor(prop.price / 2);
+      try {
+        await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+          game_id: game.id,
+          user_id: currentPlayer!.user_id,
+          property_id: gp.property_id,
+        });
+        raised += mortgageValue;
+        toast(`🤖 AI mortgaged ${prop.name} (raised $${raised})`);
+      } catch (err) {
+        console.error("AI failed to mortgage", err);
+      }
+    }
+    return raised;
+  };
+
+  useEffect(() => {
+    if (!isAITurn || !currentPlayer || !me || game.players.length !== 2) return;
+
+    const aiPlayer = game.players.find(p => p.user_id !== me.user_id);
+    if (game.next_player_id !== aiPlayer?.user_id) return;
+
+    const liquidateIfNeeded = async () => {
+      if (aiPlayer.balance >= 200) return;
+
+      toast(`🤖 ${aiPlayer.username} is low on cash ($${aiPlayer.balance}) — liquidating!`);
+
+      const needed = Math.max(600, 200 - aiPlayer.balance);
+      let raised = 0;
+
+      raised += await aiSellHouses(needed);
+      raised += await aiMortgageProperties(needed - raised);
+
+      if (aiPlayer.balance < 0) {
+        toast(`💀 ${aiPlayer.username} is bankrupt!`);
+        try {
+          await apiClient.post<ApiResponse>("/game-players/bankrupt", {
+            user_id: aiPlayer.user_id,
+            game_id: game.id,
+          });
+        } catch (err) {
+          console.error("Bankruptcy failed", err);
+        }
       }
     };
 
-     const handleFinalizeAndLeave = async () => {
-        setShowExitPrompt(false);
-        setClaimError(null);
-    
-        const toastId = toast.loading(
-          winner?.user_id === me?.user_id
-            ? "Claiming your prize..."
-            : "Finalizing game..."
-        );
-    
-        try {
-          if (endGame) {
-            await endGame();
-          }
-    
-          toast.success(
-            winner?.user_id === me?.user_id
-              ? "Prize claimed! 🎉"
-              : "Game completed — thanks for playing!",
-            { id: toastId, duration: 5000 }
-          );
-    
-          setTimeout(() => {
-            window.location.href = "/";
-          }, 1500);
-        } catch (err: any) {
-          toast.error(
-            err?.message || "Something went wrong — try again later",
-            { id: toastId, duration: 8000 }
-          );
-        } finally {
-          if (endGameReset) endGameReset();
-        }
-      };
+    const timer = setTimeout(liquidateIfNeeded, 3000);
+    return () => clearTimeout(timer);
+  }, [isAITurn, currentPlayer, game.next_player_id, game.players, me, game_properties, properties, game.id]);
 
-      // AI liquidation & winner detection logic remains the same (omitted for brevity – copy from original)
-      
-       const aiSellHouses = async (needed: number) => {
-          const improved = game_properties
-            .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
-            .sort((a, b) => {
-              const pa = properties.find(p => p.id === a.property_id);
-              const pb = properties.find(p => p.id === b.property_id);
-              return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
-            });
-      
-          let raised = 0;
-          for (const gp of improved) {
-            if (raised >= needed) break;
-            const prop = properties.find(p => p.id === gp.property_id);
-            if (!prop?.cost_of_house) continue;
-      
-            const sellValue = Math.floor(prop.cost_of_house / 2);
-            const houses = gp.development ?? 0;
-      
-            for (let i = 0; i < houses && raised < needed; i++) {
-              try {
-                await apiClient.post("/game-properties/downgrade", {
-                  game_id: game.id,
-                  user_id: currentPlayer!.user_id,
-                  property_id: gp.property_id,
-                });
-                raised += sellValue;
-                toast(`AI sold a house on ${prop.name} (raised $${raised})`);
-              } catch (err) {
-                console.error("AI failed to sell house", err);
-                break;
-              }
-            }
-          }
-          return raised;
-        };
-      
-        const aiMortgageProperties = async (needed: number) => {
-          const unmortgaged = game_properties
-            .filter(gp => gp.address === currentPlayer?.address && !gp.mortgaged && gp.development === 0)
-            .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
-            .filter(({ prop }) => prop?.price)
-            .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
-      
-          let raised = 0;
-          for (const { gp, prop } of unmortgaged) {
-            if (raised >= needed || !prop) continue;
-            const mortgageValue = Math.floor(prop.price / 2);
-            try {
-              await apiClient.post("/game-properties/mortgage", {
-                game_id: game.id,
-                user_id: currentPlayer!.user_id,
-                property_id: gp.property_id,
-              });
-              raised += mortgageValue;
-              toast(`AI mortgaged ${prop.name} (raised $${raised})`);
-            } catch (err) {
-              console.error("AI failed to mortgage", err);
-            }
-          }
-          return raised;
-        };
-      
-        useEffect(() => {
-          if (!isAITurn || !currentPlayer) return;
-      
-          const liquidateIfNeeded = async () => {
-            const balance = currentPlayer.balance;
-            if (balance >= 200) return;
-      
-            toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
-      
-            const needed = Math.max(600, 200 - balance);
-      
-            let raised = 0;
-            raised += await aiSellHouses(needed);
-            raised += await aiMortgageProperties(needed - raised);
-      
-            if (currentPlayer.balance < 0) {
-              toast(`${currentPlayer.username} is bankrupt!`);
-              try {
-                await apiClient.post("/game-players/bankrupt", {
-                  user_id: currentPlayer.user_id,
-                  game_id: game.id,
-                });
-              } catch (err) {
-                console.error("Bankruptcy failed", err);
-              }
-            }
-          };
-      
-          const timer = setTimeout(liquidateIfNeeded, 3000);
-          return () => clearTimeout(timer);
-        }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
-    
+  // ==================== FINALIZE GAME ====================
+  const handleFinalizeAndLeave = async () => {
+    setClaimError(null);
+    const toastId = toast.loading(winner?.user_id === me?.user_id ? "Claiming your prize..." : "Finalizing game...");
+
+    try {
+      if (endGame) await endGame();
+      toast.success(winner?.user_id === me?.user_id ? "Prize claimed! 🎉" : "Game completed!", { id: toastId });
+      setTimeout(() => (window.location.href = "/"), 1500);
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong", { id: toastId });
+    } finally {
+      if (endGameReset) endGameReset();
+    }
+  };
+
   return (
     <aside className="w-full h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] overflow-y-auto relative">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600" />
 
-            <VictoryModal
-                winner={winner}
-                me={me}
-                onClaim={handleFinalizeAndLeave}
-                claiming={endGamePending}
-              />
-      
+      <VictoryModal winner={winner} me={me} onClaim={handleFinalizeAndLeave} claiming={endGamePending} />
 
       <div className="p-3 space-y-4">
-        <PlayerList
-          game={game}
-          me={me}
-          address={address}
-          isNext={isNext}
-          startTrade={startTrade}
-        />
+        <PlayerList game={game} me={me} address={address} isNext={isNext} startTrade={startTrade} />
 
         <MyEmpire
           showEmpire={showEmpire}
-          toggleEmpire={() => setShowEmpire((v) => !v)}
+          toggleEmpire={() => setShowEmpire(v => !v)}
           my_properties={my_properties}
           properties={properties}
           game_properties={game_properties}
@@ -513,7 +479,7 @@ export default function MobileGameLayout({
 
         <IncomingTrades
           showTrades={showTrades}
-          toggleTrades={() => setShowTrades((v) => !v)}
+          toggleTrades={() => setShowTrades(v => !v)}
           incomingTrades={incomingTrades}
           properties={properties}
           game={game}
@@ -535,16 +501,12 @@ export default function MobileGameLayout({
           trade={aiTradePopup}
           properties={properties}
           onClose={() => setAiTradePopup(null)}
-          onAccept={() => handleTradeAction(aiTradePopup?.id, "accepted")}
-          onDecline={() => handleTradeAction(aiTradePopup?.id, "declined")}
-          onCounter={() => handleTradeAction(aiTradePopup?.id, "counter")}
+          onAccept={() => aiTradePopup && handleTradeAction(aiTradePopup.id, "accepted")}
+          onDecline={() => aiTradePopup && handleTradeAction(aiTradePopup.id, "declined")}
+          onCounter={() => aiTradePopup && handleTradeAction(aiTradePopup.id, "counter")}
         />
 
-        <AiResponsePopup
-          popup={aiResponsePopup}
-          properties={properties}
-          onClose={() => setAiResponsePopup(null)}
-        />
+        <AiResponsePopup popup={aiResponsePopup} properties={properties} onClose={() => setAiResponsePopup(null)} />
 
         <TradeModal
           open={tradeModal.open}
@@ -572,17 +534,17 @@ export default function MobileGameLayout({
           onClose={() => { setCounterModal({ open: false, trade: null }); resetTradeFields(); }}
           onSubmit={submitCounterTrade}
           my_properties={my_properties}
-        properties={properties}
-        game_properties={game_properties}
-        offerProperties={offerProperties}
-        requestProperties={requestProperties}
-        setOfferProperties={setOfferProperties}
-        setRequestProperties={setRequestProperties}
-        offerCash={offerCash}
-        requestCash={requestCash}
-        setOfferCash={setOfferCash}
-        setRequestCash={setRequestCash}
-        toggleSelect={toggleSelect}
+          properties={properties}
+          game_properties={game_properties}
+          offerProperties={offerProperties}
+          requestProperties={requestProperties}
+          setOfferProperties={setOfferProperties}
+          setRequestProperties={setRequestProperties}
+          offerCash={offerCash}
+          requestCash={requestCash}
+          setOfferCash={setOfferCash}
+          setRequestCash={setRequestCash}
+          toggleSelect={toggleSelect}
           targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
         />
       </AnimatePresence>
