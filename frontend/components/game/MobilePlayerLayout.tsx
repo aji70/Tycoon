@@ -23,6 +23,9 @@ interface MobileGameLayoutProps {
   game_properties: GameProperty[];
   my_properties: Property[];
   me: Player | null;
+  currentPlayer: Player | null;
+  roll: { die1: number; die2: number; total: number } | null;
+  isAITurn: boolean;
 }
 
 export default function MobileGameLayout({
@@ -31,6 +34,9 @@ export default function MobileGameLayout({
   game_properties,
   my_properties,
   me,
+  currentPlayer,
+  roll,
+  isAITurn,
 }: MobileGameLayoutProps) {
   const { address } = useAccount();
 
@@ -377,6 +383,102 @@ export default function MobileGameLayout({
           if (endGameReset) endGameReset();
         }
       };
+
+      // AI liquidation & winner detection logic remains the same (omitted for brevity – copy from original)
+      
+       const aiSellHouses = async (needed: number) => {
+          const improved = game_properties
+            .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
+            .sort((a, b) => {
+              const pa = properties.find(p => p.id === a.property_id);
+              const pb = properties.find(p => p.id === b.property_id);
+              return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
+            });
+      
+          let raised = 0;
+          for (const gp of improved) {
+            if (raised >= needed) break;
+            const prop = properties.find(p => p.id === gp.property_id);
+            if (!prop?.cost_of_house) continue;
+      
+            const sellValue = Math.floor(prop.cost_of_house / 2);
+            const houses = gp.development ?? 0;
+      
+            for (let i = 0; i < houses && raised < needed; i++) {
+              try {
+                await apiClient.post("/game-properties/downgrade", {
+                  game_id: game.id,
+                  user_id: currentPlayer!.user_id,
+                  property_id: gp.property_id,
+                });
+                raised += sellValue;
+                toast(`AI sold a house on ${prop.name} (raised $${raised})`);
+              } catch (err) {
+                console.error("AI failed to sell house", err);
+                break;
+              }
+            }
+          }
+          return raised;
+        };
+      
+        const aiMortgageProperties = async (needed: number) => {
+          const unmortgaged = game_properties
+            .filter(gp => gp.address === currentPlayer?.address && !gp.mortgaged && gp.development === 0)
+            .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
+            .filter(({ prop }) => prop?.price)
+            .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
+      
+          let raised = 0;
+          for (const { gp, prop } of unmortgaged) {
+            if (raised >= needed || !prop) continue;
+            const mortgageValue = Math.floor(prop.price / 2);
+            try {
+              await apiClient.post("/game-properties/mortgage", {
+                game_id: game.id,
+                user_id: currentPlayer!.user_id,
+                property_id: gp.property_id,
+              });
+              raised += mortgageValue;
+              toast(`AI mortgaged ${prop.name} (raised $${raised})`);
+            } catch (err) {
+              console.error("AI failed to mortgage", err);
+            }
+          }
+          return raised;
+        };
+      
+        useEffect(() => {
+          if (!isAITurn || !currentPlayer) return;
+      
+          const liquidateIfNeeded = async () => {
+            const balance = currentPlayer.balance;
+            if (balance >= 200) return;
+      
+            toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
+      
+            const needed = Math.max(600, 200 - balance);
+      
+            let raised = 0;
+            raised += await aiSellHouses(needed);
+            raised += await aiMortgageProperties(needed - raised);
+      
+            if (currentPlayer.balance < 0) {
+              toast(`${currentPlayer.username} is bankrupt!`);
+              try {
+                await apiClient.post("/game-players/bankrupt", {
+                  user_id: currentPlayer.user_id,
+                  game_id: game.id,
+                });
+              } catch (err) {
+                console.error("Bankruptcy failed", err);
+              }
+            }
+          };
+      
+          const timer = setTimeout(liquidateIfNeeded, 3000);
+          return () => clearTimeout(timer);
+        }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
     
   return (
     <aside className="w-full h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] overflow-y-auto relative">
