@@ -13,10 +13,10 @@ interface PlayerListProps {
 
 // Simple helper to determine balance "health" color
 const getBalanceColor = (balance: number): string => {
-  if (balance >= 1000000) return "text-cyan-300";     // plenty - bright cyan/blue
-  if (balance >= 250000)  return "text-emerald-400";  // good - green
-  if (balance >= 75000)   return "text-yellow-400";   // drying up - yellow
-  if (balance >= 15000)   return "text-orange-400";   // danger - orange
+  if (balance >= 1300) return "text-cyan-300";     // plenty - bright cyan/blue
+  if (balance >= 1000)  return "text-emerald-400";  // good - green
+  if (balance >= 750)   return "text-yellow-400";   // drying up - yellow
+  if (balance >= 150)   return "text-orange-400";   // danger - orange
   return "text-red-500 animate-pulse";                // almost broke - red + subtle blink
 };
 
