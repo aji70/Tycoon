@@ -95,19 +95,19 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-end justify-center z-50"
+      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 px-4"  // ← changed from items-end to items-center
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
+        initial={{ y: 400, opacity: 0 }}           // start lower off-screen
+        animate={{ y: -200, opacity: 1 }}           // ← move 200px HIGHER than center
+        exit={{ y: 400, opacity: 0 }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-b from-purple-950 via-black to-cyan-950 rounded-t-3xl border-x-4 border-t-4 border-cyan-500 shadow-2xl w-full max-h-[92vh] overflow-y-auto"
+        className="relative bg-gradient-to-b from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
       >
-        {/* Handle bar */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-cyan-400/60 rounded-full" />
+        {/* Optional: subtle handle bar at top */}
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-cyan-400/60 rounded-full" />
 
         <button
           onClick={onClose}
@@ -116,13 +116,12 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           ×
         </button>
 
-        <div className="pt-10 pb-6 px-4">
+        <div className="pt-12 pb-6 px-5">
           <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8 drop-shadow-lg">
             {title}
           </h2>
 
-          {/* Scrollable content */}
-          <div className="space-y-10 pb-20">
+          <div className="space-y-10 pb-24">
             {/* YOU GIVE */}
             <div>
               <h3 className="text-2xl font-bold text-green-400 text-center mb-4">
@@ -139,9 +138,9 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                     />
                   ))
                 ) : (
-                  <div className="col-span-3 text-center text-gray-500 py-6 text-sm">
+                  <p className="col-span-3 text-center text-gray-500 py-6 text-sm">
                     No properties to offer
-                  </div>
+                  </p>
                 )}
               </div>
 
@@ -171,9 +170,9 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                     />
                   ))
                 ) : (
-                  <div className="col-span-3 text-center text-gray-500 py-6 text-sm">
+                  <p className="col-span-3 text-center text-gray-500 py-6 text-sm">
                     No properties available
-                  </div>
+                  </p>
                 )}
               </div>
 
@@ -188,12 +187,12 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
             </div>
           </div>
 
-          {/* Fixed bottom buttons */}
-          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent pt-8 pb-6 px-4">
+          {/* Bottom buttons - fixed position */}
+          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black to-transparent pt-10 pb-8 px-4">
             <div className="max-w-md mx-auto space-y-3">
               <button
                 onClick={onClose}
-                className="w-full py-4 bg-gray-800/80 backdrop-blur rounded-xl font-bold text-xl text-gray-300 hover:bg-gray-700 transition"
+                className="w-full py-4 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-xl text-gray-300 hover:bg-gray-700 transition"
               >
                 CANCEL
               </button>
