@@ -13,7 +13,7 @@ import { IncomingTrades } from "../mobile/IncomingTrades";
 import { PropertyActionModal } from "./modals/PropertyActionModal";
 import { AiTradePopup } from "./modals/AiTradePopup";
 import { AiResponsePopup } from "./modals/AiResponsePopup";
-import { TradeModal } from "./modals/TradeModal";
+import { TradeModal } from "./modals/MobileTradeModal";
 import { VictoryModal } from "./modals/VictoryModal";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
