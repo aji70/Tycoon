@@ -102,7 +102,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     >
       <motion.div
         initial={{ y: 400, opacity: 0 }}
-        animate={{ y: -20, opacity: 1 }}
+        animate={{ y: -10, opacity: 1 }}
         exit={{ y: 400, opacity: 0 }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
