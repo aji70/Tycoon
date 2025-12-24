@@ -11,13 +11,12 @@ interface PlayerListProps {
   isNext: boolean;
 }
 
-// Simple helper to determine balance "health" color
 const getBalanceColor = (balance: number): string => {
-  if (balance >= 1300) return "text-cyan-300";     // plenty - bright cyan/blue
-  if (balance >= 1000)  return "text-emerald-400";  // good - green
-  if (balance >= 750)   return "text-yellow-400";   // drying up - yellow
-  if (balance >= 150)   return "text-orange-400";   // danger - orange
-  return "text-red-500 animate-pulse";                // almost broke - red + subtle blink
+  if (balance >= 1300) return "text-cyan-300";
+  if (balance >= 1000) return "text-emerald-400";
+  if (balance >= 750) return "text-yellow-400";
+  if (balance >= 150) return "text-orange-400";
+  return "text-red-500 animate-pulse";
 };
 
 export const PlayerList: React.FC<PlayerListProps> = ({
@@ -50,12 +49,13 @@ export const PlayerList: React.FC<PlayerListProps> = ({
               ${player.in_jail ? "opacity-60 bg-gray-900/40" : ""}
             `}
           >
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl sm:text-4xl drop-shadow-md">
+            <div className="flex justify-between items-center gap-4">
+              {/* Left side - avatar + name */}
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-3xl sm:text-4xl flex-shrink-0 drop-shadow-md">
                   {getPlayerSymbol(player.symbol)}
                 </span>
-                <div className="font-bold text-lg sm:text-xl text-cyan-100">
+                <div className="font-bold text-lg sm:text-xl text-cyan-100 truncate">
                   {player.username || player.address?.slice(0, 6) + "..."}
                   {isMe && <span className="text-cyan-300 ml-1.5">(YOU)</span>}
                   {player.in_jail && (
@@ -65,9 +65,15 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                   )}
                 </div>
               </div>
-                  <br/>
-              <div className={`text-xl sm:text-2xl font-black ${balanceColor}`}>
-                ${ player.balance.toLocaleString()}
+
+              {/* Right side - balance */}
+              <div
+                className={`
+                  text-xl sm:text-2xl font-black ${balanceColor}
+                  flex-shrink-0 text-right
+                `}
+              >
+                ${player.balance.toLocaleString()}
               </div>
             </div>
 
