@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import DiceAnimation  from "./DiceAnimation";
-import { RollResult } from "@/hooks/useDiceRoll"; // Assuming this is exported from useDiceRoll.ts
-import { Property, Player } from "@/types/game"; // Adjust import based on your types
-import { toast } from "react-hot-toast";
+import DiceAnimation from "./DiceAnimation";
+import { RollResult } from "@/hooks/useDiceRoll";
+import { Property, Player } from "@/types/game";
 
 type CenterInfoProps = {
   isMyTurn: boolean;
@@ -27,7 +26,7 @@ type CenterInfoProps = {
     player_name: string;
     comment: string;
     rolled?: number;
-  }>; // Adjust this type based on your actual history shape
+  }>;
   currentPlayerUsername?: string;
 };
 
@@ -48,40 +47,38 @@ export default function CenterInfo({
   actionLog,
   currentPlayerUsername,
 }: CenterInfoProps) {
-  // Helper to check if player can afford the property
   const canAfford =
     currentProperty?.price != null &&
     currentPlayer?.balance != null &&
     currentPlayer.balance >= currentProperty.price;
 
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 z-10 pointer-events-none">
-      {/* Dice Animation Overlay */}
-      <DiceAnimation isRolling={dice.isRolling} roll={dice.roll} />
+    <div className="absolute inset-0 flex flex-col items-center justify-between py-6 px-4 z-10 pointer-events-none gap-4">
+      {/* Top section: Dice + Result + Title */}
+      <div className="flex flex-col items-center gap-3">
+        <DiceAnimation isRolling={dice.isRolling} roll={dice.roll} />
 
-      {/* Roll Result Display */}
-      {dice.roll && !dice.isRolling && (
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="flex items-center gap-6 text-7xl font-bold mb-8 pointer-events-none"
-        >
-          <span className="text-cyan-400 drop-shadow-2xl">{dice.roll.die1}</span>
-          <span className="text-white text-6xl">+</span>
-          <span className="text-pink-400 drop-shadow-2xl">{dice.roll.die2}</span>
-          <span className="text-white mx-4 text-6xl">=</span>
-          <span className="text-yellow-400 text-9xl drop-shadow-2xl">{dice.roll.total}</span>
-        </motion.div>
-      )}
+        {dice.roll && !dice.isRolling && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex items-center gap-5 text-6xl lg:text-7xl font-bold pointer-events-none"
+          >
+            <span className="text-cyan-400 drop-shadow-2xl">{dice.roll.die1}</span>
+            <span className="text-white text-5xl">+</span>
+            <span className="text-pink-400 drop-shadow-2xl">{dice.roll.die2}</span>
+            <span className="text-white mx-3 text-5xl">=</span>
+            <span className="text-yellow-400 text-8xl drop-shadow-2xl">{dice.roll.total}</span>
+          </motion.div>
+        )}
 
-      {/* Game Title */}
-      <h1 className="text-4xl lg:text-6xl font-bold text-[#F0F7F7] font-orbitron text-center mb-8 z-20 pointer-events-none">
-        Tycoon
-      </h1>
+        <h1 className="text-4xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center">
+          Tycoon
+        </h1>
+      </div>
 
-      {/* Main Action Area */}
-      <div className="flex flex-col items-center gap-6">
-        {/* Roll / Bankruptcy Button */}
+      {/* Middle: Buttons & AI thinking */}
+      <div className="flex flex-col items-center gap-5">
         {isMyTurn && !dice.roll && !dice.isRolling && (
           <div className="pointer-events-auto">
             {playerCanRoll ? (
@@ -111,12 +108,11 @@ export default function CenterInfo({
           </div>
         )}
 
-        {/* Buy Prompt - Human Player Only */}
         {isMyTurn && buyPrompted && currentProperty && (
           <motion.div
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="flex flex-wrap gap-4 justify-center mt-6 pointer-events-auto"
+            className="flex flex-wrap gap-4 justify-center pointer-events-auto"
           >
             <button
               onClick={onBuy}
@@ -129,7 +125,6 @@ export default function CenterInfo({
             >
               Buy for ${currentProperty.price?.toLocaleString()}
             </button>
-
             <button
               onClick={onSkipBuy}
               className={`
@@ -142,11 +137,10 @@ export default function CenterInfo({
           </motion.div>
         )}
 
-        {/* AI Turn Indicator */}
         {isAITurn && (
-          <div className="mt-8 text-center pointer-events-none">
+          <div className="text-center pointer-events-none">
             <motion.h2
-              className="text-3xl font-bold text-pink-300 mb-4"
+              className="text-2xl lg:text-3xl font-bold text-pink-300 mb-3"
               animate={{ opacity: [0.6, 1, 0.6] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             >
@@ -154,24 +148,20 @@ export default function CenterInfo({
             </motion.h2>
 
             {buyPrompted && buyScore !== null && (
-              <p className="text-xl text-yellow-300 font-bold mb-4">
+              <p className="text-lg text-yellow-300 font-bold mb-3">
                 Buy Confidence: {buyScore}%
               </p>
             )}
 
             <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-cyan-400 border-opacity-70" />
+              <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400 border-opacity-70" />
             </div>
-
-            <p className="text-sm text-pink-200 mt-4 italic">
-              Smart AI • Deciding automatically
-            </p>
           </div>
         )}
       </div>
 
-      {/* Action Log */}
-      <div className="mt-auto w-full max-w-lg mb-8">
+      {/* Bottom: Action Log */}
+      <div className="w-full max-w-lg mt-auto">
         <div className="bg-gray-900/85 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden pointer-events-auto">
           <div className="p-3 border-b border-cyan-500/20 bg-gray-800/70">
             <h3 className="text-sm font-bold text-cyan-300 tracking-wider uppercase">
@@ -181,7 +171,7 @@ export default function CenterInfo({
 
           <div className="h-48 overflow-y-auto p-3 space-y-2 text-sm scrollbar-thin scrollbar-thumb-cyan-600 scrollbar-track-gray-800">
             {actionLog.length === 0 ? (
-              <p className="text-center text-gray-500 italic py-8">
+              <p className="text-center text-gray-500 italic py-6">
                 No actions yet...
               </p>
             ) : (
@@ -195,7 +185,7 @@ export default function CenterInfo({
                 >
                   <span className="font-medium text-cyan-300">{entry.player_name}</span>{" "}
                   {entry.comment}
-                  {entry.rolled && (
+                  {entry.rolled !== undefined && (
                     <span className="ml-2 text-cyan-400 font-bold">
                       [Rolled {entry.rolled}]
                     </span>
