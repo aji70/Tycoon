@@ -28,96 +28,78 @@ export function useAITurn({
   actions,
   buyScore,
 }: UseAITurnProps) {
-  // Ref to prevent multiple simultaneous timers
   const rollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const buyTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasRolledThisTurn = useRef(false); // prevent double-roll
 
-  // 1. Auto-roll when it's AI's turn and no roll/action in progress
+  // Reset flags when turn changes
   useEffect(() => {
-    if (!isAITurn || dice.isRolling || dice.roll || !currentPlayer) {
-      // Cleanup any pending roll timer
-      if (rollTimerRef.current) {
-        clearTimeout(rollTimerRef.current);
-        rollTimerRef.current = null;
-      }
+    hasRolledThisTurn.current = false;
+    if (rollTimerRef.current) clearTimeout(rollTimerRef.current);
+    if (buyTimerRef.current) clearTimeout(buyTimerRef.current);
+  }, [currentPlayer?.user_id]);
+
+  // Auto-roll when AI turn starts and conditions met
+  useEffect(() => {
+    if (
+      !isAITurn ||
+      dice.isRolling ||
+      dice.roll ||
+      !currentPlayer ||
+      hasRolledThisTurn.current
+    ) {
       return;
     }
 
+    console.log("[AI] Turn detected — scheduling roll in 1.4s");
+
     rollTimerRef.current = setTimeout(() => {
+      console.log("[AI] Rolling dice now!");
+      hasRolledThisTurn.current = true;
       dice.rollDice(true).catch((err) => {
-        console.error("AI auto-roll failed:", err);
-        toast.error("AI failed to roll dice");
+        console.error("[AI] Roll failed:", err);
+        toast.error("AI failed to roll");
       });
     }, 1400);
 
     return () => {
-      if (rollTimerRef.current) {
-        clearTimeout(rollTimerRef.current);
-        rollTimerRef.current = null;
-      }
+      if (rollTimerRef.current) clearTimeout(rollTimerRef.current);
     };
-  }, [isAITurn, dice.isRolling, dice.roll, currentPlayer, dice.rollDice]);
+  }, [isAITurn, currentPlayer, dice.isRolling, dice.roll, dice.rollDice]);
 
-  // 2. AI automatic buy/skip decision
+  // AI buy/skip decision (runs after roll)
   useEffect(() => {
     if (!isAITurn || !actions.buyPrompted || buyScore === null || !currentPlayer) {
-      // Cleanup any pending buy timer
-      if (buyTimerRef.current) {
-        clearTimeout(buyTimerRef.current);
-        buyTimerRef.current = null;
-      }
       return;
     }
+
+    console.log("[AI] Buy prompt active — deciding in 2s");
 
     buyTimerRef.current = setTimeout(async () => {
       try {
         const shouldBuy = buyScore >= 60;
 
         if (shouldBuy) {
+          console.log("[AI] Buying property");
           await actions.buyProperty();
-          toast.success(`AI bought the property (${buyScore}%)`);
         } else {
+          console.log("[AI] Skipping buy");
           actions.skipBuy();
-          toast("AI skipped purchase", { icon: "⏭️" });
         }
 
-        // Auto end turn with slight delay for better UX
         setTimeout(() => {
-          actions.endTurn().catch((err) => {
-            console.error("AI end turn failed:", err);
-            toast.error("AI failed to end turn");
-          });
+          console.log("[AI] Ending turn");
+          actions.endTurn();
         }, shouldBuy ? 1200 : 800);
       } catch (err) {
-        console.error("AI buy decision failed:", err);
-        toast.error("AI decision error");
-        // Fallback: force end turn
-        actions.endTurn();
+        console.error("[AI] Buy decision error:", err);
+        toast.error("AI decision failed");
+        actions.endTurn(); // fallback
       }
     }, 2000);
 
     return () => {
-      if (buyTimerRef.current) {
-        clearTimeout(buyTimerRef.current);
-        buyTimerRef.current = null;
-      }
-    };
-  }, [
-    isAITurn,
-    actions.buyPrompted,
-    buyScore,
-    currentPlayer,
-    actions.buyProperty,
-    actions.skipBuy,
-    actions.endTurn,
-  ]);
-
-  // Optional: Reset AI state when turn changes
-  useEffect(() => {
-    return () => {
-      // Cleanup all timers on unmount / turn change
-      if (rollTimerRef.current) clearTimeout(rollTimerRef.current);
       if (buyTimerRef.current) clearTimeout(buyTimerRef.current);
     };
-  }, []);
+  }, [isAITurn, actions.buyPrompted, buyScore, currentPlayer, actions]);
 }

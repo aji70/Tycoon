@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { toast } from "react-hot-toast";
 import { Game, Player } from "@/types/game";
@@ -16,7 +16,7 @@ export type RollResult = {
 type UseDiceRollProps = {
   gameId: string | number;
   currentPlayer: Player | undefined;
-  currentPosition: number | undefined; // allow undefined (safer)
+  currentPosition: number | undefined;
   onPositionUpdate?: (newPosition: number, rolled: number) => void;
   onDoubles?: () => void;
 };
@@ -24,7 +24,7 @@ type UseDiceRollProps = {
 export function useDiceRoll({
   gameId,
   currentPlayer,
-  currentPosition = 0, // default to 0 if undefined
+  currentPosition = 0,
   onPositionUpdate,
   onDoubles,
 }: UseDiceRollProps) {
@@ -33,7 +33,13 @@ export function useDiceRoll({
   const [pendingRoll, setPendingRoll] = useState(0);
 
   const isRollingRef = useRef(false);
-  const doubleCountRef = useRef(0); // bonus: track consecutive doubles
+  const doubleCountRef = useRef(0);
+  const currentPlayerRef = useRef(currentPlayer); // ← FIX: ref for latest player
+
+  // Keep currentPlayer up-to-date in ref
+  useEffect(() => {
+    currentPlayerRef.current = currentPlayer;
+  }, [currentPlayer]);
 
   const BOARD_SQUARES = 40;
   const ROLL_ANIMATION_MS = 1200;
@@ -43,14 +49,15 @@ export function useDiceRoll({
     const die2 = Math.floor(Math.random() * 6) + 1;
     const total = die1 + die2;
     const isDouble = die1 === die2;
-
     return { die1, die2, total, isDouble };
   };
 
   const rollDice = useCallback(
     async (forAI = false) => {
       if (isRollingRef.current) return;
-      if (!currentPlayer?.user_id) {
+
+      const player = currentPlayerRef.current; // ← Use ref (always latest!)
+      if (!player?.user_id) {
         toast.error("No current player selected");
         return;
       }
@@ -60,21 +67,19 @@ export function useDiceRoll({
       setRoll(null);
 
       try {
-        // Wait for animation
         await new Promise((resolve) => setTimeout(resolve, ROLL_ANIMATION_MS));
 
         const value = getDiceValues();
         const { die1, die2, total, isDouble } = value;
 
-        // Handle doubles
         if (isDouble) {
           doubleCountRef.current += 1;
           toast.success("DOUBLES! Roll again!", { duration: 3000 });
 
           if (doubleCountRef.current === 3) {
-            toast.error("Three doubles in a row! Go to Jail!", { duration: 5000 });
-            // You can add jail logic here later
+            toast.error("Three doubles! Go to Jail!", { duration: 5000 });
             doubleCountRef.current = 0;
+            // Add jail logic later if needed
           }
 
           if (onDoubles) onDoubles();
@@ -84,10 +89,9 @@ export function useDiceRoll({
 
         setRoll(value);
 
-        const playerId = currentPlayer.user_id;
+        const playerId = player.user_id;
         const newPosition = (currentPosition + total + pendingRoll) % BOARD_SQUARES;
 
-        // Update position on backend
         const response = await apiClient.post<ApiResponse>("/game-players/change-position", {
           user_id: playerId,
           game_id: gameId,
@@ -100,16 +104,14 @@ export function useDiceRoll({
           throw new Error("Position update failed");
         }
 
-        // Reset pending roll after successful move
         setPendingRoll(0);
 
-        // Notify parent
         if (onPositionUpdate) {
           onPositionUpdate(newPosition, total + pendingRoll);
         }
 
         toast.success(
-          `${currentPlayer.username} rolled ${die1} + ${die2} = ${total}!`,
+          `${player.username} rolled ${die1} + ${die2} = ${total}!`,
           { duration: 4000 }
         );
 
@@ -121,27 +123,19 @@ export function useDiceRoll({
         isRollingRef.current = false;
       }
     },
-    [
-      currentPlayer,
-      currentPosition,
-      pendingRoll,
-      gameId,
-      onPositionUpdate,
-      onDoubles,
-    ]
+    [currentPosition, pendingRoll, gameId, onPositionUpdate, onDoubles] // ← Removed currentPlayer!
   );
 
   const addPendingRoll = useCallback((amount: number) => {
     setPendingRoll((prev) => prev + amount);
   }, []);
 
-  // Renamed from resetRoll → reset (to match common usage in CenterInfo)
   const reset = useCallback(() => {
     setRoll(null);
     setIsRolling(false);
     setPendingRoll(0);
     isRollingRef.current = false;
-    doubleCountRef.current = 0; // reset double tracking
+    doubleCountRef.current = 0;
   }, []);
 
   return {
@@ -150,6 +144,6 @@ export function useDiceRoll({
     pendingRoll,
     rollDice,
     addPendingRoll,
-    reset, // ← renamed from resetRoll
+    reset,
   };
 }

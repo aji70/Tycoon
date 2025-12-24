@@ -44,6 +44,12 @@ export function useGameSync(game: Game, me: Player | null): GameSyncReturn {
     return () => clearInterval(interval);
   }, [fetchUpdatedGame]);
 
+  useEffect(() => {
+  console.log("Turn changed → next_player_id:", game.next_player_id);
+  console.log("Current player:", currentPlayer?.username);
+  console.log("Is AI turn?", isAITurn);
+}, [game.next_player_id, currentPlayer, isAITurn]);
+
   // Update players when game prop changes
   useEffect(() => {
     if (game?.players) {
