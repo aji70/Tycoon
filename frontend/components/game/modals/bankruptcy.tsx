@@ -140,7 +140,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             <div className="flex items-center justify-center gap-4 sm:gap-6">
               <Coins className="w-10 h-10 sm:w-12 sm:h-12 text-amber-400 drop-shadow-[0_0_20px_rgba(245,158,11,0.8)]" />
               <div className="text-left">
-                <p className="text-lg sm:text-xl font-bold text-amber-300">Reward Automatically Claimed</p>
+                <p className="text-lg sm:text-xl font-bold text-amber-300">Compensated with</p>
                 <p className="text-3xl sm:text-4xl font-black text-amber-100">
                   +{tokensAwarded} TYC
                 </p>

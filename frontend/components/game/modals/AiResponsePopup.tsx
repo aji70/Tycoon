@@ -1,5 +1,7 @@
+"use client";
+
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AiResponsePopupProps {
   popup: any | null;
@@ -10,74 +12,141 @@ interface AiResponsePopupProps {
 export const AiResponsePopup: React.FC<AiResponsePopupProps> = ({ popup, properties, onClose }) => {
   if (!popup) return null;
 
+  // Extract trade data safely
+  const trade = popup.trade || {};
+  const favorability = popup.favorability ?? 0;
+  const decision = popup.decision;
+  const remark = popup.remark || "No comment.";
+
+  const offeredPropNames = properties
+    .filter((p) => trade.offer_properties?.includes(p.id))
+    .map((p) => p.name);
+
+  const requestedPropNames = properties
+    .filter((p) => trade.requested_properties?.includes(p.id))
+    .map((p) => p.name);
+
+  const hasOfferedProps = offeredPropNames.length > 0;
+  const hasOfferedCash = trade.offer_amount > 0;
+  const hasRequestedProps = requestedPropNames.length > 0;
+  const hasRequestedCash = trade.requested_amount > 0;
+
+  const isAccepted = decision === "accepted";
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
+    <AnimatePresence>
       <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-br from-purple-900 via-indigo-900 to-cyan-900 rounded-3xl border-4 border-yellow-400 shadow-2xl shadow-yellow-600/60 overflow-hidden max-w-md w-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/85 backdrop-blur-lg flex items-center justify-center z-[9999] p-4"
+        onClick={onClose}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-3xl text-red-300 hover:text-red-200 transition z-20"
+        <motion.div
+          initial={{ scale: 0.85, y: 40 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.85, y: 40 }}
+          transition={{ type: "spring", damping: 22, stiffness: 300 }}
+          onClick={(e) => e.stopPropagation()}
+          className="
+            relative w-full max-w-md sm:max-w-lg
+            bg-gradient-to-br from-indigo-950 via-purple-950 to-black
+            rounded-3xl border-4 border-cyan-500/60
+            shadow-2xl shadow-cyan-900/60 overflow-hidden
+          "
         >
-          X
-        </button>
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-5 right-5 text-4xl text-red-400 hover:text-red-300 transition-colors z-10"
+            aria-label="Close"
+          >
+            ×
+          </button>
 
-        <div className="relative z-10 p-8">
-          <h3 className="text-4xl font-bold text-yellow-300 text-center mb-8 drop-shadow-2xl">
-            🤖 AI Responds...
-          </h3>
+          <div className="p-8 sm:p-10">
+            {/* Header */}
+            <h3 className="text-4xl sm:text-5xl font-black text-cyan-300 text-center mb-8 tracking-tight drop-shadow-lg">
+              AI Response
+            </h3>
 
-          <div className="text-center mb-8 bg-black/60 backdrop-blur-md rounded-2xl py-6 px-8 border border-yellow-500/50">
-            <p className="text-2xl text-white mb-3">Your offer was</p>
-            <span className={`text-5xl font-bold drop-shadow-2xl ${popup.favorability >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {popup.favorability >= 0 ? "+" : ""}{popup.favorability}%
-            </span>
-            <p className="text-xl text-white mt-3">favorable for the AI</p>
-          </div>
-
-          <div className="text-center mb-8">
-            <div className={`text-4xl font-bold ${popup.decision === "accepted" ? "text-green-400" : "text-red-400"}`}>
-              {popup.decision === "accepted" ? "✅ ACCEPTED!" : "❌ DECLINED"}
+            {/* Favorability */}
+            <div className="bg-black/60 rounded-2xl py-6 px-8 border border-cyan-500/40 mb-8 text-center">
+              <p className="text-xl text-cyan-200/90 mb-3">Favorability</p>
+              <div
+                className={`text-5xl sm:text-6xl font-black drop-shadow-2xl ${
+                  favorability >= 0 ? "text-emerald-400" : "text-rose-500"
+                }`}
+              >
+                {favorability >= 0 ? "+" : ""}
+                {favorability}%
+              </div>
             </div>
-            <p className="text-2xl italic text-gray-200 mt-4">"{popup.remark}"</p>
-          </div>
 
-          <div className="space-y-4 text-base">
-            <div className="bg-gradient-to-r from-green-900/60 to-emerald-900/60 rounded-xl p-4 border border-green-500/50">
-              <span className="font-bold text-green-300">You Offered:</span>{" "}
-              <span className="text-white">
-                {properties.filter((p: any) => popup.trade.offer_properties?.includes(p.id)).map((p: any) => p.name).join(", ") || "nothing"}{" "}
-                {popup.trade.offer_amount > 0 && `+ $${popup.trade.offer_amount}`}
-              </span>
-            </div>
-            <div className="bg-gradient-to-r from-red-900/60 to-pink-900/60 rounded-xl p-4 border border-red-500/50">
-              <span className="font-bold text-red-300">You Asked For:</span>{" "}
-              <span className="text-white">
-                {properties.filter((p: any) => popup.trade.requested_properties?.includes(p.id)).map((p: any) => p.name).join(", ") || "nothing"}{" "}
-                {popup.trade.requested_amount > 0 && `+ $${popup.trade.requested_amount}`}
-              </span>
-            </div>
-          </div>
+            {/* Decision + Remark */}
+            <div className="text-center mb-10">
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className={`text-4xl sm:text-5xl font-black mb-6 drop-shadow-lg ${
+                  isAccepted ? "text-emerald-400" : "text-rose-500"
+                }`}
+              >
+                {isAccepted ? "ACCEPTED ✓" : "DECLINED ✗"}
+              </motion.div>
 
-          <div className="mt-10 text-center">
-            <button
-              onClick={onClose}
-              className="px-16 py-5 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl font-bold text-black text-2xl shadow-2xl hover:shadow-yellow-500/80 transition"
-            >
-              CLOSE
-            </button>
+              <p className="text-xl sm:text-2xl italic text-gray-200/90 leading-relaxed max-w-prose mx-auto">
+                "{remark}"
+              </p>
+            </div>
+
+            {/* Trade summary - only show sections with content */}
+            <div className="space-y-6">
+              {(hasOfferedProps || hasOfferedCash) && (
+                <div className="bg-gradient-to-r from-emerald-950/70 to-teal-950/70 rounded-2xl p-6 border border-emerald-500/40">
+                  <p className="font-bold text-emerald-300 text-xl mb-3">You Offered:</p>
+                  <p className="text-base text-white/95">
+                    {hasOfferedProps && offeredPropNames.join(", ")}
+                    {hasOfferedProps && hasOfferedCash && " + "}
+                    {hasOfferedCash && <span className="font-semibold text-emerald-300">${trade.offer_amount}</span>}
+                  </p>
+                </div>
+              )}
+
+              {(hasRequestedProps || hasRequestedCash) && (
+                <div className="bg-gradient-to-r from-rose-950/70 to-pink-950/70 rounded-2xl p-6 border border-rose-500/40">
+                  <p className="font-bold text-rose-300 text-xl mb-3">You Requested:</p>
+                  <p className="text-base text-white/95">
+                    {hasRequestedProps && requestedPropNames.join(", ")}
+                    {hasRequestedProps && hasRequestedCash && " + "}
+                    {hasRequestedCash && <span className="font-semibold text-rose-300">${trade.requested_amount}</span>}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action button */}
+            <div className="mt-10 text-center">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={onClose}
+                className="
+                  px-12 py-5 sm:px-16 sm:py-6
+                  bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600
+                  hover:from-cyan-500 hover:via-blue-500 hover:to-indigo-500
+                  rounded-2xl font-bold text-white text-xl sm:text-2xl
+                  shadow-xl shadow-cyan-900/50 border border-cyan-400/40
+                  transition-all duration-300
+                "
+              >
+                GOT IT
+              </motion.button>
+            </div>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   );
 };

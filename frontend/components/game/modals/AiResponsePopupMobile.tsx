@@ -1,5 +1,7 @@
+"use client";
+
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AiResponsePopupProps {
   popup: any | null;
@@ -11,102 +13,131 @@ export const AiResponsePopup: React.FC<AiResponsePopupProps> = ({ popup, propert
   if (!popup) return null;
 
   const offeredProps = properties
-    .filter((p: any) => popup.trade.offer_properties?.includes(p.id))
-    .map((p: any) => p.name)
-    .join(", ") || "nothing";
+    .filter((p: any) => popup.trade?.offer_properties?.includes(p.id))
+    .map((p: any) => p.name);
 
   const requestedProps = properties
-    .filter((p: any) => popup.trade.requested_properties?.includes(p.id))
-    .map((p: any) => p.name)
-    .join(", ") || "nothing";
+    .filter((p: any) => popup.trade?.requested_properties?.includes(p.id))
+    .map((p: any) => p.name);
+
+  const hasOfferedProps = offeredProps.length > 0;
+  const hasOfferedCash = popup.trade?.offer_amount > 0;
+  const hasRequestedProps = requestedProps.length > 0;
+  const hasRequestedCash = popup.trade?.requested_amount > 0;
+
+  const isAccepted = popup.decision === "accepted";
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-end justify-center z-50"
-      onClick={onClose}
-    >
+    <AnimatePresence>
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-b from-purple-950 via-indigo-900 to-black rounded-t-3xl border-x-4 border-t-4 border-yellow-500 shadow-2xl w-full max-h-[92vh] overflow-y-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-end justify-center z-[9999]"
+        onClick={onClose}
       >
-        {/* Handle bar */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-yellow-400/70 rounded-full" />
-
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-3xl text-red-400 hover:text-red-300 z-10"
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 28, stiffness: 280 }}
+          onClick={(e) => e.stopPropagation()}
+          className="
+            relative w-full max-w-lg 
+            bg-gradient-to-b from-indigo-950 via-purple-950 to-black 
+            rounded-t-3xl border-t-4 border-x-4 border-cyan-500/70
+            shadow-2xl shadow-cyan-900/50 overflow-hidden
+          "
         >
-          ×
-        </button>
+          {/* Drag handle */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-cyan-400/60 rounded-full" />
 
-        <div className="pt-10 pb-6 px-5">
-          {/* Header */}
-          <h3 className="text-3xl font-bold text-yellow-300 text-center mb-6 drop-shadow-lg">
-            🤖 AI Responds...
-          </h3>
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-5 right-5 text-3xl text-red-400 hover:text-red-300 transition-colors z-10"
+            aria-label="Close"
+          >
+            ×
+          </button>
 
-          {/* Favorability Rating */}
-          <div className="bg-black/60 backdrop-blur-md rounded-2xl py-5 px-6 border border-yellow-500/50 mb-8">
-            <p className="text-lg text-white text-center mb-2">Your offer was</p>
-            <div className={`text-5xl font-black text-center drop-shadow-2xl ${popup.favorability >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {popup.favorability >= 0 ? "+" : ""}{popup.favorability}%
+          <div className="pt-16 pb-28 px-6 sm:px-8 md:px-10">
+            <h3 className="text-3xl sm:text-4xl font-black text-cyan-300 text-center mb-8 tracking-tight drop-shadow-lg">
+              AI Decision
+            </h3>
+
+            <div className="bg-black/50 rounded-2xl py-6 px-6 border border-cyan-500/40 mb-8 text-center">
+              <p className="text-lg text-cyan-200/90 mb-3">Favorability rating:</p>
+              <div
+                className={`text-5xl sm:text-6xl font-black drop-shadow-2xl ${
+                  popup.favorability >= 0 ? "text-emerald-400" : "text-rose-500"
+                }`}
+              >
+                {popup.favorability >= 0 ? "+" : ""}
+                {popup.favorability}%
+              </div>
             </div>
-            <p className="text-lg text-white text-center mt-2">favorable for the AI</p>
-          </div>
 
-          {/* Decision */}
-          <div className="text-center mb-8">
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className={`text-4xl font-black ${popup.decision === "accepted" ? "text-green-400" : "text-red-400"}`}
-            >
-              {popup.decision === "accepted" ? "✅ ACCEPTED!" : "❌ DECLINED"}
-            </motion.div>
-            <p className="text-xl italic text-gray-200 mt-4 leading-relaxed px-4">
-              "{popup.remark}"
-            </p>
-          </div>
+            <div className="text-center mb-10">
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className={`text-4xl sm:text-5xl font-black mb-5 drop-shadow-lg ${
+                  isAccepted ? "text-emerald-400" : "text-rose-500"
+                }`}
+              >
+                {isAccepted ? "ACCEPTED ✅" : "DECLINED ❌"}
+              </motion.div>
 
-          {/* Trade Summary */}
-          <div className="space-y-4 mb-10">
-            <div className="bg-gradient-to-r from-green-900/60 to-emerald-900/60 rounded-xl p-4 border border-green-500/50">
-              <p className="font-bold text-green-300 text-lg">You Offered:</p>
-              <p className="text-white text-base mt-2 break-words">
-                {offeredProps}{" "}
-                {popup.trade.offer_amount > 0 && <span className="text-green-300">+ ${popup.trade.offer_amount}</span>}
+              <p className="text-xl sm:text-2xl italic text-gray-200/90 leading-relaxed px-2">
+                "{popup.remark}"
               </p>
             </div>
 
-            <div className="bg-gradient-to-r from-red-900/60 to-pink-900/60 rounded-xl p-4 border border-red-500/50">
-              <p className="font-bold text-red-300 text-lg">You Asked For:</p>
-              <p className="text-white text-base mt-2 break-words">
-                {requestedProps}{" "}
-                {popup.trade.requested_amount > 0 && <span className="text-red-300">+ ${popup.trade.requested_amount}</span>}
-              </p>
+            <div className="space-y-6">
+              {/* Offered section - only shown if something was offered */}
+              {(hasOfferedProps || hasOfferedCash) && (
+                <div className="bg-gradient-to-r from-emerald-950/70 to-teal-950/70 rounded-2xl p-5 border border-emerald-500/40">
+                  <p className="font-bold text-emerald-300 text-xl mb-3">You Offered:</p>
+                  <p className="text-base text-white/90 break-words">
+                    {hasOfferedProps && offeredProps.join(", ")}
+                    {hasOfferedProps && hasOfferedCash && " + "}
+                    {hasOfferedCash && <span className="text-emerald-300 font-semibold">${popup.trade.offer_amount}</span>}
+                  </p>
+                </div>
+              )}
+
+              {/* Requested section - only shown if something was requested */}
+              {(hasRequestedProps || hasRequestedCash) && (
+                <div className="bg-gradient-to-r from-rose-950/70 to-pink-950/70 rounded-2xl p-5 border border-rose-500/40">
+                  <p className="font-bold text-rose-300 text-xl mb-3">You Requested:</p>
+                  <p className="text-base text-white/90 break-words">
+                    {hasRequestedProps && requestedProps.join(", ")}
+                    {hasRequestedProps && hasRequestedCash && " + "}
+                    {hasRequestedCash && <span className="text-rose-300 font-semibold">${popup.trade.requested_amount}</span>}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Fixed Bottom Button */}
-          <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent pt-8 pb-8 px-5">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-12 pb-6 px-6">
             <motion.button
               whileTap={{ scale: 0.96 }}
               onClick={onClose}
-              className="w-full max-w-md mx-auto py-4 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl font-bold text-black text-xl shadow-2xl hover:shadow-yellow-500/70 transition"
+              className="
+                w-full py-5 
+                bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600
+                hover:from-cyan-500 hover:via-blue-500 hover:to-indigo-500
+                rounded-2xl font-black text-white text-xl shadow-xl shadow-cyan-900/50
+                transition-all duration-300 border border-cyan-400/40
+              "
             >
-              CLOSE
+              GOT IT
             </motion.button>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   );
 };
