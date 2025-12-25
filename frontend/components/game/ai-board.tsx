@@ -12,7 +12,7 @@ import { toast, Toaster } from "react-hot-toast";
 import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
-import { getPlayerSymbol } from "@/lib/types/symbol"; // <-- Make sure this import exists!
+import { getPlayerSymbol } from "@/lib/types/symbol";
 
 import {
   Game,
@@ -48,7 +48,6 @@ const MONOPOLY_STATS = {
   },
 };
 
-// RESTORED: calculateBuyScore function
 const calculateBuyScore = (
   property: Property,
   player: Player,
@@ -109,16 +108,15 @@ const calculateBuyScore = (
   return Math.max(5, Math.min(98, score));
 };
 
-// RESTORED: getDiceValues function
+const BOARD_SQUARES = 40;
+const ROLL_ANIMATION_MS = 1200;
+
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   const total = die1 + die2;
   return total === 12 ? null : { die1, die2, total };
 };
-
-const BOARD_SQUARES = 40;
-const ROLL_ANIMATION_MS = 1200;
 
 const AiBoard = ({
   game,
@@ -342,20 +340,26 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection
+  // Buy prompt detection - FIXED to prevent flashing & pre-roll
   useEffect(() => {
+    // Early exit if no valid position or no roll yet
     if (
       !currentPlayer?.position ||
       !properties.length ||
-      currentPlayer.position === lastProcessed.current
-    ) return;
+      currentPlayer.position === lastProcessed.current ||
+      !roll // <-- Crucial: block until a roll has happened
+    ) {
+      setBuyPrompted(false);
+      return;
+    }
 
     lastProcessed.current = currentPlayer.position;
 
     const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square) return;
-
-    const hasRolled = !!roll;
+    if (!square) {
+      setBuyPrompted(false);
+      return;
+    }
 
     const isOwnedByAnyone = game_properties.some((gp) => gp.property_id === square.id);
     const isOwnedByMe = game_properties.some(
@@ -365,23 +369,25 @@ const AiBoard = ({
     const action = PROPERTY_ACTION(square.id);
     const isBuyableType = action && ["land", "railway", "utility"].includes(action);
 
-    const canBuy = hasRolled && !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
-
-    setBuyPrompted(false);
+    const canBuy = !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
 
     if (canBuy) {
-      setBuyPrompted(true);
-
+      // Only show prompt if affordable and conditions stable
       const canAfford = square.price != null && currentPlayer.balance >= square.price;
-      if (!canAfford) {
+      if (canAfford) {
+        setBuyPrompted(true);
+      } else {
+        setBuyPrompted(false);
         showToast(`Not enough money to buy ${square.name}`, "error");
       }
+    } else {
+      setBuyPrompted(false);
     }
   }, [
     currentPlayer?.position,
     currentPlayer?.address,
     currentPlayer?.balance,
-    roll,
+    roll, // <-- Depend on roll to trigger only after roll
     properties,
     game_properties,
     showToast,
