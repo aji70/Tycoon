@@ -154,27 +154,7 @@ const AiBoard = ({
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
 
-  // const currentPlayerId = game.next_player_id;
-  // ... inside AiBoard component
-
-const currentPlayerId = game.next_player_id ?? -1;
-
-// later in the return:
-{properties.map((square) => {
-  const playersHere = playersByPosition.get(square.id) ?? [];
-  return (
-    <BoardSquare
-      key={square.id}
-      square={square}
-      playersHere={playersHere}
-      currentPlayerId={currentPlayerId}          // now always number
-      owner={propertyOwner(square.id)}
-      devLevel={developmentStage(square.id)}
-      mortgaged={isPropertyMortgaged(square.id)}
-    />
-  );
-})}
-  
+  const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
   const isMyTurn = me?.user_id === currentPlayerId;
@@ -463,17 +443,21 @@ const currentPlayerId = game.next_player_id ?? -1;
   const handleDeclareBankruptcy = () => {
     showToast("Bankruptcy logic not fully implemented yet", "default");
   };
-if (!game || !Array.isArray(properties) || properties.length === 0) {
-  return <div className="min-h-screen flex items-center justify-center text-white">Loading game board...</div>;
-}
-  return (
-    
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
 
+  // Early return guards (this is the correct place!)
+  if (!game || !Array.isArray(properties) || properties.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white text-2xl">
+        Loading game board...
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
-
             <CenterArea
               isMyTurn={isMyTurn}
               isAITurn={isAITurn}
