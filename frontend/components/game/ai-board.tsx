@@ -9,11 +9,6 @@ import React, {
 } from "react";
 import { toast, Toaster } from "react-hot-toast";
 
-import PropertyCard from "./cards/property-card";
-import SpecialCard from "./cards/special-card";
-import CornerCard from "./cards/corner-card";
-import { getPlayerSymbol } from "@/lib/types/symbol";
-
 import {
   Game,
   GameProperty,
