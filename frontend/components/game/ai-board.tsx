@@ -23,6 +23,7 @@ import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+import { BankruptcyModal } from "./modals/bankruptcy";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -153,6 +154,7 @@ const AiBoard = ({
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
+  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -504,7 +506,7 @@ const AiBoard = ({
   };
 
   const handleDeclareBankruptcy = async () => {
-    // ... same as before ...
+    
     showToast("Declaring bankruptcy...", "default");
 
     try {
@@ -517,9 +519,8 @@ const AiBoard = ({
       });
 
       showToast("Game over! You have declared bankruptcy.", "error");
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 2000);
+      setShowBankruptcyModal(true);
+  
     } catch (err) {
       showToast("Failed to end game", "error");
     }
@@ -566,6 +567,12 @@ const AiBoard = ({
           </div>
         </div>
       </div>
+
+      <BankruptcyModal
+  isOpen={showBankruptcyModal}
+  tokensAwarded={0.5}
+  onReturnHome={() => window.location.href = "/"}
+/>
 
       <Toaster
         position="top-center"

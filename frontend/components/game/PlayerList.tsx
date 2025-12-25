@@ -6,8 +6,8 @@ import { useAccount } from "wagmi";
 
 interface PlayerListProps {
   game: Game;
-  me: Player | null;
-  address: string | undefined;
+  sortedPlayers: Player[];          
+  
   isNext: boolean;
   startTrade: (player: Player) => void;
 }
@@ -23,15 +23,11 @@ const getBalanceColor = (balance: number): string => {
 
 export const PlayerList: React.FC<PlayerListProps> = ({
   game,
-  me,
-  address,
+  sortedPlayers,
   isNext,
   startTrade,
 }) => {
-  const sorted = [...(game?.players ?? [])].sort(
-    (a, b) => (a.turn_order ?? 99) - (b.turn_order ?? 99)
-  );
-
+  
   const { address: connectedAddress } = useAccount();
 
   return (
@@ -40,7 +36,7 @@ export const PlayerList: React.FC<PlayerListProps> = ({
       <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
 
       <div className="space-y-3">
-        {sorted.map((p) => {
+        {sortedPlayers.map((p) => {
           const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
           const isTurn = p.user_id === game.next_player_id;
           const canTrade = isNext && !p.in_jail && !isMe;
