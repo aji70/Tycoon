@@ -8,6 +8,11 @@ import React, {
   useState,
 } from "react";
 import { toast, Toaster } from "react-hot-toast";
+
+import PropertyCard from "./cards/property-card";
+import SpecialCard from "./cards/special-card";
+import CornerCard from "./cards/corner-card";
+
 import {
   Game,
   GameProperty,
@@ -131,6 +136,9 @@ const AiBoard = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
 
+  // Simple flag to prevent multiple END_TURN calls in the same turn
+  const endTurnCalled = useRef(false);
+
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
@@ -192,7 +200,7 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
-  // Reset turn state when player changes
+  // Reset turn state + end-turn lock when player changes
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -201,6 +209,7 @@ const AiBoard = ({
     setPendingRoll(0);
     rolledForPlayerId.current = null;
     lastProcessed.current = null;
+    endTurnCalled.current = false; // Reset lock for new turn
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -216,7 +225,9 @@ const AiBoard = ({
   const unlockAction = useCallback(() => setActionLock(null), []);
 
   const END_TURN = useCallback(async () => {
-    if (currentPlayerId === -1 || !lockAction("END")) return;
+    if (currentPlayerId === -1 || endTurnCalled.current || !lockAction("END")) return;
+
+    endTurnCalled.current = true; // Lock future calls in this turn
 
     try {
       await apiClient.post("/game-players/end-turn", {
@@ -231,7 +242,7 @@ const AiBoard = ({
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
-  const BUY_PROPERTY = useCallback(async () => {
+  const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
     if (!currentPlayer?.position || actionLock) return;
 
     const square = properties.find((p) => p.id === currentPlayer.position);
@@ -254,7 +265,13 @@ const AiBoard = ({
         property_id: square.id,
       });
 
-      showToast(`You bought ${square.name}!`, "success");
+      // Different toast depending on who bought
+      if (isAiAction) {
+        showToast(`AI bought ${square.name}!`, "success");
+      } else {
+        showToast(`You bought ${square.name}!`, "success");
+      }
+
       setBuyPrompted(false);
       setHasActedOnCurrentLanding(true);
       setTimeout(END_TURN, 1000);
@@ -329,7 +346,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection - FIXED for railways
+  // Buy prompt detection
   useEffect(() => {
     if (
       !currentPlayer?.position ||
@@ -340,10 +357,7 @@ const AiBoard = ({
     lastProcessed.current = currentPlayer.position;
 
     const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square) {
-      showToast("No property found at position", "error");
-      return;
-    }
+    if (!square) return;
 
     const hasRolled = !!roll;
 
@@ -355,20 +369,17 @@ const AiBoard = ({
     const action = PROPERTY_ACTION(square.id);
     const isBuyableType = action && ["land", "railway", "utility"].includes(action);
 
-    // Simplified: only prompt if unowned and buyable
     const canBuy = hasRolled && !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
 
     setBuyPrompted(false);
 
-    if (!canBuy) {
-      return;
-    }
+    if (canBuy) {
+      setBuyPrompted(true);
 
-    setBuyPrompted(true);
-
-    const canAfford = square.price != null && currentPlayer.balance >= square.price;
-    if (!canAfford) {
-      showToast(`Not enough money to buy ${square.name}`, "error");
+      const canAfford = square.price != null && currentPlayer.balance >= square.price;
+      if (!canAfford) {
+        showToast(`Not enough money to buy ${square.name}`, "error");
+      }
     }
   }, [
     currentPlayer?.position,
@@ -377,7 +388,6 @@ const AiBoard = ({
     roll,
     properties,
     game_properties,
-    hasActedOnCurrentLanding,
     showToast,
   ]);
 
@@ -389,7 +399,7 @@ const AiBoard = ({
       const shouldBuy = buyScore >= 60;
       if (shouldBuy) {
         showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
-        await BUY_PROPERTY();
+        await BUY_PROPERTY(true); // <-- Pass isAiAction=true
       } else {
         showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
       }
@@ -445,7 +455,7 @@ const AiBoard = ({
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
   const handleRollDice = () => ROLL_DICE(false);
-  const handleBuyProperty = () => BUY_PROPERTY();
+  const handleBuyProperty = () => BUY_PROPERTY(false); // human action
   const handleSkipBuy = () => {
     showToast("Skipped purchase");
     setBuyPrompted(false);
