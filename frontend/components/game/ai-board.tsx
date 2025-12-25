@@ -8,8 +8,6 @@ import React, {
   useState,
 } from "react";
 import { toast, Toaster } from "react-hot-toast";
-import { ApiResponse } from "@/types/api";
-
 import {
   Game,
   GameProperty,
@@ -18,11 +16,91 @@ import {
   PROPERTY_ACTION,
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
-import { calculateBuyScore } from "@/utils/monopolyUtils";
 
 // Child components
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
+import { ApiResponse } from "@/types/api";
+
+const MONOPOLY_STATS = {
+  landingRank: {
+    5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
+    19: 11, 21: 12, 23: 13, 24: 14, 26: 15, 27: 16, 29: 17, 31: 18, 32: 19, 34: 20, 37: 21, 39: 22,
+    1: 30, 2: 25, 3: 29, 4: 35, 12: 32, 17: 28, 22: 26, 28: 33, 33: 27, 36: 24, 38: 23,
+  },
+  colorGroups: {
+    brown: [1, 3],
+    lightblue: [6, 8, 9],
+    pink: [11, 13, 14],
+    orange: [16, 18, 19],
+    red: [21, 23, 24],
+    yellow: [26, 27, 29],
+    green: [31, 32, 34],
+    darkblue: [37, 39],
+    railroad: [5, 15, 25, 35],
+    utility: [12, 28],
+  },
+};
+
+const calculateBuyScore = (
+  property: Property,
+  player: Player,
+  gameProperties: GameProperty[],
+  allProperties: Property[]
+): number => {
+  if (!property.price || property.type !== "property") return 0;
+
+  const price = property.price!;
+  const baseRent = property.rent_site_only || 0;
+  const cash = player.balance;
+  let score = 50;
+
+  if (cash < price * 1.3) score -= 70;
+  else if (cash > price * 3) score += 20;
+  else if (cash > price * 2) score += 10;
+
+  const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(property.id));
+  if (group && !["railroad", "utility"].includes(property.color!)) {
+    const owned = group.filter((id) =>
+      gameProperties.find((gp) => gp.property_id === id)?.address === player.address
+    ).length;
+
+    if (owned === group.length - 1) score += 90;
+    else if (owned >= 1) score += 35;
+  }
+
+  if (property.color === "railroad") {
+    const owned = gameProperties.filter((gp) =>
+      gp.address === player.address &&
+      allProperties.find((p) => p.id === gp.property_id)?.color === "railroad"
+    ).length;
+    score += owned * 28;
+  }
+  if (property.color === "utility") {
+    const owned = gameProperties.filter((gp) =>
+      gp.address === player.address &&
+      allProperties.find((p) => p.id === gp.property_id)?.type === "utility"
+    ).length;
+    score += owned * 35;
+  }
+
+  const rank = (MONOPOLY_STATS.landingRank as Record<number, number>)[property.id] ?? 25;
+  score += (30 - rank);
+
+  const roi = baseRent / price;
+  if (roi > 0.12) score += 25;
+  else if (roi > 0.08) score += 12;
+
+  if (group) {
+    const opponentOwns = group.some((id) => {
+      const gp = gameProperties.find((gp) => gp.property_id === id);
+      return gp && gp.address !== player.address;
+    });
+    if (opponentOwns && group.length <= 3) score += 30;
+  }
+
+  return Math.max(5, Math.min(98, score));
+};
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
@@ -74,9 +152,6 @@ const AiBoard = ({
     ? properties.find((p) => p.id === currentPlayer.position)
     : null;
 
-  
-
-  // FIXED: buyScore is defined here and used safely
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty) return null;
     return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
@@ -254,7 +329,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection - SAFE against owned properties
+  // Buy prompt detection - FIXED for railways
   useEffect(() => {
     if (
       !currentPlayer?.position ||
@@ -265,10 +340,14 @@ const AiBoard = ({
     lastProcessed.current = currentPlayer.position;
 
     const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square) return;
+    if (!square) {
+      showToast("No property found at position", "error");
+      return;
+    }
 
     const hasRolled = !!roll;
 
+    const isOwnedByAnyone = game_properties.some((gp) => gp.property_id === square.id);
     const isOwnedByMe = game_properties.some(
       (gp) => gp.property_id === square.id && gp.address === currentPlayer.address
     );
@@ -276,17 +355,24 @@ const AiBoard = ({
     const action = PROPERTY_ACTION(square.id);
     const isBuyableType = action && ["land", "railway", "utility"].includes(action);
 
-    const canBuy = hasRolled && !isOwnedByMe && isBuyableType && !hasActedOnCurrentLanding;
+    // Simplified: only prompt if unowned and buyable
+    const canBuy = hasRolled && !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
 
     setBuyPrompted(false);
 
-    if (canBuy) {
-      setBuyPrompted(true);
+    if (!canBuy) {
+      // Debug why prompt isn't showing
+      if (!hasRolled) showToast(`Cannot buy ${square.name}: No roll`, "default");
+      else if (isOwnedByAnyone) showToast(`Cannot buy ${square.name}: Already owned`, "default");
+      else if (!isBuyableType) showToast(`Cannot buy ${square.name}: Not buyable type`, "default");
+      return;
+    }
 
-      const canAfford = square.price != null && currentPlayer.balance >= square.price;
-      if (!canAfford) {
-        showToast(`Not enough money to buy ${square.name}`, "error");
-      }
+    setBuyPrompted(true);
+
+    const canAfford = square.price != null && currentPlayer.balance >= square.price;
+    if (!canAfford) {
+      showToast(`Not enough money to buy ${square.name}`, "error");
     }
   }, [
     currentPlayer?.position,
@@ -386,7 +472,7 @@ const AiBoard = ({
               buyPrompted={buyPrompted}
               currentProperty={currentProperty}
               currentPlayerBalance={currentPlayer?.balance ?? 0}
-              buyScore={buyScore} 
+              buyScore={buyScore}
               history={game.history ?? []}
               onRollDice={handleRollDice}
               onBuyProperty={handleBuyProperty}
