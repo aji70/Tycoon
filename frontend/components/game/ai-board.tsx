@@ -131,6 +131,7 @@ const AiBoard = ({
   const [pendingRoll, setPendingRoll] = useState(0);
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
+  const [canBuy, setCanBuy] = useState(false)
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
 
   // Prevent multiple simultaneous END_TURN calls
@@ -490,15 +491,17 @@ const AiBoard = ({
     showToast("Declaring bankruptcy...", "default");
 
     try {
+
+      if (endGame) {
+        await endGame();
+      }
+      
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
         winner_id: opponent?.user_id || null,
       });
 
-      if (endGame) {
-        await endGame();
-      }
 
       showToast("Game over! You have declared bankruptcy.", "error");
       setTimeout(() => {
