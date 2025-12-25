@@ -22,6 +22,7 @@ import { apiClient } from "@/lib/api";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
+import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -152,9 +153,26 @@ const AiBoard = ({
   const lastProcessed = useRef<number | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
 
+   const [endGameCandidate, setEndGameCandidate] = useState<{
+      winner: Player | null;
+      position: number;
+      balance: bigint;
+    }>({ winner: null, position: 0, balance: BigInt(0) });
+
   const currentProperty = currentPlayer?.position
     ? properties.find((p) => p.id === currentPlayer.position)
     : null;
+
+   // Get on-chain game ID
+    const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+    const onChainGameId = contractGame?.id;
+  
+    const { write: endGame, isPending, reset } = useEndAiGame(
+      Number(onChainGameId),
+      endGameCandidate.position,
+      endGameCandidate.balance,
+      !!endGameCandidate.winner
+    );
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty) return null;
@@ -459,6 +477,31 @@ const AiBoard = ({
     setTimeout(END_TURN, 800);
   };
 
+    const handleDeclareBankruptcy = async () => {
+      showToast("Declaring bankruptcy...", "default");
+  
+      try {
+        // Mark backend game as finished
+        const opponent = players.find(p => p.user_id !== me?.user_id);
+        await apiClient.put(`/games/${game.id}`, {
+          status: "FINISHED",
+          winner_id: opponent?.user_id || null,
+        });
+  
+        // End game on-chain
+        if (endGame) {
+          await endGame();
+        }
+  
+        showToast("Game over! You have declared bankruptcy.", "error");
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 2000);
+      } catch (err) {
+        showToast("Failed to end game", "error");
+      }
+    };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
@@ -479,7 +522,7 @@ const AiBoard = ({
               onRollDice={handleRollDice}
               onBuyProperty={handleBuyProperty}
               onSkipBuy={handleSkipBuy}
-              onDeclareBankruptcy={() => showToast("Bankruptcy not implemented", "default")}
+              onDeclareBankruptcy={handleDeclareBankruptcy}
               isPending={false}
             />
 
