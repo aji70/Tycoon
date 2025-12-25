@@ -24,7 +24,7 @@ import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "./modals/bankruptcy";
-import { CardModal } from "../game/modals/ cards";  // NEW: Import the modal
+import { CardModal } from "./modals/cards";  
 
 const MONOPOLY_STATS = {
   landingRank: {

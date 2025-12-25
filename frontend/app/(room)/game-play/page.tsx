@@ -12,7 +12,7 @@ import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
-import MobileGameLayout from "@/components/game/MobileGameLayout";
+import MobileGameLayout from "@/components/game/ai-board-mobile";
 
 export default function GamePlayPage() {
   const searchParams = useSearchParams();

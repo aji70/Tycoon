@@ -3,8 +3,8 @@
 import AiBoard from "@/components/game/ai-board";
 import GameRoom from "@/components/game/game-room";
 import GamePlayers from "@/components/game/ai-player";
-import MobileGameLayout from "@/components/game/MobileGameLayout";
-import MobilePlayerLayout from "@/components/game/MobilePlayerLayout";
+import MobileGameLayout from "@/components/game/ai-board-mobile";
+import MobilePlayerLayout from "@/components/game/mobile-player";
 
 import { apiClient } from "@/lib/api";
 import { useSearchParams } from "next/navigation";

@@ -10,12 +10,12 @@ import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import { PlayerList } from "./PlayerList";
 import { MyEmpire } from "./MyEmpire";
-import { TradeSection } from "./TradeSection";
-import { PropertyActionModal } from "./modals/PropertyActionModal";
-import { AiTradePopup } from "./modals/AiTradePopup";
-import { AiResponsePopup } from "./modals/AiResponsePopup";
-import { VictoryModal } from "./modals/VictoryModal";
-import { TradeModal } from "./modals/TradeModal";
+import { TradeSection } from "./trade-section";
+import { PropertyActionModal } from "./modals/property-action";
+import { AiTradePopup } from "./modals/ai-trade";
+import { AiResponsePopup } from "./modals/ai-response";
+import { VictoryModal } from "./modals/victory";
+import { TradeModal } from "./modals/trade";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
 
