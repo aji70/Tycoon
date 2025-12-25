@@ -463,8 +463,11 @@ const currentPlayerId = game.next_player_id ?? -1;
   const handleDeclareBankruptcy = () => {
     showToast("Bankruptcy logic not fully implemented yet", "default");
   };
-
+if (!game || !Array.isArray(properties) || properties.length === 0) {
+  return <div className="min-h-screen flex items-center justify-center text-white">Loading game board...</div>;
+}
   return (
+    
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
