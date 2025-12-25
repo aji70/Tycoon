@@ -568,7 +568,21 @@ const AiBoard = ({
             />
 
             {properties.map((square) => {
-              const playersHere = playersByPosition.get(square.id) ?? [];
+              const allPlayersHere = playersByPosition.get(square.id) ?? [];
+              let playersHere: Player[] = [];
+
+              if (allPlayersHere.length > 0) {
+                const currentHere = allPlayersHere.find(p => p.user_id === currentPlayerId);
+                if (currentHere) {
+                  // Prioritize current player
+                  playersHere = [currentHere];
+                } else {
+                  // Show only one other player (prefer human if present)
+                  const humanHere = allPlayersHere.find(p => p.user_id === me?.user_id);
+                  playersHere = [humanHere || allPlayersHere[0]];
+                }
+              }
+
               return (
                 <BoardSquare
                   key={square.id}
