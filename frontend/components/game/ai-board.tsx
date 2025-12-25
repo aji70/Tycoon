@@ -12,6 +12,7 @@ import { toast, Toaster } from "react-hot-toast";
 import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
+import { getPlayerSymbol } from "@/lib/types/symbol"; // <-- Make sure this import exists!
 
 import {
   Game,
@@ -47,6 +48,7 @@ const MONOPOLY_STATS = {
   },
 };
 
+// RESTORED: calculateBuyScore function
 const calculateBuyScore = (
   property: Property,
   player: Player,
@@ -90,7 +92,7 @@ const calculateBuyScore = (
   }
 
   const rank = (MONOPOLY_STATS.landingRank as Record<number, number>)[property.id] ?? 25;
-  score += (30 - rank);
+  score += 30 - rank;
 
   const roi = baseRent / price;
   if (roi > 0.12) score += 25;
@@ -107,15 +109,16 @@ const calculateBuyScore = (
   return Math.max(5, Math.min(98, score));
 };
 
-const BOARD_SQUARES = 40;
-const ROLL_ANIMATION_MS = 1200;
-
+// RESTORED: getDiceValues function
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   const total = die1 + die2;
   return total === 12 ? null : { die1, die2, total };
 };
+
+const BOARD_SQUARES = 40;
+const ROLL_ANIMATION_MS = 1200;
 
 const AiBoard = ({
   game,
@@ -135,9 +138,6 @@ const AiBoard = ({
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
-
-  // Simple flag to prevent multiple END_TURN calls in the same turn
-  const endTurnCalled = useRef(false);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -200,7 +200,7 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
-  // Reset turn state + end-turn lock when player changes
+  // Reset turn state when player changes
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -209,7 +209,6 @@ const AiBoard = ({
     setPendingRoll(0);
     rolledForPlayerId.current = null;
     lastProcessed.current = null;
-    endTurnCalled.current = false; // Reset lock for new turn
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -225,9 +224,7 @@ const AiBoard = ({
   const unlockAction = useCallback(() => setActionLock(null), []);
 
   const END_TURN = useCallback(async () => {
-    if (currentPlayerId === -1 || endTurnCalled.current || !lockAction("END")) return;
-
-    endTurnCalled.current = true; // Lock future calls in this turn
+    if (currentPlayerId === -1 || !lockAction("END")) return;
 
     try {
       await apiClient.post("/game-players/end-turn", {
@@ -265,7 +262,6 @@ const AiBoard = ({
         property_id: square.id,
       });
 
-      // Different toast depending on who bought
       if (isAiAction) {
         showToast(`AI bought ${square.name}!`, "success");
       } else {
@@ -399,7 +395,7 @@ const AiBoard = ({
       const shouldBuy = buyScore >= 60;
       if (shouldBuy) {
         showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
-        await BUY_PROPERTY(true); // <-- Pass isAiAction=true
+        await BUY_PROPERTY(true);
       } else {
         showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
       }
@@ -455,7 +451,7 @@ const AiBoard = ({
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
   const handleRollDice = () => ROLL_DICE(false);
-  const handleBuyProperty = () => BUY_PROPERTY(false); // human action
+  const handleBuyProperty = () => BUY_PROPERTY(false);
   const handleSkipBuy = () => {
     showToast("Skipped purchase");
     setBuyPrompted(false);
