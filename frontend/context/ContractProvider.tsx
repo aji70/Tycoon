@@ -87,8 +87,8 @@ type GamePlayerData = {
   username: string;
 };
 type GamePlayerDataTuple = [bigint, Address, bigint, number, bigint, number, boolean, boolean, string];
-// const STAKE = 1e14;
-const STAKE = 1;
+const STAKE = 1e14;
+// const STAKE = 1;
 // const BSTAKE = 1;
 /* ----------------------- Hooks ----------------------- */
 export function useIsRegistered(address?: Address, options = { enabled: true }) {
