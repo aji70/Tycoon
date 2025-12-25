@@ -106,6 +106,7 @@ const calculateBuyScore = (
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
+const MOVE_ANIMATION_MS_PER_SQUARE = 300;
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
@@ -131,9 +132,10 @@ const AiBoard = ({
   const [pendingRoll, setPendingRoll] = useState(0);
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
+  const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
+  const [hasMovementFinished, setHasMovementFinished] = useState(false);
 
   const landedPositionThisTurn = useRef<number | null>(null);
-
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
@@ -221,6 +223,8 @@ const AiBoard = ({
     rolledForPlayerId.current = null;
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
+    setAnimatedPositions({});
+    setHasMovementFinished(false);
   }, [currentPlayerId]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
@@ -284,6 +288,7 @@ const AiBoard = ({
 
     setIsRolling(true);
     setRoll(null);
+    setHasMovementFinished(false);
 
     setTimeout(async () => {
       const value = getDiceValues();
@@ -297,14 +302,30 @@ const AiBoard = ({
       setRoll(value);
       const playerId = forAI ? currentPlayerId : me!.user_id;
       const currentPos = players.find((p) => p.user_id === playerId)?.position ?? 0;
-      const newPos = (currentPos + value.total + pendingRoll) % BOARD_SQUARES;
+      const totalMove = value.total + pendingRoll;
+      const newPos = (currentPos + totalMove) % BOARD_SQUARES;
+
+      const movePath: number[] = [];
+      for (let i = 1; i <= totalMove; i++) {
+        movePath.push((currentPos + i) % BOARD_SQUARES);
+      }
+
+      for (let i = 0; i < movePath.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+        setAnimatedPositions(prev => ({
+          ...prev,
+          [playerId]: movePath[i],
+        }));
+      }
+
+      setHasMovementFinished(true);
 
       try {
         await apiClient.post("/game-players/change-position", {
           user_id: playerId,
           game_id: game.id,
           position: newPos,
-          rolled: value.total + pendingRoll,
+          rolled: totalMove,
           is_double: value.die1 === value.die2,
         });
 
@@ -321,6 +342,8 @@ const AiBoard = ({
         showToast("Move failed", "error");
         END_TURN();
       } finally {
+        // REMOVED THE DELETE HERE — this was causing the flash back to old position
+        // Keep the final animated position until server sync updates the real one
         setIsRolling(false);
         unlockAction();
       }
@@ -337,79 +360,71 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt logic — only for this turn's landing
-useEffect(() => {
-  // No roll yet or no recorded landing this turn → no buy prompt possible
-  if (!roll || landedPositionThisTurn.current === null) {
-    setBuyPrompted(false);
-    return;
-  }
-
-  const pos = landedPositionThisTurn.current;
-  const square = properties.find(p => p.id === pos);
-
-  // No square found or it has no price → cannot buy
-  if (!square || square.price == null) {
-    setBuyPrompted(false);
-    return;
-  }
-
-  // Check ownership
-  const isOwned = game_properties.some(
-    gp => gp.property_id === pos
-  );
-
-  // Check if it's a buyable type (street, railroad, utility)
-  const action = PROPERTY_ACTION(pos);
-  const isBuyableType =
-    !!action && ["land", "railway", "utility"].includes(action);
-
-  // Final decision — STRICT boolean
-  const canBuy = !isOwned && isBuyableType;
-
-  setBuyPrompted(canBuy);
-
-  // Optional: warn if player can't afford it
-  if (canBuy) {
-    const playerBalance = currentPlayer?.balance ?? 0;
-
-    if (playerBalance < square.price) {
-      showToast(
-        `Not enough money to buy ${square.name}`,
-        "error"
-      );
-    }
-  }
-}, [
-  roll,
-  landedPositionThisTurn.current,
-  game_properties,
-  properties,
-  currentPlayer?.balance,
-  showToast
-]);
-
-
-  // AI decision
   useEffect(() => {
-    if (!isAITurn || !buyPrompted || !currentProperty || buyScore === null) return;
+    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+      setBuyPrompted(false);
+      return;
+    }
 
-    const timer = setTimeout(async () => {
-      const shouldBuy = buyScore >= 60;
-      if (shouldBuy) {
-        await BUY_PROPERTY(true);
-      } else {
-        showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
-        setBuyPrompted(false);
-        landedPositionThisTurn.current = null;
-        setTimeout(END_TURN, 900);
+    const pos = landedPositionThisTurn.current;
+    const square = properties.find(p => p.id === pos);
+
+    if (!square || square.price == null) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const isOwned = game_properties.some(
+      gp => gp.property_id === pos
+    );
+
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType =
+      !!action && ["land", "railway", "utility"].includes(action);
+
+    const canBuy = !isOwned && isBuyableType;
+
+    setBuyPrompted(canBuy);
+
+    if (canBuy) {
+      const playerBalance = currentPlayer?.balance ?? 0;
+
+      if (playerBalance < square.price) {
+        showToast(
+          `Not enough money to buy ${square.name}`,
+          "error"
+        );
       }
-    }, 1800);
+    }
+  }, [
+    roll,
+    landedPositionThisTurn.current,
+    hasMovementFinished,
+    game_properties,
+    properties,
+    currentPlayer?.balance,
+    showToast
+  ]);
 
-    return () => clearTimeout(timer);
-  }, [isAITurn, buyPrompted, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
+  useEffect(() => {
+      if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
+  
+      const timer = setTimeout(async () => {
+        const shouldBuy = buyScore >= 60;
+  
+        if (shouldBuy) {
+          showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
+          await BUY_PROPERTY();
+        } else {
+          showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
+        }
+  
+        setTimeout(END_TURN, shouldBuy ? 1300 : 900);
+      }, 1800);
+  
+      return () => clearTimeout(timer);
+    }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // Auto-end turn when no action needed
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
 
@@ -423,12 +438,12 @@ useEffect(() => {
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
-      const pos = p.position ?? 0;
+      const pos = animatedPositions[p.user_id] !== undefined ? animatedPositions[p.user_id] : (p.position ?? 0);
       if (!map.has(pos)) map.set(pos, []);
       map.get(pos)!.push(p);
     });
     return map;
-  }, [players]);
+  }, [players, animatedPositions]);
 
   const propertyOwner = (id: number) => {
     const gp = game_properties.find((gp) => gp.property_id === id);
