@@ -309,82 +309,99 @@ const AiBoard = ({
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
 
-  const ROLL_DICE = useCallback(async (forAI = false) => {
-    // ... same as before (keeping your original roll logic) ...
-    if (isRolling || actionLock || !lockAction("ROLL")) return;
+ const ROLL_DICE = useCallback(async (forAI = false) => {
+  if (isRolling || actionLock || !lockAction("ROLL")) return;
 
-    setIsRolling(true);
-    setRoll(null);
-    setHasMovementFinished(false);
+  setIsRolling(true);
+  setRoll(null);
+  setHasMovementFinished(false);
 
-    setTimeout(async () => {
-      const value = getDiceValues();
-      if (!value) {
-        showToast("DOUBLES! Roll again!", "success");
-        setIsRolling(false);
-        unlockAction();
-        return;
-      }
+  setTimeout(async () => {
+    const value = getDiceValues();
+    if (!value) {
+      showToast("DOUBLES! Roll again!", "success");
+      setIsRolling(false);
+      unlockAction();
+      return;
+    }
 
-      setRoll(value);
-      const playerId = forAI ? currentPlayerId : me!.user_id;
-      const player = players.find((p) => p.user_id === playerId);
-      if (!player) return;
+    setRoll(value);
+    const playerId = forAI ? currentPlayerId : me!.user_id;
+    const player = players.find((p) => p.user_id === playerId);
+    if (!player) return;
 
-      const currentPos = player.position ?? 0;
+    const currentPos = player.position ?? 0;
+    const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
+
+    let newPos = currentPos; // Default: stay put
+    let shouldAnimate = false;
+
+    // Only move if NOT in jail
+    if (!isInJail) {
       const totalMove = value.total + pendingRoll;
-      const newPos = (currentPos + totalMove) % BOARD_SQUARES;
+      newPos = (currentPos + totalMove) % BOARD_SQUARES;
+      shouldAnimate = totalMove > 0;
 
-      const isInJail = player.position === JAIL_POSITION && player.in_jail;
-
-      if (!isInJail && totalMove > 0) {
+      if (shouldAnimate) {
         const movePath: number[] = [];
         for (let i = 1; i <= totalMove; i++) {
           movePath.push((currentPos + i) % BOARD_SQUARES);
         }
 
+        // Animate step by step
         for (let i = 0; i < movePath.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
-          setAnimatedPositions(prev => ({
+          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          setAnimatedPositions((prev) => ({
             ...prev,
             [playerId]: movePath[i],
           }));
         }
       }
+    } else {
+      // In jail → no movement, but still show the roll result
+      showToast(
+        `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no movement)`,
+        "default"
+      );
+    }
 
-      setHasMovementFinished(true);
+    setHasMovementFinished(true);
 
-      try {
-        await apiClient.post("/game-players/change-position", {
-          user_id: playerId,
-          game_id: game.id,
-          position: newPos,
-          rolled: totalMove,
-          is_double: value.die1 === value.die2,
-        });
+    try {
+      // Always send the roll result to backend (even in jail — backend will handle doubles, pay, etc.)
+      await apiClient.post("/game-players/change-position", {
+        user_id: playerId,
+        game_id: game.id,
+        position: newPos,           // stays the same if in jail
+        rolled: value.total + pendingRoll,
+        is_double: value.die1 === value.die2,
+      });
 
-        setPendingRoll(0);
-        landedPositionThisTurn.current = newPos;
+      setPendingRoll(0);
+      landedPositionThisTurn.current = isInJail ? null : newPos;
 
+      if (!isInJail) {
         showToast(
-          `${currentPlayer?.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
+          `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
           "success"
         );
-
-        if (forAI) rolledForPlayerId.current = currentPlayerId;
-      } catch {
-        showToast("Move failed", "error");
-        END_TURN();
-      } finally {
-        setIsRolling(false);
-        unlockAction();
       }
-    }, ROLL_ANIMATION_MS);
-  }, [
-    isRolling, actionLock, lockAction, unlockAction,
-    currentPlayerId, me, players, pendingRoll, game.id,
-    currentPlayer, END_TURN, showToast
-  ]);
+
+      if (forAI) rolledForPlayerId.current = currentPlayerId;
+    } catch (err) {
+      console.error("Move failed:", err);
+      showToast("Move failed", "error");
+      END_TURN();
+    } finally {
+      setIsRolling(false);
+      unlockAction();
+    }
+  }, ROLL_ANIMATION_MS);
+}, [
+  isRolling, actionLock, lockAction, unlockAction,
+  currentPlayerId, me, players, pendingRoll, game.id,
+  showToast, END_TURN
+]);
 
   // AI auto-roll
   useEffect(() => {
