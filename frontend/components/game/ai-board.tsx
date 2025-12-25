@@ -55,58 +55,70 @@ const calculateBuyScore = (
   const price = property.price!;
   const baseRent = property.rent_site_only || 0;
   const cash = player.balance ?? 0;
-  let score = 50;
 
-  if (cash < price * 1.3) score -= 70;
-  else if (cash > price * 3) score += 20;
-  else if (cash > price * 2) score += 10;
+  // Start more conservatively
+  let score = 30;
 
+  // Cash safety is now much more important
+  if (cash < price * 1.5) score -= 80;      // Very dangerous
+  else if (cash < price * 2) score -= 40;    // Risky
+  else if (cash > price * 4) score += 35;    // Very safe
+  else if (cash > price * 3) score += 15;
+
+  // Monopoly completion is still very valuable
   const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(property.id));
   if (group && !["railroad", "utility"].includes(property.color!)) {
     const owned = group.filter((id) =>
       gameProperties.find((gp) => gp.property_id === id)?.address === player.address
     ).length;
 
-    if (owned === group.length - 1) score += 90;
-    else if (owned >= 1) score += 35;
+    if (owned === group.length - 1) score += 120;    // Huge incentive to complete sets
+    else if (owned === group.length - 2) score += 60;
+    else if (owned >= 1) score += 25;
   }
 
+  // Railroads & Utilities - slightly toned down
   if (property.color === "railroad") {
     const owned = gameProperties.filter((gp) =>
       gp.address === player.address &&
       allProperties.find((p) => p.id === gp.property_id)?.color === "railroad"
     ).length;
-    score += owned * 28;
+    score += owned * 22;  // was 28
   }
   if (property.color === "utility") {
     const owned = gameProperties.filter((gp) =>
       gp.address === player.address &&
       allProperties.find((p) => p.id === gp.property_id)?.type === "utility"
     ).length;
-    score += owned * 35;
+    score += owned * 28;  // was 35
   }
 
+  // Landing frequency (negative = rare = worse)
   const rank = (MONOPOLY_STATS.landingRank as Record<number, number>)[property.id] ?? 25;
-  score += 30 - rank;
+  score += 35 - rank;
 
+  // ROI still matters but less dominant
   const roi = baseRent / price;
-  if (roi > 0.12) score += 25;
-  else if (roi > 0.08) score += 12;
+  if (roi > 0.14) score += 30;
+  else if (roi > 0.10) score += 15;
 
-  if (group) {
-    const opponentOwns = group.some((id) => {
+  // Opponent almost completing set → higher priority to block
+  if (group && group.length <= 3) {
+    const opponentOwns = group.filter((id) => {
       const gp = gameProperties.find((gp) => gp.property_id === id);
-      return gp && gp.address !== player.address;
-    });
-    if (opponentOwns && group.length <= 3) score += 30;
+      return gp && gp.address !== player.address && gp.address !== null;
+    }).length;
+
+    if (opponentOwns === group.length - 1) score += 70;  // Block completion!
   }
 
-  return Math.max(5, Math.min(98, score));
+  // Final clamp - AI should rarely buy above ~92 even in great spots
+  return Math.max(0, Math.min(95, score));
 };
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
-const MOVE_ANIMATION_MS_PER_SQUARE = 250; // Faster movement
+const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
@@ -163,9 +175,17 @@ const AiBoard = ({
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
 
-  const currentProperty = currentPlayer?.position
-    ? properties.find((p) => p.id === currentPlayer.position)
-    : null;
+  const currentProperty = useMemo(() => {
+    return currentPlayer?.position
+      ? properties.find((p) => p.id === currentPlayer.position) ?? null
+      : null;
+  }, [currentPlayer?.position, properties]);
+
+  // ── NEW: Reliable property we just landed on (fixes stale data flash) ──
+  const justLandedProperty = useMemo(() => {
+    if (landedPositionThisTurn.current === null) return null;
+    return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
+  }, [landedPositionThisTurn.current, properties]);
 
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
   const onChainGameId = contractGame?.id;
@@ -178,9 +198,9 @@ const AiBoard = ({
   );
 
   const buyScore = useMemo(() => {
-    if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty) return null;
-    return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
-  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
+    if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;
+    return calculateBuyScore(justLandedProperty, currentPlayer, game_properties, properties);
+  }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, game_properties, properties]);
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
     return (
@@ -259,13 +279,13 @@ const AiBoard = ({
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
   const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
-    if (!currentPlayer?.position || actionLock || !currentProperty?.price) {
+    if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
       showToast("Cannot buy right now", "error");
       return;
     }
 
     const playerBalance = currentPlayer.balance ?? 0;
-    if (playerBalance < currentProperty.price) {
+    if (playerBalance < justLandedProperty.price) {
       showToast("Not enough money!", "error");
       return;
     }
@@ -274,20 +294,21 @@ const AiBoard = ({
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: game.id,
-        property_id: currentProperty.id,
+        property_id: justLandedProperty.id,
       });
 
-      showToast(isAiAction ? `AI bought ${currentProperty.name}!` : `You bought ${currentProperty.name}!`, "success");
+      showToast(isAiAction ? `AI bought ${justLandedProperty.name}!` : `You bought ${justLandedProperty.name}!`, "success");
 
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
-      setTimeout(END_TURN, 1000);
+      setTimeout(END_TURN, 800);
     } catch {
       showToast("Purchase failed", "error");
     }
-  }, [currentPlayer, currentProperty, actionLock, END_TURN, showToast]);
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
 
   const ROLL_DICE = useCallback(async (forAI = false) => {
+    // ... same as before (keeping your original roll logic) ...
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
     setIsRolling(true);
@@ -312,11 +333,9 @@ const AiBoard = ({
       const totalMove = value.total + pendingRoll;
       const newPos = (currentPos + totalMove) % BOARD_SQUARES;
 
-      // Check if player is in jail — if yes, skip animation
       const isInJail = player.position === JAIL_POSITION && player.in_jail;
 
       if (!isInJail && totalMove > 0) {
-        // Animate movement only if not in jail
         const movePath: number[] = [];
         for (let i = 1; i <= totalMove; i++) {
           movePath.push((currentPos + i) % BOARD_SQUARES);
@@ -365,14 +384,14 @@ const AiBoard = ({
     currentPlayer, END_TURN, showToast
   ]);
 
-  // Faster AI auto-roll
+  // AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
-    const timer = setTimeout(() => ROLL_DICE(true), 600); // Reduced from 1200ms
+    const timer = setTimeout(() => ROLL_DICE(true), 700);
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt logic
+  // Buy prompt logic – now uses landed position
   useEffect(() => {
     if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
       setBuyPrompted(false);
@@ -387,13 +406,9 @@ const AiBoard = ({
       return;
     }
 
-    const isOwned = game_properties.some(
-      gp => gp.property_id === pos
-    );
-
+    const isOwned = game_properties.some(gp => gp.property_id === pos);
     const action = PROPERTY_ACTION(pos);
-    const isBuyableType =
-      !!action && ["land", "railway", "utility"].includes(action);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
 
     const canBuy = !isOwned && isBuyableType;
 
@@ -401,12 +416,8 @@ const AiBoard = ({
 
     if (canBuy) {
       const playerBalance = currentPlayer?.balance ?? 0;
-
       if (playerBalance < square.price) {
-        showToast(
-          `Not enough money to buy ${square.name}`,
-          "error"
-        );
+        showToast(`Not enough money to buy ${square.name}`, "error");
       }
     }
   }, [
@@ -419,33 +430,45 @@ const AiBoard = ({
     showToast
   ]);
 
-  // Faster AI decision
+  // Smarter AI buy decision
   useEffect(() => {
-    if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || buyScore === null) return;
+    if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty || buyScore === null) return;
 
     const timer = setTimeout(async () => {
-      const shouldBuy = buyScore >= 60;
+      // Much stricter thresholds + cash safety check
+      const shouldBuy =
+        buyScore >= 72 && // was 60 – now requires really good spot
+        (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
 
       if (shouldBuy) {
-        showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
+        showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
         await BUY_PROPERTY(true);
       } else {
-        showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
+        showToast(`AI passed on ${justLandedProperty.name} (score: ${buyScore}%)`, "default");
       }
 
-      setTimeout(END_TURN, shouldBuy ? 1000 : 700); // Faster end turn
-    }, 800); // Reduced from 1800ms
+      setTimeout(END_TURN, shouldBuy ? 1200 : 900);
+    }, 900);
 
     return () => clearTimeout(timer);
-  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
+  }, [
+    isAITurn,
+    buyPrompted,
+    currentPlayer,
+    justLandedProperty,
+    buyScore,
+    BUY_PROPERTY,
+    END_TURN,
+    showToast
+  ]);
 
-  // Faster auto-end turn when no action needed
+  // Auto-end turn when nothing to do
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
 
     const timer = setTimeout(() => {
       END_TURN();
-    }, isAITurn ? 800 : 1200); // Faster
+    }, isAITurn ? 1000 : 1200);
 
     return () => clearTimeout(timer);
   }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
@@ -477,10 +500,11 @@ const AiBoard = ({
     showToast("Skipped purchase");
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
-    setTimeout(END_TURN, 800);
+    setTimeout(END_TURN, 900);
   };
 
   const handleDeclareBankruptcy = async () => {
+    // ... same as before ...
     showToast("Declaring bankruptcy...", "default");
 
     try {
@@ -514,7 +538,7 @@ const AiBoard = ({
               isRolling={isRolling}
               roll={roll}
               buyPrompted={buyPrompted}
-              currentProperty={currentProperty}
+              currentProperty={justLandedProperty || currentProperty} // Prefer landed property for UI
               currentPlayerBalance={currentPlayer?.balance ?? 0}
               buyScore={buyScore}
               history={game.history ?? []}
@@ -549,7 +573,7 @@ const AiBoard = ({
         gutter={12}
         containerClassName="z-50"
         toastOptions={{
-          duration: 3000,
+          duration: 3200,
           style: {
             background: "rgba(15, 23, 42, 0.95)",
             color: "#fff",
