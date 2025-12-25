@@ -24,6 +24,7 @@ import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "./modals/bankruptcy";
+import { CardModal } from "../game/modals/ cards";  // NEW: Import the modal
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -149,6 +150,17 @@ const AiBoard = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
+
+  // NEW: Card modal states
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardData, setCardData] = useState<{
+    type: "chance" | "community";
+    text: string;
+    effect?: string;
+    isGood: boolean;
+  } | null>(null);
+  const [cardPlayerName, setCardPlayerName] = useState("");
+  const prevHistoryLength = useRef(game.history?.length ?? 0);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
@@ -449,6 +461,50 @@ const AiBoard = ({
     showToast
   ]);
 
+
+// NEW: Detect card draw from history changes
+useEffect(() => {
+  const history = game.history ?? [];
+  if (history.length <= prevHistoryLength.current) return;
+
+  const newEntry = history[history.length - 1];
+  prevHistoryLength.current = history.length;
+
+  // Early return if no valid entry
+  if (newEntry == null || typeof newEntry !== "string") {
+    return;
+  }
+
+  const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
+  const match = (newEntry as string).match(cardRegex);
+
+  if (!match) return;
+
+  const [, playerName, typeStr, text] = match;
+  const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+
+  const lowerText = text.toLowerCase();
+  const isGood =
+    lowerText.includes("collect") ||
+    lowerText.includes("receive") ||
+    lowerText.includes("advance") ||
+    lowerText.includes("get out of jail") ||
+    lowerText.includes("matures") ||
+    lowerText.includes("refund") ||
+    lowerText.includes("prize") ||
+    lowerText.includes("inherit");
+
+  const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+  const effect = effectMatch ? effectMatch[0] : undefined;
+
+  setCardData({ type, text, effect, isGood });
+  setCardPlayerName(playerName.trim());
+  setShowCardModal(true);
+
+  const timer = setTimeout(() => setShowCardModal(false), 7000);
+  return () => clearTimeout(timer);
+}, [game.history]);
+
   // Smarter AI buy decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty || buyScore === null) return;
@@ -598,6 +654,14 @@ const AiBoard = ({
           </div>
         </div>
       </div>
+
+      {/* NEW: Card Modal */}
+      <CardModal
+        isOpen={showCardModal}
+        onClose={() => setShowCardModal(false)}
+        card={cardData}
+        playerName={cardPlayerName}
+      />
 
       <BankruptcyModal
   isOpen={showBankruptcyModal}
