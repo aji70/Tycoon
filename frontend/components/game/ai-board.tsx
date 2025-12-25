@@ -133,8 +133,11 @@ const AiBoard = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
 
-  // FIX: Prevent multiple simultaneous END_TURN calls
+  // Prevent multiple simultaneous END_TURN calls
   const turnEndInProgress = useRef(false);
+
+  // Track last toast message to prevent duplicates
+  const lastToastMessage = useRef<string | null>(null);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -153,26 +156,26 @@ const AiBoard = ({
   const lastProcessed = useRef<number | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
 
-   const [endGameCandidate, setEndGameCandidate] = useState<{
-      winner: Player | null;
-      position: number;
-      balance: bigint;
-    }>({ winner: null, position: 0, balance: BigInt(0) });
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+  }>({ winner: null, position: 0, balance: BigInt(0) });
 
   const currentProperty = currentPlayer?.position
     ? properties.find((p) => p.id === currentPlayer.position)
     : null;
 
-   // Get on-chain game ID
-    const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
-    const onChainGameId = contractGame?.id;
-  
-    const { write: endGame, isPending, reset } = useEndAiGame(
-      Number(onChainGameId),
-      endGameCandidate.position,
-      endGameCandidate.balance,
-      !!endGameCandidate.winner
-    );
+  // Get on-chain game ID
+  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+  const onChainGameId = contractGame?.id;
+
+  const { write: endGame, isPending, reset } = useEndAiGame(
+    Number(onChainGameId),
+    endGameCandidate.position,
+    endGameCandidate.balance,
+    !!endGameCandidate.winner
+  );
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty) return null;
@@ -189,6 +192,10 @@ const AiBoard = ({
   }
 
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    // Prevent redundant identical toasts
+    if (message === lastToastMessage.current) return;
+    lastToastMessage.current = message;
+
     toast.dismiss();
     if (type === "success") toast.success(message);
     else if (type === "error") toast.error(message);
@@ -214,7 +221,7 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
-  // Reset turn state + toast lock when player changes (new turn)
+  // Reset turn state when player changes (new turn)
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -222,8 +229,9 @@ const AiBoard = ({
     setIsRolling(false);
     setPendingRoll(0);
     rolledForPlayerId.current = null;
-    lastProcessed.current = null;
-    turnEndInProgress.current = false; // Reset lock for new turn
+    lastProcessed.current = null; // ← Critical fix: reset so buy detection runs fresh
+    turnEndInProgress.current = false;
+    lastToastMessage.current = null; // Clear toast dedupe for new turn
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -239,10 +247,9 @@ const AiBoard = ({
   const unlockAction = useCallback(() => setActionLock(null), []);
 
   const END_TURN = useCallback(async () => {
-    // Prevent duplicate calls within the same turn
     if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
 
-    turnEndInProgress.current = true; // Lock all future calls in this turn
+    turnEndInProgress.current = true;
 
     try {
       await apiClient.post("/game-players/end-turn", {
@@ -360,7 +367,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection
+  // Buy prompt detection - fixed to always clear first and only prompt after roll
   useEffect(() => {
     if (
       !currentPlayer?.position ||
@@ -373,6 +380,9 @@ const AiBoard = ({
     const square = properties.find((p) => p.id === currentPlayer.position);
     if (!square) return;
 
+    // Always clear prompt first
+    setBuyPrompted(false);
+
     const hasRolled = !!roll;
 
     const isOwnedByAnyone = game_properties.some((gp) => gp.property_id === square.id);
@@ -384,8 +394,6 @@ const AiBoard = ({
     const isBuyableType = action && ["land", "railway", "utility"].includes(action);
 
     const canBuy = hasRolled && !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
-
-    setBuyPrompted(false);
 
     if (canBuy) {
       setBuyPrompted(true);
@@ -477,30 +485,28 @@ const AiBoard = ({
     setTimeout(END_TURN, 800);
   };
 
-    const handleDeclareBankruptcy = async () => {
-      showToast("Declaring bankruptcy...", "default");
-  
-      try {
-        // Mark backend game as finished
-        const opponent = players.find(p => p.user_id !== me?.user_id);
-        await apiClient.put(`/games/${game.id}`, {
-          status: "FINISHED",
-          winner_id: opponent?.user_id || null,
-        });
-  
-        // End game on-chain
-        if (endGame) {
-          await endGame();
-        }
-  
-        showToast("Game over! You have declared bankruptcy.", "error");
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 2000);
-      } catch (err) {
-        showToast("Failed to end game", "error");
+  const handleDeclareBankruptcy = async () => {
+    showToast("Declaring bankruptcy...", "default");
+
+    try {
+      const opponent = players.find(p => p.user_id !== me?.user_id);
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: opponent?.user_id || null,
+      });
+
+      if (endGame) {
+        await endGame();
       }
-    };
+
+      showToast("Game over! You have declared bankruptcy.", "error");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2000);
+    } catch (err) {
+      showToast("Failed to end game", "error");
+    }
+  };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
