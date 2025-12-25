@@ -54,7 +54,7 @@ const calculateBuyScore = (
 
   const price = property.price!;
   const baseRent = property.rent_site_only || 0;
-  const cash = player.balance;
+  const cash = player.balance ?? 0;
   let score = 50;
 
   if (cash < price * 1.3) score -= 70;
@@ -131,25 +131,24 @@ const AiBoard = ({
   const [pendingRoll, setPendingRoll] = useState(0);
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
-  const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
+
+  const landedPositionThisTurn = useRef<number | null>(null);
 
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
-  const lastRollPosition = useRef<number | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
   const isMyTurn = me?.user_id === currentPlayerId;
-
   const isAITurn = Boolean(
     currentPlayer?.username?.toLowerCase().includes("ai_") ||
     currentPlayer?.username?.toLowerCase().includes("bot")
   );
 
   const playerCanRoll = Boolean(
-    isMyTurn && currentPlayer && currentPlayer.balance > 0
+    isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
   );
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -195,12 +194,10 @@ const AiBoard = ({
     else toast(message, { icon: "➤" });
   }, []);
 
-  // Sync players from initial props
   useEffect(() => {
     if (game?.players) setPlayers(game.players);
   }, [game?.players]);
 
-  // Periodic sync from server
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -215,22 +212,16 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
-  // Reset turn state when current player changes
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
-    setHasActedOnCurrentLanding(false);
     setIsRolling(false);
     setPendingRoll(0);
+    landedPositionThisTurn.current = null;
     rolledForPlayerId.current = null;
-    lastRollPosition.current = null;
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
   }, [currentPlayerId]);
-
-  useEffect(() => {
-    if (roll) setHasActedOnCurrentLanding(false);
-  }, [roll]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -255,25 +246,19 @@ const AiBoard = ({
       showToast("Failed to end turn", "error");
     } finally {
       unlockAction();
+      turnEndInProgress.current = false;
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
   const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
-    if (!roll || !buyPrompted || !currentPlayer?.position || actionLock) {
+    if (!currentPlayer?.position || actionLock || !currentProperty?.price) {
       showToast("Cannot buy right now", "error");
       return;
     }
 
-    const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square) return;
-
-    const isOwnedByMe = game_properties.some(
-      (gp) => gp.property_id === square.id && gp.address === currentPlayer.address
-    );
-
-    if (isOwnedByMe) {
-      showToast("You already own this property!", "error");
-      setBuyPrompted(false);
+    const playerBalance = currentPlayer.balance ?? 0;
+    if (playerBalance < currentProperty.price) {
+      showToast("Not enough money!", "error");
       return;
     }
 
@@ -281,23 +266,18 @@ const AiBoard = ({
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: game.id,
-        property_id: square.id,
+        property_id: currentProperty.id,
       });
 
-      if (isAiAction) {
-        showToast(`AI bought ${square.name}!`, "success");
-      } else {
-        showToast(`You bought ${square.name}!`, "success");
-      }
+      showToast(isAiAction ? `AI bought ${currentProperty.name}!` : `You bought ${currentProperty.name}!`, "success");
 
-      lastRollPosition.current = null;
       setBuyPrompted(false);
-      setHasActedOnCurrentLanding(true);
+      landedPositionThisTurn.current = null;
       setTimeout(END_TURN, 1000);
     } catch {
       showToast("Purchase failed", "error");
     }
-  }, [roll, buyPrompted, currentPlayer, properties, game_properties, game.id, actionLock, END_TURN, showToast]);
+  }, [currentPlayer, currentProperty, actionLock, END_TURN, showToast]);
 
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -329,6 +309,8 @@ const AiBoard = ({
         });
 
         setPendingRoll(0);
+        landedPositionThisTurn.current = newPos;
+
         showToast(
           `${currentPlayer?.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
           "success"
@@ -344,82 +326,82 @@ const AiBoard = ({
       }
     }, ROLL_ANIMATION_MS);
   }, [
-    isRolling,
-    actionLock,
-    lockAction,
-    unlockAction,
-    currentPlayerId,
-    me,
-    players,
-    pendingRoll,
-    game.id,
-    currentPlayer,
-    END_TURN,
-    showToast,
+    isRolling, actionLock, lockAction, unlockAction,
+    currentPlayerId, me, players, pendingRoll, game.id,
+    currentPlayer, END_TURN, showToast
   ]);
 
-  // AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
     const timer = setTimeout(() => ROLL_DICE(true), 1200);
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection
-  useEffect(() => {
-    if (!roll || !currentPlayer?.position) return;
-
-    const currentPos = currentPlayer.position;
-
-    if (lastRollPosition.current === currentPos) return;
-    lastRollPosition.current = currentPos;
-
+  // Buy prompt logic — only for this turn's landing
+useEffect(() => {
+  // No roll yet or no recorded landing this turn → no buy prompt possible
+  if (!roll || landedPositionThisTurn.current === null) {
     setBuyPrompted(false);
+    return;
+  }
 
-    const square = properties.find(p => p.id === currentPos);
-    if (!square) return;
+  const pos = landedPositionThisTurn.current;
+  const square = properties.find(p => p.id === pos);
 
-    const isOwnedByAnyone = game_properties.some(gp => gp.property_id === currentPos);
-    const isOwnedByMe = game_properties.some(
-      gp => gp.property_id === currentPos && gp.address === currentPlayer.address
-    );
+  // No square found or it has no price → cannot buy
+  if (!square || square.price == null) {
+    setBuyPrompted(false);
+    return;
+  }
 
-    const action = PROPERTY_ACTION(currentPos);
-    const isBuyable = action && ["land", "railway", "utility"].includes(action);
+  // Check ownership
+  const isOwned = game_properties.some(
+    gp => gp.property_id === pos
+  );
 
-    const canBuyNow = !isOwnedByAnyone && !isOwnedByMe && isBuyable;
+  // Check if it's a buyable type (street, railroad, utility)
+  const action = PROPERTY_ACTION(pos);
+  const isBuyableType =
+    !!action && ["land", "railway", "utility"].includes(action);
 
-    if (canBuyNow) {
-      setBuyPrompted(true);
+  // Final decision — STRICT boolean
+  const canBuy = !isOwned && isBuyableType;
 
-      if (square.price != null && currentPlayer.balance < square.price) {
-        showToast(`Not enough money to buy ${square.name}`, "error");
-      }
+  setBuyPrompted(canBuy);
+
+  // Optional: warn if player can't afford it
+  if (canBuy) {
+    const playerBalance = currentPlayer?.balance ?? 0;
+
+    if (playerBalance < square.price) {
+      showToast(
+        `Not enough money to buy ${square.name}`,
+        "error"
+      );
     }
-  }, [
-    roll,
-    currentPlayer?.position,
-    currentPlayer?.balance,
-    currentPlayer?.address,
-    properties,
-    game_properties,
-    showToast
-  ]);
+  }
+}, [
+  roll,
+  landedPositionThisTurn.current,
+  game_properties,
+  properties,
+  currentPlayer?.balance,
+  showToast
+]);
 
-  // AI buy decision
+
+  // AI decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentProperty || buyScore === null) return;
 
     const timer = setTimeout(async () => {
       const shouldBuy = buyScore >= 60;
       if (shouldBuy) {
-        showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
         await BUY_PROPERTY(true);
       } else {
         showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
-        lastRollPosition.current = null;
         setBuyPrompted(false);
-        setHasActedOnCurrentLanding(true);
+        landedPositionThisTurn.current = null;
         setTimeout(END_TURN, 900);
       }
     }, 1800);
@@ -427,29 +409,16 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // Auto-end turn when no action is pending (both human & AI)
+  // Auto-end turn when no action needed
   useEffect(() => {
-    if (actionLock || !roll || buyPrompted || isRolling) return;
-
-    const shouldAutoEnd = hasActedOnCurrentLanding || !currentProperty;
-
-    if (!shouldAutoEnd) return;
+    if (actionLock || isRolling || buyPrompted || !roll) return;
 
     const timer = setTimeout(() => {
       END_TURN();
     }, isAITurn ? 1400 : 1800);
 
     return () => clearTimeout(timer);
-  }, [
-    roll,
-    buyPrompted,
-    isRolling,
-    actionLock,
-    hasActedOnCurrentLanding,
-    currentProperty,
-    isAITurn,
-    END_TURN
-  ]);
+  }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
 
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
@@ -476,9 +445,8 @@ const AiBoard = ({
   const handleBuyProperty = () => BUY_PROPERTY(false);
   const handleSkipBuy = () => {
     showToast("Skipped purchase");
-    lastRollPosition.current = null;
     setBuyPrompted(false);
-    setHasActedOnCurrentLanding(true);
+    landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 800);
   };
 
@@ -486,9 +454,7 @@ const AiBoard = ({
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      if (endGame) {
-        await endGame();
-      }
+      if (endGame) await endGame();
 
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${game.id}`, {
