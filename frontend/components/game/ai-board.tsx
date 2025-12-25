@@ -137,6 +137,9 @@ const AiBoard = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
 
+  // FIX: Prevent multiple simultaneous END_TURN calls
+  const turnEndInProgress = useRef(false);
+
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
@@ -198,7 +201,7 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
-  // Reset turn state when player changes
+  // Reset turn state + toast lock when player changes (new turn)
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -207,6 +210,7 @@ const AiBoard = ({
     setPendingRoll(0);
     rolledForPlayerId.current = null;
     lastProcessed.current = null;
+    turnEndInProgress.current = false; // Reset lock for new turn
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -222,7 +226,10 @@ const AiBoard = ({
   const unlockAction = useCallback(() => setActionLock(null), []);
 
   const END_TURN = useCallback(async () => {
-    if (currentPlayerId === -1 || !lockAction("END")) return;
+    // Prevent duplicate calls within the same turn
+    if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
+
+    turnEndInProgress.current = true; // Lock all future calls in this turn
 
     try {
       await apiClient.post("/game-players/end-turn", {
@@ -340,26 +347,20 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection - FIXED to prevent flashing & pre-roll
+  // Buy prompt detection
   useEffect(() => {
-    // Early exit if no valid position or no roll yet
     if (
       !currentPlayer?.position ||
       !properties.length ||
-      currentPlayer.position === lastProcessed.current ||
-      !roll // <-- Crucial: block until a roll has happened
-    ) {
-      setBuyPrompted(false);
-      return;
-    }
+      currentPlayer.position === lastProcessed.current
+    ) return;
 
     lastProcessed.current = currentPlayer.position;
 
     const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square) {
-      setBuyPrompted(false);
-      return;
-    }
+    if (!square) return;
+
+    const hasRolled = !!roll;
 
     const isOwnedByAnyone = game_properties.some((gp) => gp.property_id === square.id);
     const isOwnedByMe = game_properties.some(
@@ -369,25 +370,23 @@ const AiBoard = ({
     const action = PROPERTY_ACTION(square.id);
     const isBuyableType = action && ["land", "railway", "utility"].includes(action);
 
-    const canBuy = !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
+    const canBuy = hasRolled && !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
+
+    setBuyPrompted(false);
 
     if (canBuy) {
-      // Only show prompt if affordable and conditions stable
+      setBuyPrompted(true);
+
       const canAfford = square.price != null && currentPlayer.balance >= square.price;
-      if (canAfford) {
-        setBuyPrompted(true);
-      } else {
-        setBuyPrompted(false);
+      if (!canAfford) {
         showToast(`Not enough money to buy ${square.name}`, "error");
       }
-    } else {
-      setBuyPrompted(false);
     }
   }, [
     currentPlayer?.position,
     currentPlayer?.address,
     currentPlayer?.balance,
-    roll, // <-- Depend on roll to trigger only after roll
+    roll,
     properties,
     game_properties,
     showToast,
