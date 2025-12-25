@@ -1,15 +1,17 @@
+"use client";
+
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Crown, Sparkles, Coins, AlertCircle } from "lucide-react";
 import { Player } from "@/types/game";
-import { Trophy, Sparkles, Crown, RotateCcw, AlertCircle } from "lucide-react";
 
 interface VictoryModalProps {
   winner: Player | null;
   me: Player | null;
   onClaim: () => void;
   claiming: boolean;
-  claimError?: string | null;        // ← New prop for error message
-  onClearError?: () => void;         // Optional: clear error when retrying
+  claimError?: string | null;
+  onClearError?: () => void;
 }
 
 export const VictoryModal: React.FC<VictoryModalProps> = ({
@@ -24,8 +26,11 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 
   const isWinner = winner.user_id === me?.user_id;
 
+  // Only show modal if current user is the winner
+  if (!isWinner) return null;
+
   const handleClaimClick = () => {
-    onClearError?.(); // clear previous error when user retries
+    onClearError?.();
     onClaim();
   };
 
@@ -35,193 +40,151 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-hidden"
+        className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-[9999] p-4"
       >
-        {/* Background subtle animated gradient */}
+        {/* Background glow */}
         <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-pink-950 opacity-40"
-          animate={{
-            scale: [1, 1.15, 1],
-            opacity: [0.3, 0.45, 0.3],
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-amber-950"
+          animate={{ opacity: [0.4, 0.65, 0.4], scale: [1, 1.04, 1] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         />
 
         <motion.div
-          initial={{ y: 80, scale: 0.85, opacity: 0 }}
+          initial={{ y: 100, scale: 0.82, opacity: 0 }}
           animate={{ y: 0, scale: 1, opacity: 1 }}
-          exit={{ y: 40, scale: 0.9, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 140, damping: 18 }}
-          className={`
-            relative p-10 md:p-14 lg:p-16 
+          exit={{ y: 60, scale: 0.85, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 110, damping: 14, delay: 0.1 }}
+          className="
+            relative w-full max-w-md sm:max-w-lg md:max-w-xl
+            p-10 sm:p-12 md:p-16
             rounded-3xl md:rounded-4xl
-            shadow-[0_0_60px_-5px] 
-            overflow-hidden
-            border-[3px] border-opacity-40
-            backdrop-blur-md
-            max-w-md sm:max-w-lg md:max-w-xl w-full
-            text-center
-            ${isWinner 
-              ? "bg-gradient-to-b from-amber-900/90 to-amber-950/90 border-amber-400/60 shadow-amber-500/40" 
-              : "bg-gradient-to-b from-slate-900/90 to-slate-950/90 border-slate-500/40 shadow-slate-700/30"
-            }
-          `}
+            border-4 border-amber-500/60
+            bg-gradient-to-b from-amber-950/95 via-amber-900/85 to-black/90
+            backdrop-blur-xl shadow-2xl shadow-amber-600/60
+            text-center overflow-hidden
+          "
         >
-          {isWinner && (
-            <motion.div
-              className="absolute -inset-20 bg-gradient-radial from-amber-400/20 via-transparent to-transparent pointer-events-none"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-            />
-          )}
+          {/* Rotating glow effect */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-radial from-amber-400/20 via-transparent to-transparent pointer-events-none"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+          />
 
           <div className="relative z-10">
-            {isWinner ? (
-              <>
-                <motion.div
-                  initial={{ scale: 0.6, rotate: -15 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 180, delay: 0.2 }}
-                  className="mb-8"
-                >
-                  <Crown className="w-24 h-24 md:w-28 md:h-28 mx-auto text-amber-300 drop-shadow-[0_0_20px_rgba(245,158,11,0.7)]" />
-                </motion.div>
+            {/* Crown */}
+            <motion.div
+              initial={{ scale: 0.5, rotate: -20 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 160, delay: 0.2 }}
+              className="mb-8 relative"
+            >
+              <Crown className="w-32 h-32 sm:w-36 sm:h-36 mx-auto text-amber-300 drop-shadow-[0_0_45px_rgba(245,158,11,0.9)]" />
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <Sparkles className="w-16 h-16 text-amber-200/60" />
+              </motion.div>
+            </motion.div>
 
-                <motion.h1
-                  initial={{ y: -20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-5xl sm:text-6xl md:text-7xl font-black mb-4 tracking-tight"
-                >
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400">
-                    YOU WIN!
-                  </span>
-                </motion.h1>
+            <motion.h1
+              initial={{ y: -40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="
+                text-5xl sm:text-6xl md:text-7xl font-black tracking-tighter mb-4
+                bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400
+                animate-pulse leading-tight
+              "
+              style={{ textShadow: "0 0 40px rgba(245,158,11,0.8)" }}
+            >
+              VICTORY!
+            </motion.h1>
 
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-2xl md:text-3xl font-bold text-amber-100/90 mb-8"
-                >
-                  Congratulations, Tycoon Legend! Crown
-                </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-200/90 mb-8"
+            >
+              Congratulations, {me?.username || "Tycoon"}!
+            </motion.p>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                  className="mb-10"
-                >
-                  <p className="text-lg md:text-xl text-amber-200/80 mb-2">
-                    You outsmarted the AI and built the ultimate empire
+            {/* Rewards summary */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="mb-10 p-7 bg-black/50 rounded-2xl border border-amber-600/50 inline-block"
+            >
+              <div className="flex items-center justify-center gap-5">
+                <Coins className="w-12 h-12 text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.8)]" />
+                <div className="text-left">
+                  <p className="text-xl font-bold text-amber-300">Your Rewards</p>
+                  <p className="text-4xl font-black text-amber-100 mt-1">
+                    +1 TYC
                   </p>
-                  <div className="flex items-center justify-center gap-3 text-amber-300/90 mt-3">
-                    <Sparkles className="w-5 h-5" />
-                    <span className="font-semibold">Legendary Victory</span>
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                </motion.div>
+                  <p className="text-base text-amber-200/80 mt-2">
+                    Victory Bonus • Stake refunded
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-amber-100/90 text-base">
+                Your empire's wealth is yours to claim!
+              </p>
+            </motion.div>
 
-                {/* Error banner (only shown on error) */}
-                <AnimatePresence>
-                  {claimError && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="mb-6 p-4 bg-red-900/60 border border-red-500/50 rounded-2xl flex items-center gap-3 text-red-200"
-                    >
-                      <AlertCircle className="w-6 h-6 flex-shrink-0" />
-                      <div className="text-left">
-                        <p className="font-semibold">Claim failed</p>
-                        <p className="text-sm mt-1">{claimError}</p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <motion.button
-                  whileHover={{ scale: 1.06, y: -4 }}
-                  whileTap={{ scale: 0.96 }}
-                  disabled={claiming}
-                  onClick={handleClaimClick}
-                  className={`
-                    relative px-10 py-5 md:px-14 md:py-7
-                    text-xl md:text-2xl font-bold
-                    rounded-2xl md:rounded-3xl
-                    overflow-hidden group
-                    shadow-2xl shadow-purple-900/40
-                    border-2 border-white/30
-                    transition-all duration-300
-                    disabled:opacity-60 disabled:cursor-not-allowed
-                    ${claiming 
-                      ? "bg-gray-700 cursor-wait" 
-                      : "bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-500"
-                    }
-                  `}
-                >
-                  <span className="relative z-10">
-                    {claiming ? "Claiming your empire..." : "Claim Your Rewards Gift"}
-                  </span>
-                  
-                  <motion.div
-                    className="absolute inset-0 bg-white/20"
-                    initial={{ x: "-100%" }}
-                    whileHover={{ x: "100%" }}
-                    transition={{ duration: 0.6, ease: "easeInOut" }}
-                  />
-                </motion.button>
-              </>
-            ) : (
-              // ────────────── LOSER / OTHER PLAYER WON ──────────────
-              <>
+            {/* Error message if any */}
+            <AnimatePresence>
+              {claimError && (
                 <motion.div
-                  initial={{ scale: 0.7 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-                  className="mb-10"
+                  initial={{ opacity: 0, y: -15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="mb-8 p-5 bg-red-900/60 border border-red-500/50 rounded-2xl flex items-start gap-4 text-red-100 max-w-lg mx-auto"
                 >
-                  <Trophy className="w-20 h-20 md:w-24 md:h-24 mx-auto text-slate-300/80" />
-                </motion.div>
-
-                <h1 className="text-5xl md:text-6xl font-black text-slate-200 mb-6 tracking-tight">
-                  GAME OVER
-                </h1>
-
-                <p className="text-3xl md:text-4xl font-bold text-white mb-4">
-                  {winner.username} wins!
-                </p>
-
-                <p className="text-xl text-slate-300 mb-12">
-                  The throne belongs to {winner.username} this time...
-                </p>
-
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => window.location.href = "/"}
-                  className="
-                    px-10 py-5 md:px-12 md:py-6
-                    bg-gradient-to-r from-slate-700 to-slate-800
-                    hover:from-slate-600 hover:to-slate-700
-                    text-white text-xl md:text-2xl font-bold
-                    rounded-2xl md:rounded-3xl
-                    border border-slate-500/50
-                    shadow-lg shadow-black/40
-                    transition-all duration-300
-                  "
-                >
-                  <div className="flex items-center justify-center gap-3">
-                    <RotateCcw size={22} />
-                    <span>Return Home</span>
+                  <AlertCircle className="w-7 h-7 flex-shrink-0 mt-1" />
+                  <div className="text-left">
+                    <p className="font-bold text-lg">Claim failed</p>
+                    <p className="text-base mt-1">{claimError}</p>
                   </div>
-                </motion.button>
-              </>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <p className="mt-12 text-base md:text-lg text-white/50 font-light">
-              Thanks for playing <span className="text-amber-300/70 font-medium">Tycoon</span> Sparkles
+            {/* Claim button */}
+            <motion.button
+              whileHover={{ scale: 1.07, y: -4 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={claiming}
+              onClick={handleClaimClick}
+              className={`
+                px-12 py-6 md:px-16 md:py-8 text-xl md:text-2xl font-black
+                rounded-2xl md:rounded-3xl
+                shadow-2xl shadow-amber-900/50 border-2 border-amber-300/30
+                transition-all duration-300 relative overflow-hidden group
+                disabled:opacity-60 disabled:cursor-wait
+                ${claiming 
+                  ? "bg-gray-800" 
+                  : "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:via-yellow-500 hover:to-amber-600"
+                }
+              `}
+            >
+              <span className="relative z-10">
+                {claiming ? "Claiming Rewards..." : "Claim Your Rewards"}
+              </span>
+              <motion.div
+                className="absolute inset-0 bg-white/15"
+                initial={{ x: "-100%" }}
+                whileHover={{ x: "100%" }}
+                transition={{ duration: 0.7 }}
+              />
+            </motion.button>
+
+            <p className="mt-12 text-base sm:text-lg text-amber-200/60 font-light">
+              Thanks for playing <span className="text-amber-300 font-medium">Tycoon</span> • Legend status achieved
             </p>
           </div>
         </motion.div>
