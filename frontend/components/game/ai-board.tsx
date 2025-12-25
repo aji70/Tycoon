@@ -361,10 +361,6 @@ const AiBoard = ({
     setBuyPrompted(false);
 
     if (!canBuy) {
-      // Debug why prompt isn't showing
-      if (!hasRolled) showToast(`Cannot buy ${square.name}: No roll`, "default");
-      else if (isOwnedByAnyone) showToast(`Cannot buy ${square.name}: Already owned`, "default");
-      else if (!isBuyableType) showToast(`Cannot buy ${square.name}: Not buyable type`, "default");
       return;
     }
 
