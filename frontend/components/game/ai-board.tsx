@@ -7,6 +7,9 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast, Toaster } from "react-hot-toast";
+
 import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
@@ -19,9 +22,15 @@ import {
   PROPERTY_ACTION,
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
-import { toast, Toaster } from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+
+// Child components
+import BoardSquare from "./board-square";
+import CenterArea from "./center-area";
+import DiceAnimation from "./dice-animation";
+import RollResult from "./roll-result";
+import ActionLog from "./action-log";
+import PlayerTokens from "./player-token";
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -112,41 +121,12 @@ const calculateBuyScore = (
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
 
-const DiceFace = ({ value }: { value: number }) => {
-  const dotPositions: Record<number, [number, number][]> = {
-    1: [[50, 50]],
-    2: [[28, 28], [72, 72]],
-    3: [[28, 28], [50, 50], [72, 72]],
-    4: [[28, 28], [28, 72], [72, 28], [72, 72]],
-    5: [[28, 28], [28, 72], [50, 50], [72, 28], [72, 72]],
-    6: [[28, 28], [28, 50], [28, 72], [72, 28], [72, 50], [72, 72]],
-  };
-
-  return (
-    <>
-      {dotPositions[value].map(([x, y], i) => (
-        <div
-          key={i}
-          className="absolute w-7 h-7 bg-black rounded-full shadow-inner"
-          style={{
-            top: `${y}%`,
-            left: `${x}%`,
-            transform: "translate(-50%, -50%)",
-          }}
-        />
-      ))}
-    </>
-  );
-};
-
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   const total = die1 + die2;
   return total === 12 ? null : { die1, die2, total };
 };
-
-const isTopHalf = (square: Property) => square.grid_row === 1;
 
 const AiBoard = ({
   game,
@@ -168,7 +148,7 @@ const AiBoard = ({
   const [hasActedOnCurrentLanding, setHasActedOnCurrentLanding] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
-  const [endGameCandidate, setEndGameCandidate] = useState<{
+  const [endGameCandidate] = useState<{
     winner: Player | null;
     position: number;
     balance: bigint;
@@ -182,7 +162,6 @@ const AiBoard = ({
     currentPlayer?.username?.toLowerCase().includes("bot");
 
   const lastProcessed = useRef<number | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
   const rolledForPlayerId = useRef<number | null>(null);
 
   const currentProperty = currentPlayer?.position
@@ -194,7 +173,6 @@ const AiBoard = ({
     return calculateBuyScore(currentProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, game_properties, properties]);
 
-  // Get on-chain game ID
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
   const onChainGameId = contractGame?.id;
 
@@ -217,12 +195,19 @@ const AiBoard = ({
   }, [game?.players]);
 
   useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [game.history?.length]);
+    const interval = setInterval(() => {
+      apiClient.get<ApiResponse>(`/games/code/${game.code}`)
+        .then(res => {
+          if (res?.data?.success && res.data.data?.players) {
+            setPlayers(res.data.data.players);
+          }
+        })
+        .catch(err => console.error("Sync failed:", err));
+    }, 8000);
 
-  // Reset turn state when turn changes
+    return () => clearInterval(interval);
+  }, [game.code]);
+
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -245,22 +230,6 @@ const AiBoard = ({
 
   const unlockAction = useCallback(() => setActionLock(null), []);
 
-  const fetchUpdatedGame = useCallback(async () => {
-    try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
-      if (res?.data?.success && res.data.data?.players) {
-        setPlayers(res.data.data.players);
-      }
-    } catch (err) {
-      console.error("Sync failed:", err);
-    }
-  }, [game.code]);
-
-  useEffect(() => {
-    const interval = setInterval(fetchUpdatedGame, 8000);
-    return () => clearInterval(interval);
-  }, [fetchUpdatedGame]);
-
   const END_TURN = useCallback(async () => {
     if (!currentPlayerId || !lockAction("END")) return;
 
@@ -270,13 +239,12 @@ const AiBoard = ({
         game_id: game.id,
       });
       showToast("Turn ended", "success");
-      await fetchUpdatedGame();
     } catch {
       showToast("Failed to end turn", "error");
     } finally {
       unlockAction();
     }
-  }, [currentPlayerId, game.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
+  }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
   const BUY_PROPERTY = useCallback(async () => {
     if (!currentPlayer?.position || actionLock) return;
@@ -296,12 +264,11 @@ const AiBoard = ({
       showToast(`You bought ${square.name}!`, "success");
       setBuyPrompted(false);
       setHasActedOnCurrentLanding(true);
-      await fetchUpdatedGame();
       setTimeout(END_TURN, 1000);
     } catch (err) {
       showToast("Purchase failed", "error");
     }
-  }, [currentPlayer, properties, game_properties, game.id, fetchUpdatedGame, actionLock, END_TURN, showToast]);
+  }, [currentPlayer, properties, game_properties, game.id, END_TURN, actionLock, showToast]);
 
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -333,8 +300,6 @@ const AiBoard = ({
         });
 
         setPendingRoll(0);
-        await fetchUpdatedGame();
-
         showToast(
           `${currentPlayer?.username} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
           "success"
@@ -352,9 +317,10 @@ const AiBoard = ({
   }, [
     isRolling, actionLock, lockAction, unlockAction,
     currentPlayerId, me, players, pendingRoll, game.id,
-    fetchUpdatedGame, currentPlayer?.username, END_TURN, showToast
+    currentPlayer?.username, END_TURN, showToast
   ]);
 
+  // AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
 
@@ -362,7 +328,7 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt logic - only for buyable properties
+  // Buy prompt logic
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -416,15 +382,13 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // AI Auto-end turn when no action needed
+  // Auto-end turn when no action needed
   useEffect(() => {
     if (!isAITurn || !roll || buyPrompted || actionLock) return;
-
     const timer = setTimeout(() => END_TURN(), 1500);
     return () => clearTimeout(timer);
   }, [isAITurn, roll, buyPrompted, actionLock, END_TURN]);
 
-  // Human Auto-end turn when no buy possible
   useEffect(() => {
     if (!isMyTurn || !roll || buyPrompted || actionLock) return;
 
@@ -462,411 +426,62 @@ const AiBoard = ({
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
-  // Declare Bankruptcy - ends both backend and contract game
-  const handleDeclareBankruptcy = async () => {
-    showToast("Declaring bankruptcy...", "default");
-
-    try {
-      // Mark backend game as finished
-      const opponent = players.find(p => p.user_id !== me?.user_id);
-      await apiClient.put(`/games/${game.id}`, {
-        status: "FINISHED",
-        winner_id: opponent?.user_id || null,
-      });
-
-      // End game on-chain
-      if (endGame) {
-        await endGame();
-      }
-
-      showToast("Game over! You have declared bankruptcy.", "error");
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 2000);
-    } catch (err) {
-      showToast("Failed to end game", "error");
-    }
-  };
-
-  const handleExitAttempt = (shouldTryFinalize: boolean) => {
-    if (!endGameCandidate.winner) {
-      window.location.href = "/";
-      return;
-    }
-
-    if (shouldTryFinalize) {
-      setShowExitPrompt(true);
-    } else {
-      window.location.href = "/";
-    }
-  };
-
-  const handleFinalizeAndLeave = async () => {
-    setShowExitPrompt(false);
-
-    const toastId = toast.loading(
-      winner?.user_id === me?.user_id
-        ? "Claiming your prize..."
-        : "Finalizing game results..."
-    );
-
-    try {
-      if (endGame) {
-        await endGame();
-      }
-
-      toast.success(
-        winner?.user_id === me?.user_id
-          ? "Prize claimed! 🎉"
-          : "Game completed — thanks for playing!",
-        { id: toastId, duration: 5000 }
-      );
-
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
-    } catch (err: any) {
-      toast.error(
-        err?.message || "Something went wrong — you can try again later",
-        { id: toastId, duration: 8000 }
-      );
-    } finally {
-      if (reset) reset();
-    }
-  };
-
-  // Player cannot roll if balance <= 0 on their turn
   const playerCanRoll = isMyTurn && currentPlayer && currentPlayer.balance > 0;
+
+  const handleRollDice = () => ROLL_DICE(false);
+
+  const handleBuyProperty = () => BUY_PROPERTY();
+
+  const handleSkipBuy = () => {
+    showToast("Skipped purchase");
+    setBuyPrompted(false);
+    setHasActedOnCurrentLanding(true);
+    setTimeout(END_TURN, 800);
+  };
+
+  // Placeholder for bankruptcy and exit logic (implement as needed)
+  const handleDeclareBankruptcy = () => {
+    showToast("Bankruptcy logic not fully implemented yet", "default");
+  };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-
-      {/* Winner / Game Over Screen - only shows when game.status === "FINISHED" and winner is set */}
-      <AnimatePresence>
-        {winner && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, rotate: -5 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className={`p-12 md:p-16 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
-                winner.user_id === me?.user_id
-                  ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
-                  : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
-              }`}
-            >
-              {winner.user_id === me?.user_id ? (
-                <>
-                  <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
-                  <p className="text-4xl md:text-5xl font-bold text-white mb-8">
-                    Congratulations, Champion!
-                  </p>
-                  <p className="text-2xl md:text-3xl text-yellow-200 mb-12">
-                    You're the Tycoon of this game!
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-300">Game Over</h1>
-                  <p className="text-3xl md:text-4xl font-bold text-white mb-6">
-                    {winner.username} is the winner!
-                  </p>
-                  <p className="text-xl md:text-2xl text-gray-300 mb-10">
-                    Better luck next time — you played well!
-                  </p>
-                </>
-              )}
-
-              <div className="flex justify-center">
-                <button
-                  onClick={() => handleExitAttempt(true)}
-                  className="px-12 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-2xl md:text-3xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
-                >
-                  {winner.user_id === me?.user_id ? "Claim Rewards" : "Finish Game"}
-                </button>
-              </div>
-
-              <p className="text-lg text-yellow-200/80 mt-10 opacity-90">
-                Thanks for playing Tycoon!
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Exit Confirmation */}
-      <AnimatePresence>
-        {showExitPrompt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-10 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
-            >
-              <h2 className="text-3xl font-bold text-white mb-6">
-                One last thing!
-              </h2>
-
-              {winner?.user_id === me?.user_id ? (
-                <p className="text-xl text-cyan-300 mb-8">
-                  Finalize the game to claim your rewards.
-                </p>
-              ) : (
-                <p className="text-xl text-gray-300 mb-8">
-                  Finalize the game to wrap things up.
-                </p>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={handleFinalizeAndLeave}
-                  disabled={isPending}
-                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
-                >
-                  {isPending ? "Processing..." : "Yes, Finish Game"}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowExitPrompt(false);
-                    setTimeout(() => window.location.href = "/", 300);
-                  }}
-                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
-                >
-                  Skip & Leave
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
 
-            <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden">
+            <CenterArea
+              isMyTurn={isMyTurn}
+              isAITurn={isAITurn}
+              currentPlayer={currentPlayer}
+              playerCanRoll={playerCanRoll}
+              isRolling={isRolling}
+              roll={roll}
+              buyPrompted={buyPrompted}
+              currentProperty={currentProperty}
+              currentPlayerBalance={currentPlayer?.balance ?? 0}
+              buyScore={buyScore}
+              history={game.history}
+              onRollDice={handleRollDice}
+              onBuyProperty={handleBuyProperty}
+              onSkipBuy={handleSkipBuy}
+              onDeclareBankruptcy={handleDeclareBankruptcy}
+              isPending={isPending}
+            />
 
-              <AnimatePresence>
-                {isRolling && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className="absolute inset-0 flex items-center justify-center gap-16 z-20 pointer-events-none"
-                  >
-                    <motion.div
-                      animate={{ rotateX: [0, 360, 720, 1080], rotateY: [0, 360, -360, 720] }}
-                      transition={{ duration: 1.2, ease: "easeOut" }}
-                      className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
-                      style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)" }}
-                    >
-                      {roll ? <DiceFace value={roll.die1} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-6xl font-bold text-gray-400">?</motion.div>}
-                    </motion.div>
-                    <motion.div
-                      animate={{ rotateX: [0, -720, 360, 1080], rotateY: [0, -360, 720, -360] }}
-                      transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
-                      className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
-                      style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)" }}
-                    >
-                      {roll ? <DiceFace value={roll.die2} /> : <motion.div animate={{ rotate: -360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-6xl font-bold text-gray-400">?</motion.div>}
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {roll && !isRolling && (
-                <motion.div
-                  initial={{ scale: 0, y: 50 }}
-                  animate={{ scale: 1, y: 0 }}
-                  className="flex items-center gap-6 text-7xl font-bold mb-4"
-                >
-                  <span className="text-cyan-400 drop-shadow-2xl">{roll.die1}</span>
-                  <span className="text-white text-6xl">+</span>
-                  <span className="text-pink-400 drop-shadow-2xl">{roll.die2}</span>
-                  <span className="text-white mx-4 text-6xl">=</span>
-                  <span className="text-yellow-400 text-9xl drop-shadow-2xl">{roll.total}</span>
-                </motion.div>
-              )}
-
-              <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-6 z-10">
-                Tycoon
-              </h1>
-
-              {/* Main Action Button: Roll Dice OR Declare Bankruptcy */}
-              {isMyTurn && !roll && !isRolling && (
-                <>
-                  {playerCanRoll ? (
-                    <button
-                      onClick={() => ROLL_DICE(false)}
-                      disabled={isRolling || actionLock !== null}
-                      className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
-                    >
-                      Roll Dice
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleDeclareBankruptcy}
-                      disabled={isPending}
-                      className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50 disabled:opacity-70"
-                    >
-                      {isPending ? "Ending Game..." : "💔 Declare Bankruptcy"}
-                    </button>
-                  )}
-                </>
-              )}
-
-              {/* Buy Prompt */}
-              {isMyTurn && buyPrompted && currentProperty && currentPlayer && (
-                <div className="flex gap-4 flex-wrap justify-center mt-4">
-                  <button
-                    onClick={BUY_PROPERTY}
-                    disabled={currentProperty.price != null && currentPlayer.balance < currentProperty.price}
-                    className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
-                      currentProperty.price != null && currentPlayer.balance < currentProperty.price
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                  >
-                    Buy for ${currentProperty.price}
-                  </button>
-                  <button
-                    onClick={() => {
-                      showToast("Skipped purchase");
-                      setBuyPrompted(false);
-                      setHasActedOnCurrentLanding(true);
-                      setTimeout(END_TURN, 800);
-                    }}
-                    className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
-                  >
-                    Skip
-                  </button>
-                </div>
-              )}
-
-              {/* AI Turn Indicator */}
-              {isAITurn && (
-                <div className="mt-5 text-center z-10">
-                  <motion.h2
-                    className="text-2xl font-bold text-pink-300 mb-3"
-                    animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    {currentPlayer?.username} is playing…
-                  </motion.h2>
-                  {buyPrompted && buyScore !== null && (
-                    <p className="text-lg text-yellow-300 font-bold">
-                      Buy Confidence: {buyScore}%
-                    </p>
-                  )}
-                  <div className="flex justify-center mt-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
-                  </div>
-                  <p className="text-pink-200 text-sm italic mt-3">
-                    Smart AI • Decides automatically
-                  </p>
-                </div>
-              )}
-
-              {/* Action Log */}
-              <div ref={logRef} className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
-                <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
-                  <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600">
-                  {(!game.history || game.history.length === 0) ? (
-                    <p className="text-center text-gray-500 text-xs italic py-8">No actions yet</p>
-                  ) : (
-                    game.history.map((h, i) => (
-                      <motion.p key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-gray-300">
-                        <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
-                        {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
-                      </motion.p>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Board Squares */}
             {properties.map((square) => {
               const playersHere = playersByPosition.get(square.id) ?? [];
-              const devLevel = developmentStage(square.id);
-              const mortgaged = isPropertyMortgaged(square.id);
-
               return (
-                <motion.div
+                <BoardSquare
                   key={square.id}
-                  style={{
-                    gridRowStart: square.grid_row,
-                    gridColumnStart: square.grid_col,
-                  }}
-                  className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
-                  whileHover={{ scale: 1.75, zIndex: 50 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                >
-                  <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1 relative`}>
-                    {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
-                    {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
-                    {square.type === "corner" && <CornerCard square={square} />}
-
-                    {square.type === "property" && devLevel > 0 && (
-                      <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
-                        {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
-                      </div>
-                    )}
-
-                    {mortgaged && (
-                      <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center z-30 pointer-events-none">
-                        <span className="text-white text-lg font-bold rotate-12 tracking-wider drop-shadow-2xl">
-                          MORTGAGED
-                        </span>
-                      </div>
-                    )}
-
-                    {mortgaged && (
-                      <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none" />
-                    )}
-
-                    <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-40">
-                      {playersHere.map((p) => {
-                        const isCurrentPlayer = p.user_id === game.next_player_id;
-                        return (
-                          <motion.span
-                            key={p.user_id}
-                            title={`${p.username} ($${p.balance})`}
-                            className={`text-xl md:text-2xl lg:text-3xl border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`}
-                            initial={{ scale: 1 }}
-                            animate={{
-                              y: isCurrentPlayer ? [0, -8, 0] : [0, -3, 0],
-                              scale: isCurrentPlayer ? [1, 1.1, 1] : 1,
-                              rotate: isCurrentPlayer ? [0, 5, -5, 0] : 0,
-                            }}
-                            transition={{
-                              y: { duration: isCurrentPlayer ? 1.2 : 2, repeat: Infinity, ease: "easeInOut" },
-                              scale: { duration: isCurrentPlayer ? 1.2 : 0, repeat: Infinity, ease: "easeInOut" },
-                              rotate: { duration: isCurrentPlayer ? 1.5 : 0, repeat: Infinity, ease: "easeInOut" },
-                            }}
-                            whileHover={{ scale: 1.2, y: -2 }}
-                          >
-                            {getPlayerSymbol(p.symbol)}
-                          </motion.span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </motion.div>
+                  square={square}
+                  playersHere={playersHere}
+                  currentPlayerId={currentPlayerId}
+                  owner={propertyOwner(square.id)}
+                  devLevel={developmentStage(square.id)}
+                  mortgaged={isPropertyMortgaged(square.id)}
+                />
               );
             })}
           </div>

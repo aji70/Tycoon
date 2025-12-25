@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import DiceAnimation from "./DiceAnimation";
-import RollResult from "./RollResult";
-import ActionLog from "./ActionLog";
+import DiceAnimation from "./dice-animation";
+import RollResult from "./roll-result";
+import ActionLog from "./action-log";
 
 import { Property, Player, Game } from "@/types/game";
 
