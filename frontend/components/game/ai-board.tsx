@@ -139,6 +139,8 @@ const AiBoard = ({
   // Track last toast message to prevent duplicates
   const lastToastMessage = useRef<string | null>(null);
 
+  const lastRollPosition = useRef<number | null>(null);
+
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
@@ -153,7 +155,6 @@ const AiBoard = ({
     isMyTurn && currentPlayer && currentPlayer.balance > 0
   );
 
-  const lastProcessed = useRef<number | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -192,7 +193,6 @@ const AiBoard = ({
   }
 
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    // Prevent redundant identical toasts
     if (message === lastToastMessage.current) return;
     lastToastMessage.current = message;
 
@@ -229,9 +229,9 @@ const AiBoard = ({
     setIsRolling(false);
     setPendingRoll(0);
     rolledForPlayerId.current = null;
-    lastProcessed.current = null; // ← Critical fix: reset so buy detection runs fresh
+    lastRollPosition.current = null;
     turnEndInProgress.current = false;
-    lastToastMessage.current = null; // Clear toast dedupe for new turn
+    lastToastMessage.current = null;
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -265,7 +265,10 @@ const AiBoard = ({
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
   const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
-    if (!currentPlayer?.position || actionLock) return;
+    if (!roll || !buyPrompted || !currentPlayer?.position || actionLock) {
+      showToast("Cannot buy right now", "error");
+      return;
+    }
 
     const square = properties.find((p) => p.id === currentPlayer.position);
     if (!square) return;
@@ -299,7 +302,7 @@ const AiBoard = ({
     } catch {
       showToast("Purchase failed", "error");
     }
-  }, [currentPlayer, properties, game_properties, game.id, actionLock, END_TURN, showToast]);
+  }, [roll, buyPrompted, currentPlayer, properties, game_properties, game.id, actionLock, END_TURN, showToast]);
 
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -367,50 +370,48 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt detection - fixed to always clear first and only prompt after roll
+  // Buy prompt detection - only after actual roll
   useEffect(() => {
-    if (
-      !currentPlayer?.position ||
-      !properties.length ||
-      currentPlayer.position === lastProcessed.current
-    ) return;
+    // Only run when we have a fresh roll result
+    if (!roll || !currentPlayer?.position) return;
 
-    lastProcessed.current = currentPlayer.position;
+    const currentPos = currentPlayer.position;
 
-    const square = properties.find((p) => p.id === currentPlayer.position);
-    if (!square) return;
+    // Prevent running multiple times for the same landing
+    if (lastRollPosition.current === currentPos) return;
+    lastRollPosition.current = currentPos;
 
-    // Always clear prompt first
+    // Reset buy state at the start of evaluation
     setBuyPrompted(false);
 
-    const hasRolled = !!roll;
+    const square = properties.find(p => p.id === currentPos);
+    if (!square) return;
 
-    const isOwnedByAnyone = game_properties.some((gp) => gp.property_id === square.id);
+    const isOwnedByAnyone = game_properties.some(gp => gp.property_id === currentPos);
     const isOwnedByMe = game_properties.some(
-      (gp) => gp.property_id === square.id && gp.address === currentPlayer.address
+      gp => gp.property_id === currentPos && gp.address === currentPlayer.address
     );
 
-    const action = PROPERTY_ACTION(square.id);
-    const isBuyableType = action && ["land", "railway", "utility"].includes(action);
+    const action = PROPERTY_ACTION(currentPos);
+    const isBuyable = action && ["land", "railway", "utility"].includes(action);
 
-    const canBuy = hasRolled && !isOwnedByAnyone && !isOwnedByMe && isBuyableType;
+    const canBuyNow = !isOwnedByAnyone && !isOwnedByMe && isBuyable;
 
-    if (canBuy) {
+    if (canBuyNow) {
       setBuyPrompted(true);
 
-      const canAfford = square.price != null && currentPlayer.balance >= square.price;
-      if (!canAfford) {
+      if (square.price != null && currentPlayer.balance < square.price) {
         showToast(`Not enough money to buy ${square.name}`, "error");
       }
     }
   }, [
-    currentPlayer?.position,
-    currentPlayer?.address,
-    currentPlayer?.balance,
     roll,
+    currentPlayer?.position,
+    currentPlayer?.balance,
+    currentPlayer?.address,
     properties,
     game_properties,
-    showToast,
+    showToast
   ]);
 
   // AI buy decision
