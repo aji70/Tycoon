@@ -106,7 +106,7 @@ const calculateBuyScore = (
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
-const MOVE_ANIMATION_MS_PER_SQUARE = 300;
+const MOVE_ANIMATION_MS_PER_SQUARE = 250; // Faster movement
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
@@ -114,6 +114,8 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
   const total = die1 + die2;
   return total === 12 ? null : { die1, die2, total };
 };
+
+const JAIL_POSITION = 10;
 
 const AiBoard = ({
   game,
@@ -152,6 +154,8 @@ const AiBoard = ({
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
   );
+
+  const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && currentPlayer?.in_jail === true;
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
     winner: Player | null;
@@ -301,21 +305,30 @@ const AiBoard = ({
 
       setRoll(value);
       const playerId = forAI ? currentPlayerId : me!.user_id;
-      const currentPos = players.find((p) => p.user_id === playerId)?.position ?? 0;
+      const player = players.find((p) => p.user_id === playerId);
+      if (!player) return;
+
+      const currentPos = player.position ?? 0;
       const totalMove = value.total + pendingRoll;
       const newPos = (currentPos + totalMove) % BOARD_SQUARES;
 
-      const movePath: number[] = [];
-      for (let i = 1; i <= totalMove; i++) {
-        movePath.push((currentPos + i) % BOARD_SQUARES);
-      }
+      // Check if player is in jail — if yes, skip animation
+      const isInJail = player.position === JAIL_POSITION && player.in_jail;
 
-      for (let i = 0; i < movePath.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
-        setAnimatedPositions(prev => ({
-          ...prev,
-          [playerId]: movePath[i],
-        }));
+      if (!isInJail && totalMove > 0) {
+        // Animate movement only if not in jail
+        const movePath: number[] = [];
+        for (let i = 1; i <= totalMove; i++) {
+          movePath.push((currentPos + i) % BOARD_SQUARES);
+        }
+
+        for (let i = 0; i < movePath.length; i++) {
+          await new Promise(resolve => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          setAnimatedPositions(prev => ({
+            ...prev,
+            [playerId]: movePath[i],
+          }));
+        }
       }
 
       setHasMovementFinished(true);
@@ -342,8 +355,6 @@ const AiBoard = ({
         showToast("Move failed", "error");
         END_TURN();
       } finally {
-        // REMOVED THE DELETE HERE — this was causing the flash back to old position
-        // Keep the final animated position until server sync updates the real one
         setIsRolling(false);
         unlockAction();
       }
@@ -354,12 +365,14 @@ const AiBoard = ({
     currentPlayer, END_TURN, showToast
   ]);
 
+  // Faster AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
-    const timer = setTimeout(() => ROLL_DICE(true), 1200);
+    const timer = setTimeout(() => ROLL_DICE(true), 600); // Reduced from 1200ms
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
+  // Buy prompt logic
   useEffect(() => {
     if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
       setBuyPrompted(false);
@@ -406,31 +419,33 @@ const AiBoard = ({
     showToast
   ]);
 
+  // Faster AI decision
   useEffect(() => {
-      if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
-  
-      const timer = setTimeout(async () => {
-        const shouldBuy = buyScore >= 60;
-  
-        if (shouldBuy) {
-          showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
-          await BUY_PROPERTY();
-        } else {
-          showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
-        }
-  
-        setTimeout(END_TURN, shouldBuy ? 1300 : 900);
-      }, 1800);
-  
-      return () => clearTimeout(timer);
-    }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
+    if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || buyScore === null) return;
 
+    const timer = setTimeout(async () => {
+      const shouldBuy = buyScore >= 60;
+
+      if (shouldBuy) {
+        showToast(`AI buys ${currentProperty.name} (${buyScore}%)`, "success");
+        await BUY_PROPERTY(true);
+      } else {
+        showToast(`AI skips ${currentProperty.name} (${buyScore}%)`);
+      }
+
+      setTimeout(END_TURN, shouldBuy ? 1000 : 700); // Faster end turn
+    }, 800); // Reduced from 1800ms
+
+    return () => clearTimeout(timer);
+  }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
+
+  // Faster auto-end turn when no action needed
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
 
     const timer = setTimeout(() => {
       END_TURN();
-    }, isAITurn ? 1400 : 1800);
+    }, isAITurn ? 800 : 1200); // Faster
 
     return () => clearTimeout(timer);
   }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
