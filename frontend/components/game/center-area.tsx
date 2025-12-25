@@ -5,16 +5,18 @@ import ActionLog from "./action-log";
 
 import { Property, Player, Game } from "@/types/game";
 
+// center-area.tsx
+
 type CenterAreaProps = {
   isMyTurn: boolean;
-  isAITurn: boolean;
-  currentPlayer?: Player;
-  playerCanRoll: boolean;
+  isAITurn: boolean;                      // ← keep boolean
+  currentPlayer?: Player;                 // ← optional is fine
+  playerCanRoll: boolean;                 // ← keep boolean
   isRolling: boolean;
   roll: { die1: number; die2: number; total: number } | null;
   buyPrompted: boolean;
-  currentProperty?: Property;
-  currentPlayerBalance: number;
+  currentProperty: Property | null | undefined;  // ← most accurate
+  currentPlayerBalance: number;           // ← we'll guarantee non-null with ?? 0
   buyScore: number | null;
   history: Game["history"];
   onRollDice: () => void;

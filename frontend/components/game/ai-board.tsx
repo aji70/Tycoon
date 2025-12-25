@@ -154,12 +154,39 @@ const AiBoard = ({
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
 
-  const currentPlayerId = game.next_player_id;
+  // const currentPlayerId = game.next_player_id;
+  // ... inside AiBoard component
+
+const currentPlayerId = game.next_player_id ?? -1;
+
+// later in the return:
+{properties.map((square) => {
+  const playersHere = playersByPosition.get(square.id) ?? [];
+  return (
+    <BoardSquare
+      key={square.id}
+      square={square}
+      playersHere={playersHere}
+      currentPlayerId={currentPlayerId}          // now always number
+      owner={propertyOwner(square.id)}
+      devLevel={developmentStage(square.id)}
+      mortgaged={isPropertyMortgaged(square.id)}
+    />
+  );
+})}
+  
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
+
   const isMyTurn = me?.user_id === currentPlayerId;
-  const isAITurn =
+
+  const isAITurn = Boolean(
     currentPlayer?.username?.toLowerCase().includes("ai_") ||
-    currentPlayer?.username?.toLowerCase().includes("bot");
+    currentPlayer?.username?.toLowerCase().includes("bot")
+  );
+
+  const playerCanRoll = Boolean(
+    isMyTurn && currentPlayer && currentPlayer.balance > 0
+  );
 
   const lastProcessed = useRef<number | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
@@ -320,7 +347,6 @@ const AiBoard = ({
     currentPlayer?.username, END_TURN, showToast
   ]);
 
-  // AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
 
@@ -328,7 +354,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt logic
   useEffect(() => {
     if (!currentPlayer?.position || !properties.length || currentPlayer.position === lastProcessed.current) return;
     lastProcessed.current = currentPlayer.position;
@@ -362,7 +387,6 @@ const AiBoard = ({
     showToast
   ]);
 
-  // AI Buy Decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !currentProperty || !buyScore) return;
 
@@ -382,7 +406,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentPlayer, currentProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // Auto-end turn when no action needed
   useEffect(() => {
     if (!isAITurn || !roll || buyPrompted || actionLock) return;
     const timer = setTimeout(() => END_TURN(), 1500);
@@ -426,8 +449,6 @@ const AiBoard = ({
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
-  const playerCanRoll = isMyTurn && currentPlayer && currentPlayer.balance > 0;
-
   const handleRollDice = () => ROLL_DICE(false);
 
   const handleBuyProperty = () => BUY_PROPERTY();
@@ -439,7 +460,6 @@ const AiBoard = ({
     setTimeout(END_TURN, 800);
   };
 
-  // Placeholder for bankruptcy and exit logic (implement as needed)
   const handleDeclareBankruptcy = () => {
     showToast("Bankruptcy logic not fully implemented yet", "default");
   };
@@ -462,7 +482,7 @@ const AiBoard = ({
               currentProperty={currentProperty}
               currentPlayerBalance={currentPlayer?.balance ?? 0}
               buyScore={buyScore}
-              history={game.history}
+              history={game.history ?? []}
               onRollDice={handleRollDice}
               onBuyProperty={handleBuyProperty}
               onSkipBuy={handleSkipBuy}
