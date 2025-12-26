@@ -66,7 +66,7 @@ export default function BoardSquare({
           </>
         )}
 
-        {/* Player Tokens – Option 2: Always perfectly centered, big when alone */}
+        {/* Player Tokens – Always perfectly centered, big when alone */}
         {playerCount > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3">
             <div className="relative w-full h-full flex flex-wrap items-center justify-center gap-2">
@@ -100,7 +100,7 @@ export default function BoardSquare({
                       flex items-center justify-center rounded-full
                       bg-transparent text-white font-bold shadow-2xl
                       ${isCurrent 
-                        ? "ring-4 ring-cyan-400 ring-offset-4 ring-offset-transparent border-2 border-cyan-300" 
+                        ? "ring-2 ring-cyan-400 ring-offset-1"  // Thinner ring + smaller offset
                         : "border border-white/40"
                       }
                     `}
