@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Skull, Coins } from "lucide-react";
 
@@ -22,33 +22,48 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   tokensAwarded = 0.5,
 }) => {
   const [secondsLeft, setSecondsLeft] = useState(Math.round(autoCloseDelay / 1000));
+  const hasRedirected = useRef(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
+      // Reset state when modal closes
       setSecondsLeft(Math.round(autoCloseDelay / 1000));
+      hasRedirected.current = false;
       return;
     }
 
+    // Reset on open
+    hasRedirected.current = false;
     setSecondsLeft(Math.round(autoCloseDelay / 1000));
 
-    const timer = setInterval(() => {
+    // Clear any existing timers
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+    // Start countdown
+    intervalRef.current = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(timer);
-          onReturnHome();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    const redirectTimer = setTimeout(() => {
-      onReturnHome();
+    // Schedule redirect
+    timeoutRef.current = setTimeout(() => {
+      if (!hasRedirected.current) {
+        hasRedirected.current = true;
+        onReturnHome();
+      }
     }, autoCloseDelay);
 
+    // Cleanup on unmount or close
     return () => {
-      clearInterval(timer);
-      clearTimeout(redirectTimer);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [isOpen, autoCloseDelay, onReturnHome]);
 
@@ -103,6 +118,8 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
                 duration: 4 + Math.random() * 3,
                 delay: i * 0.15 + Math.random() * 0.4,
                 ease: "easeIn",
+                repeat: Infinity,
+                repeatDelay: Math.random() * 2,
               }}
               style={{ left: `${Math.random() * 100}%` }}
             >
@@ -127,7 +144,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             </motion.div>
           </motion.div>
 
-          {/* Fixed: Title now fits perfectly on all screens */}
+          {/* Title - fits perfectly */}
           <motion.h1
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -174,7 +191,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             </p>
           </motion.div>
 
-          {/* Fixed: Live countdown */}
+          {/* Live countdown */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
