@@ -23,53 +23,7 @@ export default function BoardSquare({
   mortgaged,
 }: BoardSquareProps) {
   const isTopHalf = square.grid_row === 1;
-
-  // Calculate scale based on number of players (1–8)
   const playerCount = playersHere.length;
-  const getTokenScale = (count: number) => {
-    if (count <= 1) return 1.0;
-    if (count === 2) return 0.9;
-    if (count === 3) return 0.82;
-    if (count === 4) return 0.72;
-    if (count <= 6) return 0.62;
-    return 0.52;
-  };
-
-  const tokenScale = getTokenScale(playerCount);
-
-  // Helper to position tokens nicely
-  const getTokenPositions = (count: number): Array<React.CSSProperties> => {
-    if (count === 0) return [];
-    if (count === 1) return [{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }];
-    if (count === 2) {
-      return [
-        { top: "40%", left: "40%", transform: "translate(-50%, -50%)" },
-        { top: "60%", left: "60%", transform: "translate(-50%, -50%)" },
-      ];
-    }
-    if (count <= 4) {
-      return [
-        { top: "40%", left: "40%", transform: "translate(-50%, -50%)" },
-        { top: "40%", left: "60%", transform: "translate(-50%, -50%)" },
-        { top: "60%", left: "40%", transform: "translate(-50%, -50%)" },
-        { top: "60%", left: "60%", transform: "translate(-50%, -50%)" },
-      ].slice(0, count);
-    }
-
-    // Circular layout for 5+ players
-    const radius = count <= 6 ? 38 : 34;
-    const angleStep = 360 / count;
-
-    return Array.from({ length: count }, (_, i) => {
-      const angle = i * angleStep + (count % 2 === 0 ? -angleStep / 2 : 0);
-      const rad = (angle * Math.PI) / 180;
-      const x = 50 + Math.cos(rad) * radius;
-      const y = 50 + Math.sin(rad) * radius;
-      return { top: `${y}%`, left: `${x}%`, transform: "translate(-50%, -50%)" };
-    });
-  };
-
-  const tokenPositions = getTokenPositions(playerCount);
 
   return (
     <motion.div
@@ -112,105 +66,69 @@ export default function BoardSquare({
           </>
         )}
 
-        
-       {/* Player Tokens – Improved centering & sizing */}
-{playerCount > 0 && (
-  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-    {playersHere.map((player, index) => {
-      const isCurrent = player.user_id === currentPlayerId;
-      const symbol = getPlayerSymbol(player.symbol ?? "hat") || "🎲";
-      const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
-      const tokenName = tokenData?.name || "Classic Token";
+        {/* Player Tokens – Option 2: Always perfectly centered, big when alone */}
+        {playerCount > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3">
+            <div className="relative w-full h-full flex flex-wrap items-center justify-center gap-2">
+              {playersHere.map((player, index) => {
+                const isCurrent = player.user_id === currentPlayerId;
+                const symbol = getPlayerSymbol(player.symbol ?? "hat") || "🎲";
+                const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
+                const tokenName = tokenData?.name || "Classic Token";
 
-      // Size logic: big when alone, shrink when crowded
-      const baseSize = 48; // pixels – feels good for single token
-      let tokenSizePx = baseSize;
-      let fontSizePx = 28;
+                // Size: big when alone, shrink gracefully when crowded
+                const size = playerCount === 1 
+                  ? 68   // Very prominent when alone
+                  : playerCount === 2 
+                  ? 46
+                  : playerCount <= 4 
+                  ? 40
+                  : 34;
 
-      if (playerCount === 1) {
-        // Perfect for single token
-        tokenSizePx = 64;     // Bigger & more prominent
-        fontSizePx = 36;
-      } else if (playerCount === 2) {
-        tokenSizePx = 42;
-        fontSizePx = 24;
-      } else if (playerCount <= 4) {
-        tokenSizePx = 38;
-        fontSizePx = 22;
-      } else {
-        tokenSizePx = 32;     // Even smaller for 5+
-        fontSizePx = 18;
-      }
+                const fontSize = playerCount === 1 
+                  ? 40 
+                  : playerCount === 2 
+                  ? 28 
+                  : playerCount <= 4 
+                  ? 24 
+                  : 20;
 
-      // Position logic – center when alone, nice spread otherwise
-      let position: React.CSSProperties = {
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-      };
-
-      if (playerCount > 1) {
-        // Use offset grid or circle – never stuck in corner
-        if (playerCount === 2) {
-          const offset = index === 0 ? -18 : 18;
-          position = {
-            top: `${50 + offset}%`,
-            left: `${50 + offset}%`,
-            transform: "translate(-50%, -50%)",
-          };
-        } else if (playerCount <= 4) {
-          const positions4 = [
-            { top: "35%", left: "35%" },
-            { top: "35%", left: "65%" },
-            { top: "65%", left: "35%" },
-            { top: "65%", left: "65%" },
-          ];
-          position = positions4[index] || positions4[0];
-        } else {
-          // Circle for 5+
-          const angle = (index / playerCount) * 360;
-          const radius = playerCount <= 6 ? 32 : 28;
-          const rad = (angle * Math.PI) / 180;
-          const x = 50 + Math.cos(rad) * radius;
-          const y = 50 + Math.sin(rad) * radius;
-          position = { top: `${y}%`, left: `${x}%` };
-        }
-      }
-
-      return (
-        <motion.div
-          key={player.user_id}
-          className={`
-            absolute flex items-center justify-center rounded-full
-            bg-transparent 
-            text-white font-bold shadow-lg border border-white/40
-            overflow-hidden
-            ${isCurrent ? "ring-4 ring-cyan-400 ring-offset-2 ring-offset-black z-50" : "z-10"}
-          `}
-          style={{
-            width: `${tokenSizePx}px`,
-            height: `${tokenSizePx}px`,
-            fontSize: `${fontSizePx}px`,
-            ...position,
-            transform: "translate(-50%, -50%)", // always center the element itself
-          }}
-          title={tokenName}
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{
-            type: "spring",
-            stiffness: 300,
-            damping: 22,
-            delay: index * 0.08,
-          }}
-          whileHover={{ scale: 1.15 }}
-        >
-          {symbol}
-        </motion.div>
-      );
-    })}
-  </div>
-)}
+                return (
+                  <motion.div
+                    key={player.user_id}
+                    className={`
+                      flex items-center justify-center rounded-full
+                      bg-transparent text-white font-bold shadow-2xl
+                      ${isCurrent 
+                        ? "ring-4 ring-cyan-400 ring-offset-4 ring-offset-transparent border-2 border-cyan-300" 
+                        : "border border-white/40"
+                      }
+                    `}
+                    style={{
+                      width: `${size}px`,
+                      height: `${size}px`,
+                      fontSize: `${fontSize}px`,
+                      minWidth: `${size}px`,
+                      minHeight: `${size}px`,
+                    }}
+                    title={tokenName}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 350,
+                      damping: 20,
+                      delay: index * 0.07,
+                    }}
+                    whileHover={{ scale: 1.2 }}
+                  >
+                    {symbol}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
