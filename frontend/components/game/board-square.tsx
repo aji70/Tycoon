@@ -112,48 +112,105 @@ export default function BoardSquare({
           </>
         )}
 
-        {/* Player Tokens */}
-        {playerCount > 0 && (
-          <div className="absolute inset-0">
-            {playersHere.map((player, index) => {
-              const isCurrent = player.user_id === currentPlayerId;
-              const symbol = getPlayerSymbol(player.symbol ?? "hat"); // ← FIXED: use player.token
-              const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
-              const tokenName = tokenData?.name || "Classic Token";
+        
+       {/* Player Tokens – Improved centering & sizing */}
+{playerCount > 0 && (
+  <div className="absolute inset-0 pointer-events-none">
+    {playersHere.map((player, index) => {
+      const isCurrent = player.user_id === currentPlayerId;
+      const symbol = getPlayerSymbol(player.symbol ?? "hat") || "🎲";
+      const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
+      const tokenName = tokenData?.name || "Classic Token";
 
-              return (
-                <motion.div
-                  key={player.user_id}
-                  className={`
-                    absolute flex items-center justify-center rounded-full 
-                    bg-gradient-to-br from-gray-800 to-black text-white font-bold 
-                    shadow-lg border border-white/30 overflow-hidden
-                    ${isCurrent ? "ring-4 ring-cyan-400 ring-offset-2 ring-offset-black scale-110" : ""}
-                  `}
-                  style={{
-                    width: `${42 * tokenScale}px`,
-                    height: `${42 * tokenScale}px`,
-                    fontSize: `${26 * tokenScale}px`,
-                    ...tokenPositions[index],
-                    zIndex: 100 + index,
-                  }}
-                  title={tokenName} // Hover shows token name
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 280,
-                    damping: 18,
-                    delay: index * 0.07,
-                  }}
-                  whileHover={{ scale: tokenScale * 1.2 }}
-                >
-                  {symbol || "🎲"} {/* Ultimate fallback */}
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+      // Size logic: big when alone, shrink when crowded
+      const baseSize = 48; // pixels – feels good for single token
+      let tokenSizePx = baseSize;
+      let fontSizePx = 28;
+
+      if (playerCount === 1) {
+        // Perfect for single token
+        tokenSizePx = 64;     // Bigger & more prominent
+        fontSizePx = 36;
+      } else if (playerCount === 2) {
+        tokenSizePx = 42;
+        fontSizePx = 24;
+      } else if (playerCount <= 4) {
+        tokenSizePx = 38;
+        fontSizePx = 22;
+      } else {
+        tokenSizePx = 32;     // Even smaller for 5+
+        fontSizePx = 18;
+      }
+
+      // Position logic – center when alone, nice spread otherwise
+      let position: React.CSSProperties = {
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+      };
+
+      if (playerCount > 1) {
+        // Use offset grid or circle – never stuck in corner
+        if (playerCount === 2) {
+          const offset = index === 0 ? -18 : 18;
+          position = {
+            top: `${50 + offset}%`,
+            left: `${50 + offset}%`,
+            transform: "translate(-50%, -50%)",
+          };
+        } else if (playerCount <= 4) {
+          const positions4 = [
+            { top: "35%", left: "35%" },
+            { top: "35%", left: "65%" },
+            { top: "65%", left: "35%" },
+            { top: "65%", left: "65%" },
+          ];
+          position = positions4[index] || positions4[0];
+        } else {
+          // Circle for 5+
+          const angle = (index / playerCount) * 360;
+          const radius = playerCount <= 6 ? 32 : 28;
+          const rad = (angle * Math.PI) / 180;
+          const x = 50 + Math.cos(rad) * radius;
+          const y = 50 + Math.sin(rad) * radius;
+          position = { top: `${y}%`, left: `${x}%` };
+        }
+      }
+
+      return (
+        <motion.div
+          key={player.user_id}
+          className={`
+            absolute flex items-center justify-center rounded-full
+            bg-gradient-to-br from-gray-800 to-black 
+            text-white font-bold shadow-lg border border-white/40
+            overflow-hidden
+            ${isCurrent ? "ring-4 ring-cyan-400 ring-offset-2 ring-offset-black z-50" : "z-10"}
+          `}
+          style={{
+            width: `${tokenSizePx}px`,
+            height: `${tokenSizePx}px`,
+            fontSize: `${fontSizePx}px`,
+            ...position,
+            transform: "translate(-50%, -50%)", // always center the element itself
+          }}
+          title={tokenName}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 22,
+            delay: index * 0.08,
+          }}
+          whileHover={{ scale: 1.15 }}
+        >
+          {symbol}
+        </motion.div>
+      );
+    })}
+  </div>
+)}
       </div>
     </motion.div>
   );
