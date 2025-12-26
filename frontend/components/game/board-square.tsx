@@ -66,7 +66,7 @@ export default function BoardSquare({
           </>
         )}
 
-        {/* Player Tokens – Always perfectly centered, big when alone */}
+        {/* Player Tokens – Slightly smaller tokens + more delicate ring */}
         {playerCount > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3">
             <div className="relative w-full h-full flex flex-wrap items-center justify-center gap-2">
@@ -76,22 +76,22 @@ export default function BoardSquare({
                 const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
                 const tokenName = tokenData?.name || "Classic Token";
 
-                // Size: big when alone, shrink gracefully when crowded
+                // Slightly reduced sizes (overall ~10–15% smaller than before)
                 const size = playerCount === 1 
-                  ? 68   // Very prominent when alone
+                  ? 60   // was 68 → now a bit more balanced
                   : playerCount === 2 
-                  ? 46
+                  ? 42   // was 46
                   : playerCount <= 4 
-                  ? 40
-                  : 34;
+                  ? 36   // was 40
+                  : 30;  // was 34
 
                 const fontSize = playerCount === 1 
-                  ? 40 
+                  ? 36   // was 40
                   : playerCount === 2 
-                  ? 28 
+                  ? 26   // was 28
                   : playerCount <= 4 
-                  ? 24 
-                  : 20;
+                  ? 22   // was 24
+                  : 18;  // was 20
 
                 return (
                   <motion.div
@@ -100,7 +100,7 @@ export default function BoardSquare({
                       flex items-center justify-center rounded-full
                       bg-transparent text-white font-bold shadow-2xl
                       ${isCurrent 
-                        ? "ring-2 ring-cyan-400 ring-offset-1"  // Thinner ring + smaller offset
+                        ? "ring-2 ring-cyan-400 ring-offset-1"  // delicate ring: thin + small offset
                         : "border border-white/40"
                       }
                     `}
@@ -120,7 +120,7 @@ export default function BoardSquare({
                       damping: 20,
                       delay: index * 0.07,
                     }}
-                    whileHover={{ scale: 1.2 }}
+                    whileHover={{ scale: 1.15 }} // slightly reduced hover scale
                   >
                     {symbol}
                   </motion.div>
