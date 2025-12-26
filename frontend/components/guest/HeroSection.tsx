@@ -13,7 +13,7 @@ import {
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
-import { User as UserType } from "@/lib/types/users";
+import { getCurrentUser } from "@/lib/user";
 import { ApiResponse } from "@/types/api";
 
 const HeroSection: React.FC = () => {
@@ -22,6 +22,9 @@ const HeroSection: React.FC = () => {
   
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState("");
+  const [user, setUser] = useState<any>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 // Remove the username argument
 const {
   write: registerPlayer,
@@ -41,6 +44,28 @@ const {
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
 
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (!isConnected || !address) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      const fetchedUser = await getCurrentUser(address);
+      setUser(fetchedUser);
+      setLoading(false);
+    };
+
+    fetchUser();
+  }, [address, isConnected]);
+
+  // if (loading) return <p>Loading user...</p>;
+  // if (!user) return <p>No user found</p>;
+
+
+  console.log("user found:", user);
   
 
   useEffect(() => {

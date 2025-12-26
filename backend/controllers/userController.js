@@ -30,6 +30,17 @@ const userController = {
     }
   },
 
+  async findByAddress(req, res) {
+    try {
+      const { address, chain } = req.params;
+      const user = await User.findByAddress(address, chain);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
   async findAll(req, res) {
     try {
       const { limit, offset } = req.query;

@@ -90,7 +90,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     /**
      * @dev Registers a new player with a username (no NFT/wallet).
      */
-    function registerPlayer(string memory username) private nonEmptyUsername(username) returns (uint256) {
+    function registerPlayer(string memory username) public nonEmptyUsername(username) returns (uint256) {
         require(users[username].playerAddress == address(0), "Username taken");
         require(!registered[msg.sender], "already registered");
         totalUsers++;
@@ -132,10 +132,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         require(msg.value == STAKE_AMOUNT, "Incorrect stake amount");
         require(bytes(playerSymbol).length > 0, "Invalid player symbol");
         require(startingBalance > 0, "Invalid starting balance");
-
-        if(!registered[msg.sender]){
-            registerPlayer(creatorUsername);
-        }
 
         TycoonLib.User storage user = users[creatorUsername];
         require(user.playerAddress != address(0), "User not registered");
@@ -218,10 +214,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         require(bytes(gameType).length > 0, "Invalid game type");
         require(bytes(playerSymbol).length > 0, "Invalid player symbol");
         require(startingBalance > 0, "Invalid starting balance");
-
-           if(!registered[msg.sender]){
-            registerPlayer(creatorUsername);
-        }
 
         TycoonLib.User storage user = users[creatorUsername];
         require(user.playerAddress != address(0), "User not registered");
@@ -313,9 +305,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         require(game.status == TycoonLib.GameStatus.Pending, "Game not open");
         require(game.joinedPlayers < game.numberOfPlayers, "Game full");
         TycoonLib.User storage user = users[playerUsername];
-           if(!registered[msg.sender]){
-            registerPlayer(playerUsername);
-        }
         require(user.playerAddress != address(0), "User not registered");
         require(user.playerAddress == msg.sender, "Must use own username");
         address player = user.playerAddress;
