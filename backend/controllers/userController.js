@@ -30,16 +30,27 @@ const userController = {
     }
   },
 
-  async findByAddress(req, res) {
-    try {
-      const { address, chain } = req.params;
-      const user = await User.findByAddress(address, chain);
-      if (!user) return res.status(404).json({ error: "User not found" });
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+ async findByAddress(req, res) {
+  try {
+    const { address } = req.params;
+    const { chain } = req.query;  // e.g., ?chain=ethereum or ?chain=solana
+
+    if (!address) {
+      return res.status(400).json({ error: "Address is required" });
     }
-  },
+
+    const user = await User.findByAddress(address, chain || null); // or default chain
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error("Error in findByAddress:", error);
+    res.status(500).json({ error: error.message });
+  }
+},
 
   async findAll(req, res) {
     try {

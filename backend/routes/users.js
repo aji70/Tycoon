@@ -9,7 +9,7 @@ const router = express.Router();
 router.post("/", userController.create);
 router.get("/", userController.findAll);
 router.get("/:id", userController.findById);
-router.get("/:address", userController.findByAddress);
+router.get("/by-address/:address", userController.findByAddress);
 router.put("/:id", userController.update);
 router.delete("/:id", userController.remove);
 

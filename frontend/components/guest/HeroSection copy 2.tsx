@@ -22,7 +22,6 @@ const HeroSection: React.FC = () => {
   
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState("");
-  const [user, setUser] = useState<UserType | null>(null);
 // Remove the username argument
 const {
   write: registerPlayer,
@@ -41,30 +40,6 @@ const {
   // New: Local state for optimistic updates after registration
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
-
-  useEffect(() => {
-    // Fetch user details when address changes
-    const fetchUser = async () => {
-      if (!address) {
-        setUser(null);
-        return;
-      }
-
-      try {
-        const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Base`);
-        if (res?.data?.success && res.data.data) {
-          setUser(res.data.data);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        setUser(null);
-      }
-    };
-
-    fetchUser();
-  }, [address]);
 
   
 
@@ -209,7 +184,6 @@ const handleRequest = async () => {
   }
 };
 
-console.log("fetched user", user);
   if (isConnecting) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
