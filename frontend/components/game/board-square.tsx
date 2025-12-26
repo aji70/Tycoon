@@ -43,16 +43,16 @@ export default function BoardSquare({
     if (count === 1) return [{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }];
     if (count === 2) {
       return [
-        { top: "38%", left: "38%", transform: "translate(-50%, -50%)" },
-        { top: "62%", left: "62%", transform: "translate(-50%, -50%)" },
+        { top: "40%", left: "40%", transform: "translate(-50%, -50%)" },
+        { top: "60%", left: "60%", transform: "translate(-50%, -50%)" },
       ];
     }
     if (count <= 4) {
       return [
-        { top: "32%", left: "32%", transform: "translate(-50%, -50%)" },
-        { top: "32%", left: "68%", transform: "translate(-50%, -50%)" },
-        { top: "68%", left: "32%", transform: "translate(-50%, -50%)" },
-        { top: "68%", left: "68%", transform: "translate(-50%, -50%)" },
+        { top: "40%", left: "40%", transform: "translate(-50%, -50%)" },
+        { top: "40%", left: "60%", transform: "translate(-50%, -50%)" },
+        { top: "60%", left: "40%", transform: "translate(-50%, -50%)" },
+        { top: "60%", left: "60%", transform: "translate(-50%, -50%)" },
       ].slice(0, count);
     }
 
@@ -115,7 +115,7 @@ export default function BoardSquare({
         
        {/* Player Tokens – Improved centering & sizing */}
 {playerCount > 0 && (
-  <div className="absolute inset-0 pointer-events-none">
+  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
     {playersHere.map((player, index) => {
       const isCurrent = player.user_id === currentPlayerId;
       const symbol = getPlayerSymbol(player.symbol ?? "hat") || "🎲";
@@ -182,7 +182,7 @@ export default function BoardSquare({
           key={player.user_id}
           className={`
             absolute flex items-center justify-center rounded-full
-            bg-gradient-to-br from-gray-800 to-black 
+            bg-transparent 
             text-white font-bold shadow-lg border border-white/40
             overflow-hidden
             ${isCurrent ? "ring-4 ring-cyan-400 ring-offset-2 ring-offset-black z-50" : "z-10"}
