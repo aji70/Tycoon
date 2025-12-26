@@ -143,15 +143,14 @@ export default function CenterArea({
         </motion.div>
       )}
 
-      {/* Persistent Quit Button - Fixed overlay, always visible, does not affect layout */}
-      <div className="fixed top-6 right-6 z-50 pointer-events-none">
+      {/* Persistent Quit Button - Always visible, top-right */}
+      <div className="absolute top-6 right-6 z-50 pointer-events-none">
         <button
           onClick={onDeclareBankruptcy}
           disabled={isPending}
-          className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 rounded-lg shadow-lg hover:bg-red-700 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed pointer-events-auto flex items-center gap-1.5"
+          className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 rounded-lg shadow-lg hover:bg-red-700 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 pointer-events-auto"
         >
-          <span className="text-lg">✖</span>
-          Quit
+          <span>Quit</span>
         </button>
       </div>
 
