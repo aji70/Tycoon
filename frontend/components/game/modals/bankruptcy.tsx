@@ -9,7 +9,7 @@ interface BankruptcyModalProps {
   onClose?: () => void;
   message?: string;
   onReturnHome?: () => void;
-  autoCloseDelay?: number;
+  autoCloseDelay?: number; // in milliseconds
   tokensAwarded?: number;
 }
 
@@ -23,49 +23,64 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
 }) => {
   const [secondsLeft, setSecondsLeft] = useState(Math.round(autoCloseDelay / 1000));
   const hasRedirected = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      // Reset state when modal closes
+    // Reset everything when modal opens
+    if (isOpen) {
+      hasRedirected.current = false;
+      setSecondsLeft(Math.round(autoCloseDelay / 1000));
+
+      // Clear any existing timer
+      if (timerRef.current) clearTimeout(timerRef.current);
+
+      // Start countdown display
+      const interval = setInterval(() => {
+        setSecondsLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Schedule the actual redirect
+      timerRef.current = setTimeout(() => {
+        if (!hasRedirected.current) {
+          hasRedirected.current = true;
+          onReturnHome();
+        }
+      }, autoCloseDelay);
+
+      // Cleanup interval on close or unmount
+      return () => {
+        clearInterval(interval);
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+    } else {
+      // When modal closes manually (if onClose is used)
       setSecondsLeft(Math.round(autoCloseDelay / 1000));
       hasRedirected.current = false;
-      return;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
     }
+  }, [isOpen, autoCloseDelay, onReturnHome]);
 
-    // Reset on open
-    hasRedirected.current = false;
-    setSecondsLeft(Math.round(autoCloseDelay / 1000));
-
-    // Clear any existing timers
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    // Start countdown
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    // Schedule redirect
-    timeoutRef.current = setTimeout(() => {
-      if (!hasRedirected.current) {
+  // Final safety net: if component unmounts before redirect, still go home
+  useEffect(() => {
+    return () => {
+      if (!hasRedirected.current && isOpen) {
         hasRedirected.current = true;
         onReturnHome();
       }
-    }, autoCloseDelay);
-
-    // Cleanup on unmount or close
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [isOpen, autoCloseDelay, onReturnHome]);
+  }, [isOpen, onReturnHome]);
 
   if (!isOpen) return null;
 
@@ -144,7 +159,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             </motion.div>
           </motion.div>
 
-          {/* Title - fits perfectly */}
+          {/* Title */}
           <motion.h1
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -198,7 +213,8 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             transition={{ delay: 1.3 }}
             className="text-base sm:text-lg text-red-300/80 mb-8 font-medium"
           >
-            Redirecting to home in <span className="text-red-100 font-bold text-xl">{secondsLeft}</span> seconds...
+            Redirecting to home in{" "}
+            <span className="text-red-100 font-bold text-xl">{secondsLeft}</span> seconds...
           </motion.p>
 
           {/* Optional close button */}
