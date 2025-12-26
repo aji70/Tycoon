@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FaUser, FaBrain, FaCoins, FaRobot } from "react-icons/fa6";
 import { House } from "lucide-react";
 import {
@@ -26,6 +26,9 @@ import {
   useGetUsername,
   useCreateAiGame,
 } from "@/context/ContractProvider";
+import { ApiResponse } from "@/types/api";
+import { User as UserType } from "@/lib/types/users";
+
 
 const ai_address = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
@@ -41,9 +44,56 @@ const ai_address = [
 export default function PlayWithAI() {
   const router = useRouter();
   const { address } = useAccount();
-  const { data: username } = useGetUsername(address, { enabled: !!address });
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address, { enabled: !!address });
+  const [user, setUser] = useState<UserType | null>(null);
+  const [isRegistered, setRegistered] = useState(false);
+  const [name, setName] = useState("");
+  const [isRegisteredLoading, setIsRegisteredLoading] = useState(true);
+  // const { data: username } = useGetUsername(address, { enabled: !!address });
+  // const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address, { enabled: !!address });
+  useEffect(() => {
+    if (!address) return;
 
+    let isActive = true;
+
+    const fetchUser = async () => {
+      try {
+        const res = await apiClient.get<ApiResponse>(
+          `/users/by-address/${address}?chain=Base`
+        );
+
+        if (!isActive) return;
+
+        if (res.success && res.data) {
+          const r = res.data as UserType;
+          setUser(r);
+          setRegistered(true);
+          setName(r.username || "");
+        } else {
+          setUser(null);
+          setRegistered(false);
+          setName("");
+        }
+      } catch (error: any) {
+        if (!isActive) return;
+
+        if (error?.response?.status === 404) {
+          setUser(null);
+          setRegistered(false);
+          setName("");
+        } else {
+          console.error("Unexpected error fetching user:", error);
+          setUser(null);
+          setRegistered(false);
+        }
+      }
+    };
+
+    fetchUser();
+
+    return () => {
+      isActive = false;
+    };
+  }, [address]);
   const [settings, setSettings] = useState({
     symbol: "hat",
     aiCount: 1,
@@ -60,7 +110,7 @@ export default function PlayWithAI() {
   const totalPlayers = settings.aiCount + 1;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAiGame(
-    username || "",
+    name || "",
     "PRIVATE",
     settings.symbol,
     totalPlayers,
@@ -69,7 +119,7 @@ export default function PlayWithAI() {
   );
 
   const handlePlay = async () => {
-    if (!address || !username || !isUserRegistered) {
+    if (!address || !name || !isRegistered) {
       toast.error("Please connect your wallet and register first!", { autoClose: 5000 });
       return;
     }
