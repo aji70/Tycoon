@@ -18,7 +18,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   onClose,
   message = "Your empire has fallen... but the game isn't over forever!",
   onReturnHome = () => window.location.href = "/",
-  autoCloseDelay = 10000,
+  autoCloseDelay = 8000,
   tokensAwarded = 0.5,
 }) => {
   useEffect(() => {
