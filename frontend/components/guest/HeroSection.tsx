@@ -22,7 +22,7 @@ const HeroSection: React.FC = () => {
   
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState("");
-  const [user, setUser] = useState<UserType | null>(null);
+  const [user, setUser] = useState<any | null>(null);
 // Remove the username argument
 const {
   write: registerPlayer,
@@ -45,15 +45,16 @@ const {
   useEffect(() => {
     // Fetch user details when address changes
     const fetchUser = async () => {
-      if (!address) {
-        setUser(null);
-        return;
-      }
+      // if (!address) {
+      //   setUser(null);
+      //   return;
+      // }
 
       try {
         const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Base`);
-        if (res?.data?.success && res.data.data) {
-          setUser(res.data.data);
+        if (res) {
+          const u = res.data as UserType;
+          setUser(u.username);
         } else {
           setUser(null);
         }
@@ -210,6 +211,7 @@ const handleRequest = async () => {
 };
 
 console.log("fetched user", user);
+
   if (isConnecting) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
