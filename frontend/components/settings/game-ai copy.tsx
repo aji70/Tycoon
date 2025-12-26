@@ -21,11 +21,8 @@ import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import {
-  useIsRegistered,
-  useGetUsername,
-  useCreateAiGame,
-} from "@/context/ContractProvider";
+import { useCreateAiGame } from "@/context/ContractProvider";
+import { useUserProfile } from "@/hooks/useUserProfile"; // ← New hook
 
 const ai_address = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
@@ -40,9 +37,20 @@ const ai_address = [
 
 export default function PlayWithAI() {
   const router = useRouter();
-  const { address } = useAccount();
-  const { data: username } = useGetUsername(address, { enabled: !!address });
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address, { enabled: !!address });
+  const { address, isConnecting } = useAccount();
+
+  // Use the custom hook for user profile
+  const {
+    user,
+    loading: userLoading,
+    isRegistered,
+    address: connectedAddress, // same as wagmi's address, but useful for clarity
+  } = useUserProfile();
+
+  const name = user?.username || "";
+
+  console.log("User Profile:", name);
+
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -60,7 +68,7 @@ export default function PlayWithAI() {
   const totalPlayers = settings.aiCount + 1;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAiGame(
-    username || "",
+    name,
     "PRIVATE",
     settings.symbol,
     totalPlayers,
@@ -69,12 +77,16 @@ export default function PlayWithAI() {
   );
 
   const handlePlay = async () => {
-    if (!address || !username || !isUserRegistered) {
-      toast.error("Please connect your wallet and register first!", { autoClose: 5000 });
+    if (!address || !isRegistered || !name) {
+      toast.error("Please connect your wallet and register first!", {
+        autoClose: 5000,
+      });
       return;
     }
 
-    const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
+    const toastId = toast.loading(
+      `Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`
+    );
 
     try {
       const onChainGameId = await createAiGame();
@@ -101,26 +113,22 @@ export default function PlayWithAI() {
         },
       });
 
-      const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
+      const dbGameId =
+        saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
       if (!dbGameId) throw new Error("Failed to save game");
 
-      // === FIXED: Proper unique symbol assignment for AIs (TypeScript-safe) ===
-      let availablePieces = [...GamePieces.filter(p => p.id !== settings.symbol)]; // ← Creates mutable copy
+      // Assign unique symbols to AIs
+      let availablePieces = GamePieces.filter((p) => p.id !== settings.symbol);
       const assignedSymbols: string[] = [settings.symbol];
 
       for (let i = 0; i < settings.aiCount; i++) {
         if (availablePieces.length === 0) {
-          // Fallback: reset pool if somehow depleted (shouldn't happen with 8+ pieces)
-          availablePieces = [...GamePieces];
+          availablePieces = [...GamePieces]; // reset if needed (unlikely)
         }
 
         const randomIndex = Math.floor(Math.random() * availablePieces.length);
         const aiSymbol = availablePieces[randomIndex].id;
-
-        // Remove selected symbol to prevent duplicates
         availablePieces.splice(randomIndex, 1);
-        // Alternative (also valid): availablePieces = availablePieces.filter(p => p.id !== aiSymbol);
-
         assignedSymbols.push(aiSymbol);
 
         const aiAddress = ai_address[i];
@@ -159,7 +167,8 @@ export default function PlayWithAI() {
       }
 
       let message = "Something went wrong. Please try again.";
-      if (err?.message?.includes("insufficient funds")) message = "Not enough funds for gas fees";
+      if (err?.message?.includes("insufficient funds"))
+        message = "Not enough funds for gas fees";
       else if (err?.shortMessage) message = err.shortMessage;
       else if (err?.reason) message = err.reason;
 
@@ -172,7 +181,8 @@ export default function PlayWithAI() {
     }
   };
 
-  if (isRegisteredLoading) {
+  // Show loading while connecting wallet or fetching user profile
+  if (isConnecting || userLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
         <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">
@@ -210,13 +220,20 @@ export default function PlayWithAI() {
                 <FaUser className="w-6 h-6 text-cyan-400" />
                 <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
               </div>
-              <Select value={settings.symbol} onValueChange={v => setSettings(p => ({ ...p, symbol: v }))}>
+              <Select
+                value={settings.symbol}
+                onValueChange={(v) =>
+                  setSettings((p) => ({ ...p, symbol: v }))
+                }
+              >
                 <SelectTrigger className="h-12 bg-black/50 border-cyan-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {GamePieces.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  {GamePieces.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -226,9 +243,16 @@ export default function PlayWithAI() {
             <div className="bg-gradient-to-br from-purple-900/60 to-pink-900/60 rounded-2xl p-5 border border-purple-500/40">
               <div className="flex items-center gap-3 mb-3">
                 <FaRobot className="w-6 h-6 text-purple-400" />
-                <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
+                <h3 className="text-xl font-bold text-purple-300">
+                  AI Opponents
+                </h3>
               </div>
-              <Select value={settings.aiCount.toString()} onValueChange={v => setSettings(p => ({ ...p, aiCount: +v }))}>
+              <Select
+                value={settings.aiCount.toString()}
+                onValueChange={(v) =>
+                  setSettings((p) => ({ ...p, aiCount: +v }))
+                }
+              >
                 <SelectTrigger className="h-12 bg-black/50 border-purple-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -246,7 +270,15 @@ export default function PlayWithAI() {
                 <FaBrain className="w-6 h-6 text-red-400" />
                 <h3 className="text-xl font-bold text-red-300">Difficulty</h3>
               </div>
-              <Select value={settings.aiDifficulty} onValueChange={v => setSettings(p => ({ ...p, aiDifficulty: v as any }))}>
+              <Select
+                value={settings.aiDifficulty}
+                onValueChange={(v) =>
+                  setSettings((p) => ({
+                    ...p,
+                    aiDifficulty: v as any,
+                  }))
+                }
+              >
                 <SelectTrigger className="h-12 bg-black/50 border-red-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -254,7 +286,9 @@ export default function PlayWithAI() {
                   <SelectItem value="easy">Easy</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="boss" className="text-pink-400 font-bold">BOSS MODE</SelectItem>
+                  <SelectItem value="boss" className="text-pink-400 font-bold">
+                    BOSS MODE
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -263,9 +297,16 @@ export default function PlayWithAI() {
             <div className="bg-gradient-to-br from-yellow-900/60 to-amber-900/60 rounded-2xl p-5 border border-yellow-500/40">
               <div className="flex items-center gap-3 mb-3">
                 <FaCoins className="w-6 h-6 text-yellow-400" />
-                <h3 className="text-xl font-bold text-yellow-300">Starting Cash</h3>
+                <h3 className="text-xl font-bold text-yellow-300">
+                  Starting Cash
+                </h3>
               </div>
-              <Select value={settings.startingCash.toString()} onValueChange={v => setSettings(p => ({ ...p, startingCash: +v }))}>
+              <Select
+                value={settings.startingCash.toString()}
+                onValueChange={(v) =>
+                  setSettings((p) => ({ ...p, startingCash: +v }))
+                }
+              >
                 <SelectTrigger className="h-12 bg-black/50 border-yellow-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -282,23 +323,38 @@ export default function PlayWithAI() {
 
           {/* Right: House Rules */}
           <div className="bg-black/70 rounded-2xl p-6 border border-cyan-500/50">
-            <h3 className="text-2xl font-orbitron font-bold text-cyan-300 mb-6 text-center">HOUSE RULES</h3>
+            <h3 className="text-2xl font-orbitron font-bold text-cyan-300 mb-6 text-center">
+              HOUSE RULES
+            </h3>
             <div className="space-y-5">
               {[
                 { icon: RiAuctionFill, label: "Auction", key: "auction" },
                 { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
                 { icon: GiBank, label: "Mortgage", key: "mortgage" },
                 { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-                { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
-              ].map(r => (
-                <div key={r.key} className="flex justify-between items-center">
+                {
+                  icon: FaRandom,
+                  label: "Random Order",
+                  key: "randomPlayOrder",
+                },
+              ].map((r) => (
+                <div
+                  key={r.key}
+                  className="flex justify-between items-center"
+                >
                   <div className="flex items-center gap-3">
                     <r.icon className="w-6 h-6 text-cyan-400" />
-                    <span className="text-white text-base font-medium">{r.label}</span>
+                    <span className="text-white text-base font-medium">
+                      {r.label}
+                    </span>
                   </div>
                   <Switch
-                    checked={settings[r.key as keyof typeof settings] as boolean}
-                    onCheckedChange={v => setSettings(p => ({ ...p, [r.key]: v }))}
+                    checked={
+                      settings[r.key as keyof typeof settings] as boolean
+                    }
+                    onCheckedChange={(v) =>
+                      setSettings((p) => ({ ...p, [r.key]: v }))
+                    }
                   />
                 </div>
               ))}
