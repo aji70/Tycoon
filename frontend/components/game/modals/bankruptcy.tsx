@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Skull, Coins, Gift } from "lucide-react";
+import { AlertTriangle, Skull, Coins } from "lucide-react";
 
 interface BankruptcyModalProps {
   isOpen: boolean;
@@ -17,19 +17,40 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   isOpen,
   onClose,
   message = "Your empire has fallen... but the game isn't over forever!",
-  onReturnHome = () => window.location.href = "/",
+  onReturnHome = () => (window.location.href = "/"),
   autoCloseDelay = 8000,
   tokensAwarded = 0.5,
 }) => {
-  useEffect(() => {
-    if (!isOpen) return;
+  const [secondsLeft, setSecondsLeft] = useState(Math.round(autoCloseDelay / 1000));
 
-    const timer = setTimeout(() => {
+  useEffect(() => {
+    if (!isOpen) {
+      setSecondsLeft(Math.round(autoCloseDelay / 1000));
+      return;
+    }
+
+    setSecondsLeft(Math.round(autoCloseDelay / 1000));
+
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          onReturnHome();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    const redirectTimer = setTimeout(() => {
       onReturnHome();
     }, autoCloseDelay);
 
-    return () => clearTimeout(timer);
-  }, [isOpen, onReturnHome, autoCloseDelay]);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(redirectTimer);
+    };
+  }, [isOpen, autoCloseDelay, onReturnHome]);
 
   if (!isOpen) return null;
 
@@ -55,7 +76,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
           transition={{ type: "spring", stiffness: 100, damping: 14, delay: 0.1 }}
           className="
             relative w-full max-w-md sm:max-w-lg md:max-w-xl
-            p-8 sm:p-10 md:p-12 lg:p-14
+            p-8 sm:p-10 md:p-12
             rounded-3xl border-4 border-red-700/60
             bg-gradient-to-b from-slate-950 via-red-950/80 to-black/90
             backdrop-blur-xl shadow-2xl shadow-red-900/70
@@ -106,15 +127,16 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             </motion.div>
           </motion.div>
 
-          {/* Title - responsive size + better fit */}
+          {/* Fixed: Title now fits perfectly on all screens */}
           <motion.h1
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.5 }}
             className="
-              text-5xl sm:text-6xl md:text-7xl font-black tracking-tight mb-4
+              text-4xl sm:text-5xl md:text-6xl lg:text-7xl 
+              font-black tracking-tight mb-4 leading-none
               bg-clip-text text-transparent bg-gradient-to-r from-red-400 via-rose-500 to-red-600
-              animate-pulse leading-tight
+              animate-pulse
             "
             style={{ textShadow: "0 0 30px rgba(239,68,68,0.85)" }}
           >
@@ -125,12 +147,12 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7 }}
-            className="text-xl sm:text-2xl md:text-3xl font-bold text-red-200/90 mb-8"
+            className="text-xl sm:text-2xl md:text-3xl font-bold text-red-200/90 mb-8 max-w-md mx-auto"
           >
             {message}
           </motion.p>
 
-          {/* Token reward - made clearer */}
+          {/* Token reward */}
           <motion.div
             initial={{ scale: 0.75, y: 40, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -152,17 +174,17 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             </p>
           </motion.div>
 
-          {/* Auto-redirect info */}
+          {/* Fixed: Live countdown */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.3 }}
-            className="text-base sm:text-lg text-red-300/80 mb-8"
+            className="text-base sm:text-lg text-red-300/80 mb-8 font-medium"
           >
-            Redirecting to home in {Math.round(autoCloseDelay / 1000)} seconds...
+            Redirecting to home in <span className="text-red-100 font-bold text-xl">{secondsLeft}</span> seconds...
           </motion.p>
 
-          {/* Optional close button (mostly for dev/debug) */}
+          {/* Optional close button */}
           {onClose && (
             <motion.button
               whileHover={{ scale: 1.05 }}
