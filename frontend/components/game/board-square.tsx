@@ -119,44 +119,42 @@ export default function BoardSquare({
           </>
         )}
 
-        {/* Player Tokens */}
-        {playerCount > 0 && (
-          <div className="absolute inset-0">
-            {playersHere.map((player, index) => {
-              const isCurrent = player.user_id === currentPlayerId;
-              const symbol = getPlayerSymbol(player.user_id.toString()); // if it expects user_id as string
-
-              return (
-                <motion.div
-                  key={player.user_id}
-                  className={`
-                    absolute flex items-center justify-center rounded-full 
-                    bg-gradient-to-br from-gray-800 to-black text-white font-bold 
-                    shadow-lg border border-white/30 overflow-hidden
-                    ${isCurrent ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-black" : ""}
-                  `}
-                  style={{
-                    width: `${38 * tokenScale}px`,
-                    height: `${38 * tokenScale}px`,
-                    fontSize: `${22 * tokenScale}px`,
-                    ...tokenPositions[index],
-                  }}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 280,
-                    damping: 18,
-                    delay: index * 0.07,
-                  }}
-                  whileHover={{ scale: tokenScale * 1.15 }}
-                >
-                  {symbol}
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+     {/* Player Tokens - DEBUG VERSION */}
+{playerCount > 0 && (
+  <div className="absolute inset-0 pointer-events-none">
+    {playersHere.map((player, index) => {
+      const isCurrent = player.user_id === currentPlayerId;
+      
+      // Force visible symbol + bright background for debugging
+      const symbol = getPlayerSymbol(player.username) || "★"; // ← fallback if empty
+      
+      return (
+        <motion.div
+          key={player.user_id}
+          className={`
+            absolute flex items-center justify-center rounded-full
+            text-white font-extrabold text-2xl
+            shadow-2xl border-2 border-white
+            ${isCurrent ? "ring-4 ring-yellow-400 ring-offset-4 ring-offset-black" : ""}
+          `}
+          style={{
+            width: "50px",           // ← big for testing
+            height: "50px",
+            fontSize: "32px",
+            backgroundColor: isCurrent ? "#ec4899" : "#3b82f6", // ← bright pink/blue
+            ...tokenPositions[index],
+            zIndex: 100 + index,     // ← definitely on top
+          }}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: index * 0.1, type: "spring" }}
+        >
+          {symbol}
+        </motion.div>
+      );
+    })}
+  </div>
+)}
       </div>
     </motion.div>
   );
