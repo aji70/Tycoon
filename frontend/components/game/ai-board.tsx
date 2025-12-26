@@ -604,15 +604,6 @@ useEffect(() => {
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
-            {/* Add this somewhere in your return JSX, for example near the top of the main div */}
-              <div className="fixed top-26 right-4 z-50"> 
-                <button
-                  onClick={handleDeclareBankruptcy}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-md shadow-md hover:bg-red-700 transition transform hover:scale-105 active:scale-95"
-                >
-                  Quit
-                </button>
-              </div>
             <CenterArea
               isMyTurn={isMyTurn}
               isAITurn={isAITurn}
