@@ -636,7 +636,7 @@ const AiBoard = ({
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
-                  playerCount={allPlayersHere.length} // Added to allow BoardSquare to scale token sizes based on count (e.g., scale = 1 / Math.ceil(Math.sqrt(playerCount)))
+          
                 />
               );
             })}

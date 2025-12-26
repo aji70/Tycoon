@@ -3,7 +3,7 @@ import PropertyCard from "./cards/property-card";
 import SpecialCard from "./cards/special-card";
 import CornerCard from "./cards/corner-card";
 import { Property, Player } from "@/types/game";
-import { getPlayerSymbol } from "@/lib/types/symbol";
+import { getPlayerSymbol, getPlayerSymbolData } from "@/lib/types/symbol";
 
 type BoardSquareProps = {
   square: Property;
@@ -12,7 +12,6 @@ type BoardSquareProps = {
   owner: string | null;
   devLevel: number;
   mortgaged: boolean;
-  playerCount?: number; // Optional - can be passed from parent if you want to use it separately
 };
 
 export default function BoardSquare({
@@ -33,7 +32,7 @@ export default function BoardSquare({
     if (count === 3) return 0.82;
     if (count === 4) return 0.72;
     if (count <= 6) return 0.62;
-    return 0.52; // For 7–8 players – still readable
+    return 0.52;
   };
 
   const tokenScale = getTokenScale(playerCount);
@@ -41,9 +40,7 @@ export default function BoardSquare({
   // Helper to position tokens nicely
   const getTokenPositions = (count: number): Array<React.CSSProperties> => {
     if (count === 0) return [];
-    if (count === 1) {
-      return [{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }];
-    }
+    if (count === 1) return [{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }];
     if (count === 2) {
       return [
         { top: "38%", left: "38%", transform: "translate(-50%, -50%)" },
@@ -64,15 +61,11 @@ export default function BoardSquare({
     const angleStep = 360 / count;
 
     return Array.from({ length: count }, (_, i) => {
-      const angle = i * angleStep + (count % 2 === 0 ? -angleStep / 2 : 0); // slight offset for even counts
+      const angle = i * angleStep + (count % 2 === 0 ? -angleStep / 2 : 0);
       const rad = (angle * Math.PI) / 180;
       const x = 50 + Math.cos(rad) * radius;
       const y = 50 + Math.sin(rad) * radius;
-      return {
-        top: `${y}%`,
-        left: `${x}%`,
-        transform: "translate(-50%, -50%)",
-      };
+      return { top: `${y}%`, left: `${x}%`, transform: "translate(-50%, -50%)" };
     });
   };
 
@@ -100,7 +93,7 @@ export default function BoardSquare({
         )}
         {square.type === "corner" && <CornerCard square={square} />}
 
-        {/* Development level indicator */}
+        {/* Development indicator */}
         {square.type === "property" && devLevel > 0 && (
           <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
             {devLevel === 5 ? "🏨" : `🏠 ${devLevel}`}
@@ -119,42 +112,48 @@ export default function BoardSquare({
           </>
         )}
 
-     {/* Player Tokens - DEBUG VERSION */}
-{playerCount > 0 && (
-  <div className="absolute inset-0 pointer-events-none">
-    {playersHere.map((player, index) => {
-      const isCurrent = player.user_id === currentPlayerId;
-      
-      // Force visible symbol + bright background for debugging
-      const symbol = getPlayerSymbol(player.username) || "★"; // ← fallback if empty
-      
-      return (
-        <motion.div
-          key={player.user_id}
-          className={`
-            absolute flex items-center justify-center rounded-full
-            text-white font-extrabold text-2xl
-            shadow-2xl border-2 border-white
-            ${isCurrent ? "ring-4 ring-yellow-400 ring-offset-4 ring-offset-black" : ""}
-          `}
-          style={{
-            width: "50px",           // ← big for testing
-            height: "50px",
-            fontSize: "32px",
-            backgroundColor: isCurrent ? "#ec4899" : "#3b82f6", // ← bright pink/blue
-            ...tokenPositions[index],
-            zIndex: 100 + index,     // ← definitely on top
-          }}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: index * 0.1, type: "spring" }}
-        >
-          {symbol}
-        </motion.div>
-      );
-    })}
-  </div>
-)}
+        {/* Player Tokens */}
+        {playerCount > 0 && (
+          <div className="absolute inset-0">
+            {playersHere.map((player, index) => {
+              const isCurrent = player.user_id === currentPlayerId;
+              const symbol = getPlayerSymbol(player.symbol ?? "hat"); // ← FIXED: use player.token
+              const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
+              const tokenName = tokenData?.name || "Classic Token";
+
+              return (
+                <motion.div
+                  key={player.user_id}
+                  className={`
+                    absolute flex items-center justify-center rounded-full 
+                    bg-gradient-to-br from-gray-800 to-black text-white font-bold 
+                    shadow-lg border border-white/30 overflow-hidden
+                    ${isCurrent ? "ring-4 ring-cyan-400 ring-offset-2 ring-offset-black scale-110" : ""}
+                  `}
+                  style={{
+                    width: `${42 * tokenScale}px`,
+                    height: `${42 * tokenScale}px`,
+                    fontSize: `${26 * tokenScale}px`,
+                    ...tokenPositions[index],
+                    zIndex: 100 + index,
+                  }}
+                  title={tokenName} // Hover shows token name
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 280,
+                    damping: 18,
+                    delay: index * 0.07,
+                  }}
+                  whileHover={{ scale: tokenScale * 1.2 }}
+                >
+                  {symbol || "🎲"} {/* Ultimate fallback */}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </motion.div>
   );
