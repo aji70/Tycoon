@@ -24,7 +24,7 @@ import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "./modals/bankruptcy";
-import { CardModal } from "./modals/cards";  
+import { CardModal } from "../game/modals/cards";  
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -604,6 +604,15 @@ useEffect(() => {
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
+            {/* Add this somewhere in your return JSX, for example near the top of the main div */}
+                <div className="fixed top-4 right-4 z-50">
+                  <button
+                    onClick={handleDeclareBankruptcy}
+                    className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-lg transition transform hover:scale-105 active:scale-95"
+                  >
+                    Quit Game
+                  </button>
+                </div>
             <CenterArea
               isMyTurn={isMyTurn}
               isAITurn={isAITurn}
