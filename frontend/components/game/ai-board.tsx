@@ -462,48 +462,48 @@ const AiBoard = ({
   ]);
 
 
-// NEW: Detect card draw from history changes
-useEffect(() => {
-  const history = game.history ?? [];
-  if (history.length <= prevHistoryLength.current) return;
+  // NEW: Detect card draw from history changes
+  useEffect(() => {
+    const history = game.history ?? [];
+    if (history.length <= prevHistoryLength.current) return;
 
-  const newEntry = history[history.length - 1];
-  prevHistoryLength.current = history.length;
+    const newEntry = history[history.length - 1];
+    prevHistoryLength.current = history.length;
 
-  // Early return if no valid entry
-  if (newEntry == null || typeof newEntry !== "string") {
-    return;
-  }
+    // Early return if no valid entry
+    if (newEntry == null || typeof newEntry !== "string") {
+      return;
+    }
 
-  const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
-  const match = (newEntry as string).match(cardRegex);
+    const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
+    const match = (newEntry as string).match(cardRegex);
 
-  if (!match) return;
+    if (!match) return;
 
-  const [, playerName, typeStr, text] = match;
-  const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+    const [, playerName, typeStr, text] = match;
+    const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
 
-  const lowerText = text.toLowerCase();
-  const isGood =
-    lowerText.includes("collect") ||
-    lowerText.includes("receive") ||
-    lowerText.includes("advance") ||
-    lowerText.includes("get out of jail") ||
-    lowerText.includes("matures") ||
-    lowerText.includes("refund") ||
-    lowerText.includes("prize") ||
-    lowerText.includes("inherit");
+    const lowerText = text.toLowerCase();
+    const isGood =
+      lowerText.includes("collect") ||
+      lowerText.includes("receive") ||
+      lowerText.includes("advance") ||
+      lowerText.includes("get out of jail") ||
+      lowerText.includes("matures") ||
+      lowerText.includes("refund") ||
+      lowerText.includes("prize") ||
+      lowerText.includes("inherit");
 
-  const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
-  const effect = effectMatch ? effectMatch[0] : undefined;
+    const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+    const effect = effectMatch ? effectMatch[0] : undefined;
 
-  setCardData({ type, text, effect, isGood });
-  setCardPlayerName(playerName.trim());
-  setShowCardModal(true);
+    setCardData({ type, text, effect, isGood });
+    setCardPlayerName(playerName.trim());
+    setShowCardModal(true);
 
-  const timer = setTimeout(() => setShowCardModal(false), 7000);
-  return () => clearTimeout(timer);
-}, [game.history]);
+    const timer = setTimeout(() => setShowCardModal(false), 7000);
+    return () => clearTimeout(timer);
+  }, [game.history]);
 
   // Smarter AI buy decision
   useEffect(() => {
@@ -625,19 +625,7 @@ useEffect(() => {
 
             {properties.map((square) => {
               const allPlayersHere = playersByPosition.get(square.id) ?? [];
-              let playersHere: Player[] = [];
-
-              if (allPlayersHere.length > 0) {
-                const currentHere = allPlayersHere.find(p => p.user_id === currentPlayerId);
-                if (currentHere) {
-                  // Prioritize current player
-                  playersHere = [currentHere];
-                } else {
-                  // Show only one other player (prefer human if present)
-                  const humanHere = allPlayersHere.find(p => p.user_id === me?.user_id);
-                  playersHere = [humanHere || allPlayersHere[0]];
-                }
-              }
+              const playersHere = allPlayersHere;
 
               return (
                 <BoardSquare
@@ -648,6 +636,7 @@ useEffect(() => {
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
+                  playerCount={allPlayersHere.length} // Added to allow BoardSquare to scale token sizes based on count (e.g., scale = 1 / Math.ceil(Math.sqrt(playerCount)))
                 />
               );
             })}
