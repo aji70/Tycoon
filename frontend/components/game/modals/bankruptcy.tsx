@@ -26,7 +26,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hasNavigated = useRef(false);
 
-  // Sync internal visibility with isOpen prop
+  // Sync visibility with isOpen prop
   useEffect(() => {
     if (isOpen) {
       setShouldShow(true);
@@ -35,22 +35,23 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
     }
   }, [isOpen, autoCloseDelay]);
 
-  // Countdown + auto-close logic
+  // Countdown + auto-exit logic
   useEffect(() => {
     if (!shouldShow) return;
 
-    // Live countdown every second
+    // Countdown interval
     timerRef.current = setInterval(() => {
       setSecondsLeft((prev) => {
-        if (prev <= 1) {
+        const next = prev - 1;
+        if (next <= 0) {
           clearInterval(timerRef.current!);
           return 0;
         }
-        return prev - 1;
+        return next;
       });
     }, 1000);
 
-    // Schedule the exit sequence
+    // Exit sequence timer (triggers exactly when countdown should hit 0)
     const exitTimer = setTimeout(() => {
       if (hasNavigated.current) return;
       hasNavigated.current = true;
@@ -58,14 +59,13 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
       // Trigger exit animation
       setShouldShow(false);
 
-      // Wait for exit animation to complete before navigation
-      const EXIT_ANIMATION_DURATION = 800; // Adjust to match your exit transition duration
+      // Wait for FULL exit animation before navigation (no board flash!)
+      const EXIT_DURATION = 1000; // Increased to ensure no flash
       setTimeout(() => {
         onReturnHome();
-      }, EXIT_ANIMATION_DURATION);
+      }, EXIT_DURATION);
     }, autoCloseDelay);
 
-    // Cleanup
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       clearTimeout(exitTimer);
@@ -76,12 +76,10 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
     if (hasNavigated.current) return;
     hasNavigated.current = true;
     setShouldShow(false);
-
-    // Optional: small delay if you want exit animation on manual close too
     setTimeout(() => {
       if (onClose) onClose();
       else onReturnHome();
-    }, 800);
+    }, 1000);
   };
 
   if (!shouldShow) return null;
@@ -94,10 +92,10 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.7 }}
           className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-[9999] p-4"
         >
-          {/* Animated background gradient */}
+          {/* Background effects */}
           <motion.div
             className="absolute inset-0 bg-gradient-to-br from-red-950 via-black to-rose-950"
             animate={{ opacity: [0.5, 0.8, 0.5], scale: [1, 1.04, 1] }}
@@ -108,7 +106,12 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
             key="content"
             initial={{ scale: 0.75, y: 80, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.68, y: 120, opacity: 0, transition: { duration: 0.7, ease: "easeIn" } }}
+            exit={{
+              scale: 0.65,
+              y: 140,
+              opacity: 0,
+              transition: { duration: 0.9, ease: [0.4, 0, 0.2, 1] }
+            }}
             transition={{ type: "spring", stiffness: 100, damping: 14, delay: 0.1 }}
             className="
               relative w-full max-w-md sm:max-w-lg md:max-w-xl
@@ -119,7 +122,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               text-center overflow-hidden
             "
           >
-            {/* Falling money/coins animation */}
+            {/* Falling money animation */}
             {Array.from({ length: 12 }).map((_, i) => (
               <motion.div
                 key={i}
@@ -148,7 +151,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               </motion.div>
             ))}
 
-            {/* Skull + Alert icon */}
+            {/* Main skull + alert */}
             <motion.div
               initial={{ scale: 0.6, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
@@ -190,7 +193,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               {message}
             </motion.p>
 
-            {/* Token reward section */}
+            {/* Token reward */}
             <motion.div
               initial={{ scale: 0.75, y: 40, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -212,19 +215,27 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               </p>
             </motion.div>
 
-            {/* Countdown display */}
+            {/* Live countdown */}
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1.3 }}
               className="text-base sm:text-lg text-red-300/80 mb-8 font-medium"
             >
-              Redirecting to home in{" "}
-              <span className="text-red-100 font-bold text-xl">{secondsLeft}</span>{" "}
-              second{secondsLeft !== 1 ? "s" : ""}...
+              {secondsLeft > 0 ? (
+                <>
+                  Redirecting to home in{" "}
+                  <span className="text-red-100 font-bold text-xl">{secondsLeft}</span>{" "}
+                  second{secondsLeft !== 1 ? "s" : ""}...
+                </>
+              ) : (
+                <span className="text-red-100 font-bold text-2xl animate-pulse">
+                  Final countdown complete... 👋
+                </span>
+              )}
             </motion.p>
 
-            {/* Optional manual close button */}
+            {/* Optional close button */}
             {onClose && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
