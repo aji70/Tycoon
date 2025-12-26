@@ -49,6 +49,9 @@ export default function PlayWithAI() {
 
   const name = user?.username || "";
 
+  console.log("User Profile:", name);
+
+
   const [settings, setSettings] = useState({
     symbol: "hat",
     aiCount: 1,

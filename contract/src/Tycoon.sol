@@ -60,11 +60,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
     // 📌 Modifiers
     // -------------------------
 
-    modifier onlyRegistered() {
-        require(registered[msg.sender], "not registered");
-        _;
-    }
-
     modifier nonEmptyUsername(string memory username) {
         require(bytes(username).length > 0, "Username cannot be empty");
         _;
@@ -126,7 +121,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint8 numberOfPlayers,
         string memory code,
         uint256 startingBalance
-    ) public payable onlyRegistered nonReentrant nonEmptyUsername(creatorUsername) returns (uint256) {
+    ) public payable  nonReentrant nonEmptyUsername(creatorUsername) returns (uint256) {
         require(numberOfPlayers >= 2 && numberOfPlayers <= 8, "Invalid player count");
         require(bytes(gameType).length > 0, "Invalid game type");
         require(msg.value == STAKE_AMOUNT, "Incorrect stake amount");
@@ -212,7 +207,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint8 numberOfAI, // Number of AI opponents (total players = 1 + numberOfAI)
         string memory code,
         uint256 startingBalance
-    ) public payable onlyRegistered nonReentrant nonEmptyUsername(creatorUsername) returns (uint256) {
+    ) public payable nonReentrant nonEmptyUsername(creatorUsername) returns (uint256) {
         require(numberOfAI >= 1 && numberOfAI <= 7, "Invalid AI count: 1-7");
         require(msg.value == STAKE_AMOUNT, "Incorrect stake amount");
         require(bytes(gameType).length > 0, "Invalid game type");
@@ -224,6 +219,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         }
 
         TycoonLib.User storage user = users[creatorUsername];
+        
         require(user.playerAddress != address(0), "User not registered");
         require(user.playerAddress == msg.sender, "Must use own username");
         address creator = user.playerAddress;
@@ -301,7 +297,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
     function joinGame(uint256 gameId, string memory playerUsername, string memory playerSymbol, string memory joinCode)
         public
         payable
-        onlyRegistered
         nonReentrant
         nonEmptyUsername(playerUsername)
         returns (uint8)
@@ -361,7 +356,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
     function removePlayerFromGame(uint256 gameId, address playerToRemove)
         // address finalCandidate // Optional for final phase; auto-detect otherwise
         public
-        onlyRegistered
         nonReentrant
         returns (bool)
     {
