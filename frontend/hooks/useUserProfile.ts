@@ -7,59 +7,73 @@ import { ApiResponse } from "@/types/api";
 
 export const useUserProfile = () => {
   const { address, isConnecting } = useAccount();
+
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
 
-  // Fetch user from backend
+  // Reset everything when address changes or disconnects
   useEffect(() => {
     if (!address) {
       setUser(null);
-      setLoading(false);
+      setLoading(false); // No need to load if not connected
       return;
     }
 
+    // When address is present, start loading
     setLoading(true);
 
-      const fetchUser = async () => {
-        if (!address) {
+    let isActive = true;
+
+    const fetchUser = async () => {
+      try {
+        const res = await apiClient.get<ApiResponse<UserType>>(
+          `/users/by-address/${address}?chain=Base`
+        );
+
+        if (!isActive) return;
+
+        if (res.success && res.data) {
+            const r = res.data as UserType;
+          setUser(r);
+        } else {
           setUser(null);
-          return;
         }
-    
-        try {
-          const res = await apiClient.get<ApiResponse<UserType>>(`/users/by-address/${address}?chain=Base`);
-    
-          // Check if the response indicates success and has data
-          if (res?.data?.success && res.data.data) {
-            setUser(res.data.data);
-            console.log("User fetched successfully:", res.data.data);
-          } else {
-            // Backend returned 404 or { success: false } → user doesn't exist yet
-            console.log("User not found for address:", address);
-            setUser(null); // or setUser("no user found") if you prefer a string
-          }
-        } catch (error: any) {
-          // This catches network errors, 500s, etc.
-          // But importantly: check if it's a 404 from your backend
-          if (error?.response?.status === 404) {
-            console.log("User not found (404):", address);
-            setUser(null);
-          } else {
-            console.error("Unexpected error fetching user:", error);
-            setUser(null);
-          }
+      } catch (error: any) {
+        if (!isActive) return;
+
+        if (error?.response?.status === 404) {
+          setUser(null);
+        } else {
+          console.error("Unexpected error fetching user:", error);
+          setUser(null);
         }
-      };
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
 
     fetchUser();
+
+    return () => {
+      isActive = false;
+    };
   }, [address]);
 
   // Register new user
-  const register = async (username: string) => {
-    if (!address) throw new Error("Wallet not connected");
+  const register = async (username: string): Promise<UserType> => {
+    if (!address) {
+      throw new Error("Wallet not connected");
+    }
+
+    if (!username.trim()) {
+      throw new Error("Username is required");
+    }
 
     setRegistering(true);
+
     try {
       const res = await apiClient.post<ApiResponse<UserType>>("/users", {
         username: username.trim(),
@@ -67,14 +81,16 @@ export const useUserProfile = () => {
         chain: "Base",
       });
 
-      if (res?.data?.success && res.data.data) {
-        setUser(res.data.data);
-        return res.data.data;
+      if (res.success && res.data) {
+        const r = res.data as UserType;
+        setUser(r);
+        return r;
       } else {
-        throw new Error(res?.data?.message || "Registration failed");
+        throw new Error(res.message || "Registration failed");
       }
     } catch (error: any) {
-      throw error;
+      console.error("Registration error:", error);
+      throw error instanceof Error ? error : new Error("Registration failed");
     } finally {
       setRegistering(false);
     }
@@ -82,7 +98,7 @@ export const useUserProfile = () => {
 
   return {
     user,
-    loading: loading || isConnecting,
+    loading: isConnecting || loading,
     registering,
     register,
     isRegistered: !!user,

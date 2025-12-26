@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useState } from "react";
+
+import React, { useState } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
@@ -8,74 +9,24 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
-import { User as UserType } from "@/lib/types/users";
+import { useUserProfile } from "@/hooks/useUserProfile"; // ← Our reusable hook
 import { ApiResponse } from "@/types/api";
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
 
-  const [registered, setRegistered] = useState(false);
-  const [name, setName] = useState("");
+  // Use the shared user profile hook
+  const {
+    user,
+    loading: userLoading,
+    registering,
+    register,
+    isRegistered,
+  } = useUserProfile();
+
+  const name = user?.username || "";
   const [inputName, setInputName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<UserType | null>(null);
-
-  // Reset all user-related state when address changes or disconnects
-  useEffect(() => {
-    if (!address) {
-      setUser(null);
-      setRegistered(false);
-      setName("");
-      setInputName("");
-    }
-  }, [address]);
-
-  // Fetch user data when a wallet address is connected
-  useEffect(() => {
-    if (!address) return;
-
-    let isActive = true;
-
-    const fetchUser = async () => {
-      try {
-        const res = await apiClient.get<ApiResponse>(
-          `/users/by-address/${address}?chain=Base`
-        );
-
-        if (!isActive) return;
-
-        if (res.success && res.data) {
-          const r = res.data as UserType;
-          setUser(r);
-          setRegistered(true);
-          setName(r.username || "");
-        } else {
-          setUser(null);
-          setRegistered(false);
-          setName("");
-        }
-      } catch (error: any) {
-        if (!isActive) return;
-
-        if (error?.response?.status === 404) {
-          setUser(null);
-          setRegistered(false);
-          setName("");
-        } else {
-          console.error("Unexpected error fetching user:", error);
-          setUser(null);
-          setRegistered(false);
-        }
-      }
-    };
-
-    fetchUser();
-
-    return () => {
-      isActive = false;
-    };
-  }, [address]);
 
   const handleRegister = async () => {
     if (!inputName.trim()) {
@@ -83,32 +34,19 @@ const HeroSection: React.FC = () => {
       return;
     }
 
-    setLoading(true);
     const toastId = toast.loading("Registering...");
 
     try {
-      const res = await apiClient.post<ApiResponse<UserType>>("/users", {
-        username: inputName.trim(),
-        address,
-        chain: "Base",
+      await register(inputName.trim());
+
+      toast.update(toastId, {
+        render: "Welcome to Tycoon! Let's play 🎲",
+        type: "success",
+        isLoading: false,
+        autoClose: 4000,
       });
 
-      if (res.success && res.data) {
-        const r = res.data as UserType;
-        setUser(r);
-        setRegistered(true);
-        setName(r.username || "");
-        setInputName("");
-
-        toast.update(toastId, {
-          render: "Welcome to Tycoon! Let's play 🎲",
-          type: "success",
-          isLoading: false,
-          autoClose: 4000,
-        });
-      } else {
-        throw new Error(res.message || "Failed to register");
-      }
+      setInputName(""); // Clear input after success
     } catch (err: any) {
       toast.update(toastId, {
         render: err?.message || "Registration failed. Try again.",
@@ -117,8 +55,6 @@ const HeroSection: React.FC = () => {
         autoClose: 5000,
       });
       console.error("Registration error:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -130,10 +66,22 @@ const HeroSection: React.FC = () => {
   const handleRouteToJoinRoom = () => router.push("/join-room");
   const handleRouteToPlayWithAI = () => router.push("/play-ai");
 
+  // Show connecting screen
   if (isConnecting) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
         <p className="font-orbitron text-[#00F0FF] text-[16px]">Connecting wallet...</p>
+      </div>
+    );
+  }
+
+  // Show loading while fetching user profile
+  if (userLoading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <p className="font-orbitron text-[#00F0FF] text-[20px] animate-pulse">
+          Loading profile...
+        </p>
       </div>
     );
   }
@@ -159,8 +107,8 @@ const HeroSection: React.FC = () => {
       </div>
 
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
-        {/* Welcome / Registering Message */}
-        {registered && !loading && (
+        {/* Welcome Message */}
+        {isRegistered && !registering && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
               Welcome back, {name}!
@@ -168,7 +116,8 @@ const HeroSection: React.FC = () => {
           </div>
         )}
 
-        {loading && (
+        {/* Registering Message */}
+        {registering && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
               Registering...
@@ -219,8 +168,8 @@ const HeroSection: React.FC = () => {
         </div>
 
         <div className="z-1 w-full flex flex-col justify-center items-center mt-3 gap-3">
-          {/* Registration Form */}
-          {address && !registered && !loading && (
+          {/* Registration Form - Only show if connected but not registered */}
+          {address && !isRegistered && !registering && (
             <>
               <input
                 type="text"
@@ -231,14 +180,14 @@ const HeroSection: React.FC = () => {
               />
               <button
                 onClick={handleRegister}
-                disabled={loading || !inputName.trim()}
+                disabled={registering || !inputName.trim()}
                 className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
               >
                 <svg width="260" height="52" viewBox="0 0 260 52" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]">
                   <path d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
-                  {loading ? "Registering..." : "Let's Go!"}
+                  {registering ? "Registering..." : "Let's Go!"}
                 </span>
               </button>
             </>
@@ -251,8 +200,8 @@ const HeroSection: React.FC = () => {
             </p>
           )}
 
-          {/* Game Buttons - Shown only when registered */}
-          {registered && (
+          {/* Game Buttons - Only when registered */}
+          {isRegistered && (
             <div className="flex flex-wrap justify-center items-center mt-2 gap-4">
               <button onClick={handleRouteToCreateGame} className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer">
                 <svg width="227" height="40" viewBox="0 0 227 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1]">
