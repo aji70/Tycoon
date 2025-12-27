@@ -416,7 +416,10 @@ export default function GamePlayers({
       if (currentPlayer.balance < 0 && isAIPlayer(currentPlayer)) {
         toast(`${currentPlayer.username} is bankrupt! Removing AI from the game...`);
         try {
-        await apiClient.delete(`/game-players/${currentPlayer.user_id}`);
+         await apiClient.post("/game-players/leave", {
+                  address: currentPlayer.address,
+                  code: game.code,
+                });
           toast.success(`${currentPlayer.username} has left the game due to bankruptcy!`);
         } catch (err) {
           console.error("Failed to remove AI via /leave:", err);

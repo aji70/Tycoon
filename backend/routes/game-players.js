@@ -12,8 +12,7 @@ router.post("/leave", gamePlayerController.leave);
 router.get("/", gamePlayerController.findAll);
 router.get("/:id", gamePlayerController.findById);
 router.put("/:id", gamePlayerController.update);
-// router.delete("/:id", gamePlayerController.remove);
-router.delete("/:id", gamePlayerController.remov);
+router.delete("/:id", gamePlayerController.remove);
 
 // -------------------------
 // 🔹 By Game / User
