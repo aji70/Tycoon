@@ -118,13 +118,12 @@ export default function GamePlayers({
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
     try {
-      
-       const [_initiated, _incoming] = await Promise.all([
-             apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
-             apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
-           ]);
-           const initiated = _initiated.data?.data || [];
-           const incoming = _incoming.data?.data || [];
+      const [_initiated, _incoming] = await Promise.all([
+        apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
+        apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
+      ]);
+      const initiated = _initiated.data?.data || [];
+      const incoming = _incoming.data?.data || [];
       setOpenTrades(initiated);
       setTradeRequests(incoming);
 
@@ -290,7 +289,7 @@ export default function GamePlayers({
     }
   };
 
-   const handleDowngrade = async (id: number) => {
+  const handleDowngrade = async (id: number) => {
     if (!isNext || !me) return;
     try {
       const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
@@ -335,9 +334,8 @@ export default function GamePlayers({
     }
   };
 
-  // AI liquidation & winner detection logic remains the same (omitted for brevity – copy from original)
-
- const aiSellHouses = async (needed: number) => {
+  // AI liquidation logic
+  const aiSellHouses = async (needed: number) => {
     const improved = game_properties
       .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
       .sort((a, b) => {
@@ -414,31 +412,37 @@ export default function GamePlayers({
       raised += await aiSellHouses(needed);
       raised += await aiMortgageProperties(needed - raised);
 
-      if (currentPlayer.balance < 0) {
-        toast(`${currentPlayer.username} is bankrupt!`);
+      // ── Changed part: use /leave instead of /bankrupt ──
+      if (currentPlayer.balance < 0 && isAIPlayer(currentPlayer)) {
+        toast(`${currentPlayer.username} is bankrupt! Removing AI from the game...`);
         try {
-          await apiClient.post("/game-players/bankrupt", {
-            user_id: currentPlayer.user_id,
+          await apiClient.post("/leave", {
             game_id: game.id,
+            // Add user_id / address if your /leave endpoint requires it:
+            // user_id: currentPlayer.user_id,
+            // address: currentPlayer.address,
           });
+          toast.success(`${currentPlayer.username} has left the game due to bankruptcy!`);
         } catch (err) {
-          console.error("Bankruptcy failed", err);
+          console.error("Failed to remove AI via /leave:", err);
+          toast.error("AI bankruptcy removal failed — game may need manual intervention");
         }
       }
     };
 
     const timer = setTimeout(liquidateIfNeeded, 3000);
     return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
+  }, [isAITurn, currentPlayer, game_properties, properties, game.id, game]);
 
-  // ==================== WINNER DETECTION (AI BANKRUPT) ====================
+  // Winner detection (AI removed → human wins in 1v1)
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
 
-    const aiPlayer = game.players.find(p => p.user_id !== me.user_id);
+    const aiPlayer = game.players.find(p => isAIPlayer(p));
     const humanPlayer = me;
 
-    if (aiPlayer && humanPlayer && aiPlayer.balance <= 0 && humanPlayer.balance > 0) {
+    // If AI is no longer in players list (removed via /leave) or has negative/zero balance
+    if ((!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,
@@ -448,7 +452,6 @@ export default function GamePlayers({
     }
   }, [game.players, me]);
 
-  // ==================== FINALIZE GAME & CLAIM REWARDS ====================
   const handleFinalizeAndLeave = async () => {
     setShowExitPrompt(false);
     setClaimError(null);
