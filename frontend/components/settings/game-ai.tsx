@@ -27,7 +27,7 @@ import {
   useCreateAiGame,
 } from "@/context/ContractProvider";
 
-const ai_addresses = [
+const ai_address = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
   "0xB2EE17D003e63985f3648f6c1d213BE86B474B11",
   "0xC3FF882E779aCbc112165fa1E7fFC093e9353B21",
@@ -74,16 +74,16 @@ export default function PlayWithAI() {
       return;
     }
 
-    const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
+    const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`, {
+      position: "top-right",
+    });
 
     try {
-      // 1. Create game on-chain
       const onChainGameId = await createAiGame();
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
       toast.update(toastId, { render: "Preparing the battlefield..." });
 
-      // 2. Save game metadata to backend
       const saveRes = await apiClient.post<any>("/games", {
         id: onChainGameId,
         code: gameCode,
@@ -104,49 +104,24 @@ export default function PlayWithAI() {
       });
 
       const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
-      
-      if (!dbGameId) throw new Error("Failed to save game to database");
+      if (!dbGameId) throw new Error("Failed to save game");
 
-      // ── SYMBOL ASSIGNMENT ────────────────────────────────────────
-      const allPieces = GamePieces.map(p => p.id);
-      const usedSymbols = new Set<string>([settings.symbol]);
-      const availableSymbols = allPieces.filter(id => id !== settings.symbol);
-
-      // Human player
-      await apiClient.post("/game-players/join", {
-        address,
-        symbol: settings.symbol,
-        code: gameCode,
-        is_ai: false,
-      });
-
-      // AI players
+      const usedSymbols = [settings.symbol];
       for (let i = 0; i < settings.aiCount; i++) {
-        if (availableSymbols.length === 0) {
-          // Very rare fallback - reset available symbols
-          allPieces.forEach(id => {
-            if (!usedSymbols.has(id)) availableSymbols.push(id);
-          });
-        }
-
-        const randomIndex = Math.floor(Math.random() * availableSymbols.length);
-        const aiSymbol = availableSymbols[randomIndex];
-
-        // Remove used symbol
-        availableSymbols.splice(randomIndex, 1);
-        usedSymbols.add(aiSymbol);
-
-        const aiAddress = ai_addresses[i];
+        const aiAddress = ai_address[i];
+        const available = GamePieces.filter(p => !usedSymbols.includes(p.id));
+        const aiSymbol = available.length > 0
+          ? available[Math.floor(Math.random() * available.length)].id
+          : "dog";
+        usedSymbols.push(aiSymbol);
 
         await apiClient.post("/game-players/join", {
           address: aiAddress,
           symbol: aiSymbol,
           code: gameCode,
-          is_ai: true,
         });
       }
 
-      // 3. Start the game
       await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
 
       toast.update(toastId, {
@@ -158,8 +133,7 @@ export default function PlayWithAI() {
 
       router.push(`/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
-      console.error(err);
-
+      // User rejected transaction
       if (
         err?.code === 4001 ||
         err?.message?.includes("User rejected") ||
@@ -175,10 +149,16 @@ export default function PlayWithAI() {
         return;
       }
 
+      // Other real errors
       let message = "Something went wrong. Please try again.";
-      if (err?.message?.includes("insufficient funds")) message = "Not enough funds for gas fees";
-      else if (err?.shortMessage) message = err.shortMessage;
-      else if (err?.reason) message = err.reason;
+
+      if (err?.message?.includes("insufficient funds")) {
+        message = "Not enough funds for gas fees";
+      } else if (err?.shortMessage) {
+        message = err.shortMessage;
+      } else if (err?.reason) {
+        message = err.reason;
+      }
 
       toast.update(toastId, {
         render: message,
@@ -192,43 +172,43 @@ export default function PlayWithAI() {
   if (isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
-        <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">
-          LOADING ARENA...
-        </p>
+        <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">LOADING ARENA...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-3xl bg-black/70 backdrop-blur-2xl rounded-2xl border border-cyan-500/60 shadow-2xl p-6 sm:p-8">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-2 xs:p-4 sm:p-6">
+      <div className="w-full max-w-4xl bg-black/70 backdrop-blur-2xl rounded-2xl border border-cyan-500/60 shadow-xl p-4 xs:p-6 sm:p-8 md:p-10">
+
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6 xs:mb-8 sm:mb-10">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition text-sm sm:text-base"
+            className="flex items-center gap-1 xs:gap-2 text-cyan-400 hover:text-cyan-300 transition text-xs xs:text-sm sm:text-base"
           >
-            <House className="w-5 h-5 sm:w-6 sm:h-6" />
+            <House className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-6" />
             <span className="font-medium">BACK</span>
           </button>
-          <h1 className="text-4xl sm:text-5xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-3xl xs:text-4xl sm:text-5xl md:text-6xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent">
             AI DUEL
           </h1>
-          <div className="w-16" />
+          <div className="w-12 xs:w-20 sm:w-24" />
         </div>
 
-        {/* Main Grid */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Left: Settings */}
-          <div className="space-y-5">
+        {/* Main Content - Responsive Grid */}
+        <div className="grid md:grid-cols-2 gap-4 xs:gap-6 sm:gap-8 mb-6 xs:mb-8 sm:mb-10">
+
+          {/* Left Column - Settings */}
+          <div className="space-y-4 xs:space-y-5">
             {/* Your Piece */}
-            <div className="bg-gradient-to-br from-cyan-900/60 to-blue-900/60 rounded-2xl p-5 border border-cyan-500/40">
-              <div className="flex items-center gap-3 mb-3">
-                <FaUser className="w-6 h-6 text-cyan-400" />
-                <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
+            <div className="bg-gradient-to-br from-cyan-900/60 to-blue-900/60 rounded-xl xs:rounded-2xl p-3 xs:p-4 sm:p-6 border border-cyan-500/40">
+              <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-3 sm:mb-4">
+                <FaUser className="w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 text-cyan-400" />
+                <h3 className="text-lg xs:text-xl sm:text-2xl font-bold text-cyan-300">Your Piece</h3>
               </div>
               <Select value={settings.symbol} onValueChange={v => setSettings(p => ({ ...p, symbol: v }))}>
-                <SelectTrigger className="h-12 bg-black/50 border-cyan-500/60 text-white">
+                <SelectTrigger className="h-10 xs:h-12 sm:h-14 text-sm xs:text-base sm:text-lg bg-black/50 border-cyan-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -240,16 +220,13 @@ export default function PlayWithAI() {
             </div>
 
             {/* AI Count */}
-            <div className="bg-gradient-to-br from-purple-900/60 to-pink-900/60 rounded-2xl p-5 border border-purple-500/40">
-              <div className="flex items-center gap-3 mb-3">
-                <FaRobot className="w-6 h-6 text-purple-400" />
-                <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
+            <div className="bg-gradient-to-br from-purple-900/60 to-pink-900/60 rounded-xl xs:rounded-2xl p-3 xs:p-4 sm:p-6 border border-purple-500/40">
+              <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-3 sm:mb-4">
+                <FaRobot className="w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 text-purple-400" />
+                <h3 className="text-lg xs:text-xl sm:text-2xl font-bold text-purple-300">AI Opponents</h3>
               </div>
-              <Select 
-                value={settings.aiCount.toString()} 
-                onValueChange={v => setSettings(p => ({ ...p, aiCount: Number(v) }))}
-              >
-                <SelectTrigger className="h-12 bg-black/50 border-purple-500/60 text-white">
+              <Select value={settings.aiCount.toString()} onValueChange={v => setSettings(p => ({ ...p, aiCount: +v }))}>
+                <SelectTrigger className="h-10 xs:h-12 sm:h-14 text-sm xs:text-base sm:text-lg bg-black/50 border-purple-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -261,13 +238,13 @@ export default function PlayWithAI() {
             </div>
 
             {/* Difficulty */}
-            <div className="bg-gradient-to-br from-red-900/60 to-orange-900/60 rounded-2xl p-5 border border-red-500/40">
-              <div className="flex items-center gap-3 mb-3">
-                <FaBrain className="w-6 h-6 text-red-400" />
-                <h3 className="text-xl font-bold text-red-300">Difficulty</h3>
+            <div className="bg-gradient-to-br from-red-900/60 to-orange-900/60 rounded-xl xs:rounded-2xl p-3 xs:p-4 sm:p-6 border border-red-500/40">
+              <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-3 sm:mb-4">
+                <FaBrain className="w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 text-red-400" />
+                <h3 className="text-lg xs:text-xl sm:text-2xl font-bold text-red-300">Difficulty</h3>
               </div>
               <Select value={settings.aiDifficulty} onValueChange={v => setSettings(p => ({ ...p, aiDifficulty: v as any }))}>
-                <SelectTrigger className="h-12 bg-black/50 border-red-500/60 text-white">
+                <SelectTrigger className="h-10 xs:h-12 sm:h-14 text-sm xs:text-base sm:text-lg bg-black/50 border-red-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -280,13 +257,13 @@ export default function PlayWithAI() {
             </div>
 
             {/* Starting Cash */}
-            <div className="bg-gradient-to-br from-yellow-900/60 to-amber-900/60 rounded-2xl p-5 border border-yellow-500/40">
-              <div className="flex items-center gap-3 mb-3">
-                <FaCoins className="w-6 h-6 text-yellow-400" />
-                <h3 className="text-xl font-bold text-yellow-300">Starting Cash</h3>
+            <div className="bg-gradient-to-br from-yellow-900/60 to-amber-900/60 rounded-xl xs:rounded-2xl p-3 xs:p-4 sm:p-6 border border-yellow-500/40">
+              <div className="flex items-center gap-2 xs:gap-3 mb-2 xs:mb-3 sm:mb-4">
+                <FaCoins className="w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 text-yellow-400" />
+                <h3 className="text-lg xs:text-xl sm:text-2xl font-bold text-yellow-300">Starting Cash</h3>
               </div>
-              <Select value={settings.startingCash.toString()} onValueChange={v => setSettings(p => ({ ...p, startingCash: Number(v) }))}>
-                <SelectTrigger className="h-12 bg-black/50 border-yellow-500/60 text-white">
+              <Select value={settings.startingCash.toString()} onValueChange={v => setSettings(p => ({ ...p, startingCash: +v }))}>
+                <SelectTrigger className="h-10 xs:h-12 sm:h-14 text-sm xs:text-base sm:text-lg bg-black/50 border-yellow-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -300,10 +277,10 @@ export default function PlayWithAI() {
             </div>
           </div>
 
-          {/* Right: House Rules */}
-          <div className="bg-black/70 rounded-2xl p-6 border border-cyan-500/50">
-            <h3 className="text-2xl font-orbitron font-bold text-cyan-300 mb-6 text-center">HOUSE RULES</h3>
-            <div className="space-y-5">
+          {/* Right Column - House Rules */}
+          <div className="bg-black/70 rounded-xl xs:rounded-2xl p-3 xs:p-4 sm:p-6 md:p-8 border border-cyan-500/50">
+            <h3 className="text-xl xs:text-2xl sm:text-3xl font-orbitron font-bold text-cyan-300 mb-4 xs:mb-5 sm:mb-6 text-center">HOUSE RULES</h3>
+            <div className="space-y-3 xs:space-y-4 sm:space-y-5">
               {[
                 { icon: RiAuctionFill, label: "Auction", key: "auction" },
                 { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
@@ -311,10 +288,10 @@ export default function PlayWithAI() {
                 { icon: IoBuild, label: "Even Build", key: "evenBuild" },
                 { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
               ].map(r => (
-                <div key={r.key} className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <r.icon className="w-6 h-6 text-cyan-400" />
-                    <span className="text-white text-base font-medium">{r.label}</span>
+                <div key={r.key} className="flex justify-between items-center py-1 xs:py-2">
+                  <div className="flex items-center gap-2 xs:gap-3 sm:gap-4">
+                    <r.icon className="w-5 h-5 xs:w-6 xs:h-6 sm:w-7 sm:h-7 text-cyan-400" />
+                    <span className="text-white text-sm xs:text-base sm:text-lg font-medium">{r.label}</span>
                   </div>
                   <Switch
                     checked={settings[r.key as keyof typeof settings] as boolean}
@@ -327,23 +304,24 @@ export default function PlayWithAI() {
         </div>
 
         {/* Play Button */}
-        <div className="flex justify-center">
+        <div className="flex justify-center mt-6 xs:mt-8 sm:mt-10 md:mt-12">
           <button
             onClick={handlePlay}
             disabled={isCreatePending}
-            className="relative px-12 py-5 text-2xl sm:text-3xl font-orbitron font-bold tracking-wider
-                       bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600
+            className="relative px-8 xs:px-10 sm:px-12 md:px-20 py-3 xs:py-4 sm:py-5 md:py-6 text-xl xs:text-2xl sm:text-3xl font-orbitron font-bold tracking-wider
+                       bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 
                        hover:from-purple-600 hover:via-pink-600 hover:to-red-600
-                       rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300
+                       rounded-xl xs:rounded-2xl shadow-xl xs:shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300
                        disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100
-                       border-4 border-cyan-300/80 overflow-hidden group"
+                       border-2 xs:border-3 sm:border-4 border-cyan-300/80 overflow-hidden group"
           >
-            <span className="relative z-10 text-black drop-shadow-lg">
+            <span className="relative z-10 text-black drop-shadow-md xs:drop-shadow-lg">
               {isCreatePending ? "SUMMONING..." : "START BATTLE"}
             </span>
             <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </button>
         </div>
+
       </div>
     </div>
   );
