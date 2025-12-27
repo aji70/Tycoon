@@ -999,6 +999,71 @@ const gamePlayerController = {
       res.status(200).json({ success: false, message: error.message });
     }
   },
+
+  async remov(req, res) {
+  const trx = await db.transaction();
+
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(Number(id))) {
+      await trx.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Invalid player ID"
+      });
+    }
+
+    // 1. Find player (with lock)
+    const player = await trx("game_players")
+      .where({ id })
+      .first();
+
+    if (!player) {
+      await trx.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Player not found"
+      });
+    }
+
+
+    // Return properties to bank (critical!)
+    await trx("game_properties")
+      .where({
+        game_id: player.game_id,
+        player_id: player.id
+      })
+      .update({
+        player_id: null,
+        mortgaged: false,
+        development: 0,
+        updated_at: new Date()
+      });
+
+    // Delete player
+    await trx("game_players")
+      .where({ id })
+      .delete();
+
+    await trx.commit();
+
+    return res.json({
+      success: true,
+      message: "AI player removed successfully",
+      playerId: id
+    });
+
+  } catch (error) {
+    await trx.rollback();
+    console.error("remove player error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to remove player"
+    });
+  }
+}
 };
 
 export default gamePlayerController;

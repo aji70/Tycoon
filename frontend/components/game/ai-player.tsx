@@ -425,6 +425,7 @@ export default function GamePlayers({
       }
     };
 
+    console.log("AI Turn detected, checking for liquidation...", game);
     const timer = setTimeout(liquidateIfNeeded, 3000);
     return () => clearTimeout(timer);
   }, [isAITurn, currentPlayer, game_properties, properties, game.id, game]);
