@@ -479,7 +479,7 @@ useEffect(() => {
         for (const prop of aiProperties) {
           try {
             await apiClient.put<ApiResponse>("/properties/update", {
-              propertyId: prop.property_id,   // ← important: use property_id, not id
+              address: creditorPlayer!.address,
             });
             successCount++;
           } catch (transferErr) {
