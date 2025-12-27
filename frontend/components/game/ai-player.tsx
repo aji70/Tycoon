@@ -478,7 +478,7 @@ useEffect(() => {
 
         for (const prop of aiProperties) {
           try {
-            await apiClient.post<ApiResponse>("/properties/update", {
+            await apiClient.put<ApiResponse>("/properties/update", {
               propertyId: prop.property_id,   // ← important: use property_id, not id
             });
             successCount++;
