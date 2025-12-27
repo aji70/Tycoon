@@ -397,42 +397,140 @@ export default function GamePlayers({
     return raised;
   };
 
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer) return;
+  // useEffect(() => {
+  //   if (!isAITurn || !currentPlayer) return;
 
-    const liquidateIfNeeded = async () => {
-      const balance = currentPlayer.balance;
-      if (balance >= 200) return;
+  //   const liquidateIfNeeded = async () => {
+  //     const balance = currentPlayer.balance;
+  //     if (balance >= 200) return;
 
-      toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
+  //     toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
 
-      const needed = Math.max(600, 200 - balance);
+  //     const needed = Math.max(600, 200 - balance);
 
-      let raised = 0;
-      raised += await aiSellHouses(needed);
-      raised += await aiMortgageProperties(needed - raised);
+  //     let raised = 0;
+  //     raised += await aiSellHouses(needed);
+  //     raised += await aiMortgageProperties(needed - raised);
 
-      // ── Changed part: use /leave instead of /bankrupt ──
-      if (currentPlayer.balance < 0 && isAIPlayer(currentPlayer)) {
-        toast(`${currentPlayer.username} is bankrupt! Removing AI from the game...`);
-        try {
-         await apiClient.post("/game-players/leave", {
-                  address: currentPlayer.address,
-                  code: game.code,
-                });
-          toast.success(`${currentPlayer.username} has left the game due to bankruptcy!`);
-        } catch (err) {
-          console.error("Failed to remove AI via /leave:", err);
-          toast.error("AI bankruptcy removal failed — game may need manual intervention");
-        }
+  //     // ── Changed part: use /leave instead of /bankrupt ──
+  //     if (currentPlayer.balance < 0 && isAIPlayer(currentPlayer)) {
+  //       toast(`${currentPlayer.username} is bankrupt! Removing AI from the game...`);
+  //       try {
+  //        await apiClient.post("/game-players/leave", {
+  //                 address: currentPlayer.address,
+  //                 code: game.code,
+  //               });
+  //         toast.success(`${currentPlayer.username} has left the game due to bankruptcy!`);
+  //       } catch (err) {
+  //         console.error("Failed to remove AI via /leave:", err);
+  //         toast.error("AI bankruptcy removal failed — game may need manual intervention");
+  //       }
+  //     }
+  //   };
+
+  //   console.log("AI Turn detected, checking for liquidation...", game);
+  //   const timer = setTimeout(liquidateIfNeeded, 3000);
+  //   return () => clearTimeout(timer);
+  // }, [isAITurn, currentPlayer, game_properties, properties, game.id, game]);
+
+useEffect(() => {
+  if (!isAITurn || !currentPlayer) return;
+
+  const handleAITurnBankruptcy = async () => {
+    if (currentPlayer.balance >= 0) return;
+
+    toast(`${currentPlayer.username} is bankrupt ($${currentPlayer.balance}) — processing...`);
+
+    try {
+      // 1. Find which property the AI is currently standing on
+      const landedProperty = game_properties.find(
+        gp => gp.id === currentPlayer.position
+      );
+
+      // 2. Get the owner of that property
+      let creditorAddress: string | null = null;
+      if (landedProperty && landedProperty.address && landedProperty.address !== "bank") {
+        creditorAddress = landedProperty.address;
       }
-    };
 
-    console.log("AI Turn detected, checking for liquidation...", game);
-    const timer = setTimeout(liquidateIfNeeded, 3000);
-    return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer, game_properties, properties, game.id, game]);
+      // 3. Find the actual player object of the creditor
+      const creditorPlayer = creditorAddress
+        ? game.players.find(p => p.address === creditorAddress)
+        : null;
 
+      const bankruptedByHuman =
+        !!creditorPlayer &&
+        !isAIPlayer(creditorPlayer) &&
+        creditorPlayer.address !== currentPlayer.address;
+
+      // ── CASE 1: Bankrupted by a HUMAN player → transfer all AI properties to them ──
+      if (bankruptedByHuman) {
+        toast(
+          `${currentPlayer.username} was bankrupted by ${creditorPlayer!.username}! → Transferring empire...`
+        );
+
+        // Get all properties owned by the bankrupt AI
+        const aiProperties = game_properties.filter(
+          gp => gp.address === currentPlayer.address
+        );
+
+        let successCount = 0;
+
+        for (const prop of aiProperties) {
+          try {
+            await apiClient.post<ApiResponse>("/properties/update", {
+              propertyId: prop.property_id,   // ← important: use property_id, not id
+            });
+            successCount++;
+          } catch (transferErr) {
+            console.error(`Transfer failed for property ${prop.property_id}:`, transferErr);
+          }
+        }
+
+        toast.success(
+          `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer!.username}!`
+        );
+      }
+      // ── CASE 2: Bankrupt for any other reason (tax, other AI, etc.) → return to bank ──
+      else {
+        toast(`${currentPlayer.username} bankrupt — properties returned to bank.`);
+      
+      }
+
+      // 3. Remove the AI player from the game
+      await apiClient.post("/game-players/leave", {
+        address: currentPlayer.address,
+        code: game.code,
+        reason: "bankruptcy",
+      });
+
+      toast.success(`${currentPlayer.username} removed from game.`, { duration: 4000 });
+    } catch (err) {
+      console.error("Bankruptcy handling error:", err);
+      toast.error("AI bankruptcy failed — game might need manual intervention");
+    }
+  };
+
+  console.log(
+    `AI bankruptcy check: ${currentPlayer.username} | Balance: $${currentPlayer.balance} | Pos: ${currentPlayer.position}`
+  );
+
+  const timer = setTimeout(() => {
+    if (currentPlayer.balance < 0) {
+      handleAITurnBankruptcy();
+    }
+  }, 3400); // slightly longer delay for drama + network
+
+  return () => clearTimeout(timer);
+}, [
+  isAITurn,
+  currentPlayer,
+  game_properties,
+  game.code,
+  game.players,
+]);
+  
+  
   // Winner detection (AI removed → human wins in 1v1)
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
