@@ -417,10 +417,10 @@ export default function GamePlayers({
         toast(`${currentPlayer.username} is bankrupt! Removing AI from the game...`);
         try {
           await apiClient.post("/leave", {
-            game_id: game.id,
+            address: currentPlayer.address,
+            game_id: game.code,
             // Add user_id / address if your /leave endpoint requires it:
             // user_id: currentPlayer.user_id,
-            // address: currentPlayer.address,
           });
           toast.success(`${currentPlayer.username} has left the game due to bankruptcy!`);
         } catch (err) {
