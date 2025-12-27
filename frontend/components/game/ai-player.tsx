@@ -478,9 +478,10 @@ useEffect(() => {
 
         for (const prop of aiProperties) {
           try {
-            await apiClient.put<ApiResponse>("/properties/update", {
-              address: creditorPlayer!.address,
-            });
+           await apiClient.put(`/properties/${prop.property_id}`, {
+                            address: creditorPlayer.address,
+                            game_code: game.code
+        });
             successCount++;
           } catch (transferErr) {
             console.error(`Transfer failed for property ${prop.property_id}:`, transferErr);
