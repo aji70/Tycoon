@@ -476,18 +476,41 @@ useEffect(() => {
 
         let successCount = 0;
 
-        for (const prop of aiProperties) {
-          try {
-           await apiClient.put(`/properties/${prop.property_id}`, {
-                            address: creditorPlayer.address,
-                            game_code: game.code
-        });
-            successCount++;
-          } catch (transferErr) {
-            console.error(`Transfer failed for property ${prop.property_id}:`, transferErr);
-          }
-        }
+        // for (const prop of aiProperties) {
+        //   try {
+        //    await apiClient.put(`/properties/${prop.property_id}`, {
+        //                     address: creditorPlayer.address,
+        //                     game_code: game.code
+        // });
+        //     successCount++;
+        //   } catch (transferErr) {
+        //     console.error(`Transfer failed for property ${prop.property_id}:`, transferErr);
+        //   }
+        // }
 
+        for (const prop of aiProperties) {
+  const propertyId = prop.property_id ?? prop.id; // ← be defensive
+
+  try {
+    const response = await apiClient.put<ApiResponse>(
+      `/properties/${propertyId}`,           // try this first
+      // OR: "/properties/update",
+      {
+        id: propertyId,                      // ← many backends want it in body too
+        property_id: propertyId,
+        address: creditorPlayer!.address,
+        game_code: game.code,
+        previous_owner: currentPlayer.address // optional but very helpful for audit
+      }
+    );
+
+    if (!response.data?.success) {
+      console.warn("Transfer not successful:", response.data);
+    }
+  } catch (e: any) {
+    console.error(`Property ${propertyId} transfer failed:`, e.response?.data || e.message);
+  }
+}
         toast.success(
           `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer!.username}!`
         );
