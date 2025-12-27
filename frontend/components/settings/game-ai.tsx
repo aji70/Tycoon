@@ -27,7 +27,7 @@ import {
   useCreateAiGame,
 } from "@/context/ContractProvider";
 
-const ai_address = [
+const ai_addresses = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
   "0xB2EE17D003e63985f3648f6c1d213BE86B474B11",
   "0xC3FF882E779aCbc112165fa1E7fFC093e9353B21",
@@ -77,11 +77,13 @@ export default function PlayWithAI() {
     const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
 
     try {
+      // 1. Create game on-chain
       const onChainGameId = await createAiGame();
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
       toast.update(toastId, { render: "Preparing the battlefield..." });
 
+      // 2. Save game metadata to backend
       const saveRes = await apiClient.post<any>("/games", {
         id: onChainGameId,
         code: gameCode,
@@ -102,36 +104,49 @@ export default function PlayWithAI() {
       });
 
       const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
-      if (!dbGameId) throw new Error("Failed to save game");
+      
+      if (!dbGameId) throw new Error("Failed to save game to database");
 
-      // === FIXED: Proper unique symbol assignment for AIs (TypeScript-safe) ===
-      let availablePieces = [...GamePieces.filter(p => p.id !== settings.symbol)]; // ← Creates mutable copy
-      const assignedSymbols: string[] = [settings.symbol];
+      // ── SYMBOL ASSIGNMENT ────────────────────────────────────────
+      const allPieces = GamePieces.map(p => p.id);
+      const usedSymbols = new Set<string>([settings.symbol]);
+      const availableSymbols = allPieces.filter(id => id !== settings.symbol);
 
+      // Human player
+      await apiClient.post("/game-players/join", {
+        address,
+        symbol: settings.symbol,
+        code: gameCode,
+        is_ai: false,
+      });
+
+      // AI players
       for (let i = 0; i < settings.aiCount; i++) {
-        if (availablePieces.length === 0) {
-          // Fallback: reset pool if somehow depleted (shouldn't happen with 8+ pieces)
-          availablePieces = [...GamePieces];
+        if (availableSymbols.length === 0) {
+          // Very rare fallback - reset available symbols
+          allPieces.forEach(id => {
+            if (!usedSymbols.has(id)) availableSymbols.push(id);
+          });
         }
 
-        const randomIndex = Math.floor(Math.random() * availablePieces.length);
-        const aiSymbol = availablePieces[randomIndex].id;
+        const randomIndex = Math.floor(Math.random() * availableSymbols.length);
+        const aiSymbol = availableSymbols[randomIndex];
 
-        // Remove selected symbol to prevent duplicates
-        availablePieces.splice(randomIndex, 1);
-        // Alternative (also valid): availablePieces = availablePieces.filter(p => p.id !== aiSymbol);
+        // Remove used symbol
+        availableSymbols.splice(randomIndex, 1);
+        usedSymbols.add(aiSymbol);
 
-        assignedSymbols.push(aiSymbol);
-
-        const aiAddress = ai_address[i];
+        const aiAddress = ai_addresses[i];
 
         await apiClient.post("/game-players/join", {
           address: aiAddress,
           symbol: aiSymbol,
           code: gameCode,
+          is_ai: true,
         });
       }
 
+      // 3. Start the game
       await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
 
       toast.update(toastId, {
@@ -143,6 +158,8 @@ export default function PlayWithAI() {
 
       router.push(`/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
+      console.error(err);
+
       if (
         err?.code === 4001 ||
         err?.message?.includes("User rejected") ||
@@ -228,7 +245,10 @@ export default function PlayWithAI() {
                 <FaRobot className="w-6 h-6 text-purple-400" />
                 <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
               </div>
-              <Select value={settings.aiCount.toString()} onValueChange={v => setSettings(p => ({ ...p, aiCount: +v }))}>
+              <Select 
+                value={settings.aiCount.toString()} 
+                onValueChange={v => setSettings(p => ({ ...p, aiCount: Number(v) }))}
+              >
                 <SelectTrigger className="h-12 bg-black/50 border-purple-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -265,7 +285,7 @@ export default function PlayWithAI() {
                 <FaCoins className="w-6 h-6 text-yellow-400" />
                 <h3 className="text-xl font-bold text-yellow-300">Starting Cash</h3>
               </div>
-              <Select value={settings.startingCash.toString()} onValueChange={v => setSettings(p => ({ ...p, startingCash: +v }))}>
+              <Select value={settings.startingCash.toString()} onValueChange={v => setSettings(p => ({ ...p, startingCash: Number(v) }))}>
                 <SelectTrigger className="h-12 bg-black/50 border-yellow-500/60 text-white">
                   <SelectValue />
                 </SelectTrigger>
