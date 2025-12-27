@@ -554,6 +554,27 @@ const gamePlayerController = {
       res.status(200).json({ success: false, message: error.message });
     }
   },
+  async findByAddress(req, res) {
+    try {
+      const { address } = req.params;
+      const { chain } = req.query; // e.g., ?chain=ethereum or ?chain=solana
+
+      if (!address) {
+        return res.status(200).json({ success: false, message: "Address is required" });
+      }
+
+      const user = await User.findByAddress(address, chain || null); // or default chain
+
+      if (!user) {
+        return res.status(200).json({ success: false, message: "User not found" });
+      }
+
+      const players = await GamePlayer.findByUserId(user.id);
+      res.json(players);
+    } catch (error) {
+      res.status(200).json({ success: false, message: error.message });
+    }
+  },
   async update(req, res) {
     try {
       const player = await GamePlayer.update(req.params.id, req.body);
