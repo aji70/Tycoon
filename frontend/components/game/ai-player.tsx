@@ -479,7 +479,7 @@ export default function GamePlayers({
           );
 
           for (const prop of aiProperties) {
-            const propertyId = prop.property_id ?? prop.id;
+            const propertyId = prop.id;
 
             try {
               const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
@@ -503,10 +503,7 @@ export default function GamePlayers({
             const propertyId = prop.property_id ?? prop.id;
 
             try {
-              const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
-                game_id: game.id,
-                player_id: null,
-              });
+              const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`);
 
               if (res.data?.success) successCount++;
             } catch (err) {
