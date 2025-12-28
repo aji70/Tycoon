@@ -422,7 +422,7 @@ export default function GamePlayers({
         player_id: gamePlayerId,
       };
 
-      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
+      const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
 
       if (res.data?.success) {
         toast.success(
