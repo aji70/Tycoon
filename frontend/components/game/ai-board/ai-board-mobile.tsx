@@ -7,9 +7,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import PropertyCardMobile from "./cards/property-card-mobile";
-import SpecialCard from "./cards/special-card";
-import CornerCard from "./cards/corner-card";
+import PropertyCardMobile from "../cards/property-card-mobile"
+import SpecialCard from "../cards/special-card";
+import CornerCard from "../cards/corner-card";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import {
   Game,
