@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import DiceAnimation from "../dice-animation";
+import DiceAnimation from "./dice-animation";
 import RollResult from "../roll-result";
 import ActionLog from "../action-log";
 
