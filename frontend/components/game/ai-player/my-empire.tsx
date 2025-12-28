@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Property } from "@/types/game";
-import { PropertyCard } from "../property-card";
+import { PropertyCard } from "./property-card";
 
 interface MyEmpireProps {
   showEmpire: boolean;

@@ -1,9 +1,9 @@
 "use client";
 
-import GameBoard from "@/components/game/game-board";
+import GameBoard from "@/components/game/board/game-board";
 import GameRoom from "@/components/game/game-room";
-import GamePlayers from "@/components/game/players";
-import MobileGamePlayers from "@/components/game/players-mobile";
+import GamePlayers from "@/components/game/player/players";
+import MobileGamePlayers from "@/components/game/player/players-mobile";
 import { apiClient } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";

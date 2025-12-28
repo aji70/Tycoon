@@ -19,12 +19,12 @@ import {
 import { apiClient } from "@/lib/api";
 
 // Child components
-import BoardSquare from "./ai-board/board-square";
-import CenterArea from "./ai-board/center-area";
+import BoardSquare from "./board-square";
+import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
-import { BankruptcyModal } from "./modals/bankruptcy";
-import { CardModal } from "../game/modals/cards";  
+import { BankruptcyModal } from "../modals/bankruptcy";
+import { CardModal } from "../modals/cards";  
 import { isAIPlayer } from "@/utils/gameUtils";
 
 const MONOPOLY_STATS = {

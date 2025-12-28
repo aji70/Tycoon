@@ -7,14 +7,14 @@ import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import { PlayerList } from "../mobile/player-list";
-import { MyEmpire } from "../mobile/my-empire";
-import { IncomingTrades } from "../mobile/incoming-trades";
-import { PropertyActionModal } from "./modals/property-action";
-import { AiTradePopup } from "./modals/ai-trade";
-import { AiResponsePopup } from "./modals/ai-response-mobile";
-import { TradeModal } from "./modals/trade-mobile";
-import { VictoryModal } from "./modals/victory";
+import { PlayerList } from "../../mobile/player-list";
+import { MyEmpire } from "../../mobile/my-empire";
+import { IncomingTrades } from "../../mobile/incoming-trades";
+import { PropertyActionModal } from "../modals/property-action";
+import { AiTradePopup } from "../modals/ai-trade";
+import { AiResponsePopup } from "../modals/ai-response-mobile";
+import { TradeModal } from "../modals/trade-mobile";
+import { VictoryModal } from "../modals/victory";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 
 interface MobileGameLayoutProps {

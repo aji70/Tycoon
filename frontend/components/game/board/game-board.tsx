@@ -10,9 +10,9 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import PropertyCard from "./cards/property-card";
-import SpecialCard from "./cards/special-card";
-import CornerCard from "./cards/corner-card";
+import PropertyCard from "../cards/property-card";
+import SpecialCard from "../cards/special-card";
+import CornerCard from "../cards/corner-card";
 import {
   Game,
   GameProperty,

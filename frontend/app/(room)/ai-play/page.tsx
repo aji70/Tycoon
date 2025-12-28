@@ -1,10 +1,10 @@
 "use client";
 
-import AiBoard from "@/components/game/ai-board";
+import AiBoard from "@/components/game/ai-board/ai-board";
 import GameRoom from "@/components/game/game-room";
-import GamePlayers from "@/components/game/ai-player";
-import MobileGameLayout from "@/components/game/ai-board-mobile";
-import MobilePlayerLayout from "@/components/game/mobile-player";
+import GamePlayers from "@/components/game/ai-player/ai-player";
+import MobileGameLayout from "@/components/game/ai-board/ai-board-mobile";
+import MobilePlayerLayout from "@/components/game/player/mobile-player";
 
 import { apiClient } from "@/lib/api";
 import { useSearchParams } from "next/navigation";

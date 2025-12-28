@@ -8,17 +8,17 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
-import { PlayerList } from "./ai-player/player-list";
-import { MyEmpire } from "./ai-player/my-empire";
-import { TradeSection } from "./ai-player/trade-section";
-import { PropertyActionModal } from "./modals/property-action";
-import { AiTradePopup } from "./modals/ai-trade";
-import { AiResponsePopup } from "./modals/ai-response";
-import { VictoryModal } from "./modals/victory";
-import { TradeModal } from "./modals/trade";
+import { PlayerList } from "./player-list";
+import { MyEmpire } from "./my-empire";
+import { TradeSection } from "./trade-section";
+import { PropertyActionModal } from "../modals/property-action";
+import { AiTradePopup } from "../modals/ai-trade";
+import { AiResponsePopup } from "../modals/ai-response";
+import { VictoryModal } from "../modals/victory";
+import { TradeModal } from "../modals/trade";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
-import ClaimPropertyModal from "./dev";
+import ClaimPropertyModal from "../dev";
 import { useGameTrades } from "@/hooks/useGameTrades"; // ← New hook
 
 interface GamePlayersProps {
