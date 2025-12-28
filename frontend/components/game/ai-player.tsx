@@ -335,6 +335,39 @@ export default function GamePlayers({
     }
   };
 
+const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
+  // Prevent invalid calls
+  if (!propertyId || !newPlayerId) {
+    toast("Cannot transfer: missing property or player");
+    return;
+  }
+
+  try {
+    const response = await apiClient.put<ApiResponse>(
+      `/game-properties/${propertyId}`,
+      {
+        game_id: game.id,     // ← make sure game is in scope!
+        player_id: newPlayerId
+      }
+    );
+
+    if (response.data?.success) {
+      toast.success("Property transferred successfully! 🎉");
+
+    } else {
+      throw new Error(response.data?.message || "Transfer failed");
+    }
+  } catch (error: any) {
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to transfer property";
+
+    toast.error(message);
+    console.error("Property transfer failed:", error);
+  }
+};
+
   // AI liquidation functions
   const aiSellHouses = async (needed: number) => {
     const improved = game_properties
@@ -422,7 +455,7 @@ export default function GamePlayers({
         player_id: gamePlayerId,
       };
 
-      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
+      const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
 
       if (res.data?.success) {
         toast.success(
@@ -482,15 +515,9 @@ export default function GamePlayers({
             const propertyId = prop.id;
 
             try {
-              // handleClaimProperty(propertyId, me!);
-      const payload = {
-        game_id: game.id,
-        player_id: creditorGamePlayerId,
-      };
+              handleClaimProperty(propertyId, me!);
 
-      const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
-
-      if (res.data?.success) successCount++;
+      if (true) successCount++;
             } catch (err) {
               console.error(`Transfer failed for property ${propertyId}:`, err);
             }
