@@ -720,7 +720,7 @@ export default function GamePlayers({
           targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
         />
 
-        {/* <ClaimPropertyModal
+        <ClaimPropertyModal
           open={claimModalOpen && isDevMode}
           game_properties={game_properties}
           properties={properties}
@@ -730,7 +730,7 @@ export default function GamePlayers({
           onClaim={handleClaimProperty}
           onDelete={handleDeleteGameProperty}
           onTransfer={handlePropertyTransfer}
-        /> */}
+        />
       </AnimatePresence>
     </aside>
   );
