@@ -222,7 +222,6 @@ const AiBoard = ({
     me,
     currentPlayer: currentPlayer ?? null,
     isAITurn,
-    onActionsComplete: () => setAiActionsCompleted(true), // Signal that AI is ready to roll
   });
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
