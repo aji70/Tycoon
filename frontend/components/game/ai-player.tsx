@@ -482,12 +482,8 @@ export default function GamePlayers({
             const propertyId = prop.id;
 
             try {
-              const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
-                game_id: game.id,
-                player_id: creditorGamePlayerId,
-              });
-
-              if (res.data?.success) successCount++;
+              handleClaimProperty(propertyId, me!);
+               successCount++;
             } catch (err) {
               console.error(`Transfer failed for property ${propertyId}:`, err);
             }
