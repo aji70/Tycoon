@@ -1,4 +1,5 @@
 // hooks/useAIAutoActions.ts
+
 import { useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
@@ -25,6 +26,9 @@ const COLOR_GROUPS: Record<string, number[]> = {
   darkblue: [37, 39],
 };
 
+// High-value sets first (classic Monopoly jail landing strategy)
+const BUILD_PRIORITY_COLORS = ["orange", "red", "yellow", "green", "lightblue", "pink", "darkblue", "brown"];
+
 export const useAIAutoActions = ({
   game,
   properties,
@@ -33,50 +37,53 @@ export const useAIAutoActions = ({
   currentPlayer,
   isAITurn,
 }: UseAIAutoActionsProps) => {
-  const isAI = currentPlayer?.username.toLowerCase().includes("ai") || false;
+  const isAI = currentPlayer && (currentPlayer.username.toLowerCase().includes("ai") || currentPlayer.address?.startsWith("0xAI"));
 
-  // Helper: Does AI own full monopoly?
+  // Does AI own full monopoly?
   const hasMonopoly = useCallback((color: string): boolean => {
-    if (!currentPlayer) return false;
     const group = COLOR_GROUPS[color];
-    if (!group) return false;
-
+    if (!group || !currentPlayer) return false;
     return group.every(id =>
-      game_properties.some(gp => gp.property_id === id && gp.address === currentPlayer.address)
+      game_properties.some(gp => gp.property_id === id && gp.address === currentPlayer.address && !gp.mortgaged)
     );
   }, [currentPlayer, game_properties]);
 
-  // Helper: Can build on this property?
+  // Can safely build on this property?
   const canBuildOn = useCallback((gp: GameProperty, prop: Property): boolean => {
-    const color = prop.color;
-    if (!color || !COLOR_GROUPS[color]) return false;
-    return hasMonopoly(color) && !gp.mortgaged && (gp.development ?? 0) < 5;
+    return !!prop.color && hasMonopoly(prop.color) && !gp.mortgaged && (gp.development ?? 0) < 5;
   }, [hasMonopoly]);
 
-  // 1. PRIORITY: Build houses aggressively on monopolies
+  // 1. HIGHEST PRIORITY: Build houses if safe to do so
   const aiBuildHouses = useCallback(async () => {
-    if (!currentPlayer || currentPlayer.balance < 300) return;
+    if (!currentPlayer || !isAI) return;
+
+    const balance = currentPlayer.balance ?? 0;
+    const houseCostThreshold = 400; // Keep at least this much as buffer
+    const minSafeBalance = 600;
+
+    if (balance < minSafeBalance) return;
 
     const buildable = game_properties
-      .filter(gp => gp.address === currentPlayer.address && !gp.mortgaged)
-      .map(gp => ({
-        gp,
-        prop: properties.find(p => p.id === gp.property_id)!,
-      }))
-      .filter(({ prop, gp }) => prop?.cost_of_house && canBuildOn(gp, prop));
+      .filter(gp => gp.address === currentPlayer.address)
+      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id)! }))
+      .filter(({ gp, prop }) => prop?.cost_of_house && canBuildOn(gp, prop));
 
     if (buildable.length === 0) return;
 
-    // Prioritize best sets: orange/red > yellow > green > etc.
-    const priorityOrder = ['orange', 'red', 'yellow', 'green', 'lightblue', 'pink', 'brown', 'darkblue'];
+    // Sort by priority color + even development
     buildable.sort((a, b) => {
-      const aPriority = priorityOrder.indexOf(a.prop.color || '');
-      const bPriority = priorityOrder.indexOf(b.prop.color || '');
-      return aPriority - bPriority;
+      const aPriority = BUILD_PRIORITY_COLORS.indexOf(a.prop.color || "");
+      const bPriority = BUILD_PRIORITY_COLORS.indexOf(b.prop.color || "");
+      if (aPriority !== bPriority) return aPriority - bPriority;
+
+      // Even out houses in same group
+      return (a.gp.development ?? 0) - (b.gp.development ?? 0);
     });
 
     const target = buildable[0];
-    if (currentPlayer.balance < (target.prop.cost_of_house || 0)) return;
+    const houseCost = target.prop.cost_of_house!;
+
+    if (balance - houseCost < houseCostThreshold) return; // Don't go below buffer
 
     try {
       await apiClient.post("/game-properties/development", {
@@ -84,105 +91,62 @@ export const useAIAutoActions = ({
         user_id: currentPlayer.user_id,
         property_id: target.gp.property_id,
       });
-      toast.success(`AI ${currentPlayer.username} built on ${target.prop.name}! 🏠`);
+      toast.success(`${currentPlayer.username} built a house on ${target.prop.name}! 🏠`);
     } catch (err) {
-      console.error("Build failed", err);
+      console.error("AI build failed", err);
     }
-  }, [game.id, currentPlayer, game_properties, properties, canBuildOn]);
+  }, [currentPlayer, game.id, game_properties, properties, canBuildOn, isAI]);
 
-  // 2. Unmortgage valuable properties
-  const aiUnmortgage = useCallback(async () => {
-    if (!currentPlayer || currentPlayer.balance < 800) return;
-
-    const mortgaged = game_properties
-      .filter(gp => gp.address === currentPlayer.address && gp.mortgaged)
-      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id)! }))
-      .filter(item => item.prop?.price);
-
-    if (mortgaged.length === 0) return;
-
-    mortgaged.sort((a, b) => (b.prop.rent_hotel || 0) - (a.prop.rent_hotel || 0));
-
-    const target = mortgaged[0];
-    const cost = Math.floor((target.prop.price / 2) * 1.1);
-    if (currentPlayer.balance < cost) return;
-
-    try {
-      await apiClient.post("/game-properties/unmortgage", {
-        game_id: game.id,
-        user_id: currentPlayer.user_id,
-        property_id: target.gp.property_id,
-      });
-      toast(`AI ${currentPlayer.username} unmortgaged ${target.prop.name}`);
-    } catch (err) {
-      console.error("Unmortgage failed", err);
-    }
-  }, [game.id, currentPlayer, game_properties, properties]);
-
-  // 3. SMART TRADING: Only offer fair deals to complete monopolies
+  // 2. SMART TRADING: Aggressively try to complete monopolies
   const aiSendTradeOffer = useCallback(async () => {
-    if (!currentPlayer || Math.random() > 0.3) return;
+    if (!currentPlayer || !isAI || Math.random() > 0.45) return; // ~55% chance per turn
 
-    const otherPlayers = game.players.filter(
-      p => p.user_id !== currentPlayer.user_id && (p.balance ?? 0) > 200
-    );
-    if (otherPlayers.length === 0) return;
+    const opponents = game.players.filter(p => p.user_id !== currentPlayer.user_id && (p.balance ?? 0) > 150);
+    if (opponents.length === 0) return;
 
-    const targetPlayer = me && Math.random() < 0.7
-      ? me
-      : otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+    const targetPlayer = opponents[Math.floor(Math.random() * opponents.length)];
 
-    const aiOwnedProps = game_properties
-      .filter(gp => gp.address === currentPlayer.address && !gp.mortgaged)
-      .map(gp => properties.find(p => p.id === gp.property_id)!)
-      .filter(Boolean);
-
-    // Find color where AI is 1 property away from monopoly
-    let bestColor: string | null = null;
-    let missingId: number | null = null;
+    // Find best missing property to complete a set
+    let bestMissingProp: Property | null = null;
+    let bestColor = "";
+    let currentOwnedInGroup = 0;
 
     for (const [color, ids] of Object.entries(COLOR_GROUPS)) {
-      const owned = ids.filter(id => aiOwnedProps.some(p => p.id === id)).length;
+      const owned = ids.filter(id =>
+        game_properties.some(gp => gp.property_id === id && gp.address === currentPlayer.address)
+      ).length;
+
       if (owned === ids.length - 1) {
-        const missing = ids.find(id => !aiOwnedProps.some(p => p.id === id));
-        if (missing !== undefined) {
-          const ownedByTarget = game_properties.find(
-            gp => gp.property_id === missing && gp.address === targetPlayer.address
-          );
-          if (ownedByTarget) {
+        const missingId = ids.find(id => !game_properties.some(gp => gp.property_id === id && gp.address === currentPlayer.address));
+        const missingProp = properties.find(p => p.id === missingId);
+        const ownedByTarget = game_properties.find(gp => gp.property_id === missingId && gp.address === targetPlayer.address);
+
+        if (missingProp && ownedByTarget) {
+          const priority = BUILD_PRIORITY_COLORS.indexOf(color);
+          if (!bestMissingProp || priority < BUILD_PRIORITY_COLORS.indexOf(bestColor)) {
+            bestMissingProp = missingProp;
             bestColor = color;
-            missingId = missing;
-            break;
+            currentOwnedInGroup = owned;
           }
         }
       }
     }
 
-    if (!bestColor || missingId === null) return;
+    if (!bestMissingProp) return;
 
-    const desiredProp = properties.find(p => p.id === missingId)!;
+    const desiredPrice = bestMissingProp.price || 200;
+    const cashOffer = Math.round(desiredPrice * (1.1 + Math.random() * 0.3)); // 110–140% value
 
-    // Offer fair value: 100–130% of property price
-    const targetValue = desiredProp.price || 0;
-    const cashOffer = Math.round(targetValue * (1.0 + Math.random() * 0.3));
-
-    // Or add properties to sweeten the deal
-    const offerCandidates = aiOwnedProps
-      .filter(p => p.color && !COLOR_GROUPS[p.color]?.includes(missingId))
-      .sort((a, b) => (b.price || 0) - (a.price || 0));
-
-    const offerProps = offerCandidates.slice(0, cashOffer < targetValue ? 2 : 1);
-
-    const totalOfferValue = offerProps.reduce((sum, p) => sum + (p.price || 0), 0) + cashOffer;
-    if (totalOfferValue < targetValue * 0.95) return; // Don't underpay
+    // Sweeten with extra cash or low-value property
+    const extraCash = currentPlayer.balance > 1000 ? Math.round(Math.random() * 200) : 0;
 
     const payload = {
       game_id: game.id,
       player_id: currentPlayer.user_id,
       target_player_id: targetPlayer.user_id,
-      offer_properties: offerProps.map(p => p.id),
-      offer_amount: cashOffer,
-      requested_properties: [missingId],
+      offer_properties: [],
+      offer_amount: cashOffer + extraCash,
+      requested_properties: [bestMissingProp.id],
       requested_amount: 0,
       status: "pending",
     };
@@ -191,112 +155,75 @@ export const useAIAutoActions = ({
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
       if (res?.data?.success) {
         toast.success(
-          `AI ${currentPlayer.username} offered a fair trade to ${targetPlayer.username} for ${desiredProp.name}!`,
+          `${currentPlayer.username} offered $${cashOffer + extraCash} to ${targetPlayer.username} for ${bestMissingProp.name}! 🎯`,
           { duration: 6000 }
         );
       }
     } catch (err) {
-      console.error("Trade send failed", err);
+      console.error("Trade offer failed", err);
     }
-  }, [game, properties, game_properties, currentPlayer, me]);
+  }, [currentPlayer, game, properties, game_properties, isAI]);
 
-  // 4. Auto-handle incoming trades
-  const aiHandlePendingTrades = useCallback(async () => {
-    if (!currentPlayer) return;
+  // 3. Accept good incoming trades
+  const aiEvaluateIncomingTrades = useCallback(async () => {
+    if (!currentPlayer || !isAI) return;
 
     try {
       const res = await apiClient.get<ApiResponse>(
         `/game-trade-requests?game_id=${game.id}&target_player_id=${currentPlayer.user_id}&status=pending`
       );
-      if (!res?.data?.success || !Array.isArray(res.data.data)) return;
 
-      for (const trade of res.data.data) {
-        const offerValue = (trade.offer_amount || 0) +
-          (trade.offer_properties || []).reduce((sum: number, id: number) => {
-            const p = properties.find(p => p.id === id);
-            return sum + (p?.price || 0);
-          }, 0);
+      const trades = res?.data?.data || [];
+      for (const trade of trades) {
+        const offeredValue = (trade.offer_amount || 0) +
+          (trade.offer_properties || []).reduce((sum: number, id: number) =>
+            sum + (properties.find(p => p.id === id)?.price || 0), 0);
 
-        const requestValue = (trade.requested_amount || 0) +
-          (trade.requested_properties || []).reduce((sum: number, id: number) => {
-            const p = properties.find(p => p.id === id);
-            return sum + (p?.price || 0);
-          }, 0);
+        const requestedValue = (trade.requested_amount || 0) +
+          (trade.requested_properties || []).reduce((sum: number, id: number) =>
+            sum + (properties.find(p => p.id === id)?.price || 0), 0);
 
-        const isGoodDeal = requestValue === 0 || offerValue >= requestValue * 0.9;
+        // AI accepts if getting ≥95% value, or if it completes a monopoly
+        const completesMonopoly = (trade.offer_properties || []).some((id: number) => {
+          const prop = properties.find(p => p.id === id);
+          if (!prop?.color) return false;
+          const group = COLOR_GROUPS[prop.color];
+          return group.length - 1 === group.filter(gid =>
+            game_properties.some(gp => gp.property_id === gid && gp.address === currentPlayer.address)
+          ).length;
+        });
 
-        const sender = game.players.find(p => p.user_id === trade.player_id)?.username || "Someone";
+        const isFair = offeredValue >= requestedValue * 0.95 || completesMonopoly;
 
-        if (isGoodDeal) {
-          await apiClient.post(`/game-trade-requests/${trade.id}/accept`);
-          toast.success(`AI ${currentPlayer.username} accepted great deal from ${sender}!`);
-        } else {
-          await apiClient.post(`/game-trade-requests/${trade.id}/decline`);
-          toast(`AI ${currentPlayer.username} declined weak offer from ${sender}`);
-        }
+        const action = isFair ? "accept" : "decline";
+        await apiClient.post(`/game-trade-requests/${trade.id}/${action}`);
+
+        toast(`${currentPlayer.username} ${isFair ? "accepted ✅" : "declined ❌"} trade from ${game.players.find(p => p.user_id === trade.player_id)?.username}`);
       }
     } catch (err) {
-      console.error("Trade handling failed", err);
+      console.error("Trade evaluation failed", err);
     }
-  }, [game.id, currentPlayer, game.players, properties]);
+  }, [currentPlayer, game, properties, game_properties, isAI]);
 
-  // Liquidation when in debt
-  const aiLiquidate = useCallback(async () => {
-    if (!currentPlayer || currentPlayer.balance >= 0) return;
-
-    toast(`AI ${currentPlayer.username} is broke — liquidating!`);
-    // Sell houses
-    const improved = game_properties.filter(
-      gp => gp.address === currentPlayer.address && (gp.development ?? 0) > 0
-    );
-    for (const gp of improved) {
-      await apiClient.post("/game-properties/downgrade", {
-        game_id: game.id,
-        user_id: currentPlayer.user_id,
-        property_id: gp.property_id,
-      });
-    }
-    // Mortgage remaining
-    const unmortgaged = game_properties.filter(
-      gp => gp.address === currentPlayer.address && !gp.mortgaged && (gp.development ?? 0) === 0
-    );
-    for (const gp of unmortgaged) {
-      await apiClient.post("/game-properties/mortgage", {
-        game_id: game.id,
-        user_id: currentPlayer.user_id,
-        property_id: gp.property_id,
-      });
-    }
-  }, [game.id, currentPlayer, game_properties]);
-
-  // Main AI turn logic
-  const runAITurnActions = useCallback(async () => {
+  // Main AI decision loop
+  const runAITurn = useCallback(async () => {
     if (!isAITurn || !currentPlayer || !isAI) return;
 
-    if (currentPlayer.balance < 0) {
-      await aiLiquidate();
-      return;
-    }
+    // 1. Always check/accept good incoming trades first
+    await aiEvaluateIncomingTrades();
 
-    await aiHandlePendingTrades();
-    await aiBuildHouses();     // Highest priority
-    await aiUnmortgage();
-    await aiSendTradeOffer();  // Only smart, fair offers
-  }, [
-    isAITurn,
-    currentPlayer,
-    isAI,
-    aiLiquidate,
-    aiHandlePendingTrades,
-    aiBuildHouses,
-    aiUnmortgage,
-    aiSendTradeOffer,
-  ]);
+    // 2. Build houses aggressively if safe
+    await aiBuildHouses();
 
+    // 3. Try to trade for missing monopoly pieces
+    await aiSendTradeOffer();
+  }, [isAITurn, currentPlayer, isAI, aiEvaluateIncomingTrades, aiBuildHouses, aiSendTradeOffer]);
+
+  // Run on AI turn with slight delay for natural feel
   useEffect(() => {
     if (isAITurn && currentPlayer && isAI) {
-      const timer = setTimeout(runAITurnActions, 1200);
+      const timer = setTimeout(runAITurn, 1400);
       return () => clearTimeout(timer);
     }
-  }, [isAITurn, currentPlayer?.user_id, runAITurnActions]);
+  }, [isAITurn, currentPlayer?.user_id, runAITurn]);
 };
