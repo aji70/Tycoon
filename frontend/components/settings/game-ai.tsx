@@ -236,6 +236,7 @@ export default function PlayWithAI() {
                   <SelectItem value="1">1 AI</SelectItem>
                   <SelectItem value="2">2 AI</SelectItem>
                   <SelectItem value="3">3 AI</SelectItem>
+                  <SelectItem value="7">7 AI</SelectItem>
                 </SelectContent>
               </Select>
             </div>
