@@ -335,7 +335,7 @@ export default function GamePlayers({
     }
   };
 
-  // AI liquidation
+  // AI liquidation functions
   const aiSellHouses = async (needed: number) => {
     const improved = game_properties
       .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
@@ -405,12 +405,12 @@ export default function GamePlayers({
     return ownedProp?.player_id ?? null;
   };
 
-  // Dev claim function – uses general helper (works if player owns at least one property)
+  // Dev claim function
   const handleClaimProperty = async (propertyId: number, player: Player) => {
     const gamePlayerId = getGamePlayerId(player.address);
 
     if (!gamePlayerId) {
-      toast.error("Cannot claim: unable to determine your game player ID (you may own no properties yet)");
+      toast.error("Cannot claim: unable to determine your game player ID");
       return;
     }
 
@@ -442,34 +442,19 @@ export default function GamePlayers({
     }
   };
 
-  // Combined AI broke handling: liquidation then conditional bankruptcy
+  // Immediate AI liquidation + bankruptcy when balance goes negative
   useEffect(() => {
-    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 200) return;
+    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
 
-    const handleAiBroke = async () => {
-      const initialBalance = currentPlayer.balance;
-      toast(`${currentPlayer.username} is low on cash ($${initialBalance}) — attempting to liquidate assets!`);
+    const handleAiBankruptImmediately = async () => {
+      toast(`${currentPlayer.username} cannot pay and is bankrupt! Liquidating immediately...`);
 
-      const needed = Math.max(600, 200 - initialBalance);
+      // Liquidate everything possible
+      await aiSellHouses(Infinity); // Sell all houses
+      await aiMortgageProperties(Infinity); // Mortgage all eligible properties
 
-      let raised = 0;
-      raised += await aiSellHouses(needed);
-      raised += await aiMortgageProperties(needed - raised);
-
-      // Compute estimated new balance (assuming API calls updated backend)
-      // Note: Frontend state may not reflect yet, so use this to decide
-      const estimatedNewBalance = initialBalance + raised;
-
-      if (estimatedNewBalance >= 0) {
-        toast.success(`${currentPlayer.username} raised $${raised} and stays in the game! New est. balance: $${estimatedNewBalance}`);
-        return; // Skip bankruptcy
-      }
-
-      // If still negative, proceed to bankruptcy
-      toast(`${currentPlayer.username} still bankrupt after liquidation (est. $${estimatedNewBalance}) — processing bankruptcy...`);
-
+      // Now proceed directly to bankruptcy (no chance to recover)
       try {
-        // Find the property the AI landed on
         const landedProperty = game_properties.find(gp => gp.id === currentPlayer.position);
 
         const creditorAddress = landedProperty?.address && landedProperty.address !== "bank" 
@@ -487,21 +472,22 @@ export default function GamePlayers({
         let successCount = 0;
 
         if (bankruptedByHuman && landedProperty?.player_id) {
-          // CRITICAL FIX: Use player_id directly from the landed-on property
-          // This is guaranteed to be correct because rent was charged
           const creditorGamePlayerId = landedProperty.player_id;
 
           toast(
-            `${currentPlayer.username} bankrupted by ${creditorPlayer!.username} — transferring properties...`
+            `${currentPlayer.username} bankrupted by ${creditorPlayer!.username} — transferring all properties...`
           );
 
           for (const prop of aiProperties) {
             const propertyId = prop.property_id ?? prop.id;
 
             try {
-              console.log(`Transferring property ${propertyId} to creditor player ID ${creditorPlayer}`);
-              handleClaimProperty(propertyId, creditorPlayer!);
-             successCount++;
+              const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
+                game_id: game.id,
+                player_id: creditorGamePlayerId,
+              });
+
+              if (res.data?.success) successCount++;
             } catch (err) {
               console.error(`Transfer failed for property ${propertyId}:`, err);
             }
@@ -511,8 +497,7 @@ export default function GamePlayers({
             `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer!.username}!`
           );
         } else {
-          // Return to bank (no human creditor)
-          toast(`${currentPlayer.username} bankrupt — properties returned to bank.`);
+          toast(`${currentPlayer.username} bankrupt — all properties returned to bank.`);
 
           for (const prop of aiProperties) {
             const propertyId = prop.property_id ?? prop.id;
@@ -532,23 +517,23 @@ export default function GamePlayers({
           toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
         }
 
-        // Remove AI player from game
+        // Remove AI from game
         await apiClient.post("/game-players/leave", {
           address: currentPlayer.address,
           code: game.code,
           reason: "bankruptcy",
         });
 
-        toast.success(`${currentPlayer.username} removed from game.`, { duration: 4000 });
+        toast.success(`${currentPlayer.username} has been removed from the game.`, { duration: 5000 });
       } catch (err: any) {
-        console.error("Bankruptcy handling failed:", err);
-        toast.error("AI bankruptcy processing failed", { duration: 6000 });
+        console.error("Immediate bankruptcy handling failed:", err);
+        toast.error("AI bankruptcy failed", { duration: 6000 });
       }
     };
 
-    const timer = setTimeout(handleAiBroke, 3000);
-    return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer, game_properties, properties, game.id, game.code, game.players]);
+    // Trigger immediately — no delay
+    handleAiBankruptImmediately();
+  }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
 
   // Winner detection (1v1 human vs AI)
   useEffect(() => {
