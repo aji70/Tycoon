@@ -368,6 +368,22 @@ const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) =
   }
 };
 
+const handleDeleteGameProperty = async (id: number) => {
+    if (!id) return;
+    try {
+    
+      const res = await apiClient.delete<ApiResponse>(`/game-properties/${id}`, {
+        data: {
+          game_id: game.id,
+        }
+      });
+      if (res?.data?.success) toast.success("Property returned to bank successfully");
+      else toast.error(res.data?.message ?? "Failed to return property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to return property");
+    }
+}
+
   // AI liquidation functions
   const aiSellHouses = async (needed: number) => {
     const improved = game_properties
@@ -455,7 +471,7 @@ const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) =
         player_id: gamePlayerId,
       };
 
-      const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
+      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
 
       if (res.data?.success) {
         toast.success(
@@ -745,6 +761,8 @@ const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) =
           game={game}
           onClose={() => setClaimModalOpen(false)}
           onClaim={handleClaimProperty}
+          onDelete={handleDeleteGameProperty}
+          onTransfer={handlePropertyTransfer}
         />
       </AnimatePresence>
     </aside>
@@ -760,6 +778,8 @@ interface ClaimPropertyModalProps {
   game: Game;
   onClose: () => void;
   onClaim: (propertyId: number, player: Player) => Promise<unknown>;
+  onDelete: (id: number) => Promise<void>;
+  onTransfer: (propertyId: number, newPlayerId: number) => Promise<void>;
 }
 
 function ClaimPropertyModal({
@@ -770,19 +790,23 @@ function ClaimPropertyModal({
   game,
   onClose,
   onClaim,
+  onDelete,
+  onTransfer,
 }: ClaimPropertyModalProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [targetPlayerId, setTargetPlayerId] = useState<number | null>(null);
 
   if (!open || !me) return null;
 
   const claimable = game_properties
-    .filter(gp => gp.address !== me?.address && gp.address !== "bank" && gp.property_id)
     .map(gp => ({
       ...gp,
       base: properties.find(p => p.id === gp.property_id),
     }))
     .filter((gp): gp is typeof gp & { base: Property } => !!gp.base)
     .sort((a, b) => (b.base.price || 0) - (a.base.price || 0));
+
+  const selected = selectedId ? claimable.find(gp => gp.id === selectedId) : null;
 
   return (
     <motion.div
@@ -818,7 +842,8 @@ function ClaimPropertyModal({
             </div>
           ) : (
             claimable.map(({ id, base, address }) => {
-              const currentOwner = game.players.find(p => p.address === address);
+              const currentOwner = game.players.find(p => p.address === address) ||
+                (address === "bank" ? { username: "Bank" } : { username: address?.slice(0, 8) + "..." });
               const isSelected = selectedId === id;
 
               return (
@@ -838,7 +863,7 @@ function ClaimPropertyModal({
                         ${base.price?.toLocaleString() || "—"}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
-                        Current: {currentOwner?.username || address?.slice(0, 8) + "..."}
+                        Current: {currentOwner?.username}
                       </div>
                     </div>
                     <div className={`text-2xl ${isSelected ? "text-cyan-400" : "text-gray-600"}`}>
@@ -851,20 +876,46 @@ function ClaimPropertyModal({
           )}
         </div>
 
-        <div className="p-6 border-t border-gray-800 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => selectedId && me && onClaim(selectedId, me)}
-            disabled={!selectedId}
-            className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Claim Selected Property
-          </button>
+        <div className="p-6 border-t border-gray-800 space-y-4">
+          {selected && (
+            <>
+              <h3 className="text-lg font-semibold text-white">Actions for {selected.base.name}</h3>
+              <button
+                className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-white font-semibold"
+                onClick={() => onClaim(selected.id, me)}
+              >
+                Claim to Self
+              </button>
+              <button
+                className="w-full py-3 bg-red-600 hover:bg-red-500 rounded-xl text-white font-semibold"
+                onClick={() => onDelete(selected.id)}
+              >
+                Delete (Return to Bank)
+              </button>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Transfer to:</label>
+                <select
+                  value={targetPlayerId ?? ""}
+                  onChange={(e) => setTargetPlayerId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full bg-gray-800 p-3 rounded-xl border border-gray-700 text-white"
+                >
+                  <option value="">Select player</option>
+                  {game.players.map((player) => (
+                    <option key={player.user_id} value={player.user_id}>
+                      {player.username} ({player.address?.slice(0, 6)}...)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={!targetPlayerId}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-semibold disabled:opacity-50"
+                  onClick={() => targetPlayerId && onTransfer(selected.id, targetPlayerId)}
+                >
+                  Transfer to Selected
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </motion.div>
     </motion.div>
