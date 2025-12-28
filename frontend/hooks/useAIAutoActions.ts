@@ -179,55 +179,111 @@ export const useAIAutoActions = ({
     }
   }, [game.id, game_properties, properties, currentPlayer]);
 
+  function findBestColorToComplete(
+  aiProps: Property[],
+  allProps: Property[],
+  gameProps: GameProperty[],
+  aiPlayer: Player
+): number[] | null {
+  const colorGroups = {
+    brown: [1, 3],
+    lightblue: [6, 8, 9],
+    pink: [11, 13, 14],
+    orange: [16, 18, 19],
+    red: [21, 23, 24],
+    yellow: [26, 27, 29],
+    green: [31, 32, 34],
+    darkblue: [37, 39],
+  };
+
+  let bestGroup: number[] | null = null;
+  let mostOwned = 0;
+
+  for (const group of Object.values(colorGroups)) {
+    const ownedInGroup = group.filter(id => 
+      aiProps.some(p => p.id === id)
+    ).length;
+
+    if (ownedInGroup > mostOwned && ownedInGroup < group.length) {
+      mostOwned = ownedInGroup;
+      bestGroup = group;
+    }
+  }
+
+  // Prefer groups where AI has 2 out of 3
+  if (mostOwned >= 2) return bestGroup;
+  if (mostOwned === 1) return bestGroup; // fallback
+  return null;
+}
+
   // 5. AI Sends Trade Offer to Human
   const aiSendTradeOffer = useCallback(async () => {
-    if (!currentPlayer || !me || Math.random() > 0.35) return; // ~35% chance per turn
+  if (!currentPlayer || !me || Math.random() > 0.25) return; // reduce frequency a bit
 
-    // AI offers: one of its properties + some cash for one of human's good properties
-    const aiOwned = game_properties.filter(
-      (gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
+  const aiOwned = game_properties
+    .filter(gp => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase() && !gp.mortgaged)
+    .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id)! }))
+    .filter(item => item.prop.price);
+
+  const humanOwned = game_properties
+    .filter(gp => gp.address?.toLowerCase() === me.address?.toLowerCase() && !gp.mortgaged)
+    .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id)! }))
+    .filter(item => item.prop.price);
+
+  if (aiOwned.length < 1 || humanOwned.length < 1) return;
+
+  // Goal: AI wants to complete a monopoly it’s close to
+  const targetColor = findBestColorToComplete(aiOwned.map(o => o.prop), properties, game_properties, currentPlayer);
+
+  if (!targetColor) return;
+
+  const missingProps = targetColor.filter(id => 
+    !aiOwned.some(o => o.prop.id === id)
+  );
+
+  if (missingProps.length === 0) return; // already has monopoly
+
+  // Pick one missing property that human owns
+  const desiredProp = humanOwned.find(h => missingProps.includes(h.prop.id));
+  if (!desiredProp) return;
+
+  // Offer 1–2 properties + cash to get that one key property
+  // Choose decent (not cheapest) properties to offer
+  const offerCandidates = aiOwned
+    .filter(a => !targetColor.includes(a.prop.id)) // don't offer from same color
+    .sort((a, b) => b.prop.price - a.prop.price); // better ones first
+
+  const offerProps = offerCandidates.slice(0, Math.random() > 0.5 ? 2 : 1); // 1 or 2 props
+  const baseCash = desiredProp.prop.price * 0.6; // offer ~60% of value in cash
+  const cashOffer = Math.round(baseCash + Math.random() * 150);
+
+  const totalOfferValue = offerProps.reduce((sum, o) => sum + o.prop.price, 0) + cashOffer;
+  const targetValue = desiredProp.prop.price;
+
+  // Only send if AI is offering at least 90% of value (slightly bad for human = tempting)
+  if (totalOfferValue < targetValue * 0.9) return;
+
+  const payload = {
+    game_id: game.id,
+    player_id: currentPlayer.user_id,
+    target_player_id: me.user_id,
+    offer_properties: offerProps.map(o => o.gp.property_id),
+    offer_amount: cashOffer,
+    requested_properties: [desiredProp.gp.property_id],
+    requested_amount: 0,
+    status: "pending",
+  };
+
+  try {
+    await apiClient.post<ApiResponse>("/game-trade-requests", payload);
+    toast.success(
+      `AI ${currentPlayer.username} sent a trade offer for ${desiredProp.prop.name}!`,
+      { duration: 6000 }
     );
-    const humanOwned = game_properties.filter(
-      (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
-    );
-
-    if (aiOwned.length === 0 || humanOwned.length === 0) return;
-
-    // Pick AI's cheapest property to offer
-    const aiOfferProp = aiOwned
-      .map((gp) => ({ gp, prop: properties.find((p) => p.id === gp.property_id) }))
-      .sort((a, b) => (a.prop?.price || 0) - (b.prop?.price || 0))[0];
-
-    // Pick human's most expensive property to request
-    const humanTarget = humanOwned
-      .map((gp) => ({ gp, prop: properties.find((p) => p.id === gp.property_id) }))
-      .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0))[0];
-
-    if (!aiOfferProp || !humanTarget) return;
-
-    const payload = {
-      game_id: game.id,
-      player_id: currentPlayer.user_id,
-      target_player_id: me.user_id,
-      offer_properties: [aiOfferProp.gp.property_id],
-      offer_amount: 200 + Math.floor(Math.random() * 200), // $200–400
-      requested_properties: [humanTarget.gp.property_id],
-      requested_amount: 0,
-      status: "pending",
-    };
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-      if (res?.data?.success) {
-        toast.success(
-          `AI ${currentPlayer.username} sent you a trade offer! Check the Trade section.`,
-          { duration: 6000 }
-        );
-      }
-    } catch (err) {
-      console.error("AI failed to send trade", err);
-    }
-  }, [game.id, game_properties, properties, currentPlayer, me]);
+  } catch (err) {
+    console.error("Trade send failed", err);
+  }
+}, [game.id, game_properties, properties, currentPlayer, me]);
 
   // Main AI Turn Logic
   const runAITurnActions = useCallback(async () => {
