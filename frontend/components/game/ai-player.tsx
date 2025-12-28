@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import { useAccount } from "wagmi";
@@ -19,6 +19,7 @@ import { TradeModal } from "./modals/trade";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
 import ClaimPropertyModal from "./dev";
+import { useGameTrades } from "@/hooks/useGameTrades"; // ← New hook
 
 interface GamePlayersProps {
   game: Game;
@@ -45,8 +46,6 @@ export default function GamePlayers({
 
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
-  const [openTrades, setOpenTrades] = useState<any[]>([]);
-  const [tradeRequests, setTradeRequests] = useState<any[]>([]);
   const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
     open: false,
     target: null,
@@ -55,7 +54,6 @@ export default function GamePlayers({
     open: false,
     trade: null,
   });
-  const [aiTradePopup, setAiTradePopup] = useState<any | null>(null);
   const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
 
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
@@ -72,8 +70,6 @@ export default function GamePlayers({
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
 
-  const processedAiTradeIds = useRef<Set<number>>(new Set());
-
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
   const onChainGameId = contractGame?.id;
   const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
@@ -88,6 +84,19 @@ export default function GamePlayers({
   const isNext = !!me && game.next_player_id === me.user_id;
 
   const [claimModalOpen, setClaimModalOpen] = useState(false);
+
+  // Extracted trade logic via hook
+  const {
+    openTrades,
+    tradeRequests,
+    aiTradePopup,
+    closeAiTradePopup,
+    refreshTrades,
+  } = useGameTrades({
+    gameId: game?.id,
+    myUserId: me?.user_id,
+    players: game?.players ?? [],
+  });
 
   const resetTradeFields = () => {
     setOfferCash(0);
@@ -117,48 +126,6 @@ export default function GamePlayers({
     [game?.players]
   );
 
-  const fetchTrades = useCallback(async () => {
-    if (!me || !game?.id) return;
-    try {
-      const [_initiated, _incoming] = await Promise.all([
-        apiClient.get<ApiResponse>(`/game-trade-requests/my/${game.id}/player/${me.user_id}`),
-        apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`),
-      ]);
-      const initiated = _initiated.data?.data || [];
-      const incoming = _incoming.data?.data || [];
-      setOpenTrades(initiated);
-      setTradeRequests(incoming);
-
-      const pendingAiTrades = incoming.filter((t: any) => {
-        if (t.status !== "pending") return false;
-        if (processedAiTradeIds.current.has(t.id)) return false;
-
-        const fromPlayer = game.players.find((p: Player) => p.user_id === t.player_id);
-        return fromPlayer && isAIPlayer(fromPlayer);
-      });
-
-      if (pendingAiTrades.length > 0) {
-        const trade = pendingAiTrades[0];
-        setAiTradePopup(trade);
-        processedAiTradeIds.current.add(trade.id);
-      }
-    } catch (err) {
-      console.error("Error loading trades:", err);
-      toast.error("Failed to load trades");
-    }
-  }, [me, game?.id, game.players]);
-
-  useEffect(() => {
-    if (!me || !game?.id) return;
-    const interval = setInterval(fetchTrades, 5000);
-    fetchTrades();
-    return () => clearInterval(interval);
-  }, [fetchTrades]);
-
-  useEffect(() => {
-    processedAiTradeIds.current.clear();
-  }, [game?.id]);
-
   const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
 
@@ -182,7 +149,7 @@ export default function GamePlayers({
         toast.success("Trade sent successfully!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
-        fetchTrades();
+        refreshTrades(); // ← Use hook's refresh
 
         if (isAI) {
           const sentTrade = {
@@ -211,7 +178,7 @@ export default function GamePlayers({
           if (decision === "accepted") {
             await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
             toast.success("AI accepted your trade instantly! 🎉");
-            fetchTrades();
+            refreshTrades();
           }
 
           setAiResponsePopup({
@@ -247,8 +214,8 @@ export default function GamePlayers({
       );
       if (res?.data?.success) {
         toast.success(`Trade ${action}`);
-        setAiTradePopup(null);
-        fetchTrades();
+        closeAiTradePopup();
+        refreshTrades();
       }
     } catch (error) {
       toast.error("Failed to update trade");
@@ -270,7 +237,7 @@ export default function GamePlayers({
         toast.success("Counter offer sent");
         setCounterModal({ open: false, trade: null });
         resetTradeFields();
-        fetchTrades();
+        refreshTrades();
       }
     } catch (error) {
       toast.error("Failed to send counter trade");
@@ -496,19 +463,15 @@ export default function GamePlayers({
     const handleAiLiquidationAndPossibleBankruptcy = async () => {
       toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
 
-      // Liquidate to raise money
       const raisedFromHouses = await aiSellHouses(Infinity);
       const raisedFromMortgages = await aiMortgageProperties(Infinity);
       const totalRaised = raisedFromHouses + raisedFromMortgages;
 
-      // Check if AI survived after raising funds
-      // Note: currentPlayer.balance should be updated by backend after each downgrade/mortgage
       if (currentPlayer.balance >= 0) {
         toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`);
-        return; // Survived — do NOT remove from game
+        return;
       }
 
-      // Still bankrupt → proceed with elimination
       toast(`${currentPlayer.username} still cannot pay — bankrupt!`);
 
       try {
@@ -538,7 +501,6 @@ export default function GamePlayers({
 
           if (!creditorRealPlayerId) {
             toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
-            // Fallback: return to bank
             for (const prop of aiProperties) {
               await handleDeleteGameProperty(prop.id);
               successCount++;
@@ -572,7 +534,6 @@ export default function GamePlayers({
           toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
         }
 
-        // Remove AI from game
         await apiClient.post("/game-players/leave", {
           address: currentPlayer.address,
           code: game.code,
@@ -700,7 +661,7 @@ export default function GamePlayers({
         <AiTradePopup
           trade={aiTradePopup}
           properties={properties}
-          onClose={() => setAiTradePopup(null)}
+          onClose={closeAiTradePopup}
           onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
           onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
           onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
@@ -774,4 +735,3 @@ export default function GamePlayers({
     </aside>
   );
 }
-
