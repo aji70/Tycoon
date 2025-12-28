@@ -27,7 +27,7 @@ import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";  
 import { isAIPlayer } from "@/utils/gameUtils";
 
-// NEW: Import the AI actions hook
+// Import the AI actions hook
 import { useAIAutoActions } from "@/hooks/useAIAutoActions";
 
 const MONOPOLY_STATS = {
@@ -165,11 +165,10 @@ const AiBoard = ({
 
   const currentPlayerId = game.next_player_id ?? -1;
 
-
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
-const isMyTurn = me?.user_id === currentPlayerId;
-const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
+  const isMyTurn = me?.user_id === currentPlayerId;
+  const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
@@ -207,15 +206,15 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
     return calculateBuyScore(justLandedProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, game_properties, properties]);
 
-  // NEW: Use the AI auto-actions hook (runs smart checks before roll)
-useAIAutoActions({
-  game,
-  properties,
-  game_properties,
-  me,
-  currentPlayer: currentPlayer ?? null,  
-  isAITurn,
-});
+  // CORRECTED: No extra 'players' prop — hook uses game.players internally
+  useAIAutoActions({
+    game,
+    properties,
+    game_properties,
+    me,
+    currentPlayer: currentPlayer ?? null,
+    isAITurn,
+  });
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
     return (
@@ -412,7 +411,7 @@ useAIAutoActions({
     showToast, END_TURN
   ]);
 
-  // AI auto-roll (now after auto-actions hook has run)
+  // AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
     ROLL_DICE(true);
@@ -539,7 +538,7 @@ useAIAutoActions({
     return () => clearTimeout(timer);
   }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
 
-  // Players grouped by position (only one declaration)
+  // Players grouped by position
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
@@ -592,7 +591,7 @@ useAIAutoActions({
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
-        <div className="w-full bg-[#010F10] aspect-square aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+        <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
             <CenterArea
               isMyTurn={isMyTurn}
