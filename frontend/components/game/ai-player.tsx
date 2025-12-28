@@ -795,10 +795,11 @@ function ClaimPropertyModal({
 }: ClaimPropertyModalProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [targetPlayerId, setTargetPlayerId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"claim" | "delete" | "transfer">("claim");
 
   if (!open || !me) return null;
 
-  const claimable = game_properties
+  const allProperties = game_properties
     .map(gp => ({
       ...gp,
       base: properties.find(p => p.id === gp.property_id),
@@ -806,116 +807,187 @@ function ClaimPropertyModal({
     .filter((gp): gp is typeof gp & { base: Property } => !!gp.base)
     .sort((a, b) => (b.base.price || 0) - (a.base.price || 0));
 
-  const selected = selectedId ? claimable.find(gp => gp.id === selectedId) : null;
+  const selected = selectedId ? allProperties.find(gp => gp.id === selectedId) : null;
+
+  const currentOwner = selected
+    ? game.players.find(p => p.address === selected.address) ||
+      (selected.address === "bank" ? { username: "Bank" } : { username: selected.address?.slice(0, 8) + "..." })
+    : null;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 40, opacity: 0 }}
-        className="bg-gray-900/95 border border-cyan-600/40 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden"
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-gray-900 border border-cyan-500/50 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl shadow-cyan-500/20"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-cyan-800/30">
+        {/* Header */}
+        <div className="p-6 border-b border-cyan-800/40 bg-gradient-to-r from-cyan-900/20 to-purple-900/20">
           <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-cyan-300">DEV: Claim Property</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">
+            <div>
+              <h2 className="text-3xl font-bold text-cyan-300">DEV Tools: Property Control</h2>
+              <p className="text-cyan-400/70 text-sm mt-1">Select a property and choose an action</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white text-3xl font-light transition"
+            >
               ×
             </button>
           </div>
-          <p className="text-cyan-400/70 text-sm mt-1">
-            Force transfer any property to yourself
-          </p>
         </div>
 
-        <div className="p-6 max-h-[55vh] overflow-y-auto space-y-3">
-          {claimable.length === 0 ? (
-            <div className="text-center py-10 text-gray-500">
-              No claimable properties found
-            </div>
-          ) : (
-            claimable.map(({ id, base, address }) => {
-              const currentOwner = game.players.find(p => p.address === address) ||
-                (address === "bank" ? { username: "Bank" } : { username: address?.slice(0, 8) + "..." });
-              const isSelected = selectedId === id;
+        <div className="flex flex-col lg:flex-row h-full">
+          {/* Left: Property List */}
+          <div className="w-full lg:w-1/2 p-6 border-b lg:border-b-0 lg:border-r border-cyan-800/30 overflow-y-auto max-h-[60vh] lg:max-h-none">
+            <h3 className="text-lg font-semibold text-white mb-4">Select Property</h3>
+            {allProperties.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">No properties in game</div>
+            ) : (
+              <div className="space-y-3">
+                {allProperties.map(({ id, base, address }) => {
+                  const owner = game.players.find(p => p.address === address) ||
+                    (address === "bank" ? { username: "Bank" } : { username: address?.slice(0, 8) + "..." });
+                  const isSelected = selectedId === id;
 
-              return (
-                <button
-                  key={id}
-                  onClick={() => setSelectedId(id)}
-                  className={`w-full p-4 rounded-xl border transition-all ${
-                    isSelected
-                      ? "border-cyan-400 bg-cyan-950/40"
-                      : "border-gray-700 hover:border-cyan-700/50 bg-gray-800/30"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-semibold text-lg text-white">{base.name}</div>
-                      <div className="text-sm text-cyan-300 mt-1">
-                        ${base.price?.toLocaleString() || "—"}
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setSelectedId(id);
+                        setTargetPlayerId(null); // reset transfer target
+                      }}
+                      className={`w-full p-5 rounded-xl border-2 text-left transition-all ${
+                        isSelected
+                          ? "border-cyan-400 bg-cyan-900/30 shadow-lg shadow-cyan-500/30 scale-105"
+                          : "border-gray-700 hover:border-cyan-600/70 bg-gray-800/40"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-bold text-xl text-white">{base.name}</div>
+                          <div className="text-cyan-300 mt-1">Price: ${base.price?.toLocaleString()}</div>
+                          <div className="text-sm text-gray-400 mt-2">
+                            Owner: <span className="text-cyan-200">{owner?.username}</span>
+                          </div>
+                        </div>
+                        {isSelected && <span className="text-3xl text-cyan-400">✓</span>}
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        Current: {currentOwner?.username}
-                      </div>
-                    </div>
-                    <div className={`text-2xl ${isSelected ? "text-cyan-400" : "text-gray-600"}`}>
-                      {isSelected ? "✓" : "→"}
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div className="p-6 border-t border-gray-800 space-y-4">
-          {selected && (
-            <>
-              <h3 className="text-lg font-semibold text-white">Actions for {selected.base.name}</h3>
-              <button
-                className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-white font-semibold"
-                onClick={() => onClaim(selected.id, me)}
-              >
-                Claim to Self
-              </button>
-              <button
-                className="w-full py-3 bg-red-600 hover:bg-red-500 rounded-xl text-white font-semibold"
-                onClick={() => onDelete(selected.id)}
-              >
-                Delete (Return to Bank)
-              </button>
-              <div className="space-y-2">
-                <label className="text-sm text-gray-300">Transfer to:</label>
-                <select
-                  value={targetPlayerId ?? ""}
-                  onChange={(e) => setTargetPlayerId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full bg-gray-800 p-3 rounded-xl border border-gray-700 text-white"
-                >
-                  <option value="">Select player</option>
-                  {game.players.map((player) => (
-                    <option key={player.user_id} value={player.user_id}>
-                      {player.username} ({player.address?.slice(0, 6)}...)
-                    </option>
-                  ))}
-                </select>
-                <button
-                  disabled={!targetPlayerId}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-semibold disabled:opacity-50"
-                  onClick={() => targetPlayerId && onTransfer(selected.id, targetPlayerId)}
-                >
-                  Transfer to Selected
-                </button>
+                    </button>
+                  );
+                })}
               </div>
-            </>
-          )}
+            )}
+          </div>
+
+          {/* Right: Actions */}
+          <div className="w-full lg:w-1/2 p-6 bg-gray-850/50">
+            {!selected ? (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                <p className="text-xl">← Select a property to see actions</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Selected Property Preview */}
+                <div className="p-5 bg-gradient-to-br from-cyan-900/30 to-purple-900/30 rounded-xl border border-cyan-600/50">
+                  <h4 className="text-xl font-bold text-white">{selected.base.name}</h4>
+                  <p className="text-cyan-300">Price: ${selected.base.price?.toLocaleString()}</p>
+                  <p className="text-sm text-gray-300 mt-2">
+                    Current owner: <span className="text-cyan-200 font-medium">{currentOwner?.username}</span>
+                  </p>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-2 border-b border-gray-700">
+                  <button
+                    onClick={() => setActiveTab("claim")}
+                    className={`px-6 py-3 font-medium transition ${
+                      activeTab === "claim"
+                        ? "text-cyan-300 border-b-3 border-cyan-300"
+                        : "text-gray-500 hover:text-white"
+                    }`}
+                  >
+                    Claim to Self
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("delete")}
+                    className={`px-6 py-3 font-medium transition ${
+                      activeTab === "delete"
+                        ? "text-red-400 border-b-3 border-red-400"
+                        : "text-gray-500 hover:text-white"
+                    }`}
+                  >
+                    Return to Bank
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("transfer")}
+                    className={`px-6 py-3 font-medium transition ${
+                      activeTab === "transfer"
+                        ? "text-purple-400 border-b-3 border-purple-400"
+                        : "text-gray-500 hover:text-white"
+                    }`}
+                  >
+                    Transfer
+                  </button>
+                </div>
+
+                {/* Action Content */}
+                <div className="mt-6">
+                  {activeTab === "claim" && (
+                    <button
+                      onClick={() => onClaim(selected.id, me)}
+                      className="w-full py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 rounded-xl text-white font-bold text-lg shadow-lg shadow-cyan-600/30 transition transform hover:scale-105"
+                    >
+                      Claim {selected.base.name} for Yourself
+                    </button>
+                  )}
+
+                  {activeTab === "delete" && (
+                    <button
+                      onClick={() => onDelete(selected.id)}
+                      className="w-full py-4 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 rounded-xl text-white font-bold text-lg shadow-lg shadow-red-600/30 transition transform hover:scale-105"
+                    >
+                      Return {selected.base.name} to Bank
+                    </button>
+                  )}
+
+                  {activeTab === "transfer" && (
+                    <div className="space-y-4">
+                      <select
+                        value={targetPlayerId ?? ""}
+                        onChange={(e) => setTargetPlayerId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full bg-gray-800 p-4 rounded-xl border border-gray-600 text-white focus:border-purple-500 focus:outline-none transition"
+                      >
+                        <option value="">Choose target player...</option>
+                        {game.players
+                          .filter(p => p.user_id !== me.user_id) // optional: exclude self
+                          .map((player) => (
+                            <option key={player.user_id} value={player.user_id}>
+                              {player.username} ({player.address?.slice(0, 6)}...{player.address?.slice(-4)})
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        disabled={!targetPlayerId}
+                        onClick={() => targetPlayerId && onTransfer(selected.id, targetPlayerId)}
+                        className="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 disabled:from-gray-700 disabled:to-gray-600 disabled:cursor-not-allowed rounded-xl text-white font-bold text-lg shadow-lg shadow-purple-600/30 transition transform hover:scale-105 disabled:hover:scale-100"
+                      >
+                        Transfer to Selected Player
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
     </motion.div>
