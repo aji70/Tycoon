@@ -147,6 +147,9 @@ const AiBoard = ({
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
 
+  // NEW: Track whether AI has finished pre-roll actions
+  const [aiActionsCompleted, setAiActionsCompleted] = useState(false);
+
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
     type: "chance" | "community";
@@ -206,7 +209,12 @@ const AiBoard = ({
     return calculateBuyScore(justLandedProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, game_properties, properties]);
 
-  // CORRECTED: No extra 'players' prop — hook uses game.players internally
+  // Reset AI action flag when turn changes
+  useEffect(() => {
+    setAiActionsCompleted(false);
+  }, [currentPlayerId]);
+
+  // AI pre-roll actions (evaluate trades, build houses, send offers)
   useAIAutoActions({
     game,
     properties,
@@ -214,6 +222,7 @@ const AiBoard = ({
     me,
     currentPlayer: currentPlayer ?? null,
     isAITurn,
+    onActionsComplete: () => setAiActionsCompleted(true), // Signal that AI is ready to roll
   });
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
@@ -411,11 +420,17 @@ const AiBoard = ({
     showToast, END_TURN
   ]);
 
-  // AI auto-roll
+  // AI auto-roll — ONLY AFTER pre-roll actions are complete
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
-    ROLL_DICE(true);
-  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
+    if (!aiActionsCompleted) return; // BLOCK roll until AI finishes trading/building
+
+    const timer = setTimeout(() => {
+      ROLL_DICE(true);
+    }, 800); // Small delay for natural pacing after actions
+
+    return () => clearTimeout(timer);
+  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, aiActionsCompleted, ROLL_DICE]);
 
   // Buy prompt logic
   useEffect(() => {

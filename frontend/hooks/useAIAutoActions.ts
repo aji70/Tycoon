@@ -13,6 +13,7 @@ interface UseAIAutoActionsProps {
   me: Player | null;
   currentPlayer: Player | null;
   isAITurn: boolean;
+  onActionsComplete?: () => void; // NEW: Callback to signal AI finished pre-roll actions
 }
 
 const COLOR_GROUPS: Record<string, number[]> = {
@@ -36,6 +37,7 @@ export const useAIAutoActions = ({
   me,
   currentPlayer,
   isAITurn,
+  onActionsComplete,
 }: UseAIAutoActionsProps) => {
   const isAI = currentPlayer && (
     currentPlayer.username.toLowerCase().includes("ai_") ||
@@ -123,7 +125,6 @@ export const useAIAutoActions = ({
 
     // Find the best property to complete a monopoly
     let bestMissingProp: Property | null = null;
-    let bestColor = "";
     let highestPriority = 999;
 
     for (const [color, ids] of Object.entries(COLOR_GROUPS)) {
@@ -144,7 +145,6 @@ export const useAIAutoActions = ({
           const priority = BUILD_PRIORITY_COLORS.indexOf(color);
           if (priority < highestPriority) {
             bestMissingProp = missingProp;
-            bestColor = color;
             highestPriority = priority;
           }
         }
@@ -242,25 +242,34 @@ export const useAIAutoActions = ({
     }
   }, [currentPlayer, game, properties, game_properties, isAI]);
 
-  // Main AI decision loop
+  // Main AI decision loop — runs BEFORE rolling
   const runAITurn = useCallback(async () => {
     if (!isAITurn || !currentPlayer || !isAI) return;
 
-    // Order matters: respond to trades → build → offer trades
     await aiEvaluateIncomingTrades();
-    await new Promise(r => setTimeout(r, 800));
-
-    await aiBuildHouses();
     await new Promise(r => setTimeout(r, 600));
 
-    await aiSendTradeOffer();
-  }, [isAITurn, currentPlayer, isAI, aiEvaluateIncomingTrades, aiBuildHouses, aiSendTradeOffer]);
+    await aiBuildHouses();
+    await new Promise(r => setTimeout(r, 500));
 
-  // Run AI actions after turn starts (with natural delay)
+    await aiSendTradeOffer();
+
+    // SIGNAL: All pre-roll actions are complete
+    onActionsComplete?.();
+  }, [
+    isAITurn,
+    currentPlayer,
+    isAI,
+    aiEvaluateIncomingTrades,
+    aiBuildHouses,
+    aiSendTradeOffer,
+    onActionsComplete
+  ]);
+
+  // Run actions IMMEDIATELY when it's AI's turn
   useEffect(() => {
     if (isAITurn && currentPlayer && isAI) {
-      const timer = setTimeout(runAITurn, 1800); // Feels natural
-      return () => clearTimeout(timer);
+      runAITurn();
     }
   }, [isAITurn, currentPlayer?.user_id, runAITurn]);
 };
