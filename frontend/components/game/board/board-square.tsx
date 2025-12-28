@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import PropertyCard from "./cards/property-card";
-import SpecialCard from "./cards/special-card";
-import CornerCard from "./cards/corner-card";
+import PropertyCard from "../cards/property-card";
+import SpecialCard from "../cards/special-card";
+import CornerCard from "../cards/corner-card";
 import { Property, Player } from "@/types/game";
 import { getPlayerSymbol, getPlayerSymbolData } from "@/lib/types/symbol";
 
