@@ -19,8 +19,8 @@ import {
 import { apiClient } from "@/lib/api";
 
 // Child components
-import BoardSquare from "./board/board-square";
-import CenterArea from "./board/center-area";
+import BoardSquare from "./ai-board/board-square";
+import CenterArea from "./ai-board/center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "./modals/bankruptcy";
