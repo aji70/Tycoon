@@ -422,7 +422,7 @@ export default function GamePlayers({
         player_id: gamePlayerId,
       };
 
-      const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
+      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
 
       if (res.data?.success) {
         toast.success(
@@ -483,8 +483,14 @@ export default function GamePlayers({
 
             try {
               // handleClaimProperty(propertyId, me!);
-              const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`);
-               successCount++;
+      const payload = {
+        game_id: game.id,
+        player_id: creditorGamePlayerId,
+      };
+
+      const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
+
+      if (res.data?.success) successCount++;
             } catch (err) {
               console.error(`Transfer failed for property ${propertyId}:`, err);
             }
@@ -498,9 +504,14 @@ export default function GamePlayers({
 
           for (const prop of aiProperties) {
             const propertyId = prop.property_id ?? prop.id;
+                const payload = {
+        game_id: game.id,
+        
+      };
+
 
             try {
-              const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`);
+              const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`, payload);
 
               if (res.data?.success) successCount++;
             } catch (err) {
