@@ -27,6 +27,9 @@ import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";  
 import { isAIPlayer } from "@/utils/gameUtils";
 
+// Import the AI actions hook
+import { useAIAutoActions } from "@/hooks/useAIAutoActions";
+
 const MONOPOLY_STATS = {
   landingRank: {
     5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
@@ -144,6 +147,9 @@ const AiBoard = ({
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
 
+  // NEW: Track whether AI has finished pre-roll actions
+  const [aiActionsCompleted, setAiActionsCompleted] = useState(false);
+
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
     type: "chance" | "community";
@@ -162,11 +168,10 @@ const AiBoard = ({
 
   const currentPlayerId = game.next_player_id ?? -1;
 
-
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
-const isMyTurn = me?.user_id === currentPlayerId;
-const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
+  const isMyTurn = me?.user_id === currentPlayerId;
+  const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
@@ -203,6 +208,21 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;
     return calculateBuyScore(justLandedProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, game_properties, properties]);
+
+  // Reset AI action flag when turn changes
+  useEffect(() => {
+    setAiActionsCompleted(false);
+  }, [currentPlayerId]);
+
+  // AI pre-roll actions (evaluate trades, build houses, send offers)
+  useAIAutoActions({
+    game,
+    properties,
+    game_properties,
+    me,
+    currentPlayer: currentPlayer ?? null,
+    isAITurn,
+  });
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
     return (
@@ -399,11 +419,17 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
     showToast, END_TURN
   ]);
 
-  // AI auto-roll
+  // AI auto-roll — ONLY AFTER pre-roll actions are complete
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
-    ROLL_DICE(true);
-  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
+    if (!aiActionsCompleted) return; // BLOCK roll until AI finishes trading/building
+
+    const timer = setTimeout(() => {
+      ROLL_DICE(true);
+    }, 800); // Small delay for natural pacing after actions
+
+    return () => clearTimeout(timer);
+  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, aiActionsCompleted, ROLL_DICE]);
 
   // Buy prompt logic
   useEffect(() => {
@@ -526,7 +552,7 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
     return () => clearTimeout(timer);
   }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
 
-  // Players grouped by position (only one declaration)
+  // Players grouped by position
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
@@ -647,7 +673,7 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
             padding: "12px 20px",
             fontSize: "16px",
             fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
+            boxShadow: "0 10px 30px rgba(0,0,255,0.15)",
             backdropFilter: "blur(10px)",
           },
           success: { icon: "✔", style: { borderColor: "#10b981" } },
