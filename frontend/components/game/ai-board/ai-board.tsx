@@ -27,6 +27,9 @@ import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";  
 import { isAIPlayer } from "@/utils/gameUtils";
 
+// NEW: Import the AI actions hook
+import { useAIAutoActions } from "@/hooks/useAIAutoActions";
+
 const MONOPOLY_STATS = {
   landingRank: {
     5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
@@ -203,6 +206,16 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;
     return calculateBuyScore(justLandedProperty, currentPlayer, game_properties, properties);
   }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, game_properties, properties]);
+
+  // NEW: Use the AI auto-actions hook (runs smart checks before roll)
+useAIAutoActions({
+  game,
+  properties,
+  game_properties,
+  me,
+  currentPlayer: currentPlayer ?? null,  
+  isAITurn,
+});
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
     return (
@@ -399,7 +412,7 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
     showToast, END_TURN
   ]);
 
-  // AI auto-roll
+  // AI auto-roll (now after auto-actions hook has run)
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
     ROLL_DICE(true);
@@ -579,7 +592,7 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
-        <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+        <div className="w-full bg-[#010F10] aspect-square aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
             <CenterArea
               isMyTurn={isMyTurn}
@@ -647,7 +660,7 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
             padding: "12px 20px",
             fontSize: "16px",
             fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
+            boxShadow: "0 10px 30px rgba(0,0,255,0.15)",
             backdropFilter: "blur(10px)",
           },
           success: { icon: "✔", style: { borderColor: "#10b981" } },
