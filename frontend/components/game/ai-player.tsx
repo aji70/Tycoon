@@ -335,7 +335,7 @@ export default function GamePlayers({
     }
   };
 
-const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
+const handlePropertyTransfer = async (propertyId: number, newPlayerId: number, player_address: string) => {
   // Prevent invalid calls
   if (!propertyId || !newPlayerId) {
     toast("Cannot transfer: missing property or player");
@@ -347,7 +347,8 @@ const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) =
       `/game-properties/${propertyId}`,
       {
         game_id: game.id,     // ← make sure game is in scope!
-        player_id: newPlayerId
+        player_id: newPlayerId,
+        address: player_address,
       }
     );
 
@@ -779,7 +780,7 @@ interface ClaimPropertyModalProps {
   onClose: () => void;
   onClaim: (propertyId: number, player: Player) => Promise<unknown>;
   onDelete: (id: number) => Promise<void>;
-  onTransfer: (propertyId: number, newPlayerId: number) => Promise<void>;
+  onTransfer: (propertyId: number, newPlayerId: number, player_address: string) => Promise<void>;
 }
 
 function ClaimPropertyModal({
@@ -810,9 +811,25 @@ function ClaimPropertyModal({
   const selected = selectedId ? allProperties.find(gp => gp.id === selectedId) : null;
 
   const currentOwner = selected
-    ? game.players.find(p => p.address === selected.address) ||
+    ? game.players.find(p => p.address?.toLowerCase() === selected.address?.toLowerCase()) ||
       (selected.address === "bank" ? { username: "Bank" } : { username: selected.address?.slice(0, 8) + "..." })
     : null;
+
+  // Helper: get real player_id from a player's existing game_property
+  const getRecipientPlayerId = (walletAddress: string): number | null => {
+    const owned = game_properties.find(
+      gp => gp.address?.toLowerCase() === walletAddress.toLowerCase()
+    );
+    return owned?.player_id ?? null;
+  };
+
+  // Players who already own properties → eligible for receiving transfer
+  const eligibleRecipients = game.players.filter(player => {
+    if (player.user_id === me.user_id) return false; // exclude self
+    return game_properties.some(
+      gp => gp.address?.toLowerCase() === player.address?.toLowerCase()
+    );
+  });
 
   return (
     <motion.div
@@ -845,7 +862,7 @@ function ClaimPropertyModal({
           </div>
         </div>
 
-        {/* Main Content - Flexible Height */}
+        {/* Main Content */}
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
           {/* Left: Scrollable Property List */}
           <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-cyan-800/30 flex flex-col">
@@ -858,7 +875,7 @@ function ClaimPropertyModal({
               ) : (
                 <div className="space-y-3">
                   {allProperties.map(({ id, base, address }) => {
-                    const owner = game.players.find(p => p.address === address) ||
+                    const owner = game.players.find(p => p.address?.toLowerCase() === address?.toLowerCase()) ||
                       (address === "bank" ? { username: "Bank" } : { username: address?.slice(0, 8) + "..." });
                     const isSelected = selectedId === id;
 
@@ -868,7 +885,7 @@ function ClaimPropertyModal({
                         onClick={() => {
                           setSelectedId(id);
                           setTargetPlayerId(null);
-                          setActiveTab("claim"); // reset to default tab
+                          setActiveTab("claim");
                         }}
                         className={`w-full p-5 rounded-xl border-2 text-left transition-all ${
                           isSelected
@@ -946,7 +963,7 @@ function ClaimPropertyModal({
                     </button>
                   </div>
 
-                  {/* Action Content - Takes remaining space */}
+                  {/* Action Content */}
                   <div className="flex-1 flex items-start justify-center">
                     <div className="w-full max-w-sm space-y-4">
                       {activeTab === "claim" && (
@@ -974,18 +991,39 @@ function ClaimPropertyModal({
                             onChange={(e) => setTargetPlayerId(e.target.value ? Number(e.target.value) : null)}
                             className="w-full bg-gray-800 p-4 rounded-xl border border-gray-600 text-white focus:border-purple-500 focus:outline-none transition text-base"
                           >
-                            <option value="">Choose target player...</option>
-                            {game.players
-                              .filter(p => p.user_id !== me.user_id)
-                              .map((player) => (
-                                <option key={player.user_id} value={player.user_id}>
-                                  {player.username} ({player.address?.slice(0, 6)}...{player.address?.slice(-4)})
-                                </option>
-                              ))}
+                            <option value="">Choose recipient player...</option>
+                            {eligibleRecipients.map((player) => (
+                              <option key={player.user_id} value={player.user_id}>
+                                {player.username} ({player.address?.slice(0, 6)}...{player.address?.slice(-4)})
+                              </option>
+                            ))}
                           </select>
+
+                          {eligibleRecipients.length === 0 && (
+                            <p className="text-sm text-gray-400 text-center">
+                              No eligible recipients (must already own a property)
+                            </p>
+                          )}
+
                           <button
                             disabled={!targetPlayerId}
-                            onClick={() => targetPlayerId && onTransfer(selected.id, targetPlayerId)}
+                            onClick={() => {
+                              if (!targetPlayerId || !selected) return;
+
+                              const targetPlayer = game.players.find(p => p.user_id === targetPlayerId);
+                              if (!targetPlayer?.address) {
+                                toast.error("Recipient has no wallet address");
+                                return;
+                              }
+
+                              const realPlayerId = getRecipientPlayerId(targetPlayer.address);
+                              if (!realPlayerId) {
+                                toast.error("Could not find valid player_id for recipient");
+                                return;
+                              }
+
+                              onTransfer(selected.id, realPlayerId, targetPlayer.address);
+                            }}
                             className="w-full py-5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-bold text-xl shadow-lg shadow-purple-600/40 transition transform hover:scale-105 disabled:hover:scale-100"
                           >
                             Transfer to Selected Player
