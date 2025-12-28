@@ -442,33 +442,31 @@ export default function GamePlayers({
     }
   };
 
-  // Liquidation before paying rent
+  // Combined AI broke handling: liquidation then conditional bankruptcy
   useEffect(() => {
-    if (!isAITurn || !currentPlayer) return;
+    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 200) return;
 
-    const liquidateIfNeeded = async () => {
-      const balance = currentPlayer.balance;
-      if (balance >= 200) return;
+    const handleAiBroke = async () => {
+      const initialBalance = currentPlayer.balance;
+      toast(`${currentPlayer.username} is low on cash ($${initialBalance}) — attempting to liquidate assets!`);
 
-      toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
-
-      const needed = Math.max(600, 200 - balance);
+      const needed = Math.max(600, 200 - initialBalance);
 
       let raised = 0;
       raised += await aiSellHouses(needed);
       raised += await aiMortgageProperties(needed - raised);
-    };
 
-    const timer = setTimeout(liquidateIfNeeded, 3000);
-    return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
+      // Compute estimated new balance (assuming API calls updated backend)
+      // Note: Frontend state may not reflect yet, so use this to decide
+      const estimatedNewBalance = initialBalance + raised;
 
-  // Full bankruptcy handling when balance goes negative
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
+      if (estimatedNewBalance >= 0) {
+        toast.success(`${currentPlayer.username} raised $${raised} and stays in the game! New est. balance: $${estimatedNewBalance}`);
+        return; // Skip bankruptcy
+      }
 
-    const handleAITurnBankruptcy = async () => {
-      toast(`${currentPlayer.username} is bankrupt ($${currentPlayer.balance}) — processing...`);
+      // If still negative, proceed to bankruptcy
+      toast(`${currentPlayer.username} still bankrupt after liquidation (est. $${estimatedNewBalance}) — processing bankruptcy...`);
 
       try {
         // Find the property the AI landed on
@@ -551,16 +549,9 @@ export default function GamePlayers({
       }
     };
 
-    const timer = setTimeout(handleAITurnBankruptcy, 3400);
+    const timer = setTimeout(handleAiBroke, 3000);
     return () => clearTimeout(timer);
-  }, [
-    isAITurn,
-    currentPlayer,
-    game_properties,
-    game.code,
-    game.players,
-    game.id,
-  ]);
+  }, [isAITurn, currentPlayer, game_properties, properties, game.id, game.code, game.players]);
 
   // Winner detection (1v1 human vs AI)
   useEffect(() => {
