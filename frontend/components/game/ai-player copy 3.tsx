@@ -40,7 +40,6 @@ export default function GamePlayers({
   isAITurn,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const isDevMode = true;
 
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -63,6 +62,7 @@ export default function GamePlayers({
   const [requestCash, setRequestCash] = useState<number>(0);
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
 
   const [winner, setWinner] = useState<Player | null>(null);
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -85,8 +85,7 @@ export default function GamePlayers({
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = !!me && game.next_player_id === me.user_id;
-
-  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   const resetTradeFields = () => {
     setOfferCash(0);
@@ -115,6 +114,7 @@ export default function GamePlayers({
       ),
     [game?.players]
   );
+
 
   const fetchTrades = useCallback(async () => {
     if (!me || !game?.id) return;
@@ -335,7 +335,7 @@ export default function GamePlayers({
     }
   };
 
-  // AI liquidation
+  // AI liquidation logic
   const aiSellHouses = async (needed: number) => {
     const improved = game_properties
       .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
@@ -398,177 +398,145 @@ export default function GamePlayers({
     return raised;
   };
 
-  // Helper to safely get internal player_id from any owned property
-  const getGamePlayerId = (walletAddress: string | undefined): number | null => {
-    if (!walletAddress) return null;
-    const ownedProp = game_properties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
-    return ownedProp?.player_id ?? null;
-  };
 
-  // Dev claim function – uses general helper (works if player owns at least one property)
-  const handleClaimProperty = async (propertyId: number, player: Player) => {
-    const gamePlayerId = getGamePlayerId(player.address);
+useEffect(() => {
+  if (!isAITurn || !currentPlayer) return;
 
-    if (!gamePlayerId) {
-      toast.error("Cannot claim: unable to determine your game player ID (you may own no properties yet)");
-      return;
+ const handleAITurnBankruptcy = async () => {
+  if (currentPlayer.balance >= 0) return;
+
+  toast(`${currentPlayer.username} is bankrupt ($${currentPlayer.balance}) — processing...`);
+
+  try {
+    // 1. Find landed property to determine creditor
+    const landedProperty = game_properties.find(gp => gp.id === currentPlayer.position);
+    let creditorAddress: string | null = null;
+    if (landedProperty?.address && landedProperty.address !== "bank") {
+      creditorAddress = landedProperty.address;
     }
 
-    const toastId = toast.loading(`Claiming property #${propertyId}...`);
+    const creditorPlayer = creditorAddress
+      ? game.players.find(p => p.address === creditorAddress)
+      : null;
 
-    try {
-      const payload = {
-        game_id: game.id,
-        player_id: gamePlayerId,
-      };
+    const bankruptedByHuman =
+      !!creditorPlayer &&
+      !isAIPlayer(creditorPlayer) &&
+      creditorPlayer.address !== currentPlayer.address;
 
-      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
+    // Get all AI-owned properties
+    const aiProperties = game_properties.filter(gp => gp.address === currentPlayer.address);
 
-      if (res.data?.success) {
-        toast.success(
-          `You now own ${res.data.data?.property_name || `#${propertyId}`}!`,
-          { id: toastId }
+    let successCount = 0;
+
+    if (bankruptedByHuman) {
+      toast(
+        `${currentPlayer.username} bankrupted by ${creditorPlayer!.username} — transferring properties...`
+      );
+
+      // Find the creditor's game-specific player_id (same logic as claim)
+      const creditorGamePlayerId = (() => {
+        const creditorProp = game_properties.find(gp =>
+          game.players.some(p => p.user_id === creditorPlayer!.user_id && p.address === gp.address)
         );
-      } else {
-        throw new Error(res.data?.message || "Claim unsuccessful");
+        return creditorProp?.player_id ?? null;
+      })();
+
+      if (!creditorGamePlayerId) {
+        throw new Error("Could not determine creditor's game player ID");
       }
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to claim property";
-      console.error("Claim failed:", err);
-      toast.error(errorMessage, { id: toastId });
-    }
-  };
 
-  // Liquidation before paying rent
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer) return;
+      for (const prop of aiProperties) {
+        const propertyId = prop.property_id ?? prop.id;
 
-    const liquidateIfNeeded = async () => {
-      const balance = currentPlayer.balance;
-      if (balance >= 200) return;
+        try {
+          const payload = {
+            game_id: game.id,
+            player_id: creditorGamePlayerId, // ← creditor's game-specific player ID
+          };
 
-      toast(`${currentPlayer.username} is broke ($${balance}) — liquidating assets!`);
+          const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
 
-      const needed = Math.max(600, 200 - balance);
-
-      let raised = 0;
-      raised += await aiSellHouses(needed);
-      raised += await aiMortgageProperties(needed - raised);
-    };
-
-    const timer = setTimeout(liquidateIfNeeded, 3000);
-    return () => clearTimeout(timer);
-  }, [isAITurn, currentPlayer, game_properties, properties, game.id]);
-
-  // Full bankruptcy handling when balance goes negative
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
-
-    const handleAITurnBankruptcy = async () => {
-      toast(`${currentPlayer.username} is bankrupt ($${currentPlayer.balance}) — processing...`);
-
-      try {
-        // Find the property the AI landed on
-        const landedProperty = game_properties.find(gp => gp.id === currentPlayer.position);
-
-        const creditorAddress = landedProperty?.address && landedProperty.address !== "bank" 
-          ? landedProperty.address 
-          : null;
-
-        const creditorPlayer = creditorAddress
-          ? game.players.find(p => p.address?.toLowerCase() === creditorAddress.toLowerCase())
-          : null;
-
-        const bankruptedByHuman = !!creditorPlayer && !isAIPlayer(creditorPlayer);
-
-        const aiProperties = game_properties.filter(gp => gp.address === currentPlayer.address);
-
-        let successCount = 0;
-
-        if (bankruptedByHuman && landedProperty?.player_id) {
-          // CRITICAL FIX: Use player_id directly from the landed-on property
-          // This is guaranteed to be correct because rent was charged
-          const creditorGamePlayerId = landedProperty.player_id;
-
-          toast(
-            `${currentPlayer.username} bankrupted by ${creditorPlayer!.username} — transferring properties...`
-          );
-
-          for (const prop of aiProperties) {
-            const propertyId = prop.property_id ?? prop.id;
-
-            try {
-              const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
-                game_id: game.id,
-                player_id: creditorGamePlayerId,
-              });
-
-              if (res.data?.success) successCount++;
-            } catch (err) {
-              console.error(`Transfer failed for property ${propertyId}:`, err);
-            }
+          if (res.data?.success) {
+            successCount++;
+          } else {
+            console.warn(`Transfer failed for ${propertyId}:`, res.data);
           }
-
-          toast.success(
-            `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer!.username}!`
-          );
-        } else {
-          // Return to bank (no human creditor)
-          toast(`${currentPlayer.username} bankrupt — properties returned to bank.`);
-
-          for (const prop of aiProperties) {
-            const propertyId = prop.property_id ?? prop.id;
-
-            try {
-              const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
-                game_id: game.id,
-                player_id: null,
-              });
-
-              if (res.data?.success) successCount++;
-            } catch (err) {
-              console.error(`Failed to return property ${propertyId} to bank:`, err);
-            }
-          }
-
-          toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
+        } catch (err: any) {
+          console.error(`Transfer error for property ${propertyId}:`, err);
         }
-
-        // Remove AI player from game
-        await apiClient.post("/game-players/leave", {
-          address: currentPlayer.address,
-          code: game.code,
-          reason: "bankruptcy",
-        });
-
-        toast.success(`${currentPlayer.username} removed from game.`, { duration: 4000 });
-      } catch (err: any) {
-        console.error("Bankruptcy handling failed:", err);
-        toast.error("AI bankruptcy processing failed", { duration: 6000 });
       }
-    };
 
-    const timer = setTimeout(handleAITurnBankruptcy, 3400);
-    return () => clearTimeout(timer);
-  }, [
-    isAITurn,
-    currentPlayer,
-    game_properties,
-    game.code,
-    game.players,
-    game.id,
-  ]);
+      toast.success(
+        `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer!.username}!`
+      );
+    } else {
+      // CASE 2: Return to bank (set player_id to null or bank player id)
+      toast(`${currentPlayer.username} bankrupt — properties returned to bank.`);
 
-  // Winner detection (1v1 human vs AI)
+      for (const prop of aiProperties) {
+        const propertyId = prop.property_id ?? prop.id;
+
+        try {
+          await apiClient.put(`/game-properties/${propertyId}`, {
+            game_id: game.id,
+            player_id: null, // or 0 or special bank player_id if your backend uses one
+          });
+          successCount++;
+        } catch (err) {
+          console.error(`Bank return failed for ${propertyId}:`, err);
+        }
+      }
+    }
+
+    // 3. Remove AI player
+    await apiClient.post("/game-players/leave", {
+      address: currentPlayer.address,
+      code: game.code,
+      reason: "bankruptcy",
+    });
+
+    toast.success(`${currentPlayer.username} removed from game.`, { duration: 4000 });
+
+    // 4. Force UI refresh (choose your preferred method)
+    // queryClient.invalidateQueries({ queryKey: ['game', game.code] });
+    // or simple reload for now:
+    // setTimeout(() => window.location.reload(), 1500);
+
+  } catch (err: any) {
+    console.error("Bankruptcy handling failed:", err);
+    toast.error("AI bankruptcy failed — check console", { duration: 6000 });
+  }
+};
+
+  console.log(
+    `AI bankruptcy check: ${currentPlayer.username} | Balance: $${currentPlayer.balance} | Pos: ${currentPlayer.position}`
+  );
+
+  const timer = setTimeout(() => {
+    if (currentPlayer.balance < 0) {
+      handleAITurnBankruptcy();
+    }
+  }, 3400); // slightly longer delay for drama + network
+
+  return () => clearTimeout(timer);
+}, [
+  isAITurn,
+  currentPlayer,
+  game_properties,
+  game.code,
+  game.players,
+]);
+  
+  
+  // Winner detection (AI removed → human wins in 1v1)
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
 
     const aiPlayer = game.players.find(p => isAIPlayer(p));
     const humanPlayer = me;
 
+    // If AI is no longer in players list (removed via /leave) or has negative/zero balance
     if ((!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
       setWinner(humanPlayer);
       setEndGameCandidate({
@@ -580,6 +548,9 @@ export default function GamePlayers({
   }, [game.players, me]);
 
   const handleFinalizeAndLeave = async () => {
+    setShowExitPrompt(false);
+    setClaimError(null);
+
     const toastId = toast.loading(
       winner?.user_id === me?.user_id
         ? "Claiming your prize..."
@@ -587,7 +558,9 @@ export default function GamePlayers({
     );
 
     try {
-      if (endGame) await endGame();
+      if (endGame) {
+        await endGame();
+      }
 
       toast.success(
         winner?.user_id === me?.user_id
@@ -647,17 +620,6 @@ export default function GamePlayers({
           game={game}
           handleTradeAction={handleTradeAction}
         />
-
-        {isDevMode && (
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setClaimModalOpen(true)}
-            className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-purple-700 to-fuchsia-700 hover:from-purple-600 hover:to-fuchsia-600 rounded-xl text-white font-medium shadow-lg shadow-purple-900/30"
-          >
-            DEV: Claim Any Property
-          </motion.button>
-        )}
       </div>
 
       <AnimatePresence>
@@ -674,9 +636,9 @@ export default function GamePlayers({
           trade={aiTradePopup}
           properties={properties}
           onClose={() => setAiTradePopup(null)}
-          onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
-          onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
-          onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
+          onAccept={() => handleTradeAction(aiTradePopup.id, "accepted")}
+          onDecline={() => handleTradeAction(aiTradePopup.id, "declined")}
+          onCounter={() => handleTradeAction(aiTradePopup.id, "counter")}
         />
 
         <AiResponsePopup
@@ -731,137 +693,7 @@ export default function GamePlayers({
           toggleSelect={toggleSelect}
           targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
         />
-
-        <ClaimPropertyModal
-          open={claimModalOpen && isDevMode}
-          game_properties={game_properties}
-          properties={properties}
-          me={me}
-          game={game}
-          onClose={() => setClaimModalOpen(false)}
-          onClaim={handleClaimProperty}
-        />
       </AnimatePresence>
     </aside>
-  );
-}
-
-// ── Debug Claim Modal ───────────────────────────────────────────────────────────
-interface ClaimPropertyModalProps {
-  open: boolean;
-  game_properties: GameProperty[];
-  properties: Property[];
-  me: Player | null;
-  game: Game;
-  onClose: () => void;
-  onClaim: (propertyId: number, player: Player) => Promise<unknown>;
-}
-
-function ClaimPropertyModal({
-  open,
-  game_properties,
-  properties,
-  me,
-  game,
-  onClose,
-  onClaim,
-}: ClaimPropertyModalProps) {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  if (!open || !me) return null;
-
-  const claimable = game_properties
-    .filter(gp => gp.address !== me?.address && gp.address !== "bank" && gp.property_id)
-    .map(gp => ({
-      ...gp,
-      base: properties.find(p => p.id === gp.property_id),
-    }))
-    .filter((gp): gp is typeof gp & { base: Property } => !!gp.base)
-    .sort((a, b) => (b.base.price || 0) - (a.base.price || 0));
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 40, opacity: 0 }}
-        className="bg-gray-900/95 border border-cyan-600/40 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-cyan-800/30">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-cyan-300">DEV: Claim Property</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">
-              ×
-            </button>
-          </div>
-          <p className="text-cyan-400/70 text-sm mt-1">
-            Force transfer any property to yourself
-          </p>
-        </div>
-
-        <div className="p-6 max-h-[55vh] overflow-y-auto space-y-3">
-          {claimable.length === 0 ? (
-            <div className="text-center py-10 text-gray-500">
-              No claimable properties found
-            </div>
-          ) : (
-            claimable.map(({ id, base, address }) => {
-              const currentOwner = game.players.find(p => p.address === address);
-              const isSelected = selectedId === id;
-
-              return (
-                <button
-                  key={id}
-                  onClick={() => setSelectedId(id)}
-                  className={`w-full p-4 rounded-xl border transition-all ${
-                    isSelected
-                      ? "border-cyan-400 bg-cyan-950/40"
-                      : "border-gray-700 hover:border-cyan-700/50 bg-gray-800/30"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-semibold text-lg text-white">{base.name}</div>
-                      <div className="text-sm text-cyan-300 mt-1">
-                        ${base.price?.toLocaleString() || "—"}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        Current: {currentOwner?.username || address?.slice(0, 8) + "..."}
-                      </div>
-                    </div>
-                    <div className={`text-2xl ${isSelected ? "text-cyan-400" : "text-gray-600"}`}>
-                      {isSelected ? "✓" : "→"}
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div className="p-6 border-t border-gray-800 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => selectedId && me && onClaim(selectedId, me)}
-            disabled={!selectedId}
-            className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Claim Selected Property
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
