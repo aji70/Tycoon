@@ -482,7 +482,8 @@ export default function GamePlayers({
             const propertyId = prop.id;
 
             try {
-              handleClaimProperty(propertyId, me!);
+              // handleClaimProperty(propertyId, me!);
+              const res = await apiClient.delete<ApiResponse>(`/game-properties/${propertyId}`);
                successCount++;
             } catch (err) {
               console.error(`Transfer failed for property ${propertyId}:`, err);
