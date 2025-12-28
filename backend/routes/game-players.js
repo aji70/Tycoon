@@ -13,7 +13,7 @@ router.get("/", gamePlayerController.findAll);
 router.get("/:id", gamePlayerController.findById);
 router.put("/:id", gamePlayerController.update);
 router.delete("/:id", gamePlayerController.remove);
-router.get("/by-address/:address", gamePlayerController.findByAddress);
+
 
 // -------------------------
 // 🔹 By Game / User

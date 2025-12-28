@@ -20,3 +20,5 @@ router.get("/game/:gameId", gamePropertyController.findByGame);
 router.get("/player/:playerId", gamePropertyController.findByPlayer);
 
 export default router;
+
+
