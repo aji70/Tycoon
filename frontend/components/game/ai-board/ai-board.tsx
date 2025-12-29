@@ -25,8 +25,6 @@ import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";  
-import { isAIPlayer } from "@/utils/gameUtils";
-import { useAIAutoActions } from "@/hooks/useAIAutoActions";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -60,55 +58,63 @@ const calculateBuyScore = (
   const baseRent = property.rent_site_only || 0;
   const cash = player.balance ?? 0;
 
+  // Start more conservatively
   let score = 30;
 
-  if (cash < price * 1.5) score -= 80;
-  else if (cash < price * 2) score -= 40;
-  else if (cash > price * 4) score += 35;
+  // Cash safety is now much more important
+  if (cash < price * 1.5) score -= 80;      // Very dangerous
+  else if (cash < price * 2) score -= 40;    // Risky
+  else if (cash > price * 4) score += 35;    // Very safe
   else if (cash > price * 3) score += 15;
 
+  // Monopoly completion is still very valuable
   const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(property.id));
   if (group && !["railroad", "utility"].includes(property.color!)) {
     const owned = group.filter((id) =>
       gameProperties.find((gp) => gp.property_id === id)?.address === player.address
     ).length;
 
-    if (owned === group.length - 1) score += 120;
+    if (owned === group.length - 1) score += 120;    // Huge incentive to complete sets
     else if (owned === group.length - 2) score += 60;
     else if (owned >= 1) score += 25;
   }
 
+  // Railroads & Utilities - slightly toned down
   if (property.color === "railroad") {
     const owned = gameProperties.filter((gp) =>
       gp.address === player.address &&
       allProperties.find((p) => p.id === gp.property_id)?.color === "railroad"
     ).length;
-    score += owned * 22;
+    score += owned * 22;  // was 28
   }
   if (property.color === "utility") {
     const owned = gameProperties.filter((gp) =>
       gp.address === player.address &&
       allProperties.find((p) => p.id === gp.property_id)?.type === "utility"
     ).length;
-    score += owned * 28;
+    score += owned * 28;  // was 35
   }
 
+  // Landing frequency (negative = rare = worse)
   const rank = (MONOPOLY_STATS.landingRank as Record<number, number>)[property.id] ?? 25;
   score += 35 - rank;
 
+  // ROI still matters but less dominant
   const roi = baseRent / price;
   if (roi > 0.14) score += 30;
   else if (roi > 0.10) score += 15;
 
+  // Opponent almost completing set → higher priority to block
   if (group && group.length <= 3) {
     const opponentOwns = group.filter((id) => {
       const gp = gameProperties.find((gp) => gp.property_id === id);
       return gp && gp.address !== player.address && gp.address !== null;
     }).length;
 
-    if (opponentOwns === group.length - 1) score += 70;
+    if (opponentOwns === group.length - 1) score += 70;  // Block completion!
   }
 
+  // Final clamp - AI should rarely buy above ~92 even in great spots
   return Math.max(0, Math.min(95, score));
 };
 
@@ -145,6 +151,7 @@ const AiBoard = ({
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
 
+  // NEW: Card modal states
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
     type: "chance" | "community";
@@ -162,27 +169,19 @@ const AiBoard = ({
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
   const currentPlayerId = game.next_player_id ?? -1;
-
-
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
-const isMyTurn = me?.user_id === currentPlayerId;
-const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
+  const isMyTurn = me?.user_id === currentPlayerId;
+  const isAITurn = Boolean(
+    currentPlayer?.username?.toLowerCase().includes("ai_") ||
+    currentPlayer?.username?.toLowerCase().includes("bot")
+  );
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
   );
 
-  // Inside AiBoard component, after other hooks:
-interface UseAIAutoActionsProps {
-  game: Game;
-  properties: Property[];
-  game_properties: GameProperty[];
-  me: Player | null;           // me can still be null (not connected)
-  currentPlayer: Player | undefined;  // ← Change from null to undefined
-  isAITurn: boolean;
-  onRollDice: () => void;
-}
+  const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && currentPlayer?.in_jail === true;
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
     winner: Player | null;
@@ -196,6 +195,7 @@ interface UseAIAutoActionsProps {
       : null;
   }, [currentPlayer?.position, properties]);
 
+  // ── NEW: Reliable property we just landed on (fixes stale data flash) ──
   const justLandedProperty = useMemo(() => {
     if (landedPositionThisTurn.current === null) return null;
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
@@ -321,103 +321,108 @@ interface UseAIAutoActionsProps {
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
 
-  const ROLL_DICE = useCallback(async (forAI = false) => {
-    if (isRolling || actionLock || !lockAction("ROLL")) return;
+ const ROLL_DICE = useCallback(async (forAI = false) => {
+  if (isRolling || actionLock || !lockAction("ROLL")) return;
 
-    setIsRolling(true);
-    setRoll(null);
-    setHasMovementFinished(false);
+  setIsRolling(true);
+  setRoll(null);
+  setHasMovementFinished(false);
 
-    setTimeout(async () => {
-      const value = getDiceValues();
-      if (!value) {
-        showToast("DOUBLES! Roll again!", "success");
-        setIsRolling(false);
-        unlockAction();
-        return;
+  setTimeout(async () => {
+    const value = getDiceValues();
+    if (!value) {
+      showToast("DOUBLES! Roll again!", "success");
+      setIsRolling(false);
+      unlockAction();
+      return;
+    }
+
+    setRoll(value);
+    const playerId = forAI ? currentPlayerId : me!.user_id;
+    const player = players.find((p) => p.user_id === playerId);
+    if (!player) return;
+
+    const currentPos = player.position ?? 0;
+    const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
+
+    let newPos = currentPos; // Default: stay put
+    let shouldAnimate = false;
+
+    // Only move if NOT in jail
+    if (!isInJail) {
+      const totalMove = value.total + pendingRoll;
+      newPos = (currentPos + totalMove) % BOARD_SQUARES;
+      shouldAnimate = totalMove > 0;
+
+      if (shouldAnimate) {
+        const movePath: number[] = [];
+        for (let i = 1; i <= totalMove; i++) {
+          movePath.push((currentPos + i) % BOARD_SQUARES);
+        }
+
+        // Animate step by step
+        for (let i = 0; i < movePath.length; i++) {
+          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          setAnimatedPositions((prev) => ({
+            ...prev,
+            [playerId]: movePath[i],
+          }));
+        }
       }
+    } else {
+      // In jail → no movement, but still show the roll result
+      showToast(
+        `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no movement)`,
+        "default"
+      );
+    }
 
-      setRoll(value);
-      const playerId = forAI ? currentPlayerId : me!.user_id;
-      const player = players.find((p) => p.user_id === playerId);
-      if (!player) return;
+    setHasMovementFinished(true);
 
-      const currentPos = player.position ?? 0;
-      const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
+    try {
+      // Always send the roll result to backend (even in jail — backend will handle doubles, pay, etc.)
+      await apiClient.post("/game-players/change-position", {
+        user_id: playerId,
+        game_id: game.id,
+        position: newPos,           // stays the same if in jail
+        rolled: value.total + pendingRoll,
+        is_double: value.die1 === value.die2,
+      });
 
-      let newPos = currentPos;
-      let shouldAnimate = false;
+      setPendingRoll(0);
+      landedPositionThisTurn.current = isInJail ? null : newPos;
 
       if (!isInJail) {
-        const totalMove = value.total + pendingRoll;
-        newPos = (currentPos + totalMove) % BOARD_SQUARES;
-        shouldAnimate = totalMove > 0;
-
-        if (shouldAnimate) {
-          const movePath: number[] = [];
-          for (let i = 1; i <= totalMove; i++) {
-            movePath.push((currentPos + i) % BOARD_SQUARES);
-          }
-
-          for (let i = 0; i < movePath.length; i++) {
-            await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
-            setAnimatedPositions((prev) => ({
-              ...prev,
-              [playerId]: movePath[i],
-            }));
-          }
-        }
+        showToast(
+          `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
+          "success"
+        );
       }
 
-      setHasMovementFinished(true);
-
-      try {
-        await apiClient.post("/game-players/change-position", {
-          user_id: playerId,
-          game_id: game.id,
-          position: newPos,
-          rolled: value.total + pendingRoll,
-          is_double: value.die1 === value.die2,
-        });
-
-        setPendingRoll(0);
-        landedPositionThisTurn.current = isInJail ? null : newPos;
-
-        if (!isInJail) {
-          showToast(
-            `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
-            "success"
-          );
-        } else {
-          showToast(
-            `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no movement)`,
-            "default"
-          );
-        }
-
-        if (forAI) rolledForPlayerId.current = currentPlayerId;
-      } catch (err) {
-        console.error("Move failed:", err);
-        showToast("Move failed", "error");
-        END_TURN();
-      } finally {
-        setIsRolling(false);
-        unlockAction();
-      }
-    }, ROLL_ANIMATION_MS);
-  }, [
-    isRolling, actionLock, lockAction, unlockAction,
-    currentPlayerId, me, players, pendingRoll, game.id,
-    showToast, END_TURN
-  ]);
+      if (forAI) rolledForPlayerId.current = currentPlayerId;
+    } catch (err) {
+      console.error("Move failed:", err);
+      showToast("Move failed", "error");
+      END_TURN();
+    } finally {
+      setIsRolling(false);
+      unlockAction();
+    }
+  }, ROLL_ANIMATION_MS);
+}, [
+  isRolling, actionLock, lockAction, unlockAction,
+  currentPlayerId, me, players, pendingRoll, game.id,
+  showToast, END_TURN
+]);
 
   // AI auto-roll
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
-    ROLL_DICE(true);
+    const timer = setTimeout(() => ROLL_DICE(true), 700);
+    return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
 
-  // Buy prompt logic
+  // Buy prompt logic – now uses landed position
   useEffect(() => {
     if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
       setBuyPrompted(false);
@@ -456,7 +461,8 @@ interface UseAIAutoActionsProps {
     showToast
   ]);
 
-  // Card detection
+
+  // NEW: Detect card draw from history changes
   useEffect(() => {
     const history = game.history ?? [];
     if (history.length <= prevHistoryLength.current) return;
@@ -464,7 +470,10 @@ interface UseAIAutoActionsProps {
     const newEntry = history[history.length - 1];
     prevHistoryLength.current = history.length;
 
-    if (newEntry == null || typeof newEntry !== "string") return;
+    // Early return if no valid entry
+    if (newEntry == null || typeof newEntry !== "string") {
+      return;
+    }
 
     const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
     const match = (newEntry as string).match(cardRegex);
@@ -496,13 +505,14 @@ interface UseAIAutoActionsProps {
     return () => clearTimeout(timer);
   }, [game.history]);
 
-  // AI buy decision
+  // Smarter AI buy decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty || buyScore === null) return;
 
     const timer = setTimeout(async () => {
+      // Much stricter thresholds + cash safety check
       const shouldBuy =
-        buyScore >= 72 &&
+        buyScore >= 72 && // was 60 – now requires really good spot
         (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
 
       if (shouldBuy) {
@@ -527,7 +537,7 @@ interface UseAIAutoActionsProps {
     showToast
   ]);
 
-  // Auto-end turn
+  // Auto-end turn when nothing to do
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
 
@@ -538,7 +548,6 @@ interface UseAIAutoActionsProps {
     return () => clearTimeout(timer);
   }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
 
-  // Players grouped by position (only one declaration)
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
@@ -570,6 +579,7 @@ interface UseAIAutoActionsProps {
   };
 
   const handleDeclareBankruptcy = async () => {
+    
     showToast("Declaring bankruptcy...", "default");
 
     try {
@@ -583,6 +593,7 @@ interface UseAIAutoActionsProps {
 
       showToast("Game over! You have declared bankruptcy.", "error");
       setShowBankruptcyModal(true);
+  
     } catch (err) {
       showToast("Failed to end game", "error");
     }
@@ -601,7 +612,7 @@ interface UseAIAutoActionsProps {
               isRolling={isRolling}
               roll={roll}
               buyPrompted={buyPrompted}
-              currentProperty={justLandedProperty || currentProperty}
+              currentProperty={justLandedProperty || currentProperty} // Prefer landed property for UI
               currentPlayerBalance={currentPlayer?.balance ?? 0}
               buyScore={buyScore}
               history={game.history ?? []}
@@ -613,7 +624,8 @@ interface UseAIAutoActionsProps {
             />
 
             {properties.map((square) => {
-              const playersHere = playersByPosition.get(square.id) ?? [];
+              const allPlayersHere = playersByPosition.get(square.id) ?? [];
+              const playersHere = allPlayersHere;
 
               return (
                 <BoardSquare
@@ -624,6 +636,7 @@ interface UseAIAutoActionsProps {
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
+          
                 />
               );
             })}
@@ -631,6 +644,7 @@ interface UseAIAutoActionsProps {
         </div>
       </div>
 
+      {/* NEW: Card Modal */}
       <CardModal
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
@@ -639,10 +653,10 @@ interface UseAIAutoActionsProps {
       />
 
       <BankruptcyModal
-        isOpen={showBankruptcyModal}
-        tokensAwarded={0.5}
-        onReturnHome={() => window.location.href = "/"}
-      />
+  isOpen={showBankruptcyModal}
+  tokensAwarded={0.5}
+  onReturnHome={() => window.location.href = "/"}
+/>
 
       <Toaster
         position="top-center"
