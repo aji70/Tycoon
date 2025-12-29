@@ -24,7 +24,7 @@ import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
-import { CardModal } from "../modals/cards";  
+import { CardModal } from "../modals/cards";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -46,6 +46,8 @@ const MONOPOLY_STATS = {
   },
 };
 
+const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
+
 const calculateBuyScore = (
   property: Property,
   player: Player,
@@ -58,63 +60,55 @@ const calculateBuyScore = (
   const baseRent = property.rent_site_only || 0;
   const cash = player.balance ?? 0;
 
-  // Start more conservatively
   let score = 30;
 
-  // Cash safety is now much more important
-  if (cash < price * 1.5) score -= 80;      // Very dangerous
-  else if (cash < price * 2) score -= 40;    // Risky
-  else if (cash > price * 4) score += 35;    // Very safe
+  if (cash < price * 1.5) score -= 80;
+  else if (cash < price * 2) score -= 40;
+  else if (cash > price * 4) score += 35;
   else if (cash > price * 3) score += 15;
 
-  // Monopoly completion is still very valuable
   const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(property.id));
   if (group && !["railroad", "utility"].includes(property.color!)) {
     const owned = group.filter((id) =>
       gameProperties.find((gp) => gp.property_id === id)?.address === player.address
     ).length;
 
-    if (owned === group.length - 1) score += 120;    // Huge incentive to complete sets
+    if (owned === group.length - 1) score += 120;
     else if (owned === group.length - 2) score += 60;
     else if (owned >= 1) score += 25;
   }
 
-  // Railroads & Utilities - slightly toned down
   if (property.color === "railroad") {
     const owned = gameProperties.filter((gp) =>
       gp.address === player.address &&
       allProperties.find((p) => p.id === gp.property_id)?.color === "railroad"
     ).length;
-    score += owned * 22;  // was 28
+    score += owned * 22;
   }
   if (property.color === "utility") {
     const owned = gameProperties.filter((gp) =>
       gp.address === player.address &&
       allProperties.find((p) => p.id === gp.property_id)?.type === "utility"
     ).length;
-    score += owned * 28;  // was 35
+    score += owned * 28;
   }
 
-  // Landing frequency (negative = rare = worse)
   const rank = (MONOPOLY_STATS.landingRank as Record<number, number>)[property.id] ?? 25;
   score += 35 - rank;
 
-  // ROI still matters but less dominant
   const roi = baseRent / price;
   if (roi > 0.14) score += 30;
   else if (roi > 0.10) score += 15;
 
-  // Opponent almost completing set → higher priority to block
   if (group && group.length <= 3) {
     const opponentOwns = group.filter((id) => {
       const gp = gameProperties.find((gp) => gp.property_id === id);
       return gp && gp.address !== player.address && gp.address !== null;
     }).length;
 
-    if (opponentOwns === group.length - 1) score += 70;  // Block completion!
+    if (opponentOwns === group.length - 1) score += 70;
   }
 
-  // Final clamp - AI should rarely buy above ~92 even in great spots
   return Math.max(0, Math.min(95, score));
 };
 
@@ -130,6 +124,12 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
 };
 
 const JAIL_POSITION = 10;
+
+// Helper to detect AI player
+const isAIPlayer = (player: Player | undefined): boolean =>
+  player?.username?.toLowerCase().includes("ai_") ||
+  player?.username?.toLowerCase().includes("bot") ||
+  false;
 
 const AiBoard = ({
   game,
@@ -150,8 +150,8 @@ const AiBoard = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
+  const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
 
-  // NEW: Card modal states
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
     type: "chance" | "community";
@@ -172,10 +172,7 @@ const AiBoard = ({
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
   const isMyTurn = me?.user_id === currentPlayerId;
-  const isAITurn = Boolean(
-    currentPlayer?.username?.toLowerCase().includes("ai_") ||
-    currentPlayer?.username?.toLowerCase().includes("bot")
-  );
+  const isAITurn = isAIPlayer(currentPlayer); // Fixed: safe call
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
@@ -195,7 +192,6 @@ const AiBoard = ({
       : null;
   }, [currentPlayer?.position, properties]);
 
-  // ── NEW: Reliable property we just landed on (fixes stale data flash) ──
   const justLandedProperty = useMemo(() => {
     if (landedPositionThisTurn.current === null) return null;
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
@@ -234,6 +230,7 @@ const AiBoard = ({
     else toast(message, { icon: "➤" });
   }, []);
 
+  // Sync players
   useEffect(() => {
     if (game?.players) setPlayers(game.players);
   }, [game?.players]);
@@ -252,6 +249,7 @@ const AiBoard = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
+  // Reset turn state
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
@@ -263,6 +261,7 @@ const AiBoard = ({
     lastToastMessage.current = null;
     setAnimatedPositions({});
     setHasMovementFinished(false);
+    setStrategyRanThisTurn(false);
   }, [currentPlayerId]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
@@ -321,332 +320,405 @@ const AiBoard = ({
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
 
-   const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
-      if (!propertyId || !newPlayerId) {
-        toast("Cannot transfer: missing property or player");
-        return;
-      }
-  
-      try {
-        const response = await apiClient.put<ApiResponse>(
-          `/game-properties/${propertyId}`,
-          {
-            game_id: game.id,
-            player_id: newPlayerId,
-          }
-        );
-  
-        if (response.data?.success) {
-          toast.success("Property transferred successfully! 🎉");
-        } else {
-          throw new Error(response.data?.message || "Transfer failed");
-        }
-      } catch (error: any) {
-        const message =
-          error.response?.data?.message ||
-          error.message ||
-          "Failed to transfer property";
-  
-        toast.error(message);
-        console.error("Property transfer failed:", error);
-      }
-    };
-
-// ── Inside AiBoard component (add these helpers) ─────────────────────────────────
-
-// Reuse the same color groups
-const MONOPOLY_STATS = {
-  colorGroups: {
-    brown: [1, 3],
-    lightblue: [6, 8, 9],
-    pink: [11, 13, 14],
-    orange: [16, 18, 19],
-    red: [21, 23, 24],
-    yellow: [26, 27, 29],
-    green: [31, 32, 34],
-    darkblue: [37, 39],
-    railroad: [5, 15, 25, 35],
-    utility: [12, 28],
-  },
-};
-
-// Priority order for building (best ROI first)
-const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
-
-// Get all properties owned by a player (address)
-const getPlayerOwnedProperties = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
-  if (!playerAddress) return [];
-  return game_properties
-    .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase() && gp.development !== undefined)
-    .map(gp => ({
-      gp,
-      prop: properties.find(p => p.id === gp.property_id)!,
-    }))
-    .filter(item => !!item.prop);
-};
-
-// Check if a color group is fully owned and unimproved/unmortgaged enough to build
-const getCompleteMonopolies = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
-  if (!playerAddress) return [];
-
-  const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
-
-  const monopolies: string[] = [];
-
-  Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-    if (groupName === "railroad" || groupName === "utility") return;
-
-    const groupProps = ids.map(id => properties.find(p => p.id === id)!);
-    const ownedInGroup = owned.filter(o => ids.includes(o.prop.id));
-
-    if (ownedInGroup.length === ids.length) {
-      // Check if all are unmortgaged (required to build)
-      const allUnmortgaged = ownedInGroup.every(o => !o.gp.mortgaged);
-      if (allUnmortgaged) {
-        monopolies.push(groupName);
-      }
-    }
-  });
-
-  return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
-};
-
-// Get near-complete sets: needs 1 or 2 properties
-const getNearCompleteOpportunities = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
-  if (!playerAddress) return [];
-
-  const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
-
-  const opportunities: {
-    group: string;
-    needs: number;
-    missing: { id: number; name: string; ownerAddress: string | null; ownerName: string; gp?: GameProperty }[];
-  }[] = [];
-
-  Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-    if (groupName === "railroad" || groupName === "utility") return;
-
-    const ownedCount = owned.filter(o => ids.includes(o.prop.id)).length;
-    const needs = ids.length - ownedCount;
-
-    if (needs === 1 || needs === 2) {
-      const missing = ids
-        .filter(id => !owned.some(o => o.prop.id === id))
-        .map(id => {
-          const gp = game_properties.find(g => g.property_id === id);
-          const prop = properties.find(p => p.id === id)!;
-          const ownerName = gp?.address
-            ? game.players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
-            : "Bank";
-          return {
-            id,
-            name: prop.name,
-            ownerAddress: gp?.address || null,
-            ownerName,
-            gp,
-          };
-        });
-
-      opportunities.push({ group: groupName, needs, missing });
-    }
-  });
-
-  // Prioritize needs=1 first, then by build priority
-  return opportunities.sort((a, b) => {
-    if (a.needs !== b.needs) return a.needs - b.needs;
-    return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
-  });
-};
-
-// Enhanced favorability: +100 if completes monopoly for receiver, -80 if completes for opponent
-const calculateTradeFavorability = (
-  trade: { offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number },
-  receiverAddress: string,
-  game_properties: GameProperty[],
-  properties: Property[],
-  players: Player[]
-) => {
-  let score = 0;
-
-  // Cash
-  score += trade.offer_amount - trade.requested_amount;
-
-  // Properties received vs given
-  const received = trade.requested_properties;
-  const given = trade.offer_properties;
-
-  received.forEach(id => {
-    const prop = properties.find(p => p.id === id);
-    if (!prop) return;
-    score += prop.price || 0;
-
-    // Huge bonus if this completes a monopoly
-    const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
-    if (group && !["railroad", "utility"].includes(prop.color!)) {
-      const currentOwned = group.filter(gid => 
-        game_properties.find(gp => gp.property_id === gid && gp.address === receiverAddress)
-      ).length;
-      if (currentOwned === group.length - 1) {
-        score += 300; // Massive incentive
-      } else if (currentOwned === group.length - 2) {
-        score += 120;
-      }
-    }
-  });
-
-  given.forEach(id => {
-    const prop = properties.find(p => p.id === id);
-    if (!prop) return;
-    score -= (prop.price || 0) * 1.3; // Slightly penalize giving away
-  });
-
-  // Penalize if giving completes monopoly for opponent
-  given.forEach(id => {
-    const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
-    if (group && !["railroad", "utility"].includes(properties.find(p => p.id === id)?.color!)) {
-      const opponentOwned = group.filter(gid => 
-        game_properties.find(gp => gp.property_id === gid && gp.address !== receiverAddress && gp.address !== null)
-      ).length;
-      if (opponentOwned === group.length - 1) {
-        score -= 200;
-      }
-    }
-  });
-
-  return score;
-};
-
-// Calculate fair cash offer for a property (to complete set = premium)
-const calculateFairCashOffer = (propertyId: number, buyerCompletesSet: boolean, basePrice: number) => {
-  if (buyerCompletesSet) {
-    return Math.floor(basePrice * 1.6); // 60% premium
-  }
-  return Math.floor(basePrice * 1.3); // 30% standard
-};
-
-// Find least valuable property to offer (isolated, low value, no dev)
-const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty[], properties: Property[], excludeGroups: string[] = []) => {
-  const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
-
-  // Filter out from complete monopolies or high-priority
-  const candidates = owned.filter(o => {
-    const group = Object.keys(MONOPOLY_STATS.colorGroups).find(g => 
-      MONOPOLY_STATS.colorGroups[g as keyof typeof MONOPOLY_STATS.colorGroups].includes(o.prop.id)
-    );
-    if (!group || excludeGroups.includes(group)) return false;
-    if (o.gp.development! > 0) return false; // Don't offer improved
-    return true;
-  });
-
-  if (candidates.length === 0) return null;
-
-  // Lowest price first
-  candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
-  return candidates[0];
-};
-
- const ROLL_DICE = useCallback(async (forAI = false) => {
-  if (isRolling || actionLock || !lockAction("ROLL")) return;
-
-  setIsRolling(true);
-  setRoll(null);
-  setHasMovementFinished(false);
-
-  setTimeout(async () => {
-    const value = getDiceValues();
-    if (!value) {
-      showToast("DOUBLES! Roll again!", "success");
-      setIsRolling(false);
-      unlockAction();
+  const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
+    if (!propertyId || !newPlayerId) {
+      toast("Cannot transfer: missing property or player");
       return;
     }
 
-    setRoll(value);
-    const playerId = forAI ? currentPlayerId : me!.user_id;
-    const player = players.find((p) => p.user_id === playerId);
-    if (!player) return;
-
-    const currentPos = player.position ?? 0;
-    const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
-
-    let newPos = currentPos; // Default: stay put
-    let shouldAnimate = false;
-
-    // Only move if NOT in jail
-    if (!isInJail) {
-      const totalMove = value.total + pendingRoll;
-      newPos = (currentPos + totalMove) % BOARD_SQUARES;
-      shouldAnimate = totalMove > 0;
-
-      if (shouldAnimate) {
-        const movePath: number[] = [];
-        for (let i = 1; i <= totalMove; i++) {
-          movePath.push((currentPos + i) % BOARD_SQUARES);
+    try {
+      const response = await apiClient.put<ApiResponse>(
+        `/game-properties/${propertyId}`,
+        {
+          game_id: game.id,
+          player_id: newPlayerId,
         }
+      );
 
-        // Animate step by step
-        for (let i = 0; i < movePath.length; i++) {
-          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
-          setAnimatedPositions((prev) => ({
-            ...prev,
-            [playerId]: movePath[i],
-          }));
+      if (response.data?.success) {
+        toast.success("Property transferred successfully! 🎉");
+      } else {
+        throw new Error(response.data?.message || "Transfer failed");
+      }
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to transfer property";
+
+      toast.error(message);
+      console.error("Property transfer failed:", error);
+    }
+  };
+
+  // ── AI STRATEGY HELPERS ─────────────────────────────────────
+
+  const getPlayerOwnedProperties = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+    if (!playerAddress) return [];
+    return game_properties
+      .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase())
+      .map(gp => ({
+        gp,
+        prop: properties.find(p => p.id === gp.property_id)!,
+      }))
+      .filter(item => !!item.prop);
+  };
+
+  const getCompleteMonopolies = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+    if (!playerAddress) return [];
+
+    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+    const monopolies: string[] = [];
+
+    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
+      if (groupName === "railroad" || groupName === "utility") return;
+
+      const ownedInGroup = owned.filter(o => ids.includes(o.prop.id));
+      if (ownedInGroup.length === ids.length) {
+        const allUnmortgaged = ownedInGroup.every(o => !o.gp.mortgaged);
+        if (allUnmortgaged) {
+          monopolies.push(groupName);
         }
       }
-    } else {
-      // In jail → no movement, but still show the roll result
-      showToast(
-        `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no movement)`,
-        "default"
+    });
+
+    return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
+  };
+
+  const getNearCompleteOpportunities = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+    if (!playerAddress) return [];
+
+    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+    const opportunities: {
+      group: string;
+      needs: number;
+      missing: { id: number; name: string; ownerAddress: string | null; ownerName: string }[];
+    }[] = [];
+
+    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
+      if (groupName === "railroad" || groupName === "utility") return;
+
+      const ownedCount = owned.filter(o => ids.includes(o.prop.id)).length;
+      const needs = ids.length - ownedCount;
+
+      if (needs === 1 || needs === 2) {
+        const missing = ids
+          .filter(id => !owned.some(o => o.prop.id === id))
+          .map(id => {
+            const gp = game_properties.find(g => g.property_id === id);
+            const prop = properties.find(p => p.id === id)!;
+            const ownerName = gp?.address
+              ? players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
+              : "Bank";
+            return {
+              id,
+              name: prop.name,
+              ownerAddress: gp?.address || null,
+              ownerName,
+            };
+          });
+
+        opportunities.push({ group: groupName, needs, missing });
+      }
+    });
+
+    return opportunities.sort((a, b) => {
+      if (a.needs !== b.needs) return a.needs - b.needs;
+      return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
+    });
+  };
+
+  const calculateTradeFavorability = (
+    trade: { offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number },
+    receiverAddress: string
+  ) => {
+    let score = 0;
+
+    score += trade.offer_amount - trade.requested_amount;
+
+    trade.requested_properties.forEach(id => {
+      const prop = properties.find(p => p.id === id);
+      if (!prop) return;
+      score += prop.price || 0;
+
+      const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
+      if (group && !["railroad", "utility"].includes(prop.color!)) {
+        const currentOwned = group.filter(gid =>
+          game_properties.find(gp => gp.property_id === gid && gp.address === receiverAddress)
+        ).length;
+        if (currentOwned === group.length - 1) score += 300;
+        else if (currentOwned === group.length - 2) score += 120;
+      }
+    });
+
+    trade.offer_properties.forEach(id => {
+      const prop = properties.find(p => p.id === id);
+      if (!prop) return;
+      score -= (prop.price || 0) * 1.3;
+    });
+
+    return score;
+  };
+
+  const calculateFairCashOffer = (propertyId: number, completesSet: boolean, basePrice: number) => {
+    return completesSet ? Math.floor(basePrice * 1.6) : Math.floor(basePrice * 1.3);
+  };
+
+  const getPropertyToOffer = (playerAddress: string, excludeGroups: string[] = []) => {
+    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+    const candidates = owned.filter(o => {
+      const group = Object.keys(MONOPOLY_STATS.colorGroups).find(g =>
+        MONOPOLY_STATS.colorGroups[g as keyof typeof MONOPOLY_STATS.colorGroups].includes(o.prop.id)
       );
+      if (!group || excludeGroups.includes(group)) return false;
+      if (o.gp.development! > 0) return false;
+      return true;
+    });
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
+    return candidates[0];
+  };
+
+  const handleAiBuilding = async (player: Player) => {
+    if (!player.address) return;
+
+    const monopolies = getCompleteMonopolies(player.address, game_properties, properties);
+    if (monopolies.length === 0) return;
+
+    let built = false;
+
+    for (const groupName of monopolies) {
+      const ids = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
+      const groupGps = game_properties.filter(gp => ids.includes(gp.property_id) && gp.address === player.address);
+
+      const developments = groupGps.map(gp => gp.development ?? 0);
+      const minHouses = Math.min(...developments);
+      const maxHouses = Math.max(...developments);
+
+      if (maxHouses > minHouses + 1 || minHouses >= 5) continue;
+
+      const prop = properties.find(p => ids.includes(p.id))!;
+      const houseCost = prop.cost_of_house ?? 0;
+      if (houseCost === 0) continue;
+
+      const affordable = Math.floor((player.balance ?? 0) / houseCost);
+      if (affordable < ids.length) continue;
+
+      for (const gp of groupGps.filter(g => (g.development ?? 0) === minHouses)) {
+        try {
+          await apiClient.post("/game-properties/development", {
+            game_id: game.id,
+            user_id: player.user_id,
+            property_id: gp.property_id,
+          });
+          showToast(`AI built on ${prop.name} (${groupName})`, "success");
+          built = true;
+          await new Promise(r => setTimeout(r, 600));
+        } catch (err) {
+          console.error("Build failed", err);
+          break;
+        }
+      }
+
+      if (built) break;
+    }
+  };
+
+  const refreshGame = async () => {
+    try {
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      if (res?.data?.success) {
+        setPlayers(res.data.data.players);
+      }
+    } catch (err) {
+      console.error("Refresh failed", err);
+    }
+  };
+
+  const handleAiStrategy = async () => {
+    if (!currentPlayer || !isAITurn || strategyRanThisTurn) return;
+
+    showToast(`${currentPlayer.username} is thinking... 🧠`, "default");
+
+    const opportunities = getNearCompleteOpportunities(currentPlayer.address, game_properties, properties);
+    let maxTradeAttempts = 3;
+
+    for (const opp of opportunities) {
+      if (maxTradeAttempts <= 0) break;
+
+      for (const missing of opp.missing) {
+        if (!missing.ownerAddress || missing.ownerAddress === "bank") continue;
+
+        const targetPlayer = players.find(p => p.address?.toLowerCase() === missing.ownerAddress?.toLowerCase());
+        if (!targetPlayer) continue;
+
+        const basePrice = properties.find(p => p.id === missing.id)?.price || 200;
+        const cashOffer = calculateFairCashOffer(missing.id, opp.needs === 1, basePrice);
+
+        let offerProperties: number[] = [];
+        if ((currentPlayer.balance ?? 0) < cashOffer + 300) {
+          const toOffer = getPropertyToOffer(currentPlayer.address!, [opp.group]);
+          if (toOffer) {
+            offerProperties = [toOffer.prop.id];
+            showToast(`AI offering ${toOffer.prop.name} in deal`, "default");
+          }
+        }
+
+        const payload = {
+          game_id: game.id,
+          player_id: currentPlayer.user_id,
+          target_player_id: targetPlayer.user_id,
+          offer_properties: offerProperties,
+          offer_amount: cashOffer,
+          requested_properties: [missing.id],
+          requested_amount: 0,
+        };
+
+        try {
+          const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
+          if (res?.data?.success) {
+            showToast(`AI offered $${cashOffer}${offerProperties.length ? " + property" : ""} for ${missing.name}`, "default");
+            maxTradeAttempts--;
+
+            if (isAIPlayer(targetPlayer)) {
+              await new Promise(r => setTimeout(r, 800));
+              const favorability = calculateTradeFavorability(
+                { ...payload, requested_amount: 0 },
+                targetPlayer.address!
+              );
+
+              if (favorability >= 50) {
+                await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
+                showToast(`${targetPlayer.username} accepted deal! 🤝`, "success");
+                await refreshGame();
+              } else {
+                await apiClient.post("/game-trade-requests/decline", { id: res.data.data.id });
+                showToast(`${targetPlayer.username} declined`, "default");
+              }
+            } else {
+              showToast(`Trade proposed to ${targetPlayer.username}`, "default");
+            }
+          }
+        } catch (err) {
+          console.error("Trade failed", err);
+        }
+
+        await new Promise(r => setTimeout(r, 1200));
+      }
     }
 
-    setHasMovementFinished(true);
+    await handleAiBuilding(currentPlayer);
+    setStrategyRanThisTurn(true);
+    showToast(`${currentPlayer.username} ready to roll`, "default");
+  };
 
-    try {
-      // Always send the roll result to backend (even in jail — backend will handle doubles, pay, etc.)
-      await apiClient.post("/game-players/change-position", {
-        user_id: playerId,
-        game_id: game.id,
-        position: newPos,           // stays the same if in jail
-        rolled: value.total + pendingRoll,
-        is_double: value.die1 === value.die2,
-      });
+  // Run AI strategy at start of turn
+  useEffect(() => {
+    if (isAITurn && currentPlayer && !strategyRanThisTurn) {
+      const timer = setTimeout(handleAiStrategy, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isAITurn, currentPlayer, strategyRanThisTurn]);
 
-      setPendingRoll(0);
-      landedPositionThisTurn.current = isInJail ? null : newPos;
+  const ROLL_DICE = useCallback(async (forAI = false) => {
+    if (isRolling || actionLock || !lockAction("ROLL")) return;
+
+    setIsRolling(true);
+    setRoll(null);
+    setHasMovementFinished(false);
+
+    setTimeout(async () => {
+      const value = getDiceValues();
+      if (!value) {
+        showToast("DOUBLES! Roll again!", "success");
+        setIsRolling(false);
+        unlockAction();
+        return;
+      }
+
+      setRoll(value);
+      const playerId = forAI ? currentPlayerId : me!.user_id;
+      const player = players.find((p) => p.user_id === playerId);
+      if (!player) return;
+
+      const currentPos = player.position ?? 0;
+      const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
+
+      let newPos = currentPos;
+      let shouldAnimate = false;
 
       if (!isInJail) {
+        const totalMove = value.total + pendingRoll;
+        newPos = (currentPos + totalMove) % BOARD_SQUARES;
+        shouldAnimate = totalMove > 0;
+
+        if (shouldAnimate) {
+          const movePath: number[] = [];
+          for (let i = 1; i <= totalMove; i++) {
+            movePath.push((currentPos + i) % BOARD_SQUARES);
+          }
+
+          for (let i = 0; i < movePath.length; i++) {
+            await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+            setAnimatedPositions((prev) => ({
+              ...prev,
+              [playerId]: movePath[i],
+            }));
+          }
+        }
+      } else {
         showToast(
-          `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
-          "success"
+          `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total}`,
+          "default"
         );
       }
 
-      if (forAI) rolledForPlayerId.current = currentPlayerId;
-    } catch (err) {
-      console.error("Move failed:", err);
-      showToast("Move failed", "error");
-      END_TURN();
-    } finally {
-      setIsRolling(false);
-      unlockAction();
-    }
-  }, ROLL_ANIMATION_MS);
-}, [
-  isRolling, actionLock, lockAction, unlockAction,
-  currentPlayerId, me, players, pendingRoll, game.id,
-  showToast, END_TURN
-]);
+      setHasMovementFinished(true);
 
-  // AI auto-roll
+      try {
+        await apiClient.post("/game-players/change-position", {
+          user_id: playerId,
+          game_id: game.id,
+          position: newPos,
+          rolled: value.total + pendingRoll,
+          is_double: value.die1 === value.die2,
+        });
+
+        setPendingRoll(0);
+        landedPositionThisTurn.current = isInJail ? null : newPos;
+
+        if (!isInJail) {
+          showToast(
+            `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
+            "success"
+          );
+        }
+
+        if (forAI) rolledForPlayerId.current = currentPlayerId;
+      } catch (err) {
+        console.error("Move failed:", err);
+        showToast("Move failed", "error");
+        END_TURN();
+      } finally {
+        setIsRolling(false);
+        unlockAction();
+      }
+    }, ROLL_ANIMATION_MS);
+  }, [
+    isRolling, actionLock, lockAction, unlockAction,
+    currentPlayerId, me, players, pendingRoll, game.id,
+    showToast, END_TURN
+  ]);
+
+  // AI auto-roll after strategy
   useEffect(() => {
-    if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId) return;
-    const timer = setTimeout(() => ROLL_DICE(true), 700);
+    if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId || !strategyRanThisTurn) return;
+    const timer = setTimeout(() => ROLL_DICE(true), 1500);
     return () => clearTimeout(timer);
-  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE]);
+  }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE, strategyRanThisTurn]);
 
-  // Buy prompt logic – now uses landed position
+  // Buy prompt logic — Fixed operator precedence
   useEffect(() => {
     if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
       setBuyPrompted(false);
@@ -669,11 +741,9 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
 
     setBuyPrompted(canBuy);
 
-    if (canBuy) {
-      const playerBalance = currentPlayer?.balance ?? 0;
-      if (playerBalance < square.price) {
-        showToast(`Not enough money to buy ${square.name}`, "error");
-      }
+    // Fixed: parentheses around (currentPlayer?.balance ?? 0)
+    if (canBuy && (currentPlayer?.balance ?? 0) < square.price) {
+      showToast(`Not enough money to buy ${square.name}`, "error");
     }
   }, [
     roll,
@@ -685,8 +755,7 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
     showToast
   ]);
 
-
-  // NEW: Detect card draw from history changes
+  // Card detection
   useEffect(() => {
     const history = game.history ?? [];
     if (history.length <= prevHistoryLength.current) return;
@@ -694,10 +763,7 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
     const newEntry = history[history.length - 1];
     prevHistoryLength.current = history.length;
 
-    // Early return if no valid entry
-    if (newEntry == null || typeof newEntry !== "string") {
-      return;
-    }
+    if (newEntry == null || typeof newEntry !== "string") return;
 
     const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
     const match = (newEntry as string).match(cardRegex);
@@ -729,14 +795,13 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
     return () => clearTimeout(timer);
   }, [game.history]);
 
-  // Smarter AI buy decision
+  // AI buy decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty || buyScore === null) return;
 
     const timer = setTimeout(async () => {
-      // Much stricter thresholds + cash safety check
       const shouldBuy =
-        buyScore >= 72 && // was 60 – now requires really good spot
+        buyScore >= 72 &&
         (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
 
       if (shouldBuy) {
@@ -744,24 +809,14 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
         await BUY_PROPERTY(true);
       } else {
         showToast(`AI passed on ${justLandedProperty.name} (score: ${buyScore}%)`, "default");
+        setTimeout(END_TURN, 900);
       }
-
-      setTimeout(END_TURN, shouldBuy ? 1200 : 900);
     }, 900);
 
     return () => clearTimeout(timer);
-  }, [
-    isAITurn,
-    buyPrompted,
-    currentPlayer,
-    justLandedProperty,
-    buyScore,
-    BUY_PROPERTY,
-    END_TURN,
-    showToast
-  ]);
+  }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // Auto-end turn when nothing to do
+  // Auto-end turn
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
 
@@ -803,7 +858,6 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
   };
 
   const handleDeclareBankruptcy = async () => {
-    
     showToast("Declaring bankruptcy...", "default");
 
     try {
@@ -817,7 +871,6 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
 
       showToast("Game over! You have declared bankruptcy.", "error");
       setShowBankruptcyModal(true);
-  
     } catch (err) {
       showToast("Failed to end game", "error");
     }
@@ -836,7 +889,7 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
               isRolling={isRolling}
               roll={roll}
               buyPrompted={buyPrompted}
-              currentProperty={justLandedProperty || currentProperty} // Prefer landed property for UI
+              currentProperty={justLandedProperty || currentProperty}
               currentPlayerBalance={currentPlayer?.balance ?? 0}
               buyScore={buyScore}
               history={game.history ?? []}
@@ -860,7 +913,6 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
-          
                 />
               );
             })}
@@ -868,7 +920,6 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
         </div>
       </div>
 
-      {/* NEW: Card Modal */}
       <CardModal
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
@@ -877,10 +928,10 @@ const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty
       />
 
       <BankruptcyModal
-  isOpen={showBankruptcyModal}
-  tokensAwarded={0.5}
-  onReturnHome={() => window.location.href = "/"}
-/>
+        isOpen={showBankruptcyModal}
+        tokensAwarded={0.5}
+        onReturnHome={() => window.location.href = "/"}
+      />
 
       <Toaster
         position="top-center"
