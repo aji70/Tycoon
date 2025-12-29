@@ -598,140 +598,158 @@ export default function GamePlayers({
   };
 
   return (
-    <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 overflow-y-auto relative">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80" />
+  <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 flex flex-col relative">
+  {/* Top glowing bar */}
+  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80 z-10" />
 
-      <div className="p-4 space-y-6">
-        <motion.h2
-          animate={{ textShadow: ["0 0 10px #0ff", "0 0 20px #0ff", "0 0 10px #0ff"] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="text-2xl font-bold text-cyan-300 text-center tracking-widest"
+  {/* Header: PLAYERS title */}
+  <div className="p-4 pb-2 flex-shrink-0">
+    <motion.h2
+      animate={{ textShadow: ["0 0 10px #0ff", "0 0 20px #0ff", "0 0 10px #0ff"] }}
+      transition={{ duration: 2, repeat: Infinity }}
+      className="text-2xl font-bold text-cyan-300 text-center tracking-widest"
+    >
+      PLAYERS
+    </motion.h2>
+  </div>
+
+  {/* Scrollable Content Area */}
+  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-transparent px-4 pb-6">
+    <div className="space-y-6">
+      {/* Player List */}
+      <PlayerList
+        game={game}
+        sortedPlayers={sortedPlayers}
+        startTrade={startTrade}
+        isNext={isNext}
+      />
+
+      {/* My Empire Section */}
+      <MyEmpire
+        showEmpire={showEmpire}
+        toggleEmpire={toggleEmpire}
+        my_properties={my_properties}
+        properties={properties}
+        game_properties={game_properties}
+        setSelectedProperty={setSelectedProperty}
+      />
+
+      {/* Trade Section */}
+      <TradeSection
+        showTrade={showTrade}
+        toggleTrade={toggleTrade}
+        openTrades={openTrades}
+        tradeRequests={tradeRequests}
+        properties={properties}
+        game={game}
+        handleTradeAction={handleTradeAction}
+      />
+
+      {/* Dev Button */}
+      {isDevMode && (
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={() => setClaimModalOpen(true)}
+          className="w-full py-3 px-4 bg-gradient-to-r from-purple-700 to-fuchsia-700 hover:from-purple-600 hover:to-fuchsia-600 rounded-xl text-white font-medium shadow-lg shadow-purple-900/30"
         >
-          PLAYERS
-        </motion.h2>
+          DEV: Claim Any Property
+        </motion.button>
+      )}
+    </div>
+  </div>
 
-        <PlayerList
-          game={game}
-          sortedPlayers={sortedPlayers}
-          startTrade={startTrade}
-          isNext={isNext}
-        />
+  {/* All Modals - Outside scroll area but inside aside for layering */}
+  <AnimatePresence>
+    <PropertyActionModal
+      property={selectedProperty}
+      onClose={() => setSelectedProperty(null)}
+      onDevelop={handleDevelopment}
+      onDowngrade={handleDowngrade}
+      onMortgage={handleMortgage}
+      onUnmortgage={handleUnmortgage}
+    />
 
-        <MyEmpire
-          showEmpire={showEmpire}
-          toggleEmpire={toggleEmpire}
-          my_properties={my_properties}
-          properties={properties}
-          game_properties={game_properties}
-          setSelectedProperty={setSelectedProperty}
-        />
+    <AiTradePopup
+      trade={aiTradePopup}
+      properties={properties}
+      onClose={closeAiTradePopup}
+      onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
+      onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
+      onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
+    />
 
-        <TradeSection
-          showTrade={showTrade}
-          toggleTrade={toggleTrade}
-          openTrades={openTrades}
-          tradeRequests={tradeRequests}
-          properties={properties}
-          game={game}
-          handleTradeAction={handleTradeAction}
-        />
+    <AiResponsePopup
+      popup={aiResponsePopup}
+      properties={properties}
+      onClose={() => setAiResponsePopup(null)}
+    />
 
-        {isDevMode && (
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setClaimModalOpen(true)}
-            className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-purple-700 to-fuchsia-700 hover:from-purple-600 hover:to-fuchsia-600 rounded-xl text-white font-medium shadow-lg shadow-purple-900/30"
-          >
-            DEV: Claim Any Property
-          </motion.button>
-        )}
-      </div>
+    <VictoryModal
+      winner={winner}
+      me={me}
+      onClaim={handleFinalizeAndLeave}
+      claiming={endGamePending}
+    />
 
-      <AnimatePresence>
-        <PropertyActionModal
-          property={selectedProperty}
-          onClose={() => setSelectedProperty(null)}
-          onDevelop={handleDevelopment}
-          onDowngrade={handleDowngrade}
-          onMortgage={handleMortgage}
-          onUnmortgage={handleUnmortgage}
-        />
+    <TradeModal
+      open={tradeModal.open}
+      title={`Trade with ${tradeModal.target?.username || "Player"}`}
+      onClose={() => {
+        setTradeModal({ open: false, target: null });
+        resetTradeFields();
+      }}
+      onSubmit={handleCreateTrade}
+      my_properties={my_properties}
+      properties={properties}
+      game_properties={game_properties}
+      offerProperties={offerProperties}
+      requestProperties={requestProperties}
+      setOfferProperties={setOfferProperties}
+      setRequestProperties={setRequestProperties}
+      offerCash={offerCash}
+      requestCash={requestCash}
+      setOfferCash={setOfferCash}
+      setRequestCash={setRequestCash}
+      toggleSelect={toggleSelect}
+      targetPlayerAddress={tradeModal.target?.address}
+    />
 
-        <AiTradePopup
-          trade={aiTradePopup}
-          properties={properties}
-          onClose={closeAiTradePopup}
-          onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
-          onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
-          onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
-        />
+    <TradeModal
+      open={counterModal.open}
+      title="Counter Trade Offer"
+      onClose={() => {
+        setCounterModal({ open: false, trade: null });
+        resetTradeFields();
+      }}
+      onSubmit={submitCounterTrade}
+      my_properties={my_properties}
+      properties={properties}
+      game_properties={game_properties}
+      offerProperties={offerProperties}
+      requestProperties={requestProperties}
+      setOfferProperties={setOfferProperties}
+      setRequestProperties={setRequestProperties}
+      offerCash={offerCash}
+      requestCash={requestCash}
+      setOfferCash={setOfferCash}
+      setRequestCash={setRequestCash}
+      toggleSelect={toggleSelect}
+      targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
+    />
 
-        <AiResponsePopup
-          popup={aiResponsePopup}
-          properties={properties}
-          onClose={() => setAiResponsePopup(null)}
-        />
-
-        <VictoryModal
-          winner={winner}
-          me={me}
-          onClaim={handleFinalizeAndLeave}
-          claiming={endGamePending}
-        />
-
-        <TradeModal
-          open={tradeModal.open}
-          title={`Trade with ${tradeModal.target?.username || "Player"}`}
-          onClose={() => { setTradeModal({ open: false, target: null }); resetTradeFields(); }}
-          onSubmit={handleCreateTrade}
-          my_properties={my_properties}
-          properties={properties}
-          game_properties={game_properties}
-          offerProperties={offerProperties}
-          requestProperties={requestProperties}
-          setOfferProperties={setOfferProperties}
-          setRequestProperties={setRequestProperties}
-          offerCash={offerCash}
-          requestCash={requestCash}
-          setOfferCash={setOfferCash}
-          setRequestCash={setRequestCash}
-          toggleSelect={toggleSelect}
-          targetPlayerAddress={tradeModal.target?.address}
-        />
-
-        <TradeModal
-          open={counterModal.open}
-          title="Counter Trade Offer"
-          onClose={() => { setCounterModal({ open: false, trade: null }); resetTradeFields(); }}
-          onSubmit={submitCounterTrade}
-          my_properties={my_properties}
-          properties={properties}
-          game_properties={game_properties}
-          offerProperties={offerProperties}
-          requestProperties={requestProperties}
-          setOfferProperties={setOfferProperties}
-          setRequestProperties={setRequestProperties}
-          offerCash={offerCash}
-          requestCash={requestCash}
-          setOfferCash={setOfferCash}
-          setRequestCash={setRequestCash}
-          toggleSelect={toggleSelect}
-          targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
-        />
-
-        <ClaimPropertyModal
-          open={claimModalOpen && isDevMode}
-          game_properties={game_properties}
-          properties={properties}
-          me={me}
-          game={game}
-          onClose={() => setClaimModalOpen(false)}
-          onClaim={handleClaimProperty}
-          onDelete={handleDeleteGameProperty}
-          onTransfer={handlePropertyTransfer}
-        /> 
-      </AnimatePresence>
-    </aside>
+    <ClaimPropertyModal
+      open={claimModalOpen && isDevMode}
+      game_properties={game_properties}
+      properties={properties}
+      me={me}
+      game={game}
+      onClose={() => setClaimModalOpen(false)}
+      onClaim={handleClaimProperty}
+      onDelete={handleDeleteGameProperty}
+      onTransfer={handlePropertyTransfer}
+    />
+  </AnimatePresence>
+</aside>
   );
 }

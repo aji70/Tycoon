@@ -28,27 +28,26 @@ export const PlayerList: React.FC<PlayerListProps> = ({
   const { address: connectedAddress } = useAccount();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
-  // Normalize user_id to string (handles both number and string safely)
   const getPlayerIdString = (player: Player): string => String(player.user_id);
 
-  // Find "me" and current player
   const me = sortedPlayers.find(
     (p) => p.address?.toLowerCase() === connectedAddress?.toLowerCase()
   );
   const current = sortedPlayers.find((p) => p.user_id === game.next_player_id);
 
-  // Initial visible players: you + current + up to 1-2 more
+  // Show: You + Current Turn + a few more (prioritize important players)
   const defaultVisible = useMemo(() => {
     const visible: Player[] = [];
 
     if (me) visible.push(me);
     if (current && (!me || current.user_id !== me.user_id)) visible.push(current);
 
-    const remaining = sortedPlayers.filter(
+    const others = sortedPlayers.filter(
       (p) => p.user_id !== me?.user_id && p.user_id !== current?.user_id
     );
 
-    visible.push(...remaining.slice(0, Math.max(0, 3 - visible.length)));
+    // Fill up to ~4-5 visible by default
+    visible.push(...others.slice(0, Math.max(0, 5 - visible.length)));
 
     return visible;
   }, [sortedPlayers, me, current]);
@@ -59,23 +58,14 @@ export const PlayerList: React.FC<PlayerListProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full min-h-0">
       {/* Top glowing bar */}
       <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
 
-      {/* Scrollable container */}
-      <div
-        className="
-          flex-1 
-          min-h-0 
-          overflow-y-auto 
-          overscroll-contain
-          scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-purple-950/40
-          px-2 py-4
-        "
-      >
+      {/* Scrollable player list */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-purple-950/40 px-3 py-4">
         <div className="space-y-4">
-          {defaultVisible.map((p) => {
+          {sortedPlayers.map((p) => {
             const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
             const isTurn = p.user_id === game.next_player_id;
             const isSelected = selectedPlayerId === getPlayerIdString(p);
@@ -91,6 +81,7 @@ export const PlayerList: React.FC<PlayerListProps> = ({
             return (
               <motion.div
                 key={p.user_id}
+                layout // Smooth reordering if list changes
                 whileTap={{ scale: 0.98 }}
                 whileHover={{ scale: 1.02 }}
                 onClick={() => handlePlayerClick(p)}
@@ -116,7 +107,7 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                     </span>
                     <div className="min-w-0">
                       <div className="font-bold text-cyan-100 text-base flex items-center gap-2 flex-wrap">
-                        <span className="truncate">{displayName}</span>
+                        <span className="truncate max-w-[140px]">{displayName}</span>
                         {isMe && (
                           <span className="px-2 py-0.5 bg-yellow-500/90 text-black text-xs font-black rounded-full flex-shrink-0">
                             YOU
@@ -179,10 +170,10 @@ export const PlayerList: React.FC<PlayerListProps> = ({
         </div>
       </div>
 
-      {/* Scroll hint - only when actually needed */}
-      {sortedPlayers.length > defaultVisible.length && (
-        <div className="text-center text-xs text-purple-300/70 pt-3 pb-2">
-          Scroll down to see all {sortedPlayers.length} players
+      {/* Optional scroll hint */}
+      {sortedPlayers.length > 6 && (
+        <div className="text-center text-xs text-purple-300/70 py-2 px-3">
+          ↑ Scroll to see all {sortedPlayers.length} players ↑
         </div>
       )}
     </div>
