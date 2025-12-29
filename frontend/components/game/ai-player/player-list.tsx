@@ -11,7 +11,6 @@ interface PlayerListProps {
   startTrade: (player: Player) => void;
 }
 
-// Dynamic balance color
 const getBalanceColor = (balance: number): string => {
   if (balance >= 1300) return "text-cyan-300";
   if (balance >= 1000) return "text-emerald-400";
@@ -27,39 +26,32 @@ export const PlayerList: React.FC<PlayerListProps> = ({
   startTrade,
 }) => {
   const { address: connectedAddress } = useAccount();
-  
-  // Safest: always treat selected ID as string
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
-  // Helper to normalize player ID to string
-  const getPlayerIdString = (player: Player): string => {
-    return String(player.user_id);
-  };
+  // Normalize user_id to string (handles both number and string safely)
+  const getPlayerIdString = (player: Player): string => String(player.user_id);
 
-  // Find key players
+  // Find "me" and current player
   const me = sortedPlayers.find(
     (p) => p.address?.toLowerCase() === connectedAddress?.toLowerCase()
   );
   const current = sortedPlayers.find((p) => p.user_id === game.next_player_id);
 
-  // Default visible players (~3): me + current + 1-2 others
+  // Initial visible players: you + current + up to 1-2 more
   const defaultVisible = useMemo(() => {
     const visible: Player[] = [];
 
     if (me) visible.push(me);
-    if (current && current.user_id !== me?.user_id) visible.push(current);
+    if (current && (!me || current.user_id !== me.user_id)) visible.push(current);
 
-    // Fill up to ~3 with others
     const remaining = sortedPlayers.filter(
       (p) => p.user_id !== me?.user_id && p.user_id !== current?.user_id
     );
 
-    visible.push(...remaining.slice(0, 3 - visible.length));
+    visible.push(...remaining.slice(0, Math.max(0, 3 - visible.length)));
 
     return visible;
   }, [sortedPlayers, me, current]);
-
-  const [visiblePlayers] = useState<Player[]>(defaultVisible);
 
   const handlePlayerClick = (player: Player) => {
     const id = getPlayerIdString(player);
@@ -67,20 +59,32 @@ export const PlayerList: React.FC<PlayerListProps> = ({
   };
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
+    <div className="flex flex-col h-full w-full">
       {/* Top glowing bar */}
       <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
 
-      <div className="flex-1 overflow-y-auto px-1 pb-4 scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-purple-950/40">
-        <div className="space-y-3">
-          {visiblePlayers.map((p) => {
+      {/* Scrollable container */}
+      <div
+        className="
+          flex-1 
+          min-h-0 
+          overflow-y-auto 
+          overscroll-contain
+          scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-purple-950/40
+          px-2 py-4
+        "
+      >
+        <div className="space-y-4">
+          {defaultVisible.map((p) => {
             const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
             const isTurn = p.user_id === game.next_player_id;
             const isSelected = selectedPlayerId === getPlayerIdString(p);
             const canTrade = isNext && !p.in_jail && !isMe;
 
             const displayName = p.username || p.address?.slice(0, 6) + "..." || "Player";
-            const isAI = displayName.toLowerCase().includes("ai_") || displayName.toLowerCase().includes("bot");
+            const isAI =
+              displayName.toLowerCase().includes("ai_") ||
+              displayName.toLowerCase().includes("bot");
 
             const balanceColor = getBalanceColor(p.balance);
 
@@ -101,7 +105,6 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                   ${p.in_jail ? "opacity-65" : ""}
                 `}
               >
-                {/* Pulsing glow for current turn */}
                 {isTurn && (
                   <div className="absolute inset-0 bg-cyan-400/10 animate-pulse pointer-events-none rounded-2xl" />
                 )}
@@ -145,7 +148,6 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                   </div>
                 </div>
 
-                {/* Trade button - only when selected */}
                 <AnimatePresence>
                   {isSelected && canTrade && (
                     <motion.button
@@ -154,9 +156,9 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                       exit={{ opacity: 0, y: 10 }}
                       transition={{ duration: 0.2 }}
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent toggling selection off
+                        e.stopPropagation();
                         startTrade(p);
-                        setSelectedPlayerId(null); // Optional: close after starting trade
+                        setSelectedPlayerId(null);
                       }}
                       className="
                         mt-4 w-full py-3 
@@ -177,10 +179,10 @@ export const PlayerList: React.FC<PlayerListProps> = ({
         </div>
       </div>
 
-      {/* Scroll hint */}
-      {sortedPlayers.length > visiblePlayers.length && (
-        <div className="text-center text-xs text-purple-300/70 mt-2">
-          Scroll to see all {sortedPlayers.length} players
+      {/* Scroll hint - only when actually needed */}
+      {sortedPlayers.length > defaultVisible.length && (
+        <div className="text-center text-xs text-purple-300/70 pt-3 pb-2">
+          Scroll down to see all {sortedPlayers.length} players
         </div>
       )}
     </div>
