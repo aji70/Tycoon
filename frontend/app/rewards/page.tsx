@@ -1,268 +1,333 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import {
-  useRewardVoucherRedeemValue,
-  useRewardCollectiblePerk,
-  useRewardGetCashTierValue,
-  useRewardCollectibleShopPrice,
-  useRewardRedeemVoucher,
-  useRewardBurnCollectible,
-  useRewardBuyCollectible,
-  useRewardTokenBalance,
-  isVoucherToken,
-  isCollectibleToken,
-  VOUCHER_ID_START,
-  COLLECTIBLE_ID_START,
-} from '@/context/ContractProvider'; // Adjust path to your hooks file
-import { formatUnits } from 'viem';
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { formatUnits, parseUnits } from 'viem';
+import RewardABI from '@/context/rewardabi.json';
+import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
-export default function RewardContractTester() {
+export default function RewardAdminTester() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
 
-  const [tokenId, setTokenId] = useState<bigint | ''>('');
-  const [tier, setTier] = useState<number | ''>('');
+  // Voucher Mint State
+  const [voucherRecipient, setVoucherRecipient] = useState<string>('');
+  const [voucherTycAmount, setVoucherTycAmount] = useState<string>('');
 
-  // Convert input to bigint safely
-  const tokenIdBigInt = tokenId === '' ? undefined : BigInt(tokenId);
+  // Collectible Mint State
+  const [collectibleRecipient, setCollectibleRecipient] = useState<string>('');
+  const [collectiblePerk, setCollectiblePerk] = useState<number>(1); // 1 = EXTRA_TURN, etc.
+  const [collectibleStrength, setCollectibleStrength] = useState<string>('1');
+  const [collectibleShopPrice, setCollectibleShopPrice] = useState<string>('0'); // 0 = not for sale
 
-  // Read Hooks
-  const { data: voucherValue, isLoading: loadingVoucherValue } = useRewardVoucherRedeemValue(tokenIdBigInt);
-  const { data: collectiblePerk, isLoading: loadingPerk } = useRewardCollectiblePerk(tokenIdBigInt);
-  const { data: cashTierValue, isLoading: loadingCashTier } = useRewardGetCashTierValue(tier || undefined);
-  const { price: shopPrice, isLoading: loadingShopPrice } = useRewardCollectibleShopPrice(tokenIdBigInt);
-  const { balance, isLoading: loadingBalance } = useRewardTokenBalance(address, tokenIdBigInt);
+  // Stock Shop State
+  const [stockAmount, setStockAmount] = useState<string>('1');
+  const [stockPerk, setStockPerk] = useState<number>(1);
+  const [stockStrength, setStockStrength] = useState<string>('1');
+  const [stockPrice, setStockPrice] = useState<string>('');
 
-  // Write Hooks
-  const { redeem, isPending: redeeming, isSuccess: redeemed, error: redeemError, txHash: redeemTx } = useRewardRedeemVoucher();
-  const { burn, isPending: burning, isSuccess: burned, error: burnError, txHash: burnTx } = useRewardBurnCollectible();
-  const { buy, isPending: buying, isSuccess: bought, error: buyError, txHash: buyTx } = useRewardBuyCollectible();
+  const { writeContract, data: txHash, isPending: writing, error: writeError, reset } = useWriteContract();
+  const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const handleRedeem = async () => {
-    if (!tokenIdBigInt) return alert('Enter a token ID');
-    if (!isVoucherToken(tokenIdBigInt)) return alert('This is not a voucher token ID');
-    await redeem(tokenIdBigInt);
+  const isLoading = writing || confirming;
+
+  const perkOptions = [
+    { id: 1, name: 'EXTRA_TURN' },
+    { id: 2, name: 'JAIL_FREE' },
+    { id: 3, name: 'DOUBLE_RENT' },
+    { id: 4, name: 'ROLL_BOOST' },
+    { id: 5, name: 'CASH_TIERED' },
+  ];
+
+  const handleMintVoucher = async () => {
+    if (!contractAddress) return alert('Contract not deployed on this chain');
+    if (!voucherRecipient || !voucherTycAmount) return alert('Fill recipient and TYC amount');
+
+    const amountWei = parseUnits(voucherTycAmount, 18);
+
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'mintVoucher',
+      args: [voucherRecipient as `0x${string}`, amountWei],
+    });
   };
 
-  const handleBurn = async () => {
-    if (!tokenIdBigInt) return alert('Enter a token ID');
-    if (!isCollectibleToken(tokenIdBigInt)) return alert('This is not a collectible token ID');
-    await burn(tokenIdBigInt);
+  const handleMintCollectible = async () => {
+    if (!contractAddress) return alert('Contract not deployed');
+    if (!collectibleRecipient) return alert('Enter recipient');
+
+    const shopPriceWei = parseUnits(collectibleShopPrice, 18);
+
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'mintCollectible',
+      args: [
+        collectibleRecipient as `0x${string}`,
+        collectiblePerk,
+        BigInt(collectibleStrength),
+        shopPriceWei,
+      ],
+    });
   };
 
-  const handleBuy = async () => {
-    if (!tokenIdBigInt) return alert('Enter a token ID');
-    if (!isCollectibleToken(tokenIdBigInt)) return alert('This is not a collectible token ID');
-    if (shopPrice === BigInt(0) || shopPrice === undefined) return alert('This collectible is not for sale');
-    await buy(tokenIdBigInt);
+  const handleStockShop = async () => {
+    if (!contractAddress) return alert('Contract not deployed');
+    if (!stockAmount || !stockPrice) return alert('Fill amount and price');
+
+    const amount = BigInt(stockAmount);
+    const priceWei = parseUnits(stockPrice, 18);
+
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'stockShop',
+      args: [amount, stockPerk, BigInt(stockStrength), priceWei],
+    });
   };
 
-  const getTokenType = (id: bigint) => {
-    if (isVoucherToken(id)) return 'Voucher (Redeemable for TYC)';
-    if (isCollectibleToken(id)) return 'Collectible (Burnable for Perk)';
-    return 'Unknown / Invalid';
-  };
-
-  const perkName = (perkId: number) => {
-    const names = {
-      0: 'NONE',
-      1: 'EXTRA_TURN',
-      2: 'JAIL_FREE',
-      3: 'DOUBLE_RENT',
-      4: 'ROLL_BOOST',
-      5: 'CASH_TIERED',
-    };
-    return names[perkId as keyof typeof names] || 'UNKNOWN';
+  const resetForm = () => {
+    setVoucherRecipient('');
+    setVoucherTycAmount('');
+    setCollectibleRecipient('');
+    setCollectiblePerk(1);
+    setCollectibleStrength('1');
+    setCollectibleShopPrice('0');
+    setStockAmount('1');
+    setStockPerk(1);
+    setStockStrength('1');
+    setStockPrice('');
+    reset();
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center">TycoonRewardSystem Contract Tester</h1>
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-5xl font-bold text-center mb-12 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          TycoonRewardSystem Admin Tester
+        </h1>
 
         {!isConnected ? (
-          <div className="text-center text-red-400 text-xl">Please connect your wallet</div>
+          <div className="text-center text-red-400 text-2xl">Connect your wallet to continue</div>
         ) : (
           <>
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
-              <p className="text-sm text-gray-400">Connected Address:</p>
+            <div className="bg-gray-800 rounded-xl p-6 mb-10 text-center">
+              <p className="text-gray-400">Connected Address:</p>
               <p className="font-mono text-lg break-all">{address}</p>
-              <p className="text-sm text-gray-400 mt-2">Chain ID: {chainId}</p>
-            </div>
-
-            {/* Token ID Input */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
-              <h2 className="text-2xl font-semibold mb-4">Test Token ID</h2>
-              <input
-                type="number"
-                placeholder="Enter Token ID (e.g. 1000000001 or 2000000001)"
-                className="w-full px-4 py-3 bg-gray-700 rounded-lg text-white mb-4"
-                value={tokenId === '' ? '' : tokenId.toString()}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setTokenId(val === '' ? '' : BigInt(val));
-                }}
-              />
-
-              {tokenIdBigInt && (
-                <div className="mt-4 p-4 bg-gray-700 rounded">
-                  <p><strong>Token Type:</strong> {getTokenType(tokenIdBigInt)}</p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Vouchers: ≥ {VOUCHER_ID_START.toString()} <br />
-                    Collectibles: ≥ {COLLECTIBLE_ID_START.toString()}
-                  </p>
-                </div>
+              <p className="text-gray-400 mt-2">Chain ID: {chainId}</p>
+              {contractAddress ? (
+                <p className="text-green-400 mt-2">✓ Reward contract found</p>
+              ) : (
+                <p className="text-red-400 mt-2">✗ No contract on this chain</p>
               )}
             </div>
 
-            {/* Read Functions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* Voucher Value */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-3">voucherRedeemValue()</h3>
-                {loadingVoucherValue ? <p>Loading...</p> : 
-                 voucherValue !== undefined ? (
-                  <p className="text-2xl font-bold text-green-400">
-                    {formatUnits(voucherValue, 18)} TYC
-                  </p>
-                 ) : <p className="text-gray-400">Not a voucher or value = 0</p>}
+            {/* Mint Voucher */}
+            <div className="bg-gradient-to-br from-purple-900 to-purple-800 rounded-2xl p-8 mb-10 shadow-xl">
+              <h2 className="text-3xl font-bold mb-6">mintVoucher() — onlyOwner</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-lg mb-2">Recipient Address</label>
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={voucherRecipient}
+                    onChange={(e) => setVoucherRecipient(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">TYC Amount (human readable)</label>
+                  <input
+                    type="text"
+                    placeholder="100"
+                    value={voucherTycAmount}
+                    onChange={(e) => {
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setVoucherTycAmount(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
               </div>
-
-              {/* Collectible Perk */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-3">getCollectiblePerk()</h3>
-                {loadingPerk ? <p>Loading...</p> :
-                 collectiblePerk ? (
-                  <div>
-                    <p><strong>Perk:</strong> {perkName(collectiblePerk.perk)}</p>
-                    <p><strong>Strength/Tier:</strong> {collectiblePerk.strength.toString()}</p>
-                    {collectiblePerk.perk === 5 && (
-                      <p className="text-sm text-gray-300 mt-2">
-                        Cash Amount: {collectiblePerk.strength >= 1 && collectiblePerk.strength <= 5 
-                          ? [0, 10, 25, 50, 100, 250][Number(collectiblePerk.strength)] 
-                          : 'Invalid'} in-game cash
-                      </p>
-                    )}
-                  </div>
-                 ) : <p className="text-gray-400">No perk data</p>}
-              </div>
-
-              {/* Shop Price */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-3">collectibleShopPrice()</h3>
-                {loadingShopPrice ? <p>Loading...</p> :
-                 shopPrice !== undefined ? (
-                  shopPrice > BigInt(0) ? (
-                    <p className="text-2xl font-bold text-yellow-400">
-                      {formatUnits(shopPrice, 18)} TYC
-                    </p>
-                  ) : (
-                    <p className="text-red-400">Not for sale</p>
-                  )
-                 ) : <p className="text-gray-400">Not a collectible</p>}
-              </div>
-
-              {/* Balance */}
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-3">Your Balance (balanceOf)</h3>
-                {loadingBalance ? <p>Loading...</p> :
-                 balance !== undefined ? (
-                  <p className="text-2xl font-bold">{balance.toString()} × Token #{tokenIdBigInt?.toString()}</p>
-                 ) : <p className="text-gray-400">No balance data</p>}
-              </div>
+              <button
+                onClick={handleMintVoucher}
+                disabled={isLoading || !contractAddress}
+                className="mt-6 w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                {isLoading ? 'Processing...' : 'Mint Voucher'}
+              </button>
             </div>
 
-            {/* Cash Tier Tester */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
-              <h2 className="text-2xl font-semibold mb-4">Test getCashTierValue(tier)</h2>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                placeholder="Enter tier (1-5)"
-                className="w-48 px-4 py-3 bg-gray-700 rounded-lg text-white"
-                value={tier === '' ? '' : tier}
-                onChange={(e) => setTier(e.target.value === '' ? '' : Number(e.target.value))}
-              />
-              <div className="mt-4">
-                {loadingCashTier ? <p>Loading...</p> :
-                 cashTierValue !== undefined ? (
-                  <p className="text-xl">
-                    Tier {tier}: <strong>{cashTierValue.toString()} in-game cash</strong>
-                  </p>
-                 ) : <p className="text-gray-400">Invalid tier</p>}
+            {/* Mint Collectible */}
+            <div className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-2xl p-8 mb-10 shadow-xl">
+              <h2 className="text-3xl font-bold mb-6">mintCollectible() — onlyBackend</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-lg mb-2">Recipient Address</label>
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={collectibleRecipient}
+                    onChange={(e) => setCollectibleRecipient(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Perk</label>
+                  <select
+                    value={collectiblePerk}
+                    onChange={(e) => setCollectiblePerk(Number(e.target.value))}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  >
+                    {perkOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Strength / Tier</label>
+                  <input
+                    type="text"
+                    placeholder="1"
+                    value={collectibleStrength}
+                    onChange={(e) => {
+                      if (/^\d+$/.test(e.target.value) || e.target.value === '') setCollectibleStrength(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                  {collectiblePerk === 5 && (
+                    <p className="text-sm text-gray-400 mt-1">Tier 1→10, 2→25, 3→50, 4→100, 5→250 cash</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Shop Price (TYC) — 0 = not for sale</label>
+                  <input
+                    type="text"
+                    placeholder="0"
+                    value={collectibleShopPrice}
+                    onChange={(e) => {
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setCollectibleShopPrice(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
               </div>
-              <p className="text-sm text-gray-400 mt-4">
-                Tiers: 1→10, 2→25, 3→50, 4→100, 5→250
+              <button
+                onClick={handleMintCollectible}
+                disabled={isLoading || !contractAddress}
+                className="mt-6 w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                {isLoading ? 'Processing...' : 'Mint Collectible'}
+              </button>
+            </div>
+
+            {/* Stock Shop */}
+            <div className="bg-gradient-to-br from-green-900 to-green-800 rounded-2xl p-8 mb-10 shadow-xl">
+              <h2 className="text-3xl font-bold mb-6">stockShop() — onlyBackend</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-lg mb-2">Amount to Stock</label>
+                  <input
+                    type="text"
+                    placeholder="5"
+                    value={stockAmount}
+                    onChange={(e) => {
+                      if (/^\d+$/.test(e.target.value) || e.target.value === '') setStockAmount(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Perk</label>
+                  <select
+                    value={stockPerk}
+                    onChange={(e) => setStockPerk(Number(e.target.value))}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  >
+                    {perkOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Strength / Tier</label>
+                  <input
+                    type="text"
+                    placeholder="1"
+                    value={stockStrength}
+                    onChange={(e) => {
+                      if (/^\d+$/.test(e.target.value) || e.target.value === '') setStockStrength(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Shop Price (TYC) — required</label>
+                  <input
+                    type="text"
+                    placeholder="50"
+                    value={stockPrice}
+                    onChange={(e) => {
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setStockPrice(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleStockShop}
+                disabled={isLoading || !contractAddress}
+                className="mt-6 w-full py-4 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                {isLoading ? 'Processing...' : 'Stock Shop'}
+              </button>
+            </div>
+
+            {/* Transaction Feedback */}
+            {writeError && (
+              <div className="bg-red-900 rounded-xl p-6 mb-8">
+                <strong>Error:</strong> {writeError.message}
+              </div>
+            )}
+
+            {confirmed && txHash && (
+              <div className="bg-green-900 rounded-xl p-6 text-center">
+                <strong>Success!</strong> Transaction confirmed.
+                <br />
+                <a
+                  href={`https://${chainId === 42220 ? 'explorer.celo.org' : 'sepolia.etherscan.io'}/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-4 px-6 py-3 bg-green-700 hover:bg-green-600 rounded-lg font-bold"
+                >
+                  View on Explorer
+                </a>
+                <button
+                  onClick={resetForm}
+                  className="ml-4 px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
+                >
+                  Reset Form
+                </button>
+              </div>
+            )}
+
+            <div className="mt-12 text-center text-gray-500">
+              <p className="text-sm">
+                This page allows testing of <strong>all admin/minter functions</strong>:
               </p>
-            </div>
-
-            {/* Write Functions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Redeem Voucher */}
-              <div className="bg-gradient-to-br from-purple-800 to-purple-900 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-4">redeemVoucher()</h3>
-                <button
-                  onClick={handleRedeem}
-                  disabled={redeeming || !tokenIdBigInt || !isVoucherToken(tokenIdBigInt)}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 rounded-lg font-bold"
-                >
-                  {redeeming ? 'Redeeming...' : 'Redeem Voucher'}
-                </button>
-                {redeemed && <p className="text-green-400 mt-3">Success! Tx: {redeemTx?.slice(0, 10)}...</p>}
-                {redeemError && <p className="text-red-400 mt-3">Error: {redeemError.message}</p>}
-              </div>
-
-              {/* Burn Collectible */}
-              <div className="bg-gradient-to-br from-red-800 to-red-900 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-4">burnCollectibleForPerk()</h3>
-                <button
-                  onClick={handleBurn}
-                  disabled={burning || !tokenIdBigInt || !isCollectibleToken(tokenIdBigInt)}
-                  className="w-full py-3 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 rounded-lg font-bold"
-                >
-                  {burning ? 'Burning...' : 'Burn for Perk'}
-                </button>
-                {burned && <p className="text-green-400 mt-3">Burned! Tx: {burnTx?.slice(0, 10)}...</p>}
-                {burnError && <p className="text-red-400 mt-3">Error: {burnError.message}</p>}
-              </div>
-
-              {/* Buy Collectible */}
-              <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-4">buyCollectible()</h3>
-                 <button
-  onClick={handleBuy}
-  disabled={
-    buying || 
-    !tokenIdBigInt || 
-    !isCollectibleToken(tokenIdBigInt) || 
-    shopPrice === undefined || 
-    shopPrice === BigInt(0)
-  }
-  className="w-full py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded-lg font-bold transition"
->
-  {buying
-    ? 'Buying...'
-    : shopPrice !== undefined && shopPrice > 0
-      ? `Buy for ${formatUnits(shopPrice, 18)} TYC`
-      : shopPrice === undefined
-        ? 'Loading price...'
-        : 'Not for sale'
-  }
-</button>
-                {bought && <p className="text-green-400 mt-3">Purchased! Tx: {buyTx?.slice(0, 10)}...</p>}
-                {buyError && <p className="text-red-400 mt-3 break-all">Error: {buyError.message}</p>}
-                <p className="text-xs text-gray-300 mt-4">
-                  Note: You must approve TYC spending first!
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-12 text-center text-gray-500 text-sm">
-              <p>Use this page to test all functions of TycoonRewardSystem</p>
-              <p className="mt-2">Make sure you're on the correct network and have TYC tokens</p>
+              <ul className="text-left inline-block mt-4 space-y-1">
+                <li>• mintVoucher() — onlyOwner</li>
+                <li>• mintCollectible() — onlyBackend</li>
+                <li>• stockShop() — onlyBackend</li>
+              </ul>
+              <p className="mt-6">Use responsibly on testnet or private deployment.</p>
             </div>
           </>
         )}
