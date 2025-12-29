@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
-import PlayerList  from "./player-list";
+import PlayerList from "./player-list";
 import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../modals/property-action";
@@ -16,10 +16,10 @@ import { AiTradePopup } from "../modals/ai-trade";
 import { AiResponsePopup } from "../modals/ai-response";
 import { VictoryModal } from "../modals/victory";
 import { TradeModal } from "../modals/trade";
+import ClaimPropertyModal from "../dev";
+import { useGameTrades } from "@/hooks/useGameTrades";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
-import ClaimPropertyModal from "../dev";
-import { useGameTrades } from "@/hooks/useGameTrades"; // ← New hook
 
 interface GamePlayersProps {
   game: Game;
@@ -55,20 +55,20 @@ export default function GamePlayers({
     trade: null,
   });
   const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
-
-  const [offerProperties, setOfferProperties] = useState<number[]>([]);
-  const [requestProperties, setRequestProperties] = useState<number[]>([]);
-  const [offerCash, setOfferCash] = useState<number>(0);
-  const [requestCash, setRequestCash] = useState<number>(0);
-
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-
   const [winner, setWinner] = useState<Player | null>(null);
   const [endGameCandidate, setEndGameCandidate] = useState<{
     winner: Player | null;
     position: number;
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
+
+  const [offerProperties, setOfferProperties] = useState<number[]>([]);
+  const [requestProperties, setRequestProperties] = useState<number[]>([]);
+  const [offerCash, setOfferCash] = useState<number>(0);
+  const [requestCash, setRequestCash] = useState<number>(0);
+
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
 
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
   const onChainGameId = contractGame?.id;
@@ -83,9 +83,6 @@ export default function GamePlayers({
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = !!me && game.next_player_id === me.user_id;
 
-  const [claimModalOpen, setClaimModalOpen] = useState(false);
-
-  // Extracted trade logic via hook
   const {
     openTrades,
     tradeRequests,
@@ -105,8 +102,14 @@ export default function GamePlayers({
     setRequestProperties([]);
   };
 
-  const toggleSelect = (id: number, arr: number[], setter: React.Dispatch<React.SetStateAction<number[]>>) => {
-    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleSelect = (
+    id: number,
+    arr: number[],
+    setter: React.Dispatch<React.SetStateAction<number[]>>
+  ) => {
+    setter((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
   const startTrade = (targetPlayer: Player) => {
@@ -149,7 +152,7 @@ export default function GamePlayers({
         toast.success("Trade sent successfully!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
-        refreshTrades(); // ← Use hook's refresh
+        refreshTrades();
 
         if (isAI) {
           const sentTrade = {
@@ -349,7 +352,6 @@ export default function GamePlayers({
     }
   };
 
-  // AI liquidation functions
   const aiSellHouses = async (needed: number) => {
     const improved = game_properties
       .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
@@ -412,14 +414,12 @@ export default function GamePlayers({
     return raised;
   };
 
-  // Helper to safely get internal player_id from any owned property
   const getGamePlayerId = (walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
     const ownedProp = game_properties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
     return ownedProp?.player_id ?? null;
   };
 
-  // Dev claim function
   const handleClaimProperty = async (propertyId: number, player: Player) => {
     const gamePlayerId = getGamePlayerId(player.address);
 
@@ -456,7 +456,6 @@ export default function GamePlayers({
     }
   };
 
-  // AI liquidation + conditional bankruptcy
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
 
@@ -550,7 +549,6 @@ export default function GamePlayers({
     handleAiLiquidationAndPossibleBankruptcy();
   }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
 
-  // Winner detection (1v1 human vs AI)
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
 
@@ -598,158 +596,204 @@ export default function GamePlayers({
   };
 
   return (
-  <aside className="w-80 h-full bg-gradient-to-b from-[#0a0e17] to-[#1a0033] border-r-4 border-cyan-500 shadow-2xl shadow-cyan-500/50 flex flex-col relative">
-  {/* Top glowing bar */}
-  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80 z-10" />
+    <aside className="w-80 h-full bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] border-r-4 border-purple-600 shadow-2xl shadow-purple-900/60 flex flex-col relative overflow-hidden">
+      {/* Top Neon Glow Bar */}
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80 z-50" />
 
-  {/* Header: PLAYERS title */}
-  <div className="p-4 pb-2 flex-shrink-0">
-    <motion.h2
-      animate={{ textShadow: ["0 0 10px #0ff", "0 0 20px #0ff", "0 0 10px #0ff"] }}
-      transition={{ duration: 2, repeat: Infinity }}
-      className="text-2xl font-bold text-cyan-300 text-center tracking-widest"
-    >
-      PLAYERS
-    </motion.h2>
-  </div>
-
-  {/* Scrollable Content Area */}
-  <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-transparent px-4 pb-6">
-    <div className="space-y-6">
-      {/* Player List */}
-      <PlayerList
-        game={game}
-        sortedPlayers={sortedPlayers}
-        startTrade={startTrade}
-        isNext={isNext}
-      />
-
-      {/* My Empire Section */}
-      <MyEmpire
-        showEmpire={showEmpire}
-        toggleEmpire={toggleEmpire}
-        my_properties={my_properties}
-        properties={properties}
-        game_properties={game_properties}
-        setSelectedProperty={setSelectedProperty}
-      />
-
-      {/* Trade Section */}
-      <TradeSection
-        showTrade={showTrade}
-        toggleTrade={toggleTrade}
-        openTrades={openTrades}
-        tradeRequests={tradeRequests}
-        properties={properties}
-        game={game}
-        handleTradeAction={handleTradeAction}
-      />
-
-      {/* Dev Button */}
-      {isDevMode && (
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => setClaimModalOpen(true)}
-          className="w-full py-3 px-4 bg-gradient-to-r from-purple-700 to-fuchsia-700 hover:from-purple-600 hover:to-fuchsia-600 rounded-xl text-white font-medium shadow-lg shadow-purple-900/30"
+      {/* Floating Header with Glass Effect */}
+      <div className="relative z-10 p-5 pb-3 flex-shrink-0 backdrop-blur-xl bg-black/20 border-b border-purple-500/30">
+        <motion.h2
+          animate={{
+            textShadow: [
+              "0 0 15px #06b6d4",
+              "0 0 30px #06b6d4",
+              "0 0 15px #06b6d4",
+            ],
+          }}
+          transition={{ duration: 3, repeat: Infinity }}
+          className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400 text-center tracking-wider drop-shadow-2xl"
         >
-          DEV: Claim Any Property
-        </motion.button>
-      )}
-    </div>
-  </div>
+          PLAYERS
+        </motion.h2>
+        <div className="text-center mt-2 text-sm text-purple-300 opacity-80">
+          Game Code: <span className="font-mono font-bold text-cyan-300">{game.code}</span>
+        </div>
+      </div>
 
-  {/* All Modals - Outside scroll area but inside aside for layering */}
-  <AnimatePresence>
-    <PropertyActionModal
-      property={selectedProperty}
-      onClose={() => setSelectedProperty(null)}
-      onDevelop={handleDevelopment}
-      onDowngrade={handleDowngrade}
-      onMortgage={handleMortgage}
-      onUnmortgage={handleUnmortgage}
-    />
+      {/* Scrollable Content with Custom Scrollbar */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
+        <div className="space-y-8">
 
-    <AiTradePopup
-      trade={aiTradePopup}
-      properties={properties}
-      onClose={closeAiTradePopup}
-      onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
-      onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
-      onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
-    />
+          {/* Player List Section */}
+          <section>
+            <PlayerList
+              game={game}
+              sortedPlayers={sortedPlayers}
+              startTrade={startTrade}
+              isNext={isNext}
+            />
+          </section>
 
-    <AiResponsePopup
-      popup={aiResponsePopup}
-      properties={properties}
-      onClose={() => setAiResponsePopup(null)}
-    />
+          {/* My Empire Section */}
+          <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-purple-500/30 shadow-xl shadow-purple-900/40">
+            <MyEmpire
+              showEmpire={showEmpire}
+              toggleEmpire={toggleEmpire}
+              my_properties={my_properties}
+              properties={properties}
+              game_properties={game_properties}
+              setSelectedProperty={setSelectedProperty}
+            />
+          </section>
 
-    <VictoryModal
-      winner={winner}
-      me={me}
-      onClaim={handleFinalizeAndLeave}
-      claiming={endGamePending}
-    />
+          {/* Active Trades Section */}
+          <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-pink-500/30 shadow-xl shadow-pink-900/40">
+            <TradeSection
+              showTrade={showTrade}
+              toggleTrade={toggleTrade}
+              openTrades={openTrades}
+              tradeRequests={tradeRequests}
+              properties={properties}
+              game={game}
+              handleTradeAction={handleTradeAction}
+            />
+          </section>
 
-    <TradeModal
-      open={tradeModal.open}
-      title={`Trade with ${tradeModal.target?.username || "Player"}`}
-      onClose={() => {
-        setTradeModal({ open: false, target: null });
-        resetTradeFields();
-      }}
-      onSubmit={handleCreateTrade}
-      my_properties={my_properties}
-      properties={properties}
-      game_properties={game_properties}
-      offerProperties={offerProperties}
-      requestProperties={requestProperties}
-      setOfferProperties={setOfferProperties}
-      setRequestProperties={setRequestProperties}
-      offerCash={offerCash}
-      requestCash={requestCash}
-      setOfferCash={setOfferCash}
-      setRequestCash={setRequestCash}
-      toggleSelect={toggleSelect}
-      targetPlayerAddress={tradeModal.target?.address}
-    />
+          {/* Dev Mode Button */}
+          {isDevMode && (
+            <motion.button
+              whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(168, 85, 247, 0.6)" }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setClaimModalOpen(true)}
+              className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-2xl text-white font-bold text-lg tracking-wide shadow-2xl shadow-purple-800/60 hover:shadow-pink-800/70 transition-all duration-300 border border-purple-400/50"
+            >
+              ⚙️ DEV: Claim Property
+            </motion.button>
+          )}
+        </div>
+      </div>
 
-    <TradeModal
-      open={counterModal.open}
-      title="Counter Trade Offer"
-      onClose={() => {
-        setCounterModal({ open: false, trade: null });
-        resetTradeFields();
-      }}
-      onSubmit={submitCounterTrade}
-      my_properties={my_properties}
-      properties={properties}
-      game_properties={game_properties}
-      offerProperties={offerProperties}
-      requestProperties={requestProperties}
-      setOfferProperties={setOfferProperties}
-      setRequestProperties={setRequestProperties}
-      offerCash={offerCash}
-      requestCash={requestCash}
-      setOfferCash={setOfferCash}
-      setRequestCash={setRequestCash}
-      toggleSelect={toggleSelect}
-      targetPlayerAddress={game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address}
-    />
+      {/* Custom Scrollbar Styles */}
+      <style jsx>{`
+        .scrollbar-custom {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(168, 85, 247, 0.5) rgba(20, 5, 40, 0.7);
+        }
 
-    <ClaimPropertyModal
-      open={claimModalOpen && isDevMode}
-      game_properties={game_properties}
-      properties={properties}
-      me={me}
-      game={game}
-      onClose={() => setClaimModalOpen(false)}
-      onClaim={handleClaimProperty}
-      onDelete={handleDeleteGameProperty}
-      onTransfer={handlePropertyTransfer}
-    />
-  </AnimatePresence>
-</aside>
+        .scrollbar-custom::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .scrollbar-custom::-webkit-scrollbar-track {
+          background: rgba(20, 5, 40, 0.7);
+          border-radius: 8px;
+        }
+
+        .scrollbar-custom::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #c084fc, #ec4899);
+          border-radius: 8px;
+          box-shadow: 0 0 10px rgba(236, 72, 153, 0.6);
+        }
+
+        .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, #d8b4fe, #f43f5e);
+          box-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
+        }
+      `}</style>
+
+      {/* All Modals */}
+      <AnimatePresence>
+        <PropertyActionModal
+          property={selectedProperty}
+          onClose={() => setSelectedProperty(null)}
+          onDevelop={handleDevelopment}
+          onDowngrade={handleDowngrade}
+          onMortgage={handleMortgage}
+          onUnmortgage={handleUnmortgage}
+        />
+
+        <AiTradePopup
+          trade={aiTradePopup}
+          properties={properties}
+          onClose={closeAiTradePopup}
+          onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
+          onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
+          onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
+        />
+
+        <AiResponsePopup
+          popup={aiResponsePopup}
+          properties={properties}
+          onClose={() => setAiResponsePopup(null)}
+        />
+
+        <VictoryModal
+          winner={winner}
+          me={me}
+          onClaim={handleFinalizeAndLeave}
+          claiming={endGamePending}
+        />
+
+        <TradeModal
+          open={tradeModal.open}
+          title={`Trade with ${tradeModal.target?.username || "Player"}`}
+          onClose={() => {
+            setTradeModal({ open: false, target: null });
+            resetTradeFields();
+          }}
+          onSubmit={handleCreateTrade}
+          my_properties={my_properties}
+          properties={properties}
+          game_properties={game_properties}
+          offerProperties={offerProperties}
+          requestProperties={requestProperties}
+          setOfferProperties={setOfferProperties}
+          setRequestProperties={setRequestProperties}
+          offerCash={offerCash}
+          requestCash={requestCash}
+          setOfferCash={setOfferCash}
+          setRequestCash={setRequestCash}
+          toggleSelect={toggleSelect}
+          targetPlayerAddress={tradeModal.target?.address}
+        />
+
+        <TradeModal
+          open={counterModal.open}
+          title="Counter Offer"
+          onClose={() => {
+            setCounterModal({ open: false, trade: null });
+            resetTradeFields();
+          }}
+          onSubmit={submitCounterTrade}
+          my_properties={my_properties}
+          properties={properties}
+          game_properties={game_properties}
+          offerProperties={offerProperties}
+          requestProperties={requestProperties}
+          setOfferProperties={setOfferProperties}
+          setRequestProperties={setRequestProperties}
+          offerCash={offerCash}
+          requestCash={requestCash}
+          setOfferCash={setOfferCash}
+          setRequestCash={setRequestCash}
+          toggleSelect={toggleSelect}
+          targetPlayerAddress={
+            game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address
+          }
+        />
+
+        <ClaimPropertyModal
+          open={claimModalOpen && isDevMode}
+          game_properties={game_properties}
+          properties={properties}
+          me={me}
+          game={game}
+          onClose={() => setClaimModalOpen(false)}
+          onClaim={handleClaimProperty}
+          onDelete={handleDeleteGameProperty}
+          onTransfer={handlePropertyTransfer}
+        />
+      </AnimatePresence>
+    </aside>
   );
 }

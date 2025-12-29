@@ -30,13 +30,25 @@ const PlayerList: React.FC<PlayerListProps> = ({
   const { address: connectedAddress } = useAccount();
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
+  // Find key players
   const myPlayer = sortedPlayers.find(
     (p) => p.address?.toLowerCase() === connectedAddress?.toLowerCase()
   );
 
+  const currentTurnPlayer = sortedPlayers.find(
+    (p) => p.user_id === game.next_player_id
+  );
+
+  // Reorder: YOU → Current Turn → One more → Rest
+  const otherPlayers = sortedPlayers.filter(
+    (p) => p !== myPlayer && p !== currentTurnPlayer
+  );
+
   const reorderedPlayers = [
     ...(myPlayer ? [myPlayer] : []),
-    ...sortedPlayers.filter((p) => p !== myPlayer),
+    ...(currentTurnPlayer && currentTurnPlayer !== myPlayer ? [currentTurnPlayer] : []),
+    ...otherPlayers.slice(0, 1), // Only one additional player visible initially
+    ...otherPlayers.slice(1),   // The rest (hidden until scroll)
   ];
 
   const handlePlayerTap = (player: Player) => {
@@ -48,9 +60,9 @@ const PlayerList: React.FC<PlayerListProps> = ({
       {/* Top glowing bar */}
       <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
 
-      {/* Scrollable player list with custom subtle scrollbar */}
-      <div className="overflow-y-auto max-h-96 pr-3 scrollbar-custom">
-        <div className="space-y-3 pb-6">
+      {/* Fixed height container showing exactly ~3 players */}
+      <div className="overflow-y-auto h-96 pr-3 scrollbar-custom">
+        <div className="space-y-3 pb-8">
           {reorderedPlayers.map((p) => {
             const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
             const isTurn = p.user_id === game.next_player_id;
@@ -60,7 +72,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
             const displayName =
               p.username || p.address?.slice(0, 6) + "..." || "Player";
             const isAI =
-              displayName.toLowerCase().includes("ai") ||
+              displayName.toLowerCase().includes("ai_") ||
               displayName.toLowerCase().includes("bot");
 
             const balanceColor = getBalanceColor(p.balance);
@@ -159,7 +171,7 @@ const PlayerList: React.FC<PlayerListProps> = ({
         </div>
       </div>
 
-      {/* Custom Scrollbar Styles - Add this in your global CSS or inside <style> if needed */}
+      {/* Custom Scrollbar Styles */}
       <style jsx>{`
         .scrollbar-custom {
           scrollbar-width: thin;
