@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
-import { PlayerList } from "./player-list";
+import PlayerList  from "./player-list";
 import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../modals/property-action";

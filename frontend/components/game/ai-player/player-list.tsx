@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from "react";
+"use client";
+
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player } from "@/types/game";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -19,71 +21,46 @@ const getBalanceColor = (balance: number): string => {
   return "text-red-500 animate-pulse";
 };
 
-export const PlayerList: React.FC<PlayerListProps> = ({
+const PlayerList: React.FC<PlayerListProps> = ({
   game,
   sortedPlayers,
   isNext,
   startTrade,
 }) => {
   const { address: connectedAddress } = useAccount();
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
-  // Normalize user_id to string (handles both number and string safely)
-  const getPlayerIdString = (player: Player): string => String(player.user_id);
-
-  // Find "me" and current player
-  const me = sortedPlayers.find(
+  const myPlayer = sortedPlayers.find(
     (p) => p.address?.toLowerCase() === connectedAddress?.toLowerCase()
   );
-  const current = sortedPlayers.find((p) => p.user_id === game.next_player_id);
 
-  // Initial visible players: you + current + up to 1-2 more
-  const defaultVisible = useMemo(() => {
-    const visible: Player[] = [];
+  const reorderedPlayers = [
+    ...(myPlayer ? [myPlayer] : []),
+    ...sortedPlayers.filter((p) => p !== myPlayer),
+  ];
 
-    if (me) visible.push(me);
-    if (current && (!me || current.user_id !== me.user_id)) visible.push(current);
-
-    const remaining = sortedPlayers.filter(
-      (p) => p.user_id !== me?.user_id && p.user_id !== current?.user_id
-    );
-
-    visible.push(...remaining.slice(0, Math.max(0, 3 - visible.length)));
-
-    return visible;
-  }, [sortedPlayers, me, current]);
-
-  const handlePlayerClick = (player: Player) => {
-    const id = getPlayerIdString(player);
-    setSelectedPlayerId((prev) => (prev === id ? null : id));
+  const handlePlayerTap = (player: Player) => {
+    setSelectedPlayerId((prev) => (prev === player.user_id ? null : player.user_id));
   };
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="space-y-4">
       {/* Top glowing bar */}
       <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
 
-      {/* Scrollable container */}
-      <div
-        className="
-          flex-1 
-          min-h-0 
-          overflow-y-auto 
-          overscroll-contain
-          scrollbar-thin scrollbar-thumb-purple-600 scrollbar-track-purple-950/40
-          px-2 py-4
-        "
-      >
-        <div className="space-y-4">
-          {defaultVisible.map((p) => {
+      {/* Scrollable player list with custom subtle scrollbar */}
+      <div className="overflow-y-auto max-h-96 pr-3 scrollbar-custom">
+        <div className="space-y-3 pb-6">
+          {reorderedPlayers.map((p) => {
             const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
             const isTurn = p.user_id === game.next_player_id;
-            const isSelected = selectedPlayerId === getPlayerIdString(p);
             const canTrade = isNext && !p.in_jail && !isMe;
+            const isSelected = selectedPlayerId === p.user_id;
 
-            const displayName = p.username || p.address?.slice(0, 6) + "..." || "Player";
+            const displayName =
+              p.username || p.address?.slice(0, 6) + "..." || "Player";
             const isAI =
-              displayName.toLowerCase().includes("ai_") ||
+              displayName.toLowerCase().includes("ai") ||
               displayName.toLowerCase().includes("bot");
 
             const balanceColor = getBalanceColor(p.balance);
@@ -91,18 +68,17 @@ export const PlayerList: React.FC<PlayerListProps> = ({
             return (
               <motion.div
                 key={p.user_id}
-                whileTap={{ scale: 0.98 }}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => handlePlayerClick(p)}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handlePlayerTap(p)}
                 className={`
-                  relative p-4 rounded-2xl border-2 transition-all duration-300 overflow-hidden cursor-pointer
+                  relative p-4 rounded-2xl border-3 transition-all duration-300 
+                  cursor-pointer overflow-hidden select-none
                   ${isTurn
-                    ? "border-cyan-400 bg-cyan-900/70 shadow-2xl shadow-cyan-500/70"
-                    : isSelected
-                    ? "border-purple-400 bg-purple-900/60 shadow-xl shadow-purple-500/50"
-                    : "border-purple-700/60 bg-purple-900/30 shadow-lg"
+                    ? "border-cyan-400 bg-cyan-900/60 shadow-2xl shadow-cyan-500/70"
+                    : "border-purple-700/70 bg-purple-900/30 shadow-xl"
                   }
-                  ${p.in_jail ? "opacity-65" : ""}
+                  ${p.in_jail ? "opacity-70" : ""}
+                  ${isSelected ? "ring-4 ring-pink-500 ring-offset-2 ring-offset-black/50" : ""}
                 `}
               >
                 {isTurn && (
@@ -114,9 +90,10 @@ export const PlayerList: React.FC<PlayerListProps> = ({
                     <span className="text-3xl drop-shadow-md flex-shrink-0">
                       {getPlayerSymbol(p.symbol)}
                     </span>
+
                     <div className="min-w-0">
                       <div className="font-bold text-cyan-100 text-base flex items-center gap-2 flex-wrap">
-                        <span className="truncate">{displayName}</span>
+                        <span className="truncate max-w-[140px]">{displayName}</span>
                         {isMe && (
                           <span className="px-2 py-0.5 bg-yellow-500/90 text-black text-xs font-black rounded-full flex-shrink-0">
                             YOU
@@ -150,27 +127,30 @@ export const PlayerList: React.FC<PlayerListProps> = ({
 
                 <AnimatePresence>
                   {isSelected && canTrade && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.2 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startTrade(p);
-                        setSelectedPlayerId(null);
-                      }}
-                      className="
-                        mt-4 w-full py-3 
-                        bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600
-                        hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500
-                        text-white font-bold rounded-xl text-base
-                        shadow-xl shadow-purple-900/60
-                        transition-all duration-300
-                      "
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginTop: 16 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      transition={{ duration: 0.3 }}
                     >
-                      Trade
-                    </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startTrade(p);
+                          setSelectedPlayerId(null);
+                        }}
+                        className="
+                          w-full py-3 
+                          bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600
+                          hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500
+                          text-white font-bold rounded-xl text-base
+                          shadow-xl shadow-purple-900/50 transition-all duration-300
+                        "
+                      >
+                        💱 TRADE WITH {displayName.split(" ")[0].toUpperCase()}
+                      </motion.button>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </motion.div>
@@ -179,12 +159,34 @@ export const PlayerList: React.FC<PlayerListProps> = ({
         </div>
       </div>
 
-      {/* Scroll hint - only when actually needed */}
-      {sortedPlayers.length > defaultVisible.length && (
-        <div className="text-center text-xs text-purple-300/70 pt-3 pb-2">
-          Scroll down to see all {sortedPlayers.length} players
-        </div>
-      )}
+      {/* Custom Scrollbar Styles - Add this in your global CSS or inside <style> if needed */}
+      <style jsx>{`
+        .scrollbar-custom {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(147, 51, 234, 0.4) rgba(30, 10, 58, 0.6);
+        }
+
+        .scrollbar-custom::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .scrollbar-custom::-webkit-scrollbar-track {
+          background: rgba(30, 10, 58, 0.6);
+          border-radius: 4px;
+        }
+
+        .scrollbar-custom::-webkit-scrollbar-thumb {
+          background: linear-gradient(to bottom, #a855f7, #ec4899);
+          border-radius: 4px;
+          box-shadow: 0 0 6px rgba(236, 72, 153, 0.5);
+        }
+
+        .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(to bottom, #c084fc, #f43f5e);
+        }
+      `}</style>
     </div>
   );
 };
+
+export default PlayerList;
