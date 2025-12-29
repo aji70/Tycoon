@@ -26,6 +26,7 @@ import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";  
 import { isAIPlayer } from "@/utils/gameUtils";
+import { useAIAutoActions } from "@/hooks/useAIAutoActions";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -171,6 +172,17 @@ const isAITurn = currentPlayer ? isAIPlayer(currentPlayer) : false;
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
   );
+
+  // Inside AiBoard component, after other hooks:
+interface UseAIAutoActionsProps {
+  game: Game;
+  properties: Property[];
+  game_properties: GameProperty[];
+  me: Player | null;           // me can still be null (not connected)
+  currentPlayer: Player | undefined;  // ← Change from null to undefined
+  isAITurn: boolean;
+  onRollDice: () => void;
+}
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
     winner: Player | null;
