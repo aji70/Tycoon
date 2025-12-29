@@ -25,6 +25,7 @@ import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
+import { PropertyActionModal } from "../modals/property-action"; // Add this import (adjust path)
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -151,6 +152,7 @@ const AiBoard = ({
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // NEW: For board clicks
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -172,7 +174,7 @@ const AiBoard = ({
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
   const isMyTurn = me?.user_id === currentPlayerId;
-  const isAITurn = isAIPlayer(currentPlayer); // Fixed: safe call
+  const isAITurn = isAIPlayer(currentPlayer);
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
@@ -751,7 +753,7 @@ const AiBoard = ({
     hasMovementFinished,
     game_properties,
     properties,
-    currentPlayer?.balance,
+    currentPlayer,
     showToast
   ]);
 
@@ -876,6 +878,76 @@ const AiBoard = ({
     }
   };
 
+  // NEW: Property action handlers (copied from GamePlayers)
+  const handleDevelopment = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property developed successfully");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to develop property");
+    }
+  };
+
+  const handleDowngrade = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
+    }
+  };
+
+  const handleMortgage = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property mortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to mortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to mortgage property");
+    }
+  };
+
+  const handleUnmortgage = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property unmortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unmortgage property");
+    }
+  };
+
+  // Handle board property click
+  const handlePropertyClick = (square: Property) => {
+    const gp = game_properties.find(gp => gp.property_id === square.id);
+    if (gp?.address === me?.address) {
+      setSelectedProperty(square);
+    } else {
+      showToast("You don't own this property", "error");
+    }
+  };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
@@ -913,6 +985,7 @@ const AiBoard = ({
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
+                  onClick={() => handlePropertyClick(square)} // NEW: Click handler
                 />
               );
             })}
@@ -931,6 +1004,16 @@ const AiBoard = ({
         isOpen={showBankruptcyModal}
         tokensAwarded={0.5}
         onReturnHome={() => window.location.href = "/"}
+      />
+
+      {/* NEW: PropertyActionModal for board clicks */}
+      <PropertyActionModal
+        property={selectedProperty}
+        onClose={() => setSelectedProperty(null)}
+        onDevelop={handleDevelopment}
+        onDowngrade={handleDowngrade}
+        onMortgage={handleMortgage}
+        onUnmortgage={handleUnmortgage}
       />
 
       <Toaster

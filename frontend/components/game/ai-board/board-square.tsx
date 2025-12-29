@@ -12,6 +12,7 @@ type BoardSquareProps = {
   owner: string | null;
   devLevel: number;
   mortgaged: boolean;
+  onClick?: () => void; // NEW: Optional click handler (for owned properties)
 };
 
 export default function BoardSquare({
@@ -21,9 +22,13 @@ export default function BoardSquare({
   owner,
   devLevel,
   mortgaged,
+  onClick, // NEW
 }: BoardSquareProps) {
   const isTopHalf = square.grid_row === 1;
   const playerCount = playersHere.length;
+
+  // Only make property squares clickable if it's a buildable property
+  const isClickableProperty = square.type === "property" && onClick;
 
   return (
     <motion.div
@@ -31,9 +36,12 @@ export default function BoardSquare({
         gridRowStart: square.grid_row,
         gridColumnStart: square.grid_col,
       }}
-      className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
+      className={`w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200 ${
+        isClickableProperty ? "cursor-pointer" : ""
+      }`}
       whileHover={{ scale: 1.75, zIndex: 50 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      onClick={isClickableProperty ? onClick : undefined} // Trigger modal only on owned properties
     >
       <div
         className={`w-full h-full transform group-hover:scale-200 ${
@@ -54,19 +62,25 @@ export default function BoardSquare({
           </div>
         )}
 
-        {/* Mortgaged overlay */}
+        {/* Enhanced Mortgaged Overlay */}
         {mortgaged && (
           <>
-            <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center z-30 pointer-events-none">
-              <span className="text-white text-lg font-bold rotate-12 tracking-wider drop-shadow-2xl">
+            {/* Dark overlay */}
+            <div className="absolute inset-0 bg-black/60 z-10 pointer-events-none" />
+            
+            {/* Diagonal red stripe */}
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-red-600/70 to-transparent z-20 pointer-events-none" />
+            
+            {/* Bold MORTGAGED text */}
+            <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+              <span className="text-red-300 text-2xl font-black tracking-wider drop-shadow-2xl rotate-[-30deg] scale-150">
                 MORTGAGED
               </span>
             </div>
-            <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none" />
           </>
         )}
 
-        {/* Player Tokens – Slightly smaller tokens + more delicate ring */}
+        {/* Player Tokens */}
         {playerCount > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3">
             <div className="relative w-full h-full flex flex-wrap items-center justify-center gap-2">
@@ -76,22 +90,21 @@ export default function BoardSquare({
                 const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
                 const tokenName = tokenData?.name || "Classic Token";
 
-                // Slightly reduced sizes (overall ~10–15% smaller than before)
                 const size = playerCount === 1 
-                  ? 60   // was 68 → now a bit more balanced
+                  ? 60
                   : playerCount === 2 
-                  ? 42   // was 46
+                  ? 42
                   : playerCount <= 4 
-                  ? 36   // was 40
-                  : 30;  // was 34
+                  ? 36
+                  : 30;
 
                 const fontSize = playerCount === 1 
-                  ? 36   // was 40
+                  ? 36
                   : playerCount === 2 
-                  ? 26   // was 28
+                  ? 26
                   : playerCount <= 4 
-                  ? 22   // was 24
-                  : 18;  // was 20
+                  ? 22
+                  : 18;
 
                 return (
                   <motion.div
@@ -100,7 +113,7 @@ export default function BoardSquare({
                       flex items-center justify-center rounded-full
                       bg-transparent text-white font-bold shadow-2xl
                       ${isCurrent 
-                        ? "ring-2 ring-cyan-400 ring-offset-1"  // delicate ring: thin + small offset
+                        ? "ring-2 ring-cyan-400 ring-offset-1"
                         : "border border-white/40"
                       }
                     `}
@@ -120,7 +133,7 @@ export default function BoardSquare({
                       damping: 20,
                       delay: index * 0.07,
                     }}
-                    whileHover={{ scale: 1.15 }} // slightly reduced hover scale
+                    whileHover={{ scale: 1.15 }}
                   >
                     {symbol}
                   </motion.div>
