@@ -2,6 +2,7 @@ import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+
 // ── Debug Claim Modal ───────────────────────────────────────────────────────────
 interface ClaimPropertyModalProps {
   open: boolean;
@@ -14,6 +15,34 @@ interface ClaimPropertyModalProps {
   onDelete: (id: number) => Promise<void>;
   onTransfer: (propertyId: number, newPlayerId: number, player_address: string) => Promise<void>;
 }
+
+const MONOPOLY_STATS = {
+  colorGroups: {
+    brown: [1, 3],
+    lightblue: [6, 8, 9],
+    pink: [11, 13, 14],
+    orange: [16, 18, 19],
+    red: [21, 23, 24],
+    yellow: [26, 27, 29],
+    green: [31, 32, 34],
+    darkblue: [37, 39],
+    railroad: [5, 15, 25, 35],
+    utility: [12, 28],
+  },
+};
+
+const GROUP_COLORS: Record<string, string> = {
+  brown: "border-amber-900 bg-amber-900/20",
+  lightblue: "border-cyan-400 bg-cyan-400/20",
+  pink: "border-pink-500 bg-pink-500/20",
+  orange: "border-orange-500 bg-orange-500/20",
+  red: "border-red-500 bg-red-500/20",
+  yellow: "border-yellow-400 bg-yellow-400/20",
+  green: "border-green-500 bg-green-500/20",
+  darkblue: "border-blue-800 bg-blue-800/20",
+  railroad: "border-gray-400 bg-gray-400/20",
+  utility: "border-purple-400 bg-purple-400/20",
+};
 
 export default function ClaimPropertyModal({
   open,
@@ -28,7 +57,7 @@ export default function ClaimPropertyModal({
 }: ClaimPropertyModalProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [targetPlayerId, setTargetPlayerId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"claim" | "delete" | "transfer">("claim");
+  const [activeTab, setActiveTab] = useState<"claim" | "delete" | "transfer" | "overview">("claim");
 
   if (!open || !me) return null;
 
@@ -63,6 +92,58 @@ export default function ClaimPropertyModal({
     );
   });
 
+  // ── Monopoly Overview Logic ─────────────────────────────────────────────
+  const getOwnerName = (address: string | null | undefined) => {
+    if (!address || address === "bank") return "Bank";
+    const player = game.players.find(p => p.address?.toLowerCase() === address.toLowerCase());
+    return player?.username || address.slice(0, 8) + "...";
+  };
+
+  const overviewData = Object.entries(MONOPOLY_STATS.colorGroups).map(([groupName, propertyIds]) => {
+    const total = propertyIds.length;
+    const ownership: Record<string, number> = {};
+
+    const missing: { id: number; name: string; owner: string }[] = [];
+
+    propertyIds.forEach(id => {
+      const gp = game_properties.find(g => g.property_id === id);
+      const prop = properties.find(p => p.id === id);
+      const ownerAddr = gp?.address || "bank";
+      const ownerName = getOwnerName(ownerAddr);
+
+      if (!gp) {
+        missing.push({ id, name: prop?.name || `Property ${id}`, owner: "Bank" });
+      }
+
+      ownership[ownerName] = (ownership[ownerName] || 0) + 1;
+    });
+
+    // Find player with most in this group
+    let maxOwned = 0;
+    let maxPlayer = "";
+    Object.entries(ownership).forEach(([player, count]) => {
+      if (count > maxOwned) {
+        maxOwned = count;
+        maxPlayer = player;
+      }
+    });
+
+    const isComplete = maxOwned === total && maxPlayer !== "Bank";
+    const needs = total - maxOwned;
+    const isNearComplete = (needs === 1 || needs === 2) && maxPlayer !== "Bank";
+
+    return {
+      groupName,
+      total,
+      ownership,
+      missing,
+      isComplete,
+      isNearComplete,
+      needs,
+      dominantPlayer: maxPlayer,
+    };
+  });
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -75,7 +156,7 @@ export default function ClaimPropertyModal({
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-gray-900 border border-cyan-500/50 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl shadow-cyan-500/20"
+        className="bg-gray-900 border border-cyan-500/50 rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl shadow-cyan-500/20"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -83,7 +164,7 @@ export default function ClaimPropertyModal({
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-3xl font-bold text-cyan-300">DEV Tools: Property Control</h2>
-              <p className="text-cyan-400/70 text-sm mt-1">Select a property and choose an action</p>
+              <p className="text-cyan-400/70 text-sm mt-1">Select a property or view monopoly status</p>
             </div>
             <button
               onClick={onClose}
@@ -94,59 +175,144 @@ export default function ClaimPropertyModal({
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-gray-700 px-6 pt-4 flex-wrap">
+          <button
+            onClick={() => setActiveTab("claim")}
+            className={`px-6 py-3 font-medium transition rounded-t-lg ${
+              activeTab === "claim"
+                ? "text-cyan-300 bg-cyan-900/30 border-b-3 border-cyan-300"
+                : "text-gray-500 hover:text-white"
+            }`}
+          >
+            Claim to Self
+          </button>
+          <button
+            onClick={() => setActiveTab("delete")}
+            className={`px-6 py-3 font-medium transition rounded-t-lg ${
+              activeTab === "delete"
+                ? "text-red-400 bg-red-900/20 border-b-3 border-red-400"
+                : "text-gray-500 hover:text-white"
+            }`}
+          >
+            Return to Bank
+          </button>
+          <button
+            onClick={() => setActiveTab("transfer")}
+            className={`px-6 py-3 font-medium transition rounded-t-lg ${
+              activeTab === "transfer"
+                ? "text-purple-400 bg-purple-900/20 border-b-3 border-purple-400"
+                : "text-gray-500 hover:text-white"
+            }`}
+          >
+            Transfer
+          </button>
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`px-6 py-3 font-medium transition rounded-t-lg ${
+              activeTab === "overview"
+                ? "text-green-400 bg-green-900/20 border-b-3 border-green-400"
+                : "text-gray-500 hover:text-white"
+            }`}
+          >
+            Monopoly Overview
+          </button>
+        </div>
+
         {/* Main Content */}
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-          {/* Left: Scrollable Property List */}
-          <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-cyan-800/30 flex flex-col">
-            <div className="p-6 flex-shrink-0">
-              <h3 className="text-lg font-semibold text-white">Select Property ({allProperties.length})</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
-              {allProperties.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">No properties in game</div>
-              ) : (
-                <div className="space-y-3">
-                  {allProperties.map(({ id, base, address }) => {
-                    const owner = game.players.find(p => p.address?.toLowerCase() === address?.toLowerCase()) ||
-                      (address === "bank" ? { username: "Bank" } : { username: address?.slice(0, 8) + "..." });
-                    const isSelected = selectedId === id;
+          {/* Left Panel - Only shown in non-overview tabs */}
+          {activeTab !== "overview" && (
+            <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-cyan-800/30 flex flex-col">
+              <div className="p-6 flex-shrink-0">
+                <h3 className="text-lg font-semibold text-white">Select Property ({allProperties.length})</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 pb-6">
+                {allProperties.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">No properties in game</div>
+                ) : (
+                  <div className="space-y-3">
+                    {allProperties.map(({ id, base, address }) => {
+                      const owner = getOwnerName(address);
+                      const isSelected = selectedId === id;
 
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => {
-                          setSelectedId(id);
-                          setTargetPlayerId(null);
-                          setActiveTab("claim");
-                        }}
-                        className={`w-full p-5 rounded-xl border-2 text-left transition-all ${
-                          isSelected
-                            ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-500/40 ring-2 ring-cyan-400/50"
-                            : "border-gray-700 hover:border-cyan-600/70 bg-gray-800/40"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="font-bold text-xl text-white">{base.name}</div>
-                            <div className="text-cyan-300 mt-1">Price: ${base.price?.toLocaleString()}</div>
-                            <div className="text-sm text-gray-400 mt-2">
-                              Owner: <span className="text-cyan-200 font-medium">{owner?.username}</span>
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => {
+                            setSelectedId(id);
+                            setTargetPlayerId(null);
+                          }}
+                          className={`w-full p-5 rounded-xl border-2 text-left transition-all ${
+                            isSelected
+                              ? "border-cyan-400 bg-cyan-900/40 shadow-lg shadow-cyan-500/40 ring-2 ring-cyan-400/50"
+                              : "border-gray-700 hover:border-cyan-600/70 bg-gray-800/40"
+                          }`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-bold text-xl text-white">{base.name}</div>
+                              <div className="text-cyan-300 mt-1">Price: ${base.price?.toLocaleString()}</div>
+                              <div className="text-sm text-gray-400 mt-2">
+                                Owner: <span className="text-cyan-200 font-medium">{owner}</span>
+                              </div>
                             </div>
+                            {isSelected && <span className="text-3xl text-cyan-400 ml-4">✓</span>}
                           </div>
-                          {isSelected && <span className="text-3xl text-cyan-400 ml-4">✓</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Right: Actions Panel */}
-          <div className="w-full md:w-1/2 flex flex-col">
-            <div className="flex-1 flex flex-col p-6">
-              {!selected ? (
+          {/* Right Panel */}
+          <div className={`w-full ${activeTab !== "overview" ? "md:w-1/2" : ""} flex flex-col`}>
+            <div className="flex-1 p-6 overflow-y-auto">
+              {activeTab === "overview" ? (
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-bold text-green-300 mb-6">Monopoly Status Overview</h3>
+                  {overviewData.map(({ groupName, total, ownership, missing, isComplete, isNearComplete, needs, dominantPlayer }) => (
+                    <div
+                      key={groupName}
+                      className={`p-5 rounded-xl border-2 ${GROUP_COLORS[groupName]} ${
+                        isComplete ? "ring-4 ring-green-400 shadow-lg shadow-green-400/50" : ""
+                      } ${isNearComplete ? "ring-4 ring-yellow-400 shadow-lg shadow-yellow-400/50" : ""}`}
+                    >
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-xl font-bold text-white capitalize">{groupName.replace(/([A-Z])/g, ' $1').trim()} ({total})</h4>
+                        <div className="text-right">
+                          {isComplete && <span className="text-green-400 font-bold text-lg">COMPLETE MONOPOLY</span>}
+                          {isNearComplete && <span className="text-yellow-400 font-bold text-lg">Needs {needs}</span>}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                        {Object.entries(ownership).map(([player, count]) => (
+                          <div key={player} className={player === dominantPlayer ? "text-white font-bold" : "text-gray-300"}>
+                            {player}: {count}/{total}
+                          </div>
+                        ))}
+                      </div>
+
+                      {missing.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm text-gray-400 font-medium">Missing:</p>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {missing.map(m => (
+                              <span key={m.id} className="text-xs bg-gray-800 px-3 py-1 rounded-full">
+                                {m.name} ({m.owner})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : !selected ? (
                 <div className="h-full flex items-center justify-center text-gray-500">
                   <p className="text-xl text-center">← Select a property from the list to manage it</p>
                 </div>
@@ -159,40 +325,6 @@ export default function ClaimPropertyModal({
                     <p className="text-sm text-gray-300 mt-2">
                       Current owner: <span className="text-cyan-200 font-medium">{currentOwner?.username}</span>
                     </p>
-                  </div>
-
-                  {/* Tabs */}
-                  <div className="flex gap-1 border-b border-gray-700 flex-shrink-0">
-                    <button
-                      onClick={() => setActiveTab("claim")}
-                      className={`px-6 py-3 font-medium transition rounded-t-lg ${
-                        activeTab === "claim"
-                          ? "text-cyan-300 bg-cyan-900/30 border-b-3 border-cyan-300"
-                          : "text-gray-500 hover:text-white"
-                      }`}
-                    >
-                      Claim to Self
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("delete")}
-                      className={`px-6 py-3 font-medium transition rounded-t-lg ${
-                        activeTab === "delete"
-                          ? "text-red-400 bg-red-900/20 border-b-3 border-red-400"
-                          : "text-gray-500 hover:text-white"
-                      }`}
-                    >
-                      Return to Bank
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("transfer")}
-                      className={`px-6 py-3 font-medium transition rounded-t-lg ${
-                        activeTab === "transfer"
-                          ? "text-purple-400 bg-purple-900/20 border-b-3 border-purple-400"
-                          : "text-gray-500 hover:text-white"
-                      }`}
-                    >
-                      Transfer
-                    </button>
                   </div>
 
                   {/* Action Content */}

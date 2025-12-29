@@ -321,6 +321,37 @@ const AiBoard = ({
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
 
+   const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
+      if (!propertyId || !newPlayerId) {
+        toast("Cannot transfer: missing property or player");
+        return;
+      }
+  
+      try {
+        const response = await apiClient.put<ApiResponse>(
+          `/game-properties/${propertyId}`,
+          {
+            game_id: game.id,
+            player_id: newPlayerId,
+          }
+        );
+  
+        if (response.data?.success) {
+          toast.success("Property transferred successfully! 🎉");
+        } else {
+          throw new Error(response.data?.message || "Transfer failed");
+        }
+      } catch (error: any) {
+        const message =
+          error.response?.data?.message ||
+          error.message ||
+          "Failed to transfer property";
+  
+        toast.error(message);
+        console.error("Property transfer failed:", error);
+      }
+    };
+
  const ROLL_DICE = useCallback(async (forAI = false) => {
   if (isRolling || actionLock || !lockAction("ROLL")) return;
 
