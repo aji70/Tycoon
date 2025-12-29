@@ -352,6 +352,199 @@ const AiBoard = ({
       }
     };
 
+// ── Inside AiBoard component (add these helpers) ─────────────────────────────────
+
+// Reuse the same color groups
+const MONOPOLY_STATS = {
+  colorGroups: {
+    brown: [1, 3],
+    lightblue: [6, 8, 9],
+    pink: [11, 13, 14],
+    orange: [16, 18, 19],
+    red: [21, 23, 24],
+    yellow: [26, 27, 29],
+    green: [31, 32, 34],
+    darkblue: [37, 39],
+    railroad: [5, 15, 25, 35],
+    utility: [12, 28],
+  },
+};
+
+// Priority order for building (best ROI first)
+const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
+
+// Get all properties owned by a player (address)
+const getPlayerOwnedProperties = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+  if (!playerAddress) return [];
+  return game_properties
+    .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase() && gp.development !== undefined)
+    .map(gp => ({
+      gp,
+      prop: properties.find(p => p.id === gp.property_id)!,
+    }))
+    .filter(item => !!item.prop);
+};
+
+// Check if a color group is fully owned and unimproved/unmortgaged enough to build
+const getCompleteMonopolies = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+  if (!playerAddress) return [];
+
+  const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+
+  const monopolies: string[] = [];
+
+  Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
+    if (groupName === "railroad" || groupName === "utility") return;
+
+    const groupProps = ids.map(id => properties.find(p => p.id === id)!);
+    const ownedInGroup = owned.filter(o => ids.includes(o.prop.id));
+
+    if (ownedInGroup.length === ids.length) {
+      // Check if all are unmortgaged (required to build)
+      const allUnmortgaged = ownedInGroup.every(o => !o.gp.mortgaged);
+      if (allUnmortgaged) {
+        monopolies.push(groupName);
+      }
+    }
+  });
+
+  return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
+};
+
+// Get near-complete sets: needs 1 or 2 properties
+const getNearCompleteOpportunities = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+  if (!playerAddress) return [];
+
+  const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+
+  const opportunities: {
+    group: string;
+    needs: number;
+    missing: { id: number; name: string; ownerAddress: string | null; ownerName: string; gp?: GameProperty }[];
+  }[] = [];
+
+  Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
+    if (groupName === "railroad" || groupName === "utility") return;
+
+    const ownedCount = owned.filter(o => ids.includes(o.prop.id)).length;
+    const needs = ids.length - ownedCount;
+
+    if (needs === 1 || needs === 2) {
+      const missing = ids
+        .filter(id => !owned.some(o => o.prop.id === id))
+        .map(id => {
+          const gp = game_properties.find(g => g.property_id === id);
+          const prop = properties.find(p => p.id === id)!;
+          const ownerName = gp?.address
+            ? game.players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
+            : "Bank";
+          return {
+            id,
+            name: prop.name,
+            ownerAddress: gp?.address || null,
+            ownerName,
+            gp,
+          };
+        });
+
+      opportunities.push({ group: groupName, needs, missing });
+    }
+  });
+
+  // Prioritize needs=1 first, then by build priority
+  return opportunities.sort((a, b) => {
+    if (a.needs !== b.needs) return a.needs - b.needs;
+    return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
+  });
+};
+
+// Enhanced favorability: +100 if completes monopoly for receiver, -80 if completes for opponent
+const calculateTradeFavorability = (
+  trade: { offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number },
+  receiverAddress: string,
+  game_properties: GameProperty[],
+  properties: Property[],
+  players: Player[]
+) => {
+  let score = 0;
+
+  // Cash
+  score += trade.offer_amount - trade.requested_amount;
+
+  // Properties received vs given
+  const received = trade.requested_properties;
+  const given = trade.offer_properties;
+
+  received.forEach(id => {
+    const prop = properties.find(p => p.id === id);
+    if (!prop) return;
+    score += prop.price || 0;
+
+    // Huge bonus if this completes a monopoly
+    const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
+    if (group && !["railroad", "utility"].includes(prop.color!)) {
+      const currentOwned = group.filter(gid => 
+        game_properties.find(gp => gp.property_id === gid && gp.address === receiverAddress)
+      ).length;
+      if (currentOwned === group.length - 1) {
+        score += 300; // Massive incentive
+      } else if (currentOwned === group.length - 2) {
+        score += 120;
+      }
+    }
+  });
+
+  given.forEach(id => {
+    const prop = properties.find(p => p.id === id);
+    if (!prop) return;
+    score -= (prop.price || 0) * 1.3; // Slightly penalize giving away
+  });
+
+  // Penalize if giving completes monopoly for opponent
+  given.forEach(id => {
+    const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
+    if (group && !["railroad", "utility"].includes(properties.find(p => p.id === id)?.color!)) {
+      const opponentOwned = group.filter(gid => 
+        game_properties.find(gp => gp.property_id === gid && gp.address !== receiverAddress && gp.address !== null)
+      ).length;
+      if (opponentOwned === group.length - 1) {
+        score -= 200;
+      }
+    }
+  });
+
+  return score;
+};
+
+// Calculate fair cash offer for a property (to complete set = premium)
+const calculateFairCashOffer = (propertyId: number, buyerCompletesSet: boolean, basePrice: number) => {
+  if (buyerCompletesSet) {
+    return Math.floor(basePrice * 1.6); // 60% premium
+  }
+  return Math.floor(basePrice * 1.3); // 30% standard
+};
+
+// Find least valuable property to offer (isolated, low value, no dev)
+const getPropertyToOffer = (playerAddress: string, game_properties: GameProperty[], properties: Property[], excludeGroups: string[] = []) => {
+  const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+
+  // Filter out from complete monopolies or high-priority
+  const candidates = owned.filter(o => {
+    const group = Object.keys(MONOPOLY_STATS.colorGroups).find(g => 
+      MONOPOLY_STATS.colorGroups[g as keyof typeof MONOPOLY_STATS.colorGroups].includes(o.prop.id)
+    );
+    if (!group || excludeGroups.includes(group)) return false;
+    if (o.gp.development! > 0) return false; // Don't offer improved
+    return true;
+  });
+
+  if (candidates.length === 0) return null;
+
+  // Lowest price first
+  candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
+  return candidates[0];
+};
+
  const ROLL_DICE = useCallback(async (forAI = false) => {
   if (isRolling || actionLock || !lockAction("ROLL")) return;
 
