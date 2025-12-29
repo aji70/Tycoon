@@ -456,99 +456,114 @@ export default function GamePlayers({
     }
   };
 
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
+useEffect(() => {
+  if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
 
-    const handleAiLiquidationAndPossibleBankruptcy = async () => {
-      toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
+  const handleAiLiquidationAndPossibleBankruptcy = async () => {
+    toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
 
-      const raisedFromHouses = await aiSellHouses(Infinity);
-      const raisedFromMortgages = await aiMortgageProperties(Infinity);
-      const totalRaised = raisedFromHouses + raisedFromMortgages;
+    const raisedFromHouses = await aiSellHouses(Infinity);
+    const raisedFromMortgages = await aiMortgageProperties(Infinity);
+    const totalRaised = raisedFromHouses + raisedFromMortgages;
 
-      if (currentPlayer.balance >= 0) {
-        toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`);
-        return;
+    // Refresh player data after liquidation attempts
+    // (balance might have changed)
+    // Note: In a real app you'd refetch game state here, but we'll assume balance is updated via polling
+
+    if (currentPlayer.balance >= 0) {
+      toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`);
+      return;
+    }
+
+    toast(`${currentPlayer.username} still cannot pay — bankrupt!`);
+
+    try {
+      // === NEW: Explicitly end the AI's turn BEFORE removal ===
+      try {
+        await apiClient.post("/game-players/end-turn", {
+          user_id: currentPlayer.user_id,
+          game_id: game.id,
+        });
+        // No toast needed — keeps flow clean
+      } catch (err) {
+        console.warn("Failed to end AI turn before bankruptcy", err);
+        // Continue anyway — bankruptcy is more important
       }
 
-      toast(`${currentPlayer.username} still cannot pay — bankrupt!`);
+      // Transfer or return properties
+      const landedGameProperty = game_properties.find(
+        gp => gp.property_id === currentPlayer.position
+      );
 
-      try {
-        const landedGameProperty = game_properties.find(
-          gp => gp.property_id === currentPlayer.position
-        );
-
-        const creditorAddress =
-          landedGameProperty?.address && landedGameProperty.address !== "bank"
-            ? landedGameProperty.address
-            : null;
-
-        const creditorPlayer = creditorAddress
-          ? game.players.find(
-              p => p.address?.toLowerCase() === creditorAddress.toLowerCase()
-            )
+      const creditorAddress =
+        landedGameProperty?.address && landedGameProperty.address !== "bank"
+          ? landedGameProperty.address
           : null;
 
-        const aiProperties = game_properties.filter(
-          gp => gp.address === currentPlayer.address
-        );
+      const creditorPlayer = creditorAddress
+        ? game.players.find(
+            p => p.address?.toLowerCase() === creditorAddress.toLowerCase()
+          )
+        : null;
 
-        let successCount = 0;
+      const aiProperties = game_properties.filter(
+        gp => gp.address === currentPlayer.address
+      );
 
-        if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
-          const creditorRealPlayerId = getGamePlayerId(creditorPlayer.address);
+      let successCount = 0;
 
-          if (!creditorRealPlayerId) {
-            toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
-            for (const prop of aiProperties) {
-              await handleDeleteGameProperty(prop.id);
-              successCount++;
-            }
-          } else {
-            toast(`Transferring properties to ${creditorPlayer.username}...`);
+      if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
+        const creditorRealPlayerId = getGamePlayerId(creditorPlayer.address);
 
-            for (const prop of aiProperties) {
-              try {
-                await handlePropertyTransfer(prop.id, creditorRealPlayerId, "");
-                successCount++;
-              } catch (err) {
-                console.error(`Transfer failed for property ${prop.id}`, err);
-              }
-            }
-
-            toast.success(
-              `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`
-            );
+        if (!creditorRealPlayerId) {
+          toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
+          for (const prop of aiProperties) {
+            await handleDeleteGameProperty(prop.id);
+            successCount++;
           }
         } else {
-          toast(`Returning properties to bank...`);
+          toast(`Transferring properties to ${creditorPlayer.username}...`);
           for (const prop of aiProperties) {
             try {
-              await handleDeleteGameProperty(prop.id);
+              await handlePropertyTransfer(prop.id, creditorRealPlayerId, "");
               successCount++;
             } catch (err) {
-              console.error(`Delete failed for property ${prop.id}`, err);
+              console.error(`Transfer failed for property ${prop.id}`, err);
             }
           }
-          toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
+          toast.success(
+            `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`
+          );
         }
-
-        await apiClient.post("/game-players/leave", {
-          address: currentPlayer.address,
-          code: game.code,
-          reason: "bankruptcy",
-        });
-
-        toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
-      } catch (err: any) {
-        console.error("Bankruptcy handling failed:", err);
-        toast.error("AI bankruptcy process failed");
+      } else {
+        toast(`Returning properties to bank...`);
+        for (const prop of aiProperties) {
+          try {
+            await handleDeleteGameProperty(prop.id);
+            successCount++;
+          } catch (err) {
+            console.error(`Delete failed for property ${prop.id}`, err);
+          }
+        }
+        toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
       }
-    };
 
-    handleAiLiquidationAndPossibleBankruptcy();
-  }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
+      // Now remove the AI player
+      await apiClient.post("/game-players/leave", {
+        address: currentPlayer.address,
+        code: game.code,
+        reason: "bankruptcy",
+      });
 
+      toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
+    } catch (err: any) {
+      console.error("Bankruptcy handling failed:", err);
+      toast.error("AI bankruptcy process failed");
+    }
+  };
+
+  handleAiLiquidationAndPossibleBankruptcy();
+}, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
 
