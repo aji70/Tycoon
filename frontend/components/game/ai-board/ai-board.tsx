@@ -544,7 +544,7 @@ const AiBoard = ({
     showToast(`${currentPlayer.username} is thinking... 🧠`, "default");
 
     const opportunities = getNearCompleteOpportunities(currentPlayer.address, game_properties, properties);
-    let maxTradeAttempts = 3;
+    let maxTradeAttempts = 1;
 
     for (const opp of opportunities) {
       if (maxTradeAttempts <= 0) break;
