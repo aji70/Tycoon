@@ -11,6 +11,7 @@ contract TycoonNft is ERC721, ERC721URIStorage {
     mapping(address => bool) public whitel;
     string private constant FIXED_TOKEN_URI =
         "https://gateway.pinata.cloud/ipfs/bafkreicv2hqqxn64opc6euvynsvnfk2zfyfj42eeengzvknz7y2o7o5fxe";
+        
 
 
     constructor(address initialOwner) ERC721("Tycoon", "TNFT") {
@@ -23,11 +24,11 @@ contract TycoonNft is ERC721, ERC721URIStorage {
     }
         // Function to issue a certificate NFT with a fixed URI
     function mint() external {
-        // require(whitel[msg.sender], "not whitelisted");
+        require(whitel[msg.sender], "not whitelisted");
        uint256 token_id = _nextTokenId;
         _safeMint(msg.sender, token_id);
         _setTokenURI(token_id, FIXED_TOKEN_URI);    
-        whitel[msg.sender] = false;    
+        
 
         _nextTokenId++;
     }

@@ -9,11 +9,11 @@ import {
 } from 'wagmi';
 import { Address } from 'viem';
 import PlayerABI from './abi.json';
+import RewardABI from './rewardabi.json';
 import { useChainId } from 'wagmi';
-import { PLAYER_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { PLAYER_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
-
-
+const STAKE = 1e14;
 
 /* ----------------------- Types ----------------------- */
 type PlayerData = {
@@ -87,22 +87,33 @@ type GamePlayerData = {
   username: string;
 };
 type GamePlayerDataTuple = [bigint, Address, bigint, number, bigint, number, boolean, boolean, string];
-const STAKE = 1e14;
-// const STAKE = 1;
-// const BSTAKE = 1;
-/* ----------------------- Hooks ----------------------- */
+
+type CollectiblePerk = number;
+type RewardVoucherData = {
+  tokenId: bigint;
+  value: bigint;
+};
+type RewardCollectibleData = {
+  tokenId: bigint;
+  perk: CollectiblePerk;
+  strength: bigint;
+  shopPrice: bigint;
+};
+
+/* ----------------------- Player/Game Hooks ----------------------- */
+
 export function useIsRegistered(address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
 
   const result = useReadContract({
-    address: contractAddress, // ← Dynamic!
+    address: contractAddress,
     abi: PlayerABI,
     functionName: 'registered',
     args: address ? [address] : undefined,
     query: {
-      enabled: options.enabled && !!address && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+      enabled: options.enabled && !!address && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -125,9 +136,9 @@ export function useIsInGame(
     abi: PlayerABI,
     functionName: 'gamePlayerInGame',
     args: address ? [gameId, address] : undefined,
-     query: {
-      enabled: options.enabled && !!address && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+    query: {
+      enabled: options.enabled && !!address && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -139,16 +150,16 @@ export function useIsInGame(
 }
 
 export function useGetUsername(address?: Address, options = { enabled: true }) {
-   const chainId = useChainId();
+  const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
     abi: PlayerABI,
     functionName: 'addressToUsername',
     args: address ? [address] : undefined,
-     query: {
-      enabled: options.enabled && !!address && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+    query: {
+      enabled: options.enabled && !!address && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -170,9 +181,9 @@ export function useRetrievePlayer(
     abi: PlayerABI,
     functionName: 'players',
     args: address ? [address] : undefined,
-      query: {
-      enabled: options.enabled && !!address && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+    query: {
+      enabled: options.enabled && !!address && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -189,7 +200,6 @@ export function useRetrievePlayer(
   };
 }
 
-
 export function useCreateGame(
   username: string,
   gameType: string,
@@ -200,11 +210,10 @@ export function useCreateGame(
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  let stake = STAKE
-  if(chainId !== 42220){
-   stake = 1
+  let stake = STAKE;
+  if (chainId !== 42220) {
+    stake = 1;
   }
-
 
   const {
     writeContractAsync,
@@ -236,7 +245,7 @@ export function useCreateGame(
       throw new Error("Transaction failed: no hash returned");
     }
 
-    return hash; // You can change this to return gameId if contract emits it
+    return hash;
   }, [
     writeContractAsync,
     contractAddress,
@@ -314,8 +323,6 @@ export function useRegister() {
   };
 }
 
-
-
 export function useCreateAiGame(
   username: string,
   gameType: string,
@@ -326,10 +333,11 @@ export function useCreateAiGame(
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-    let stake = STAKE
- if(chainId !== 42220){
-   stake = 1
+  let stake = STAKE;
+  if (chainId !== 42220) {
+    stake = 1;
   }
+
   const {
     writeContractAsync,
     isPending,
@@ -348,7 +356,7 @@ export function useCreateAiGame(
     }
 
     const hash = await writeContractAsync({
-      chainId, // Explicitly enforce chain
+      chainId,
       address: contractAddress,
       abi: PlayerABI,
       functionName: 'createAIGame',
@@ -360,7 +368,7 @@ export function useCreateAiGame(
       throw new Error('Transaction failed: no hash returned');
     }
 
-    return hash; // Return tx hash (you can change to gameId if contract emits it)
+    return hash;
   }, [
     writeContractAsync,
     contractAddress,
@@ -380,17 +388,17 @@ export function useCreateAiGame(
     isSuccess,
     error: writeError,
     txHash,
-    reset, // Useful to clear state after success/error
+    reset,
   };
 }
 
 export function useUpdatePlayerPosition(
   gameId: bigint | number,
   targetPlayer: `0x${string}` | undefined,
-  newPosition: number,           // uint8 → 0–39
+  newPosition: number,
   newBalance: bigint | number,
-  balanceDelta: bigint | number, // int256 → can be negative
-  propertyIds: number[]          // uint8[]
+  balanceDelta: bigint | number,
+  propertyIds: number[]
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
@@ -412,12 +420,10 @@ export function useUpdatePlayerPosition(
   });
 
   const updatePosition = useCallback(async (): Promise<`0x${string}` | null> => {
-    // Validate contract deployment on current chain
     if (!contractAddress) {
       throw new Error(`Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`);
     }
 
-    // Validate input parameters
     if (
       gameId === undefined || gameId === null ||
       !targetPlayer ||
@@ -428,17 +434,17 @@ export function useUpdatePlayerPosition(
     }
 
     const hash = await writeContractAsync({
-      chainId, // Enforce correct chain
+      chainId,
       address: contractAddress,
       abi: PlayerABI,
       functionName: "updatePlayerPosition",
       args: [
         BigInt(gameId),
         targetPlayer,
-        Number(newPosition),               // uint8
-        BigInt(newBalance),                // uint256
-        BigInt(balanceDelta),              // int256 (signed)
-        propertyIds.map(id => Number(id)), // uint8[]
+        Number(newPosition),
+        BigInt(newBalance),
+        BigInt(balanceDelta),
+        propertyIds.map(id => Number(id)),
       ],
     });
 
@@ -475,9 +481,9 @@ export function useJoinGame(
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-    let stake = STAKE
-  if(chainId !== 42220){
-   stake = 1
+  let stake = STAKE;
+  if (chainId !== 42220) {
+    stake = 1;
   }
 
   const {
@@ -504,7 +510,7 @@ export function useJoinGame(
     }
 
     const hash = await writeContractAsync({
-      chainId, // Enforce correct chain
+      chainId,
       address: contractAddress,
       abi: PlayerABI,
       functionName: 'joinGame',
@@ -516,7 +522,7 @@ export function useJoinGame(
       throw new Error('Transaction failed: no hash returned');
     }
 
-    return hash; // Return transaction hash
+    return hash;
   }, [
     writeContractAsync,
     contractAddress,
@@ -535,14 +541,15 @@ export function useJoinGame(
     isError: !!writeError || isTxError,
     error: writeError,
     txHash,
-    reset, // Useful for clearing state after success/error
+    reset,
   };
 }
+
 export function useEndAiGame(
   gameId: number,
-  finalPosition: number,       // should be 0–39 in Monopoly → safe for uint8
+  finalPosition: number,
   finalBalance: string | bigint,
-  isWin: boolean               // renamed for clarity
+  isWin: boolean
 ) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
@@ -574,15 +581,8 @@ export function useEndAiGame(
       throw new Error("Missing required parameters to end AI game");
     }
 
-    // Critical: uint8 safety check
     if (!Number.isInteger(finalPosition) || finalPosition < 0 || finalPosition > 255) {
       throw new Error("finalPosition must be an integer between 0 and 255 (valid uint8)");
-    }
-
-    // Monopoly specific recommendation (optional but very useful)
-    if (finalPosition < 0 || finalPosition >= 40) {
-      console.warn("Unusual board position:", finalPosition);
-      // You can throw here if you want to be strict
     }
 
     const hash = await writeContractAsync({
@@ -591,10 +591,10 @@ export function useEndAiGame(
       abi: PlayerABI,
       functionName: "endAIGame",
       args: [
-        BigInt(gameId),                  // uint256
-        BigInt(finalPosition),           // ← key fix: number → BigInt for uint8
-        typeof finalBalance === "string" ? BigInt(finalBalance) : finalBalance, // uint256
-        isWin,                           // bool
+        BigInt(gameId),
+        BigInt(finalPosition),
+        typeof finalBalance === "string" ? BigInt(finalBalance) : finalBalance,
+        isWin,
       ],
     });
 
@@ -624,6 +624,7 @@ export function useEndAiGame(
     reset,
   };
 }
+
 export function useGetGame(gameId?: string, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
@@ -633,8 +634,8 @@ export function useGetGame(gameId?: string, options = { enabled: true }) {
     functionName: 'getGame',
     args: gameId ? [gameId] : undefined,
     query: {
-      enabled: options.enabled && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+      enabled: options.enabled && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -663,9 +664,9 @@ export function useGetPlayer(address?: Address, options = { enabled: true }) {
     abi: PlayerABI,
     functionName: 'getPlayer',
     args: address ? [address] : undefined,
-       query: {
-      enabled: options.enabled && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+    query: {
+      enabled: options.enabled && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -690,16 +691,16 @@ export function useGetPlayer(address?: Address, options = { enabled: true }) {
 }
 
 export function useGetPlayerById(id?: number, options = { enabled: true }) {
-   const chainId = useChainId();
+  const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
     abi: PlayerABI,
     functionName: 'getPlayerById',
     args: id !== undefined ? [id] : undefined,
-          query: {
-      enabled: options.enabled && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+    query: {
+      enabled: options.enabled && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -731,9 +732,9 @@ export function useGetGameByCode(code?: string, options = { enabled: true }) {
     abi: PlayerABI,
     functionName: 'getGameByCode',
     args: code ? [code] : undefined,
-          query: {
-      enabled: options.enabled && !!contractAddress, // Disable if no deployment
-      retry: false, // Optional: don't spam on wrong chain
+    query: {
+      enabled: options.enabled && !!contractAddress,
+      retry: false,
     },
   });
 
@@ -741,8 +742,6 @@ export function useGetGameByCode(code?: string, options = { enabled: true }) {
 
   if (result.data && typeof result.data === 'object') {
     const d = result.data as Record<string, unknown>;
-
-    // Only assign if the keys exist
     gameData = {
       id: BigInt(d.id as string),
       code: String(d.code),
@@ -761,8 +760,6 @@ export function useGetGameByCode(code?: string, options = { enabled: true }) {
   return { data: gameData, isLoading: result.isLoading, error: result.error };
 }
 
-
-
 export function useGetGamePlayer(gameId?: number, address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
@@ -771,7 +768,7 @@ export function useGetGamePlayer(gameId?: number, address?: Address, options = {
     abi: PlayerABI,
     functionName: 'getGamePlayer',
     args: gameId !== undefined && address ? [gameId, address] : undefined,
-    query: { enabled: options.enabled && gameId !== undefined && !!address && !!contractAddress},
+    query: { enabled: options.enabled && gameId !== undefined && !!address && !!contractAddress },
   });
 
   return {
@@ -889,8 +886,6 @@ export function useEndGame(gameId: number, winnerAddr: Address) {
   };
 }
 
-
-
 export function useTotalUsers(options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
@@ -898,7 +893,7 @@ export function useTotalUsers(options = { enabled: true }) {
     address: contractAddress,
     abi: PlayerABI,
     functionName: 'totalUsers',
-    query: { enabled: options.enabled && !!contractAddress},
+    query: { enabled: options.enabled && !!contractAddress },
   });
 
   return {
@@ -909,7 +904,7 @@ export function useTotalUsers(options = { enabled: true }) {
 }
 
 export function useTotalGames(options = { enabled: true }) {
-   const chainId = useChainId();
+  const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
@@ -926,7 +921,7 @@ export function useTotalGames(options = { enabled: true }) {
 }
 
 export function useBoardSize(options = { enabled: true }) {
-   const chainId = useChainId();
+  const chainId = useChainId();
   const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
@@ -942,12 +937,173 @@ export function useBoardSize(options = { enabled: true }) {
   };
 }
 
+/* ----------------------- Reward System Hooks ----------------------- */
+
+export function useRewardVoucherRedeemValue(tokenId?: bigint, options = { enabled: true }) {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const result = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'voucherRedeemValue',
+    args: tokenId !== undefined ? [tokenId] : undefined,
+    query: { enabled: options.enabled && !!contractAddress && tokenId !== undefined },
+  });
+
+  return {
+    data: result.data !== undefined ? BigInt(result.data as bigint) : undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
+
+export function useRewardCollectiblePerk(tokenId?: bigint, options = { enabled: true }) {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const result = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'getCollectiblePerk',
+    args: tokenId !== undefined ? [tokenId] : undefined,
+    query: { enabled: options.enabled && !!contractAddress && tokenId !== undefined },
+  });
+
+  return {
+    data: result.data
+      ? {
+          perk: Number((result.data as any)[0]),
+          strength: BigInt((result.data as any)[1]),
+        }
+      : undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
+
+export function useRewardGetCashTierValue(tier?: number, options = { enabled: true }) {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const result = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'getCashTierValue',
+    args: tier !== undefined ? [tier] : undefined,
+    query: { enabled: options.enabled && !!contractAddress && tier !== undefined },
+  });
+
+  return {
+    data: result.data !== undefined ? BigInt(result.data as bigint) : undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
+
+export function useRewardRedeemVoucher() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const redeem = useCallback(async (tokenId: bigint): Promise<string> => {
+    if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
+
+    const hash = await writeContractAsync({
+      chainId,
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'redeemVoucher',
+      args: [tokenId],
+    });
+
+    return hash ?? '';
+  }, [writeContractAsync, contractAddress, chainId]);
+
+  return {
+    redeem,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
+export function useRewardBurnCollectible() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const burn = useCallback(async (tokenId: bigint): Promise<string> => {
+    if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
+
+    const hash = await writeContractAsync({
+      chainId,
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'burnCollectibleForPerk',
+      args: [tokenId],
+    });
+
+    return hash ?? '';
+  }, [writeContractAsync, contractAddress, chainId]);
+
+  return {
+    burn,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
+export function useRewardBuyCollectible() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const buy = useCallback(async (tokenId: bigint): Promise<string> => {
+    if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
+
+    const hash = await writeContractAsync({
+      chainId,
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'buyCollectible',
+      args: [tokenId],
+    });
+
+    return hash ?? '';
+  }, [writeContractAsync, contractAddress, chainId]);
+
+  return {
+    buy,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
 /* ----------------------- Context ----------------------- */
 type ContractContextType = {
   registerPlayer: (username: string) => Promise<void>;
-  totalUsers: () => Promise<bigint>;
-  totalGames: () => Promise<bigint>;
-  boardSize: () => Promise<bigint>;
+  redeemVoucher: (tokenId: bigint) => Promise<string>;
+  burnCollectible: (tokenId: bigint) => Promise<string>;
+  buyCollectible: (tokenId: bigint) => Promise<string>;
+  // Add more context functions as needed (totalUsers, etc.)
 };
 
 const BlockopolyContext = createContext<ContractContextType | undefined>(undefined);
@@ -960,10 +1116,10 @@ export const PlayerContractProvider: React.FC<{
 
   const registerPlayer = useCallback(
     async (username: string) => {
-       const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+      const chainId = useChainId();
+      const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
       if (!userAddress) throw new Error('No wallet connected');
-      if (!contractAddress) throw new Error('No user connected');
+      if (!contractAddress) throw new Error('No contract deployed');
       await writeContractAsync({
         address: contractAddress,
         abi: PlayerABI,
@@ -974,41 +1130,54 @@ export const PlayerContractProvider: React.FC<{
     [userAddress, writeContractAsync]
   );
 
-  const totalUsers = useCallback(async (): Promise<bigint> => {
+  const redeemVoucher = useCallback(async (tokenId: bigint) => {
     const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-    const result = await useReadContract({
+    const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    const hash = await writeContractAsync({
       address: contractAddress,
-      abi: PlayerABI,
-      functionName: 'totalUsers',
+      abi: RewardABI,
+      functionName: 'redeemVoucher',
+      args: [tokenId],
     });
-    return BigInt(result.data as bigint);
-  }, []);
+    return hash;
+  }, [writeContractAsync]);
 
-  const totalGames = useCallback(async (): Promise<bigint> => {
-     const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-    const result = await useReadContract({
+  const burnCollectible = useCallback(async (tokenId: bigint) => {
+    const chainId = useChainId();
+    const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    const hash = await writeContractAsync({
       address: contractAddress,
-      abi: PlayerABI,
-      functionName: 'totalGames',
+      abi: RewardABI,
+      functionName: 'burnCollectibleForPerk',
+      args: [tokenId],
     });
-    return BigInt(result.data as bigint);
-  }, []);
+    return hash;
+  }, [writeContractAsync]);
 
-  const boardSize = useCallback(async (): Promise<bigint> => {
-     const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-    const result = await useReadContract({
+  const buyCollectible = useCallback(async (tokenId: bigint) => {
+    const chainId = useChainId();
+    const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    const hash = await writeContractAsync({
       address: contractAddress,
-      abi: PlayerABI,
-      functionName: 'BOARD_SIZE',
+      abi: RewardABI,
+      functionName: 'buyCollectible',
+      args: [tokenId],
     });
-    return BigInt(result.data as bigint);
-  }, []);
+    return hash;
+  }, [writeContractAsync]);
 
   return (
-    <BlockopolyContext.Provider value={{ registerPlayer, totalUsers, totalGames, boardSize }}>
+    <BlockopolyContext.Provider
+      value={{
+        registerPlayer,
+        redeemVoucher,
+        burnCollectible,
+        buyCollectible,
+      }}
+    >
       {children}
     </BlockopolyContext.Provider>
   );
@@ -1016,9 +1185,6 @@ export const PlayerContractProvider: React.FC<{
 
 export const usePlayerContract = () => {
   const context = useContext(BlockopolyContext);
-  if (!context)
-    throw new Error(
-      'usePlayerContract must be used within a PlayerContractProvider'
-    );
+  if (!context) throw new Error('usePlayerContract must be used within PlayerContractProvider');
   return context;
 };
