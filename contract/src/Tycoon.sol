@@ -592,50 +592,68 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return true;
     }
 
-    function endAIGame(
-        uint256 gameId,
-        uint8 finalPosition,
-        uint256 finalBalance,
-        bool isWin
-    ) public nonReentrant returns (bool) {
-        TycoonLib.Game storage game = games[gameId];
-        require(game.ai == true, "Not an AI game");
-        require(game.status == TycoonLib.GameStatus.Ongoing, "Game already ended");
-        require(game.creator == msg.sender, "Only creator can end AI game");
-        require(finalPosition < TycoonLib.BOARD_SIZE, "Invalid final position");
-        require(finalBalance <= gameSettings[gameId].startingCash * 2, "Invalid final balance");
+   function endAIGame(
+    uint256 gameId,
+    uint8 finalPosition,
+    uint256 finalBalance,
+    bool isWin
+) public nonReentrant returns (bool) {
+    TycoonLib.Game storage game = games[gameId];
+    require(game.ai == true, "Not an AI game");
+    require(game.status == TycoonLib.GameStatus.Ongoing, "Game already ended");
+    require(game.creator == msg.sender, "Only creator can end AI game");
+    require(finalPosition < TycoonLib.BOARD_SIZE, "Invalid final position");
+    require(finalBalance <= gameSettings[gameId].startingCash * 2, "Invalid final balance");
 
-        TycoonLib.GamePlayer storage gp = gamePlayers[gameId][msg.sender];
-        gp.position = finalPosition;
-        gp.balance = finalBalance;
+    TycoonLib.GamePlayer storage gp = gamePlayers[gameId][msg.sender];
+    gp.position = finalPosition;
+    gp.balance = finalBalance;
 
-        game.status = TycoonLib.GameStatus.Ended;
-        game.winner = isWin ? msg.sender : address(0);
-        game.endedAt = uint64(block.timestamp);
+    game.status = TycoonLib.GameStatus.Ended;
+    game.winner = isWin ? msg.sender : address(0);
+    game.endedAt = uint64(block.timestamp);
 
-        TycoonLib.User storage user = users[gp.username];
+    TycoonLib.User storage user = users[gp.username];
 
-        if (isWin) {
-            (bool success,) = payable(msg.sender).call{value: STAKE_AMOUNT}("");
-            require(success, "Refund failed");
+    if (isWin) {
+        (bool success,) = payable(msg.sender).call{value: STAKE_AMOUNT}("");
+        require(success, "Refund failed");
 
-            rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
+        rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
 
-            emit PlayerWonWithRewards(gameId, msg.sender, STAKE_AMOUNT, TOKEN_REWARD);
+        // NEW: Mint strong collectible for winner (e.g., CASH_TIERED perk with max strength=5 for 250 cash)
+        rewardSystem.mintCollectible(
+            msg.sender,
+            TycoonRewardSystem.CollectiblePerk.CASH_TIERED,
+            5,  // Strong strength (tier 5 = 250 cash)
+            0   // Not for sale
+        );
 
-            user.gamesWon += 1;
-            user.totalEarned += STAKE_AMOUNT;
-        } else {
-            houseBalance += STAKE_AMOUNT;
-            user.gamesLost += 1;
-            uint256 amount = TOKEN_REWARD / 2;
-            require(IERC20(token).transfer(msg.sender, amount), "Token transfer failed");
-        }
+        emit PlayerWonWithRewards(gameId, msg.sender, STAKE_AMOUNT, TOKEN_REWARD);
 
-        game.totalStaked = 0;
-        emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
-        return true;
+        user.gamesWon += 1;
+        user.totalEarned += STAKE_AMOUNT;
+    } else {
+        houseBalance += STAKE_AMOUNT;
+        user.gamesLost += 1;
+        uint256 amount = TOKEN_REWARD / 2;
+
+        // CHANGED: Mint voucher instead of direct transfer for loser
+        rewardSystem.mintVoucher(msg.sender, amount);
+
+        // NEW: Mint weak collectible for loser (e.g., CASH_TIERED perk with min strength=1 for 10 cash)
+        rewardSystem.mintCollectible(
+            msg.sender,
+            TycoonRewardSystem.CollectiblePerk.CASH_TIERED,
+            1,  // Weak strength (tier 1 = 10 cash)
+            0   // Not for sale
+        );
     }
+
+    game.totalStaked = 0;
+    emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
+    return true;
+}
 
     function claimReward(uint256 gameId) public nonReentrant isPlayerInGame(gameId, msg.sender) returns (uint256) {
         TycoonLib.Game storage game = games[gameId];
