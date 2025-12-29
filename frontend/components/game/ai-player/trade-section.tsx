@@ -84,6 +84,15 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
     );
   };
 
+  const handleClearAllTrades = () => {
+    if (openTrades.length === 0) return;
+    if (!confirm("Decline and clear ALL your active trade offers?")) return;
+
+    openTrades.forEach((trade) => {
+      handleTradeAction(trade.id, "declined");
+    });
+  };
+
   return (
     <div className="border-t-4 border-pink-600 pt-4">
       <button
@@ -107,9 +116,17 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
             {/* Active trades */}
             {openTrades.length > 0 && (
               <div>
-                <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
-                  <span>📤</span> <span>MY ACTIVE TRADES</span>
-                </h4>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                    <span>📤</span> <span>MY ACTIVE TRADES</span>
+                  </h4>
+                  <button
+                    onClick={handleClearAllTrades}
+                    className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
+                  >
+                    Clear All
+                  </button>
+                </div>
                 <div className="space-y-2">{openTrades.map((t) => renderTradeItem(t, false))}</div>
               </div>
             )}
