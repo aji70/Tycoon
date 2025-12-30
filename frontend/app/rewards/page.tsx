@@ -64,18 +64,20 @@ export default function RewardAdminPanel() {
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const isLoading = isWriting || isConfirming;
 
-  // Stock (using balanceOfBatch on contract itself)
+  // Fixed token IDs for the 10 perks
+  const tokenIds = Array.from({ length: 10 }, (_, i) => BigInt(2000000000 + i + 1));
+
   const stockResults = useReadContract({
     address: contractAddress ?? undefined,
     abi: RewardABI,
     functionName: 'balanceOfBatch',
-    args: contractAddress ? [Array(10).fill(contractAddress), Array.from({ length: 10 }, (_, i) => BigInt(2000000000 + i + 1))] : undefined,
+    args: contractAddress ? [Array(10).fill(contractAddress), tokenIds] : undefined,
     query: { enabled: !!contractAddress },
   });
 
   const currentStocks: number[] = Array.isArray(stockResults.data)
-  ? (stockResults.data as bigint[]).map(Number)
-  : Array(10).fill(0);
+    ? (stockResults.data as bigint[]).map(Number)
+    : Array(10).fill(0);
 
   // Contract balances
   const tycBalance = useReadContract({
@@ -112,12 +114,6 @@ export default function RewardAdminPanel() {
     }
   }, [txHash, isConfirming, isWriting, writeError, reset]);
 
-  const handleStockShop = () => {
-    if (!contractAddress) return;
-    // You'd need to loop or batch — but assuming stockShop exists for bulk
-    setStatus({ type: 'info', message: 'Use Mint tab to add stock now' });
-  };
-
   const handleSetPrice = () => {
     if (!selectedPerk || !contractAddress) return;
 
@@ -129,14 +125,13 @@ export default function RewardAdminPanel() {
       return;
     }
 
-    // Assuming you have a way to map perk → tokenId (e.g. 2000000001 for perk 1)
     const tokenId = BigInt(2000000000 + selectedPerk.value);
 
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'setCollectiblePrice',
-      args: [tokenId, BigInt(selectedPerk.requiresStrength ? parseInt(mintStrength) : 0), tycWei, usdcWei],
+      args: [tokenId, 0, tycWei, usdcWei],
     });
 
     setTycPriceInput('');
@@ -167,13 +162,13 @@ export default function RewardAdminPanel() {
         return;
       }
 
-      const strength = PERKS.find(p => p.value === selectedMintPerk)?.requiresStrength ? parseInt(mintStrength) || 1 : 0;
+      const strength = PERKS.find(p => p.value === selectedMintPerk)?.requiresStrength ? BigInt(parseInt(mintStrength) || 1) : 0;
 
       writeContract({
         address: contractAddress,
         abi: RewardABI,
         functionName: 'mintCollectible',
-        args: [mintRecipient, BigInt(selectedMintPerk), BigInt(strength)],
+        args: [mintRecipient, BigInt(selectedMintPerk), strength],
       });
     } else {
       const value = parseUnits(voucherTycValue, 18);
@@ -253,11 +248,18 @@ export default function RewardAdminPanel() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
             {PERKS.map((perk, index) => {
               const stock = currentStocks[index] || 0;
+              const isLow = stock < 100;
+              const isSoldOut = stock === 0;
+
               return (
-                <div key={perk.value} className={`rounded-2xl p-6 border-2 bg-gradient-to-br ${rarityStyles[perk.value as keyof typeof rarityStyles]} backdrop-blur-sm text-center`}>
+                <div key={perk.value} className={`rounded-2xl p-6 border-2 bg-gradient-to-br ${rarityStyles[perk.value as keyof typeof rarityStyles]} backdrop-blur-sm text-center relative overflow-hidden`}>
                   <div className="flex justify-center mb-4">{perk.icon}</div>
-                  <h3 className="font-bold text-lg mb-2">{perk.label}</h3>
-                  <p className="text-2xl font-bold text-pink-300">{stock}/∞</p>
+                  <h3 className="font-bold text-lg mb-3">{perk.label}</h3>
+                  <p className={`text-2xl font-bold ${isSoldOut ? 'text-red-400' : isLow ? 'text-orange-400' : 'text-emerald-300'}`}>
+                    {stock}/500
+                  </p>
+                  {isSoldOut && <div className="absolute inset-0 bg-red-900/30 flex items-center justify-center pointer-events-none"><span className="text-3xl font-bold">SOLD OUT</span></div>}
+                  {isLow && !isSoldOut && <p className="text-xs text-orange-300 mt-2">Low Stock!</p>}
                 </div>
               );
             })}
