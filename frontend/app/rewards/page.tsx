@@ -8,7 +8,7 @@ import {
   Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle
 } from 'lucide-react';
 import RewardABI from '@/context/rewardabi.json';
-import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, TYC_TOKEN_ADDRESS } from '@/constants/contracts';
 
 const FIXED_TOKEN_IDS = {
   EXTRA_TURN: 2000000000,
@@ -54,11 +54,29 @@ const rarityStyles = {
   legendary: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40 text-yellow-300',
   tiered: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 text-cyan-300',
 };
+const ERC20_ABI = [
+  {
+    name: "balanceOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "decimals",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+] as const;
 
 export default function RewardAdminPanel() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
+  const usdcAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
+  const tycAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
 
   const [activeTab, setActiveTab] = useState<'stock' | 'pricing' | 'funds'>('stock');
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -85,22 +103,28 @@ export default function RewardAdminPanel() {
 
   // Individual price lookups (fallback if no batch price function)
   // We'll just show placeholder prices or fetch one-by-one if needed — but stock is priority
-  // For now, we'll show "Set Price" and rely on editing modal
 
-  // Contract balances
-  const tycBalance = useReadContract({
-    address: contractAddress ?? undefined,
-    abi: RewardABI,
-    functionName: 'balanceOfTYC',
-    query: { enabled: !!contractAddress },
-  });
+const { address: userAddress } = useAccount();
+const tycBalance = useReadContract({
+  address: tycAddress ?? undefined,
+  abi: ERC20_ABI,
+  functionName: "balanceOf",
+  args: contractAddress ? [contractAddress] : undefined,
+  query: {
+    enabled: !!contractAddress && !!userAddress,
+  },
+});
 
-  const usdcBalance = useReadContract({
-    address: contractAddress ?? undefined,
-    abi: RewardABI,
-    functionName: 'balanceOfUSDC',
-    query: { enabled: !!contractAddress },
-  });
+// USDC balance
+const usdcBalance = useReadContract({
+  address: usdcAddress ?? undefined,
+  abi: ERC20_ABI,
+  functionName: "balanceOf",
+  args: contractAddress ? [contractAddress] : undefined,
+  query: {
+    enabled: !!USDC_TOKEN_ADDRESS && !!userAddress,
+  },
+});
 
   useEffect(() => {
     if (status) {
