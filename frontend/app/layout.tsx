@@ -6,7 +6,7 @@ import { getMetadata } from "@/utils/getMeatadata";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import { PlayerContractProvider } from "@/context/ContractProvider";
+import { TycoonProvider } from "@/context/ContractProvider";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
@@ -59,7 +59,7 @@ export default async function RootLayout({
       <body className="antialiased bg-[#010F10] w-full">
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-          <PlayerContractProvider>
+          <TycoonProvider>
             <AppKitProviderWrapper>
               {/* SocketProvider commented out as in your code */}
               {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
@@ -92,7 +92,7 @@ export default async function RootLayout({
               
               {/* </SocketProvider> */}
             </AppKitProviderWrapper>
-          </PlayerContractProvider>
+          </TycoonProvider>
         </ContextProvider>
       </body>
     </html>

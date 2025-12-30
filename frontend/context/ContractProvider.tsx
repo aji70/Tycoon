@@ -9,86 +9,76 @@ import {
   useChainId,
 } from 'wagmi';
 import { Address } from 'viem';
-import PlayerABI from './abi.json';
+import TycoonABI from './tycoonabi.json';  // Updated: Assuming you renamed ABI file
 import RewardABI from './rewardabi.json';
-import { PLAYER_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';  // Updated constant name
 
-const STAKE = 1e14;
+const STAKE_AMOUNT = 1;  // Matches new contract: STAKE_AMOUNT = 1 (was 1e14)
 
-/* ----------------------- Types ----------------------- */
-type PlayerData = {
+/* ----------------------- Types (Updated to match new structs) ----------------------- */
+type User = {  // Matches TycoonLib.User
+  id: bigint;
   username: string;
   playerAddress: Address;
-  timestamp: bigint;
+  registeredAt: bigint;  // was timestamp
+  gamesPlayed: bigint;
+  gamesWon: bigint;  // was gameWon
+  gamesLost: bigint;  // was gameLost
+  totalStaked: bigint;
+  totalEarned: bigint;
+  totalWithdrawn: bigint;
 };
-type PlayerDataTuple = [string, Address, bigint];
+type UserTuple = [bigint, string, Address, bigint, bigint, bigint, bigint, bigint, bigint, bigint];  // For getUser
 
-export type GameSettings = {
+export type GameSettings = {  // Matches TycoonLib.GameSettings
   maxPlayers: number;
-  privateRoom: string;
+  privateRoomCode: string;  // was privateRoom
   auction: boolean;
   rentInPrison: boolean;
   mortgage: boolean;
   evenBuild: boolean;
   startingCash: bigint;
-  randomizePlayOrder: boolean;
+  // Removed randomizePlayOrder (not in new contract)
 };
 
-type GameData = {
-  id: string;
-  status: number;
-  nextPlayer: number;
-  winner: Address;
-  creator: Address;
-  createdAt: bigint;
-  numberOfPlayers: number;
-  endedAt: bigint;
-};
-type GameDataTuple = [string, number, Address, Address, bigint, number, bigint];
-
-type ExtendedPlayerData = {
-  id: bigint;
-  username: string;
-  playerAddress: Address;
-  timestamp: bigint;
-  gamesPlayed: bigint;
-  gameWon: bigint;
-  gameLost: bigint;
-  totalStaked: bigint;
-  totalEarned: bigint;
-  totalWithdrawn: bigint;
-};
-type ExtendedPlayerDataTuple = [bigint, string, Address, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-
-type ExtendedGameData = {
-  id: bigint;
+type Game = {  // Matches TycoonLib.Game
+  id: bigint;  // was string
   code: string;
   creator: Address;
   status: number;
-  nextPlayer: bigint;
+  nextPlayer: number;  // was bigint
   winner: Address;
   numberOfPlayers: number;
-  joinedPlayers: number;
+  joinedPlayers: number;  // New
   mode: number;
+  ai: boolean;  // New
   createdAt: bigint;
   endedAt: bigint;
+  totalStaked: bigint;  // New
 };
-type ExtendedGameDataTuple = [bigint, string, Address, number, bigint, Address, number, number, number, bigint, bigint];
+type GameTuple = [bigint, string, Address, number, number, Address, number, number, number, boolean, bigint, bigint, bigint];  // For getGame
 
-type GamePlayerData = {
+type GamePlayer = {  // Matches TycoonLib.GamePlayer (simplified)
   gameId: bigint;
   playerAddress: Address;
   balance: bigint;
   position: number;
-  order: bigint;
+  order: number;  // was bigint
   symbol: number;
-  chanceJailCard: boolean;
-  communityChestJailCard: boolean;
   username: string;
+  // Removed chanceJailCard, communityChestJailCard (not in new struct)
 };
-type GamePlayerDataTuple = [bigint, Address, bigint, number, bigint, number, boolean, boolean, string];
+type GamePlayerTuple = [bigint, Address, bigint, number, number, number, string];  // For getGamePlayerByAddress
 
-/* ----------------------- Reward System Types ----------------------- */
+// Legacy type aliases (kept for compatibility)
+type ExtendedPlayerData = User;
+type ExtendedPlayerDataTuple = UserTuple;
+type ExtendedGameData = Game;
+type ExtendedGameDataTuple = GameTuple;
+type GamePlayerData = GamePlayer;
+type GamePlayerDataTuple = GamePlayerTuple;
+
+/* ----------------------- Reward System Types (Unchanged) ----------------------- */
 export enum CollectiblePerk {
   NONE,
   EXTRA_TURN,
@@ -120,15 +110,15 @@ export const isVoucherToken = (tokenId: bigint): boolean =>
 export const isCollectibleToken = (tokenId: bigint): boolean =>
   tokenId >= COLLECTIBLE_ID_START;
 
-/* ----------------------- Player Hooks ----------------------- */
+/* ----------------------- Tycoon Hooks (Updated + Legacy Stubs) ----------------------- */
 
 export function useIsRegistered(address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
+    abi: TycoonABI,
     functionName: 'registered',
     args: address ? [address] : undefined,
     query: {
@@ -144,37 +134,18 @@ export function useIsRegistered(address?: Address, options = { enabled: true }) 
   };
 }
 
-export function useIsInGame(
-  gameId?: number,
-  address?: Address,
-  options = { enabled: true }
-) {
-  const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  const result = useReadContract({
-    address: contractAddress,
-    abi: PlayerABI,
-    functionName: 'gamePlayerInGame',
-    args: address ? [gameId, address] : undefined,
-    query: {
-      enabled: options.enabled && !!address && !!contractAddress,
-      retry: false,
-    },
-  });
-
-  return {
-    data: result.data as boolean | undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
+// Stub for legacy useIsInGame (not in new contract - logs warning)
+export function useIsInGame(gameId?: number, address?: Address, options = { enabled: true }) {
+  console.warn('useIsInGame: Function removed in new Tycoon contract. Implement off-chain logic.');
+  return { data: false, isLoading: false, error: new Error('Not implemented') };
 }
 
 export function useGetUsername(address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
+    abi: TycoonABI,
     functionName: 'addressToUsername',
     args: address ? [address] : undefined,
     query: {
@@ -190,50 +161,23 @@ export function useGetUsername(address?: Address, options = { enabled: true }) {
   };
 }
 
-export function useRetrievePlayer(
-  address?: Address,
-  options = { enabled: true }
-) {
-  const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  const result = useReadContract({
-    address: contractAddress,
-    abi: PlayerABI,
-    functionName: 'players',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: options.enabled && !!address && !!contractAddress,
-      retry: false,
-    },
-  });
-
-  return {
-    data: result.data
-      ? {
-          username: (result.data as PlayerDataTuple)[0],
-          playerAddress: (result.data as PlayerDataTuple)[1],
-          timestamp: (result.data as PlayerDataTuple)[2],
-        }
-      : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
+// Stub for legacy useRetrievePlayer (use getUser(username) instead)
+export function useRetrievePlayer(address?: Address, options = { enabled: true }) {
+  console.warn('useRetrievePlayer: Use useGetUser with username instead in new contract.');
+  return { data: undefined, isLoading: false, error: new Error('Deprecated') };
 }
 
 export function useCreateGame(
-  username: string,
+  creatorUsername: string,  // Updated: was username
   gameType: string,
   playerSymbol: string,
   numberOfPlayers: number,
-  gameCode: string,
-  startingCash: number
+  gameCode: string,  // Updated: was code
+  startingCash: number  // Now passed as BigInt internally
 ) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  let stake = STAKE;
-  if (chainId !== 42220) {
-    stake = 1;
-  }
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  let stake = STAKE_AMOUNT;  // Updated constant
 
   const {
     writeContractAsync,
@@ -255,9 +199,9 @@ export function useCreateGame(
     const hash = await writeContractAsync({
       chainId,
       address: contractAddress,
-      abi: PlayerABI,
+      abi: TycoonABI,  // Updated
       functionName: "createGame",
-      args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, startingCash],
+      args: [creatorUsername, gameType, playerSymbol, numberOfPlayers, gameCode, BigInt(startingCash)],  // Updated args
       value: BigInt(stake),
     });
 
@@ -270,7 +214,7 @@ export function useCreateGame(
     writeContractAsync,
     contractAddress,
     chainId,
-    username,
+    creatorUsername,
     gameType,
     playerSymbol,
     numberOfPlayers,
@@ -289,9 +233,13 @@ export function useCreateGame(
   };
 }
 
-export function useRegister() {
+export function useRegister() {  // Kept original name for compatibility
+  return useRegisterPlayer();  // Delegates to new hook
+}
+
+export function useRegisterPlayer() {  // New/updated version
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
   const {
     writeContractAsync,
@@ -318,7 +266,7 @@ export function useRegister() {
       const hash = await writeContractAsync({
         chainId,
         address: contractAddress,
-        abi: PlayerABI,
+        abi: TycoonABI,  // Updated
         functionName: "registerPlayer",
         args: [username.trim()],
       });
@@ -343,20 +291,17 @@ export function useRegister() {
   };
 }
 
-export function useCreateAiGame(
-  username: string,
+export function useCreateAiGame(  // Kept original name/spelling for compatibility
+  creatorUsername: string,  // Updated
   gameType: string,
   playerSymbol: string,
-  numberOfPlayers: number,
+  numberOfAI: number,  // Updated: was numberOfPlayers, now means AI count
   gameCode: string,
   startingCash: number,
 ) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  let stake = STAKE;
-  if (chainId !== 42220) {
-    stake = 1;
-  }
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  let stake = STAKE_AMOUNT;
 
   const {
     writeContractAsync,
@@ -378,9 +323,9 @@ export function useCreateAiGame(
     const hash = await writeContractAsync({
       chainId,
       address: contractAddress,
-      abi: PlayerABI,
-      functionName: 'createAIGame',
-      args: [username, gameType, playerSymbol, numberOfPlayers, gameCode, startingCash],
+      abi: TycoonABI,
+      functionName: 'createAIGame',  // Updated
+      args: [creatorUsername, gameType, playerSymbol, numberOfAI, gameCode, BigInt(startingCash)],  // Updated args
       value: BigInt(stake),
     });
 
@@ -393,10 +338,10 @@ export function useCreateAiGame(
     writeContractAsync,
     contractAddress,
     chainId,
-    username,
+    creatorUsername,
     gameType,
     playerSymbol,
-    numberOfPlayers,
+    numberOfAI,
     gameCode,
     startingCash,
   ]);
@@ -412,6 +357,7 @@ export function useCreateAiGame(
   };
 }
 
+// Stub for legacy useUpdatePlayerPosition (not in new contract)
 export function useUpdatePlayerPosition(
   gameId: bigint | number,
   targetPlayer: `0x${string}` | undefined,
@@ -420,77 +366,8 @@ export function useUpdatePlayerPosition(
   balanceDelta: bigint | number,
   propertyIds: number[]
 ) {
-  const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-
-  const {
-    writeContractAsync,
-    isPending,
-    error: writeError,
-    data: txHash,
-    reset,
-  } = useWriteContract();
-
-  const {
-    isLoading: isConfirming,
-    isSuccess,
-    isError: isTxError,
-  } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
-
-  const updatePosition = useCallback(async (): Promise<`0x${string}` | null> => {
-    if (!contractAddress) {
-      throw new Error(`Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`);
-    }
-
-    if (
-      gameId === undefined || gameId === null ||
-      !targetPlayer ||
-      newPosition < 0 || newPosition > 39 ||
-      propertyIds.some(id => id < 0 || id > 39)
-    ) {
-      throw new Error("Invalid parameters for updatePlayerPosition");
-    }
-
-    const hash = await writeContractAsync({
-      chainId,
-      address: contractAddress,
-      abi: PlayerABI,
-      functionName: "updatePlayerPosition",
-      args: [
-        BigInt(gameId),
-        targetPlayer,
-        Number(newPosition),
-        BigInt(newBalance),
-        BigInt(balanceDelta),
-        propertyIds.map(id => Number(id)),
-      ],
-    });
-
-    return hash ?? null;
-  }, [
-    writeContractAsync,
-    contractAddress,
-    chainId,
-    gameId,
-    targetPlayer,
-    newPosition,
-    newBalance,
-    balanceDelta,
-    propertyIds,
-  ]);
-
-  return {
-    updatePosition,
-    isPending: isPending || isConfirming,
-    isConfirming,
-    isSuccess,
-    isError: !!writeError || isTxError,
-    error: writeError,
-    txHash,
-    reset,
-  };
+  console.warn('useUpdatePlayerPosition: Removed in new Tycoon contract. Handle off-chain.');
+  return { updatePosition: async () => null, isPending: false, isSuccess: false, error: new Error('Not implemented') };
 }
 
 export function useJoinGame(
@@ -500,11 +377,8 @@ export function useJoinGame(
   code: string
 ) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  let stake = STAKE;
-  if (chainId !== 42220) {
-    stake = 1;
-  }
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  let stake = STAKE_AMOUNT;
 
   const {
     writeContractAsync,
@@ -532,9 +406,9 @@ export function useJoinGame(
     const hash = await writeContractAsync({
       chainId,
       address: contractAddress,
-      abi: PlayerABI,
+      abi: TycoonABI,
       functionName: 'joinGame',
-      args: [gameId, username, playerSymbol, code],
+      args: [BigInt(gameId), username, playerSymbol, code],  // Updated: gameId to BigInt
       value: BigInt(stake),
     });
 
@@ -565,6 +439,7 @@ export function useJoinGame(
   };
 }
 
+// Updated: Matches endAIGameAndClaim
 export function useEndAiGame(
   gameId: number,
   finalPosition: number,
@@ -572,7 +447,7 @@ export function useEndAiGame(
   isWin: boolean
 ) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
   const {
     writeContractAsync,
@@ -597,23 +472,23 @@ export function useEndAiGame(
       );
     }
 
-    if (gameId === undefined || finalPosition === undefined || finalBalance === undefined) {
+    if (gameId === undefined || finalPosition === undefined || finalBalance === undefined || isWin === undefined) {
       throw new Error("Missing required parameters to end AI game");
     }
 
-    if (!Number.isInteger(finalPosition) || finalPosition < 0 || finalPosition > 255) {
-      throw new Error("finalPosition must be an integer between 0 and 255 (valid uint8)");
+    if (!Number.isInteger(finalPosition) || finalPosition < 0 || finalPosition > 39) {  // Adjusted range for board
+      throw new Error("finalPosition must be an integer between 0 and 39");
     }
 
     const hash = await writeContractAsync({
       chainId,
       address: contractAddress,
-      abi: PlayerABI,
-      functionName: "endAIGame",
+      abi: TycoonABI,
+      functionName: "endAIGameAndClaim",  // Updated function name
       args: [
         BigInt(gameId),
-        BigInt(finalPosition),
-        typeof finalBalance === "string" ? BigInt(finalBalance) : finalBalance,
+        Number(finalPosition),  // uint8
+        BigInt(finalBalance),
         isWin,
       ],
     });
@@ -645,14 +520,14 @@ export function useEndAiGame(
   };
 }
 
-export function useGetGame(gameId?: string, options = { enabled: true }) {
+export function useGetGame(gameId?: string | number, options = { enabled: true }) {  // Updated arg type
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
+    abi: TycoonABI,
     functionName: 'getGame',
-    args: gameId ? [gameId] : undefined,
+    args: gameId ? [BigInt(gameId)] : undefined,  // Updated to BigInt
     query: {
       enabled: options.enabled && !!contractAddress,
       retry: false,
@@ -662,13 +537,19 @@ export function useGetGame(gameId?: string, options = { enabled: true }) {
   return {
     data: result.data
       ? {
-          id: (result.data as GameDataTuple)[0],
-          status: (result.data as GameDataTuple)[1],
-          nextPlayer: (result.data as GameDataTuple)[2],
-          winner: (result.data as GameDataTuple)[3],
-          createdAt: (result.data as GameDataTuple)[4],
-          numberOfPlayers: (result.data as GameDataTuple)[5],
-          endedAt: (result.data as GameDataTuple)[6],
+          id: (result.data as GameTuple)[0],
+          code: (result.data as GameTuple)[1],
+          creator: (result.data as GameTuple)[2],
+          status: (result.data as GameTuple)[3],
+          nextPlayer: (result.data as GameTuple)[4],
+          winner: (result.data as GameTuple)[5],
+          numberOfPlayers: (result.data as GameTuple)[6],
+          joinedPlayers: (result.data as GameTuple)[7],
+          mode: (result.data as GameTuple)[8],
+          ai: Boolean((result.data as GameTuple)[9]),
+          createdAt: (result.data as GameTuple)[10],
+          endedAt: (result.data as GameTuple)[11],
+          totalStaked: (result.data as GameTuple)[12],
         }
       : undefined,
     isLoading: result.isLoading,
@@ -676,80 +557,24 @@ export function useGetGame(gameId?: string, options = { enabled: true }) {
   };
 }
 
+// Stub for legacy useGetPlayer (use getUser(username) instead)
 export function useGetPlayer(address?: Address, options = { enabled: true }) {
-  const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  const result = useReadContract({
-    address: contractAddress,
-    abi: PlayerABI,
-    functionName: 'getPlayer',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: options.enabled && !!contractAddress,
-      retry: false,
-    },
-  });
-
-  return {
-    data: result.data
-      ? {
-          id: (result.data as ExtendedPlayerDataTuple)[0],
-          username: (result.data as ExtendedPlayerDataTuple)[1],
-          playerAddress: (result.data as ExtendedPlayerDataTuple)[2],
-          timestamp: (result.data as ExtendedPlayerDataTuple)[3],
-          gamesPlayed: (result.data as ExtendedPlayerDataTuple)[4],
-          gameWon: (result.data as ExtendedPlayerDataTuple)[5],
-          gameLost: (result.data as ExtendedPlayerDataTuple)[6],
-          totalStaked: (result.data as ExtendedPlayerDataTuple)[7],
-          totalEarned: (result.data as ExtendedPlayerDataTuple)[8],
-          totalWithdrawn: (result.data as ExtendedPlayerDataTuple)[9],
-        }
-      : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
+  console.warn('useGetPlayer: Use useGetUser with username in new contract.');
+  return { data: undefined, isLoading: false, error: new Error('Deprecated') };
 }
 
+// Stub for legacy useGetPlayerById
 export function useGetPlayerById(id?: number, options = { enabled: true }) {
-  const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-  const result = useReadContract({
-    address: contractAddress,
-    abi: PlayerABI,
-    functionName: 'getPlayerById',
-    args: id !== undefined ? [id] : undefined,
-    query: {
-      enabled: options.enabled && !!contractAddress,
-      retry: false,
-    },
-  });
-
-  return {
-    data: result.data
-      ? {
-          id: (result.data as ExtendedPlayerDataTuple)[0],
-          username: (result.data as ExtendedPlayerDataTuple)[1],
-          playerAddress: (result.data as ExtendedPlayerDataTuple)[2],
-          timestamp: (result.data as ExtendedPlayerDataTuple)[3],
-          gamesPlayed: (result.data as ExtendedPlayerDataTuple)[4],
-          gameWon: (result.data as ExtendedPlayerDataTuple)[5],
-          gameLost: (result.data as ExtendedPlayerDataTuple)[6],
-          totalStaked: (result.data as ExtendedPlayerDataTuple)[7],
-          totalEarned: (result.data as ExtendedPlayerDataTuple)[8],
-          totalWithdrawn: (result.data as ExtendedPlayerDataTuple)[9],
-        }
-      : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
+  console.warn('useGetPlayerById: Removed in new contract. Use totalUsers for count.');
+  return { data: undefined, isLoading: false, error: new Error('Not implemented') };
 }
 
 export function useGetGameByCode(code?: string, options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
+    abi: TycoonABI,
     functionName: 'getGameByCode',
     args: code ? [code] : undefined,
     query: {
@@ -767,42 +592,49 @@ export function useGetGameByCode(code?: string, options = { enabled: true }) {
       code: String(d.code),
       creator: d.creator as Address,
       status: Number(d.status),
-      nextPlayer: BigInt(d.nextPlayer as string),
+      nextPlayer: Number(d.nextPlayer),  // Updated: number not bigint
       winner: d.winner as Address,
       numberOfPlayers: Number(d.numberOfPlayers),
       joinedPlayers: Number(d.joinedPlayers),
       mode: Number(d.mode),
+      ai: Boolean(d.ai),
       createdAt: BigInt(d.createdAt as string),
       endedAt: BigInt(d.endedAt as string),
+      totalStaked: BigInt(d.totalStaked as string),  // New
     };
   }
 
   return { data: gameData, isLoading: result.isLoading, error: result.error };
 }
 
+// Stub for legacy useGetGamePlayer (use getGamePlayerByAddress instead)
 export function useGetGamePlayer(gameId?: number, address?: Address, options = { enabled: true }) {
+  console.warn('useGetGamePlayer: Use useGetGamePlayerByAddress in new contract.');
+  return { data: undefined, isLoading: false, error: new Error('Deprecated') };
+}
+
+// New: Matches getGamePlayerByAddress
+export function useGetGamePlayerByAddress(gameId?: number, address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
-    functionName: 'getGamePlayer',
-    args: gameId !== undefined && address ? [gameId, address] : undefined,
+    abi: TycoonABI,
+    functionName: 'getGamePlayerByAddress',
+    args: gameId !== undefined && address ? [BigInt(gameId), address] : undefined,
     query: { enabled: options.enabled && gameId !== undefined && !!address && !!contractAddress },
   });
 
   return {
     data: result.data
       ? {
-          gameId: (result.data as GamePlayerDataTuple)[0],
-          playerAddress: (result.data as GamePlayerDataTuple)[1],
-          balance: (result.data as GamePlayerDataTuple)[2],
-          position: (result.data as GamePlayerDataTuple)[3],
-          order: (result.data as GamePlayerDataTuple)[4],
-          symbol: (result.data as GamePlayerDataTuple)[5],
-          chanceJailCard: (result.data as GamePlayerDataTuple)[6],
-          communityChestJailCard: (result.data as GamePlayerDataTuple)[7],
-          username: (result.data as GamePlayerDataTuple)[8],
+          gameId: (result.data as GamePlayerTuple)[0],
+          playerAddress: (result.data as GamePlayerTuple)[1],
+          balance: (result.data as GamePlayerTuple)[2],
+          position: (result.data as GamePlayerTuple)[3],
+          order: (result.data as GamePlayerTuple)[4],
+          symbol: (result.data as GamePlayerTuple)[5],
+          username: (result.data as GamePlayerTuple)[6],
         }
       : undefined,
     isLoading: result.isLoading,
@@ -810,9 +642,22 @@ export function useGetGamePlayer(gameId?: number, address?: Address, options = {
   };
 }
 
+// Stub for legacy useStartGame (not in new contract - games auto-start on full join for non-AI)
 export function useStartGame(gameId: number) {
+  console.warn('useStartGame: Removed in new Tycoon contract. Games auto-start.');
+  return { write: async () => {}, isPending: false, isSuccess: false, error: new Error('Not implemented') };
+}
+
+// Stub for legacy useEndGame (use claimReward after ending)
+export function useEndGame(gameId: number, winnerAddr: Address) {
+  console.warn('useEndGame: Use claimReward in new contract.');
+  return { write: async () => {}, isPending: false, isSuccess: false, error: new Error('Not implemented') };
+}
+
+// New: For claiming rewards after game end
+export function useClaimReward(gameId: number) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
   const {
     writeContractAsync,
@@ -828,7 +673,7 @@ export function useStartGame(gameId: number) {
     isError: isTxError,
   } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const write = useCallback(async (): Promise<void> => {
+  const write = useCallback(async (): Promise<string> => {
     if (!contractAddress) {
       throw new Error(`Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`);
     }
@@ -837,62 +682,16 @@ export function useStartGame(gameId: number) {
       throw new Error("Invalid game ID");
     }
 
-    await writeContractAsync({
+    const hash = await writeContractAsync({
       chainId,
       address: contractAddress,
-      abi: PlayerABI,
-      functionName: 'startGame',
-      args: [gameId],
+      abi: TycoonABI,
+      functionName: 'claimReward',
+      args: [BigInt(gameId)],
     });
+
+    return hash;
   }, [writeContractAsync, contractAddress, chainId, gameId]);
-
-  return {
-    write,
-    isPending: isPending || isConfirming,
-    isConfirming,
-    isSuccess,
-    isError: !!writeError || isTxError,
-    error: writeError,
-    txHash,
-    reset,
-  };
-}
-
-export function useEndGame(gameId: number, winnerAddr: Address) {
-  const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
-
-  const {
-    writeContractAsync,
-    isPending,
-    error: writeError,
-    data: txHash,
-    reset,
-  } = useWriteContract();
-
-  const {
-    isLoading: isConfirming,
-    isSuccess,
-    isError: isTxError,
-  } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const write = useCallback(async (): Promise<void> => {
-    if (!contractAddress) {
-      throw new Error(`Contract not deployed on chain ID ${chainId}. Please switch to a supported network.`);
-    }
-
-    if (!gameId || !winnerAddr) {
-      throw new Error("Missing game ID or winner address");
-    }
-
-    await writeContractAsync({
-      chainId,
-      address: contractAddress,
-      abi: PlayerABI,
-      functionName: 'endGame',
-      args: [gameId, winnerAddr],
-    });
-  }, [writeContractAsync, contractAddress, chainId, gameId, winnerAddr]);
 
   return {
     write,
@@ -908,10 +707,10 @@ export function useEndGame(gameId: number, winnerAddr: Address) {
 
 export function useTotalUsers(options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
+    abi: TycoonABI,
     functionName: 'totalUsers',
     query: { enabled: options.enabled && !!contractAddress },
   });
@@ -925,10 +724,10 @@ export function useTotalUsers(options = { enabled: true }) {
 
 export function useTotalGames(options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
+    abi: TycoonABI,
     functionName: 'totalGames',
     query: { enabled: options.enabled && !!contractAddress },
   });
@@ -940,24 +739,48 @@ export function useTotalGames(options = { enabled: true }) {
   };
 }
 
+// Stub for legacy useBoardSize (constant not exposed; hardcode 40 if needed)
 export function useBoardSize(options = { enabled: true }) {
+  console.warn('useBoardSize: Hardcode BOARD_SIZE = 40 in new contract.');
+  return { data: 40, isLoading: false, error: null };
+}
+
+// New: Matches getUser(username)
+export function useGetUser(username?: string, options = { enabled: true }) {
   const chainId = useChainId();
-  const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const result = useReadContract({
     address: contractAddress,
-    abi: PlayerABI,
-    functionName: 'BOARD_SIZE',
-    query: { enabled: options.enabled && !!contractAddress },
+    abi: TycoonABI,
+    functionName: 'getUser',
+    args: username ? [username] : undefined,
+    query: {
+      enabled: options.enabled && !!username && !!contractAddress,
+      retry: false,
+    },
   });
 
   return {
-    data: result.data ? BigInt(result.data as bigint) : undefined,
+    data: result.data
+      ? {
+          id: (result.data as UserTuple)[0],
+          username: (result.data as UserTuple)[1],
+          playerAddress: (result.data as UserTuple)[2],
+          registeredAt: (result.data as UserTuple)[3],
+          gamesPlayed: (result.data as UserTuple)[4],
+          gamesWon: (result.data as UserTuple)[5],
+          gamesLost: (result.data as UserTuple)[6],
+          totalStaked: (result.data as UserTuple)[7],
+          totalEarned: (result.data as UserTuple)[8],
+          totalWithdrawn: (result.data as UserTuple)[9],
+        }
+      : undefined,
     isLoading: result.isLoading,
     error: result.error,
   };
 }
 
-/* ----------------------- Updated Reward System Hooks ----------------------- */
+/* ----------------------- Updated Reward System Hooks (Unchanged) ----------------------- */
 
 /** Read full collectible info (perk, strength, both prices, current shop stock) */
 export function useRewardCollectibleInfo(
@@ -1121,7 +944,7 @@ export function useRewardBuyCollectible() {
   return { buy, isPending: isPending || isConfirming, isConfirming, isSuccess, error: writeError, txHash, reset };
 }
 
-/* ----------------------- Context Provider (updated) ----------------------- */
+/* ----------------------- Context Provider (Renamed for new contract) ----------------------- */
 type ContractContextType = {
   registerPlayer: (username: string) => Promise<void>;
   redeemVoucher: (tokenId: bigint) => Promise<string>;
@@ -1129,21 +952,21 @@ type ContractContextType = {
   buyCollectible: (tokenId: bigint, useUsdc?: boolean) => Promise<string>;
 };
 
-const BlockopolyContext = createContext<ContractContextType | undefined>(undefined);
+const TycoonContext = createContext<ContractContextType | undefined>(undefined);
 
-export const PlayerContractProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const TycoonProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {  // Renamed from PlayerContractProvider
   const { address: userAddress } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const chainId = useChainId();
 
   const registerPlayer = useCallback(
     async (username: string) => {
-      const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
+      const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];  // Updated
       if (!userAddress) throw new Error('No wallet connected');
-      if (!contractAddress) throw new Error('Player contract not deployed');
+      if (!contractAddress) throw new Error('Tycoon contract not deployed');  // Updated message
       await writeContractAsync({
         address: contractAddress,
-        abi: PlayerABI,
+        abi: TycoonABI,  // Updated
         functionName: 'registerPlayer',
         args: [username],
       });
@@ -1206,11 +1029,14 @@ export const PlayerContractProvider: React.FC<{ children: React.ReactNode }> = (
     [registerPlayer, redeemVoucher, burnCollectible, buyCollectible]
   );
 
-  return <BlockopolyContext.Provider value={value}>{children}</BlockopolyContext.Provider>;
+  return <TycoonContext.Provider value={value}>{children}</TycoonContext.Provider>;
 };
 
-export const usePlayerContract = () => {
-  const context = useContext(BlockopolyContext);
-  if (!context) throw new Error('usePlayerContract must be used within PlayerContractProvider');
+// Updated hook name for compatibility (alias old one)
+export const useTycoonContract = () => usePlayerContract();  // Temporary alias
+
+export const usePlayerContract = () => {  // Kept original for backward compat
+  const context = useContext(TycoonContext);
+  if (!context) throw new Error('usePlayerContract must be used within TycoonProvider');  // Updated message
   return context;
 };
