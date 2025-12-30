@@ -5,22 +5,22 @@ import { useAccount, useChainId, useReadContract, useWriteContract, useWaitForTr
 import { parseUnits, formatUnits } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle, Send, Ticket, ChevronDown
+  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle, Send, Ticket, ChevronDown, RefreshCw
 } from 'lucide-react';
 import RewardABI from '@/context/rewardabi.json';
 import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, TYC_TOKEN_ADDRESS } from '@/constants/contracts';
 
 const PERKS = [
-  { value: 1, label: "Extra Turn", icon: <Zap className="w-6 h-6" />, requiresStrength: false },
-  { value: 2, label: "Get Out of Jail Free", icon: <Crown className="w-6 h-6" />, requiresStrength: false },
-  { value: 3, label: "Double Rent", icon: <Coins className="w-6 h-6" />, requiresStrength: false },
-  { value: 4, label: "Roll Boost", icon: <Sparkles className="w-6 h-6" />, requiresStrength: false },
-  { value: 5, label: "Instant Cash (Tiered)", icon: <Gem className="w-6 h-6" />, requiresStrength: true },
-  { value: 6, label: "Teleport", icon: <Zap className="w-6 h-6" />, requiresStrength: false },
-  { value: 7, label: "Shield", icon: <Shield className="w-6 h-6" />, requiresStrength: false },
-  { value: 8, label: "Property Discount", icon: <Coins className="w-6 h-6" />, requiresStrength: false },
-  { value: 9, label: "Tax Refund (Tiered)", icon: <Gem className="w-6 h-6" />, requiresStrength: true },
-  { value: 10, label: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, requiresStrength: false },
+  { value: 1, label: "Extra Turn", icon: <Zap className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 2, label: "Get Out of Jail Free", icon: <Crown className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 3, label: "Double Rent", icon: <Coins className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 4, label: "Roll Boost", icon: <Sparkles className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 5, label: "Instant Cash (Tiered)", icon: <Gem className="w-6 h-6" />, requiresStrength: true, strength: 1 }, // default tier
+  { value: 6, label: "Teleport", icon: <Zap className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 7, label: "Shield", icon: <Shield className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 8, label: "Property Discount", icon: <Coins className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { value: 9, label: "Tax Refund (Tiered)", icon: <Gem className="w-6 h-6" />, requiresStrength: true, strength: 1 },
+  { value: 10, label: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, requiresStrength: false, strength: 0 },
 ];
 
 const rarityStyles = {
@@ -64,7 +64,7 @@ export default function RewardAdminPanel() {
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const isLoading = isWriting || isConfirming;
 
-  // Fixed token IDs for the 10 perks
+  // Token IDs
   const tokenIds = Array.from({ length: 10 }, (_, i) => BigInt(2000000000 + i + 1));
 
   const stockResults = useReadContract({
@@ -79,7 +79,6 @@ export default function RewardAdminPanel() {
     ? (stockResults.data as bigint[]).map(Number)
     : Array(10).fill(0);
 
-  // Contract balances
   const tycBalance = useReadContract({
     address: tycAddress ?? undefined,
     abi: ERC20_ABI,
@@ -113,6 +112,28 @@ export default function RewardAdminPanel() {
       reset();
     }
   }, [txHash, isConfirming, isWriting, writeError, reset]);
+
+  // NEW: Stock all collectibles to 500 each
+  const handleStockAllTo500 = () => {
+    if (!contractAddress) return;
+
+    setStatus({ type: 'info', message: 'Stocking all collectibles to 500... This may take 10 transactions.' });
+
+    PERKS.forEach((perk) => {
+      writeContract({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'stockShop',
+        args: [
+          BigInt(500),
+          BigInt(perk.value),
+          BigInt(perk.strength),
+          0, // tycPrice - set to 0 or your default
+          0, // usdcPrice - set to 0 or your default
+        ],
+      });
+    });
+  };
 
   const handleSetPrice = () => {
     if (!selectedPerk || !contractAddress) return;
@@ -236,37 +257,51 @@ export default function RewardAdminPanel() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className={`mb-8 p-6 rounded-2xl border text-center ${status.type === 'success' ? 'bg-green-900/40 border-green-600' : 'bg-red-900/40 border-red-600'}`}
+              className={`mb-8 p-6 rounded-2xl border text-center ${status.type === 'success' ? 'bg-green-900/40 border-green-600' : status.type === 'info' ? 'bg-blue-900/40 border-blue-600' : 'bg-red-900/40 border-red-600'}`}
             >
               <p className="font-medium">{status.message}</p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Stock Tab */}
+        {/* Stock Tab - Now with "Stock All to 500" button */}
         {activeTab === 'stock' && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {PERKS.map((perk, index) => {
-              const stock = currentStocks[index] || 0;
-              const isLow = stock < 100;
-              const isSoldOut = stock === 0;
+          <div className="space-y-10">
+            <div className="text-center">
+              <button
+                onClick={handleStockAllTo500}
+                disabled={isLoading}
+                className="px-10 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-xl rounded-2xl shadow-xl flex items-center gap-4 mx-auto transition disabled:opacity-50"
+              >
+                <RefreshCw className={`w-8 h-8 ${isLoading ? 'animate-spin' : ''}`} />
+                Stock All Collectibles to 500
+              </button>
+              <p className="text-gray-400 mt-3 text-sm">This will send 10 transactions (one per perk)</p>
+            </div>
 
-              return (
-                <div key={perk.value} className={`rounded-2xl p-6 border-2 bg-gradient-to-br ${rarityStyles[perk.value as keyof typeof rarityStyles]} backdrop-blur-sm text-center relative overflow-hidden`}>
-                  <div className="flex justify-center mb-4">{perk.icon}</div>
-                  <h3 className="font-bold text-lg mb-3">{perk.label}</h3>
-                  <p className={`text-2xl font-bold ${isSoldOut ? 'text-red-400' : isLow ? 'text-orange-400' : 'text-emerald-300'}`}>
-                    {stock}/500
-                  </p>
-                  {isSoldOut && <div className="absolute inset-0 bg-red-900/30 flex items-center justify-center pointer-events-none"><span className="text-3xl font-bold">SOLD OUT</span></div>}
-                  {isLow && !isSoldOut && <p className="text-xs text-orange-300 mt-2">Low Stock!</p>}
-                </div>
-              );
-            })}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+              {PERKS.map((perk, index) => {
+                const stock = currentStocks[index] || 0;
+                const isLow = stock < 100;
+                const isSoldOut = stock === 0;
+
+                return (
+                  <div key={perk.value} className={`rounded-2xl p-6 border-2 bg-gradient-to-br ${rarityStyles[perk.value as keyof typeof rarityStyles]} backdrop-blur-sm text-center relative overflow-hidden`}>
+                    <div className="flex justify-center mb-4">{perk.icon}</div>
+                    <h3 className="font-bold text-lg mb-3">{perk.label}</h3>
+                    <p className={`text-2xl font-bold ${isSoldOut ? 'text-red-400' : isLow ? 'text-orange-400' : 'text-emerald-300'}`}>
+                      {stock}/500
+                    </p>
+                    {isSoldOut && <div className="absolute inset-0 bg-red-900/30 flex items-center justify-center pointer-events-none"><span className="text-3xl font-bold">SOLD OUT</span></div>}
+                    {isLow && !isSoldOut && <p className="text-xs text-orange-300 mt-2">Low Stock!</p>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {/* Pricing Tab */}
+        {/* Pricing, Funds, Mint tabs remain exactly as before */}
         {activeTab === 'pricing' && (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl font-bold text-center mb-10">Edit Prices</h2>
@@ -313,7 +348,6 @@ export default function RewardAdminPanel() {
           </div>
         )}
 
-        {/* Funds Tab */}
         {activeTab === 'funds' && (
           <div className="max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold text-center mb-10">Contract Funds</h2>
@@ -340,7 +374,6 @@ export default function RewardAdminPanel() {
           </div>
         )}
 
-        {/* Mint Tab */}
         {activeTab === 'mint' && (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl font-bold text-center mb-10 bg-gradient-to-r from-pink-400 to-orange-400 bg-clip-text text-transparent">
