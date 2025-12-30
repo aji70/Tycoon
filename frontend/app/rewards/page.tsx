@@ -56,8 +56,9 @@ const ERC20_ABI = [
   },
 ] as const;
 
-// Predefined collectibles with suggested low prices (2 TYC starting balance friendly)
-// USDC is always the cheaper option to encourage fiat usage
+// Predefined collectibles with low prices (2 TYC starting balance friendly)
+// USDC is always cheaper to strongly encourage fiat usage
+// All 5 Cash Tiers included
 const INITIAL_COLLECTIBLES = [
   { perk: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", strength: 1, tycPrice: "0.75", usdcPrice: "0.08", icon: <Zap className="w-8 h-8" /> },
   { perk: CollectiblePerk.ROLL_BOOST, name: "Roll Boost", strength: 1, tycPrice: "1.0", usdcPrice: "0.10", icon: <Sparkles className="w-8 h-8" /> },
@@ -65,7 +66,11 @@ const INITIAL_COLLECTIBLES = [
   { perk: CollectiblePerk.SHIELD, name: "Shield", strength: 1, tycPrice: "1.5", usdcPrice: "0.40", icon: <Shield className="w-8 h-8" /> },
   { perk: CollectiblePerk.TELEPORT, name: "Teleport", strength: 1, tycPrice: "1.8", usdcPrice: "0.60", icon: <Zap className="w-8 h-8" /> },
   { perk: CollectiblePerk.ROLL_EXACT, name: "Exact Roll (Legendary)", strength: 1, tycPrice: "2.5", usdcPrice: "1.00", icon: <Sparkles className="w-8 h-8" /> },
+  // All 5 Cash Tiers
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 1", strength: 1, tycPrice: "0.5", usdcPrice: "0.05", icon: <Gem className="w-8 h-8" /> },
+  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 2", strength: 2, tycPrice: "0.8", usdcPrice: "0.15", icon: <Gem className="w-8 h-8" /> },
+  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 3", strength: 3, tycPrice: "1.2", usdcPrice: "0.30", icon: <Gem className="w-8 h-8" /> },
+  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 4", strength: 4, tycPrice: "1.6", usdcPrice: "0.50", icon: <Gem className="w-8 h-8" /> },
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 5", strength: 5, tycPrice: "2.0", usdcPrice: "0.90", icon: <Gem className="w-8 h-8" /> },
 ];
 
@@ -93,7 +98,6 @@ export default function RewardAdminPanel() {
   const [collectibleRecipient, setCollectibleRecipient] = useState('');
   const [selectedPerk, setSelectedPerk] = useState<CollectiblePerk>(CollectiblePerk.EXTRA_TURN);
   const [collectibleStrength, setCollectibleStrength] = useState('1');
-  const [stockAmount, setStockAmount] = useState('50'); // Changed to 50 as requested
   const [restockTokenId, setRestockTokenId] = useState('');
   const [restockAmount, setRestockAmount] = useState('50');
   const [updateTokenId, setUpdateTokenId] = useState('');
@@ -249,20 +253,30 @@ export default function RewardAdminPanel() {
     setCollectibleStrength('1');
   };
 
-  // New: Stock 50 of selected collectible with predefined prices
+  // Stock 50 units of the currently selected perk/strength with pre-defined price
   const handleStockShop = useCallback(() => {
     if (!contractAddress) return;
 
     const amount = BigInt(50); // Fixed to 50 as requested
-    const tycPrice = parseUnits("1.0", 18); // Default 1 TYC
-    const usdcPrice = parseUnits("0.20", 6); // Default 0.20 USDC (encourages USDC)
 
-    // You can customize per perk later by adding a price map
+    // Find the pre-defined price for the current selection
+    const selectedItem = INITIAL_COLLECTIBLES.find(
+      item => item.perk === selectedPerk && item.strength === Number(collectibleStrength)
+    );
+
+    const tycPrice = selectedItem 
+      ? parseUnits(selectedItem.tycPrice, 18) 
+      : parseUnits("1.0", 18); // fallback
+
+    const usdcPrice = selectedItem 
+      ? parseUnits(selectedItem.usdcPrice, 6) 
+      : parseUnits("0.20", 6); // fallback
+
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'stockShop',
-      args: [amount, BigInt(selectedPerk), BigInt(collectibleStrength || 1), tycPrice, usdcPrice],
+      args: [amount, BigInt(selectedPerk), BigInt(collectibleStrength), tycPrice, usdcPrice],
     });
   }, [writeContract, contractAddress, selectedPerk, collectibleStrength]);
 
@@ -489,19 +503,22 @@ export default function RewardAdminPanel() {
         )}
 
         {activeSection === 'stock' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2 justify-center">
               <Package className="w-8 h-8 text-green-400" /> Stock Shop (50 Units Each)
             </h3>
-            <p className="text-center text-gray-400 mb-8">Click any item below to mint 50 units with pre-set low prices (2 TYC friendly)</p>
+            <p className="text-center text-gray-400 mb-8">
+              Click any item below to mint 50 units with pre-set low prices (friendly for 2 TYC starting balance).<br/>
+              USDC is always the cheaper option to encourage real-money usage.
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {INITIAL_COLLECTIBLES.map((item) => {
+              {INITIAL_COLLECTIBLES.map((item, index) => {
                 const isSelected = selectedPerk === item.perk && collectibleStrength === String(item.strength);
 
                 return (
                   <motion.div
-                    key={`${item.perk}-${item.strength}`}
+                    key={`${item.perk}-${item.strength}-${index}`}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.98 }}
                     className={`rounded-2xl p-6 border-2 cursor-pointer transition-all text-center ${
@@ -526,8 +543,8 @@ export default function RewardAdminPanel() {
                       <p className="text-sm text-emerald-300">
                         <span className="font-semibold">{item.tycPrice} TYC</span>
                       </p>
-                      <p className="text-sm text-cyan-300">
-                        <span className="font-semibold">{item.usdcPrice} USDC</span> (cheaper!)
+                      <p className="text-sm text-cyan-300 font-semibold">
+                        {item.usdcPrice} USDC (cheaper!)
                       </p>
                     </div>
 
@@ -546,8 +563,9 @@ export default function RewardAdminPanel() {
               })}
             </div>
 
-            <p className="text-center text-sm text-gray-500 mt-8">
-              Prices are fixed for now (encourages USDC). You can update anytime via Manage → Update Prices.
+            <p className="text-center text-sm text-gray-500 mt-10">
+              All prices are fixed in the UI for simplicity (2 TYC friendly).<br/>
+              You can always update them later via the Manage → Update Prices section.
             </p>
           </motion.div>
         )}
