@@ -13,7 +13,7 @@ import TycoonABI from '@/context/tycoonabi.json';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
 const COLLECTIBLE_START = 2000000000;
-const PERK_COUNT = 10;
+const PERK_COUNT = 1000000000;
 
 export default function ProfilePage() {
   const { address: walletAddress, isConnected } = useAccount();
