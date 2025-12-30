@@ -1,137 +1,190 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAccount, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits, formatUnits } from 'viem';
+import { parseUnits, formatUnits, Address } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle
+  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle,
+  Settings, PlusCircle, Gift, Banknote, PauseCircle, PlayCircle, RefreshCw, Edit2
 } from 'lucide-react';
 import RewardABI from '@/context/abi/rewardabi.json';
 import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, TYC_TOKEN_ADDRESS } from '@/constants/contracts';
 
-const FIXED_TOKEN_IDS = {
-  EXTRA_TURN: 2000000000,
-  JAIL_FREE: 2000000001,
-  DOUBLE_RENT: 2000000002,
-  ROLL_BOOST: 2000000003,
-  CASH_TIER1: 2000000004,
-  CASH_TIER2: 2000000010,
-  CASH_TIER3: 2000000011,
-  CASH_TIER4: 2000000012,
-  CASH_TIER5: 2000000013,
-  TELEPORT: 2000000005,
-  SHIELD: 2000000006,
-  PROPERTY_DISCOUNT: 2000000007,
-  TAX_REFUND_TIER1: 2000000008,
-  TAX_REFUND_TIER3: 2000000014,
-  ROLL_EXACT: 2000000009,
+enum CollectiblePerk {
+  NONE = 0,
+  EXTRA_TURN = 1,
+  JAIL_FREE = 2,
+  DOUBLE_RENT = 3,
+  ROLL_BOOST = 4,
+  CASH_TIERED = 5,
+  TELEPORT = 6,
+  SHIELD = 7,
+  PROPERTY_DISCOUNT = 8,
+  TAX_REFUND = 9,
+  ROLL_EXACT = 10,
+}
+
+const PERK_NAMES: Record<CollectiblePerk, string> = {
+  [CollectiblePerk.NONE]: 'None',
+  [CollectiblePerk.EXTRA_TURN]: 'Extra Turn',
+  [CollectiblePerk.JAIL_FREE]: 'Get Out of Jail Free',
+  [CollectiblePerk.DOUBLE_RENT]: 'Double Rent',
+  [CollectiblePerk.ROLL_BOOST]: 'Roll Boost',
+  [CollectiblePerk.CASH_TIERED]: 'Instant Cash (Tiered)',
+  [CollectiblePerk.TELEPORT]: 'Teleport',
+  [CollectiblePerk.SHIELD]: 'Shield',
+  [CollectiblePerk.PROPERTY_DISCOUNT]: 'Property Discount',
+  [CollectiblePerk.TAX_REFUND]: 'Tax Refund (Tiered)',
+  [CollectiblePerk.ROLL_EXACT]: 'Exact Roll',
 };
 
-const PERKS = [
-  { tokenId: FIXED_TOKEN_IDS.EXTRA_TURN, name: "Extra Turn", rarity: "common", icon: <Zap className="w-8 h-8" />, perkId: 1 },
-  { tokenId: FIXED_TOKEN_IDS.JAIL_FREE, name: "Get Out of Jail Free", rarity: "rare", icon: <Crown className="w-8 h-8" />, perkId: 2 },
-  { tokenId: FIXED_TOKEN_IDS.DOUBLE_RENT, name: "Double Rent", rarity: "medium", icon: <Coins className="w-8 h-8" />, perkId: 3 },
-  { tokenId: FIXED_TOKEN_IDS.ROLL_BOOST, name: "Roll Boost", rarity: "medium", icon: <Sparkles className="w-8 h-8" />, perkId: 4 },
-  { tokenId: FIXED_TOKEN_IDS.CASH_TIER1, name: "Instant Cash (Tier 1)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 1 },
-  { tokenId: FIXED_TOKEN_IDS.CASH_TIER2, name: "Instant Cash (Tier 2)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 2 },
-  { tokenId: FIXED_TOKEN_IDS.CASH_TIER3, name: "Instant Cash (Tier 3)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 3 },
-  { tokenId: FIXED_TOKEN_IDS.CASH_TIER4, name: "Instant Cash (Tier 4)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 4 },
-  { tokenId: FIXED_TOKEN_IDS.CASH_TIER5, name: "Instant Cash (Tier 5)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 5 },
-  { tokenId: FIXED_TOKEN_IDS.TELEPORT, name: "Teleport", rarity: "epic", icon: <Zap className="w-8 h-8" />, perkId: 6 },
-  { tokenId: FIXED_TOKEN_IDS.SHIELD, name: "Shield", rarity: "rare", icon: <Shield className="w-8 h-8" />, perkId: 7 },
-  { tokenId: FIXED_TOKEN_IDS.PROPERTY_DISCOUNT, name: "Property Discount", rarity: "medium", icon: <Coins className="w-8 h-8" />, perkId: 8 },
-  { tokenId: FIXED_TOKEN_IDS.TAX_REFUND_TIER1, name: "Tax Refund (Tier 1)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 9, strength: 1 },
-  { tokenId: FIXED_TOKEN_IDS.TAX_REFUND_TIER3, name: "Tax Refund (Tier 3)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 9, strength: 3 },
-  { tokenId: FIXED_TOKEN_IDS.ROLL_EXACT, name: "Exact Roll", rarity: "legendary", icon: <Sparkles className="w-8 h-8" />, perkId: 10 },
-];
-
-const rarityStyles = {
-  common: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40 text-emerald-300',
-  medium: 'from-blue-500/20 to-blue-600/10 border-blue-500/40 text-blue-300',
-  rare: 'from-purple-500/20 to-purple-600/10 border-purple-500/40 text-purple-300',
-  epic: 'from-pink-500/20 to-pink-600/10 border-pink-500/40 text-pink-300',
-  legendary: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40 text-yellow-300',
-  tiered: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 text-cyan-300',
-};
 const ERC20_ABI = [
   {
-    name: "balanceOf",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
+    constant: true,
+    inputs: [{ name: '_owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: 'balance', type: 'uint256' }],
+    type: 'function',
   },
   {
-    name: "decimals",
-    type: "function",
-    stateMutability: "view",
+    constant: true,
     inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
+    name: 'decimals',
+    outputs: [{ name: '', type: 'uint8' }],
+    type: 'function',
   },
 ] as const;
 
 export default function RewardAdminPanel() {
-  const { address, isConnected } = useAccount();
+  const { address: userAddress, isConnected } = useAccount();
   const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
-  const usdcAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
-  const tycAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
+  const usdcAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+  const tycAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
 
-  const [activeTab, setActiveTab] = useState<'stock' | 'pricing' | 'funds'>('stock');
+  const [activeSection, setActiveSection] = useState<'overview' | 'mint' | 'stock' | 'manage' | 'funds'>('overview');
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-  const [selectedPerk, setSelectedPerk] = useState<typeof PERKS[0] | null>(null);
-  const [tycPriceInput, setTycPriceInput] = useState('');
-  const [usdcPriceInput, setUsdcPriceInput] = useState('');
+  const [isPaused, setIsPaused] = useState(false);
+  const [backendMinter, setBackendMinter] = useState<Address | null>(null);
+  const [owner, setOwner] = useState<Address | null>(null);
 
   const { writeContract, data: txHash, isPending: isWriting, error: writeError, reset } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const isLoading = isWriting || isConfirming;
 
-  // Correctly fetch live stock using balanceOfBatch
-  const stockResults = useReadContract({
-    address: contractAddress ?? undefined,
+  // Form states
+  const [newMinter, setNewMinter] = useState('');
+  const [voucherRecipient, setVoucherRecipient] = useState('');
+  const [voucherValue, setVoucherValue] = useState('');
+  const [collectibleRecipient, setCollectibleRecipient] = useState('');
+  const [selectedPerk, setSelectedPerk] = useState<CollectiblePerk>(CollectiblePerk.EXTRA_TURN);
+  const [collectibleStrength, setCollectibleStrength] = useState('1');
+  const [stockAmount, setStockAmount] = useState('500');
+  const [stockTycPrice, setStockTycPrice] = useState('');
+  const [stockUsdcPrice, setStockUsdcPrice] = useState('');
+  const [restockTokenId, setRestockTokenId] = useState('');
+  const [restockAmount, setRestockAmount] = useState('100');
+  const [updateTokenId, setUpdateTokenId] = useState('');
+  const [updateTycPrice, setUpdateTycPrice] = useState('');
+  const [updateUsdcPrice, setUpdateUsdcPrice] = useState('');
+  const [withdrawToken, setWithdrawToken] = useState<'TYC' | 'USDC'>('TYC');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawTo, setWithdrawTo] = useState('');
+
+  // Fetch contract state
+  const pausedResult = useReadContract({
+    address: contractAddress,
     abi: RewardABI,
-    functionName: 'balanceOfBatch',
-    args: contractAddress ? [Array(PERKS.length).fill(contractAddress), PERKS.map(p => BigInt(p.tokenId))] : undefined,
+    functionName: 'paused',
     query: { enabled: !!contractAddress },
   });
 
-  const currentStocks = stockResults.data && Array.isArray(stockResults.data)
-    ? stockResults.data.map((s: bigint) => Number(s))
-    : PERKS.map(() => 0);
+  const backendMinterResult = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'backendMinter',
+    query: { enabled: !!contractAddress },
+  });
 
-  // Individual price lookups (fallback if no batch price function)
-  // We'll just show placeholder prices or fetch one-by-one if needed — but stock is priority
+  const ownerResult = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'owner',
+    query: { enabled: !!contractAddress },
+  });
 
-const { address: userAddress } = useAccount();
-const tycBalance = useReadContract({
-  address: tycAddress ?? undefined,
-  abi: ERC20_ABI,
-  functionName: "balanceOf",
-  args: contractAddress ? [contractAddress] : undefined,
-  query: {
-    enabled: !!contractAddress && !!userAddress,
-  },
-});
+  const tycBalance = useReadContract({
+    address: tycAddress,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [contractAddress as Address],
+    query: { enabled: !!contractAddress && !!tycAddress },
+  });
 
-// USDC balance
-const usdcBalance = useReadContract({
-  address: usdcAddress ?? undefined,
-  abi: ERC20_ABI,
-  functionName: "balanceOf",
-  args: contractAddress ? [contractAddress] : undefined,
-  query: {
-    enabled: !!USDC_TOKEN_ADDRESS && !!userAddress,
-  },
-});
+  const usdcBalance = useReadContract({
+    address: usdcAddress,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [contractAddress as Address],
+    query: { enabled: !!contractAddress && !!usdcAddress },
+  });
+
+  const tycDecimals = useReadContract({
+    address: tycAddress,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+    query: { enabled: !!tycAddress },
+  });
+
+  const usdcDecimals = useReadContract({
+    address: usdcAddress,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+    query: { enabled: !!usdcAddress },
+  });
+
+  // Shop inventory using enumeration
+  const shopTokenCount = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'ownedTokenCount',
+    args: [contractAddress as Address],
+    query: { enabled: !!contractAddress },
+  });
+
+  const shopTokens = [];
+  for (let i = 0; i < Number(shopTokenCount.data || 0); i++) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const tokenIdResult = useReadContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'tokenOfOwnerByIndex',
+      args: [contractAddress as Address, BigInt(i)],
+      query: { enabled: !!contractAddress && shopTokenCount.data !== undefined },
+    });
+    shopTokens.push(tokenIdResult);
+  }
+
+  const shopItems = shopTokens.map((res) => res.data as bigint | undefined).filter(Boolean);
+
+  const shopItemInfos = shopItems.map((tokenId) => 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useReadContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'getCollectibleInfo',
+      args: [tokenId!],
+      query: { enabled: !!tokenId },
+    })
+  );
 
   useEffect(() => {
-    if (status) {
-      const timer = setTimeout(() => setStatus(null), 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [status]);
+    setIsPaused(!!pausedResult.data);
+    setBackendMinter(backendMinterResult.data as Address || null);
+    setOwner(ownerResult.data as Address || null);
+    setWithdrawTo(ownerResult.data as string || '');
+  }, [pausedResult.data, backendMinterResult.data, ownerResult.data]);
 
   useEffect(() => {
     if (txHash && !isConfirming && !isWriting) {
@@ -144,69 +197,123 @@ const usdcBalance = useReadContract({
     }
   }, [txHash, isConfirming, isWriting, writeError, reset]);
 
-  const handleStockShop = (perk: typeof PERKS[0], amount = 500) => {
-    if (!contractAddress) return;
+  const showStatus = (type: 'success' | 'error' | 'info', message: string) => {
+    setStatus({ type, message });
+    setTimeout(() => setStatus(null), 5000);
+  };
 
+  const handleSetBackendMinter = () => {
+    if (!contractAddress || !newMinter) return;
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'setBackendMinter',
+      args: [newMinter as Address],
+    });
+    setNewMinter('');
+  };
+
+  const handleMintVoucher = () => {
+    if (!contractAddress || !voucherRecipient || !voucherValue) return;
+    const valueWei = parseUnits(voucherValue, 18); // Assuming 18 decimals for TYC
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'mintVoucher',
+      args: [voucherRecipient as Address, valueWei],
+    });
+    setVoucherRecipient('');
+    setVoucherValue('');
+  };
+
+  const handleMintCollectible = () => {
+    if (!contractAddress || !collectibleRecipient) return;
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'mintCollectible',
+      args: [collectibleRecipient as Address, BigInt(selectedPerk), BigInt(collectibleStrength || 1)],
+    });
+    setCollectibleRecipient('');
+    setCollectibleStrength('1');
+  };
+
+  const handleStockShop = () => {
+    if (!contractAddress) return;
+    const amount = BigInt(stockAmount || 500);
+    const tycWei = stockTycPrice ? parseUnits(stockTycPrice, 18) : 0;
+    const usdcWei = stockUsdcPrice ? parseUnits(stockUsdcPrice, 6) : 0;
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'stockShop',
-      args: [
-        BigInt(amount),
-        BigInt(perk.perkId),
-        BigInt(perk.strength || 0),
-        0, // We'll let the contract use current prices
-        0,
-      ],
+      args: [amount, BigInt(selectedPerk), BigInt(collectibleStrength || 1), tycWei, usdcWei],
     });
+    setStockAmount('500');
+    setStockTycPrice('');
+    setStockUsdcPrice('');
+    setCollectibleStrength('1');
   };
 
-  const handleSetPrice = () => {
-    if (!selectedPerk || !contractAddress) return;
-
-    const tycWei = tycPriceInput ? parseUnits(tycPriceInput, 18) : 0;
-    const usdcWei = usdcPriceInput ? parseUnits(usdcPriceInput, 6) : 0;
-
-    if (tycWei === 0 && usdcWei === 0) {
-      setStatus({ type: 'error', message: 'At least one price must be set' });
-      return;
-    }
-
+  const handleRestock = () => {
+    if (!contractAddress || !restockTokenId || !restockAmount) return;
     writeContract({
       address: contractAddress,
       abi: RewardABI,
-      functionName: 'setCollectiblePrice',
-      args: [
-        BigInt(selectedPerk.tokenId),
-        BigInt(selectedPerk.strength || 0),
-        tycWei,
-        usdcWei,
-      ],
+      functionName: 'restockCollectible',
+      args: [BigInt(restockTokenId), BigInt(restockAmount)],
     });
-
-    setTycPriceInput('');
-    setUsdcPriceInput('');
-    setSelectedPerk(null);
+    setRestockTokenId('');
+    setRestockAmount('100');
   };
 
-  const handleWithdraw = (token: 'TYC' | 'USDC') => {
-    if (!contractAddress) return;
+  const handleUpdatePrices = () => {
+    if (!contractAddress || !updateTokenId) return;
+    const tycWei = updateTycPrice ? parseUnits(updateTycPrice, 18) : 0;
+    const usdcWei = updateUsdcPrice ? parseUnits(updateUsdcPrice, 6) : 0;
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'updateCollectiblePrices',
+      args: [BigInt(updateTokenId), tycWei, usdcWei],
+    });
+    setUpdateTokenId('');
+    setUpdateTycPrice('');
+    setUpdateUsdcPrice('');
+  };
 
+  const handlePause = (pause: boolean) => {
+    if (!contractAddress) return;
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: pause ? 'pause' : 'unpause',
+    });
+  };
+
+  const handleWithdraw = () => {
+    if (!contractAddress || !withdrawAmount || !withdrawTo) return;
+    const tokenAddr = withdrawToken === 'TYC' ? tycAddress! : usdcAddress!;
+    const decimals = withdrawToken === 'TYC' ? (tycDecimals.data as number || 18) : (usdcDecimals.data as number || 6);
+    const amountWei = parseUnits(withdrawAmount, decimals);
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'withdrawFunds',
-      args: [token === 'USDC'],
+      args: [tokenAddr, withdrawTo as Address, amountWei],
     });
+    setWithdrawAmount('');
+    setWithdrawTo(owner || '');
   };
 
-  if (!isConnected) {
+  if (!isConnected || !userAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27]">
-        <div className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50">
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50 text-center">
           <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-red-400" />
-          <h2 className="text-3xl font-bold text-center">Wallet Not Connected</h2>
-        </div>
+          <h2 className="text-3xl font-bold">Wallet Not Connected</h2>
+          <p className="text-gray-400 mt-2">Connect your wallet to access admin features</p>
+        </motion.div>
       </div>
     );
   }
@@ -214,7 +321,19 @@ const usdcBalance = useReadContract({
   if (!contractAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27] text-rose-400 text-2xl">
-        No Reward contract on chain {chainId}
+        No Reward contract deployed on chain {chainId}
+      </div>
+    );
+  }
+
+  if (owner && owner.toLowerCase() !== userAddress.toLowerCase()) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27]">
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50 text-center">
+          <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-red-400" />
+          <h2 className="text-3xl font-bold">Access Denied</h2>
+          <p className="text-gray-400 mt-2">Only the contract owner can access this panel</p>
+        </motion.div>
       </div>
     );
   }
@@ -226,18 +345,24 @@ const usdcBalance = useReadContract({
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Tycoon Reward Admin Panel
           </h1>
-          <p className="text-xl text-gray-400">Manage stock • Set TYC & USDC prices • Withdraw funds</p>
+          <p className="text-xl text-gray-400">Manage minter • Mint items • Stock shop • Update prices • Control contract</p>
         </motion.div>
 
-        <div className="flex justify-center gap-4 mb-10 flex-wrap">
-          <button onClick={() => setActiveTab('stock')} className={`px-8 py-3 rounded-xl font-semibold transition-all ${activeTab === 'stock' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
-            <Package className="inline w-5 h-5 mr-2" /> Stock
+        <div className="flex flex-wrap justify-center gap-4 mb-10">
+          <button onClick={() => setActiveSection('overview')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'overview' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
+            <Settings className="w-5 h-5" /> Overview
           </button>
-          <button onClick={() => setActiveTab('pricing')} className={`px-8 py-3 rounded-xl font-semibold transition-all ${activeTab === 'pricing' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
-            <DollarSign className="inline w-5 h-5 mr-2" /> Pricing
+          <button onClick={() => setActiveSection('mint')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'mint' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
+            <PlusCircle className="w-5 h-5" /> Mint
           </button>
-          <button onClick={() => setActiveTab('funds')} className={`px-8 py-3 rounded-xl font-semibold transition-all ${activeTab === 'funds' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
-            <Wallet className="inline w-5 h-5 mr-2" /> Funds
+          <button onClick={() => setActiveSection('stock')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'stock' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
+            <Package className="w-5 h-5" /> Stock Shop
+          </button>
+          <button onClick={() => setActiveSection('manage')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'manage' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
+            <Edit2 className="w-5 h-5" /> Manage
+          </button>
+          <button onClick={() => setActiveSection('funds')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'funds' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
+            <Wallet className="w-5 h-5" /> Funds
           </button>
         </div>
 
@@ -247,142 +372,311 @@ const usdcBalance = useReadContract({
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className={`mb-8 p-6 rounded-2xl border text-center ${status.type === 'success' ? 'bg-green-900/40 border-green-600' : 'bg-red-900/40 border-red-600'}`}
+              className={`mb-8 p-6 rounded-2xl border text-center max-w-2xl mx-auto ${status.type === 'success' ? 'bg-green-900/40 border-green-600' : status.type === 'error' ? 'bg-red-900/40 border-red-600' : 'bg-blue-900/40 border-blue-600'}`}
             >
               <p className="font-medium">{status.message}</p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {activeTab === 'stock' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {PERKS.map((perk, index) => {
-              const stock = currentStocks[index] || 0;
+        {activeSection === 'overview' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Settings className="w-6 h-6 text-cyan-400" /> Contract Status</h3>
+              <p className="mb-2">Paused: {isPaused ? 'Yes' : 'No'}</p>
+              <p className="mb-2">Owner: {owner?.slice(0,6)}...{owner?.slice(-4)}</p>
+              <p>Backend Minter: {backendMinter ? `${backendMinter.slice(0,6)}...${backendMinter.slice(-4)}` : 'Not set'}</p>
+            </div>
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Wallet className="w-6 h-6 text-emerald-400" /> Balances</h3>
+              <p className="mb-2">TYC: {tycBalance.data ? Number(formatUnits(tycBalance.data as bigint, tycDecimals.data as number || 18)).toFixed(2) : '0.00'}</p>
+              <p>USDC: {usdcBalance.data ? Number(formatUnits(usdcBalance.data as bigint, usdcDecimals.data as number || 6)).toFixed(2) : '0.00'}</p>
+            </div>
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Package className="w-6 h-6 text-purple-400" /> Shop Inventory</h3>
+              <ul className="space-y-2 max-h-40 overflow-y-auto">
+                {shopItems.map((tokenId, index) => {
+                  const info = shopItemInfos[index]?.data as [number, bigint, bigint, bigint, bigint] | undefined;
+                  if (!info) return null;
+                  return (
+                    <li key={index} className="flex justify-between text-sm">
+                      <span>ID: {tokenId?.toString()} ({PERK_NAMES[info[0] as CollectiblePerk]})</span>
+                      <span>Stock: {info[4].toString()}</span>
+                    </li>
+                  );
+                })}
+                {shopItems.length === 0 && <p className="text-gray-400">No items in shop</p>}
+              </ul>
+            </div>
+          </motion.div>
+        )}
 
-              return (
-                <motion.div
-                  key={perk.tokenId}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`rounded-2xl p-8 border-2 bg-gradient-to-br ${rarityStyles[perk.rarity as keyof typeof rarityStyles]} backdrop-blur-sm relative overflow-hidden`}
+        {activeSection === 'mint' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Gift className="w-6 h-6 text-blue-400" /> Mint Voucher</h3>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Recipient Address"
+                  value={voucherRecipient}
+                  onChange={(e) => setVoucherRecipient(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="number"
+                  placeholder="TYC Value"
+                  value={voucherValue}
+                  onChange={(e) => setVoucherValue(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleMintVoucher}
+                  disabled={isLoading || !voucherRecipient || !voucherValue}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  <div className="absolute top-2 right-2 text-xs opacity-70 font-mono">
-                    ID: {perk.tokenId}
-                  </div>
-
-                  <div className="flex flex-col items-center mb-6">
-                    <div className="p-4 rounded-2xl bg-black/40 mb-4">
-                      {perk.icon}
-                    </div>
-                    <h3 className="text-xl font-bold text-center">{perk.name}</h3>
-                    <p className="text-sm capitalize mt-1 opacity-80">{perk.rarity}</p>
-                  </div>
-
-                  <div className="space-y-3 text-center mb-8">
-                    <p className="text-lg font-bold text-pink-300">
-                      Stock: {stock}/500
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => handleStockShop(perk)}
-                    disabled={isLoading}
-                    className="w-full py-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 font-bold rounded-xl disabled:opacity-50 shadow-lg transition"
-                  >
-                    {isLoading ? 'Processing...' : 'Mint 500'}
-                  </button>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Pricing and Funds tabs remain the same as before */}
-        {activeTab === 'pricing' && (
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">Edit TYC & USDC Prices</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {PERKS.map((perk) => (
-                <div key={perk.tokenId} className="bg-gray-900/50 rounded-2xl p-6 border border-gray-700/50">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="p-3 bg-black/40 rounded-xl">{perk.icon}</div>
-                    <div>
-                      <h4 className="font-bold">{perk.name}</h4>
-                      <p className="text-xs text-gray-400">ID: {perk.tokenId}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedPerk(perk)}
-                    className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-semibold hover:opacity-90 transition"
-                  >
-                    Set Prices
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {selectedPerk && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPerk(null)}>
-                <div className="bg-gray-900 rounded-3xl p-8 max-w-md w-full border border-gray-700" onClick={(e) => e.stopPropagation()}>
-                  <h3 className="text-2xl font-bold mb-6 text-center">Edit Prices — {selectedPerk.name}</h3>
-                  <p className="text-sm text-gray-400 mb-6 text-center">Token ID: {selectedPerk.tokenId}</p>
-
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-emerald-300">TYC Price</label>
-                      <input type="number" step="0.01" value={tycPriceInput} onChange={(e) => setTycPriceInput(e.target.value)} placeholder="e.g. 15.00" className="w-full px-6 py-4 bg-gray-800 rounded-xl text-xl focus:outline-none focus:ring-4 focus:ring-emerald-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-cyan-300">USDC Price</label>
-                      <input type="number" step="0.01" value={usdcPriceInput} onChange={(e) => setUsdcPriceInput(e.target.value)} placeholder="e.g. 0.60" className="w-full px-6 py-4 bg-gray-800 rounded-xl text-xl focus:outline-none focus:ring-4 focus:ring-cyan-500" />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 mt-8">
-                    <button onClick={handleSetPrice} disabled={isLoading} className="flex-1 py-4 bg-gradient-to-r from-cyan-600 to-purple-600 rounded-xl font-bold disabled:opacity-50 transition">
-                      {isLoading ? 'Updating...' : 'Save Prices'}
-                    </button>
-                    <button onClick={() => setSelectedPerk(null)} className="px-8 py-4 bg-gray-800 rounded-xl transition">
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'funds' && (
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">Contract Funds</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-gradient-to-br from-emerald-900/30 to-emerald-800/10 rounded-3xl p-10 border border-emerald-600/40 text-center">
-                <h3 className="text-2xl font-bold mb-4">TYC Balance</h3>
-                <p className="text-4xl font-extrabold text-emerald-300">
-                  {tycBalance.data ? Number(formatUnits(tycBalance.data as bigint, 18)).toFixed(2) : '0.00'} TYC
-                </p>
-                <button onClick={() => handleWithdraw('TYC')} disabled={isLoading} className="mt-8 w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition">
-                  Withdraw TYC
-                </button>
-              </div>
-              <div className="bg-gradient-to-br from-cyan-900/30 to-cyan-800/10 rounded-3xl p-10 border border-cyan-600/40 text-center">
-                <h3 className="text-2xl font-bold mb-4">USDC Balance</h3>
-                <p className="text-4xl font-extrabold text-cyan-300">
-                  {usdcBalance.data ? Number(formatUnits(usdcBalance.data as bigint, 6)).toFixed(2) : '0.00'} USDC
-                </p>
-                <button onClick={() => handleWithdraw('USDC')} disabled={isLoading} className="mt-8 w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-bold transition">
-                  Withdraw USDC
+                  {isLoading ? 'Minting...' : 'Mint Voucher'}
                 </button>
               </div>
             </div>
-          </div>
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Gem className="w-6 h-6 text-purple-400" /> Mint Collectible</h3>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Recipient Address"
+                  value={collectibleRecipient}
+                  onChange={(e) => setCollectibleRecipient(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <select
+                  value={selectedPerk}
+                  onChange={(e) => setSelectedPerk(Number(e.target.value) as CollectiblePerk)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {Object.entries(PERK_NAMES).map(([value, name]) => (
+                    <option key={value} value={value}>{name}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  placeholder="Strength (for tiered)"
+                  value={collectibleStrength}
+                  onChange={(e) => setCollectibleStrength(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button
+                  onClick={handleMintCollectible}
+                  disabled={isLoading || !collectibleRecipient}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold transition disabled:opacity-50"
+                >
+                  {isLoading ? 'Minting...' : 'Mint Collectible'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'stock' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Package className="w-6 h-6 text-green-400" /> Stock Shop</h3>
+            <div className="space-y-4">
+              <select
+                value={selectedPerk}
+                onChange={(e) => setSelectedPerk(Number(e.target.value) as CollectiblePerk)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {Object.entries(PERK_NAMES).map(([value, name]) => (
+                  <option key={value} value={value}>{name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                placeholder="Strength (for tiered)"
+                value={collectibleStrength}
+                onChange={(e) => setCollectibleStrength(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <input
+                type="number"
+                placeholder="Amount (default 500)"
+                value={stockAmount}
+                onChange={(e) => setStockAmount(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="TYC Price"
+                value={stockTycPrice}
+                onChange={(e) => setStockTycPrice(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="USDC Price"
+                value={stockUsdcPrice}
+                onChange={(e) => setStockUsdcPrice(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button
+                onClick={handleStockShop}
+                disabled={isLoading}
+                className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
+              >
+                {isLoading ? 'Stocking...' : 'Stock Shop'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'manage' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings className="w-6 h-6 text-yellow-400" /> Set Backend Minter</h3>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="New Minter Address"
+                  value={newMinter}
+                  onChange={(e) => setNewMinter(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                />
+                <button
+                  onClick={handleSetBackendMinter}
+                  disabled={isLoading || !newMinter}
+                  className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50"
+                >
+                  {isLoading ? 'Setting...' : 'Set Minter'}
+                </button>
+              </div>
+            </div>
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><PauseCircle className="w-6 h-6 text-red-400" /> Contract Control</h3>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => handlePause(true)}
+                  disabled={isLoading || isPaused}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold transition disabled:opacity-50"
+                >
+                  {isLoading ? 'Pausing...' : 'Pause'}
+                </button>
+                <button
+                  onClick={() => handlePause(false)}
+                  disabled={isLoading || !isPaused}
+                  className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
+                >
+                  {isLoading ? 'Unpausing...' : 'Unpause'}
+                </button>
+              </div>
+            </div>
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><RefreshCw className="w-6 h-6 text-blue-400" /> Restock Collectible</h3>
+              <div className="space-y-4">
+                <input
+                  type="number"
+                  placeholder="Token ID"
+                  value={restockTokenId}
+                  onChange={(e) => setRestockTokenId(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="number"
+                  placeholder="Additional Amount"
+                  value={restockAmount}
+                  onChange={(e) => setRestockAmount(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={handleRestock}
+                  disabled={isLoading || !restockTokenId || !restockAmount}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
+                >
+                  {isLoading ? 'Restocking...' : 'Restock'}
+                </button>
+              </div>
+            </div>
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><DollarSign className="w-6 h-6 text-green-400" /> Update Prices</h3>
+              <div className="space-y-4">
+                <input
+                  type="number"
+                  placeholder="Token ID"
+                  value={updateTokenId}
+                  onChange={(e) => setUpdateTokenId(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="New TYC Price"
+                  value={updateTycPrice}
+                  onChange={(e) => setUpdateTycPrice(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="New USDC Price"
+                  value={updateUsdcPrice}
+                  onChange={(e) => setUpdateUsdcPrice(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  onClick={handleUpdatePrices}
+                  disabled={isLoading || !updateTokenId}
+                  className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
+                >
+                  {isLoading ? 'Updating...' : 'Update Prices'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'funds' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Banknote className="w-6 h-6 text-yellow-400" /> Withdraw Funds</h3>
+            <div className="space-y-4">
+              <select
+                value={withdrawToken}
+                onChange={(e) => setWithdrawToken(e.target.value as 'TYC' | 'USDC')}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              >
+                <option value="TYC">TYC</option>
+                <option value="USDC">USDC</option>
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Amount"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+              <input
+                type="text"
+                placeholder="To Address"
+                value={withdrawTo}
+                onChange={(e) => setWithdrawTo(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+              <button
+                onClick={handleWithdraw}
+                disabled={isLoading || !withdrawAmount || !withdrawTo}
+                className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50"
+              >
+                {isLoading ? 'Withdrawing...' : 'Withdraw'}
+              </button>
+            </div>
+          </motion.div>
         )}
 
         {txHash && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 p-6 bg-green-900/90 rounded-2xl border border-green-600 shadow-2xl">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="fixed bottom-8 left-1/2 -translate-x-1/2 p-6 bg-green-900/90 rounded-2xl border border-green-600 shadow-2xl z-50">
             <p className="text-xl font-bold text-green-300 text-center">Transaction Sent!</p>
-            <a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="block mt-3 text-cyan-300 underline">
+            <a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="block mt-3 text-cyan-300 underline text-center">
               View on Explorer
             </a>
           </motion.div>

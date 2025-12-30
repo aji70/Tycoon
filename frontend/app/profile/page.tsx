@@ -8,8 +8,8 @@ import avatar from '@/public/avatar.jpg';
 import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { formatUnits } from 'viem';
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from '@/constants/contracts';
-import RewardABI from '@/context/rewardabi.json';
-import TycoonABI from '@/context/tycoonabi.json';
+import RewardABI from '@/context/abi/rewardabi.json';
+import TycoonABI from '@/context/abi/tycoonabi.json';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
 const COLLECTIBLE_START = 2000000000;
