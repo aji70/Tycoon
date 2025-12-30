@@ -12,8 +12,9 @@ import RewardABI from '@/context/rewardabi.json';
 import TycoonABI from '@/context/tycoonabi.json';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
+// Fixed constants – only 10 perks
 const COLLECTIBLE_START = 2000000000;
-const PERK_COUNT = 1000000000;
+const PERK_COUNT = 10;
 
 export default function ProfilePage() {
   const { address: walletAddress, isConnected } = useAccount();
@@ -46,7 +47,7 @@ export default function ProfilePage() {
     query: { enabled: !!walletAddress && !!usdcTokenAddress },
   });
 
-  // Tycoon contract - get user by username (but we need username first)
+  // Tycoon contract - get username → player data
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
 
   const usernameResult = useReadContract({
@@ -67,31 +68,43 @@ export default function ProfilePage() {
     query: { enabled: !!username && !!tycoonAddress },
   });
 
-  // Reward contract - collectibles owned
+  // Reward contract - collectibles owned (FIXED)
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
 
   const tokenIds = Array.from({ length: PERK_COUNT }, (_, i) => BigInt(COLLECTIBLE_START) + BigInt(i + 1));
+  // → 2000000001n … 2000000010n
 
   const balancesResult = useReadContract({
     address: rewardAddress,
     abi: RewardABI,
     functionName: 'balanceOfBatch',
-    args: walletAddress && rewardAddress ? [Array(PERK_COUNT).fill(walletAddress), tokenIds] : undefined,
+    args: walletAddress && rewardAddress
+      ? [Array(PERK_COUNT).fill(walletAddress), tokenIds]
+      : undefined,
     query: { enabled: !!walletAddress && !!rewardAddress },
   });
 
   const ownedCollectibles = Array.isArray(balancesResult.data)
-    ? (balancesResult.data as bigint[]).map((bal, i) => ({
-        tokenId: tokenIds[i],
-        balance: Number(bal),
-        perkIndex: i + 1,
-      })).filter(item => item.balance > 0)
+    ? (balancesResult.data as bigint[])
+        .map((bal, i) => ({
+          tokenId: tokenIds[i],
+          balance: Number(bal),
+          perkIndex: i + 1,
+        }))
+        .filter(item => item.balance > 0)
     : [];
 
   const perkNames = [
-    "Extra Turn", "Get Out of Jail Free", "Double Rent", "Roll Boost",
-    "Instant Cash (Tiered)", "Teleport", "Shield", "Property Discount",
-    "Tax Refund (Tiered)", "Exact Roll"
+    "Extra Turn",
+    "Get Out of Jail Free",
+    "Double Rent",
+    "Roll Boost",
+    "Instant Cash (Tiered)",
+    "Teleport",
+    "Shield",
+    "Property Discount",
+    "Tax Refund (Tiered)",
+    "Exact Roll"
   ];
 
   useEffect(() => {
