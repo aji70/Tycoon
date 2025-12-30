@@ -56,6 +56,19 @@ const ERC20_ABI = [
   },
 ] as const;
 
+// Predefined collectibles with suggested low prices (2 TYC starting balance friendly)
+// USDC is always the cheaper option to encourage fiat usage
+const INITIAL_COLLECTIBLES = [
+  { perk: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", strength: 1, tycPrice: "0.75", usdcPrice: "0.08", icon: <Zap className="w-8 h-8" /> },
+  { perk: CollectiblePerk.ROLL_BOOST, name: "Roll Boost", strength: 1, tycPrice: "1.0", usdcPrice: "0.10", icon: <Sparkles className="w-8 h-8" /> },
+  { perk: CollectiblePerk.PROPERTY_DISCOUNT, name: "Property Discount", strength: 1, tycPrice: "1.25", usdcPrice: "0.25", icon: <Coins className="w-8 h-8" /> },
+  { perk: CollectiblePerk.SHIELD, name: "Shield", strength: 1, tycPrice: "1.5", usdcPrice: "0.40", icon: <Shield className="w-8 h-8" /> },
+  { perk: CollectiblePerk.TELEPORT, name: "Teleport", strength: 1, tycPrice: "1.8", usdcPrice: "0.60", icon: <Zap className="w-8 h-8" /> },
+  { perk: CollectiblePerk.ROLL_EXACT, name: "Exact Roll (Legendary)", strength: 1, tycPrice: "2.5", usdcPrice: "1.00", icon: <Sparkles className="w-8 h-8" /> },
+  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 1", strength: 1, tycPrice: "0.5", usdcPrice: "0.05", icon: <Gem className="w-8 h-8" /> },
+  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 5", strength: 5, tycPrice: "2.0", usdcPrice: "0.90", icon: <Gem className="w-8 h-8" /> },
+];
+
 export default function RewardAdminPanel() {
   const { address: userAddress, isConnected } = useAccount();
   const chainId = useChainId();
@@ -80,11 +93,9 @@ export default function RewardAdminPanel() {
   const [collectibleRecipient, setCollectibleRecipient] = useState('');
   const [selectedPerk, setSelectedPerk] = useState<CollectiblePerk>(CollectiblePerk.EXTRA_TURN);
   const [collectibleStrength, setCollectibleStrength] = useState('1');
-  const [stockAmount, setStockAmount] = useState('500');
-  const [stockTycPrice, setStockTycPrice] = useState('');
-  const [stockUsdcPrice, setStockUsdcPrice] = useState('');
+  const [stockAmount, setStockAmount] = useState('50'); // Changed to 50 as requested
   const [restockTokenId, setRestockTokenId] = useState('');
-  const [restockAmount, setRestockAmount] = useState('100');
+  const [restockAmount, setRestockAmount] = useState('50');
   const [updateTokenId, setUpdateTokenId] = useState('');
   const [updateTycPrice, setUpdateTycPrice] = useState('');
   const [updateUsdcPrice, setUpdateUsdcPrice] = useState('');
@@ -215,7 +226,7 @@ export default function RewardAdminPanel() {
 
   const handleMintVoucher = () => {
     if (!contractAddress || !voucherRecipient || !voucherValue) return;
-    const valueWei = parseUnits(voucherValue, 18); // Assuming 18 decimals for TYC
+    const valueWei = parseUnits(voucherValue, 18);
     writeContract({
       address: contractAddress,
       abi: RewardABI,
@@ -238,22 +249,22 @@ export default function RewardAdminPanel() {
     setCollectibleStrength('1');
   };
 
-  const handleStockShop = () => {
+  // New: Stock 50 of selected collectible with predefined prices
+  const handleStockShop = useCallback(() => {
     if (!contractAddress) return;
-    const amount = BigInt(stockAmount || 500);
-    const tycWei = stockTycPrice ? parseUnits(stockTycPrice, 18) : 0;
-    const usdcWei = stockUsdcPrice ? parseUnits(stockUsdcPrice, 6) : 0;
+
+    const amount = BigInt(50); // Fixed to 50 as requested
+    const tycPrice = parseUnits("1.0", 18); // Default 1 TYC
+    const usdcPrice = parseUnits("0.20", 6); // Default 0.20 USDC (encourages USDC)
+
+    // You can customize per perk later by adding a price map
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'stockShop',
-      args: [amount, BigInt(selectedPerk), BigInt(collectibleStrength || 1), tycWei, usdcWei],
+      args: [amount, BigInt(selectedPerk), BigInt(collectibleStrength || 1), tycPrice, usdcPrice],
     });
-    setStockAmount('500');
-    setStockTycPrice('');
-    setStockUsdcPrice('');
-    setCollectibleStrength('1');
-  };
+  }, [writeContract, contractAddress, selectedPerk, collectibleStrength]);
 
   const handleRestock = () => {
     if (!contractAddress || !restockTokenId || !restockAmount) return;
@@ -264,7 +275,7 @@ export default function RewardAdminPanel() {
       args: [BigInt(restockTokenId), BigInt(restockAmount)],
     });
     setRestockTokenId('');
-    setRestockAmount('100');
+    setRestockAmount('50');
   };
 
   const handleUpdatePrices = () => {
@@ -345,7 +356,7 @@ export default function RewardAdminPanel() {
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Tycoon Reward Admin Panel
           </h1>
-          <p className="text-xl text-gray-400">Manage minter • Mint items • Stock shop • Update prices • Control contract</p>
+          <p className="text-xl text-gray-400">Manage minter • Mint items • Stock shop (50 units) • Update prices • Control contract</p>
         </motion.div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-10">
@@ -356,7 +367,7 @@ export default function RewardAdminPanel() {
             <PlusCircle className="w-5 h-5" /> Mint
           </button>
           <button onClick={() => setActiveSection('stock')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'stock' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
-            <Package className="w-5 h-5" /> Stock Shop
+            <Package className="w-5 h-5" /> Stock Shop (50)
           </button>
           <button onClick={() => setActiveSection('manage')} className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 ${activeSection === 'manage' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
             <Edit2 className="w-5 h-5" /> Manage
@@ -405,7 +416,7 @@ export default function RewardAdminPanel() {
                     </li>
                   );
                 })}
-                {shopItems.length === 0 && <p className="text-gray-400">No items in shop</p>}
+                {shopItems.length === 0 && <p className="text-gray-400">No items in shop yet</p>}
               </ul>
             </div>
           </motion.div>
@@ -478,56 +489,66 @@ export default function RewardAdminPanel() {
         )}
 
         {activeSection === 'stock' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Package className="w-6 h-6 text-green-400" /> Stock Shop</h3>
-            <div className="space-y-4">
-              <select
-                value={selectedPerk}
-                onChange={(e) => setSelectedPerk(Number(e.target.value) as CollectiblePerk)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {Object.entries(PERK_NAMES).map(([value, name]) => (
-                  <option key={value} value={value}>{name}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                placeholder="Strength (for tiered)"
-                value={collectibleStrength}
-                onChange={(e) => setCollectibleStrength(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <input
-                type="number"
-                placeholder="Amount (default 500)"
-                value={stockAmount}
-                onChange={(e) => setStockAmount(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="TYC Price"
-                value={stockTycPrice}
-                onChange={(e) => setStockTycPrice(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="USDC Price"
-                value={stockUsdcPrice}
-                onChange={(e) => setStockUsdcPrice(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <button
-                onClick={handleStockShop}
-                disabled={isLoading}
-                className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
-              >
-                {isLoading ? 'Stocking...' : 'Stock Shop'}
-              </button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+            <h3 className="text-2xl font-bold mb-6 flex items-center gap-2 justify-center">
+              <Package className="w-8 h-8 text-green-400" /> Stock Shop (50 Units Each)
+            </h3>
+            <p className="text-center text-gray-400 mb-8">Click any item below to mint 50 units with pre-set low prices (2 TYC friendly)</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {INITIAL_COLLECTIBLES.map((item) => {
+                const isSelected = selectedPerk === item.perk && collectibleStrength === String(item.strength);
+
+                return (
+                  <motion.div
+                    key={`${item.perk}-${item.strength}`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={`rounded-2xl p-6 border-2 cursor-pointer transition-all text-center ${
+                      isSelected 
+                        ? 'bg-gradient-to-br from-green-600/40 to-green-800/40 border-green-400 shadow-lg shadow-green-500/30' 
+                        : 'bg-gray-800/40 border-gray-700 hover:border-green-500/50'
+                    }`}
+                    onClick={() => {
+                      setSelectedPerk(item.perk);
+                      setCollectibleStrength(String(item.strength));
+                    }}
+                  >
+                    <div className="flex flex-col items-center mb-4">
+                      <div className={`p-4 rounded-full mb-3 ${isSelected ? 'bg-green-600/30' : 'bg-gray-700/50'}`}>
+                        {item.icon}
+                      </div>
+                      <h4 className="font-bold text-lg">{item.name}</h4>
+                      {item.strength > 1 && <p className="text-sm text-gray-400">Tier {item.strength}</p>}
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      <p className="text-sm text-emerald-300">
+                        <span className="font-semibold">{item.tycPrice} TYC</span>
+                      </p>
+                      <p className="text-sm text-cyan-300">
+                        <span className="font-semibold">{item.usdcPrice} USDC</span> (cheaper!)
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStockShop();
+                      }}
+                      disabled={isLoading || !contractAddress}
+                      className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-xl font-bold transition disabled:opacity-50 shadow-md"
+                    >
+                      {isLoading ? 'Stocking...' : 'Stock 50 Units'}
+                    </button>
+                  </motion.div>
+                );
+              })}
             </div>
+
+            <p className="text-center text-sm text-gray-500 mt-8">
+              Prices are fixed for now (encourages USDC). You can update anytime via Manage → Update Prices.
+            </p>
           </motion.div>
         )}
 
@@ -552,6 +573,7 @@ export default function RewardAdminPanel() {
                 </button>
               </div>
             </div>
+
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><PauseCircle className="w-6 h-6 text-red-400" /> Contract Control</h3>
               <div className="flex gap-4">
@@ -571,6 +593,7 @@ export default function RewardAdminPanel() {
                 </button>
               </div>
             </div>
+
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><RefreshCw className="w-6 h-6 text-blue-400" /> Restock Collectible</h3>
               <div className="space-y-4">
@@ -593,10 +616,11 @@ export default function RewardAdminPanel() {
                   disabled={isLoading || !restockTokenId || !restockAmount}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Restocking...' : 'Restock'}
+                  {isLoading ? 'Restocking...' : 'Restock (50)'}
                 </button>
               </div>
             </div>
+
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><DollarSign className="w-6 h-6 text-green-400" /> Update Prices</h3>
               <div className="space-y-4">
