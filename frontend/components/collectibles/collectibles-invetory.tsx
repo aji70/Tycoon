@@ -4,9 +4,10 @@
 import React from "react";
 import { useAccount, useReadContract, useChainId } from "wagmi";
 import Image from "next/image";
-import { Zap, Crown, Coins, Sparkles, Gem, Shield } from "lucide-react";
+import { Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag } from "lucide-react";
 import RewardABI from "@/context/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import Link from "next/link";
 
 const FIXED_TOKEN_IDS = {
   EXTRA_TURN: BigInt(2000000001),
@@ -44,71 +45,90 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
 
-const balances = useReadContract({
-  address: contractAddress,
-  abi: RewardABI,
-  functionName: "balanceOfBatch",
-  args: isConnected && address && contractAddress
-    ? [Array(PERK_INFO.length).fill(address), PERK_INFO.map(p => p.id)]
-    : undefined,
-  query: { enabled: !!address && !!contractAddress },
-});
+  const balances = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: "balanceOfBatch",
+    args: isConnected && address && contractAddress
+      ? [Array(PERK_INFO.length).fill(address), PERK_INFO.map(p => p.id)]
+      : undefined,
+    query: { enabled: !!address && !!contractAddress },
+  });
 
   const owned = PERK_INFO.map((perk, i) => {
-  const balance = balances.data && Array.isArray(balances.data) 
-    ? (balances.data[i] ?? 0)
-    : 0;
+    const balance = balances.data && Array.isArray(balances.data)
+      ? (balances.data[i] ?? 0)
+      : 0;
 
-  return {
-    ...perk,
-    count: Number(balance),
-  };
-}).filter(item => item.count > 0);
+    return {
+      ...perk,
+      count: Number(balance),
+    };
+  });
 
-  if (!isConnected ) {
-    return null; // Hide bar if no collectibles
-  }
+  const totalOwned = owned.reduce((sum, item) => sum + item.count, 0);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-4 z-40 pointer-events-none">
-      <div className="max-w-5xl mx-auto">
-        <p className="text-center text-cyan-300 text-sm mb-2 font-semibold">
-          Your Collectibles ({owned.reduce((sum, i) => sum + i.count, 0)})
+    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent p-4 z-40 pointer-events-none">
+      <div className="max-w-6xl mx-auto">
+        <p className="text-center text-cyan-300 text-sm mb-3 font-semibold">
+          Your Power-Ups ({totalOwned})
         </p>
-        <div className="flex justify-center gap-3 flex-wrap pointer-events-auto">
-          {owned.map((item) => (
-            <button
-              key={item.id.toString()}
-              onClick={() => onUseCollectible(item.id, item.name)}
-              disabled={!isMyTurn}
-              className={`relative group rounded-xl overflow-hidden border-2 transition-all ${
-                isMyTurn
-                  ? "border-cyan-400 hover:border-cyan-300 hover:scale-105 shadow-lg shadow-cyan-500/30"
-                  : "border-gray-600 opacity-70 cursor-not-allowed"
-              }`}
-            >
-              <Image
-                src={item.image}
-                alt={item.name}
-                width={120}
-                height={160}
-                className="w-28 h-40 object-cover brightness-90 group-hover:brightness-110 transition"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-2 text-center">
-                <div className={`flex justify-center mb-1 ${item.color}`}>
-                  {item.icon}
-                </div>
-                <p className="text-white text-xs font-bold truncate px-1">{item.name}</p>
-                <p className="text-cyan-300 text-lg font-bold">×{item.count}</p>
-              </div>
-              {!isMyTurn && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <p className="text-gray-400 text-sm">Wait for turn</p>
-                </div>
-              )}
-            </button>
-          ))}
+
+        <div className="flex justify-center gap-4 flex-wrap pointer-events-auto">
+          {totalOwned > 0 ? (
+            owned
+              .filter(item => item.count > 0)
+              .map((item) => (
+                <button
+                  key={item.id.toString()}
+                  onClick={() => onUseCollectible(item.id, item.name)}
+                  disabled={!isMyTurn}
+                  className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-300 ${
+                    isMyTurn
+                      ? "border-cyan-400 hover:border-cyan-200 hover:scale-110 shadow-2xl shadow-cyan-500/40 cursor-pointer"
+                      : "border-gray-700 opacity-60 cursor-not-allowed"
+                  }`}
+                >
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    width={120}
+                    height={160}
+                    className="w-28 h-40 object-cover brightness-75 group-hover:brightness-100 transition"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3 text-center">
+                    <div className={`flex justify-center mb-1 ${item.color}`}>
+                      {item.icon}
+                    </div>
+                    <p className="text-white text-xs font-bold truncate px-1">{item.name}</p>
+                    <p className="text-cyan-300 text-xl font-bold drop-shadow-lg">×{item.count}</p>
+                  </div>
+                  {!isMyTurn && (
+                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-xl">
+                      <p className="text-gray-400 text-xs">Wait for your turn</p>
+                    </div>
+                  )}
+                </button>
+              ))
+          ) : (
+            // Empty state — encourage buying!
+            <div className="text-center py-6 px-8 bg-gradient-to-br from-gray-900/80 to-cyan-900/30 rounded-2xl border border-cyan-600/50 backdrop-blur-sm">
+              <ShoppingBag className="w-12 h-12 mx-auto mb-3 text-cyan-400" />
+              <p className="text-white text-lg font-bold mb-2">No Power-Ups Yet!</p>
+              <p className="text-gray-300 text-sm mb-4 max-w-xs">
+                Get ahead with Extra Turns, Jail Free cards, Teleports and more!
+              </p>
+              <Link
+                href="/shop"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-black font-bold rounded-xl hover:from-cyan-400 hover:to-purple-500 transition shadow-lg"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                Visit Perk Shop
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>
