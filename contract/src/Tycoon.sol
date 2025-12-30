@@ -279,6 +279,10 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, Reen
         require(tier > 0 && tier <= 5, "Invalid tier");
         return CASH_TIERS[tier];
     }
+
+    // Fallback to accept native tokens if sent directly (optional, for safety)
+    receive() external payable {}
+    
 }
 
 // ============================================================================
@@ -327,7 +331,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
     constructor(address initialOwner, address _token, address _rewardSystem) Ownable(initialOwner) {
         token = _token;
-        rewardSystem = TycoonRewardSystem(_rewardSystem);
+        rewardSystem = TycoonRewardSystem(payable(_rewardSystem));
     }
 
     modifier nonEmptyUsername(string memory username) {
