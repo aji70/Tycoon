@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.30;
 
 import {TycoonLib} from "./TycoonLib.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -35,16 +35,17 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     // COLLECTIBLES: expanded burnable perks
     enum CollectiblePerk {
         NONE,
-        EXTRA_TURN,         // +extra turns
-        JAIL_FREE,          // Get out of jail free
-        DOUBLE_RENT,        // Next rent payment doubled
-        ROLL_BOOST,         // +bonus to dice roll
-        CASH_TIERED,        // In-game cash: uses CASH_TIERS
-        TELEPORT,           // Move to any property (no roll next turn)
-        SHIELD,             // Immune to rent/payments for 1-2 turns
-        PROPERTY_DISCOUNT,  // Next property purchase 30-50% off
-        TAX_REFUND,         // Instant cash from bank (tiered)
-        ROLL_EXACT          // Choose exact roll 2-12 once
+        EXTRA_TURN, // +extra turns
+        JAIL_FREE, // Get out of jail free
+        DOUBLE_RENT, // Next rent payment doubled
+        ROLL_BOOST, // +bonus to dice roll
+        CASH_TIERED, // In-game cash: uses CASH_TIERS
+        TELEPORT, // Move to any property (no roll next turn)
+        SHIELD, // Immune to rent/payments for 1-2 turns
+        PROPERTY_DISCOUNT, // Next property purchase 30-50% off
+        TAX_REFUND, // Instant cash from bank (tiered)
+        ROLL_EXACT // Choose exact roll 2-12 once
+
     }
 
     // Cash / Refund tiers: index 1–5
@@ -281,13 +282,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     function getCollectibleInfo(uint256 tokenId)
         external
         view
-        returns (
-            CollectiblePerk perk,
-            uint256 strength,
-            uint256 tycPrice,
-            uint256 usdcPrice,
-            uint256 shopStock
-        )
+        returns (CollectiblePerk perk, uint256 strength, uint256 tycPrice, uint256 usdcPrice, uint256 shopStock)
     {
         perk = collectiblePerk[tokenId];
         strength = collectiblePerkStrength[tokenId];
@@ -307,6 +302,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
 // ============================================================================
 //                          MAIN TYCOON GAME CONTRACT
 // ============================================================================
+
 contract Tycoon is ReentrancyGuard, Ownable {
     using TycoonLib for TycoonLib.Game;
     using TycoonLib for TycoonLib.GamePlayer;
