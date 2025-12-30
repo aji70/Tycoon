@@ -28,6 +28,22 @@ library TycoonLib {
         Wheelbarrow
     }
 
+    // COLLECTIBLES: expanded burnable perks
+    enum CollectiblePerk {
+        NONE,
+        EXTRA_TURN, // +extra turns
+        JAIL_FREE, // Get out of jail free
+        DOUBLE_RENT, // Next rent payment doubled
+        ROLL_BOOST, // +bonus to dice roll
+        CASH_TIERED, // In-game cash: uses CASH_TIERS
+        TELEPORT, // Move to any property (no roll next turn)
+        SHIELD, // Immune to rent/payments for 1-2 turns
+        PROPERTY_DISCOUNT, // Next property purchase 30-50% off
+        TAX_REFUND, // Instant cash from bank (tiered)
+        ROLL_EXACT // Choose exact roll 2-12 once
+
+    }
+
     // -------------------------
     // 📌 Structs
     // -------------------------
