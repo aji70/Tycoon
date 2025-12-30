@@ -13,33 +13,7 @@ import TycoonABI from '@/context/tycoonabi.json';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
 const COLLECTIBLE_START = 2000000000;
-const MAX_PERKS_TO_CHECK = 500;
-
-const rarityStyles = {
-  1: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40',
-  2: 'from-purple-500/20 to-purple-600/10 border-purple-500/40',
-  3: 'from-blue-500/20 to-blue-600/10 border-blue-500/40',
-  4: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40',
-  5: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40',
-  6: 'from-pink-500/20 to-pink-600/10 border-pink-500/40',
-  7: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/40',
-  8: 'from-orange-500/20 to-orange-600/10 border-orange-500/40',
-  9: 'from-teal-500/20 to-teal-600/10 border-teal-500/40',
-  10: 'from-amber-500/20 to-amber-600/10 border-amber-500/40',
-} as const;
-
-const perkIcons = [
-  <Zap className="w-8 h-8" key="1" />,
-  <Crown className="w-8 h-8" key="2" />,
-  <Coins className="w-8 h-8" key="3" />,
-  <Sparkles className="w-8 h-8" key="4" />,
-  <Gem className="w-8 h-8" key="5" />,
-  <Zap className="w-8 h-8" key="6" />,
-  <Shield className="w-8 h-8" key="7" />,
-  <Coins className="w-8 h-8" key="8" />,
-  <Gem className="w-8 h-8" key="9" />,
-  <Sparkles className="w-8 h-8" key="10" />,
-];
+const MAX_PERKS_TO_CHECK = 100;
 
 const getPerkName = (perk: number): string => {
   const names: Record<number, string> = {
@@ -56,6 +30,57 @@ const getPerkName = (perk: number): string => {
   };
   return names[perk] || `Perk #${perk}`;
 };
+
+const getIcon = (perk: number) => {
+  const icons = [
+    null,
+    <Zap className="w-8 h-8" />,
+    <Crown className="w-8 h-8" />,
+    <Coins className="w-8 h-8" />,
+    <Sparkles className="w-8 h-8" />,
+    <Gem className="w-8 h-8" />,
+    <Zap className="w-8 h-8" />,
+    <Shield className="w-8 h-8" />,
+    <Coins className="w-8 h-8" />,
+    <Gem className="w-8 h-8" />,
+    <Sparkles className="w-8 h-8" />,
+  ];
+  return icons[perk] || <Gem className="w-8 h-8" />;
+};
+
+const getColor = (index: number): string => {
+  const colors = [
+    "text-yellow-400",
+    "text-purple-400",
+    "text-green-400",
+    "text-blue-400",
+    "text-cyan-400",
+    "text-pink-400",
+    "text-indigo-400",
+    "text-orange-400",
+    "text-teal-400",
+    "text-amber-400"
+  ];
+  return colors[index % 10];
+};
+
+const getImage = (index: number): string => {
+  const images = ["/game/shop/a.jpeg", "/game/shop/b.jpeg", "/game/shop/c.jpeg"];
+  return images[index % 3];
+};
+
+const rarityStyles = {
+  1: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40',
+  2: 'from-purple-500/20 to-purple-600/10 border-purple-500/40',
+  3: 'from-blue-500/20 to-blue-600/10 border-blue-500/40',
+  4: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40',
+  5: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40',
+  6: 'from-pink-500/20 to-pink-600/10 border-pink-500/40',
+  7: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/40',
+  8: 'from-orange-500/20 to-orange-600/10 border-orange-500/40',
+  9: 'from-teal-500/20 to-teal-600/10 border-teal-500/40',
+  10: 'from-amber-500/20 to-amber-600/10 border-amber-500/40',
+} as const;
 
 export default function ProfilePage() {
   const { address: walletAddress, isConnected } = useAccount();
@@ -135,24 +160,29 @@ export default function ProfilePage() {
 
   const ownedCollectibles = tokenIds
     .map((tokenId, i) => {
-      const balanceData = (balancesResult.data as bigint[] | undefined)?.[i];
-      const balance = balanceData ? Number(balanceData) : 0;
+      const balance = (balancesResult.data as bigint[] | undefined)?.[i] ?? 0;
       if (balance === 0) return null;
 
       const info = infoResults[i].data as any;
       if (!info || info.perk === 0) return null;
 
-      const perkIndex = i + 1;
-      const rarityKey = ((perkIndex - 1) % 10) + 1 as keyof typeof rarityStyles;
+      const perk = Number(info.perk);
+      const strength = Number(info.strength);
+      const shopStock = Number(info.shopStock || 0);
+
+      const rarityKey = ((i % 10) + 1) as keyof typeof rarityStyles;
 
       return {
         tokenId,
-        balance,
-        perk: Number(info.perk),
-        strength: Number(info.strength),
-        shopStock: Number(info.shopStock),
+        name: getPerkName(perk),
+        icon: getIcon(perk),
+        color: getColor(i),
+        image: getImage(i),
+        count: Number(balance),
+        strength,
+        shopStock,
+        isTiered: perk === 5 || perk === 9,
         rarityStyle: rarityStyles[rarityKey],
-        icon: perkIcons[(perkIndex - 1) % 10],
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -178,14 +208,10 @@ export default function ProfilePage() {
 
   const handleSend = (tokenId: bigint) => {
     if (!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress)) {
-      alert('Please enter a valid wallet address (0x...)');
+      alert('Please enter a valid wallet address');
       return;
     }
-
-    if (!walletAddress || !rewardAddress) {
-      alert('Wallet or contract not available');
-      return;
-    }
+    if (!walletAddress || !rewardAddress) return;
 
     setSendingTokenId(tokenId);
 
@@ -252,12 +278,20 @@ export default function ProfilePage() {
       <main className="w-full max-w-6xl mx-auto p-4 md:p-8">
         <section className="text-center mb-12">
           <div className="relative mx-auto w-32 h-32 md:w-48 md:h-48 rounded-full overflow-hidden border-4 border-[#00F0FF] mb-6 shadow-2xl">
-            <Image src={avatar} alt="Player Avatar" width={200} height={200} className="object-cover w-full h-full" />
+            <Image
+              src={avatar}
+              alt="Player Avatar"
+              width={200}
+              height={200}
+              className="object-cover w-full h-full"
+            />
             <div className="absolute bottom-2 right-2 bg-[#00F0FF] p-2 rounded-full shadow-lg">
               <Crown className="w-6 h-6 text-[#010F10]" />
             </div>
           </div>
-          <h2 className="text-4xl md:text-5xl font-bold text-[#00F0FF] mb-2">{userData.username}</h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-[#00F0FF] mb-2">
+            {userData.username}
+          </h2>
           <p className="text-lg text-[#AFBAC0] mb-4">
             Wallet: <span className="text-[#00F0FF] font-mono">{userData.address}</span>
           </p>
@@ -332,18 +366,18 @@ export default function ProfilePage() {
                     {item.icon}
                   </div>
 
-                  <h4 className="font-bold text-xl mb-2">{getPerkName(item.perk)}</h4>
+                  <h4 className="font-bold text-xl mb-2">{item.name}</h4>
 
-                  {(item.perk === 5 || item.perk === 9) && item.strength > 0 && (
+                  {item.isTiered && item.strength > 0 && (
                     <p className="text-sm text-cyan-300 mb-2">Tier {item.strength}</p>
                   )}
 
-                  <p className="text-3xl font-bold text-[#00F0FF] my-3">×{item.balance}</p>
+                  <p className="text-3xl font-bold text-[#00F0FF] my-3">×{item.count}</p>
 
                   <p className="text-xs text-gray-300 mb-3">
                     Shop Stock:{' '}
-                    <span className={item.shopStock < 50 ? 'text-orange-400' : 'text-emerald-300'}>
-                      {item.shopStock}
+                    <span className={item.shopStock < 50 && item.shopStock > 0 ? 'text-orange-400' : item.shopStock > 0 ? 'text-emerald-300' : 'text-gray-500'}>
+                      {item.shopStock > 0 ? item.shopStock : 'N/A'}
                     </span>
                   </p>
 
@@ -357,7 +391,7 @@ export default function ProfilePage() {
                     />
                     <button
                       onClick={() => handleSend(item.tokenId)}
-                      disabled={isWriting || isConfirming || sendingTokenId === item.tokenId || item.balance === 0}
+                      disabled={isWriting || isConfirming || sendingTokenId === item.tokenId || item.count === 0}
                       className="w-full py-2 bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition"
                     >
                       <Send className="w-4 h-4" />

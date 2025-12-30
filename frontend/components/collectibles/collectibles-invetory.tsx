@@ -8,11 +8,62 @@ import RewardABI from "@/context/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { formatUnits } from "viem";
 
-const COLLECTIBLE_START = 2000000000;
-const MAX_PERKS_TO_CHECK = 500; // Safe upper limit — covers future perks
+const COLLECTIBLE_START = BigInt(2000000000);
+const MAX_PERKS_TO_CHECK = 100;
 
-// Fallback icons for unknown/new perks
-const fallbackIcon = <Gem className="w-5 h-5" />;
+const getPerkName = (perk: number): string => {
+  const names: Record<number, string> = {
+    1: "Extra Turn",
+    2: "Get Out of Jail Free",
+    3: "Double Rent",
+    4: "Roll Boost",
+    5: "Instant Cash",
+    6: "Teleport",
+    7: "Shield",
+    8: "Property Discount",
+    9: "Tax Refund",
+    10: "Exact Roll",
+  };
+  return names[perk] || `Perk #${perk}`;
+};
+
+const getIcon = (perk: number) => {
+  const icons = [
+    null,
+    <Zap className="w-5 h-5" />,
+    <Crown className="w-5 h-5" />,
+    <Coins className="w-5 h-5" />,
+    <Sparkles className="w-5 h-5" />,
+    <Gem className="w-5 h-5" />,
+    <Zap className="w-5 h-5" />,
+    <Shield className="w-5 h-5" />,
+    <Coins className="w-5 h-5" />,
+    <Gem className="w-5 h-5" />,
+    <Sparkles className="w-5 h-5" />,
+  ];
+  return icons[perk] || <Gem className="w-5 h-5" />;
+};
+
+const getColor = (index: number): string => {
+  const colors = [
+    "text-yellow-400",
+    "text-purple-400",
+    "text-green-400",
+    "text-blue-400",
+    "text-cyan-400",
+    "text-pink-400",
+    "text-indigo-400",
+    "text-orange-400",
+    "text-teal-400",
+    "text-amber-400"
+  ];
+  return colors[index % 10];
+};
+
+const getImage = (index: number): string => {
+  const images = ["/game/shop/a.jpeg", "/game/shop/b.jpeg", "/game/shop/c.jpeg"];
+  return images[index % 3];
+};
 
 interface CollectibleInventoryBarProps {
   onUseCollectible: (tokenId: bigint, name: string) => void;
@@ -26,10 +77,8 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
 
   const [showShopModal, setShowShopModal] = useState(false);
 
-  // Generate all possible token IDs we're checking
-  const tokenIds = Array.from({ length: MAX_PERKS_TO_CHECK }, (_, i) => BigInt(COLLECTIBLE_START) + BigInt(i + 1));
+  const tokenIds = Array.from({ length: MAX_PERKS_TO_CHECK }, (_, i) => COLLECTIBLE_START + BigInt(i + 1));
 
-  // Batch fetch user balances
   const balancesResult = useReadContract({
     address: contractAddress,
     abi: RewardABI,
@@ -40,7 +89,6 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
     query: { enabled: !!address && !!contractAddress },
   });
 
-  // Batch fetch collectible info for all possible IDs
   const infoResults = tokenIds.map((tokenId) =>
     useReadContract({
       address: contractAddress,
@@ -51,76 +99,57 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
     })
   );
 
-  // Combine into owned collectibles with real on-chain data
   const ownedCollectibles = tokenIds
     .map((tokenId, i) => {
-      const balanceData = (balancesResult.data as bigint[] | undefined)?.[i];
-      const balance = balanceData ? Number(balanceData) : 0;
+      const balance = (balancesResult.data as bigint[] | undefined)?.[i] ?? 0;
       if (balance === 0) return null;
 
       const info = infoResults[i].data as any;
-      if (!info || info.perk === 0) return null; // Invalid or uninitialized perk
+      if (!info || info.perk === 0) return null;
 
-      const perkEnum = Number(info.perk);
-
-      // Map known perk names (fallback to "Perk #X" if unknown)
-      const knownNames: Record<number, string> = {
-        1: "Extra Turn",
-        2: "Get Out of Jail Free",
-        3: "Double Rent",
-        4: "Roll Boost",
-        5: "Instant Cash",
-        6: "Teleport",
-        7: "Shield",
-        8: "Property Discount",
-        9: "Tax Refund",
-        10: "Exact Roll",
-      };
-      const name = knownNames[perkEnum] || `Perk #${perkEnum}`;
-
-      // Simple color mapping (cycle through colors for unknown perks)
-      const colors = [
-        "text-yellow-400", "text-purple-400", "text-green-400", "text-blue-400",
-        "text-cyan-400", "text-pink-400", "text-indigo-400", "text-orange-400",
-        "text-teal-400", "text-amber-400"
-      ];
-      const color = colors[(i % 10)];
-
-      // Icon fallback cycle
-      const icons = [<Zap />, <Crown />, <Coins />, <Sparkles />, <Gem />, <Zap />, <Shield />, <Coins />, <Gem />, <Sparkles />];
-      const icon = icons[i % 10] || fallbackIcon;
-
-      // Image fallback — you can add more images later
-      const images = ["/game/shop/a.jpeg", "/game/shop/b.jpeg", "/game/shop/c.jpeg"];
-      const image = images[i % 3];
-
-      // Prices & stock
-      const tycPrice = info.tycPrice > 0 ? `${Number(formatUnits(info.tycPrice, 18)).toFixed(2)} TYC` : "";
-      const usdcPrice = info.usdcPrice > 0 ? `$${Number(formatUnits(info.usdcPrice, 6)).toFixed(2)}` : "";
-      const shopStock = Number(info.shopStock);
-      const strength = Number(info.strength);
+      const perk = Number(info.perk);
+      const strength = Number(info.strength || 0);
 
       return {
         tokenId,
-        name,
-        icon,
-        color,
-        image,
-        count: balance,
-        tycPrice,
-        usdcPrice,
-        shopStock,
+        name: getPerkName(perk),
+        icon: getIcon(perk),
+        color: getColor(i),
+        image: getImage(i),
+        count: Number(balance),
         strength,
-        isTiered: perkEnum === 5 || perkEnum === 9, // Instant Cash or Tax Refund
+        isTiered: perk === 5 || perk === 9,
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
 
   const totalOwned = ownedCollectibles.reduce((sum, item) => sum + item.count, 0);
 
+  const shopPerks = tokenIds
+    .map((tokenId, i) => {
+      const info = infoResults[i].data as any;
+      if (!info || info.perk === 0 || Number(info.shopStock || 0) === 0) return null;
+
+      const perk = Number(info.perk);
+      const strength = Number(info.strength || 0);
+
+      return {
+        tokenId,
+        name: getPerkName(perk),
+        icon: getIcon(perk),
+        color: getColor(i),
+        image: getImage(i),
+        tycPrice: info.tycPrice > 0 ? `${Number(formatUnits(info.tycPrice, 18)).toFixed(2)} TYC` : "",
+        usdcPrice: info.usdcPrice > 0 ? `$${Number(formatUnits(info.usdcPrice, 6)).toFixed(2)}` : "",
+        shopStock: Number(info.shopStock),
+        strength,
+        isTiered: perk === 5 || perk === 9,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
   return (
     <>
-      {/* Inventory Bar */}
       <div className="fixed bottom-4 right-4 z-50 pointer-events-none">
         <div className="bg-gradient-to-br from-black/95 via-gray-900/90 to-black/95 rounded-2xl border border-cyan-600/40 p-4 shadow-2xl backdrop-blur-md pointer-events-auto max-h-[80vh] overflow-y-auto w-40">
           <p className="text-center text-cyan-300 text-sm mb-3 font-bold">
@@ -182,7 +211,6 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
         </div>
       </div>
 
-      {/* Shop Modal – Shows All Available Perks with Real Data */}
       {showShopModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex justify-end items-start pt-24 pr-4" onClick={() => setShowShopModal(false)}>
           <div
@@ -197,43 +225,45 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {ownedCollectibles.map((perk) => (
-                <div
-                  key={perk.tokenId.toString()}
-                  className="relative group rounded-xl overflow-hidden border border-gray-700 hover:border-cyan-400 transition"
-                >
-                  <Image
-                    src={perk.image}
-                    alt={perk.name}
-                    width={200}
-                    height={250}
-                    className="w-full object-cover brightness-75 group-hover:brightness-100 transition"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent p-3 flex flex-col justify-end">
-                    <div className={`flex justify-center mb-1 ${perk.color}`}>
-                      {perk.icon}
+              {shopPerks.length === 0 ? (
+                <p className="col-span-2 text-center text-gray-400 py-8">Shop is empty</p>
+              ) : (
+                shopPerks.map((perk) => (
+                  <div
+                    key={perk.tokenId.toString()}
+                    className="relative group rounded-xl overflow-hidden border border-gray-700 hover:border-cyan-400 transition"
+                  >
+                    <Image
+                      src={perk.image}
+                      alt={perk.name}
+                      width={200}
+                      height={250}
+                      className="w-full object-cover brightness-75 group-hover:brightness-100 transition"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent p-3 flex flex-col justify-end">
+                      <div className={`flex justify-center mb-1 ${perk.color}`}>
+                        {perk.icon}
+                      </div>
+                      <p className="text-white text-xs font-bold text-center">{perk.name}</p>
+                      {perk.isTiered && perk.strength > 0 && (
+                        <p className="text-cyan-300 text-xs text-center">Tier {perk.strength}</p>
+                      )}
+                      <div className="text-center text-xs mt-1 space-y-1">
+                        {perk.tycPrice && <p className="text-cyan-300 font-medium">{perk.tycPrice}</p>}
+                        {perk.usdcPrice && <p className="text-gray-300">{perk.usdcPrice}</p>}
+                        {!perk.tycPrice && !perk.usdcPrice && <p className="text-green-400 font-bold">FREE</p>}
+                        <p className="text-gray-400 text-xs">Stock: {perk.shopStock}</p>
+                      </div>
+                      <button
+                        disabled={perk.shopStock === 0}
+                        className="mt-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold py-1.5 rounded text-xs transition"
+                      >
+                        {perk.shopStock === 0 ? "Sold Out" : "Buy"}
+                      </button>
                     </div>
-                    <p className="text-white text-xs font-bold text-center">{perk.name}</p>
-                    {perk.isTiered && perk.strength > 0 && (
-                      <p className="text-cyan-300 text-xs text-center">Tier {perk.strength}</p>
-                    )}
-                    <div className="text-center text-xs mt-1 space-y-1">
-                      {perk.tycPrice && <p className="text-cyan-300 font-medium">{perk.tycPrice}</p>}
-                      {perk.usdcPrice && <p className="text-gray-300">{perk.usdcPrice}</p>}
-                      {!perk.tycPrice && !perk.usdcPrice && <p className="text-green-400 font-bold">FREE</p>}
-                      <p className="text-gray-400 text-xs">
-                        Stock: {perk.shopStock > 0 ? perk.shopStock : "Sold Out"}
-                      </p>
-                    </div>
-                    <button
-                      disabled={perk.shopStock === 0}
-                      className="mt-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold py-1.5 rounded text-xs transition"
-                    >
-                      {perk.shopStock === 0 ? "Sold Out" : "Buy"}
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
