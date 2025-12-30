@@ -195,7 +195,7 @@ const handleRequest = async () => {
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] mt-[100px]">
+    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
       <div className="w-full h-full overflow-hidden">
         <Image
           src={herobg}

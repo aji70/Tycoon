@@ -118,7 +118,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     // ------------------------------------------------------------------------
     // VOUCHER FUNCTIONS
     // ------------------------------------------------------------------------
-    function mintVoucher(address to, uint256 tycValue) external onlyOwner returns (uint256 tokenId) {
+    function mintVoucher(address to, uint256 tycValue) external onlyBackend returns (uint256 tokenId) {
         require(tycValue > 0, "Value must be positive");
         require(to != address(0), "Invalid recipient");
 
