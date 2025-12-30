@@ -88,19 +88,29 @@ type GamePlayerData = {
 };
 type GamePlayerDataTuple = [bigint, Address, bigint, number, bigint, number, boolean, boolean, string];
 
-type CollectiblePerk = number;
-type RewardVoucherData = {
-  tokenId: bigint;
-  value: bigint;
-};
-type RewardCollectibleData = {
-  tokenId: bigint;
+/* ----------------------- Reward System Types ----------------------- */
+export enum CollectiblePerk {
+  NONE,
+  EXTRA_TURN,
+  JAIL_FREE,
+  DOUBLE_RENT,
+  ROLL_BOOST,
+  CASH_TIERED,
+  TELEPORT,
+  SHIELD,
+  PROPERTY_DISCOUNT,
+  TAX_REFUND,
+  ROLL_EXACT,
+}
+
+export type RewardCollectibleInfo = {
   perk: CollectiblePerk;
   strength: bigint;
-  shopPrice: bigint;
+  tycPrice: bigint;
+  usdcPrice: bigint;
+  shopStock: bigint;
 };
 
-/* ----------------------- Constants for Reward Token Types ----------------------- */
 export const VOUCHER_ID_START = 1_000_000_000;
 export const COLLECTIBLE_ID_START = 2_000_000_000;
 
@@ -110,7 +120,7 @@ export const isVoucherToken = (tokenId: bigint): boolean =>
 export const isCollectibleToken = (tokenId: bigint): boolean =>
   tokenId >= COLLECTIBLE_ID_START;
 
-/* ----------------------- Player/Game Hooks ----------------------- */
+/* ----------------------- Player Hooks ----------------------- */
 
 export function useIsRegistered(address?: Address, options = { enabled: true }) {
   const chainId = useChainId();
@@ -947,72 +957,10 @@ export function useBoardSize(options = { enabled: true }) {
   };
 }
 
-/* ----------------------- Reward System Hooks (UPDATED & COMPLETE) ----------------------- */
+/* ----------------------- Updated Reward System Hooks ----------------------- */
 
-export function useRewardVoucherRedeemValue(tokenId?: bigint, options = { enabled: true }) {
-  const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-
-  const result = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'voucherRedeemValue',
-    args: tokenId !== undefined ? [tokenId] : undefined,
-    query: { enabled: options.enabled && !!contractAddress && tokenId !== undefined },
-  });
-
-  return {
-    data: result.data !== undefined ? BigInt(result.data as bigint) : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
-}
-
-export function useRewardCollectiblePerk(tokenId?: bigint, options = { enabled: true }) {
-  const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-
-  const result = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'getCollectiblePerk',
-    args: tokenId !== undefined ? [tokenId] : undefined,
-    query: { enabled: options.enabled && !!contractAddress && tokenId !== undefined },
-  });
-
-  return {
-    data: result.data
-      ? {
-          perk: Number((result.data as any)[0]),
-          strength: BigInt((result.data as any)[1]),
-        }
-      : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
-}
-
-export function useRewardGetCashTierValue(tier?: number, options = { enabled: true }) {
-  const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-
-  const result = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'getCashTierValue',
-    args: tier !== undefined ? [tier] : undefined,
-    query: { enabled: options.enabled && !!contractAddress && tier !== undefined },
-  });
-
-  return {
-    data: result.data !== undefined ? BigInt(result.data as bigint) : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
-}
-
-// NEW: Read shop price in TYC for a collectible
-export function useRewardCollectibleShopPrice(
+/** Read full collectible info (perk, strength, both prices, current shop stock) */
+export function useRewardCollectibleInfo(
   tokenId?: bigint,
   options = { enabled: true }
 ) {
@@ -1022,142 +970,51 @@ export function useRewardCollectibleShopPrice(
   const result = useReadContract({
     address: contractAddress,
     abi: RewardABI,
-    functionName: 'collectibleShopPrice',
+    functionName: 'getCollectibleInfo',
     args: tokenId !== undefined ? [tokenId] : undefined,
     query: {
       enabled: options.enabled && !!contractAddress && tokenId !== undefined,
-      retry: false,
     },
   });
 
   return {
-    price: result.data !== undefined ? BigInt(result.data as bigint) : undefined,
+    data: result.data
+      ? {
+          perk: Number((result.data as any)[0]) as CollectiblePerk,
+          strength: BigInt((result.data as any)[1]),
+          tycPrice: BigInt((result.data as any)[2]),
+          usdcPrice: BigInt((result.data as any)[3]),
+          shopStock: BigInt((result.data as any)[4]),
+        }
+      : undefined,
     isLoading: result.isLoading,
     error: result.error,
   };
 }
 
-export function useRewardRedeemVoucher() {
+/** Get cash tier value (for CASH_TIERED or TAX_REFUND) */
+export function useRewardGetCashTierValue(tier?: number, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
 
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const redeem = useCallback(async (tokenId: bigint): Promise<string> => {
-    if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
-
-    const hash = await writeContractAsync({
-      chainId,
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'redeemVoucher',
-      args: [tokenId],
-    });
-
-    return hash ?? '';
-  }, [writeContractAsync, contractAddress, chainId]);
-
-  return {
-    redeem,
-    isPending: isPending || isConfirming,
-    isConfirming,
-    isSuccess,
-    error: writeError,
-    txHash,
-    reset,
-  };
-}
-
-export function useRewardBurnCollectible() {
-  const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const burn = useCallback(async (tokenId: bigint): Promise<string> => {
-    if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
-
-    const hash = await writeContractAsync({
-      chainId,
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'burnCollectibleForPerk',
-      args: [tokenId],
-    });
-
-    return hash ?? '';
-  }, [writeContractAsync, contractAddress, chainId]);
-
-  return {
-    burn,
-    isPending: isPending || isConfirming,
-    isConfirming,
-    isSuccess,
-    error: writeError,
-    txHash,
-    reset,
-  };
-}
-
-// FIXED: Buy collectible using TYC token (NOT payable)
-export function useRewardBuyCollectible() {
-  const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-
-  const {
-    writeContractAsync,
-    isPending,
-    error: writeError,
-    data: txHash,
-    reset,
-  } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
+  const result = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'getCashTierValue',
+    args: tier !== undefined ? [tier] : undefined,
+    query: {
+      enabled: options.enabled && !!contractAddress && tier !== undefined,
+    },
   });
 
-  const buy = useCallback(
-    async (tokenId: bigint): Promise<string> => {
-      if (!contractAddress) {
-        throw new Error(`Reward contract not deployed on chain ${chainId}`);
-      }
-
-      if (!isCollectibleToken(tokenId)) {
-        throw new Error("Invalid collectible token ID");
-      }
-
-      const hash = await writeContractAsync({
-        chainId,
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: "buyCollectible",
-        args: [tokenId],
-        // No 'value' — payment is via TYC transferFrom
-      });
-
-      if (!hash) {
-        throw new Error("Transaction failed: no hash returned");
-      }
-
-      return hash;
-    },
-    [writeContractAsync, contractAddress, chainId]
-  );
-
   return {
-    buy,
-    isPending: isPending || isConfirming,
-    isConfirming,
-    isSuccess,
-    error: writeError,
-    txHash,
-    reset,
+    data: result.data !== undefined ? BigInt(result.data as bigint) : undefined,
+    isLoading: result.isLoading,
+    error: result.error,
   };
 }
 
-// Bonus: ERC1155 balance check
+/** ERC1155 balance of any token (voucher or collectible) */
 export function useRewardTokenBalance(
   address?: Address,
   tokenId?: bigint,
@@ -1183,19 +1040,98 @@ export function useRewardTokenBalance(
   };
 }
 
-/* ----------------------- Context ----------------------- */
+/** Redeem a TYC voucher */
+export function useRewardRedeemVoucher() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const redeem = useCallback(
+    async (tokenId: bigint) => {
+      if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
+      if (!isVoucherToken(tokenId)) throw new Error('Not a voucher token ID');
+
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
+      });
+
+      return hash;
+    },
+    [writeContractAsync, contractAddress, chainId]
+  );
+
+  return { redeem, isPending: isPending || isConfirming, isConfirming, isSuccess, error: writeError, txHash, reset };
+}
+
+/** Burn a collectible to activate its perk */
+export function useRewardBurnCollectible() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const burn = useCallback(
+    async (tokenId: bigint) => {
+      if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
+      if (!isCollectibleToken(tokenId)) throw new Error('Not a collectible token ID');
+
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'burnCollectibleForPerk',
+        args: [tokenId],
+      });
+
+      return hash;
+    },
+    [writeContractAsync, contractAddress, chainId]
+  );
+
+  return { burn, isPending: isPending || isConfirming, isConfirming, isSuccess, error: writeError, txHash, reset };
+}
+
+/** Buy a collectible from the shop — supports TYC or USDC via boolean flag */
+export function useRewardBuyCollectible() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const buy = useCallback(
+    async (tokenId: bigint, useUsdc: boolean = false) => {
+      if (!contractAddress) throw new Error(`Reward contract not deployed on chain ${chainId}`);
+      if (!isCollectibleToken(tokenId)) throw new Error('Invalid collectible token ID');
+
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'buyCollectible',
+        args: [tokenId, useUsdc],
+      });
+
+      return hash;
+    },
+    [writeContractAsync, contractAddress, chainId]
+  );
+
+  return { buy, isPending: isPending || isConfirming, isConfirming, isSuccess, error: writeError, txHash, reset };
+}
+
+/* ----------------------- Context Provider (updated) ----------------------- */
 type ContractContextType = {
   registerPlayer: (username: string) => Promise<void>;
   redeemVoucher: (tokenId: bigint) => Promise<string>;
   burnCollectible: (tokenId: bigint) => Promise<string>;
-  buyCollectible: (tokenId: bigint) => Promise<string>;
+  buyCollectible: (tokenId: bigint, useUsdc?: boolean) => Promise<string>;
 };
 
 const BlockopolyContext = createContext<ContractContextType | undefined>(undefined);
 
-export const PlayerContractProvider: React.FC<{
-  children: React.ReactNode;
-}> = ({ children }) => {
+export const PlayerContractProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { address: userAddress } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const chainId = useChainId();
@@ -1204,7 +1140,7 @@ export const PlayerContractProvider: React.FC<{
     async (username: string) => {
       const contractAddress = PLAYER_CONTRACT_ADDRESSES[chainId];
       if (!userAddress) throw new Error('No wallet connected');
-      if (!contractAddress) throw new Error('No contract deployed');
+      if (!contractAddress) throw new Error('Player contract not deployed');
       await writeContractAsync({
         address: contractAddress,
         abi: PlayerABI,
@@ -1215,41 +1151,50 @@ export const PlayerContractProvider: React.FC<{
     [userAddress, writeContractAsync, chainId]
   );
 
-  const redeemVoucher = useCallback(async (tokenId: bigint) => {
-    const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-    if (!contractAddress) throw new Error('Reward contract not deployed');
-    const hash = await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'redeemVoucher',
-      args: [tokenId],
-    });
-    return hash;
-  }, [writeContractAsync, chainId]);
+  const redeemVoucher = useCallback(
+    async (tokenId: bigint) => {
+      const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+      if (!contractAddress) throw new Error('Reward contract not deployed');
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
+      });
+      return hash;
+    },
+    [writeContractAsync, chainId]
+  );
 
-  const burnCollectible = useCallback(async (tokenId: bigint) => {
-    const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-    if (!contractAddress) throw new Error('Reward contract not deployed');
-    const hash = await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'burnCollectibleForPerk',
-      args: [tokenId],
-    });
-    return hash;
-  }, [writeContractAsync, chainId]);
+  const burnCollectible = useCallback(
+    async (tokenId: bigint) => {
+      const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+      if (!contractAddress) throw new Error('Reward contract not deployed');
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'burnCollectibleForPerk',
+        args: [tokenId],
+      });
+      return hash;
+    },
+    [writeContractAsync, chainId]
+  );
 
-  const buyCollectible = useCallback(async (tokenId: bigint) => {
-    const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
-    if (!contractAddress) throw new Error('Reward contract not deployed');
-    const hash = await writeContractAsync({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'buyCollectible',
-      args: [tokenId],
-    });
-    return hash;
-  }, [writeContractAsync, chainId]);
+  const buyCollectible = useCallback(
+    async (tokenId: bigint, useUsdc: boolean = false) => {
+      const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+      if (!contractAddress) throw new Error('Reward contract not deployed');
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'buyCollectible',
+        args: [tokenId, useUsdc],
+      });
+      return hash;
+    },
+    [writeContractAsync, chainId]
+  );
 
   const value = useMemo(
     () => ({
@@ -1261,11 +1206,7 @@ export const PlayerContractProvider: React.FC<{
     [registerPlayer, redeemVoucher, burnCollectible, buyCollectible]
   );
 
-  return (
-    <BlockopolyContext.Provider value={value}>
-      {children}
-    </BlockopolyContext.Provider>
-  );
+  return <BlockopolyContext.Provider value={value}>{children}</BlockopolyContext.Provider>;
 };
 
 export const usePlayerContract = () => {

@@ -16,61 +16,103 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 // - Claimable vouchers → redeem for TYC tokens
 // - Burnable collectibles → burn to get in-game perks
 // - Cash perk now uses fixed tiers: [0, 10, 25, 50, 100, 250]
-contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable {
+contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, ReentrancyGuard {
     IERC20 public immutable tycToken;
+    IERC20 public immutable usdc;
 
     // ------------------------------------------------------------------------
     // TOKEN ID RANGES
     // ------------------------------------------------------------------------
     // 1_000_000_000+ → Claimable TYC vouchers
-    // 2_000_000_000+ → Burnable collectibles (perks)
+    // 2_000_000_000+ → Collectibles (perks)
     uint256 private _nextVoucherId = 1_000_000_000;
     uint256 private _nextCollectibleId = 2_000_000_000;
 
     // VOUCHERS: redeemable value in TYC
     mapping(uint256 => uint256) public voucherRedeemValue;
 
-    // COLLECTIBLES: burnable perks
+    // COLLECTIBLES: expanded burnable perks
     enum CollectiblePerk {
         NONE,
-        EXTRA_TURN,           // +extra turns
-        JAIL_FREE,            // Get out of jail free
-        DOUBLE_RENT,          // Next rent payment doubled
-        ROLL_BOOST,           // +bonus to dice roll
-        CASH_TIERED           // In-game cash: uses CASH_TIERS array
+        EXTRA_TURN, // +extra turns
+        JAIL_FREE, // Get out of jail free
+        DOUBLE_RENT, // Next rent payment doubled
+        ROLL_BOOST, // +bonus to dice roll
+        CASH_TIERED, // In-game cash: uses CASH_TIERS
+        TELEPORT, // Move to any property (no roll next turn)
+        SHIELD, // Immune to rent/payments for 1-2 turns
+        PROPERTY_DISCOUNT, // Next property purchase 30-50% off
+        TAX_REFUND, // Instant cash from bank (tiered)
+        ROLL_EXACT // Choose exact roll 2-12 once
+
     }
 
-    // Cash tiers - exactly as requested: [0, 10, 25, 50, 100, 250]
-    // Index 0 is invalid, 1 = 10 cash, 2 = 25 cash, 3 = 50, 4 = 100, 5 = 250
+    // Cash / Refund tiers: index 1–5
     uint256[] private CASH_TIERS = [0, 10, 25, 50, 100, 250];
 
     mapping(uint256 => CollectiblePerk) public collectiblePerk;
-    mapping(uint256 => uint256) public collectiblePerkStrength; // tier for CASH_TIERED, count for others
+    mapping(uint256 => uint256) public collectiblePerkStrength; // tier or strength value
 
-    // SHOP: TYC price to buy (0 = not for sale)
-    mapping(uint256 => uint256) public collectibleShopPrice;
+    // SHOP PRICES (0 = not for sale in that currency)
+    mapping(uint256 => uint256) public collectibleTycPrice;
+    mapping(uint256 => uint256) public collectibleUsdcPrice;
 
-    // Only backend (or owner) can mint collectibles
+    // Admin / backend
     address public backendMinter;
 
-    // Events
+    // ------------------------------------------------------------------------
+    // EVENTS
+    // ------------------------------------------------------------------------
     event VoucherMinted(uint256 indexed tokenId, address indexed to, uint256 tycValue);
-    event CollectibleMinted(uint256 indexed tokenId, address indexed to, CollectiblePerk perk, uint256 strength, uint256 shopPrice);
+    event CollectibleMinted(uint256 indexed tokenId, address indexed to, CollectiblePerk perk, uint256 strength);
     event CollectibleBurned(uint256 indexed tokenId, address indexed burner, CollectiblePerk perk, uint256 strength);
     event VoucherRedeemed(uint256 indexed tokenId, address indexed redeemer, uint256 tycValue);
-    event CollectibleBought(uint256 indexed tokenId, address indexed buyer, uint256 price);
-    event BackendMinterUpdated(address indexed newMinter);
+    event CollectibleBought(uint256 indexed tokenId, address indexed buyer, uint256 price, bool usedUsdc);
+    event CollectibleRestocked(uint256 indexed tokenId, uint256 amount);
+    event CollectiblePricesUpdated(uint256 indexed tokenId, uint256 tycPrice, uint256 usdcPrice);
     event CashPerkActivated(uint256 indexed tokenId, address indexed burner, uint256 cashAmount);
+    event BackendMinterUpdated(address indexed newMinter);
+    event FundsWithdrawn(address indexed token, address indexed to, uint256 amount);
 
-    constructor(
-        address _tycToken,
-        address initialOwner
-    ) ERC1155("https://gateway.pinata.cloud/ipfs/bafkreicv2hqqxn64opc6euvynsvnfk2zfyfj42eeengzvknz7y2o7o5fxe") Ownable(initialOwner) {
+    constructor(address _tycToken, address _usdc, address initialOwner)
+        ERC1155("https://gateway.pinata.cloud/ipfs/bafkreicv2hqqxn64opc6euvynsvnfk2zfyfj42eeengzvknz7y2o7o5fxe")
+        Ownable(initialOwner)
+    {
         tycToken = IERC20(_tycToken);
+        usdc = IERC20(_usdc);
+    }
+
+    modifier onlyBackend() {
+        require(msg.sender == backendMinter || msg.sender == owner(), "Unauthorized");
+        _;
     }
 
     // ------------------------------------------------------------------------
-    // Mint voucher (called by game contract on win)
+    // ADMIN FUNCTIONS
+    // ------------------------------------------------------------------------
+    function setBackendMinter(address newMinter) external onlyOwner {
+        require(newMinter != address(0), "Invalid address");
+        backendMinter = newMinter;
+        emit BackendMinterUpdated(newMinter);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    // Withdraw collected TYC/USDC revenue
+    function withdrawFunds(IERC20 token, address to, uint256 amount) external onlyOwner nonReentrant {
+        require(to != address(0), "Invalid address");
+        require(token.transfer(to, amount), "Transfer failed");
+        emit FundsWithdrawn(address(token), to, amount);
+    }
+
+    // ------------------------------------------------------------------------
+    // VOUCHER FUNCTIONS
     // ------------------------------------------------------------------------
     function mintVoucher(address to, uint256 tycValue) external onlyOwner returns (uint256 tokenId) {
         require(tycValue > 0, "Value must be positive");
@@ -83,13 +125,10 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable {
         emit VoucherMinted(tokenId, to, tycValue);
     }
 
-    // ------------------------------------------------------------------------
-    // Redeem voucher → get TYC → voucher burned
-    // ------------------------------------------------------------------------
     function redeemVoucher(uint256 tokenId) external whenNotPaused {
-        require(balanceOf(msg.sender, tokenId) == 1, "Not the owner");
+        require(balanceOf(msg.sender, tokenId) == 1, "Not owner");
         uint256 value = voucherRedeemValue[tokenId];
-        require(value > 0, "Not a valid voucher");
+        require(value > 0, "Invalid voucher");
 
         require(tycToken.transfer(msg.sender, value), "TYC transfer failed");
 
@@ -100,124 +139,145 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable {
     }
 
     // ------------------------------------------------------------------------
-    // Mint collectible (win reward or shop item) - backend decides perk/value
+    // COLLECTIBLE MINTING (non-shop rewards)
     // ------------------------------------------------------------------------
-    function mintCollectible(
-        address to,
-        CollectiblePerk perk,
-        uint256 strength,
-        uint256 shopPrice // 0 = not for sale (win reward only)
-    ) external onlyBackend returns (uint256 tokenId) {
+    function mintCollectible(address to, CollectiblePerk perk, uint256 strength)
+        external
+        onlyBackend
+        returns (uint256 tokenId)
+    {
         require(perk != CollectiblePerk.NONE, "Invalid perk");
         require(to != address(0), "Invalid recipient");
-
-        // For CASH_TIERED, strength should be 1..5
-        if (perk == CollectiblePerk.CASH_TIERED) {
-            require(strength >= 1 && strength <= 5, "Invalid cash tier (must be 1-5)");
-        }
+        _validateStrength(perk, strength);
 
         tokenId = _nextCollectibleId++;
         collectiblePerk[tokenId] = perk;
         collectiblePerkStrength[tokenId] = strength;
-        collectibleShopPrice[tokenId] = shopPrice;
 
         _mint(to, tokenId, 1, "");
-        emit CollectibleMinted(tokenId, to, perk, strength, shopPrice);
+        emit CollectibleMinted(tokenId, to, perk, strength);
     }
 
     // ------------------------------------------------------------------------
-    // Burn collectible → activate in-game perk
+    // SHOP MANAGEMENT
+    // ------------------------------------------------------------------------
+    function stockShop(uint256 amount, CollectiblePerk perk, uint256 strength, uint256 tycPrice, uint256 usdcPrice)
+        external
+        onlyBackend
+    {
+        require(amount > 0, "Amount > 0");
+        require(perk != CollectiblePerk.NONE, "Invalid perk");
+        _validateStrength(perk, strength);
+
+        uint256 tokenId = _nextCollectibleId++;
+        collectiblePerk[tokenId] = perk;
+        collectiblePerkStrength[tokenId] = strength;
+        collectibleTycPrice[tokenId] = tycPrice;
+        collectibleUsdcPrice[tokenId] = usdcPrice;
+
+        _mint(address(this), tokenId, amount, "");
+        emit CollectibleMinted(tokenId, address(this), perk, strength);
+    }
+
+    function restockCollectible(uint256 tokenId, uint256 additionalAmount) external onlyBackend {
+        require(additionalAmount > 0, "Amount > 0");
+        require(collectiblePerk[tokenId] != CollectiblePerk.NONE, "Not a collectible");
+
+        _mint(address(this), tokenId, additionalAmount, "");
+        emit CollectibleRestocked(tokenId, additionalAmount);
+    }
+
+    function updateCollectiblePrices(uint256 tokenId, uint256 newTycPrice, uint256 newUsdcPrice) external onlyBackend {
+        require(collectiblePerk[tokenId] != CollectiblePerk.NONE, "Not a collectible");
+
+        collectibleTycPrice[tokenId] = newTycPrice;
+        collectibleUsdcPrice[tokenId] = newUsdcPrice;
+
+        emit CollectiblePricesUpdated(tokenId, newTycPrice, newUsdcPrice);
+    }
+
+    // ------------------------------------------------------------------------
+    // BUY FROM SHOP
+    // ------------------------------------------------------------------------
+    function buyCollectible(uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
+        uint256 price;
+        IERC20 paymentToken;
+
+        if (useUsdc) {
+            price = collectibleUsdcPrice[tokenId];
+            require(price > 0, "Not for sale in USDC");
+            paymentToken = usdc;
+        } else {
+            price = collectibleTycPrice[tokenId];
+            require(price > 0, "Not for sale in TYC");
+            paymentToken = tycToken;
+        }
+
+        require(balanceOf(address(this), tokenId) >= 1, "Out of stock");
+
+        require(paymentToken.transferFrom(msg.sender, address(this), price), "Payment failed");
+
+        _safeTransferFrom(address(this), msg.sender, tokenId, 1, "");
+
+        emit CollectibleBought(tokenId, msg.sender, price, useUsdc);
+    }
+
+    // ------------------------------------------------------------------------
+    // BURN FOR PERK
     // ------------------------------------------------------------------------
     function burnCollectibleForPerk(uint256 tokenId) external whenNotPaused {
-        require(balanceOf(msg.sender, tokenId) == 1, "Not the owner");
+        require(balanceOf(msg.sender, tokenId) == 1, "Not owner");
         CollectiblePerk perk = collectiblePerk[tokenId];
-        require(perk != CollectiblePerk.NONE, "No perk on this token");
+        require(perk != CollectiblePerk.NONE, "No perk");
 
         uint256 strength = collectiblePerkStrength[tokenId];
 
-        if (perk == CollectiblePerk.CASH_TIERED) {
-            require(strength >= 1 && strength < CASH_TIERS.length, "Invalid cash tier");
+        // Special handling for tiered cash/refund perks
+        if (perk == CollectiblePerk.CASH_TIERED || perk == CollectiblePerk.TAX_REFUND) {
+            require(strength >= 1 && strength <= 5, "Invalid tier");
             uint256 cashAmount = CASH_TIERS[strength];
             emit CashPerkActivated(tokenId, msg.sender, cashAmount);
         }
 
         _burn(msg.sender, tokenId, 1);
 
-        // Clean up
+        // Cleanup storage
         delete collectiblePerk[tokenId];
         delete collectiblePerkStrength[tokenId];
-        delete collectibleShopPrice[tokenId];
+        delete collectibleTycPrice[tokenId];
+        delete collectibleUsdcPrice[tokenId];
 
         emit CollectibleBurned(tokenId, msg.sender, perk, strength);
     }
 
     // ------------------------------------------------------------------------
-    // Buy collectible from shop with TYC
+    // INTERNAL HELPERS
     // ------------------------------------------------------------------------
-    function buyCollectible(uint256 tokenId) external whenNotPaused {
-        uint256 price = collectibleShopPrice[tokenId];
-        require(price > 0, "This collectible is not for sale");
-
-        require(tycToken.transferFrom(msg.sender, address(this), price), "TYC payment failed");
-
-        _mint(msg.sender, tokenId, 1, "");
-        emit CollectibleBought(tokenId, msg.sender, price);
-    }
-
-    // ------------------------------------------------------------------------
-    // Admin: Stock the shop with multiple copies
-    // ------------------------------------------------------------------------
-    function stockShop(
-        uint256 amount,
-        CollectiblePerk perk,
-        uint256 strength,
-        uint256 price
-    ) external onlyBackend {
-        require(perk != CollectiblePerk.NONE, "Invalid perk");
-        require(price > 0, "Price must be positive");
-
-        if (perk == CollectiblePerk.CASH_TIERED) {
-            require(strength >= 1 && strength <= 5, "Invalid cash tier (must be 1-5)");
+    function _validateStrength(CollectiblePerk perk, uint256 strength) internal pure {
+        if (perk == CollectiblePerk.CASH_TIERED || perk == CollectiblePerk.TAX_REFUND) {
+            require(strength >= 1 && strength <= 5, "Invalid tier (1-5)");
         }
-
-        uint256 tokenId = _nextCollectibleId++;
-        collectiblePerk[tokenId] = perk;
-        collectiblePerkStrength[tokenId] = strength;
-        collectibleShopPrice[tokenId] = price;
-
-        _mint(address(this), tokenId, amount, "");
-        emit CollectibleMinted(tokenId, address(this), perk, strength, price);
+        // Add more validations here if you create new tiered perks
     }
 
     // ------------------------------------------------------------------------
-    // View helpers
+    // VIEW FUNCTIONS
     // ------------------------------------------------------------------------
-    function getCollectiblePerk(uint256 tokenId)
+    function getCollectibleInfo(uint256 tokenId)
         external
         view
-        returns (CollectiblePerk perk, uint256 strength)
+        returns (CollectiblePerk perk, uint256 strength, uint256 tycPrice, uint256 usdcPrice, uint256 shopStock)
     {
         perk = collectiblePerk[tokenId];
         strength = collectiblePerkStrength[tokenId];
+        tycPrice = collectibleTycPrice[tokenId];
+        usdcPrice = collectibleUsdcPrice[tokenId];
+        shopStock = balanceOf(address(this), tokenId);
     }
 
     function getCashTierValue(uint256 tier) external view returns (uint256) {
-        require(tier > 0 && tier < CASH_TIERS.length, "Invalid tier");
+        require(tier > 0 && tier <= 5, "Invalid tier");
         return CASH_TIERS[tier];
-    }
-
-    // ------------------------------------------------------------------------
-    // Admin functions
-    // ------------------------------------------------------------------------
-    function setBackendMinter(address newMinter) external onlyOwner {
-        require(newMinter != address(0), "Invalid minter");
-        backendMinter = newMinter;
-        emit BackendMinterUpdated(newMinter);
-    }
-
-    modifier onlyBackend() {
-        require(msg.sender == backendMinter || msg.sender == owner(), "Unauthorized");
-        _;
     }
 }
 
@@ -262,17 +322,10 @@ contract Tycoon is ReentrancyGuard, Ownable {
     event HouseWithdrawn(uint256 amount, address indexed owner);
 
     event PlayerWonWithRewards(
-        uint256 indexed gameId,
-        address indexed winner,
-        uint256 ethReward,
-        uint256 tycVoucherAmount
+        uint256 indexed gameId, address indexed winner, uint256 ethReward, uint256 tycVoucherAmount
     );
 
-    constructor(
-        address initialOwner,
-        address _token,
-        address _rewardSystem
-    ) Ownable(initialOwner) {
+    constructor(address initialOwner, address _token, address _rewardSystem) Ownable(initialOwner) {
         token = _token;
         rewardSystem = TycoonRewardSystem(_rewardSystem);
     }
@@ -487,12 +540,13 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return gameId;
     }
 
-    function joinGame(
-        uint256 gameId,
-        string memory playerUsername,
-        string memory playerSymbol,
-        string memory joinCode
-    ) public payable nonReentrant nonEmptyUsername(playerUsername) returns (uint8) {
+    function joinGame(uint256 gameId, string memory playerUsername, string memory playerSymbol, string memory joinCode)
+        public
+        payable
+        nonReentrant
+        nonEmptyUsername(playerUsername)
+        returns (uint8)
+    {
         TycoonLib.Game storage game = games[gameId];
         require(game.ai == false, "Cannot join AI game");
         require(msg.value == STAKE_AMOUNT, "Incorrect stake amount");
@@ -543,11 +597,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return order;
     }
 
-    function removePlayerFromGame(uint256 gameId, address playerToRemove)
-        public
-        nonReentrant
-        returns (bool)
-    {
+    function removePlayerFromGame(uint256 gameId, address playerToRemove) public nonReentrant returns (bool) {
         TycoonLib.Game storage game = games[gameId];
         require(game.ai == false, "Cannot remove from AI game");
         require(game.creator != address(0), "Game not found");
@@ -592,68 +642,65 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return true;
     }
 
-   function endAIGame(
-    uint256 gameId,
-    uint8 finalPosition,
-    uint256 finalBalance,
-    bool isWin
-) public nonReentrant returns (bool) {
-    TycoonLib.Game storage game = games[gameId];
-    require(game.ai == true, "Not an AI game");
-    require(game.status == TycoonLib.GameStatus.Ongoing, "Game already ended");
-    require(game.creator == msg.sender, "Only creator can end AI game");
-    require(finalPosition < TycoonLib.BOARD_SIZE, "Invalid final position");
-    require(finalBalance <= gameSettings[gameId].startingCash * 2, "Invalid final balance");
+    function endAIGame(uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin)
+        public
+        nonReentrant
+        returns (bool)
+    {
+        TycoonLib.Game storage game = games[gameId];
+        require(game.ai == true, "Not an AI game");
+        require(game.status == TycoonLib.GameStatus.Ongoing, "Game already ended");
+        require(game.creator == msg.sender, "Only creator can end AI game");
+        require(finalPosition < TycoonLib.BOARD_SIZE, "Invalid final position");
+        require(finalBalance <= gameSettings[gameId].startingCash * 2, "Invalid final balance");
 
-    TycoonLib.GamePlayer storage gp = gamePlayers[gameId][msg.sender];
-    gp.position = finalPosition;
-    gp.balance = finalBalance;
+        TycoonLib.GamePlayer storage gp = gamePlayers[gameId][msg.sender];
+        gp.position = finalPosition;
+        gp.balance = finalBalance;
 
-    game.status = TycoonLib.GameStatus.Ended;
-    game.winner = isWin ? msg.sender : address(0);
-    game.endedAt = uint64(block.timestamp);
+        game.status = TycoonLib.GameStatus.Ended;
+        game.winner = isWin ? msg.sender : address(0);
+        game.endedAt = uint64(block.timestamp);
 
-    TycoonLib.User storage user = users[gp.username];
+        TycoonLib.User storage user = users[gp.username];
 
-    if (isWin) {
-        (bool success,) = payable(msg.sender).call{value: STAKE_AMOUNT}("");
-        require(success, "Refund failed");
+        if (isWin) {
+            (bool success,) = payable(msg.sender).call{value: STAKE_AMOUNT}("");
+            require(success, "Refund failed");
 
-        rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
+            rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
 
-        // NEW: Mint strong collectible for winner (e.g., CASH_TIERED perk with max strength=5 for 250 cash)
-        rewardSystem.mintCollectible(
-            msg.sender,
-            TycoonRewardSystem.CollectiblePerk.CASH_TIERED,
-            5,  // Strong strength (tier 5 = 250 cash)
-            0   // Not for sale
-        );
+            // NEW: Mint strong collectible for winner (e.g., CASH_TIERED perk with max strength=5 for 250 cash)
+            rewardSystem.mintCollectible(
+                msg.sender,
+                TycoonRewardSystem.CollectiblePerk.CASH_TIERED,
+                5 // Strong strength (tier 5 = 250 cash)
+            );
 
-        emit PlayerWonWithRewards(gameId, msg.sender, STAKE_AMOUNT, TOKEN_REWARD);
+            emit PlayerWonWithRewards(gameId, msg.sender, STAKE_AMOUNT, TOKEN_REWARD);
 
-        user.gamesWon += 1;
-        user.totalEarned += STAKE_AMOUNT;
-    } else {
-        houseBalance += STAKE_AMOUNT;
-        user.gamesLost += 1;
-        uint256 amount = TOKEN_REWARD / 2;
+            user.gamesWon += 1;
+            user.totalEarned += STAKE_AMOUNT;
+        } else {
+            houseBalance += STAKE_AMOUNT;
+            user.gamesLost += 1;
+            uint256 amount = TOKEN_REWARD / 2;
 
-        // CHANGED: Mint voucher instead of direct transfer for loser
-        rewardSystem.mintVoucher(msg.sender, amount);
+            // CHANGED: Mint voucher instead of direct transfer for loser
+            rewardSystem.mintVoucher(msg.sender, amount);
 
-        // NEW: Mint weak collectible for loser (e.g., CASH_TIERED perk with min strength=1 for 10 cash)
-        rewardSystem.mintCollectible(
-            msg.sender,
-            TycoonRewardSystem.CollectiblePerk.CASH_TIERED,
-            1,  // Weak strength (tier 1 = 10 cash)
-            0   // Not for sale
-        );
+            // NEW: Mint weak collectible for loser (e.g., CASH_TIERED perk with min strength=1 for 10 cash)
+            rewardSystem.mintCollectible(
+                msg.sender,
+                TycoonRewardSystem.CollectiblePerk.CASH_TIERED,
+                1 // Weak strength (tier 1 = 10 cash)
+            );
+        }
+
+        game.totalStaked = 0;
+        emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
+        return true;
     }
-
-    game.totalStaked = 0;
-    emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
-    return true;
-}
 
     function claimReward(uint256 gameId) public nonReentrant isPlayerInGame(gameId, msg.sender) returns (uint256) {
         TycoonLib.Game storage game = games[gameId];

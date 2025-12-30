@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { formatUnits, parseUnits } from 'viem';
+import { parseUnits } from 'viem';
 import RewardABI from '@/context/rewardabi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
@@ -16,17 +16,26 @@ export default function RewardAdminTester() {
   const [voucherRecipient, setVoucherRecipient] = useState<string>('');
   const [voucherTycAmount, setVoucherTycAmount] = useState<string>('');
 
-  // Collectible Mint State
+  // Collectible Mint State (non-shop rewards)
   const [collectibleRecipient, setCollectibleRecipient] = useState<string>('');
-  const [collectiblePerk, setCollectiblePerk] = useState<number>(1); // 1 = EXTRA_TURN, etc.
+  const [collectiblePerk, setCollectiblePerk] = useState<number>(1);
   const [collectibleStrength, setCollectibleStrength] = useState<string>('1');
-  const [collectibleShopPrice, setCollectibleShopPrice] = useState<string>('0'); // 0 = not for sale
 
-  // Stock Shop State
+  // Stock Shop State (new item with dual prices)
   const [stockAmount, setStockAmount] = useState<string>('1');
   const [stockPerk, setStockPerk] = useState<number>(1);
   const [stockStrength, setStockStrength] = useState<string>('1');
-  const [stockPrice, setStockPrice] = useState<string>('');
+  const [stockTycPrice, setStockTycPrice] = useState<string>('0');
+  const [stockUsdcPrice, setStockUsdcPrice] = useState<string>('0');
+
+  // Restock Existing Collectible
+  const [restockTokenId, setRestockTokenId] = useState<string>('');
+  const [restockAmount, setRestockAmount] = useState<string>('1');
+
+  // Update Prices for Existing Collectible
+  const [updatePriceTokenId, setUpdatePriceTokenId] = useState<string>('');
+  const [updateTycPrice, setUpdateTycPrice] = useState<string>('0');
+  const [updateUsdcPrice, setUpdateUsdcPrice] = useState<string>('0');
 
   const { writeContract, data: txHash, isPending: writing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess: confirmed } = useWaitForTransactionReceipt({ hash: txHash });
@@ -39,6 +48,11 @@ export default function RewardAdminTester() {
     { id: 3, name: 'DOUBLE_RENT' },
     { id: 4, name: 'ROLL_BOOST' },
     { id: 5, name: 'CASH_TIERED' },
+    { id: 6, name: 'TELEPORT' },
+    { id: 7, name: 'SHIELD' },
+    { id: 8, name: 'PROPERTY_DISCOUNT' },
+    { id: 9, name: 'TAX_REFUND' },
+    { id: 10, name: 'ROLL_EXACT' },
   ];
 
   const handleMintVoucher = async () => {
@@ -59,8 +73,6 @@ export default function RewardAdminTester() {
     if (!contractAddress) return alert('Contract not deployed');
     if (!collectibleRecipient) return alert('Enter recipient');
 
-    const shopPriceWei = parseUnits(collectibleShopPrice, 18);
-
     writeContract({
       address: contractAddress,
       abi: RewardABI,
@@ -69,23 +81,54 @@ export default function RewardAdminTester() {
         collectibleRecipient as `0x${string}`,
         collectiblePerk,
         BigInt(collectibleStrength),
-        shopPriceWei,
       ],
     });
   };
 
   const handleStockShop = async () => {
     if (!contractAddress) return alert('Contract not deployed');
-    if (!stockAmount || !stockPrice) return alert('Fill amount and price');
+    if (!stockAmount) return alert('Fill amount');
 
     const amount = BigInt(stockAmount);
-    const priceWei = parseUnits(stockPrice, 18);
+    const tycPriceWei = stockTycPrice ? parseUnits(stockTycPrice, 18) : BigInt(0);
+    const usdcPriceWei = stockUsdcPrice ? parseUnits(stockUsdcPrice, 6) : BigInt(0); // USDC typically 6 decimals
 
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'stockShop',
-      args: [amount, stockPerk, BigInt(stockStrength), priceWei],
+      args: [amount, stockPerk, BigInt(stockStrength), tycPriceWei, usdcPriceWei],
+    });
+  };
+
+  const handleRestock = async () => {
+    if (!contractAddress) return alert('Contract not deployed');
+    if (!restockTokenId || !restockAmount) return alert('Fill tokenId and amount');
+
+    const tokenId = BigInt(restockTokenId);
+    const amount = BigInt(restockAmount);
+
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'restockCollectible',
+      args: [tokenId, amount],
+    });
+  };
+
+  const handleUpdatePrices = async () => {
+    if (!contractAddress) return alert('Contract not deployed');
+    if (!updatePriceTokenId) return alert('Enter tokenId');
+
+    const tokenId = BigInt(updatePriceTokenId);
+    const tycPriceWei = updateTycPrice ? parseUnits(updateTycPrice, 18) : BigInt(0);
+    const usdcPriceWei = updateUsdcPrice ? parseUnits(updateUsdcPrice, 6) : BigInt(0);
+
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'updateCollectiblePrices',
+      args: [tokenId, tycPriceWei, usdcPriceWei],
     });
   };
 
@@ -95,19 +138,26 @@ export default function RewardAdminTester() {
     setCollectibleRecipient('');
     setCollectiblePerk(1);
     setCollectibleStrength('1');
-    setCollectibleShopPrice('0');
     setStockAmount('1');
     setStockPerk(1);
     setStockStrength('1');
-    setStockPrice('');
+    setStockTycPrice('0');
+    setStockUsdcPrice('0');
+    setRestockTokenId('');
+    setRestockAmount('1');
+    setUpdatePriceTokenId('');
+    setUpdateTycPrice('0');
+    setUpdateUsdcPrice('0');
     reset();
   };
 
+  const explorerBase = chainId === 42220 ? 'explorer.celo.org' : chainId === 11155111 ? 'sepolia.etherscan.io' : 'etherscan.io';
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <h1 className="text-5xl font-bold text-center mb-12 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-          TycoonRewardSystem Admin Tester
+          TycoonRewardSystem Admin Tester (Updated)
         </h1>
 
         {!isConnected ? (
@@ -119,7 +169,7 @@ export default function RewardAdminTester() {
               <p className="font-mono text-lg break-all">{address}</p>
               <p className="text-gray-400 mt-2">Chain ID: {chainId}</p>
               {contractAddress ? (
-                <p className="text-green-400 mt-2">✓ Reward contract found</p>
+                <p className="text-green-400 mt-2">✓ Reward contract found: {contractAddress}</p>
               ) : (
                 <p className="text-red-400 mt-2">✗ No contract on this chain</p>
               )}
@@ -161,10 +211,10 @@ export default function RewardAdminTester() {
               </button>
             </div>
 
-            {/* Mint Collectible */}
+            {/* Mint Collectible (non-shop reward) */}
             <div className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-2xl p-8 mb-10 shadow-xl">
-              <h2 className="text-3xl font-bold mb-6">mintCollectible() — onlyBackend</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h2 className="text-3xl font-bold mb-6">mintCollectible() — onlyBackend (Direct Reward)</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-lg mb-2">Recipient Address</label>
                   <input
@@ -200,21 +250,9 @@ export default function RewardAdminTester() {
                     }}
                     className="w-full px-4 py-3 bg-gray-700 rounded-lg"
                   />
-                  {collectiblePerk === 5 && (
-                    <p className="text-sm text-gray-400 mt-1">Tier 1→10, 2→25, 3→50, 4→100, 5→250 cash</p>
+                  {(collectiblePerk === 5 || collectiblePerk === 9) && (
+                    <p className="text-sm text-gray-400 mt-1">Tier 1→10, 2→25, 3→50, 4→100, 5→250</p>
                   )}
-                </div>
-                <div>
-                  <label className="block text-lg mb-2">Shop Price (TYC) — 0 = not for sale</label>
-                  <input
-                    type="text"
-                    placeholder="0"
-                    value={collectibleShopPrice}
-                    onChange={(e) => {
-                      if (/^\d*\.?\d*$/.test(e.target.value)) setCollectibleShopPrice(e.target.value);
-                    }}
-                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
-                  />
                 </div>
               </div>
               <button
@@ -222,19 +260,19 @@ export default function RewardAdminTester() {
                 disabled={isLoading || !contractAddress}
                 className="mt-6 w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
               >
-                {isLoading ? 'Processing...' : 'Mint Collectible'}
+                {isLoading ? 'Processing...' : 'Mint Direct Collectible'}
               </button>
             </div>
 
-            {/* Stock Shop */}
+            {/* Stock Shop (create new shop item) */}
             <div className="bg-gradient-to-br from-green-900 to-green-800 rounded-2xl p-8 mb-10 shadow-xl">
-              <h2 className="text-3xl font-bold mb-6">stockShop() — onlyBackend</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h2 className="text-3xl font-bold mb-6">stockShop() — onlyBackend (Create New Shop Item)</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-lg mb-2">Amount to Stock</label>
                   <input
                     type="text"
-                    placeholder="5"
+                    placeholder="10"
                     value={stockAmount}
                     onChange={(e) => {
                       if (/^\d+$/.test(e.target.value) || e.target.value === '') setStockAmount(e.target.value);
@@ -269,13 +307,25 @@ export default function RewardAdminTester() {
                   />
                 </div>
                 <div>
-                  <label className="block text-lg mb-2">Shop Price (TYC) — required</label>
+                  <label className="block text-lg mb-2">TYC Price (0 = not for sale in TYC)</label>
                   <input
                     type="text"
                     placeholder="50"
-                    value={stockPrice}
+                    value={stockTycPrice}
                     onChange={(e) => {
-                      if (/^\d*\.?\d*$/.test(e.target.value)) setStockPrice(e.target.value);
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setStockTycPrice(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">USDC Price (0 = not for sale in USDC, 6 decimals)</label>
+                  <input
+                    type="text"
+                    placeholder="2.5"
+                    value={stockUsdcPrice}
+                    onChange={(e) => {
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setStockUsdcPrice(e.target.value);
                     }}
                     className="w-full px-4 py-3 bg-gray-700 rounded-lg"
                   />
@@ -286,7 +336,95 @@ export default function RewardAdminTester() {
                 disabled={isLoading || !contractAddress}
                 className="mt-6 w-full py-4 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
               >
-                {isLoading ? 'Processing...' : 'Stock Shop'}
+                {isLoading ? 'Processing...' : 'Stock New Shop Item'}
+              </button>
+            </div>
+
+            {/* Restock Existing Item */}
+            <div className="bg-gradient-to-br from-orange-900 to-orange-800 rounded-2xl p-8 mb-10 shadow-xl">
+              <h2 className="text-3xl font-bold mb-6">restockCollectible() — onlyBackend</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-lg mb-2">Token ID to Restock</label>
+                  <input
+                    type="text"
+                    placeholder="2000000001"
+                    value={restockTokenId}
+                    onChange={(e) => {
+                      if (/^\d*$/.test(e.target.value)) setRestockTokenId(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">Additional Amount</label>
+                  <input
+                    type="text"
+                    placeholder="5"
+                    value={restockAmount}
+                    onChange={(e) => {
+                      if (/^\d+$/.test(e.target.value) || e.target.value === '') setRestockAmount(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleRestock}
+                disabled={isLoading || !contractAddress}
+                className="mt-6 w-full py-4 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                {isLoading ? 'Processing...' : 'Restock Item'}
+              </button>
+            </div>
+
+            {/* Update Prices */}
+            <div className="bg-gradient-to-br from-teal-900 to-teal-800 rounded-2xl p-8 mb-10 shadow-xl">
+              <h2 className="text-3xl font-bold mb-6">updateCollectiblePrices() — onlyBackend</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-lg mb-2">Token ID</label>
+                  <input
+                    type="text"
+                    placeholder="2000000001"
+                    value={updatePriceTokenId}
+                    onChange={(e) => {
+                      if (/^\d*$/.test(e.target.value)) setUpdatePriceTokenId(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">New TYC Price (0 to disable)</label>
+                  <input
+                    type="text"
+                    placeholder="30"
+                    value={updateTycPrice}
+                    onChange={(e) => {
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setUpdateTycPrice(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-lg mb-2">New USDC Price (0 to disable)</label>
+                  <input
+                    type="text"
+                    placeholder="1.5"
+                    value={updateUsdcPrice}
+                    onChange={(e) => {
+                      if (/^\d*\.?\d*$/.test(e.target.value)) setUpdateUsdcPrice(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-700 rounded-lg"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleUpdatePrices}
+                disabled={isLoading || !contractAddress}
+                className="mt-6 w-full py-4 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                {isLoading ? 'Processing...' : 'Update Prices'}
               </button>
             </div>
 
@@ -302,7 +440,7 @@ export default function RewardAdminTester() {
                 <strong>Success!</strong> Transaction confirmed.
                 <br />
                 <a
-                  href={`https://${chainId === 42220 ? 'explorer.celo.org' : 'sepolia.etherscan.io'}/tx/${txHash}`}
+                  href={`https://${explorerBase}/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block mt-4 px-6 py-3 bg-green-700 hover:bg-green-600 rounded-lg font-bold"
@@ -313,21 +451,24 @@ export default function RewardAdminTester() {
                   onClick={resetForm}
                   className="ml-4 px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
                 >
-                  Reset Form
+                  Reset All Forms
                 </button>
               </div>
             )}
 
             <div className="mt-12 text-center text-gray-500">
               <p className="text-sm">
-                This page allows testing of <strong>all admin/minter functions</strong>:
+                This tester supports the <strong>latest TycoonRewardSystem contract</strong> with:
               </p>
-              <ul className="text-left inline-block mt-4 space-y-1">
+              <ul className="text-left inline-block mt-4 space-y-1 max-w-2xl">
                 <li>• mintVoucher() — onlyOwner</li>
-                <li>• mintCollectible() — onlyBackend</li>
-                <li>• stockShop() — onlyBackend</li>
+                <li>• mintCollectible() — onlyBackend (direct rewards)</li>
+                <li>• stockShop() — dual TYC/USDC pricing</li>
+                <li>• restockCollectible() — add more stock to existing item</li>
+                <li>• updateCollectiblePrices() — dynamic pricing & sales</li>
+                <li>• All new perks: TELEPORT, SHIELD, ROLL_EXACT, etc.</li>
               </ul>
-              <p className="mt-6">Use responsibly on testnet or private deployment.</p>
+              <p className="mt-6">Use responsibly. Only backend/owner can call these.</p>
             </div>
           </>
         )}

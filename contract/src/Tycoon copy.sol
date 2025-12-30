@@ -6,8 +6,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./Wallet.sol";
 
-
-
 contract Tycoon is ReentrancyGuard, Ownable {
     using TycoonLib for TycoonLib.Game;
     using TycoonLib for TycoonLib.GamePlayer;
@@ -427,7 +425,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         TycoonLib.GamePlayer storage gp = gamePlayers[gameId][msg.sender];
         gp.position = finalPosition;
         gp.balance = finalBalance;
-        
+
         // End game
         game.status = TycoonLib.GameStatus.Ended;
         game.winner = isWin ? msg.sender : address(0);
