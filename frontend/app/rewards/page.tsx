@@ -1,29 +1,51 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount, useChainId, useReadContract } from 'wagmi';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits, formatUnits } from 'viem';
+import { parseUnits } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowLeft, Crown, Zap, Shield, Sparkles, Gem, Coins, 
-  ShoppingBag, Package, Ticket, RefreshCw, DollarSign, AlertTriangle 
+  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, RefreshCw, AlertTriangle 
 } from 'lucide-react';
 import RewardABI from '@/context/rewardabi.json';
 import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
-const perkIcons = {
-  1: <Zap className="w-6 h-6" />,
-  2: <Shield className="w-6 h-6" />,
-  3: <Coins className="w-6 h-6" />,
-  4: <Sparkles className="w-6 h-6" />,
-  5: <Gem className="w-6 h-6" />,
-  6: <Crown className="w-6 h-6" />,
-  7: <Shield className="w-6 h-6" />,
-  8: <Coins className="w-6 h-6" />,
-  9: <Gem className="w-6 h-6" />,
-  10: <Crown className="w-6 h-6" />,
+const FIXED_TOKEN_IDS = {
+  EXTRA_TURN: 2000000001,
+  JAIL_FREE: 2000000002,
+  DOUBLE_RENT: 2000000003,
+  ROLL_BOOST: 2000000004,
+  CASH_TIER1: 2000000005,
+  CASH_TIER2: 2000000011,
+  CASH_TIER3: 2000000012,
+  CASH_TIER4: 2000000013,
+  CASH_TIER5: 2000000014,
+  TELEPORT: 2000000006,
+  SHIELD: 2000000007,
+  PROPERTY_DISCOUNT: 2000000008,
+  TAX_REFUND_TIER1: 2000000009,
+  TAX_REFUND_TIER3: 2000000015,
+  ROLL_EXACT: 2000000010,
 };
+
+const PERKS = [
+  { tokenId: FIXED_TOKEN_IDS.EXTRA_TURN, perkId: 1, name: "Extra Turn", rarity: "common", strength: 1, tyc: "5", usdc: "0.10" },
+  { tokenId: FIXED_TOKEN_IDS.JAIL_FREE, perkId: 2, name: "Get Out of Jail Free", rarity: "rare", strength: 1, tyc: "10", usdc: "0.30" },
+  { tokenId: FIXED_TOKEN_IDS.DOUBLE_RENT, perkId: 3, name: "Double Rent", rarity: "medium", strength: 0, tyc: "12", usdc: "0.40" },
+  { tokenId: FIXED_TOKEN_IDS.ROLL_BOOST, perkId: 4, name: "Roll Boost", rarity: "medium", strength: 2, tyc: "8", usdc: "0.25" },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER1, perkId: 5, name: "Instant Cash (Tier 1)", rarity: "tiered", strength: 1, cash: "10 TYC", tyc: "6", usdc: "0.15" },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER2, perkId: 5, name: "Instant Cash (Tier 2)", rarity: "tiered", strength: 2, cash: "25 TYC", tyc: "12", usdc: "0.30" },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER3, perkId: 5, name: "Instant Cash (Tier 3)", rarity: "tiered", strength: 3, cash: "50 TYC", tyc: "20", usdc: "0.50" },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER4, perkId: 5, name: "Instant Cash (Tier 4)", rarity: "tiered", strength: 4, cash: "100 TYC", tyc: "35", usdc: "0.90" },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER5, perkId: 5, name: "Instant Cash (Tier 5)", rarity: "tiered", strength: 5, cash: "250 TYC", tyc: "70", usdc: "1.80" },
+  { tokenId: FIXED_TOKEN_IDS.TELEPORT, perkId: 6, name: "Teleport", rarity: "epic", strength: 0, tyc: "15", usdc: "0.60" },
+  { tokenId: FIXED_TOKEN_IDS.SHIELD, perkId: 7, name: "Shield", rarity: "rare", strength: 2, tyc: "12", usdc: "0.50" },
+  { tokenId: FIXED_TOKEN_IDS.PROPERTY_DISCOUNT, perkId: 8, name: "Property Discount", rarity: "medium", strength: 40, tyc: "10", usdc: "0.40" },
+  { tokenId: FIXED_TOKEN_IDS.TAX_REFUND_TIER1, perkId: 9, name: "Tax Refund (Tier 1)", rarity: "tiered", strength: 1, cash: "10 TYC", tyc: "7", usdc: "0.18" },
+  { tokenId: FIXED_TOKEN_IDS.TAX_REFUND_TIER3, perkId: 9, name: "Tax Refund (Tier 3)", rarity: "tiered", strength: 3, cash: "50 TYC", tyc: "22", usdc: "0.55" },
+  { tokenId: FIXED_TOKEN_IDS.ROLL_EXACT, perkId: 10, name: "Exact Roll", rarity: "legendary", strength: 0, tyc: "20", usdc: "1.00" },
+];
 
 const rarityStyles = {
   common: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40 text-emerald-300',
@@ -34,50 +56,50 @@ const rarityStyles = {
   tiered: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 text-cyan-300',
 };
 
-const perks = [
-  { id: 1, name: 'EXTRA_TURN', rarity: 'common', tyc: '5', usdc: '0.10' },
-  { id: 2, name: 'JAIL_FREE', rarity: 'rare', tyc: '10', usdc: '0.30' },
-  { id: 3, name: 'DOUBLE_RENT', rarity: 'medium', tyc: '12', usdc: '0.40' },
-  { id: 4, name: 'ROLL_BOOST', rarity: 'medium', tyc: '8', usdc: '0.25' },
-  { id: 5, name: 'CASH_TIERED', rarity: 'tiered', tyc: 'varies', usdc: 'varies' },
-  { id: 6, name: 'TELEPORT', rarity: 'epic', tyc: '15', usdc: '0.60' },
-  { id: 7, name: 'SHIELD', rarity: 'rare', tyc: '12', usdc: '0.50' },
-  { id: 8, name: 'PROPERTY_DISCOUNT', rarity: 'medium', tyc: '10', usdc: '0.40' },
-  { id: 9, name: 'TAX_REFUND', rarity: 'tiered', tyc: 'varies', usdc: 'varies' },
-  { id: 10, name: 'ROLL_EXACT', rarity: 'legendary', tyc: '20', usdc: '1.00' },
-];
-
-const cashTiers = [
-  { tier: 1, value: 10, label: 'Tier 1 - 10 TYC' },
-  { tier: 2, value: 25, label: 'Tier 2 - 25 TYC' },
-  { tier: 3, value: 50, label: 'Tier 3 - 50 TYC' },
-  { tier: 4, value: 100, label: 'Tier 4 - 100 TYC' },
-  { tier: 5, value: 250, label: 'Tier 5 - 250 TYC' },
-];
+const perkIcons = {
+  1: <Zap className="w-8 h-8" />,
+  2: <Crown className="w-8 h-8" />,
+  3: <Coins className="w-8 h-8" />,
+  4: <Sparkles className="w-8 h-8" />,
+  5: <Gem className="w-8 h-8" />,
+  6: <Zap className="w-8 h-8" />,
+  7: <Shield className="w-8 h-8" />,
+  8: <Coins className="w-8 h-8" />,
+  9: <Gem className="w-8 h-8" />,
+  10: <Sparkles className="w-8 h-8" />,
+};
 
 export default function RewardAdminTester() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
 
-  const [activeTab, setActiveTab] = useState<'stock' | 'direct' | 'voucher' | 'restock' | 'prices'>('stock');
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  // Form States
-  const [voucher, setVoucher] = useState({ recipient: '', amount: '50' });
-  const [direct, setDirect] = useState({ recipient: '', perk: 1, strength: '1' });
-  const [bulkStock, setBulkStock] = useState('100');
-  const [restock, setRestock] = useState({ tokenId: '', amount: '100' });
-  const [priceUpdate, setPriceUpdate] = useState({ tokenId: '', tyc: '', usdc: '' });
-
   const { writeContract, data: txHash, isPending: isWriting, error: writeError, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const isLoading = isWriting || isConfirming;
 
-  const explorer = chainId === 42220 ? 'explorer.celo.org' :
-                  chainId === 11155111 ? 'sepolia.etherscan.io' : 'etherscan.io';
+  // Read live stock for all fixed tokenIds
+  const stockQueries = PERKS.map(perk => ({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'balanceOf' as const,
+    args: [contractAddress, perk.tokenId],
+  }));
 
-  // Auto-clear status after 8 seconds
+  const stockResults = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'balanceOfBatch',
+    args: contractAddress ? [Array(PERKS.length).fill(contractAddress), PERKS.map(p => p.tokenId)] : undefined,
+    query: { enabled: !!contractAddress },
+  });
+
+  const currentStocks = stockResults.data && Array.isArray(stockResults.data)
+  ? stockResults.data.map((s: bigint) => Number(s))
+  : PERKS.map(() => 0);
+
   useEffect(() => {
     if (status) {
       const timer = setTimeout(() => setStatus(null), 8000);
@@ -85,442 +107,141 @@ export default function RewardAdminTester() {
     }
   }, [status]);
 
-  const handleStockPerk = (perkId: number, tycPrice: string, usdcPrice: string, overrideStrength?: string) => {
+  const handleMint500 = (perk: typeof PERKS[0]) => {
     if (!contractAddress) return;
 
-    const amount = BigInt(bulkStock || '100');
-    const strength = overrideStrength || (perkId === 5 || perkId === 9 ? '1' : '1'); // default 1, override for tiered
-
-    const tycWei = tycPrice !== 'varies' ? parseUnits(tycPrice, 18) : BigInt(0);
-    const usdcWei = usdcPrice !== 'varies' ? parseUnits(usdcPrice, 6) : BigInt(0);
+    const tycWei = parseUnits(perk.tyc, 18);
+    const usdcWei = parseUnits(perk.usdc, 6);
 
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'stockShop',
-      args: [amount, BigInt(perkId), BigInt(strength), tycWei, usdcWei],
+      args: [500, BigInt(perk.perkId), BigInt(perk.strength), tycWei, usdcWei],
     });
   };
 
-  const handleBulkStockAll = () => {
-    if (!confirm('This will send multiple transactions to stock 100 of each perk. Continue?')) return;
-    perks.forEach(perk => {
-      if (perk.tyc !== 'varies') {
-        handleStockPerk(perk.id, perk.tyc, perk.usdc);
-      }
-    });
-    setStatus({ type: 'info', message: 'Bulk stocking started... watch your wallet!' });
-  };
+  useEffect(() => {
+    if (txHash && isConfirming === false && isWriting === false) {
+      setStatus({ type: 'success', message: 'Successfully minted 500 collectibles!' });
+      reset();
+    }
+    if (writeError) {
+      setStatus({ type: 'error', message:  writeError.message || 'Transaction failed' });
+      reset();
+    }
+  }, [txHash, isConfirming, isWriting, writeError, reset]);
 
-  const handleDirectMint = () => {
-    if (!direct.recipient) return setStatus({ type: 'error', message: 'Recipient address required' });
-    writeContract({
-      address: contractAddress!,
-      abi: RewardABI,
-      functionName: 'mintCollectible',
-      args: [direct.recipient as `0x${string}`, BigInt(direct.perk), BigInt(direct.strength)],
-    });
-  };
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27]">
+        <div className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50">
+          <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-red-400" />
+          <h2 className="text-3xl font-bold text-center">Wallet Not Connected</h2>
+        </div>
+      </div>
+    );
+  }
 
-  const handleMintVoucher = () => {
-    if (!voucher.recipient || !voucher.amount) return setStatus({ type: 'error', message: 'All fields required' });
-    const amountWei = parseUnits(voucher.amount, 18);
-    writeContract({
-      address: contractAddress!,
-      abi: RewardABI,
-      functionName: 'mintVoucher',
-      args: [voucher.recipient as `0x${string}`, amountWei],
-    });
-  };
-
-  const handleRestock = () => {
-    if (!restock.tokenId || !restock.amount) return setStatus({ type: 'error', message: 'Token ID & amount required' });
-    writeContract({
-      address: contractAddress!,
-      abi: RewardABI,
-      functionName: 'restockCollectible',
-      args: [BigInt(restock.tokenId), BigInt(restock.amount)],
-    });
-  };
-
-  const handleUpdatePrices = () => {
-    if (!priceUpdate.tokenId) return setStatus({ type: 'error', message: 'Token ID required' });
-    const tycWei = priceUpdate.tyc ? parseUnits(priceUpdate.tyc, 18) : BigInt(0);
-    const usdcWei = priceUpdate.usdc ? parseUnits(priceUpdate.usdc, 6) : BigInt(0);
-    writeContract({
-      address: contractAddress!,
-      abi: RewardABI,
-      functionName: 'updateCollectiblePrices',
-      args: [BigInt(priceUpdate.tokenId), tycWei, usdcWei],
-    });
-  };
-
-  const resetForms = () => {
-    setVoucher({ recipient: '', amount: '50' });
-    setDirect({ recipient: '', perk: 1, strength: '1' });
-    setBulkStock('100');
-    setRestock({ tokenId: '', amount: '100' });
-    setPriceUpdate({ tokenId: '', tyc: '', usdc: '' });
-    reset();
-    setStatus(null);
-  };
+  if (!contractAddress) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27] text-rose-400 text-2xl">
+        No contract on chain {chainId}
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] text-white pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-16"
-        >
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] text-white py-12 px-4">
+      <div className="max-w-7xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Tycoon Reward Admin
           </h1>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Powerful control panel • Economy-balanced prices • Bulk operations
-          </p>
+          <p className="text-xl text-gray-400">Mint 500 of each collectible • Live stock tracking • Fixed token IDs</p>
         </motion.div>
 
-        {!isConnected ? (
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-center py-24"
-          >
-            <div className="inline-block p-10 bg-gradient-to-br from-red-950/60 to-red-900/40 rounded-3xl border border-red-700/50 backdrop-blur-sm">
-              <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-red-400" />
-              <h2 className="text-3xl font-bold mb-4">Wallet Not Connected</h2>
-              <p className="text-xl text-gray-300">Please connect your wallet to access admin controls</p>
-            </div>
-          </motion.div>
-        ) : !contractAddress ? (
-          <div className="text-center py-24 text-rose-400 text-2xl font-medium">
-            No contract deployed on current chain (ID: {chainId})
-          </div>
-        ) : (
-          <AnimatePresence mode="wait">
+        <AnimatePresence>
+          {status && (
             <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={`mb-8 p-6 rounded-2xl border text-center ${
+                status.type === 'success' ? 'bg-green-900/40 border-green-600' :
+                status.type === 'error' ? 'bg-red-900/40 border-red-600' :
+                'bg-blue-900/40 border-blue-600'
+              }`}
             >
-              {/* Status Messages */}
-              <AnimatePresence>
-                {status && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className={`mb-8 p-6 rounded-2xl border ${
-                      status.type === 'success' ? 'bg-green-900/40 border-green-600' :
-                      status.type === 'error' ? 'bg-red-900/40 border-red-600' :
-                      'bg-blue-900/40 border-blue-600'
-                    }`}
-                  >
-                    <p className="text-center font-medium">{status.message}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Navigation Tabs */}
-              <div className="flex flex-wrap justify-center gap-4 mb-12">
-                {[
-                  { id: 'stock', label: 'Bulk Stock Shop', icon: ShoppingBag },
-                  { id: 'direct', label: 'Direct Mint', icon: Crown },
-                  { id: 'voucher', label: 'Mint Voucher', icon: Ticket },
-                  { id: 'restock', label: 'Restock', icon: RefreshCw },
-                  { id: 'prices', label: 'Update Prices', icon: DollarSign },
-                ].map((tab) => (
-                  <motion.button
-                    key={tab.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all ${
-                      activeTab === tab.id
-                        ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-purple-500/30'
-                        : 'bg-gray-800/60 hover:bg-gray-700/80 border border-gray-700'
-                    }`}
-                  >
-                    <tab.icon className="w-5 h-5" />
-                    {tab.label}
-                  </motion.button>
-                ))}
-              </div>
-
-              {/* STOCK TAB - Main Feature */}
-              {activeTab === 'stock' && (
-                <div className="space-y-12">
-                  <div className="text-center">
-                    <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                      Bulk Stock Shop Items
-                    </h2>
-                    <p className="text-gray-400 mb-6">Balanced prices (reduced ~5×) • Recommended economy setup</p>
-
-                    <div className="inline-flex items-center gap-4 bg-gray-900/60 backdrop-blur-sm p-4 rounded-2xl border border-gray-700/50">
-                      <label className="text-lg font-medium">Amount per item:</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={bulkStock}
-                        onChange={(e) => setBulkStock(e.target.value)}
-                        className="w-32 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-center text-xl font-bold"
-                      />
-                    </div>
-
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handleBulkStockAll}
-                      disabled={isLoading}
-                      className="mt-8 px-12 py-6 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold text-xl rounded-2xl shadow-2xl hover:shadow-orange-500/40 transition-all disabled:opacity-50"
-                    >
-                      {isLoading ? 'Processing...' : '🚀 STOCK ALL PERKS NOW'}
-                    </motion.button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {perks.map((perk) => (
-                      <motion.div
-                        key={perk.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: perk.id * 0.05 }}
-                        className={`rounded-2xl p-6 border bg-gradient-to-br ${rarityStyles[perk.rarity as keyof typeof rarityStyles]} backdrop-blur-sm`}
-                      >
-                        <div className="flex items-center gap-4 mb-5">
-                          <div className="p-4 rounded-xl bg-black/40">
-                            {perkIcons[perk.id as keyof typeof perkIcons]}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-bold">{perk.name.replace(/_/g, ' ')}</h3>
-                            <p className="text-sm capitalize opacity-80">{perk.rarity}</p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 mb-6">
-                          <div className="flex justify-between text-sm">
-                            <span>TYC Price</span>
-                            <span className="font-bold">{perk.tyc === 'varies' ? 'Tiered' : `${perk.tyc} TYC`}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span>USDC Price</span>
-                            <span className="font-bold">{perk.usdc === 'varies' ? 'Tiered' : `$${perk.usdc}`}</span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => handleStockPerk(perk.id, perk.tyc, perk.usdc)}
-                          disabled={isLoading}
-                          className="w-full py-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all disabled:opacity-50"
-                        >
-                          Stock {bulkStock} ×
-                        </button>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* DIRECT MINT */}
-              {activeTab === 'direct' && (
-                <div className="max-w-2xl mx-auto">
-                  <div className="bg-gradient-to-br from-indigo-950/70 to-purple-950/70 rounded-3xl p-10 border border-purple-500/30 backdrop-blur-md">
-                    <h2 className="text-4xl font-bold text-center mb-10 bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                      Direct Mint Reward
-                    </h2>
-
-                    <input
-                      placeholder="Recipient address (0x...)"
-                      value={direct.recipient}
-                      onChange={(e) => setDirect({ ...direct, recipient: e.target.value })}
-                      className="w-full mb-6 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-purple-500 focus:ring-purple-500"
-                    />
-
-                    <select
-                      value={direct.perk}
-                      onChange={(e) => setDirect({ ...direct, perk: Number(e.target.value) })}
-                      className="w-full mb-6 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-purple-500 focus:ring-purple-500"
-                    >
-                      {perks.map(p => (
-                        <option key={p.id} value={p.id}>{p.name.replace(/_/g, ' ')} ({p.rarity})</option>
-                      ))}
-                    </select>
-
-                    <div className="mb-8">
-                      <label className="block text-sm mb-2 text-gray-300">
-                        Strength / Tier {direct.perk === 5 || direct.perk === 9 ? '(1-5 for cash perks)' : ''}
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max={direct.perk === 5 || direct.perk === 9 ? "5" : "999"}
-                        value={direct.strength}
-                        onChange={(e) => setDirect({ ...direct, strength: e.target.value })}
-                        className="w-full px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-purple-500 focus:ring-purple-500"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleDirectMint}
-                      disabled={isLoading}
-                      className="w-full py-6 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 font-bold text-xl rounded-2xl shadow-lg shadow-cyan-500/30 transition-all disabled:opacity-50"
-                    >
-                      {isLoading ? 'Minting...' : 'Mint Direct Collectible'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* VOUCHER */}
-              {activeTab === 'voucher' && (
-                <div className="max-w-2xl mx-auto">
-                  <div className="bg-gradient-to-br from-purple-950/70 to-pink-950/70 rounded-3xl p-10 border border-pink-500/30 backdrop-blur-md">
-                    <h2 className="text-4xl font-bold text-center mb-10 bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-                      Mint TYC Voucher
-                    </h2>
-
-                    <input
-                      placeholder="Recipient address"
-                      value={voucher.recipient}
-                      onChange={(e) => setVoucher({ ...voucher, recipient: e.target.value })}
-                      className="w-full mb-6 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-pink-500 focus:ring-pink-500"
-                    />
-
-                    <input
-                      type="number"
-                      placeholder="TYC Amount"
-                      value={voucher.amount}
-                      onChange={(e) => setVoucher({ ...voucher, amount: e.target.value })}
-                      className="w-full mb-8 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-pink-500 focus:ring-pink-500"
-                    />
-
-                    <button
-                      onClick={handleMintVoucher}
-                      disabled={isLoading}
-                      className="w-full py-6 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-bold text-xl rounded-2xl shadow-lg shadow-pink-500/30 transition-all disabled:opacity-50"
-                    >
-                      {isLoading ? 'Minting...' : 'Create Voucher'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* RESTOCK & PRICES (simplified but beautiful) */}
-              {activeTab === 'restock' && (
-                <div className="max-w-2xl mx-auto">
-                  <div className="bg-gradient-to-br from-orange-950/70 to-rose-950/70 rounded-3xl p-10 border border-orange-500/30 backdrop-blur-md">
-                    <h2 className="text-4xl font-bold text-center mb-10 bg-gradient-to-r from-orange-400 to-rose-500 bg-clip-text text-transparent">
-                      Restock Collectible
-                    </h2>
-
-                    <input
-                      placeholder="Token ID (e.g. 2000000001)"
-                      value={restock.tokenId}
-                      onChange={(e) => setRestock({ ...restock, tokenId: e.target.value })}
-                      className="w-full mb-6 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-orange-500 focus:ring-orange-500"
-                    />
-
-                    <input
-                      type="number"
-                      placeholder="Additional Amount"
-                      value={restock.amount}
-                      onChange={(e) => setRestock({ ...restock, amount: e.target.value })}
-                      className="w-full mb-8 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-orange-500 focus:ring-orange-500"
-                    />
-
-                    <button
-                      onClick={handleRestock}
-                      disabled={isLoading}
-                      className="w-full py-6 bg-gradient-to-r from-orange-600 to-rose-600 hover:from-orange-500 hover:to-rose-500 font-bold text-xl rounded-2xl shadow-lg shadow-orange-500/30 transition-all disabled:opacity-50"
-                    >
-                      {isLoading ? 'Restocking...' : 'Restock Item'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'prices' && (
-                <div className="max-w-2xl mx-auto">
-                  <div className="bg-gradient-to-br from-teal-950/70 to-cyan-950/70 rounded-3xl p-10 border border-cyan-500/30 backdrop-blur-md">
-                    <h2 className="text-4xl font-bold text-center mb-10 bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent">
-                      Update Collectible Prices
-                    </h2>
-
-                    <input
-                      placeholder="Token ID"
-                      value={priceUpdate.tokenId}
-                      onChange={(e) => setPriceUpdate({ ...priceUpdate, tokenId: e.target.value })}
-                      className="w-full mb-6 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-cyan-500 focus:ring-cyan-500"
-                    />
-
-                    <input
-                      placeholder="New TYC Price (0 = disable)"
-                      value={priceUpdate.tyc}
-                      onChange={(e) => setPriceUpdate({ ...priceUpdate, tyc: e.target.value })}
-                      className="w-full mb-6 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-cyan-500 focus:ring-cyan-500"
-                    />
-
-                    <input
-                      placeholder="New USDC Price (0 = disable)"
-                      value={priceUpdate.usdc}
-                      onChange={(e) => setPriceUpdate({ ...priceUpdate, usdc: e.target.value })}
-                      className="w-full mb-8 px-6 py-4 bg-gray-900/70 border border-gray-700 rounded-xl focus:border-cyan-500 focus:ring-cyan-500"
-                    />
-
-                    <button
-                      onClick={handleUpdatePrices}
-                      disabled={isLoading}
-                      className="w-full py-6 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 font-bold text-xl rounded-2xl shadow-lg shadow-cyan-500/30 transition-all disabled:opacity-50"
-                    >
-                      {isLoading ? 'Updating...' : 'Update Prices'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Transaction Result */}
-              {txHash && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="mt-12 p-10 bg-gradient-to-br from-green-950 to-emerald-950 rounded-3xl border border-green-600/50 text-center"
-                >
-                  <h3 className="text-4xl font-bold mb-6 text-green-300">Success! 🎉</h3>
-                  
-                  <a
-                    href={`https://${explorer}/tx/${txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block px-12 py-5 bg-green-700 hover:bg-green-600 rounded-2xl font-bold text-xl mb-6 transition-colors"
-                  >
-                    View on Explorer
-                  </a>
-
-                  <button
-                    onClick={resetForms}
-                    className="block mx-auto px-10 py-4 bg-gray-800 hover:bg-gray-700 rounded-xl font-medium transition-colors"
-                  >
-                    Reset & New Action
-                  </button>
-                </motion.div>
-              )}
-
-              {writeError && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-12 p-8 bg-red-950/80 rounded-3xl border border-red-700"
-                >
-                  <h3 className="text-2xl font-bold text-red-400 mb-4">Transaction Failed</h3>
-                  <p className="text-gray-300 break-all font-mono text-sm">{writeError.message}</p>
-                </motion.div>
-              )}
+              <p className="font-medium">{status.message}</p>
             </motion.div>
-          </AnimatePresence>
+          )}
+        </AnimatePresence>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {PERKS.map((perk, index) => {
+            const currentStock = currentStocks[index] || 0;
+            const icon = perkIcons[perk.perkId as keyof typeof perkIcons] || <Gem className="w-8 h-8" />;
+
+            return (
+                    <motion.div
+          key={perk.tokenId.toString()}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.05 }}
+          className={`rounded-2xl p-8 border-2 bg-gradient-to-br ${
+            rarityStyles[perk.rarity as keyof typeof rarityStyles]
+          } backdrop-blur-sm relative overflow-hidden`}
+        >
+                <div className="absolute top-2 right-2 text-xs opacity-70">
+                  ID: {perk.tokenId.toString().slice(-10)}
+                </div>
+
+                <div className="flex flex-col items-center mb-6">
+                  <div className="p-4 rounded-2xl bg-black/40 mb-4">
+                    {icon}
+                  </div>
+                  <h3 className="text-2xl font-bold text-center">{perk.name}</h3>
+                  <p className="text-sm capitalize mt-1 opacity-80">{perk.rarity}</p>
+                  {perk.cash && <p className="text-cyan-300 text-lg font-bold mt-2">{perk.cash}</p>}
+                </div>
+
+                <div className="space-y-3 mb-8 text-center">
+                  <p className="text-sm"><span className="opacity-70">TYC Price:</span> <strong>{perk.tyc} TYC</strong></p>
+                  <p className="text-sm"><span className="opacity-70">USDC Price:</span> <strong>${perk.usdc}</strong></p>
+                  <p className="text-lg font-bold text-cyan-300 mt-4">
+                    Stock: {currentStock}/500
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => handleMint500(perk)}
+                  disabled={isLoading}
+                  className="w-full py-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-lg rounded-xl transition-all disabled:opacity-50 shadow-lg"
+                >
+                  {isLoading ? 'Minting...' : 'Mint 500'}
+                </button>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {txHash && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 p-6 bg-green-900/90 rounded-2xl border border-green-600 shadow-2xl"
+          >
+            <p className="text-xl font-bold text-green-300 text-center">Transaction Sent!</p>
+            <a
+              href={`https://basescan.org/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block mt-3 text-cyan-300 underline"
+            >
+              View on Explorer
+            </a>
+          </motion.div>
         )}
       </div>
     </div>
