@@ -27,7 +27,7 @@ export default function CollectibleInventoryBar({ onUseCollectible, isMyTurn }: 
   const [showShopModal, setShowShopModal] = useState(false);
 
   // Generate all possible token IDs we're checking
-  const tokenIds = Array.from({ length: MAX_PERKS_TO_CHECK }, (_, i) => COLLECTIBLE_START + BigInt(i + 1));
+  const tokenIds = Array.from({ length: MAX_PERKS_TO_CHECK }, (_, i) => BigInt(COLLECTIBLE_START) + BigInt(i + 1));
 
   // Batch fetch user balances
   const balancesResult = useReadContract({
