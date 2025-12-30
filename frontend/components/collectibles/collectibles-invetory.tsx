@@ -65,7 +65,7 @@ const balances = useReadContract({
   };
 }).filter(item => item.count > 0);
 
-  if (!isConnected || owned.length === 0) {
+  if (!isConnected ) {
     return null; // Hide bar if no collectibles
   }
 
