@@ -26,6 +26,7 @@ import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action"; // Add this import (adjust path)
+import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -1038,6 +1039,27 @@ const AiBoard = ({
           error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
+      <CollectibleInventoryBar
+  isMyTurn={isMyTurn}
+  onUseCollectible={async (tokenId, name) => {
+    if (!isMyTurn) {
+      toast("Wait for your turn!", { icon: "⏳" });
+      return;
+    }
+
+    const confirmed = window.confirm(`Use ${name}? This will burn 1 copy.`);
+    if (!confirmed) return;
+
+    try {
+      // This will be your burn function — coming next!
+      // await burnCollectible(tokenId);
+      toast.success(`${name} used! Effect applied.`);
+      // Refresh balances after burn
+    } catch (err: any) {
+      toast.error(err.shortMessage || "Failed to use collectible");
+    }
+  }}
+/>
     </div>
   );
 };
