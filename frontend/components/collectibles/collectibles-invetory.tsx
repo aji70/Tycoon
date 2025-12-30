@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useAccount, useReadContract, useChainId } from "wagmi";
 import Image from "next/image";
 import { Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag, X } from "lucide-react";
-import RewardABI from "@/context/rewardabi.json";
+import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { formatUnits } from "viem";
 

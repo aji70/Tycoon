@@ -1,203 +1,303 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { Zap, Crown, Coins, Sparkles, Gem, Shield } from 'lucide-react';
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { formatUnits } from 'viem';
-import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import RewardABI from '@/context/rewardabi.json';
+import React, { useState, useEffect } from "react";
+import { useAccount, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseUnits } from "viem";
+import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { ShoppingBag, Coins, AlertTriangle, Zap, Shield, Sparkles, Gem, Crown } from "lucide-react";
+import RewardABI from "@/context/abi/rewardabi.json";
+import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import { TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 
-const COLLECTIBLE_START = BigInt(2000000000);
-const MAX_PERKS = 100;
-
-const getPerkName = (perk: number): string => {
-  const names: Record<number, string> = {
-    1: 'Extra Turn',
-    2: 'Get Out of Jail Free',
-    3: 'Double Rent',
-    4: 'Roll Boost',
-    5: 'Instant Cash',
-    6: 'Teleport',
-    7: 'Shield',
-    8: 'Property Discount',
-    9: 'Tax Refund',
-    10: 'Exact Roll',
-  };
-  return names[perk] || `Perk #${perk}`;
+const CollectiblePerk = {
+  NONE: 0,
+  EXTRA_TURN: 1,
+  JAIL_FREE: 2,
+  DOUBLE_RENT: 3,
+  ROLL_BOOST: 4,
+  CASH_TIERED: 5,
+  TELEPORT: 6,
+  SHIELD: 7,
+  PROPERTY_DISCOUNT: 8,
+  TAX_REFUND: 9,
+  ROLL_EXACT: 10,
 };
 
-const getIcon = (perk: number) => {
-  const icons = [
-    null,
-    <Zap className="w-12 h-12" />,
-    <Crown className="w-12 h-12" />,
-    <Coins className="w-12 h-12" />,
-    <Sparkles className="w-12 h-12" />,
-    <Gem className="w-12 h-12" />,
-    <Zap className="w-12 h-12" />,
-    <Shield className="w-12 h-12" />,
-    <Coins className="w-12 h-12" />,
-    <Gem className="w-12 h-12" />,
-    <Sparkles className="w-12 h-12" />,
-  ];
-  return icons[perk] || <Gem className="w-12 h-12" />;
-};
+const perkData = [
+  { id: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", desc: "Get +1 extra turn on your next roll!", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
+  { id: CollectiblePerk.JAIL_FREE, name: "Get Out of Jail Free", desc: "Escape jail instantly – your golden ticket!", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
+  { id: CollectiblePerk.DOUBLE_RENT, name: "Double Rent", desc: "Next rent you collect is doubled – cha-ching!", icon: <Coins className="w-12 h-12 text-green-400" />, image: "/game/shop/c.jpeg" },
+  { id: CollectiblePerk.ROLL_BOOST, name: "Roll Boost", desc: "Add a bonus to your next dice roll!", icon: <Sparkles className="w-12 h-12 text-blue-400" />, image: "/game/shop/a.jpeg" },
+  { id: CollectiblePerk.CASH_TIERED, name: "Instant Cash (Tiered)", desc: "Burn for instant TYC cash – tiers 10 to 250!", icon: <Gem className="w-12 h-12 text-cyan-400" />, image: "/game/shop/b.jpeg" },
+  { id: CollectiblePerk.TELEPORT, name: "Teleport", desc: "Move to any property without rolling!", icon: <Zap className="w-12 h-12 text-pink-400" />, image: "/game/shop/c.jpeg" },
+  { id: CollectiblePerk.SHIELD, name: "Shield", desc: "Immune to rent & payments for 1-2 turns", icon: <Shield className="w-12 h-12 text-indigo-400" />, image: "/game/shop/a.jpeg" },
+  { id: CollectiblePerk.PROPERTY_DISCOUNT, name: "Property Discount", desc: "30-50% off your next property purchase", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/game/shop/b.jpeg" },
+  { id: CollectiblePerk.TAX_REFUND, name: "Tax Refund (Tiered)", desc: "Burn for instant tiered cash refund!", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/game/shop/c.jpeg" },
+  { id: CollectiblePerk.ROLL_EXACT, name: "Exact Roll", desc: "Choose any dice roll 2-12 once – perfect move!", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/game/shop/a.jpeg" },
+];
 
-const getColor = (index: number): string => {
-  const colors = [
-    "text-yellow-400",
-    "text-purple-400",
-    "text-green-400",
-    "text-blue-400",
-    "text-cyan-400",
-    "text-pink-400",
-    "text-indigo-400",
-    "text-orange-400",
-    "text-teal-400",
-    "text-amber-400"
-  ];
-  return colors[index % 10];
-};
+export default function GameShop() {
+  const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
 
-const getImage = (index: number): string => {
-  const images = ["/game/shop/a.jpeg", "/game/shop/b.jpeg", "/game/shop/c.jpeg"];
-  return images[index % 3];
-};
+  const [shopItems, setShopItems] = useState<any[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [buyingId, setBuyingId] = useState<bigint | null>(null);
+  const [useUsdc, setUseUsdc] = useState(false);
+  const [currentToastId, setCurrentToastId] = useState<any>(null);
 
-const rarityStyles = {
-  1: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40',
-  2: 'from-purple-500/20 to-purple-600/10 border-purple-500/40',
-  3: 'from-blue-500/20 to-blue-600/10 border-blue-500/40',
-  4: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40',
-  5: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40',
-  6: 'from-pink-500/20 to-pink-600/10 border-pink-500/40',
-  7: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/40',
-  8: 'from-orange-500/20 to-orange-600/10 border-orange-500/40',
-  9: 'from-teal-500/20 to-teal-600/10 border-teal-500/40',
-  10: 'from-amber-500/20 to-amber-600/10 border-amber-500/40',
-} as const;
+  const { writeContract, data: hash, isPending: writing, error: writeError, reset } = useWriteContract();
+  const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-export default function ShopPage() {
-  const { address: walletAddress, isConnected } = useAccount();
-  const chainId = useAccount().chainId;
-  const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
+  const paymentTokenAddress = useUsdc
+    ? USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS]
+    : TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
 
-  const [buyingTokenId, setBuyingTokenId] = useState<bigint | null>(null);
-
-  const { writeContract, data: txHash, isPending: isWriting } = useWriteContract();
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
-
-  const tokenIds = Array.from({ length: MAX_PERKS }, (_, i) => COLLECTIBLE_START + BigInt(i + 1));
-
-  const infoResults = tokenIds.map((tokenId) =>
-    useReadContract({
-      address: rewardAddress,
-      abi: RewardABI,
-      functionName: 'getCollectibleInfo',
-      args: [tokenId],
-      query: { enabled: !!rewardAddress },
-    })
-  );
-
-  const availablePerks = tokenIds
-    .map((tokenId, i) => {
-      const info = infoResults[i].data as any;
-      if (!info || info.perk === 0 || Number(info.shopStock || 0) === 0) return null;
-
-      const perk = Number(info.perk);
-      const strength = Number(info.strength || 0);
-      const rarityKey = ((i % 10) + 1) as keyof typeof rarityStyles;
-
-      return {
-        tokenId,
-        name: getPerkName(perk),
-        icon: getIcon(perk),
-        color: getColor(i),
-        image: getImage(i),
-        tycPrice: info.tycPrice > 0 ? Number(formatUnits(info.tycPrice, 18)).toFixed(2) : null,
-        usdcPrice: info.usdcPrice > 0 ? Number(formatUnits(info.usdcPrice, 6)).toFixed(2) : null,
-        shopStock: Number(info.shopStock),
-        strength,
-        isTiered: perk === 5 || perk === 9,
-        rarityStyle: rarityStyles[rarityKey],
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
-
-  const handleBuy = (tokenId: bigint) => {
-    if (!isConnected || !walletAddress || !rewardAddress) {
-      alert('Please connect your wallet and try again');
+  useEffect(() => {
+    if (!contractAddress) {
+      setLoadingItems(false);
       return;
     }
 
-    setBuyingTokenId(tokenId);
+    const fetchShop = async () => {
+      setLoadingItems(true);
+      const items = [];
+      for (const perk of perkData) {
+        items.push({
+          tokenId: BigInt(2000000000 + perk.id),
+          perkId: perk.id,
+          ...perk,
+          tycPrice: "5.0",
+          usdcPrice: "0.10",
+          stock: 999,
+        });
+      }
+      setShopItems(items);
+      setLoadingItems(false);
+    };
+
+    fetchShop();
+  }, [contractAddress]);
+
+  const handleBuy = (tokenId: bigint, tycPrice: string, usdcPrice: string) => {
+    if (!isConnected) {
+      toast.error("Please connect your wallet first!");
+      return;
+    }
+
+    const priceStr = useUsdc ? usdcPrice : tycPrice;
+    if (!priceStr || priceStr === "0") {
+      toast.error(useUsdc ? "Not available in USDC" : "Not available in TYC");
+      return;
+    }
+
+    const decimals = useUsdc ? 6 : 18;
+    const amount = parseUnits(priceStr, decimals);
+
+    setBuyingId(tokenId);
+
+    const toastId = toast.loading(`Approve ${priceStr} ${useUsdc ? "USDC" : "TYC"} to continue...`, {
+      position: "top-right",
+    });
+    setCurrentToastId(toastId);
 
     writeContract({
-      address: rewardAddress,
-      abi: RewardABI,
-      functionName: 'buyCollectible',
-      args: [tokenId],
+      address: paymentTokenAddress!,
+      abi: [
+        {
+          name: "approve",
+          type: "function",
+          inputs: [
+            { name: "spender", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [{ type: "bool" }],
+          stateMutability: "nonpayable",
+        },
+      ],
+      functionName: "approve",
+      args: [contractAddress!, amount],
     });
   };
 
+  useEffect(() => {
+    if (!currentToastId) return;
+
+    if (isSuccess && hash) {
+      toast.update(currentToastId, {
+        render: "Approval confirmed! Purchasing perk...",
+        type: "info",
+        isLoading: true,
+      });
+
+      writeContract({
+        address: contractAddress!,
+        abi: RewardABI,
+        functionName: "buyCollectible",
+        args: [buyingId!, useUsdc],
+      });
+    }
+
+    if (writeError) {
+      let message = "Transaction failed. Please try again.";
+
+      const isUserRejection =
+        (writeError as any)?.code === 4001 ||
+        writeError?.message?.includes("User rejected") ||
+        writeError?.message?.includes("User denied") ||
+        writeError?.message?.includes("user rejected the request");
+
+      if (isUserRejection) {
+        message = "You cancelled the transaction – no worries!";
+        toast.update(currentToastId, {
+          render: message,
+          type: "info",
+          isLoading: false,
+          autoClose: 4000,
+        });
+      } else {
+        toast.update(currentToastId, {
+          render: (
+            <div>
+              <div>{message}</div>
+              {process.env.NODE_ENV === "development" && (
+                <details className="text-xs mt-2 opacity-70">
+                  <summary className="cursor-pointer">Show details</summary>
+                  <pre className="mt-1 text-left overflow-x-auto text-xs">
+                    {writeError?.message || "Unknown error"}
+                  </pre>
+                </details>
+              )}
+            </div>
+          ),
+          type: "error",
+          isLoading: false,
+          autoClose: 7000,
+          closeOnClick: true,
+        });
+      }
+
+      setBuyingId(null);
+      setCurrentToastId(null);
+      reset();
+    }
+  }, [isSuccess, writeError, hash, currentToastId, buyingId, writing, confirming, reset, writeContract, contractAddress, useUsdc]);
+
+  // Final purchase success
+  useEffect(() => {
+    if (isSuccess && currentToastId && !writing && !confirming && buyingId) {
+      toast.update(currentToastId, {
+        render: "Perk purchased successfully! Check your inventory 🎉",
+        type: "success",
+        isLoading: false,
+        autoClose: 5000,
+        closeButton: true,
+      });
+
+      setBuyingId(null);
+      setCurrentToastId(null);
+      reset();
+    }
+  }, [isSuccess, currentToastId, writing, confirming, buyingId, reset]);
+
+  const handleBack = () => router.push("/");
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-[#F0F7F7] py-12 px-4">
+    <section className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-[#F0F7F7] py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-5xl md:text-6xl font-extrabold text-center mb-12 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-          Tycoon Shop
-        </h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-orbitron font-bold uppercase tracking-wide flex items-center gap-3">
+            <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
+            Tycoon Perk Shop
+          </h1>
+          <button onClick={handleBack} className="text-[#00F0FF] hover:text-[#0FF0FC] transition">
+            ← Back to Game
+          </button>
+        </div>
 
-        {availablePerks.length === 0 ? (
-          <p className="text-center text-gray-400 text-2xl py-20">
-            Shop is currently empty or loading...
-          </p>
+        <p className="text-center text-lg mb-10 text-[#455A64]">
+          Grab powerful perks to dominate the board! Pay with TYC or USDC
+        </p>
+
+        <div className="flex justify-center mb-8">
+          <button
+            onClick={() => setUseUsdc(!useUsdc)}
+            className="px-6 py-3 bg-[#003B3E] rounded-lg border border-[#00F0FF] flex items-center gap-3 hover:bg-[#00F0FF]/20 transition"
+          >
+            Pay with {useUsdc ? "USDC" : "TYC"} {useUsdc ? "💵" : "🪙"}
+          </button>
+        </div>
+
+        {loadingItems ? (
+          <div className="text-center py-20 text-2xl">Loading shop items...</div>
+        ) : shopItems.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">No perks available yet. Check back soon!</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {availablePerks.map((item) => (
-              <div
-                key={item.tokenId.toString()}
-                className={`rounded-2xl p-8 border-2 bg-gradient-to-br ${item.rarityStyle} backdrop-blur-sm text-center transition-all hover:scale-105 hover:shadow-2xl`}
-              >
-                <div className="flex justify-center mb-6 text-white">
-                  {item.icon}
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {shopItems.map((item) => {
+              const price = useUsdc ? item.usdcPrice : item.tycPrice;
+              const formattedPrice = useUsdc ? `$${price}` : `${price} TYC`;
 
-                <h3 className="text-2xl font-bold mb-3">{item.name}</h3>
-
-                {item.isTiered && item.strength > 0 && (
-                  <p className="text-lg text-cyan-300 mb-4">Tier {item.strength}</p>
-                )}
-
-                <p className="text-4xl font-bold text-[#00F0FF] mb-4">
-                  Stock: {item.shopStock}
-                </p>
-
-                <div className="space-y-2 mb-6 text-sm">
-                  {item.tycPrice !== null && <p>TYC: {item.tycPrice}</p>}
-                  {item.usdcPrice !== null && <p>USDC: ${item.usdcPrice}</p>}
-                  {item.tycPrice === null && item.usdcPrice === null && (
-                    <p className="text-green-400 font-bold">FREE!</p>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => handleBuy(item.tokenId)}
-                  disabled={isWriting || isConfirming || buyingTokenId === item.tokenId}
-                  className="w-full py-4 bg-gradient-to-r from-cyan-600 to-purple-600 rounded-xl font-bold text-lg disabled:opacity-50 transition"
+              return (
+                <div
+                  key={item.perkId}
+                  className="bg-[#0E1415] rounded-2xl p-8 border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-500 shadow-2xl"
                 >
-                  {buyingTokenId === item.tokenId && (isWriting || isConfirming)
-                    ? 'Buying...'
-                    : 'Buy Now'}
-                </button>
+                  <div className="flex justify-center mb-6">{item.icon}</div>
 
-                <p className="text-xs text-gray-500 mt-4">
-                  ID: {item.tokenId.toString()}
-                </p>
-              </div>
-            ))}
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    width={300}
+                    height={300}
+                    className="w-full rounded-xl mb-6 object-cover border border-[#00F0FF]/30"
+                  />
+
+                  <h3 className="text-2xl font-bold text-center mb-3">{item.name}</h3>
+                  <p className="text-[#455A64] text-center mb-6">{item.desc}</p>
+
+                  <div className="text-center mb-6">
+                    <span className="text-3xl font-bold text-[#00F0FF]">{formattedPrice}</span>
+                    {item.stock < 10 && <p className="text-orange-400 mt-2">Only {item.stock} left!</p>}
+                  </div>
+
+                  <button
+                    onClick={() => handleBuy(item.tokenId, item.tycPrice, item.usdcPrice)}
+                    disabled={buyingId === item.tokenId || writing || confirming}
+                    className="w-full py-4 bg-gradient-to-r from-[#003B3E] to-[#00F0FF] text-black font-bold rounded-xl flex items-center justify-center gap-3 hover:from-[#00F0FF] hover:to-[#0FF0FC] transition disabled:opacity-50"
+                  >
+                    {buyingId === item.tokenId && (writing || confirming) ? (
+                      <>Processing...</>
+                    ) : (
+                      <>
+                        <Coins className="w-6 h-6" />
+                        Buy Perk Now
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!isConnected && (
+          <div className="mt-16 text-center p-10 bg-[#0E1415]/60 rounded-2xl border border-red-800">
+            <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-400" />
+            <p className="text-2xl">Connect your wallet to buy perks and rule the board!</p>
+          </div>
+        )}
+
+        {!contractAddress && isConnected && (
+          <div className="mt-16 text-center text-rose-400 text-2xl">
+            No shop deployed on this network (Chain ID: {chainId})
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

@@ -5,95 +5,126 @@ import { useAccount, useChainId, useReadContract, useWriteContract, useWaitForTr
 import { parseUnits, formatUnits } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle, Send, Ticket, ChevronDown, RefreshCw
+  Zap, Crown, Coins, Sparkles, Gem, Shield, DollarSign, Wallet, Package, AlertTriangle
 } from 'lucide-react';
-import RewardABI from '@/context/rewardabi.json';
+import RewardABI from '@/context/abi/rewardabi.json';
 import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, TYC_TOKEN_ADDRESS } from '@/constants/contracts';
 
+const FIXED_TOKEN_IDS = {
+  EXTRA_TURN: 2000000000,
+  JAIL_FREE: 2000000001,
+  DOUBLE_RENT: 2000000002,
+  ROLL_BOOST: 2000000003,
+  CASH_TIER1: 2000000004,
+  CASH_TIER2: 2000000010,
+  CASH_TIER3: 2000000011,
+  CASH_TIER4: 2000000012,
+  CASH_TIER5: 2000000013,
+  TELEPORT: 2000000005,
+  SHIELD: 2000000006,
+  PROPERTY_DISCOUNT: 2000000007,
+  TAX_REFUND_TIER1: 2000000008,
+  TAX_REFUND_TIER3: 2000000014,
+  ROLL_EXACT: 2000000009,
+};
+
 const PERKS = [
-  { value: 1, label: "Extra Turn", icon: <Zap className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 2, label: "Get Out of Jail Free", icon: <Crown className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 3, label: "Double Rent", icon: <Coins className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 4, label: "Roll Boost", icon: <Sparkles className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 5, label: "Instant Cash (Tiered)", icon: <Gem className="w-6 h-6" />, requiresStrength: true, strength: 1 }, // default tier
-  { value: 6, label: "Teleport", icon: <Zap className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 7, label: "Shield", icon: <Shield className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 8, label: "Property Discount", icon: <Coins className="w-6 h-6" />, requiresStrength: false, strength: 0 },
-  { value: 9, label: "Tax Refund (Tiered)", icon: <Gem className="w-6 h-6" />, requiresStrength: true, strength: 1 },
-  { value: 10, label: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, requiresStrength: false, strength: 0 },
+  { tokenId: FIXED_TOKEN_IDS.EXTRA_TURN, name: "Extra Turn", rarity: "common", icon: <Zap className="w-8 h-8" />, perkId: 1 },
+  { tokenId: FIXED_TOKEN_IDS.JAIL_FREE, name: "Get Out of Jail Free", rarity: "rare", icon: <Crown className="w-8 h-8" />, perkId: 2 },
+  { tokenId: FIXED_TOKEN_IDS.DOUBLE_RENT, name: "Double Rent", rarity: "medium", icon: <Coins className="w-8 h-8" />, perkId: 3 },
+  { tokenId: FIXED_TOKEN_IDS.ROLL_BOOST, name: "Roll Boost", rarity: "medium", icon: <Sparkles className="w-8 h-8" />, perkId: 4 },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER1, name: "Instant Cash (Tier 1)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 1 },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER2, name: "Instant Cash (Tier 2)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 2 },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER3, name: "Instant Cash (Tier 3)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 3 },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER4, name: "Instant Cash (Tier 4)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 4 },
+  { tokenId: FIXED_TOKEN_IDS.CASH_TIER5, name: "Instant Cash (Tier 5)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 5, strength: 5 },
+  { tokenId: FIXED_TOKEN_IDS.TELEPORT, name: "Teleport", rarity: "epic", icon: <Zap className="w-8 h-8" />, perkId: 6 },
+  { tokenId: FIXED_TOKEN_IDS.SHIELD, name: "Shield", rarity: "rare", icon: <Shield className="w-8 h-8" />, perkId: 7 },
+  { tokenId: FIXED_TOKEN_IDS.PROPERTY_DISCOUNT, name: "Property Discount", rarity: "medium", icon: <Coins className="w-8 h-8" />, perkId: 8 },
+  { tokenId: FIXED_TOKEN_IDS.TAX_REFUND_TIER1, name: "Tax Refund (Tier 1)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 9, strength: 1 },
+  { tokenId: FIXED_TOKEN_IDS.TAX_REFUND_TIER3, name: "Tax Refund (Tier 3)", rarity: "tiered", icon: <Gem className="w-8 h-8" />, perkId: 9, strength: 3 },
+  { tokenId: FIXED_TOKEN_IDS.ROLL_EXACT, name: "Exact Roll", rarity: "legendary", icon: <Sparkles className="w-8 h-8" />, perkId: 10 },
 ];
 
 const rarityStyles = {
-  1: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40',
-  2: 'from-purple-500/20 to-purple-600/10 border-purple-500/40',
-  3: 'from-blue-500/20 to-blue-600/10 border-blue-500/40',
-  4: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40',
-  5: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40',
-  6: 'from-pink-500/20 to-pink-600/10 border-pink-500/40',
-  7: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/40',
-  8: 'from-orange-500/20 to-orange-600/10 border-orange-500/40',
-  9: 'from-teal-500/20 to-teal-600/10 border-teal-500/40',
-  10: 'from-amber-500/20 to-amber-600/10 border-amber-500/40',
+  common: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/40 text-emerald-300',
+  medium: 'from-blue-500/20 to-blue-600/10 border-blue-500/40 text-blue-300',
+  rare: 'from-purple-500/20 to-purple-600/10 border-purple-500/40 text-purple-300',
+  epic: 'from-pink-500/20 to-pink-600/10 border-pink-500/40 text-pink-300',
+  legendary: 'from-yellow-500/20 to-amber-600/10 border-yellow-500/40 text-yellow-300',
+  tiered: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/40 text-cyan-300',
 };
-
 const ERC20_ABI = [
-  { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
+  {
+    name: "balanceOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "decimals",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
 ] as const;
 
 export default function RewardAdminPanel() {
-  const { address: adminAddress, isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
   const usdcAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
   const tycAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
 
-  const [activeTab, setActiveTab] = useState<'stock' | 'pricing' | 'funds' | 'mint'>('stock');
+  const [activeTab, setActiveTab] = useState<'stock' | 'pricing' | 'funds'>('stock');
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [selectedPerk, setSelectedPerk] = useState<typeof PERKS[0] | null>(null);
   const [tycPriceInput, setTycPriceInput] = useState('');
   const [usdcPriceInput, setUsdcPriceInput] = useState('');
 
-  // Mint states
-  const [mintType, setMintType] = useState<'collectible' | 'voucher'>('collectible');
-  const [selectedMintPerk, setSelectedMintPerk] = useState<number | null>(null);
-  const [mintStrength, setMintStrength] = useState('1');
-  const [voucherTycValue, setVoucherTycValue] = useState('100');
-  const [mintRecipient, setMintRecipient] = useState('');
-
   const { writeContract, data: txHash, isPending: isWriting, error: writeError, reset } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const isLoading = isWriting || isConfirming;
 
-  // Token IDs
-  const tokenIds = Array.from({ length: 10 }, (_, i) => BigInt(2000000000 + i + 1));
-
+  // Correctly fetch live stock using balanceOfBatch
   const stockResults = useReadContract({
     address: contractAddress ?? undefined,
     abi: RewardABI,
     functionName: 'balanceOfBatch',
-    args: contractAddress ? [Array(10).fill(contractAddress), tokenIds] : undefined,
+    args: contractAddress ? [Array(PERKS.length).fill(contractAddress), PERKS.map(p => BigInt(p.tokenId))] : undefined,
     query: { enabled: !!contractAddress },
   });
 
-  const currentStocks: number[] = Array.isArray(stockResults.data)
-    ? (stockResults.data as bigint[]).map(Number)
-    : Array(10).fill(0);
+  const currentStocks = stockResults.data && Array.isArray(stockResults.data)
+    ? stockResults.data.map((s: bigint) => Number(s))
+    : PERKS.map(() => 0);
 
-  const tycBalance = useReadContract({
-    address: tycAddress ?? undefined,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress && !!tycAddress },
-  });
+  // Individual price lookups (fallback if no batch price function)
+  // We'll just show placeholder prices or fetch one-by-one if needed — but stock is priority
 
-  const usdcBalance = useReadContract({
-    address: usdcAddress ?? undefined,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress && !!usdcAddress },
-  });
+const { address: userAddress } = useAccount();
+const tycBalance = useReadContract({
+  address: tycAddress ?? undefined,
+  abi: ERC20_ABI,
+  functionName: "balanceOf",
+  args: contractAddress ? [contractAddress] : undefined,
+  query: {
+    enabled: !!contractAddress && !!userAddress,
+  },
+});
+
+// USDC balance
+const usdcBalance = useReadContract({
+  address: usdcAddress ?? undefined,
+  abi: ERC20_ABI,
+  functionName: "balanceOf",
+  args: contractAddress ? [contractAddress] : undefined,
+  query: {
+    enabled: !!USDC_TOKEN_ADDRESS && !!userAddress,
+  },
+});
 
   useEffect(() => {
     if (status) {
@@ -113,25 +144,20 @@ export default function RewardAdminPanel() {
     }
   }, [txHash, isConfirming, isWriting, writeError, reset]);
 
-  // NEW: Stock all collectibles to 500 each
-  const handleStockAllTo500 = () => {
+  const handleStockShop = (perk: typeof PERKS[0], amount = 500) => {
     if (!contractAddress) return;
 
-    setStatus({ type: 'info', message: 'Stocking all collectibles to 500... This may take 10 transactions.' });
-
-    PERKS.forEach((perk) => {
-      writeContract({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'stockShop',
-        args: [
-          BigInt(500),
-          BigInt(perk.value),
-          BigInt(perk.strength),
-          0, // tycPrice - set to 0 or your default
-          0, // usdcPrice - set to 0 or your default
-        ],
-      });
+    writeContract({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'stockShop',
+      args: [
+        BigInt(amount),
+        BigInt(perk.perkId),
+        BigInt(perk.strength || 0),
+        0, // We'll let the contract use current prices
+        0,
+      ],
     });
   };
 
@@ -146,13 +172,16 @@ export default function RewardAdminPanel() {
       return;
     }
 
-    const tokenId = BigInt(2000000000 + selectedPerk.value);
-
     writeContract({
       address: contractAddress,
       abi: RewardABI,
       functionName: 'setCollectiblePrice',
-      args: [tokenId, 0, tycWei, usdcWei],
+      args: [
+        BigInt(selectedPerk.tokenId),
+        BigInt(selectedPerk.strength || 0),
+        tycWei,
+        usdcWei,
+      ],
     });
 
     setTycPriceInput('');
@@ -169,42 +198,6 @@ export default function RewardAdminPanel() {
       functionName: 'withdrawFunds',
       args: [token === 'USDC'],
     });
-  };
-
-  const handleMint = () => {
-    if (!contractAddress || !mintRecipient) {
-      setStatus({ type: 'error', message: 'Recipient address is required' });
-      return;
-    }
-
-    if (mintType === 'collectible') {
-      if (!selectedMintPerk) {
-        setStatus({ type: 'error', message: 'Please select a perk' });
-        return;
-      }
-
-      const strength = PERKS.find(p => p.value === selectedMintPerk)?.requiresStrength ? BigInt(parseInt(mintStrength) || 1) : 0;
-
-      writeContract({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'mintCollectible',
-        args: [mintRecipient, BigInt(selectedMintPerk), strength],
-      });
-    } else {
-      const value = parseUnits(voucherTycValue, 18);
-      if (value === BigInt(0)) {
-        setStatus({ type: 'error', message: 'TYC value must be > 0' });
-        return;
-      }
-
-      writeContract({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'mintVoucher',
-        args: [mintRecipient, value],
-      });
-    }
   };
 
   if (!isConnected) {
@@ -233,7 +226,7 @@ export default function RewardAdminPanel() {
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Tycoon Reward Admin Panel
           </h1>
-          <p className="text-xl text-gray-400">Full backend control • Mint perks & vouchers • Manage prices</p>
+          <p className="text-xl text-gray-400">Manage stock • Set TYC & USDC prices • Withdraw funds</p>
         </motion.div>
 
         <div className="flex justify-center gap-4 mb-10 flex-wrap">
@@ -246,9 +239,6 @@ export default function RewardAdminPanel() {
           <button onClick={() => setActiveTab('funds')} className={`px-8 py-3 rounded-xl font-semibold transition-all ${activeTab === 'funds' ? 'bg-gradient-to-r from-cyan-600 to-purple-600' : 'bg-gray-800/60'}`}>
             <Wallet className="inline w-5 h-5 mr-2" /> Funds
           </button>
-          <button onClick={() => setActiveTab('mint')} className={`px-8 py-3 rounded-xl font-semibold transition-all ${activeTab === 'mint' ? 'bg-gradient-to-r from-pink-600 to-orange-600' : 'bg-gray-800/60'}`}>
-            <Send className="inline w-5 h-5 mr-2" /> Mint
-          </button>
         </div>
 
         <AnimatePresence>
@@ -257,66 +247,76 @@ export default function RewardAdminPanel() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className={`mb-8 p-6 rounded-2xl border text-center ${status.type === 'success' ? 'bg-green-900/40 border-green-600' : status.type === 'info' ? 'bg-blue-900/40 border-blue-600' : 'bg-red-900/40 border-red-600'}`}
+              className={`mb-8 p-6 rounded-2xl border text-center ${status.type === 'success' ? 'bg-green-900/40 border-green-600' : 'bg-red-900/40 border-red-600'}`}
             >
               <p className="font-medium">{status.message}</p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Stock Tab - Now with "Stock All to 500" button */}
         {activeTab === 'stock' && (
-          <div className="space-y-10">
-            <div className="text-center">
-              <button
-                onClick={handleStockAllTo500}
-                disabled={isLoading}
-                className="px-10 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-xl rounded-2xl shadow-xl flex items-center gap-4 mx-auto transition disabled:opacity-50"
-              >
-                <RefreshCw className={`w-8 h-8 ${isLoading ? 'animate-spin' : ''}`} />
-                Stock All Collectibles to 500
-              </button>
-              <p className="text-gray-400 mt-3 text-sm">This will send 10 transactions (one per perk)</p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            {PERKS.map((perk, index) => {
+              const stock = currentStocks[index] || 0;
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {PERKS.map((perk, index) => {
-                const stock = currentStocks[index] || 0;
-                const isLow = stock < 100;
-                const isSoldOut = stock === 0;
-
-                return (
-                  <div key={perk.value} className={`rounded-2xl p-6 border-2 bg-gradient-to-br ${rarityStyles[perk.value as keyof typeof rarityStyles]} backdrop-blur-sm text-center relative overflow-hidden`}>
-                    <div className="flex justify-center mb-4">{perk.icon}</div>
-                    <h3 className="font-bold text-lg mb-3">{perk.label}</h3>
-                    <p className={`text-2xl font-bold ${isSoldOut ? 'text-red-400' : isLow ? 'text-orange-400' : 'text-emerald-300'}`}>
-                      {stock}/500
-                    </p>
-                    {isSoldOut && <div className="absolute inset-0 bg-red-900/30 flex items-center justify-center pointer-events-none"><span className="text-3xl font-bold">SOLD OUT</span></div>}
-                    {isLow && !isSoldOut && <p className="text-xs text-orange-300 mt-2">Low Stock!</p>}
+              return (
+                <motion.div
+                  key={perk.tokenId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`rounded-2xl p-8 border-2 bg-gradient-to-br ${rarityStyles[perk.rarity as keyof typeof rarityStyles]} backdrop-blur-sm relative overflow-hidden`}
+                >
+                  <div className="absolute top-2 right-2 text-xs opacity-70 font-mono">
+                    ID: {perk.tokenId}
                   </div>
-                );
-              })}
-            </div>
+
+                  <div className="flex flex-col items-center mb-6">
+                    <div className="p-4 rounded-2xl bg-black/40 mb-4">
+                      {perk.icon}
+                    </div>
+                    <h3 className="text-xl font-bold text-center">{perk.name}</h3>
+                    <p className="text-sm capitalize mt-1 opacity-80">{perk.rarity}</p>
+                  </div>
+
+                  <div className="space-y-3 text-center mb-8">
+                    <p className="text-lg font-bold text-pink-300">
+                      Stock: {stock}/500
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleStockShop(perk)}
+                    disabled={isLoading}
+                    className="w-full py-4 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 font-bold rounded-xl disabled:opacity-50 shadow-lg transition"
+                  >
+                    {isLoading ? 'Processing...' : 'Mint 500'}
+                  </button>
+                </motion.div>
+              );
+            })}
           </div>
         )}
 
-        {/* Pricing, Funds, Mint tabs remain exactly as before */}
+        {/* Pricing and Funds tabs remain the same as before */}
         {activeTab === 'pricing' && (
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">Edit Prices</h2>
+            <h2 className="text-3xl font-bold text-center mb-10">Edit TYC & USDC Prices</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {PERKS.map((perk) => (
-                <div key={perk.value} className="bg-gray-900/50 rounded-2xl p-6 border border-gray-700/50">
+                <div key={perk.tokenId} className="bg-gray-900/50 rounded-2xl p-6 border border-gray-700/50">
                   <div className="flex items-center gap-4 mb-4">
-                    {perk.icon}
-                    <h4 className="font-bold text-xl">{perk.label}</h4>
+                    <div className="p-3 bg-black/40 rounded-xl">{perk.icon}</div>
+                    <div>
+                      <h4 className="font-bold">{perk.name}</h4>
+                      <p className="text-xs text-gray-400">ID: {perk.tokenId}</p>
+                    </div>
                   </div>
                   <button
                     onClick={() => setSelectedPerk(perk)}
                     className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-semibold hover:opacity-90 transition"
                   >
-                    Edit Price
+                    Set Prices
                   </button>
                 </div>
               ))}
@@ -325,7 +325,9 @@ export default function RewardAdminPanel() {
             {selectedPerk && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPerk(null)}>
                 <div className="bg-gray-900 rounded-3xl p-8 max-w-md w-full border border-gray-700" onClick={(e) => e.stopPropagation()}>
-                  <h3 className="text-2xl font-bold mb-6 text-center">Set Price — {selectedPerk.label}</h3>
+                  <h3 className="text-2xl font-bold mb-6 text-center">Edit Prices — {selectedPerk.name}</h3>
+                  <p className="text-sm text-gray-400 mb-6 text-center">Token ID: {selectedPerk.tokenId}</p>
+
                   <div className="space-y-5">
                     <div>
                       <label className="block text-sm font-medium mb-2 text-emerald-300">TYC Price</label>
@@ -336,11 +338,14 @@ export default function RewardAdminPanel() {
                       <input type="number" step="0.01" value={usdcPriceInput} onChange={(e) => setUsdcPriceInput(e.target.value)} placeholder="e.g. 0.60" className="w-full px-6 py-4 bg-gray-800 rounded-xl text-xl focus:outline-none focus:ring-4 focus:ring-cyan-500" />
                     </div>
                   </div>
+
                   <div className="flex gap-4 mt-8">
                     <button onClick={handleSetPrice} disabled={isLoading} className="flex-1 py-4 bg-gradient-to-r from-cyan-600 to-purple-600 rounded-xl font-bold disabled:opacity-50 transition">
-                      {isLoading ? 'Updating...' : 'Save'}
+                      {isLoading ? 'Updating...' : 'Save Prices'}
                     </button>
-                    <button onClick={() => setSelectedPerk(null)} className="px-8 py-4 bg-gray-800 rounded-xl transition">Cancel</button>
+                    <button onClick={() => setSelectedPerk(null)} className="px-8 py-4 bg-gray-800 rounded-xl transition">
+                      Cancel
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -368,103 +373,6 @@ export default function RewardAdminPanel() {
                 </p>
                 <button onClick={() => handleWithdraw('USDC')} disabled={isLoading} className="mt-8 w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-bold transition">
                   Withdraw USDC
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'mint' && (
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10 bg-gradient-to-r from-pink-400 to-orange-400 bg-clip-text text-transparent">
-              Mint Collectibles or Vouchers
-            </h2>
-
-            <div className="bg-gray-900/60 rounded-3xl p-10 border border-gray-700">
-              <div className="flex justify-center gap-8 mb-10">
-                <button
-                  onClick={() => setMintType('collectible')}
-                  className={`px-8 py-4 rounded-xl font-bold transition ${mintType === 'collectible' ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-gray-800'}`}
-                >
-                  <Gem className="inline w-6 h-6 mr-2" /> Collectible
-                </button>
-                <button
-                  onClick={() => setMintType('voucher')}
-                  className={`px-8 py-4 rounded-xl font-bold transition ${mintType === 'voucher' ? 'bg-gradient-to-r from-teal-600 to-cyan-600' : 'bg-gray-800'}`}
-                >
-                  <Ticket className="inline w-6 h-6 mr-2" /> Voucher
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-lg font-medium mb-2 text-cyan-300">Recipient Address</label>
-                  <input
-                    type="text"
-                    value={mintRecipient}
-                    onChange={(e) => setMintRecipient(e.target.value)}
-                    placeholder="0x..."
-                    className="w-full px-6 py-4 bg-gray-800 rounded-xl text-lg focus:outline-none focus:ring-4 focus:ring-cyan-500"
-                  />
-                </div>
-
-                {mintType === 'collectible' ? (
-                  <>
-                    <div>
-                      <label className="block text-lg font-medium mb-2 text-purple-300">Select Perk</label>
-                      <div className="relative">
-                        <select
-                          value={selectedMintPerk || ''}
-                          onChange={(e) => setSelectedMintPerk(Number(e.target.value))}
-                          className="w-full px-6 py-4 bg-gray-800 rounded-xl text-lg appearance-none focus:outline-none focus:ring-4 focus:ring-purple-500 cursor-pointer"
-                        >
-                          <option value="">Choose a perk...</option>
-                          {PERKS.map((perk) => (
-                            <option key={perk.value} value={perk.value}>
-                              {perk.label}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400 pointer-events-none" />
-                      </div>
-                    </div>
-
-                    {selectedMintPerk && PERKS.find(p => p.value === selectedMintPerk)?.requiresStrength && (
-                      <div>
-                        <label className="block text-lg font-medium mb-2 text-pink-300">Strength (Tier)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="5"
-                          value={mintStrength}
-                          onChange={(e) => setMintStrength(e.target.value)}
-                          className="w-full px-6 py-4 bg-gray-800 rounded-xl text-lg focus:outline-none focus:ring-4 focus:ring-pink-500"
-                        />
-                        <p className="text-sm text-gray-400 mt-2">For tiered perks (Cash, Tax Refund)</p>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div>
-                    <label className="block text-lg font-medium mb-2 text-teal-300">Voucher TYC Value</label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="10"
-                      value={voucherTycValue}
-                      onChange={(e) => setVoucherTycValue(e.target.value)}
-                      placeholder="e.g. 100"
-                      className="w-full px-6 py-4 bg-gray-800 rounded-xl text-lg focus:outline-none focus:ring-4 focus:ring-teal-500"
-                    />
-                  </div>
-                )}
-
-                <button
-                  onClick={handleMint}
-                  disabled={isLoading}
-                  className="w-full py-6 bg-gradient-to-r from-pink-600 to-orange-600 hover:from-pink-500 hover:to-orange-500 font-bold text-xl rounded-2xl shadow-xl transition disabled:opacity-50"
-                >
-                  {isLoading ? 'Minting...' : `Mint ${mintType === 'collectible' ? 'Collectible' : 'Voucher'}`}
                 </button>
               </div>
             </div>

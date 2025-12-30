@@ -45,6 +45,10 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     // Admin / backend
     address public backendMinter;
 
+    // Enumeration: Track unique token IDs owned by each address (balance > 0)
+    mapping(address => uint256[]) private _ownedTokens;
+    mapping(address => mapping(uint256 => uint256)) private _ownedTokensIndex;
+
     // ------------------------------------------------------------------------
     // EVENTS
     // ------------------------------------------------------------------------
@@ -267,6 +271,56 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         // Add more validations here if you create new tiered perks
     }
 
+    function _addTokenToOwnerEnumeration(address owner, uint256 tokenId) private {
+        if (balanceOf(owner, tokenId) == 0) return;  // Only add if balance > 0
+        uint256 index = _ownedTokensIndex[owner][tokenId];
+        if (_ownedTokens[owner].length == 0 || _ownedTokens[owner][index] != tokenId) {
+            uint256 length = _ownedTokens[owner].length;
+            _ownedTokens[owner].push(tokenId);
+            _ownedTokensIndex[owner][tokenId] = length;
+        }
+    }
+
+    function _removeTokenFromOwnerEnumeration(address owner, uint256 tokenId) private {
+        if (balanceOf(owner, tokenId) > 0) return;  // Only remove if balance == 0
+
+        uint256 lastTokenIndex = _ownedTokens[owner].length - 1;
+        uint256 tokenIndex = _ownedTokensIndex[owner][tokenId];
+
+        if (tokenIndex <= lastTokenIndex) {
+            uint256 lastTokenId = _ownedTokens[owner][lastTokenIndex];
+
+            _ownedTokens[owner][tokenIndex] = lastTokenId;
+            _ownedTokensIndex[owner][lastTokenId] = tokenIndex;
+        }
+
+        _ownedTokens[owner].pop();
+        delete _ownedTokensIndex[owner][tokenId];
+    }
+
+    // Override _update to handle enumeration
+    function _update(
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory values
+    ) internal virtual override {
+        super._update(from, to, ids, values);
+
+        uint256 length = ids.length;
+        for (uint256 i = 0; i < length; i++) {
+            uint256 id = ids[i];
+            uint256 value = values[i];
+
+            if (from != address(0) && value > 0) {
+                _removeTokenFromOwnerEnumeration(from, id);
+            }
+            if (to != address(0) && value > 0) {
+                _addTokenToOwnerEnumeration(to, id);
+            }
+        }
+    }
+
     // ------------------------------------------------------------------------
     // VIEW FUNCTIONS
     // ------------------------------------------------------------------------
@@ -291,6 +345,17 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     function getCashTierValue(uint256 tier) external view returns (uint256) {
         require(tier > 0 && tier <= 5, "Invalid tier");
         return CASH_TIERS[tier];
+    }
+
+    // Total unique token IDs owned by an address (vouchers + collectibles)
+    function ownedTokenCount(address owner) external view returns (uint256) {
+        return _ownedTokens[owner].length;
+    }
+
+    // Get token ID at index for an owner (0-based index)
+    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+        require(index < _ownedTokens[owner].length, "Index out of bounds");
+        return _ownedTokens[owner][index];
     }
 
     // Optional: allow contract to receive ETH if accidentally sent
