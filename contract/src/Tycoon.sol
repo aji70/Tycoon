@@ -8,6 +8,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 // ============================================================================
 //                  TYCOON REWARD & COLLECTIBLES SYSTEM (ERC-1155)
@@ -16,7 +17,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 // - Claimable vouchers → redeem for TYC tokens
 // - Burnable collectibles → burn to get in-game perks
 // - Cash perk now uses fixed tiers: [0, 10, 25, 50, 100, 250]
-contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, ReentrancyGuard {
+contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable, Pausable, ReentrancyGuard {
     IERC20 public immutable tycToken;
     IERC20 public immutable usdc;
 
@@ -34,17 +35,16 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, Reen
     // COLLECTIBLES: expanded burnable perks
     enum CollectiblePerk {
         NONE,
-        EXTRA_TURN, // +extra turns
-        JAIL_FREE, // Get out of jail free
-        DOUBLE_RENT, // Next rent payment doubled
-        ROLL_BOOST, // +bonus to dice roll
-        CASH_TIERED, // In-game cash: uses CASH_TIERS
-        TELEPORT, // Move to any property (no roll next turn)
-        SHIELD, // Immune to rent/payments for 1-2 turns
-        PROPERTY_DISCOUNT, // Next property purchase 30-50% off
-        TAX_REFUND, // Instant cash from bank (tiered)
-        ROLL_EXACT // Choose exact roll 2-12 once
-
+        EXTRA_TURN,         // +extra turns
+        JAIL_FREE,          // Get out of jail free
+        DOUBLE_RENT,        // Next rent payment doubled
+        ROLL_BOOST,         // +bonus to dice roll
+        CASH_TIERED,        // In-game cash: uses CASH_TIERS
+        TELEPORT,           // Move to any property (no roll next turn)
+        SHIELD,             // Immune to rent/payments for 1-2 turns
+        PROPERTY_DISCOUNT,  // Next property purchase 30-50% off
+        TAX_REFUND,         // Instant cash from bank (tiered)
+        ROLL_EXACT          // Choose exact roll 2-12 once
     }
 
     // Cash / Refund tiers: index 1–5
@@ -78,6 +78,8 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, Reen
         ERC1155("https://gateway.pinata.cloud/ipfs/bafkreicv2hqqxn64opc6euvynsvnfk2zfyfj42eeengzvknz7y2o7o5fxe")
         Ownable(initialOwner)
     {
+        require(_tycToken != address(0), "Invalid TYC token");
+        require(_usdc != address(0), "Invalid USDC token");
         tycToken = IERC20(_tycToken);
         usdc = IERC20(_usdc);
     }
@@ -85,6 +87,19 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, Reen
     modifier onlyBackend() {
         require(msg.sender == backendMinter || msg.sender == owner(), "Unauthorized");
         _;
+    }
+
+    // ------------------------------------------------------------------------
+    // INTERFACE OVERRIDE (required due to ERC1155 + ERC1155Holder inheritance)
+    // ------------------------------------------------------------------------
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC1155, ERC1155Holder)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     // ------------------------------------------------------------------------
@@ -266,7 +281,13 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, Reen
     function getCollectibleInfo(uint256 tokenId)
         external
         view
-        returns (CollectiblePerk perk, uint256 strength, uint256 tycPrice, uint256 usdcPrice, uint256 shopStock)
+        returns (
+            CollectiblePerk perk,
+            uint256 strength,
+            uint256 tycPrice,
+            uint256 usdcPrice,
+            uint256 shopStock
+        )
     {
         perk = collectiblePerk[tokenId];
         strength = collectiblePerkStrength[tokenId];
@@ -280,11 +301,9 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, Ownable, Pausable, Reen
         return CASH_TIERS[tier];
     }
 
-    // Fallback to accept native tokens if sent directly (optional, for safety)
+    // Optional: allow contract to receive ETH if accidentally sent
     receive() external payable {}
-    
 }
-
 // ============================================================================
 //                          MAIN TYCOON GAME CONTRACT
 // ============================================================================
