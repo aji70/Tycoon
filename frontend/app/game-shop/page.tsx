@@ -1,16 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useAccount, useReadContract, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { formatUnits } from "viem";
+import { useAccount, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseUnits } from "viem";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ShoppingBag, Coins, AlertTriangle, Zap, Shield, Sparkles, Gem, Crown } from "lucide-react";
-import RewardABI from "@/context/rewardabi.json"; // Make sure this is your full ABI
+import RewardABI from "@/context/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import { TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 
-// Perk enum mapping (must match contract exactly!)
 const CollectiblePerk = {
   NONE: 0,
   EXTRA_TURN: 1,
@@ -47,33 +47,33 @@ export default function GameShop() {
   const [shopItems, setShopItems] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
-  const [useUsdc, setUseUsdc] = useState(false); // Toggle between TYC / USDC
+  const [useUsdc, setUseUsdc] = useState(false);
+  const [currentToastId, setCurrentToastId] = useState<any>(null);
 
-  const { writeContract, data: hash, isPending: writing, error: writeError } = useWriteContract();
+  const { writeContract, data: hash, isPending: writing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // Fetch all collectible info in parallel
+  const paymentTokenAddress = useUsdc
+    ? USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS]
+    : TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
+
   useEffect(() => {
-    if (!contractAddress) return;
+    if (!contractAddress) {
+      setLoadingItems(false);
+      return;
+    }
 
     const fetchShop = async () => {
       setLoadingItems(true);
       const items = [];
       for (const perk of perkData) {
-        // We don't know exact tokenIds – but since backend stocks sequentially from 2_000_000_000,
-        // we can assume common ones are stocked, or fetch known ones.
-        // For a real shop, backend should provide list of stocked tokenIds.
-        // Here: we'll skip dynamic fetch and use static data + placeholder prices.
-        // To make it dynamic, you'd need to track minted tokenIds or have an event listener.
-
-        // Placeholder: assume each perk has one tokenId stocked (in practice, use events or indexer)
         items.push({
-          tokenId: BigInt(2000000000 + perk.id), // dummy – replace with real if known
+          tokenId: BigInt(2000000000 + perk.id),
           perkId: perk.id,
           ...perk,
-          tycPrice: "5.0", // fallback
+          tycPrice: "5.0",
           usdcPrice: "0.10",
-          stock: 999, // assume in stock
+          stock: 999,
         });
       }
       setShopItems(items);
@@ -83,41 +83,126 @@ export default function GameShop() {
     fetchShop();
   }, [contractAddress]);
 
-  // In a production app, use TheGraph or listen to CollectibleMinted/PricesUpdated events
-  // to maintain a list of active shop tokenIds and fetch getCollectibleInfo(tokenId) for each.
-
   const handleBuy = (tokenId: bigint, tycPrice: string, usdcPrice: string) => {
     if (!isConnected) {
-      toast.error("Connect wallet first!");
+      toast.error("Please connect your wallet first!");
       return;
     }
 
-    const price = useUsdc ? usdcPrice : tycPrice;
-    if (price === "0") {
-      toast.error(useUsdc ? "Not for sale in USDC" : "Not for sale in TYC");
+    const priceStr = useUsdc ? usdcPrice : tycPrice;
+    if (!priceStr || priceStr === "0") {
+      toast.error(useUsdc ? "Not available in USDC" : "Not available in TYC");
       return;
     }
+
+    const decimals = useUsdc ? 6 : 18;
+    const amount = parseUnits(priceStr, decimals);
 
     setBuyingId(tokenId);
 
+    const toastId = toast.loading(`Approve ${priceStr} ${useUsdc ? "USDC" : "TYC"} to continue...`, {
+      position: "top-right",
+    });
+    setCurrentToastId(toastId);
+
     writeContract({
-      address: contractAddress!,
-      abi: RewardABI,
-      functionName: "buyCollectible",
-      args: [tokenId, useUsdc],
+      address: paymentTokenAddress!,
+      abi: [
+        {
+          name: "approve",
+          type: "function",
+          inputs: [
+            { name: "spender", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [{ type: "bool" }],
+          stateMutability: "nonpayable",
+        },
+      ],
+      functionName: "approve",
+      args: [contractAddress!, amount],
     });
   };
 
   useEffect(() => {
-    if (isSuccess) {
-      toast.success("Perk purchased successfully! 🎉");
-      setBuyingId(null);
+    if (!currentToastId) return;
+
+    if (isSuccess && hash) {
+      toast.update(currentToastId, {
+        render: "Approval confirmed! Purchasing perk...",
+        type: "info",
+        isLoading: true,
+      });
+
+      writeContract({
+        address: contractAddress!,
+        abi: RewardABI,
+        functionName: "buyCollectible",
+        args: [buyingId!, useUsdc],
+      });
     }
+
     if (writeError) {
-      toast.error(`Error: ${writeError.message}`);
+      let message = "Transaction failed. Please try again.";
+
+      const isUserRejection =
+        (writeError as any)?.code === 4001 ||
+        writeError?.message?.includes("User rejected") ||
+        writeError?.message?.includes("User denied") ||
+        writeError?.message?.includes("user rejected the request");
+
+      if (isUserRejection) {
+        message = "You cancelled the transaction – no worries!";
+        toast.update(currentToastId, {
+          render: message,
+          type: "info",
+          isLoading: false,
+          autoClose: 4000,
+        });
+      } else {
+        toast.update(currentToastId, {
+          render: (
+            <div>
+              <div>{message}</div>
+              {process.env.NODE_ENV === "development" && (
+                <details className="text-xs mt-2 opacity-70">
+                  <summary className="cursor-pointer">Show details</summary>
+                  <pre className="mt-1 text-left overflow-x-auto text-xs">
+                    {writeError?.message || "Unknown error"}
+                  </pre>
+                </details>
+              )}
+            </div>
+          ),
+          type: "error",
+          isLoading: false,
+          autoClose: 7000,
+          closeOnClick: true,
+        });
+      }
+
       setBuyingId(null);
+      setCurrentToastId(null);
+      reset();
     }
-  }, [isSuccess, writeError]);
+  }, [isSuccess, writeError, hash, currentToastId, buyingId, writing, confirming, reset, writeContract, contractAddress, useUsdc]);
+
+  // Final purchase success
+  useEffect(() => {
+    if (isSuccess && currentToastId && !writing && !confirming && buyingId) {
+      toast.update(currentToastId, {
+        render: "Perk purchased successfully! Check your inventory 🎉",
+        type: "success",
+        isLoading: false,
+        autoClose: 5000,
+        closeButton: true,
+      });
+
+      setBuyingId(null);
+      setCurrentToastId(null);
+      reset();
+    }
+  }, [isSuccess, currentToastId, writing, confirming, buyingId, reset]);
 
   const handleBack = () => router.push("/");
 
@@ -135,10 +220,9 @@ export default function GameShop() {
         </div>
 
         <p className="text-center text-lg mb-10 text-[#455A64]">
-          Grab powerful perks to dominate the board! Pay with TYC or USDC 💰
+          Grab powerful perks to dominate the board! Pay with TYC or USDC
         </p>
 
-        {/* Currency Toggle */}
         <div className="flex justify-center mb-8">
           <button
             onClick={() => setUseUsdc(!useUsdc)}
@@ -149,7 +233,9 @@ export default function GameShop() {
         </div>
 
         {loadingItems ? (
-          <div className="text-center py-20">Loading shop items...</div>
+          <div className="text-center py-20 text-2xl">Loading shop items...</div>
+        ) : shopItems.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">No perks available yet. Check back soon!</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {shopItems.map((item) => {
@@ -181,10 +267,10 @@ export default function GameShop() {
 
                   <button
                     onClick={() => handleBuy(item.tokenId, item.tycPrice, item.usdcPrice)}
-                    disabled={buyingId === item.tokenId || (writing || confirming)}
+                    disabled={buyingId === item.tokenId || writing || confirming}
                     className="w-full py-4 bg-gradient-to-r from-[#003B3E] to-[#00F0FF] text-black font-bold rounded-xl flex items-center justify-center gap-3 hover:from-[#00F0FF] hover:to-[#0FF0FC] transition disabled:opacity-50"
                   >
-                    {(writing || confirming) && buyingId === item.tokenId ? (
+                    {buyingId === item.tokenId && (writing || confirming) ? (
                       <>Processing...</>
                     ) : (
                       <>
@@ -206,7 +292,7 @@ export default function GameShop() {
           </div>
         )}
 
-        {!contractAddress && (
+        {!contractAddress && isConnected && (
           <div className="mt-16 text-center text-rose-400 text-2xl">
             No shop deployed on this network (Chain ID: {chainId})
           </div>
