@@ -2,19 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Image from 'next/image';
-import {
-  BarChart2,
-  Crown,
-  Coins,
-  Wallet,
-  Ticket,
-  ShoppingBag,
-  Loader2,
-  Send,
-  ChevronDown,
-  ChevronUp,
-  Gift,
-} from 'lucide-react';
+import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
 import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
@@ -54,14 +42,10 @@ export default function ProfilePage() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showVouchers, setShowVouchers] = useState(false);
-
-  // Gift modal state
-  const [giftModalOpen, setGiftModalOpen] = useState(false);
-  const [selectedTokenId, setSelectedTokenId] = useState<bigint | null>(null);
-  const [giftAddress, setGiftAddress] = useState('');
+  const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
+  const [showVouchers, setShowVouchers] = useState(false); // ← New: toggle vouchers
 
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -92,7 +76,8 @@ export default function ProfilePage() {
     query: { enabled: !!username && !!tycoonAddress },
   });
 
-  // Owned tokens logic
+  // ... (same data fetching logic for ownedCollectibles and myVouchers as before)
+
   const ownedCount = useReadContract({
     address: rewardAddress,
     abi: RewardABI,
@@ -138,7 +123,7 @@ export default function ProfilePage() {
   const ownedCollectibles = useMemo(() => {
     return infoResults.data?.map((res, i) => {
       if (res?.status !== 'success') return null;
-      const [perkNum, strength] = res.result as [bigint, bigint, bigint, bigint, bigint];
+      const [perkNum, strength, , , shopStock] = res.result as [bigint, bigint, bigint, bigint, bigint];
       const perk = Number(perkNum);
       if (perk === 0) return null;
 
@@ -150,6 +135,7 @@ export default function ProfilePage() {
         name: meta.name,
         icon: meta.icon,
         strength: Number(strength),
+        shopStock: Number(shopStock),
         isTiered: perk === 5 || perk === 9,
       };
     }).filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
@@ -200,22 +186,16 @@ export default function ProfilePage() {
     }
   }, [playerData, username, walletAddress]);
 
-  const openGiftModal = (tokenId: bigint) => {
-    setSelectedTokenId(tokenId);
-    setGiftAddress('');
-    setGiftModalOpen(true);
-  };
+  const handleSend = (tokenId: bigint) => {
+    if (!walletAddress || !rewardAddress) return toast.error("Wallet or contract not available");
+    if (!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress)) return toast.error('Invalid wallet address');
 
-  const handleGift = () => {
-    if (!walletAddress || !rewardAddress || !selectedTokenId) return toast.error('Missing data');
-    if (!giftAddress || !/^0x[a-fA-F0-9]{40}$/i.test(giftAddress)) return toast.error('Invalid address');
-
-    setSendingTokenId(selectedTokenId);
+    setSendingTokenId(tokenId);
     writeContract({
       address: rewardAddress,
       abi: RewardABI,
       functionName: 'safeTransferFrom',
-      args: [walletAddress as `0x${string}`, giftAddress as `0x${string}`, selectedTokenId, 1, '0x'],
+      args: [walletAddress as `0x${string}`, sendAddress as `0x${string}`, tokenId, 1, '0x'],
     });
   };
 
@@ -232,11 +212,10 @@ export default function ProfilePage() {
 
   React.useEffect(() => {
     if (txSuccess && txHash) {
-      toast.success('Transaction successful! 🎉');
+      toast.success('Success! 🎉');
       reset();
       setSendingTokenId(null);
       setRedeemingId(null);
-      setGiftModalOpen(false);
       tycBalance.refetch();
     }
   }, [txSuccess, txHash, reset, tycBalance]);
@@ -266,6 +245,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] text-[#F0F7F7]">
+      {/* Compact Header */}
       <header className="border-b border-cyan-900/30 backdrop-blur-md">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="text-[#00F0FF] font-medium hover:gap-2 flex items-center gap-1 transition-all">
@@ -279,7 +259,7 @@ export default function ProfilePage() {
       </header>
 
       <main className="container mx-auto px-6 py-8 max-w-7xl">
-        {/* Player Info & Balances */}
+        {/* Compact Player Info + Balances */}
         <div className="glass-card rounded-3xl p-6 mb-8 border border-cyan-500/20">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
@@ -298,7 +278,8 @@ export default function ProfilePage() {
               <p className="text-gray-400 font-mono text-sm mt-1">{userData.address}</p>
             </div>
 
-            <div className="flex gap-6">
+            {/* Balances */}
+            <div className="flex gap-4">
               <div className="text-center">
                 <p className="text-gray-500 text-xs">TYC</p>
                 <p className="text-xl font-bold">
@@ -318,6 +299,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Compact Stats Badges */}
           <div className="flex flex-wrap gap-4 mt-6 justify-center sm:justify-start">
             <div className="bg-white/5 rounded-xl px-4 py-2 border border-white/10">
               <p className="text-xs text-gray-400">Games</p>
@@ -334,7 +316,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Perks Section */}
+        {/* MAIN: Collectibles (Prominent) */}
         <section className="mb-12">
           <h3 className="text-3xl font-bold mb-6 flex items-center gap-3 justify-center sm:justify-start">
             <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
@@ -342,6 +324,19 @@ export default function ProfilePage() {
               My Perks ({ownedCollectibles.length})
             </span>
           </h3>
+
+          {ownedCollectibles.length > 0 && (
+            <div className="glass-card rounded-2xl p-6 mb-8 border border-purple-500/30 max-w-2xl mx-auto">
+              <label className="text-sm text-gray-400 mb-2 block text-center">Transfer a perk</label>
+              <input
+                type="text"
+                placeholder="0x0000...0000"
+                value={sendAddress}
+                onChange={(e) => setSendAddress(e.target.value.trim())}
+                className="w-full px-5 py-3 bg-black/40 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+              />
+            </div>
+          )}
 
           {ownedCollectibles.length === 0 ? (
             <div className="text-center py-16">
@@ -354,7 +349,7 @@ export default function ProfilePage() {
                 <motion.div
                   key={item.tokenId.toString()}
                   whileHover={{ scale: 1.12, y: -8 }}
-                  className="group relative"
+                  className="group"
                 >
                   <div className="glass-card rounded-3xl p-8 text-center border border-[#003B3E] group-hover:border-[#00F0FF] transition-all duration-300 shadow-xl">
                     {item.icon}
@@ -362,21 +357,22 @@ export default function ProfilePage() {
                     {item.isTiered && item.strength > 0 && (
                       <p className="text-cyan-300 text-sm mt-1">Tier {item.strength}</p>
                     )}
+                    <button
+                      onClick={() => handleSend(item.tokenId)}
+                      disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
+                      className="mt-5 w-full py-3 rounded-xl font-semibold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Send className="w-4 h-4" />
+                      {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
+                    </button>
                   </div>
-
-                  <button
-                    onClick={() => openGiftModal(item.tokenId)}
-                    className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-purple-600/80 hover:bg-purple-500 p-3 rounded-xl shadow-lg"
-                  >
-                    <Gift className="w-5 h-5" />
-                  </button>
                 </motion.div>
               ))}
             </div>
           )}
         </section>
 
-        {/* Vouchers Section - Collapsible */}
+        {/* Collapsed Vouchers Section */}
         <section>
           <button
             onClick={() => setShowVouchers(!showVouchers)}
@@ -441,57 +437,6 @@ export default function ProfilePage() {
           </AnimatePresence>
         </section>
       </main>
-
-      {/* Gift Modal */}
-      <AnimatePresence>
-        {giftModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-            onClick={() => setGiftModalOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="glass-card rounded-3xl p-8 max-w-md w-full border border-purple-500/50"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-2xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Gift Perk to Friend 🎁
-              </h3>
-              <input
-                type="text"
-                placeholder="0x0000...0000"
-                value={giftAddress}
-                onChange={(e) => setGiftAddress(e.target.value.trim())}
-                className="w-full px-5 py-4 bg-black/40 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 mb-6"
-              />
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setGiftModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleGift}
-                  disabled={!giftAddress || !/^0x[a-fA-F0-9]{40}$/i.test(giftAddress) || sendingTokenId === selectedTokenId || isWriting || isConfirming}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 flex items-center justify-center gap-2 font-bold"
-                >
-                  {sendingTokenId === selectedTokenId && (isWriting || isConfirming) ? (
-                    <> <Loader2 className="w-5 h-5 animate-spin" /> Sending... </>
-                  ) : (
-                    <> <Send className="w-5 h-5" /> Send Gift </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <style jsx global>{`
         .glass-card {

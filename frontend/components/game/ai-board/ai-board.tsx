@@ -275,6 +275,40 @@ const AiBoard = ({
 
   const unlockAction = useCallback(() => setActionLock(null), []);
 
+//   // In your GameBoard or PlayerTurn component
+// const handleUsePerk = async (tokenId: bigint, name: string) => {
+//   if (!isMyTurn) return;
+
+//   try {
+//     // Trigger on-chain transaction (e.g. using writeContract)
+//     const hash = await writeContract({
+//       address: contractAddress,
+//       abi: RewardABI,
+//       functionName: "useCollectible", // or "burnForEffect", etc.
+//       args: [tokenId],
+//     });
+
+//     // Wait for confirmation
+//     await waitForTransactionReceipt({ hash });
+
+//     // ONLY AFTER SUCCESS: Apply in-game effect
+//     toast.success(`${name} activated!`);
+    
+//     // Example game logic:
+//     if (name.includes("Extra Turn")) {
+//       grantExtraTurn();
+//     } else if (name.includes("Shield")) {
+//       applyShieldProtection();
+//     }
+//     // ... other effects
+
+//   } catch (error: any) {
+//     toast.error(error.shortMessage || "Failed to use perk");
+//   }
+// };
+
+
+
   const END_TURN = useCallback(async () => {
     if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
 
