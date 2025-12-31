@@ -10,7 +10,7 @@ import {
   useWaitForTransactionReceipt,
   useBalance,
 } from 'wagmi';
-import { formatUnits, type Address, type Abi } from 'viem';
+import { formatUnits, parseUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
@@ -29,7 +29,6 @@ const COLLECTIBLE_ID_START = 2_000_000_000;
 const isVoucherToken = (tokenId: bigint): boolean =>
   tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
 
-// Perk metadata (unchanged)
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Get +1 extra turn!", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
   { perk: 2, name: "Jail Free Card", desc: "Escape jail instantly!", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
@@ -53,6 +52,7 @@ export default function GameShop() {
   const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
+  const [approvingId, setApprovingId] = useState<bigint | null>(null);
   const [useUsdc, setUseUsdc] = useState(false);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
@@ -91,8 +91,8 @@ export default function GameShop() {
     Array.from({ length: tokenCount }, (_, i) => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [contractAddress!, BigInt(i)],
+      functionName: 'tokenOfOwnerByIndex' as const,
+      args: [contractAddress!, BigInt(i)] as const,
     } as const)),
   [contractAddress, tokenCount]);
 
@@ -110,8 +110,8 @@ export default function GameShop() {
     allTokenIds.map((tokenId) => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
-      args: [tokenId],
+      functionName: 'getCollectibleInfo' as const,
+      args: [tokenId] as const,
     } as const)),
   [contractAddress, allTokenIds]);
 
@@ -125,8 +125,10 @@ export default function GameShop() {
     return tokenInfoResults.data
       ?.map((result, index) => {
         if (result?.status !== 'success') return null;
+
         const [perk, strength, tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
-        if (stock === BigInt(0)) return null;
+
+        if (stock === BigInt(0)) return null; // Skip out-of-stock
 
         const tokenId = allTokenIds[index];
         const meta = perkMetadata.find(m => m.perk === perk) || {
@@ -206,48 +208,55 @@ export default function GameShop() {
     }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
   }, [voucherInfoResults.data, userTokenIds]);
 
-  // ── REDEEM HANDLER ──────────────────────────────────────────
-  const handleRedeemVoucher = async (tokenId: bigint) => {
-    if (!isConnected || !contractAddress) return;
-
-    setRedeemingId(tokenId);
-
-    try {
-      writeContract({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'redeemVoucher',
-        args: [tokenId],
-      });
-
-      if (txSuccess) {
-        toast.success('Voucher redeemed! TYC added 🎉');
-        setTimeout(() => refetchTyc(), 3000);
-      }
-    } catch (err: any) {
-      toast.error(err.shortMessage || 'Redemption failed');
-    } finally {
-      setRedeemingId(null);
-      reset();
-    }
-  };
-
-  // ── BUY HANDLER ─────────────────────────────────────────────
+  // ── APPROVAL + BUY HANDLER ─────────────────────────────────────
   const handleBuy = async (item: any) => {
-    if (!isConnected || !contractAddress) {
-      toast.error("Connect wallet first");
+    if (!isConnected || !address || !contractAddress || !tycTokenAddress || !usdcTokenAddress) {
+      toast.error("Wallet or contracts not ready");
       return;
     }
 
     const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
-    if (Number(priceStr) === 0) {
-      toast.error("Not available with selected currency");
+    const price = Number(priceStr);
+    if (price === 0) {
+      toast.error(`This item cannot be bought with ${useUsdc ? 'USDC' : 'TYC'}`);
       return;
     }
+
+    const tokenAddress = useUsdc ? usdcTokenAddress : tycTokenAddress;
+    const decimals = useUsdc ? 6 : 18;
+    const amount = parseUnits(priceStr, decimals);
 
     setBuyingId(item.tokenId);
 
     try {
+      // Check current allowance
+      const { data: allowance } = useReadContract({
+        address: tokenAddress,
+        abi: [{ name: 'allowance', type: 'function', inputs: [{ type: 'address' }, { type: 'address' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' }],
+        functionName: 'allowance',
+        args: [address, contractAddress],
+        query: { enabled: true },
+      });
+
+      const currentAllowance = allowance ?? 0;
+
+      // Approve if needed
+      if (currentAllowance < amount) {
+        setApprovingId(item.tokenId);
+        toast.info(`Approving ${useUsdc ? 'USDC' : 'TYC'} spend...`);
+
+        writeContract({
+          address: tokenAddress,
+          abi: [{ name: 'approve', type: 'function', inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [], stateMutability: 'nonpayable' }],
+          functionName: 'approve',
+          args: [contractAddress, amount],
+        });
+
+        // Wait for approval success (wagmi will handle sequential tx)
+        toast.success("Approval complete! Buying now...");
+      }
+
+      // Buy the collectible
       writeContract({
         address: contractAddress,
         abi: RewardABI,
@@ -264,6 +273,31 @@ export default function GameShop() {
       toast.error(err.shortMessage || "Transaction failed");
     } finally {
       setBuyingId(null);
+      setApprovingId(null);
+      reset();
+    }
+  };
+
+  // ── REDEEM VOUCHER ─────────────────────────────────────────────
+  const handleRedeemVoucher = async (tokenId: bigint) => {
+    if (!contractAddress) return;
+
+    setRedeemingId(tokenId);
+
+    try {
+      writeContract({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
+      });
+
+      toast.success("Voucher redeemed! TYC added 🎉");
+      setTimeout(() => refetchTyc(), 3000);
+    } catch (err: any) {
+      toast.error(err.shortMessage || "Redemption failed");
+    } finally {
+      setRedeemingId(null);
       reset();
     }
   };
@@ -322,7 +356,7 @@ export default function GameShop() {
           </div>
         </div>
 
-        {/* Shop Grid - Main Content */}
+        {/* Shop Grid */}
         {isLoadingShop ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-12 h-12 animate-spin text-[#00F0FF]" />
@@ -375,17 +409,19 @@ export default function GameShop() {
 
                   <button
                     onClick={() => handleBuy(item)}
-                    disabled={buyingId === item.tokenId || writing || confirming || item.stock === 0}
+                    disabled={buyingId === item.tokenId || approvingId === item.tokenId || writing || confirming || item.stock === 0}
                     className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg ${
                       item.stock === 0
                         ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                        : buyingId === item.tokenId && (writing || confirming)
+                        : (approvingId === item.tokenId || buyingId === item.tokenId) && (writing || confirming)
                         ? "bg-gray-700 cursor-wait"
                         : "bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] text-black hover:shadow-[#00F0FF]/50"
                     }`}
                   >
-                    {buyingId === item.tokenId && (writing || confirming) ? (
-                      <> <Loader2 className="w-6 h-6 animate-spin" /> Processing... </>
+                    {approvingId === item.tokenId && writing ? (
+                      <> <Loader2 className="w-6 h-6 animate-spin" /> Approving... </>
+                    ) : buyingId === item.tokenId && writing ? (
+                      <> <Loader2 className="w-6 h-6 animate-spin" /> Buying... </>
                     ) : item.stock === 0 ? (
                       "Sold Out"
                     ) : (
@@ -398,7 +434,7 @@ export default function GameShop() {
           </div>
         )}
 
-        {/* Voucher Teaser Button - Only if user has vouchers */}
+        {/* Voucher Teaser Button */}
         <AnimatePresence>
           {hasVouchers && !isVoucherPanelOpen && (
             <motion.button
@@ -418,11 +454,10 @@ export default function GameShop() {
           )}
         </AnimatePresence>
 
-        {/* Voucher Panel - Slides in from right */}
+        {/* Voucher Panel */}
         <AnimatePresence>
           {isVoucherPanelOpen && (
             <>
-              {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -431,7 +466,6 @@ export default function GameShop() {
                 className="fixed inset-0 bg-black/60 z-40"
               />
 
-              {/* Panel */}
               <motion.div
                 initial={{ x: "100%" }}
                 animate={{ x: 0 }}
