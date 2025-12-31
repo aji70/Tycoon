@@ -1,10 +1,9 @@
 "use client";
 
 import AiBoard from "@/components/game/ai-board/ai-board";
-import GameRoom from "@/components/game/game-room";
+import MobileAiBoard from "@/components/game/ai-board/mobile/ai-board";
 import GamePlayers from "@/components/game/ai-player/ai-player";
-import MobileGameLayout from "@/components/game/ai-board/ai-board-mobile";
-import MobilePlayerLayout from "@/components/game/player/mobile-player";
+import GamePlayersMobile from "@/components/game/ai-player/mobile/ai-player";
 
 import { apiClient } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
@@ -138,19 +137,22 @@ export default function GamePlayPage() {
       <main className="w-full h-screen flex flex-col overflow-hidden bg-[#010F10] mt-[100px]">
         <div className="flex-1 w-full overflow-hidden">
           {activeTab === "board" ? (
-            <MobileGameLayout
+            <MobileAiBoard
               game={game}
               properties={properties}
               game_properties={game_properties}
               me={me}
             />
           ) : (
-            <MobilePlayerLayout
-              game={game}
-              properties={properties}
-              game_properties={game_properties}
-              my_properties={my_properties}
-              me={me}
+            <GamePlayersMobile
+                game={game}
+          properties={properties}
+          game_properties={game_properties}
+          my_properties={my_properties}
+          me={me}
+          currentPlayer={currentPlayer}
+          roll={roll}
+          isAITurn={isAITurn}
             />
           )}
         </div>
