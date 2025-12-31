@@ -16,13 +16,13 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   ShoppingBag, Coins, AlertTriangle, Loader2, CreditCard, Zap, Shield, Sparkles, Gem, Crown,
-  Wallet,
+  Ticket, Wallet,
 } from 'lucide-react';
 
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 
-// Metadata for display (expand as needed)
+// Metadata for collectibles (expand as needed)
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Get +1 extra turn!", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
   { perk: 2, name: "Jail Free Card", desc: "Escape jail instantly!", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
@@ -44,6 +44,8 @@ export default function GameShop() {
 
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [useUsdc, setUseUsdc] = useState(false);
+  const [voucherIdToRedeem, setVoucherIdToRedeem] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
 
   const { writeContract, data: hash, isPending: writing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash });
@@ -145,7 +147,6 @@ export default function GameShop() {
     setBuyingId(item.tokenId);
 
     try {
-      // 1. Approve
       await writeContract({
         address: paymentToken,
         abi: [
@@ -157,7 +158,6 @@ export default function GameShop() {
 
       toast.info("Approval sent...");
 
-      // 2. Buy
       await writeContract({
         address: contractAddress,
         abi: RewardABI,
@@ -172,6 +172,41 @@ export default function GameShop() {
     } finally {
       setBuyingId(null);
       reset();
+    }
+  };
+
+  // Redeem voucher handler
+  const handleRedeemVoucher = async () => {
+    if (!isConnected || !address || !contractAddress) {
+      toast.error("Connect wallet first!");
+      return;
+    }
+
+    const tokenIdStr = voucherIdToRedeem.trim();
+    if (!tokenIdStr || isNaN(Number(tokenIdStr))) {
+      toast.error("Enter a valid voucher token ID");
+      return;
+    }
+
+    const tokenId = BigInt(tokenIdStr);
+
+    setRedeeming(true);
+
+    try {
+      await writeContract({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
+      });
+
+      toast.success("Voucher redeemed! TYC added to your wallet");
+      setVoucherIdToRedeem('');
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (err: any) {
+      toast.error(err.shortMessage || "Redemption failed");
+    } finally {
+      setRedeeming(false);
     }
   };
 
@@ -193,17 +228,17 @@ export default function GameShop() {
           </button>
         </div>
 
-        {/* Balances + Toggle */}
+        {/* Balances + Payment Toggle */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center">
             <Wallet className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
             <p className="text-lg font-semibold">Your TYC</p>
-            <p className="text-2xl font-bold text-[#00F0FF]">{/* Add balance here if needed */}0.00 TYC</p>
+            <p className="text-2xl font-bold text-[#00F0FF]">0.00 TYC</p> {/* Add real balance if you want */}
           </div>
           <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center">
             <CreditCard className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
             <p className="text-lg font-semibold">Your USDC</p>
-            <p className="text-2xl font-bold text-[#00F0FF]">{/* Add balance here */}0.00 USDC</p>
+            <p className="text-2xl font-bold text-[#00F0FF]">0.00 USDC</p>
           </div>
           <div className="bg-[#003B3E]/50 rounded-xl p-6 border border-[#00F0FF]/30 flex items-center justify-center">
             <button
@@ -215,7 +250,7 @@ export default function GameShop() {
           </div>
         </div>
 
-        {/* Shop Content */}
+        {/* Shop Items */}
         {isLoading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-12 h-12 animate-spin text-[#00F0FF]" />
@@ -226,7 +261,7 @@ export default function GameShop() {
             No collectibles available in shop yet. Check back soon!
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-16">
             {shopItems.map((item) => (
               <motion.div
                 key={item.tokenId.toString()}
@@ -235,7 +270,6 @@ export default function GameShop() {
                 whileHover={{ scale: 1.05 }}
                 className="bg-[#0E1415] rounded-2xl overflow-hidden border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-[#00F0FF]/20"
               >
-                {/* Image */}
                 <div className="relative h-48">
                   <Image
                     src={item.image || "/game/shop/placeholder.jpg"}
@@ -250,7 +284,6 @@ export default function GameShop() {
                   </div>
                 </div>
 
-                {/* Info */}
                 <div className="p-6">
                   <p className="text-gray-400 mb-4 text-sm line-clamp-2">{item.desc}</p>
 
@@ -298,12 +331,56 @@ export default function GameShop() {
           </div>
         )}
 
+        {/* Redeem Vouchers Section */}
+        <div className="bg-[#0E1415]/80 rounded-2xl p-8 border border-[#003B3E] max-w-2xl mx-auto">
+          <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
+            <Ticket className="w-8 h-8 text-amber-400" />
+            Redeem Your Vouchers
+          </h2>
+
+          <div className="flex flex-col gap-4">
+            <input
+              type="text"
+              value={voucherIdToRedeem}
+              onChange={(e) => setVoucherIdToRedeem(e.target.value.trim())}
+              placeholder="Enter voucher token ID (e.g. 1000000001)"
+              className="w-full px-4 py-3 bg-gray-800 border border-[#003B3E] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-white"
+            />
+
+            <button
+              onClick={handleRedeemVoucher}
+              disabled={redeeming || !voucherIdToRedeem.trim()}
+              className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
+                redeeming
+                  ? "bg-gray-700 cursor-wait"
+                  : "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
+              }`}
+            >
+              {redeeming ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  Redeeming...
+                </>
+              ) : (
+                <>
+                  <Ticket className="w-6 h-6" />
+                  Redeem Voucher
+                </>
+              )}
+            </button>
+
+            <p className="text-sm text-gray-400 text-center">
+              Enter your voucher ID to instantly redeem TYC tokens. Must be owned by your wallet!
+            </p>
+          </div>
+        </div>
+
         {!isConnected && (
           <div className="mt-16 text-center p-10 bg-[#0E1415]/60 rounded-2xl border border-red-800">
             <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-400" />
             <h3 className="text-2xl font-bold mb-4">Wallet Not Connected</h3>
             <p className="text-lg text-gray-300">
-              Connect your wallet to browse and buy perks!
+              Connect your wallet to browse perks and redeem vouchers!
             </p>
           </div>
         )}
