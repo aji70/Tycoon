@@ -44,6 +44,19 @@ const GROUP_COLORS: Record<string, string> = {
   utility: "border-purple-400 bg-purple-400/20",
 };
 
+const PERKS = [
+  { id: 1, name: "Extra Turn", desc: "Get +1 extra turn!" },
+  { id: 2, name: "Jail Free Card", desc: "Escape jail instantly!" },
+  { id: 3, name: "Double Rent", desc: "Next rent doubled!" },
+  { id: 4, name: "Roll Boost", desc: "Bonus to next roll!" },
+  { id: 5, name: "Instant Cash", desc: "Burn for tiered TYC!" },
+  { id: 6, name: "Teleport", desc: "Move to any property!" },
+  { id: 7, name: "Shield", desc: "Protect from rent/fees!" },
+  { id: 8, name: "Property Discount", desc: "30-50% off next buy!" },
+  { id: 9, name: "Tax Refund", desc: "Tiered tax cash back!" },
+  { id: 10, name: "Exact Roll", desc: "Choose exact roll 2-12!" },
+];
+
 export default function ClaimPropertyModal({
   open,
   game_properties,
@@ -57,7 +70,7 @@ export default function ClaimPropertyModal({
 }: ClaimPropertyModalProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [targetPlayerId, setTargetPlayerId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"claim" | "delete" | "transfer" | "overview" | "cash" | "move">("claim");
+  const [activeTab, setActiveTab] = useState<"claim" | "delete" | "transfer" | "overview" | "cash" | "move" | "perks">("claim");
 
   const {
     cashTargetPlayerId,
@@ -73,6 +86,18 @@ export default function ClaimPropertyModal({
     setNewPosition,
     isChangingPosition,
     changePlayerPosition,
+
+    perkTargetPlayerId,
+    setPerkTargetPlayerId,
+    selectedPerkId,
+    setSelectedPerkId,
+    teleportPosition,
+    setTeleportPosition,
+    exactRollValue,
+    setExactRollValue,
+    isActivatingPerk,
+    activatePerk,
+    getPerkName,
   } = useDevGameTools({ game, game_properties });
 
   if (!open || !me) return null;
@@ -174,7 +199,7 @@ export default function ClaimPropertyModal({
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-3xl font-bold text-cyan-300">DEV Tools: Game Control</h2>
-              <p className="text-cyan-400/70 text-sm mt-1">Property, cash, and player position control</p>
+              <p className="text-cyan-400/70 text-sm mt-1">Property, cash, position, and all 10 perks</p>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl font-light transition">
               ×
@@ -189,10 +214,11 @@ export default function ClaimPropertyModal({
           <button onClick={() => setActiveTab("overview")} className={`px-6 py-3 font-medium transition rounded-t-lg ${activeTab === "overview" ? "text-green-400 bg-green-900/20 border-b-3 border-green-400" : "text-gray-500 hover:text-white"}`}>Monopoly Overview</button>
           <button onClick={() => { setActiveTab("cash"); setSelectedId(null); }} className={`px-6 py-3 font-medium transition rounded-t-lg ${activeTab === "cash" ? "text-yellow-400 bg-yellow-900/20 border-b-3 border-yellow-400" : "text-gray-500 hover:text-white"}`}>Adjust Cash</button>
           <button onClick={() => { setActiveTab("move"); setSelectedId(null); }} className={`px-6 py-3 font-medium transition rounded-t-lg ${activeTab === "move" ? "text-orange-400 bg-orange-900/20 border-b-3 border-orange-400" : "text-gray-500 hover:text-white"}`}>Change Position</button>
+          <button onClick={() => { setActiveTab("perks"); setSelectedId(null); }} className={`px-6 py-3 font-medium transition rounded-t-lg ${activeTab === "perks" ? "text-pink-400 bg-pink-900/20 border-b-3 border-pink-400" : "text-gray-500 hover:text-white"}`}>Activate Perks</button>
         </div>
 
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-          {activeTab !== "overview" && activeTab !== "cash" && activeTab !== "move" && (
+          {activeTab !== "overview" && activeTab !== "cash" && activeTab !== "move" && activeTab !== "perks" && (
             <div className="w-full md:w-1/2 border-b md:border-b-0 md:border-r border-cyan-800/30 flex flex-col">
               <div className="p-6 flex-shrink-0">
                 <h3 className="text-lg font-semibold text-white">Select Property ({allProperties.length})</h3>
@@ -228,7 +254,7 @@ export default function ClaimPropertyModal({
             </div>
           )}
 
-          <div className={`w-full ${activeTab !== "overview" && activeTab !== "cash" && activeTab !== "move" ? "md:w-1/2" : ""} flex flex-col`}>
+          <div className={`w-full ${activeTab !== "overview" && activeTab !== "cash" && activeTab !== "move" && activeTab !== "perks" ? "md:w-1/2" : ""} flex flex-col`}>
             <div className="flex-1 p-6 overflow-y-auto">
               {activeTab === "overview" ? (
                 <div className="space-y-6">
@@ -318,6 +344,65 @@ export default function ClaimPropertyModal({
                       className="w-full py-5 bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-500 hover:to-red-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-bold text-xl shadow-lg shadow-orange-600/40 transition transform hover:scale-105 disabled:hover:scale-100"
                     >
                       {isChangingPosition ? "Updating..." : "Update Position"}
+                    </button>
+                  </div>
+                </div>
+              ) : activeTab === "perks" ? (
+                <div className="space-y-8">
+                  <h3 className="text-2xl font-bold text-pink-300">Activate Perks (All 10)</h3>
+                  <div className="space-y-6 max-w-2xl mx-auto">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Select Player</label>
+                      <select value={perkTargetPlayerId ?? ""} onChange={(e) => setPerkTargetPlayerId(e.target.value ? Number(e.target.value) : null)} className="w-full bg-gray-800 p-4 rounded-xl border border-gray-600 text-white focus:border-pink-500 focus:outline-none transition text-base">
+                        <option value="">Choose a player...</option>
+                        {game.players.map(player => (
+                          <option key={player.user_id} value={player.user_id}>
+                            {player.username}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Select Perk</label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {PERKS.map(perk => (
+                          <button
+                            key={perk.id}
+                            onClick={() => setSelectedPerkId(perk.id)}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              selectedPerkId === perk.id
+                                ? "border-pink-400 bg-pink-900/40 shadow-lg shadow-pink-500/40"
+                                : "border-gray-700 hover:border-pink-600/70 bg-gray-800/40"
+                            }`}
+                          >
+                            <div className="font-bold text-white">{perk.name}</div>
+                            <div className="text-sm text-gray-400">{perk.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {(selectedPerkId === 6) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Teleport Position (0–39)</label>
+                        <input type="number" min="0" max="39" value={teleportPosition} onChange={(e) => setTeleportPosition(e.target.value)} placeholder="Enter position" className="w-full bg-gray-800 p-4 rounded-xl border border-gray-600 text-white focus:border-pink-500 focus:outline-none transition text-xl font-mono" />
+                      </div>
+                    )}
+
+                    {(selectedPerkId === 10) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Exact Roll Value (2–12)</label>
+                        <input type="number" min="2" max="12" value={exactRollValue} onChange={(e) => setExactRollValue(e.target.value)} placeholder="Enter roll" className="w-full bg-gray-800 p-4 rounded-xl border border-gray-600 text-white focus:border-pink-500 focus:outline-none transition text-xl font-mono" />
+                      </div>
+                    )}
+
+                    <button
+                      onClick={activatePerk}
+                      disabled={isActivatingPerk || !perkTargetPlayerId || !selectedPerkId}
+                      className="w-full py-5 bg-gradient-to-r from-pink-600 to-purple-500 hover:from-pink-500 hover:to-purple-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-bold text-xl shadow-lg shadow-pink-600/40 transition transform hover:scale-105 disabled:hover:scale-100"
+                    >
+                      {isActivatingPerk ? "Activating..." : "Activate Selected Perk"}
                     </button>
                   </div>
                 </div>

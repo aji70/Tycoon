@@ -22,7 +22,14 @@ export function useDevGameTools({
   const [newPosition, setNewPosition] = useState<string>("");
   const [isChangingPosition, setIsChangingPosition] = useState(false);
 
-  // Shared: get real game_players.id from owned property (same as transfer)
+  // Perk state
+  const [perkTargetPlayerId, setPerkTargetPlayerId] = useState<number | null>(null);
+  const [selectedPerkId, setSelectedPerkId] = useState<number | null>(null);
+  const [teleportPosition, setTeleportPosition] = useState<string>("");
+  const [exactRollValue, setExactRollValue] = useState<string>("");
+  const [isActivatingPerk, setIsActivatingPerk] = useState(false);
+
+  // Shared: get real game_players.id from owned property
   const getGamePlayerId = (walletAddress: string): number | null => {
     const owned = game_properties.find(
       gp => gp.address?.toLowerCase() === walletAddress.toLowerCase()
@@ -79,7 +86,7 @@ export function useDevGameTools({
     }
   };
 
-  // === Change Player Position (using same PUT endpoint as cash) ===
+  // === Change Player Position ===
   const changePlayerPosition = async () => {
     if (!positionTargetPlayerId || newPosition === "" || isNaN(Number(newPosition))) {
       toast.error("Select a player and enter a valid position (0–39)");
@@ -124,6 +131,93 @@ export function useDevGameTools({
     }
   };
 
+  // === Activate Perk (for most perks) ===
+  const activatePerk = async () => {
+    if (!perkTargetPlayerId || !selectedPerkId) {
+      toast.error("Select a player and a perk");
+      return;
+    }
+
+    const targetPlayer = game.players.find(p => p.user_id === perkTargetPlayerId);
+    if (!targetPlayer?.address) {
+      toast.error("Player not found or missing wallet address");
+      return;
+    }
+
+    const realPlayerId = getGamePlayerId(targetPlayer.address);
+    if (!realPlayerId) {
+      toast.error("Player must own at least one property");
+      return;
+    }
+
+    setIsActivatingPerk(true);
+    try {
+      let res;
+      if (selectedPerkId === 6) {
+        // Teleport
+        if (teleportPosition === "" || isNaN(Number(teleportPosition)) || Number(teleportPosition) < 0 || Number(teleportPosition) > 39) {
+          toast.error("Enter valid teleport position (0–39)");
+          setIsActivatingPerk(false);
+          return;
+        }
+        res = await apiClient.post<ApiResponse>("/perks/teleport", {
+          game_id: game.id,
+          target_position: Number(teleportPosition),
+        });
+      } else if (selectedPerkId === 10) {
+        // Exact Roll
+        if (exactRollValue === "" || isNaN(Number(exactRollValue)) || Number(exactRollValue) < 2 || Number(exactRollValue) > 12) {
+          toast.error("Enter exact roll value (2–12)");
+          setIsActivatingPerk(false);
+          return;
+        }
+        res = await apiClient.post<ApiResponse>("/perks/exact-roll", {
+          game_id: game.id,
+          chosen_total: Number(exactRollValue),
+        });
+      } else if (selectedPerkId === 5) {
+        // Instant Cash
+        res = await apiClient.post<ApiResponse>("/perks/burn-cash", {
+          game_id: game.id,
+        });
+      } else {
+        // All other perks
+        res = await apiClient.post<ApiResponse>("/perks/activate", {
+          game_id: game.id,
+          perk_id: selectedPerkId,
+        });
+      }
+
+      if (res?.data?.success) {
+        toast.success(`Perk activated: ${getPerkName(selectedPerkId)}`);
+        setSelectedPerkId(null);
+        setTeleportPosition("");
+        setExactRollValue("");
+        setPerkTargetPlayerId(null);
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to activate perk");
+    } finally {
+      setIsActivatingPerk(false);
+    }
+  };
+
+  const getPerkName = (id: number) => {
+    const names: Record<number, string> = {
+      1: "Extra Turn",
+      2: "Jail Free Card",
+      3: "Double Rent",
+      4: "Roll Boost",
+      5: "Instant Cash",
+      6: "Teleport",
+      7: "Shield",
+      8: "Property Discount",
+      9: "Tax Refund",
+      10: "Exact Roll",
+    };
+    return names[id] || "Unknown Perk";
+  };
+
   return {
     // Cash
     cashTargetPlayerId,
@@ -140,5 +234,18 @@ export function useDevGameTools({
     setNewPosition,
     isChangingPosition,
     changePlayerPosition,
+
+    // Perks
+    perkTargetPlayerId,
+    setPerkTargetPlayerId,
+    selectedPerkId,
+    setSelectedPerkId,
+    teleportPosition,
+    setTeleportPosition,
+    exactRollValue,
+    setExactRollValue,
+    isActivatingPerk,
+    activatePerk,
+    getPerkName,
   };
 }
