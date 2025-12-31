@@ -388,6 +388,23 @@ const AiBoard = ({
     }
   };
 
+  // ── PERKS FUNCTIONS ─────────────────────────────────────
+   const handleCashPerK = async (id: number, amount: number) => {
+      if (!me) return;
+      try {
+        const res = await apiClient.put<ApiResponse>(`/game-players/${id}`, {
+          game_id: game.id,
+          user_id: me.user_id,
+          balance: me.balance + amount,
+        });
+        if (res?.data?.success) toast.success("Property developed successfully");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to develop property");
+      }
+    };
+
+
+
   // ── AI STRATEGY HELPERS ─────────────────────────────────────
 
   const getPlayerOwnedProperties = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
@@ -1073,13 +1090,15 @@ const AiBoard = ({
           error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
+
+
       <CollectibleInventoryBar
-  isMyTurn={isMyTurn}
-  onUseCollectible={async (tokenId, name) => {
-    if (!isMyTurn) {
-      toast("Wait for your turn!", { icon: "⏳" });
-      return;
-    }
+      isMyTurn={isMyTurn}
+      onUseCollectible={async (tokenId, name) => {
+      if (!isMyTurn) {
+          toast("Wait for your turn!", { icon: "⏳" });
+          return;
+      }
 
     const confirmed = window.confirm(`Use ${name}? This will burn 1 copy.`);
     if (!confirmed) return;
