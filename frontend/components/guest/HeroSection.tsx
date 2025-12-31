@@ -9,14 +9,15 @@ import { useAccount } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
-  useRegister
+  useRegister,
+  usePreviousGame
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 
-const HeroSectionMobile: React.FC = () => {
+const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   
@@ -37,11 +38,78 @@ const {
     enabled: !!address,
   });
 
+  const { data: gameCode } = usePreviousGame(address, {
+    enabled: !!address,
+  });
+
   // New: Local state for optimistic updates after registration
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
 
+  const [registered, setRegistered] = useState(false);
+  const [name, setName] = useState("");
+  const [inputName, setInputName] = useState("");
   
+  const [user, setUser] = useState<UserType | null>(null);
+
+  // Reset all user-related state when address changes or disconnects
+  useEffect(() => {
+    if (!address) {
+      setUser(null);
+      setRegistered(false);
+      setName("");
+      setInputName("");
+    }
+  }, [address]);
+
+  // Fetch user data when a wallet address is connected
+  useEffect(() => {
+    if (!address) return;
+
+    let isActive = true;
+
+    const fetchUser = async () => {
+      try {
+        const res = await apiClient.get<ApiResponse>(
+          `/users/by-address/${address}?chain=Base`
+        );
+
+        if (!isActive) return;
+
+        if (res.success && res.data) {
+          const r = res.data as UserType;
+          setUser(r);
+          setRegistered(true);
+          setName(r.username || "");
+        } else {
+          setUser(null);
+          setRegistered(false);
+          setName("");
+        }
+      } catch (error: any) {
+        if (!isActive) return;
+
+        if (error?.response?.status === 404) {
+          setUser(null);
+          setRegistered(false);
+          setName("");
+        } else {
+          console.error("Unexpected error fetching user:", error);
+          setUser(null);
+          setRegistered(false);
+        }
+      }
+    };
+
+    fetchUser();
+
+    return () => {
+      isActive = false;
+    };
+  }, [address]);
+
+  console.log("Name: ", name)
+  console.log("Previous Game: ", gameCode)
 
   useEffect(() => {
   if (registeredError) {
@@ -472,4 +540,4 @@ const handleRequest = async () => {
   );
 };
 
-export default HeroSectionMobile;
+export default HeroSection;

@@ -272,7 +272,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     }
 
     function _addTokenToOwnerEnumeration(address owner, uint256 tokenId) private {
-        if (balanceOf(owner, tokenId) == 0) return;  // Only add if balance > 0
+        if (balanceOf(owner, tokenId) == 0) return; // Only add if balance > 0
         uint256 index = _ownedTokensIndex[owner][tokenId];
         if (_ownedTokens[owner].length == 0 || _ownedTokens[owner][index] != tokenId) {
             uint256 length = _ownedTokens[owner].length;
@@ -282,7 +282,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     }
 
     function _removeTokenFromOwnerEnumeration(address owner, uint256 tokenId) private {
-        if (balanceOf(owner, tokenId) > 0) return;  // Only remove if balance == 0
+        if (balanceOf(owner, tokenId) > 0) return; // Only remove if balance == 0
 
         uint256 lastTokenIndex = _ownedTokens[owner].length - 1;
         uint256 tokenIndex = _ownedTokensIndex[owner][tokenId];
@@ -299,12 +299,11 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     }
 
     // Override _update to handle enumeration
-    function _update(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory values
-    ) internal virtual override {
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        virtual
+        override
+    {
         super._update(from, to, ids, values);
 
         uint256 length = ids.length;
@@ -388,6 +387,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     mapping(string => TycoonLib.Game) public getToCode;
     mapping(uint256 => mapping(uint8 => TycoonLib.Property)) public properties;
     mapping(uint256 => mapping(address => TycoonLib.GamePlayer)) public gamePlayers;
+    mapping(address => string) public previousGame;
 
     TycoonRewardSystem public immutable rewardSystem;
 
@@ -527,6 +527,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
         gameOrderToPlayer[gameId][1] = creator;
         getToCode[code] = games[gameId];
 
+        previousGame[msg.sender] = code;
+
         totalGames++;
         emit GameCreated(gameId, creator, uint64(block.timestamp));
         return gameId;
@@ -613,6 +615,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         }
 
         getToCode[code] = games[gameId];
+        previousGame[msg.sender] = code;
 
         totalGames++;
         emit GameCreated(gameId, creator, uint64(block.timestamp));
@@ -665,6 +668,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
             symbol: TycoonLib.PlayerSymbol(pSym),
             username: user.username
         });
+
+        previousGame[msg.sender] = game.code;
 
         gameOrderToPlayer[gameId][order] = player;
         emit PlayerJoined(gameId, player, order);
@@ -851,6 +856,11 @@ contract Tycoon is ReentrancyGuard, Ownable {
     function getGame(uint256 gameId) public view returns (TycoonLib.Game memory) {
         require(games[gameId].creator != address(0), "Game not found");
         return games[gameId];
+    }
+
+    function getGetLastGame(address _user) public view returns (string memory code_) {
+        code_ = previousGame[_user];
+        return code_;
     }
 
     function getGamePlayer(uint256 gameId, string memory username) public view returns (TycoonLib.GamePlayer memory) {

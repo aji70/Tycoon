@@ -47,8 +47,8 @@ const PlayerList: React.FC<PlayerListProps> = ({
   const reorderedPlayers = [
     ...(myPlayer ? [myPlayer] : []),
     ...(currentTurnPlayer && currentTurnPlayer !== myPlayer ? [currentTurnPlayer] : []),
-    ...otherPlayers.slice(0, 1), // Only one additional player visible initially
-    ...otherPlayers.slice(1),   // The rest (hidden until scroll)
+    ...otherPlayers.slice(0, 1),
+    ...otherPlayers.slice(1),
   ];
 
   const handlePlayerTap = (player: Player) => {
@@ -56,13 +56,13 @@ const PlayerList: React.FC<PlayerListProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3"> {/* Reduced from space-y-4 */}
       {/* Top glowing bar */}
       <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
 
-      {/* Fixed height container showing exactly ~3 players */}
+      {/* Scrollable player list */}
       <div className="overflow-y-auto h-96 pr-3 scrollbar-custom">
-        <div className="space-y-3 pb-8">
+        <div className="space-y-3 pb-2"> {/* ← FIXED: pb-8 → pb-2 (main gap reducer) */}
           {reorderedPlayers.map((p) => {
             const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
             const isTurn = p.user_id === game.next_player_id;
@@ -111,7 +111,6 @@ const PlayerList: React.FC<PlayerListProps> = ({
                             YOU
                           </span>
                         )}
-                        {isAI}
                         {p.in_jail && (
                           <span className="text-red-400 text-xs font-bold flex-shrink-0">
                             [JAIL]

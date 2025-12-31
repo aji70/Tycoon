@@ -133,7 +133,27 @@ export function useIsRegistered(address?: Address, options = { enabled: true }) 
     error: result.error || (contractAddress ? null : new Error('Contract not deployed on this chain')),
   };
 }
+export function usePreviousGame(address?: Address, options = { enabled: true }) {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
 
+  const result = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'getGetLastGame',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: options.enabled && !!address && !!contractAddress,
+      retry: false,
+    },
+  });
+
+  return {
+    data: result.data as string | undefined,
+    isLoading: result.isLoading,
+    error: result.error || (contractAddress ? null : new Error('Contract not deployed on this chain')),
+  };
+}
 // Stub for legacy useIsInGame (not in new contract - logs warning)
 export function useIsInGame(gameId?: number, address?: Address, options = { enabled: true }) {
   console.warn('useIsInGame: Function removed in new Tycoon contract. Implement off-chain logic.');
