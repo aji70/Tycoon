@@ -1,22 +1,25 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAccount, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits, formatUnits, Address } from 'viem';
-import { motion } from 'framer-motion';
+import { useAccount, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseUnits, formatUnits, Address, type Abi } from 'viem';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { 
   ShoppingBag, Coins, AlertTriangle, Zap, Shield, Sparkles, Gem, Crown, 
-  Wallet, Loader2, CreditCard 
+  Wallet, Loader2, CreditCard, Ticket, RefreshCw
 } from 'lucide-react';
+
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
-// Assuming you have these hooks exported from your context
-import { useRewardTokenBalance } from '@/context/ContractProvider';
+
+// Optional: Import your custom hook if you have it
+// import { useRewardTokenBalance } from '@/context/ContractProvider';
 
 // Metadata for display (match your deployed perk IDs)
+// You can expand this as needed
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Get +1 extra turn on your next roll!", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
   { perk: 2, name: "Jail Free Card", desc: "Escape jail instantly!", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
@@ -34,38 +37,57 @@ export default function GameShop() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
   const [shopItems, setShopItems] = useState<any[]>([]);
-  const [loadingItems, setLoadingItems] = useState(true);
+  const [vouchers, setVouchers] = useState<any[]>([]); // For redeem section
+  const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [useUsdc, setUseUsdc] = useState(false);
-  const [currentAction, setCurrentAction] = useState<'approve' | 'buy' | null>(null);
+  const [voucherIdToRedeem, setVoucherIdToRedeem] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
 
   const { writeContract, data: hash, isPending: writing, error: writeError, reset } = useWriteContract();
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // Balances
-  const { balance: tycBalanceRaw } = useRewardTokenBalance(address, undefined, { enabled: isConnected });
-  const { balance: usdcBalanceRaw } = useRewardTokenBalance(address, undefined, { enabled: isConnected });
+  // Fetch user's TYC & USDC balances (you can use your custom hook or direct read)
+  const tycBalanceRaw = useReadContract({
+    address: TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address,
+    abi: [
+      { constant: true, inputs: [{ name: "_owner", type: "address" }], name: "balanceOf", outputs: [{ name: "balance", type: "uint256" }], type: "function" }
+    ],
+    functionName: 'balanceOf',
+    args: [address!],
+    query: { enabled: !!address && !!contractAddress },
+  });
 
-  const tycBalance = tycBalanceRaw ? formatUnits(tycBalanceRaw, 18) : '0';
-  const usdcBalance = usdcBalanceRaw ? formatUnits(usdcBalanceRaw, 6) : '0';
+  const usdcBalanceRaw = useReadContract({
+    address: USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address,
+    abi: [
+      { constant: true, inputs: [{ name: "_owner", type: "address" }], name: "balanceOf", outputs: [{ name: "balance", type: "uint256" }], type: "function" }
+    ],
+    functionName: 'balanceOf',
+    args: [address!],
+    query: { enabled: !!address && !!contractAddress },
+  });
 
-  // Fetch shop items safely (no hooks in loop)
+  const tycBalance = tycBalanceRaw.data ? Number(formatUnits(tycBalanceRaw.data as bigint, 18)).toFixed(2) : '0.00';
+  const usdcBalance = usdcBalanceRaw.data ? Number(formatUnits(usdcBalanceRaw.data as bigint, 6)).toFixed(2) : '0.00';
+
+  // Fetch all collectibles & vouchers owned by the shop contract
   useEffect(() => {
     if (!contractAddress || !isConnected) {
-      setLoadingItems(false);
-      setErrorMessage(!contractAddress ? "No shop contract on this chain" : "Connect wallet to view shop");
+      setLoading(false);
+      setErrorMessage(!contractAddress ? "Shop not available on this chain" : "Connect wallet to view items");
       return;
     }
 
-    const fetchShopItems = async () => {
-      setLoadingItems(true);
+    const fetchItems = async () => {
+      setLoading(true);
       setErrorMessage(null);
       try {
-        // Get count of collectibles owned by contract (shop stock)
+        // 1. Get total unique token types owned by shop
         const countResult = await useReadContract({
           address: contractAddress,
           abi: RewardABI,
@@ -77,66 +99,91 @@ export default function GameShop() {
 
         if (count === 0) {
           setShopItems([]);
+          setVouchers([]);
+          setLoading(false);
           return;
         }
 
-        const items = [];
-        for (let i = 0; i < count; i++) {
-          // Get token ID at index
-          const tokenIdResult = await useReadContract({
-            address: contractAddress,
-            abi: RewardABI,
-            functionName: 'tokenOfOwnerByIndex',
-            args: [contractAddress, BigInt(i)],
-          });
-          const tokenId = tokenIdResult.data as bigint;
+        // 2. Get all token IDs
+    const tokenIds: bigint[] = [];
+for (let i = 0; i < count; i++) {
+  const tokenIdResult = await useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'tokenOfOwnerByIndex',
+    args: [contractAddress, BigInt(i)],
+  });
+  tokenIds.push(tokenIdResult.data as bigint);
+}
 
-          // Get collectible info
-          const infoResult = await useReadContract({
-            address: contractAddress,
-            abi: RewardABI,
-            functionName: 'getCollectibleInfo',
-            args: [tokenId],
-          });
-          const info = infoResult.data as [number, bigint, bigint, bigint, bigint];
+        // 3. Batch fetch info for all tokens
+        const infoCalls = tokenIds.map((id) => ({
+          address: contractAddress,
+          abi: RewardABI as Abi,
+          functionName: 'getCollectibleInfo' as const,
+          args: [id] as const,
+        } as const));
 
-          const perk = info[0];
-          const metadata = perkMetadata.find(m => m.perk === perk) || {
-            name: `Unknown Perk #${perk}`,
-            desc: "Collectible available in shop",
-            icon: <Gem className="w-12 h-12 text-gray-400" />,
-            color: "gray",
-            image: "/game/shop/placeholder.jpg",
-          };
+        const infoResults = await useReadContracts({ contracts: infoCalls });
 
-          items.push({
-            tokenId,
-            perkId: perk,
-            strength: Number(info[1]),
-            tycPrice: formatUnits(info[2], 18),
-            usdcPrice: formatUnits(info[3], 6),
-            stock: Number(info[4]),
-            ...metadata,
-          });
-        }
+        const collectibles: any[] = [];
+        const userVouchers: any[] = [];
 
-        setShopItems(items);
+        infoResults.data?.forEach((result, index) => {
+          if (result?.status !== 'success') return;
+
+          const [perk, strength, tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
+          const tokenId = tokenIds[index];
+
+          // Voucher range: 1_000_000_000+
+          if (tokenId >= 1000000000 && tokenId < 2000000000) {
+            userVouchers.push({
+              tokenId,
+              value: Number(strength), // assuming strength holds redeem value for vouchers
+              name: `TYC Voucher #${tokenId}`,
+              desc: `Redeem for ${Number(strength)} TYC`,
+              icon: <Ticket className="w-12 h-12 text-amber-400" />,
+            });
+          } 
+          // Collectible range: 2_000_000_000+
+          else if (tokenId >= 2000000000) {
+            const meta = perkMetadata.find(m => m.perk === perk) || {
+              name: `Unknown Perk #${perk}`,
+              desc: "Mysterious collectible",
+              icon: <Gem className="w-12 h-12 text-gray-400" />,
+              image: "/game/shop/placeholder.jpg",
+            };
+
+            collectibles.push({
+              tokenId,
+              perkId: perk,
+              strength: Number(strength),
+              tycPrice: formatUnits(tycPrice, 18),
+              usdcPrice: formatUnits(usdcPrice, 6),
+              stock: Number(stock),
+              ...meta,
+            });
+          }
+        });
+
+        setShopItems(collectibles);
+        setVouchers(userVouchers);
       } catch (err: any) {
         console.error("Shop fetch error:", err);
-        setErrorMessage(err.message || "Failed to load shop items. Try again later.");
+        setErrorMessage(err.message || "Failed to load shop items");
         toast.error("Could not load shop items");
       } finally {
-        setLoadingItems(false);
+        setLoading(false);
       }
     };
 
-    fetchShopItems();
+    fetchItems();
   }, [contractAddress, isConnected]);
 
-  // Buy flow (approval → purchase)
+  // Buy handler (same as before, just using item from shopItems)
   const handleBuy = async (item: any) => {
-    if (!isConnected || !address) {
-      toast.error("Connect your wallet first!");
+    if (!isConnected || !address || !contractAddress) {
+      toast.error("Connect wallet first!");
       return;
     }
 
@@ -147,116 +194,81 @@ export default function GameShop() {
     }
 
     const decimals = useUsdc ? 6 : 18;
-    const amount = parseUnits(price, decimals);
-    const paymentToken = useUsdc ? USDC_TOKEN_ADDRESS[chainId] : TYC_TOKEN_ADDRESS[chainId];
-
-    setBuyingId(item.tokenId);
-    setCurrentAction('approve');
-
-    const toastId = toast.loading(`Approving ${price} ${useUsdc ? "USDC" : "TYC"}...`);
+    const amount = parseUnits(price.toString(), decimals);
+    const paymentToken = useUsdc 
+      ? USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address
+      : TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address;
 
     try {
+      // 1. Approve token
       await writeContract({
-        address: paymentToken as Address,
+        address: paymentToken,
         abi: [
-          {
-            name: "approve",
-            type: "function",
-            inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
-            outputs: [{ name: "", type: "bool" }],
-            stateMutability: "nonpayable",
-          },
+          { name: "approve", type: "function", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" }
         ],
         functionName: "approve",
-        args: [contractAddress as Address, amount],
+        args: [contractAddress, amount],
       });
-      // Success will trigger next step in useEffect
+
+      toast.info("Approval confirmed! Finalizing purchase...");
+
+      // 2. Buy collectible
+      await writeContract({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: "buyCollectible",
+        args: [item.tokenId, useUsdc],
+      });
+
+      toast.success("Perk purchased successfully! 🎉");
+      setTimeout(() => window.location.reload(), 2000);
     } catch (err: any) {
-      toast.update(toastId, {
-        render: err.message?.includes("User rejected") ? "Approval cancelled" : "Approval failed",
-        type: "error",
-        isLoading: false,
-        autoClose: 5000,
-      });
-      setBuyingId(null);
-      setCurrentAction(null);
-      reset();
+      console.error(err);
+      toast.error(err.shortMessage || "Transaction failed");
     }
   };
 
-  // Transaction lifecycle
-  useEffect(() => {
-    if (!buyingId || !currentAction) return;
+  // Redeem voucher handler
+  const handleRedeemVoucher = async () => {
+    if (!isConnected || !address || !contractAddress) {
+      toast.error("Connect wallet first!");
+      return;
+    }
 
-    if (currentAction === 'approve' && hash && isSuccess && !writing && !confirming) {
-      toast.info("Approval confirmed! Purchasing perk now...", {
-        isLoading: true,
-        autoClose: false,
-      });
+    const tokenId = BigInt(voucherIdToRedeem.trim());
+    if (isNaN(Number(tokenId)) || tokenId <= 0) {
+      toast.error("Invalid voucher ID");
+      return;
+    }
 
-      setCurrentAction('buy');
+    setRedeeming(true);
 
-      writeContract({
-        address: contractAddress as Address,
+    try {
+      await writeContract({
+        address: contractAddress,
         abi: RewardABI,
-        functionName: "buyCollectible",
-        args: [buyingId, useUsdc],
+        functionName: 'redeemVoucher',
+        args: [tokenId],
       });
-    }
 
-    if (currentAction === 'buy' && hash && isSuccess && !writing && !confirming) {
-      toast.success("Perk purchased successfully! 🎉", { autoClose: 5000 });
-
-      setBuyingId(null);
-      setCurrentAction(null);
-
+      toast.success("Voucher redeemed successfully! TYC added to your wallet");
+      setVoucherIdToRedeem('');
       setTimeout(() => window.location.reload(), 2000);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.shortMessage || "Redemption failed");
+    } finally {
+      setRedeeming(false);
     }
-
-    if (writeError) {
-      let errorMessage = "Transaction failed";
-
-      if (writeError instanceof Error) {
-        errorMessage = writeError.message;
-      } else if (typeof writeError === "string") {
-        errorMessage = writeError;
-      } else if (writeError && 'message' in writeError) {
-        errorMessage = (writeError as { message: string }).message;
-      }
-
-      const isRejected =
-        errorMessage.toLowerCase().includes("user rejected") ||
-        errorMessage.toLowerCase().includes("rejected") ||
-        (writeError as any)?.code === 4001;
-
-      toast.error(isRejected ? "Cancelled – no worries!" : `Error: ${errorMessage}`, {
-        autoClose: 7000,
-      });
-
-      setBuyingId(null);
-      setCurrentAction(null);
-      reset();
-    }
-  }, [
-    buyingId,
-    currentAction,
-    hash,
-    isSuccess,
-    writing,
-    confirming,
-    writeError,
-    writeContract,
-    contractAddress,
-    useUsdc,
-    reset,
-  ]);
+  };
 
   const handleBack = () => router.push("/");
 
   return (
     <section className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-[#F0F7F7] py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-wide flex items-center gap-4">
             <ShoppingBag className="w-12 h-12 text-[#00F0FF]" />
             Tycoon Perk Shop
@@ -266,8 +278,8 @@ export default function GameShop() {
           </button>
         </div>
 
-        {/* Balances */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        {/* User Balances + Payment Toggle */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center">
             <Wallet className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
             <p className="text-lg font-semibold">Your TYC</p>
@@ -289,104 +301,150 @@ export default function GameShop() {
           </div>
         </div>
 
-        {/* Loading / Error / Empty States */}
-        {loadingItems ? (
+        {/* Loading / Error */}
+        {loading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-12 h-12 animate-spin text-[#00F0FF]" />
-            <span className="ml-4 text-xl">Loading Perks...</span>
+            <span className="ml-4 text-xl">Loading Perks & Vouchers...</span>
           </div>
         ) : errorMessage ? (
           <div className="text-center py-20 text-rose-400 text-xl">
             {errorMessage}
           </div>
-        ) : shopItems.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 text-xl">
-            No perks available in shop yet. Check back soon!
-          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {shopItems.map((item) => {
-              const price = useUsdc ? item.usdcPrice : item.tycPrice;
-              const formattedPrice = useUsdc ? `$${price}` : `${price} TYC`;
-              const isCheapInUsdc = Number(item.usdcPrice) < Number(item.tycPrice) * 0.5;
+          <>
+            {/* Available Collectibles */}
+            <section className="mb-16">
+              <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+                <ShoppingBag className="w-8 h-8 text-[#00F0FF]" />
+                Available Perks
+              </h2>
 
-              return (
-                <motion.div
-                  key={item.tokenId.toString()}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                  className="bg-[#0E1415] rounded-2xl overflow-hidden border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-[#00F0FF]/20"
-                >
-                  <div className="relative h-48">
-                    <Image
-                      src={item.image || "/game/shop/placeholder.jpg"}
-                      alt={item.name}
-                      fill
-                      className="object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                    <div className="absolute bottom-4 left-4 right-4">
-                      <div className="flex items-center gap-2">
-                        {item.icon}
-                        <span className="font-bold text-lg">{item.name}</span>
-                      </div>
-                      {item.strength > 1 && (
-                        <span className="text-sm text-gray-300">Tier {item.strength}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-6">
-                    <p className="text-gray-400 mb-4 text-sm line-clamp-2">{item.desc}</p>
-
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <p className="text-sm text-gray-400">Price</p>
-                        <p className="text-2xl font-bold text-[#00F0FF]">{formattedPrice}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-400">Stock</p>
-                        <p className="font-semibold">{item.stock}</p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleBuy(item)}
-                      disabled={buyingId === item.tokenId || writing || confirming || item.stock === 0}
-                      className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
-                        buyingId === item.tokenId && (writing || confirming)
-                          ? "bg-gray-700 cursor-wait"
-                          : item.stock === 0
-                          ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                          : "bg-gradient-to-r from-[#003B3E] to-[#00F0FF] hover:from-[#00F0FF] hover:to-[#0FF0FC] text-black"
-                      }`}
+              {shopItems.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  No collectibles available in shop yet. Check back soon!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                  {shopItems.map((item) => (
+                    <motion.div
+                      key={item.tokenId.toString()}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ scale: 1.05 }}
+                      className="bg-[#0E1415] rounded-2xl overflow-hidden border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-[#00F0FF]/20"
                     >
-                      {buyingId === item.tokenId && (writing || confirming) ? (
-                        <>
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                          Processing...
-                        </>
-                      ) : item.stock === 0 ? (
-                        "Sold Out"
-                      ) : (
-                        <>
-                          <Coins className="w-6 h-6" />
-                          Buy Now
-                        </>
-                      )}
-                    </button>
+                      {/* Image */}
+                      <div className="relative h-48">
+                        <Image
+                          src={item.image || "/game/shop/placeholder.jpg"}
+                          alt={item.name}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                        <div className="absolute bottom-4 left-4 right-4 flex items-center gap-2">
+                          {item.icon}
+                          <span className="font-bold text-lg truncate">{item.name}</span>
+                        </div>
+                      </div>
 
-                    {isCheapInUsdc && (
-                      <p className="text-center text-xs text-green-400 mt-3">
-                        Save big with USDC!
-                      </p>
+                      {/* Info */}
+                      <div className="p-6">
+                        <p className="text-gray-400 mb-4 text-sm line-clamp-2">{item.desc}</p>
+
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <p className="text-sm text-gray-400">Price</p>
+                            <p className="text-xl font-bold text-[#00F0FF]">
+                              {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-400">Stock</p>
+                            <p className="font-semibold">{item.stock}</p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleBuy(item)}
+                          disabled={buyingId === item.tokenId || writing || confirming || item.stock === 0}
+                          className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
+                            buyingId === item.tokenId && (writing || confirming)
+                              ? "bg-gray-700 cursor-wait"
+                              : item.stock === 0
+                              ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+                              : "bg-gradient-to-r from-[#003B3E] to-[#00F0FF] hover:from-[#00F0FF] hover:to-[#0FF0FC] text-black"
+                          }`}
+                        >
+                          {buyingId === item.tokenId && (writing || confirming) ? (
+                            <>
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                              Processing...
+                            </>
+                          ) : item.stock === 0 ? (
+                            "Sold Out"
+                          ) : (
+                            <>
+                              <Coins className="w-6 h-6" />
+                              Buy Now
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Redeem Vouchers Section */}
+            <section className="mb-16">
+              <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+                <Ticket className="w-8 h-8 text-amber-400" />
+                Redeem Your Vouchers
+              </h2>
+
+              <div className="bg-[#0E1415]/80 rounded-2xl p-8 border border-[#003B3E]">
+                <div className="max-w-md mx-auto">
+                  <label className="block text-lg font-semibold mb-3">
+                    Voucher Token ID
+                  </label>
+                  <input
+                    type="text"
+                    value={voucherIdToRedeem}
+                    onChange={(e) => setVoucherIdToRedeem(e.target.value)}
+                    placeholder="Enter your voucher ID (e.g. 1000000001)"
+                    className="w-full px-4 py-3 bg-gray-800 border border-[#003B3E] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00F0FF] text-white mb-4"
+                  />
+                  <button
+                    onClick={handleRedeemVoucher}
+                    disabled={redeeming || !voucherIdToRedeem.trim()}
+                    className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
+                      redeeming
+                        ? "bg-gray-700 cursor-wait"
+                        : "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
+                    }`}
+                  >
+                    {redeeming ? (
+                      <>
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                        Redeeming...
+                      </>
+                    ) : (
+                      <>
+                        <Ticket className="w-6 h-6" />
+                        Redeem Voucher
+                      </>
                     )}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+                  </button>
+                  <p className="text-sm text-gray-400 mt-4 text-center">
+                    Redeem your TYC vouchers instantly. Make sure you own the token!
+                  </p>
+                </div>
+              </div>
+            </section>
+          </>
         )}
 
         {!isConnected && (
@@ -394,7 +452,7 @@ export default function GameShop() {
             <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-400" />
             <h3 className="text-2xl font-bold mb-4">Wallet Not Connected</h3>
             <p className="text-lg text-gray-300">
-              Connect your wallet to browse and buy powerful perks!
+              Connect your wallet to browse perks and redeem vouchers!
             </p>
           </div>
         )}
