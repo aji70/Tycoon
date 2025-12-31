@@ -8,21 +8,28 @@ import {
   useReadContracts,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useBalance,
 } from 'wagmi';
-import { parseUnits, formatUnits, type Address, type Abi } from 'viem';
-import { motion } from 'framer-motion';
+import { formatUnits, type Address, type Abi } from 'viem';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  ShoppingBag, Coins, AlertTriangle, Loader2, CreditCard, Zap, Shield, Sparkles, Gem, Crown,
-  Ticket, Wallet,
+  ShoppingBag, Coins, Loader2, CreditCard, Zap, Shield, Sparkles, Gem, Crown,
+  Ticket, Wallet, RefreshCw, X,
 } from 'lucide-react';
 
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 
-// Metadata for collectibles (expand as needed)
+const VOUCHER_ID_START = 1_000_000_000;
+const COLLECTIBLE_ID_START = 2_000_000_000;
+
+const isVoucherToken = (tokenId: bigint): boolean =>
+  tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
+
+// Perk metadata (unchanged)
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Get +1 extra turn!", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
   { perk: 2, name: "Jail Free Card", desc: "Escape jail instantly!", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
@@ -42,15 +49,34 @@ export default function GameShop() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
+  const tycTokenAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
+  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [useUsdc, setUseUsdc] = useState(false);
-  const [voucherIdToRedeem, setVoucherIdToRedeem] = useState('');
-  const [redeeming, setRedeeming] = useState(false);
+  const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
+  const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
 
   const { writeContract, data: hash, isPending: writing, error: writeError, reset } = useWriteContract();
-  const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: confirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // ── Fetch ALL collectibles owned by shop contract ──────────────────────────
+  // Balances
+  const { data: tycBalanceData, isLoading: tycLoading, refetch: refetchTyc } = useBalance({
+    address,
+    token: tycTokenAddress,
+    query: { enabled: !!address && !!tycTokenAddress && isConnected },
+  });
+
+  const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
+    address,
+    token: usdcTokenAddress,
+    query: { enabled: !!address && !!usdcTokenAddress && isConnected },
+  });
+
+  const tycBalance = tycBalanceData ? Number(tycBalanceData.formatted).toFixed(2) : '0.00';
+  const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
+
+  // ── SHOP COLLECTIBLES ─────────────────────────────────────
   const contractTokenCount = useReadContract({
     address: contractAddress,
     abi: RewardABI,
@@ -65,8 +91,8 @@ export default function GameShop() {
     Array.from({ length: tokenCount }, (_, i) => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex' as const,
-      args: [contractAddress!, BigInt(i)] as const,
+      functionName: 'tokenOfOwnerByIndex',
+      args: [contractAddress!, BigInt(i)],
     } as const)),
   [contractAddress, tokenCount]);
 
@@ -77,15 +103,15 @@ export default function GameShop() {
   });
 
   const allTokenIds = tokenIdResults.data
-    ?.map((res) => (res?.status === 'success' ? (res.result as bigint | undefined) : undefined))
+    ?.map((res) => (res?.status === 'success' ? (res.result as bigint) : undefined))
     .filter((id): id is bigint => id !== undefined) ?? [];
 
   const collectibleInfoCalls = useMemo(() =>
     allTokenIds.map((tokenId) => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo' as const,
-      args: [tokenId] as const,
+      functionName: 'getCollectibleInfo',
+      args: [tokenId],
     } as const)),
   [contractAddress, allTokenIds]);
 
@@ -99,10 +125,8 @@ export default function GameShop() {
     return tokenInfoResults.data
       ?.map((result, index) => {
         if (result?.status !== 'success') return null;
-
         const [perk, strength, tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
-
-        if (stock === BigInt(0)) return null; // Skip out-of-stock
+        if (stock === BigInt(0)) return null;
 
         const tokenId = allTokenIds[index];
         const meta = perkMetadata.find(m => m.perk === perk) || {
@@ -125,40 +149,106 @@ export default function GameShop() {
       .filter((item): item is NonNullable<typeof item> => item !== null) ?? [];
   }, [tokenInfoResults.data, allTokenIds]);
 
-  // Buy handler
+  // ── USER VOUCHERS ───────────────────────────────────────────
+  const userOwnedCount = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'ownedTokenCount',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && !!contractAddress && isConnected },
+  });
+
+  const ownedCount = Number(userOwnedCount.data ?? 0);
+
+  const userTokenCalls = useMemo(() =>
+    Array.from({ length: ownedCount }, (_, i) => ({
+      address: contractAddress!,
+      abi: RewardABI as Abi,
+      functionName: 'tokenOfOwnerByIndex',
+      args: [address!, BigInt(i)],
+    } as const)),
+  [contractAddress, address, ownedCount]);
+
+  const userTokenResults = useReadContracts({
+    contracts: userTokenCalls,
+    allowFailure: true,
+    query: { enabled: !!address && !!contractAddress && ownedCount > 0 && isConnected },
+  });
+
+  const userTokenIds = userTokenResults.data
+    ?.map(res => res?.status === 'success' ? res.result as bigint : undefined)
+    .filter((id): id is bigint => id !== undefined && isVoucherToken(id)) ?? [];
+
+  const voucherInfoCalls = useMemo(() =>
+    userTokenIds.map(tokenId => ({
+      address: contractAddress!,
+      abi: RewardABI as Abi,
+      functionName: 'getCollectibleInfo',
+      args: [tokenId],
+    } as const)),
+  [contractAddress, userTokenIds]);
+
+  const voucherInfoResults = useReadContracts({
+    contracts: voucherInfoCalls,
+    allowFailure: true,
+    query: { enabled: !!contractAddress && userTokenIds.length > 0 },
+  });
+
+  const myVouchers = useMemo(() => {
+    return voucherInfoResults.data?.map((result, i) => {
+      if (result?.status !== 'success') return null;
+      const [, , tycPrice] = result.result as [number, bigint, bigint, bigint, bigint];
+      const tokenId = userTokenIds[i];
+      return {
+        tokenId,
+        value: formatUnits(tycPrice, 18),
+      };
+    }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
+  }, [voucherInfoResults.data, userTokenIds]);
+
+  // ── REDEEM HANDLER ──────────────────────────────────────────
+  const handleRedeemVoucher = async (tokenId: bigint) => {
+    if (!isConnected || !contractAddress) return;
+
+    setRedeemingId(tokenId);
+
+    try {
+      writeContract({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'redeemVoucher',
+        args: [tokenId],
+      });
+
+      if (txSuccess) {
+        toast.success('Voucher redeemed! TYC added 🎉');
+        setTimeout(() => refetchTyc(), 3000);
+      }
+    } catch (err: any) {
+      toast.error(err.shortMessage || 'Redemption failed');
+    } finally {
+      setRedeemingId(null);
+      reset();
+    }
+  };
+
+  // ── BUY HANDLER ─────────────────────────────────────────────
   const handleBuy = async (item: any) => {
-    if (!isConnected || !address || !contractAddress) {
-      toast.error("Connect wallet first!");
+    if (!isConnected || !contractAddress) {
+      toast.error("Connect wallet first");
       return;
     }
 
-    const price = useUsdc ? item.usdcPrice : item.tycPrice;
-    if (Number(price) === 0) {
-      toast.error(useUsdc ? "Not available in USDC" : "Not available in TYC");
+    const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
+    if (Number(priceStr) === 0) {
+      toast.error("Not available with selected currency");
       return;
     }
-
-    const decimals = useUsdc ? 6 : 18;
-    const amount = parseUnits(price.toString(), decimals);
-    const paymentToken = useUsdc
-      ? USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address
-      : TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address;
 
     setBuyingId(item.tokenId);
 
     try {
-      await writeContract({
-        address: paymentToken,
-        abi: [
-          { name: "approve", type: "function", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" }
-        ],
-        functionName: "approve",
-        args: [contractAddress, amount],
-      });
-
-      toast.info("Approval sent...");
-
-      await writeContract({
+      writeContract({
         address: contractAddress,
         abi: RewardABI,
         functionName: "buyCollectible",
@@ -166,7 +256,10 @@ export default function GameShop() {
       });
 
       toast.success("Purchase successful! 🎉");
-      setTimeout(() => window.location.reload(), 2000);
+      setTimeout(() => {
+        refetchTyc();
+        refetchUsdc();
+      }, 3000);
     } catch (err: any) {
       toast.error(err.shortMessage || "Transaction failed");
     } finally {
@@ -175,48 +268,15 @@ export default function GameShop() {
     }
   };
 
-  // Redeem voucher handler
-  const handleRedeemVoucher = async () => {
-    if (!isConnected || !address || !contractAddress) {
-      toast.error("Connect wallet first!");
-      return;
-    }
-
-    const tokenIdStr = voucherIdToRedeem.trim();
-    if (!tokenIdStr || isNaN(Number(tokenIdStr))) {
-      toast.error("Enter a valid voucher token ID");
-      return;
-    }
-
-    const tokenId = BigInt(tokenIdStr);
-
-    setRedeeming(true);
-
-    try {
-      await writeContract({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'redeemVoucher',
-        args: [tokenId],
-      });
-
-      toast.success("Voucher redeemed! TYC added to your wallet");
-      setVoucherIdToRedeem('');
-      setTimeout(() => window.location.reload(), 2000);
-    } catch (err: any) {
-      toast.error(err.shortMessage || "Redemption failed");
-    } finally {
-      setRedeeming(false);
-    }
-  };
-
   const handleBack = () => router.push("/");
 
-  const isLoading = tokenCount > 0 && shopItems.length === 0;
+  const hasVouchers = myVouchers.length > 0;
+  const isLoadingShop = tokenCount > 0 && shopItems.length === 0;
 
   return (
     <section className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-[#F0F7F7] py-8 px-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto relative">
+
         {/* Header */}
         <div className="flex justify-between items-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-wide flex items-center gap-4">
@@ -230,16 +290,28 @@ export default function GameShop() {
 
         {/* Balances + Payment Toggle */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center">
+          <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center relative">
             <Wallet className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
-            <p className="text-lg font-semibold">Your TYC</p>
-            <p className="text-2xl font-bold text-[#00F0FF]">0.00 TYC</p> {/* Add real balance if you want */}
+            <p className="text-lg font-semibold">TYC Balance</p>
+            <p className="text-2xl font-bold text-[#00F0FF]">
+              {tycLoading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : `${tycBalance} TYC`}
+            </p>
+            <button onClick={() => refetchTyc()} className="absolute top-4 right-4 text-gray-400 hover:text-[#00F0FF]">
+              <RefreshCw className="w-5 h-5" />
+            </button>
           </div>
-          <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center">
+
+          <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center relative">
             <CreditCard className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
-            <p className="text-lg font-semibold">Your USDC</p>
-            <p className="text-2xl font-bold text-[#00F0FF]">0.00 USDC</p>
+            <p className="text-lg font-semibold">USDC Balance</p>
+            <p className="text-2xl font-bold text-[#00F0FF]">
+              {usdcLoading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : `$${usdcBalance}`}
+            </p>
+            <button onClick={() => refetchUsdc()} className="absolute top-4 right-4 text-gray-400 hover:text-[#00F0FF]">
+              <RefreshCw className="w-5 h-5" />
+            </button>
           </div>
+
           <div className="bg-[#003B3E]/50 rounded-xl p-6 border border-[#00F0FF]/30 flex items-center justify-center">
             <button
               onClick={() => setUseUsdc(!useUsdc)}
@@ -250,79 +322,74 @@ export default function GameShop() {
           </div>
         </div>
 
-        {/* Shop Items */}
-        {isLoading ? (
+        {/* Shop Grid - Main Content */}
+        {isLoadingShop ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-12 h-12 animate-spin text-[#00F0FF]" />
-            <span className="ml-4 text-xl">Loading available perks...</span>
+            <span className="ml-4 text-xl">Loading perks...</span>
           </div>
         ) : shopItems.length === 0 ? (
           <div className="text-center py-20 text-gray-400 text-xl">
-            No collectibles available in shop yet. Check back soon!
+            No collectibles available yet. Check back soon!
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-16">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
             {shopItems.map((item) => (
               <motion.div
                 key={item.tokenId.toString()}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ scale: 1.05 }}
-                className="bg-[#0E1415] rounded-2xl overflow-hidden border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-[#00F0FF]/20"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                whileHover={{ scale: 1.05, y: -8 }}
+                className="bg-[#0E1415] rounded-2xl overflow-hidden border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-[#00F0FF]/30"
               >
-                <div className="relative h-48">
+                <div className="relative h-56 overflow-hidden">
                   <Image
                     src={item.image || "/game/shop/placeholder.jpg"}
                     alt={item.name}
                     fill
-                    className="object-cover"
+                    className="object-cover transition-transform duration-500 hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4 flex items-center gap-2">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  <div className="absolute bottom-4 left-4 flex items-center gap-3">
                     {item.icon}
-                    <span className="font-bold text-lg truncate">{item.name}</span>
+                    <span className="font-bold text-xl">{item.name}</span>
                   </div>
                 </div>
 
                 <div className="p-6">
-                  <p className="text-gray-400 mb-4 text-sm line-clamp-2">{item.desc}</p>
+                  <p className="text-gray-300 mb-5 text-sm leading-relaxed">{item.desc}</p>
 
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="flex justify-between items-end mb-6">
                     <div>
                       <p className="text-sm text-gray-400">Price</p>
-                      <p className="text-xl font-bold text-[#00F0FF]">
+                      <p className="text-2xl font-bold text-[#00F0FF]">
                         {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-400">Stock</p>
-                      <p className="font-semibold">{item.stock}</p>
+                      <p className="text-xl font-bold">{item.stock > 0 ? item.stock : 'Sold Out'}</p>
                     </div>
                   </div>
 
                   <button
                     onClick={() => handleBuy(item)}
                     disabled={buyingId === item.tokenId || writing || confirming || item.stock === 0}
-                    className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
-                      buyingId === item.tokenId && (writing || confirming)
-                        ? "bg-gray-700 cursor-wait"
-                        : item.stock === 0
+                    className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg ${
+                      item.stock === 0
                         ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                        : "bg-gradient-to-r from-[#003B3E] to-[#00F0FF] hover:from-[#00F0FF] hover:to-[#0FF0FC] text-black"
+                        : buyingId === item.tokenId && (writing || confirming)
+                        ? "bg-gray-700 cursor-wait"
+                        : "bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] text-black hover:shadow-[#00F0FF]/50"
                     }`}
                   >
                     {buyingId === item.tokenId && (writing || confirming) ? (
-                      <>
-                        <Loader2 className="w-6 h-6 animate-spin" />
-                        Processing...
-                      </>
+                      <> <Loader2 className="w-6 h-6 animate-spin" /> Processing... </>
                     ) : item.stock === 0 ? (
                       "Sold Out"
                     ) : (
-                      <>
-                        <Coins className="w-6 h-6" />
-                        Buy Now
-                      </>
+                      <> <Coins className="w-6 h-6" /> Buy Now </>
                     )}
                   </button>
                 </div>
@@ -331,56 +398,111 @@ export default function GameShop() {
           </div>
         )}
 
-        {/* Redeem Vouchers Section */}
-        <div className="bg-[#0E1415]/80 rounded-2xl p-8 border border-[#003B3E] max-w-2xl mx-auto">
-          <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
-            <Ticket className="w-8 h-8 text-amber-400" />
-            Redeem Your Vouchers
-          </h2>
-
-          <div className="flex flex-col gap-4">
-            <input
-              type="text"
-              value={voucherIdToRedeem}
-              onChange={(e) => setVoucherIdToRedeem(e.target.value.trim())}
-              placeholder="Enter voucher token ID (e.g. 1000000001)"
-              className="w-full px-4 py-3 bg-gray-800 border border-[#003B3E] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-white"
-            />
-
-            <button
-              onClick={handleRedeemVoucher}
-              disabled={redeeming || !voucherIdToRedeem.trim()}
-              className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
-                redeeming
-                  ? "bg-gray-700 cursor-wait"
-                  : "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
-              }`}
+        {/* Voucher Teaser Button - Only if user has vouchers */}
+        <AnimatePresence>
+          {hasVouchers && !isVoucherPanelOpen && (
+            <motion.button
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 100 }}
+              onClick={() => setIsVoucherPanelOpen(true)}
+              className="fixed right-8 bottom-8 z-40 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold py-5 px-8 rounded-2xl shadow-2xl flex items-center gap-4 hover:shadow-amber-500/50 transition-all"
             >
-              {redeeming ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  Redeeming...
-                </>
-              ) : (
-                <>
-                  <Ticket className="w-6 h-6" />
-                  Redeem Voucher
-                </>
-              )}
-            </button>
+              <Ticket className="w-8 h-8" />
+              <div className="text-left">
+                <p className="text-sm">You have</p>
+                <p className="text-2xl font-black">{myVouchers.length} Voucher{myVouchers.length > 1 ? 's' : ''}</p>
+              </div>
+              <span className="ml-2 text-lg">→</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
 
-            <p className="text-sm text-gray-400 text-center">
-              Enter your voucher ID to instantly redeem TYC tokens. Must be owned by your wallet!
-            </p>
-          </div>
-        </div>
+        {/* Voucher Panel - Slides in from right */}
+        <AnimatePresence>
+          {isVoucherPanelOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsVoucherPanelOpen(false)}
+                className="fixed inset-0 bg-black/60 z-40"
+              />
+
+              {/* Panel */}
+              <motion.div
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="fixed right-0 top-0 h-full w-full max-w-md bg-[#0A1F20] shadow-2xl z-50 overflow-y-auto border-l border-amber-600/50"
+              >
+                <div className="p-8">
+                  <div className="flex justify-between items-center mb-8">
+                    <h2 className="text-3xl font-bold flex items-center gap-3">
+                      <Ticket className="w-10 h-10 text-amber-400" />
+                      My Vouchers ({myVouchers.length})
+                    </h2>
+                    <button
+                      onClick={() => setIsVoucherPanelOpen(false)}
+                      className="text-gray-400 hover:text-white transition"
+                    >
+                      <X className="w-8 h-8" />
+                    </button>
+                  </div>
+
+                  {myVouchers.length === 0 ? (
+                    <p className="text-center text-gray-400 py-20">
+                      No vouchers found.
+                    </p>
+                  ) : (
+                    <div className="grid gap-6">
+                      {myVouchers.map((voucher) => (
+                        <motion.div
+                          key={voucher.tokenId.toString()}
+                          whileHover={{ scale: 1.03 }}
+                          className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-6 border border-amber-600/50 flex flex-col items-center text-center"
+                        >
+                          <Ticket className="w-16 h-16 text-amber-400 mb-4" />
+                          <p className="text-2xl font-bold text-amber-300">
+                            {voucher.value} TYC
+                          </p>
+                          <p className="text-sm text-gray-400 mt-2 mb-6">
+                            ID: {voucher.tokenId.toString()}
+                          </p>
+
+                          <button
+                            onClick={() => handleRedeemVoucher(voucher.tokenId)}
+                            disabled={redeemingId === voucher.tokenId || writing || confirming}
+                            className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition ${
+                              redeemingId === voucher.tokenId || writing || confirming
+                                ? "bg-gray-700 text-gray-400 cursor-wait"
+                                : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black"
+                            }`}
+                          >
+                            {redeemingId === voucher.tokenId && (writing || confirming) ? (
+                              <> <Loader2 className="w-6 h-6 animate-spin" /> Redeeming... </>
+                            ) : (
+                              <> <Coins className="w-6 h-6" /> Redeem Now </>
+                            )}
+                          </button>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {!isConnected && (
           <div className="mt-16 text-center p-10 bg-[#0E1415]/60 rounded-2xl border border-red-800">
-            <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-400" />
             <h3 className="text-2xl font-bold mb-4">Wallet Not Connected</h3>
             <p className="text-lg text-gray-300">
-              Connect your wallet to browse perks and redeem vouchers!
+              Connect your wallet to buy perks and redeem vouchers!
             </p>
           </div>
         )}
