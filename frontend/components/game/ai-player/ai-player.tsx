@@ -637,7 +637,7 @@ useEffect(() => {
 
       {/* Scrollable Content with Custom Scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
-  <div className="space-y-4"> {/* Reduced from space-y-8 to space-y-4 */}
+  <div className="space-y-2"> {/* Reduced from space-y-8 to space-y-4 */}
     {/* Player List Section */}
     <section>
       <PlayerList
