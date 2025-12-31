@@ -637,56 +637,55 @@ useEffect(() => {
 
       {/* Scrollable Content with Custom Scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
-        <div className="space-y-8">
+  <div className="space-y-4"> {/* Reduced from space-y-8 to space-y-4 */}
+    {/* Player List Section */}
+    <section>
+      <PlayerList
+        game={game}
+        sortedPlayers={sortedPlayers}
+        startTrade={startTrade}
+        isNext={isNext}
+      />
+    </section>
 
-          {/* Player List Section */}
-          <section>
-            <PlayerList
-              game={game}
-              sortedPlayers={sortedPlayers}
-              startTrade={startTrade}
-              isNext={isNext}
-            />
-          </section>
+    {/* My Empire Section */}
+    <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-purple-500/30 shadow-xl shadow-purple-900/40">
+      <MyEmpire
+        showEmpire={showEmpire}
+        toggleEmpire={toggleEmpire}
+        my_properties={my_properties}
+        properties={properties}
+        game_properties={game_properties}
+        setSelectedProperty={setSelectedProperty}
+      />
+    </section>
 
-          {/* My Empire Section */}
-          <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-purple-500/30 shadow-xl shadow-purple-900/40">
-            <MyEmpire
-              showEmpire={showEmpire}
-              toggleEmpire={toggleEmpire}
-              my_properties={my_properties}
-              properties={properties}
-              game_properties={game_properties}
-              setSelectedProperty={setSelectedProperty}
-            />
-          </section>
+    {/* Active Trades Section */}
+    <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-pink-500/30 shadow-xl shadow-pink-900/40">
+      <TradeSection
+        showTrade={showTrade}
+        toggleTrade={toggleTrade}
+        openTrades={openTrades}
+        tradeRequests={tradeRequests}
+        properties={properties}
+        game={game}
+        handleTradeAction={handleTradeAction}
+      />
+    </section>
 
-          {/* Active Trades Section */}
-          <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-pink-500/30 shadow-xl shadow-pink-900/40">
-            <TradeSection
-              showTrade={showTrade}
-              toggleTrade={toggleTrade}
-              openTrades={openTrades}
-              tradeRequests={tradeRequests}
-              properties={properties}
-              game={game}
-              handleTradeAction={handleTradeAction}
-            />
-          </section>
-
-          {/* Dev Mode Button */}
-          {isDevMode && (
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(168, 85, 247, 0.6)" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setClaimModalOpen(true)}
-              className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-2xl text-white font-bold text-lg tracking-wide shadow-2xl shadow-purple-800/60 hover:shadow-pink-800/70 transition-all duration-300 border border-purple-400/50"
-            >
-              ⚙️ DEV: Claim Property
-            </motion.button>
-          )}
-        </div>
-      </div>
+    {/* Dev Mode Button */}
+    {isDevMode && (
+      <motion.button
+        whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(168, 85, 247, 0.6)" }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setClaimModalOpen(true)}
+        className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-2xl text-white font-bold text-lg tracking-wide shadow-2xl shadow-purple-800/60 hover:shadow-pink-800/70 transition-all duration-300 border border-purple-400/50"
+      >
+        ⚙️ DEV: Claim Property
+      </motion.button>
+    )}
+  </div>
+</div>
 
       {/* Custom Scrollbar Styles */}
       <style jsx>{`
