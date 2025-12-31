@@ -1,8 +1,8 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Dices, BarChart2, Gamepad2 } from "lucide-react";
+import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -10,7 +10,7 @@ import {
   useIsRegistered,
   useGetUsername,
   useRegister,
-  usePreviousGame
+  usePreviousGame,
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
@@ -20,20 +20,23 @@ import { ApiResponse } from "@/types/api";
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
-  
+
   const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState("");
-// Remove the username argument
-const {
-  write: registerPlayer,
-  isPending,
-} = useRegister(); // ← no args
+  const [inputUsername, setInputUsername] = useState(""); // Only for new users
+  const [localRegistered, setLocalRegistered] = useState(false);
+  const [localUsername, setLocalUsername] = useState("");
+
+  const {
+    write: registerPlayer,
+    isPending: registerPending,
+  } = useRegister();
 
   const {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
     error: registeredError,
   } = useIsRegistered(address, { enabled: !!address });
+
   const { data: fetchedUsername } = useGetUsername(address, {
     enabled: !!address,
   });
@@ -42,27 +45,19 @@ const {
     enabled: !!address,
   });
 
-  // New: Local state for optimistic updates after registration
-  const [localRegistered, setLocalRegistered] = useState(false);
-  const [localUsername, setLocalUsername] = useState("");
-
-  const [registered, setRegistered] = useState(false);
-  const [name, setName] = useState("");
-  const [inputName, setInputName] = useState("");
-  
   const [user, setUser] = useState<UserType | null>(null);
 
-  // Reset all user-related state when address changes or disconnects
+  // Reset on disconnect
   useEffect(() => {
     if (!address) {
       setUser(null);
-      setRegistered(false);
-      setName("");
-      setInputName("");
+      setLocalRegistered(false);
+      setLocalUsername("");
+      setInputUsername("");
     }
   }, [address]);
 
-  // Fetch user data when a wallet address is connected
+  // Fetch backend user
   useEffect(() => {
     if (!address) return;
 
@@ -77,26 +72,16 @@ const {
         if (!isActive) return;
 
         if (res.success && res.data) {
-          const r = res.data as UserType;
-          setUser(r);
-          setRegistered(true);
-          setName(r.username || "");
+          setUser(res.data as UserType);
         } else {
           setUser(null);
-          setRegistered(false);
-          setName("");
         }
       } catch (error: any) {
         if (!isActive) return;
-
         if (error?.response?.status === 404) {
           setUser(null);
-          setRegistered(false);
-          setName("");
         } else {
-          console.error("Unexpected error fetching user:", error);
-          setUser(null);
-          setRegistered(false);
+          console.error("Error fetching user:", error);
         }
       }
     };
@@ -108,149 +93,116 @@ const {
     };
   }, [address]);
 
-  console.log("Name: ", name)
-  console.log("Previous Game: ", gameCode)
+  // Derived registration status
+  const registrationStatus = useMemo(() => {
+    if (!address) return "disconnected";
 
-  useEffect(() => {
-  if (registeredError) {
-    console.error("Registration check error:", registeredError);
+    const hasBackend = !!user;
+    const hasOnChain = !!isUserRegistered || localRegistered;
 
-    const msg = registeredError?.message?.toLowerCase() || "";
+    if (hasBackend && hasOnChain) return "fully-registered";
+    if (hasBackend && !hasOnChain) return "backend-only";
+    return "none";
+  }, [address, user, isUserRegistered, localRegistered]);
 
-    // Suppress annoying viem errors that happen on wallet connect / wrong chain
-    if (
-      msg.includes("contract not found") ||
-      msg.includes("invalid address") ||
-      msg.includes("could not detect network") ||
-      msg.includes("connector not connected") ||
-      msg.includes("network changed") ||
-      msg.includes("the contract function") // common viem error prefix
-    ) {
-      // Silently ignore — very common and not a real problem for the user
-      console.log("errr message", msg)
-      // return;
+  // Best available username to display
+  const displayUsername = useMemo(() => {
+    return (
+      user?.username ||
+      localUsername ||
+      fetchedUsername ||
+      inputUsername ||
+      "Player"
+    );
+  }, [user, localUsername, fetchedUsername, inputUsername]);
+
+  // Handle registration (on-chain + backend if needed)
+  const handleRegister = async () => {
+    if (!address) {
+      toast.error("Please connect your wallet");
+      return;
     }
 
-    // Only show a gentle toast for actual issues
-    toast.warn("Having trouble checking your status. Please switch to Celo or Base.", {
-  autoClose: 70000,
-});
-  }
+    let finalUsername = inputUsername.trim();
 
-  // Always update the username state (optimistic + real data)
-  if (isUserRegistered || localRegistered) {
-    setUsername(fetchedUsername || localUsername || "Unknown");
-  } else {
-    setUsername("");
-  }
-}, [isUserRegistered, fetchedUsername, registeredError, localRegistered, localUsername]);
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUsername(e.target.value);
-  };
+    // If backend user exists but not on-chain → use backend username
+    if (registrationStatus === "backend-only" && user?.username) {
+      finalUsername = user.username.trim();
+    }
 
-  const handleRouteToPrivateRoom = () => router.push("/game-settings");
-  const handleRouteToJoinRoom = () => router.push("/join-room");
-  const handleRouteToCreateGame = () => router.push("/game-settings");
-  const handleRouteToPlayWithAI = () => router.push("/play-ai"); // New AI route
+    if (!finalUsername) {
+      toast.warn("Please enter a username");
+      return;
+    }
 
-const handleRequest = async () => {
-  if (!address) {
-    toast.error("Please connect your wallet", { autoClose: 4000 });
-    return;
-  }
-  if (!username.trim()) {
-    toast.warn("Please enter a username", { autoClose: 3000 });
-    return;
-  }
+    setLoading(true);
+    const toastId = toast.loading("Processing registration...");
 
-  setLoading(true);
-  const toastId = toast.loading("Waiting for wallet approval...", {
-    position: "top-right",
-  });
+    try {
+      // Register on-chain if not already
+      if (!isUserRegistered && !localRegistered) {
+        await registerPlayer(finalUsername);
+      }
 
-  try {
-    await registerPlayer(username.trim());
+      // Create backend user if doesn't exist
+      if (!user) {
+        const res = await apiClient.post<ApiResponse>("/users", {
+          username: finalUsername,
+          address,
+          chain: "Base",
+        });
 
-    const res = await apiClient.post<ApiResponse>("/users", {
-      username,
-      address,
-      chain: "Base",
-    });
+        if (!res?.success) throw new Error("Failed to save user on backend");
+        setUser({ username: finalUsername } as UserType); // optimistic
+      }
 
-    if (res?.success) {
+      // Optimistic updates
       setLocalRegistered(true);
-      setLocalUsername(username);
+      setLocalUsername(finalUsername);
 
       toast.update(toastId, {
-        render: "Registered successfully! Welcome to Tycoon",
+        render: "Welcome to Tycoon!",
         type: "success",
         isLoading: false,
         autoClose: 4000,
-        closeButton: true,
       });
 
       router.refresh();
-    } else {
-      throw new Error("Backend registration failed");
-    }
-  } catch (err: any) {
-    // USER REJECTED – most common case
-    if (
-      err?.code === 4001 || 
-      err?.message?.includes("User rejected") ||
-      err?.message?.includes("User denied")
-    ) {
+    } catch (err: any) {
+      if (
+        err?.code === 4001 ||
+        err?.message?.includes("User rejected") ||
+        err?.message?.includes("User denied")
+      ) {
+        toast.update(toastId, {
+          render: "Transaction cancelled",
+          type: "info",
+          isLoading: false,
+          autoClose: 3500,
+        });
+        return;
+      }
+
+      let message = "Registration failed. Try again.";
+      if (err?.shortMessage) message = err.shortMessage;
+      if (err?.message?.includes("insufficient funds")) message = "Insufficient gas funds";
+
       toast.update(toastId, {
-        render: "You cancelled the transaction – no worries!",
-        type: "info",
+        render: message,
+        type: "error",
         isLoading: false,
-        autoClose: 3500,
+        autoClose: 6000,
       });
-      return;
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // SIGNATURE REJECTED (e.g. permit2, signTypedData)
-    if (err?.code === "ACTION_REJECTED") {
-      toast.update(toastId, {
-        render: "Signature declined",
-        type: "info",
-        isLoading: false,
-        autoClose: 3000,
-      });
-      return;
+  const handleContinuePrevious = () => {
+    if (gameCode) {
+      router.push(`/ai-play?gameCode=${gameCode}`);
     }
-
-    // REAL ERRORS – show friendly message + optional details
-    let message = "Something went wrong. Please try again.";
-
-    if (err?.message?.includes("insufficient funds")) {
-      message = "Not enough funds for gas";
-    } else if (err?.reason) {
-      message = err.reason;
-    } else if (err?.shortMessage) {
-      message = err.shortMessage;
-    }
-
-    toast.update(toastId, {
-      render: (
-        <div>
-          <div>{message}</div>
-          {/* Optional: uncomment if you want a tiny "details" toggle for devs */}
-          <details className="text-xs mt-2 opacity-70">
-            <summary className="cursor-pointer">Show details</summary>
-            <pre className="mt-1 text-left overflow-x-auto">{err?.message}</pre>
-          </details>
-        </div>
-      ),
-      type: "error",
-      isLoading: false,
-      autoClose: 6000,
-      closeOnClick: true,
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   if (isConnecting) {
     return (
@@ -283,14 +235,15 @@ const handleRequest = async () => {
       </div>
 
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
-        {/* New: Use localRegistered as fallback */}
-        {(isUserRegistered || localRegistered) && !loading && (
+        {/* Welcome Message */}
+        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
-              Welcome back, {username}!
+              Welcome back, {displayUsername}!
             </p>
           </div>
         )}
+
         {loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
@@ -351,94 +304,93 @@ const handleRequest = async () => {
             className="font-orbitron lg:text-[40px] md:text-[30px] text-[20px] font-[700] text-[#F0F7F7] text-center block"
           />
           <p className="font-dmSans font-[400] md:text-[18px] text-[14px] text-[#F0F7F7] mt-4">
-            Step into Tycoon — the Web3 twist on the classic game of
-            strategy, ownership, and fortune. Play solo against AI, compete in
-            multiplayer rooms, collect tokens, complete quests, and become the
-            ultimate blockchain tycoon.
+            Step into Tycoon — the Web3 twist on the classic game of strategy,
+            ownership, and fortune. Play solo against AI, compete in multiplayer
+            rooms, collect tokens, complete quests, and become the ultimate
+            blockchain tycoon.
           </p>
         </div>
 
-        <div className="z-1 w-full flex flex-col justify-center items-center mt-3 gap-3">
-          {/* Registration Form */}
-          {address && !(isUserRegistered || localRegistered) && !loading && (
+        <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
+          {/* Show input ONLY for completely new users */}
+          {address && registrationStatus === "none" && !loading && (
             <>
               <input
                 type="text"
-                name="name"
-                id="name"
-                value={username}
-                onChange={handleInputChange}
-                required
-                placeholder="input your name"
-                className="w-[80%] md:w-[260px] h-[45px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[16px] text-center placeholder:text-[#455A64] placeholder:font-dmSans placeholder:text-[16px]"
+                value={inputUsername}
+                onChange={(e) => setInputUsername(e.target.value)}
+                placeholder="Choose your tycoon name"
+                className="w-[80%] md:w-[260px] h-[45px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[16px] text-center placeholder:text-[#455A64] placeholder:font-dmSans"
               />
-              <button
-                type="button"
-                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-                disabled={loading || !username.trim() || !address}
-                onClick={handleRequest}
-              >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth={1}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <svg
-                        className="animate-spin h-4 w-4"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                        />
-                      </svg>
-                      Registering...
-                    </span>
-                  ) : (
-                    "Let's Go!"
-                  )}
-                </span>
-              </button>
             </>
           )}
 
-          {!address && (
-            <p className="text-gray-400 text-sm text-center mt-2">
-              Please connect your wallet to continue.
-            </p>
+          {/* "Let's Go!" button for backend-only or none */}
+          {address && registrationStatus !== "fully-registered" && !loading && (
+            <button
+              onClick={handleRegister}
+              disabled={
+                loading ||
+                registerPending ||
+                (registrationStatus === "none" && !inputUsername.trim())
+              }
+              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+            >
+              <svg
+                width="260"
+                height="52"
+                viewBox="0 0 260 52"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
+              >
+                <path
+                  d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                  fill="#00F0FF"
+                  stroke="#0E282A"
+                  strokeWidth={1}
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] -tracking-[2%] font-orbitron font-[700] z-2">
+                {loading || registerPending ? "Registering..." : "Let's Go!"}
+              </span>
+            </button>
           )}
 
-          {/* Action Buttons for Registered Users */}
-          {address && (isUserRegistered || localRegistered) && (
-            <div className="flex flex-wrap justify-center items-center mt-2 gap-4">
-              {/* Create Game */}
+          {/* Action buttons for fully registered users */}
+          {address && registrationStatus === "fully-registered" && (
+            <div className="flex flex-wrap justify-center items-center gap-4">
+              {/* Continue Previous Game - Highlighted */}
+              {gameCode && (
+                <button
+                  onClick={handleContinuePrevious}
+                  className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+                >
+                  <svg
+                    width="300"
+                    height="56"
+                    viewBox="0 0 300 56"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
+                  >
+                    <path
+                      d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                      fill="#00F0FF"
+                      stroke="#0E282A"
+                      strokeWidth={2}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
+                    <Gamepad2 className="mr-2 w-7 h-7" />
+                    Previous Game
+                  </span>
+                </button>
+              )}
+
+              {/* Play with Friends */}
               <button
-                type="button"
-                onClick={handleRouteToCreateGame}
+                onClick={() => router.push("/game-settings")}
                 className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
               >
                 <svg
@@ -454,7 +406,7 @@ const handleRequest = async () => {
                     fill="#003B3E"
                     stroke="#003B3E"
                     strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
+                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
@@ -465,8 +417,7 @@ const handleRequest = async () => {
 
               {/* Join Room */}
               <button
-                type="button"
-                onClick={handleRouteToJoinRoom}
+                onClick={() => router.push("/join-room")}
                 className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
               >
                 <svg
@@ -482,7 +433,7 @@ const handleRequest = async () => {
                     fill="#0E1415"
                     stroke="#003B3E"
                     strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
+                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
@@ -491,10 +442,9 @@ const handleRequest = async () => {
                 </span>
               </button>
 
-              {/* PLAY WITH AI - Updated to be more attractive/shouty */}
+              {/* Challenge AI */}
               <button
-                type="button"
-                onClick={handleRouteToPlayWithAI}
+                onClick={() => router.push("/play-ai")}
                 className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
               >
                 <svg
@@ -510,29 +460,19 @@ const handleRequest = async () => {
                     fill="#00F0FF"
                     stroke="#0E282A"
                     strokeWidth={1}
-                    className="group-hover:fill-[#00F0FF]/80 transition-all duration-300 ease-in-out"
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  <svg
-                    className="mr-2 w-6 h-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <circle cx="9" cy="15" r="1.5" />
-                    <circle cx="15" cy="15" r="1.5" />
-                    <path d="M9 11v-1a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1" />
-                    <path d="M12 17v4" />
-                  </svg>
                   Challenge AI!
                 </span>
               </button>
             </div>
+          )}
+
+          {!address && (
+            <p className="text-gray-400 text-sm text-center mt-4">
+              Please connect your wallet to continue.
+            </p>
           )}
         </div>
       </main>
