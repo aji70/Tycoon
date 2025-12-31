@@ -18,10 +18,9 @@ import chancesRoutes from "./routes/chances.js";
 import communityChestsRoutes from "./routes/community-chests.js";
 import propertiesRoutes from "./routes/properties.js";
 import gameTradeRequestRoutes from "./routes/game-trade-requests.js";
-
-// Import perk controller (make sure this file exists!)
 import gamePerkController from "./controllers/gamePerkController.js";
 
+// Load environment variables
 dotenv.config();
 
 const app = express();
@@ -57,8 +56,8 @@ io.on("connection", (socket) => {
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100,
+  windowMs: 1 * 60 * 1000, // 1 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
 });
 
@@ -90,16 +89,11 @@ app.use("/api/game-properties", gamePropertiesRoutes);
 app.use("/api/chances", chancesRoutes);
 app.use("/api/community-chests", communityChestsRoutes);
 app.use("/api/properties", propertiesRoutes);
+app.use("api.")
 
-// 🔥 NEW: Perk Routes (this was missing!)
-app.post("/api/perks/activate", gamePerkController.activatePerk);
-app.post("/api/perks/teleport", gamePerkController.teleport);
-app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
-app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
-
-// 404 handler (must come after all routes)
+// 404 handler
 app.use("*", (req, res) => {
-  res.status(404).json({ success: false, error: "Endpoint not found" });
+  res.status(404).json({ error: "Page not found" });
 });
 
 // Global error handler
@@ -107,11 +101,10 @@ app.use((error, req, res, next) => {
   console.error(error.stack);
 
   if (error.type === "entity.parse.failed") {
-    return res.status(400).json({ success: false, error: "Invalid JSON" });
+    return res.status(400).json({ error: "Invalid JSON" });
   }
 
   res.status(500).json({
-    success: false,
     error:
       process.env.NODE_ENV === "production"
         ? "Internal server error"
@@ -120,7 +113,7 @@ app.use((error, req, res, next) => {
 });
 
 // Start server
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
