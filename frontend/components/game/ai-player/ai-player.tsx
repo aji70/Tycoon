@@ -610,6 +610,8 @@ useEffect(() => {
     }
   };
 
+  
+
   return (
     <aside className="w-80 h-full bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] border-r-4 border-purple-600 shadow-2xl shadow-purple-900/60 flex flex-col relative overflow-hidden">
       {/* Top Neon Glow Bar */}

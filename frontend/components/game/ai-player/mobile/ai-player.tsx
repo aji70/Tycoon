@@ -760,49 +760,6 @@ export default function MobileGamePlayers({
         <Sparkles className="w-8 h-8 text-black" />
       </button>
 
-      {/* Perks Full-Screen Modal */}
-      <AnimatePresence>
-        {showPerksModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowPerksModal(false)}
-              className="fixed inset-0 bg-black/80 z-50"
-            />
-
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
-            >
-              <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
-                <h2 className="text-3xl font-bold flex items-center gap-4">
-                  <Sparkles className="w-10 h-10 text-[#00F0FF]" />
-                  My Perks
-                </h2>
-                <button
-                  onClick={() => setShowPerksModal(false)}
-                  className="text-gray-400 hover:text-white p-2"
-                >
-                  <X className="w-8 h-8" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-6 pb-8">
-                <CollectibleInventoryBar
-                  game={game}
-                  game_properties={game_properties}
-                  isMyTurn={isNext}
-                />
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* All Other Modals */}
       <AnimatePresence>

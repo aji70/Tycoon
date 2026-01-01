@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import Image from "next/image";
 
 import {
-  Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag, Loader2, X, Wallet, Clock
+  Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag, Loader2, X, Wallet, Clock, Flame
 } from "lucide-react";
 
 import RewardABI from "@/context/abi/rewardabi.json";
@@ -21,14 +21,14 @@ import { ApiResponse } from "@/types/api";
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
 const BOARD_POSITIONS = [
-  "GO", "Mediterranean Avenue", "Community Chest", "Baltic Avenue", "Income Tax",
-  "Reading Railroad", "Oriental Avenue", "Chance", "Vermont Avenue", "Connecticut Avenue",
-  "Jail / Just Visiting", "St. Charles Place", "Electric Company", "States Avenue", "Virginia Avenue",
-  "Pennsylvania Railroad", "St. James Place", "Community Chest", "Tennessee Avenue", "New York Avenue",
-  "Free Parking", "Kentucky Avenue", "Chance", "Indiana Avenue", "Illinois Avenue",
-  "B. & O. Railroad", "Atlantic Avenue", "Ventnor Avenue", "Water Works", "Marvin Gardens",
-  "Go To Jail", "Pacific Avenue", "North Carolina Avenue", "Community Chest", "Pennsylvania Avenue",
-  "Short Line Railroad", "Chance", "Park Place", "Luxury Tax", "Boardwalk"
+  "GO", "Axone Avenue", "Community Chest", "Onlydust Avenue", "Income Tax",
+  "IPFS Railroad", "ZK-Sync Lane", "Chance", "Starknet Lane", "Linea Lane",
+  "Jail / Just Visiting", "Arbitrum Avenue", "Chainlink Electric Company", "Optimistic Avenue", "Base Avenue",
+  "Pinata Railroad", "Near Lane", "Community Chest", "Cosmos Lane", "Polkadot Lane",
+  "Free Parking", "Dune Lane", "Chance", "Uniswap Avenue", "MakerDAO Avenue",
+  "O. Zeppelin Railroad", "AAVE Avenue", "Lisk Lane", "Graphic Water Works", "Rootstock Lane",
+  "Go To Jail", "The Buidl Hub", "Ark Lane", "Community Chest", "Avalanche Avenue",
+  "Cartridge Railroad", "Chance", "Solana Avenue", "Luxury Tax", "Ethereum Avenue"
 ];
 
 const CASH_TIERS = [0, 100, 250, 500, 700, 1000];
@@ -84,7 +84,13 @@ export default function CollectibleInventoryBar({
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
 
-  const [pendingPerkTokenId, setPendingPerkTokenId] = useState<bigint | null>(null);
+  const [pendingPerk, setPendingPerk] = useState<{
+    tokenId: bigint;
+    perkId: number;
+    name: string;
+    strength?: number;
+  } | null>(null);
+
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
 
@@ -110,20 +116,12 @@ export default function CollectibleInventoryBar({
 
   const currentAllowance = allowance ?? 0;
 
-  const { burn: burnCollectible, isPending: isBurning } = useRewardBurnCollectible();
+  const { burn: burnCollectible, isPending: isBurning, isSuccess: burnSuccess } = useRewardBurnCollectible();
 
   const currentPlayer = useMemo(() => {
     if (!address || !game?.players) return null;
     return game.players.find(p => p.address?.toLowerCase() === address.toLowerCase()) || null;
   }, [address, game?.players]);
-
-  useEffect(() => {
-    if (currentPlayer) {
-      console.log("%c[DEBUG] Current Game Player:", "color: #00ffff; font-weight: bold;", currentPlayer);
-    } else if (address && game?.players) {
-      console.log("%c[DEBUG] No player found for connected wallet:", "color: #ff6b6b;", address);
-    }
-  }, [currentPlayer, address, game?.players]);
 
   const getRealPlayerId = (walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
@@ -170,8 +168,6 @@ export default function CollectibleInventoryBar({
       toast.error("Position change failed");
       return false;
     }
-
-
   };
 
   const escapeJail = async (playerId: number): Promise<boolean> => {
@@ -379,7 +375,7 @@ export default function CollectibleInventoryBar({
   }, [buyHash, buyingPending, confirmingBuy]);
 
   // === PERK ACTIVATION ===
-  const handleUsePerk = async (
+  const handleUsePerk = (
     tokenId: bigint,
     perkId: number,
     name: string,
@@ -404,103 +400,96 @@ export default function CollectibleInventoryBar({
       return;
     }
 
-    if (perkId === 6 || perkId === 10) {
-      setPendingPerkTokenId(tokenId);
-      return;
-    }
-
-    const confirmed = window.confirm(`Use ${name}? This will BURN your collectible.`);
-    if (!confirmed) return;
-
-    const toastId = toast.loading("Activating perk...");
-
-    try {
-      let success = false;
-      let amount = 0;
-
-      switch (perkId) {
-        case 5:
-          amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
-          success = await applyCashAdjustment(currentPlayer.user_id, amount);
-          break;
-        case 9:
-          amount = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
-          success = await applyCashAdjustment(currentPlayer.user_id, amount);
-          break;
-        case 8:
-          amount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
-          success = await applyCashAdjustment(currentPlayer.user_id, amount);
-          if (success && amount > 0) toast.success(`+$${amount} Property Discount!`, { id: toastId });
-          break;
-        case 2:
-          success = await escapeJail(currentPlayer.user_id);
-          if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
-          break;
-        case 1:
-          if (ROLL_DICE) {
-            toast.success("Extra Turn! Roll again!", { id: toastId });
-            setTimeout(() => ROLL_DICE(), 800);
-            success = true;
-          } else {
-            toast.error("Extra Turn not supported", { id: toastId });
-          }
-          break;
-      }
-
-      if (success || amount === 0) {
-        toast.success(`${name} activated! 🎉`, { id: toastId });
-      }
-    } catch {
-      toast.error("Activation failed", { id: toastId });
-    }
+    // Open unified burn confirmation modal for all perks
+    setPendingPerk({ tokenId, perkId, name, strength });
   };
 
-const handleConfirmSpecialPerk = async () => {
-  if (!pendingPerkTokenId || !currentPlayer || !triggerSpecialLanding) {
-    toast.error("Cannot activate right now");
-    return;
-  }
+  // Apply effect after successful burn
+  useEffect(() => {
+    if (!pendingPerk || !burnSuccess || !currentPlayer) return;
 
-  const perkItem = ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId);
-  if (!perkItem) return;
+    const { perkId, name, strength = 1 } = pendingPerk;
 
-  let targetPosition: number;
+    const toastId = toast.loading("Applying perk effect...");
 
-  if (perkItem.perk === 6) { // Teleport
-    if (selectedPositionIndex === null) return toast.error("Choose destination");
-    targetPosition = selectedPositionIndex;
-  } else if (perkItem.perk === 10) { // Exact Roll
-    if (selectedRollTotal === null) return toast.error("Choose roll value");
-    targetPosition = (currentPlayer.position + selectedRollTotal) % 40;
-  } else {
-    return;
-  }
+    (async () => {
+      try {
+        let success = false;
 
-  const confirmed = window.confirm(`Burn and activate ${perkItem.name}?`);
-  if (!confirmed) return;
+        switch (perkId) {
+          case 1: // Extra Turn
+            if (ROLL_DICE) {
+              toast.success("Extra Turn activated! Roll again!", { id: toastId });
+              setTimeout(() => ROLL_DICE(), 800);
+              success = true;
+            }
+            break;
+          case 2: // Jail Free Card
+            success = await escapeJail(currentPlayer.user_id);
+            if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
+            break;
+          case 5: // Instant Cash
+            const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
+            success = await applyCashAdjustment(currentPlayer.user_id, amount);
+            if (success) toast.success(`+$${amount} Instant Cash!`, { id: toastId });
+            break;
+          case 8: // Property Discount
+            const discount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
+            success = await applyCashAdjustment(currentPlayer.user_id, discount);
+            if (success && discount > 0) toast.success(`+$${discount} Property Discount!`, { id: toastId });
+            break;
+          case 9: // Tax Refund
+            const refund = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
+            success = await applyCashAdjustment(currentPlayer.user_id, refund);
+            if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+            break;
+          case 6: // Teleport
+          case 10: // Exact Roll
+            if (triggerSpecialLanding && selectedPositionIndex !== null) {
+              const targetPos = perkId === 6
+                ? selectedPositionIndex
+                : (currentPlayer.position + selectedRollTotal!) % 40;
 
-  const toastId = toast.loading("Activating...");
+              const posSuccess = await applyPositionChange(currentPlayer.user_id, targetPos);
+              if (posSuccess) {
+                triggerSpecialLanding(targetPos, true);
+                toast.success(`${name} activated! Moved!`, { id: toastId });
+                success = true;
+              }
+            }
+            break;
+        }
 
-  try {
-    const success = await applyPositionChange(currentPlayer.user_id, targetPosition);
+        if (success || perkId === 1) {
+          toast.success(`${name} activated & collectible burned! 🔥`, { id: toastId });
+        } else {
+          toast.error("Effect failed — contact support", { id: toastId });
+        }
+      } catch (err) {
+        toast.error("Activation failed", { id: toastId });
+      } finally {
+        setPendingPerk(null);
+        setSelectedPositionIndex(null);
+        setSelectedRollTotal(null);
+      }
+    })();
+  }, [burnSuccess, pendingPerk, currentPlayer, ROLL_DICE, triggerSpecialLanding, selectedRollTotal, selectedPositionIndex]);
 
-    if (success) {
-      toast.success(`${perkItem.name} activated! Moving...`, { id: toastId });
+  const handleConfirmBurnAndActivate = async () => {
+    if (!pendingPerk) return;
 
-      // This is the key line — hand over control to AiBoard
-      triggerSpecialLanding(targetPosition, true);
+    const toastId = toast.loading("Burning collectible... 🔥");
 
-      // Reset UI
-      setPendingPerkTokenId(null);
+    try {
+      await burnCollectible(pendingPerk.tokenId);
+      // Effect will be applied automatically via useEffect on burnSuccess
+    } catch (err) {
+      toast.error("Burn failed — perk not activated", { id: toastId });
+      setPendingPerk(null);
       setSelectedPositionIndex(null);
       setSelectedRollTotal(null);
-    } else {
-      throw new Error("Position update failed");
     }
-  } catch (e) {
-    toast.error("Activation failed", { id: toastId });
-  }
-};
+  };
 
   if (!isConnected || totalOwned === 0) return null;
 
@@ -654,90 +643,112 @@ const handleConfirmSpecialPerk = async () => {
         )}
       </AnimatePresence>
 
-      {/* Special Perk Modal (Teleport & Exact Roll) */}
+      {/* Burn Confirmation & Special Perk Selection Modal */}
       <AnimatePresence>
-        {pendingPerkTokenId && currentPlayer && (
+        {pendingPerk && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50"
+              className="fixed inset-0 bg-black/80 z-50"
               onClick={() => {
-                setPendingPerkTokenId(null);
+                setPendingPerk(null);
                 setSelectedPositionIndex(null);
                 setSelectedRollTotal(null);
               }}
             />
             <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0A1C1E] rounded-2xl border border-cyan-500/50 p-8 z-50 w-[520px] max-h-[85vh] overflow-y-auto shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0A1C1E] rounded-3xl border border-red-500/50 p-8 z-50 w-[540px] shadow-2xl"
             >
-              <h3 className="text-2xl font-bold text-cyan-300 mb-6 text-center">
-                {ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId)?.perk === 6 ? "Teleport Destination" : "Choose Exact Roll"}
-              </h3>
+              <div className="text-center mb-8">
+                <Flame className="w-16 h-16 text-red-500 mx-auto mb-4 animate-pulse" />
+                <h2 className="text-3xl font-bold text-white mb-2">Burn Collectible?</h2>
+                <p className="text-2xl text-cyan-300 font-semibold">{pendingPerk.name}</p>
+                <p className="text-red-400 mt-6 text-lg leading-relaxed">
+                  This action is <span className="font-bold underline">IRREVERSIBLE</span>.<br />
+                  Your collectible will be <span className="font-bold">permanently burned</span> to activate this perk.
+                </p>
+              </div>
 
-              {ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId)?.perk === 6 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8 max-h-96 overflow-y-auto pr-2">
-                  {BOARD_POSITIONS.map((name, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedPositionIndex(index)}
-                      className={`py-3 px-4 rounded-lg text-sm transition-all ${
-                        selectedPositionIndex === index
-                          ? "bg-cyan-600 text-black font-bold shadow-lg shadow-cyan-500/50"
-                          : "bg-gray-800 hover:bg-gray-700"
-                      }`}
-                    >
-                      {index}. {name}
-                    </button>
-                  ))}
+              {/* Selection for Teleport or Exact Roll */}
+              {(pendingPerk.perkId === 6 || pendingPerk.perkId === 10) && (
+                <div className="mb-8">
+                  <p className="text-center text-white mb-5 text-lg font-medium">
+                    {pendingPerk.perkId === 6 ? "Select destination:" : "Select exact roll total:"}
+                  </p>
+
+                  {pendingPerk.perkId === 6 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-2">
+                      {BOARD_POSITIONS.map((name, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedPositionIndex(index)}
+                          className={`py-3 px-4 rounded-lg text-sm font-medium transition-all ${
+                            selectedPositionIndex === index
+                              ? "bg-cyan-600 text-black shadow-lg shadow-cyan-500/50"
+                              : "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                          }`}
+                        >
+                          {index}. {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingPerk.perkId === 10 && (
+                    <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
+                      {[2,3,4,5,6,7,8,9,10,11,12].map((total) => (
+                        <button
+                          key={total}
+                          onClick={() => setSelectedRollTotal(total)}
+                          className={`py-6 rounded-xl text-2xl font-bold transition-all ${
+                            selectedRollTotal === total
+                              ? "bg-cyan-600 text-black shadow-lg shadow-cyan-500/50"
+                              : "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                          }`}
+                        >
+                          {total}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId)?.perk === 10 && (
-                <div className="grid grid-cols-4 gap-4 mb-8">
-                  {[2,3,4,5,6,7,8,9,10,11,12].map((total) => (
-                    <button
-                      key={total}
-                      onClick={() => setSelectedRollTotal(total)}
-                      className={`py-4 rounded-lg font-bold text-lg transition ${
-                        selectedRollTotal === total
-                          ? "bg-cyan-600 text-black shadow-lg shadow-cyan-500/50"
-                          : "bg-gray-800 hover:bg-gray-700"
-                      }`}
-                    >
-                      {total}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-4 mt-6">
+              <div className="flex gap-4 mt-8">
                 <button
                   onClick={() => {
-                    setPendingPerkTokenId(null);
+                    setPendingPerk(null);
                     setSelectedPositionIndex(null);
                     setSelectedRollTotal(null);
                   }}
-                  className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 transition text-white font-medium"
+                  className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold text-lg transition"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleConfirmSpecialPerk}
-                  disabled={isBurning}
-                  className="flex-1 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-black font-bold disabled:opacity-60 transition flex items-center justify-center gap-2"
+                  onClick={handleConfirmBurnAndActivate}
+                  disabled={
+                    isBurning ||
+                    (pendingPerk.perkId === 6 && selectedPositionIndex === null) ||
+                    (pendingPerk.perkId === 10 && selectedRollTotal === null)
+                  }
+                  className="flex-1 py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transition shadow-lg"
                 >
                   {isBurning ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing...
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Burning...
                     </>
                   ) : (
-                    "Activate Perk"
+                    <>
+                      <Flame className="w-6 h-6" />
+                      Burn & Activate
+                    </>
                   )}
                 </button>
               </div>

@@ -1,14 +1,33 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useAccount, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useBalance } from "wagmi";
+import {
+  useAccount,
+  useChainId,
+  useReadContract,
+  useReadContracts,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useBalance,
+} from "wagmi";
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import Image from "next/image";
 
 import {
-  Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag, Loader2, X, Wallet, Clock
+  Zap,
+  Crown,
+  Coins,
+  Sparkles,
+  Gem,
+  Shield,
+  ShoppingBag,
+  Loader2,
+  X,
+  Wallet,
+  Clock,
+  Flame,
 } from "lucide-react";
 
 import RewardABI from "@/context/abi/rewardabi.json";
@@ -21,49 +40,56 @@ import { ApiResponse } from "@/types/api";
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
 const BOARD_POSITIONS = [
-  "GO", "Mediterranean Avenue", "Community Chest", "Baltic Avenue", "Income Tax",
-  "Reading Railroad", "Oriental Avenue", "Chance", "Vermont Avenue", "Connecticut Avenue",
-  "Jail / Just Visiting", "St. Charles Place", "Electric Company", "States Avenue", "Virginia Avenue",
-  "Pennsylvania Railroad", "St. James Place", "Community Chest", "Tennessee Avenue", "New York Avenue",
-  "Free Parking", "Kentucky Avenue", "Chance", "Indiana Avenue", "Illinois Avenue",
-  "B. & O. Railroad", "Atlantic Avenue", "Ventnor Avenue", "Water Works", "Marvin Gardens",
-  "Go To Jail", "Pacific Avenue", "North Carolina Avenue", "Community Chest", "Pennsylvania Avenue",
-  "Short Line Railroad", "Chance", "Park Place", "Luxury Tax", "Boardwalk"
+  "GO", "Axone Avenue", "Community Chest", "Onlydust Avenue", "Income Tax",
+  "IPFS Railroad", "ZK-Sync Lane", "Chance", "Starknet Lane", "Linea Lane",
+  "Jail / Just Visiting", "Arbitrum Avenue", "Chainlink Electric Company", "Optimistic Avenue", "Base Avenue",
+  "Pinata Railroad", "Near Lane", "Community Chest", "Cosmos Lane", "Polkadot Lane",
+  "Free Parking", "Dune Lane", "Chance", "Uniswap Avenue", "MakerDAO Avenue",
+  "O. Zeppelin Railroad", "AAVE Avenue", "Lisk Lane", "Graphic Water Works", "Rootstock Lane",
+  "Go To Jail", "The Buidl Hub", "Ark Lane", "Community Chest", "Avalanche Avenue",
+  "Cartridge Railroad", "Chance", "Solana Avenue", "Luxury Tax", "Ethereum Avenue"
 ];
 
 const CASH_TIERS = [0, 100, 250, 500, 700, 1000];
 const REFUND_TIERS = [0, 60, 150, 300, 420, 600];
+const DISCOUNT_TIERS = [0, 100, 200, 300, 400, 500];
 
-interface CollectibleInventoryBarProps {
-  game: Game;
-  game_properties: GameProperty[];
-  isMyTurn: boolean;
-}
-
-const perkMetadata: Record<number, { 
-  name: string; 
-  icon: React.ReactNode; 
-  gradient: string; 
+const perkMetadata: Record<number, {
+  name: string;
+  icon: React.ReactNode;
+  gradient: string;
   image?: string;
   canBeActivated: boolean;
   fakeDescription?: string;
 }> = {
-  1: { name: "Extra Turn", icon: <Zap className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
-  2: { name: "Jail Free Card", icon: <Crown className="w-10 h-10" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
+  1: { name: "Extra Turn", icon: <Zap className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: true },
+  2: { name: "Jail Free Card", icon: <Crown className="w-10 h-10" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: true },
   3: { name: "Double Rent", icon: <Coins className="w-10 h-10" />, gradient: "from-green-600 to-emerald-600", image: "/game/shop/c.jpeg", canBeActivated: false, fakeDescription: "Not Available Yet" },
   4: { name: "Roll Boost", icon: <Sparkles className="w-10 h-10" />, gradient: "from-blue-600 to-cyan-600", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
   5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", image: "/game/shop/b.jpeg", canBeActivated: true },
   6: { name: "Teleport", icon: <Zap className="w-10 h-10" />, gradient: "from-pink-600 to-rose-600", image: "/game/shop/c.jpeg", canBeActivated: true },
   7: { name: "Shield", icon: <Shield className="w-10 h-10" />, gradient: "from-indigo-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
-  8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: false, fakeDescription: "Not Available Yet" },
+  8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: true },
   9: { name: "Tax Refund", icon: <Gem className="w-10 h-10" />, gradient: "from-teal-600 to-cyan-600", image: "/game/shop/c.jpeg", canBeActivated: true },
-  10: { name: "Exact Roll", icon: <Sparkles className="w-10 h-10" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
+  10: { name: "Exact Roll", icon: <Sparkles className="w-10 h-10" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: true },
 };
+
+interface CollectibleInventoryBarProps {
+  game: Game;
+  game_properties: GameProperty[];
+  isMyTurn: boolean;
+  ROLL_DICE: () => void;
+  END_TURN?: () => void;
+  triggerSpecialLanding?: (position: number, isSpecial: boolean) => void;
+  endTurnAfterSpecial?: () => void;
+}
 
 export default function CollectibleInventoryBar({
   game,
   game_properties,
   isMyTurn,
+  ROLL_DICE,
+  triggerSpecialLanding,
 }: CollectibleInventoryBarProps) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -77,7 +103,13 @@ export default function CollectibleInventoryBar({
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
 
-  const [pendingPerkTokenId, setPendingPerkTokenId] = useState<bigint | null>(null);
+  const [pendingPerk, setPendingPerk] = useState<{
+    tokenId: bigint;
+    perkId: number;
+    name: string;
+    strength?: number;
+  } | null>(null);
+
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
 
@@ -103,7 +135,7 @@ export default function CollectibleInventoryBar({
 
   const currentAllowance = allowance ?? 0;
 
-  const { burn: burnCollectible, isPending: isBurning } = useRewardBurnCollectible();
+  const { burn: burnCollectible, isPending: isBurning, isSuccess: burnSuccess } = useRewardBurnCollectible();
 
   const currentPlayer = useMemo(() => {
     if (!address || !game?.players) return null;
@@ -112,21 +144,19 @@ export default function CollectibleInventoryBar({
 
   const getRealPlayerId = (walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
-    const owned = game_properties.find(
-      gp => gp.address?.toLowerCase() === walletAddress.toLowerCase()
-    );
+    const owned = game_properties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
     return owned?.player_id ?? null;
   };
 
   const applyCashAdjustment = async (playerId: number, amount: number): Promise<boolean> => {
     if (amount === 0) return true;
-
     const targetPlayer = game.players.find(p => p.user_id === playerId);
     if (!targetPlayer?.address) return false;
-
     const realPlayerId = getRealPlayerId(targetPlayer.address);
-    if (!realPlayerId) return false;
-
+    if (!realPlayerId) {
+      toast.error("Must own a property");
+      return false;
+    }
     try {
       const res = await apiClient.put<ApiResponse>(`/game-players/${realPlayerId}`, {
         game_id: game.id,
@@ -135,27 +165,44 @@ export default function CollectibleInventoryBar({
       });
       return res?.success ?? false;
     } catch {
+      toast.error("Cash adjustment failed");
       return false;
     }
   };
 
   const applyPositionChange = async (playerId: number, newPos: number): Promise<boolean> => {
     if (newPos < 0 || newPos > 39) return false;
-
     const targetPlayer = game.players.find(p => p.user_id === playerId);
     if (!targetPlayer?.address) return false;
-
     const realPlayerId = getRealPlayerId(targetPlayer.address);
     if (!realPlayerId) return false;
-
     try {
       const res = await apiClient.put<ApiResponse>(`/game-players/${realPlayerId}`, {
         game_id: game.id,
-        user_id: targetPlayer.user_id,
+        user_id: playerId,
         position: newPos,
       });
       return res?.success ?? false;
     } catch {
+      toast.error("Position change failed");
+      return false;
+    }
+  };
+
+  const escapeJail = async (playerId: number): Promise<boolean> => {
+    const targetPlayer = game.players.find(p => p.user_id === playerId);
+    if (!targetPlayer?.address) return false;
+    const realPlayerId = getRealPlayerId(targetPlayer.address);
+    if (!realPlayerId) return false;
+    try {
+      const res = await apiClient.put<ApiResponse>(`/game-players/${realPlayerId}`, {
+        game_id: game.id,
+        user_id: playerId,
+        in_jail: false,
+      });
+      return res?.success ?? false;
+    } catch {
+      toast.error("Failed to escape jail");
       return false;
     }
   };
@@ -171,13 +218,13 @@ export default function CollectibleInventoryBar({
 
   const ownedCount = Number(ownedCountRaw ?? 0);
 
-  const tokenCalls = useMemo(() =>
+  const tokenCalls = useMemo(() => 
     Array.from({ length: ownedCount }, (_, i) => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex",
+      functionName: "tokenOfOwnerByIndex" as const,
       args: [address!, BigInt(i)],
-    } as const)),
+    })),
     [contractAddress, address, ownedCount]
   );
 
@@ -188,15 +235,15 @@ export default function CollectibleInventoryBar({
 
   const ownedTokenIds = tokenResults
     ?.map(r => r.status === "success" ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null && id >= COLLECTIBLE_ID_START) ?? [];
+    .filter((id): id is bigint => id !== null && id >= BigInt(COLLECTIBLE_ID_START)) ?? [];
 
-  const infoCalls = useMemo(() =>
+  const infoCalls = useMemo(() => 
     ownedTokenIds.map(id => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: "getCollectibleInfo",
+      functionName: "getCollectibleInfo" as const,
       args: [id],
-    } as const)),
+    })),
     [contractAddress, ownedTokenIds]
   );
 
@@ -208,26 +255,30 @@ export default function CollectibleInventoryBar({
   const ownedCollectibles = useMemo(() => {
     if (!infoResults) return [];
 
-    return infoResults.map((res, i) => {
-      if (res?.status !== "success") return null;
-      const [perkBig, strengthBig] = res.result as [bigint, bigint];
-      const perk = Number(perkBig);
-      const meta = perkMetadata[perk] || perkMetadata[10];
-      const displayName = (perk === 5 || perk === 9) 
-        ? `${meta.name} (Tier ${Number(strengthBig)})` 
-        : meta.name;
+    return infoResults
+      .map((res, i) => {
+        if (res?.status !== "success") return null;
+        const [perkBig, strengthBig] = res.result as [bigint, bigint];
+        const perk = Number(perkBig);
+        const strength = Number(strengthBig);
+        const meta = perkMetadata[perk] ?? perkMetadata[10];
 
-      return {
-        tokenId: ownedTokenIds[i],
-        perk,
-        name: displayName,
-        icon: meta.icon,
-        gradient: meta.gradient,
-        canBeActivated: meta.canBeActivated,
-        fakeDescription: meta.fakeDescription,
-        strength: Number(strengthBig),
-      };
-    }).filter((item): item is NonNullable<typeof item> => !!item);
+        const displayName = (perk === 5 || perk === 8 || perk === 9)
+          ? `${meta.name} (Tier ${strength})`
+          : meta.name;
+
+        return {
+          tokenId: ownedTokenIds[i],
+          perk,
+          name: displayName,
+          icon: meta.icon,
+          gradient: meta.gradient,
+          canBeActivated: meta.canBeActivated,
+          fakeDescription: meta.fakeDescription,
+          strength,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
   }, [infoResults, ownedTokenIds]);
 
   const totalOwned = ownedCollectibles.length;
@@ -243,13 +294,13 @@ export default function CollectibleInventoryBar({
 
   const shopCount = Number(shopCountRaw ?? 0);
 
-  const shopTokenCalls = useMemo(() =>
+  const shopTokenCalls = useMemo(() => 
     Array.from({ length: shopCount }, (_, i) => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex",
+      functionName: "tokenOfOwnerByIndex" as const,
       args: [contractAddress!, BigInt(i)],
-    } as const)),
+    })),
     [contractAddress, shopCount]
   );
 
@@ -260,15 +311,15 @@ export default function CollectibleInventoryBar({
 
   const shopTokenIds = shopTokenResults
     ?.map(r => r.status === "success" ? r.result as bigint : null)
-    .filter((id): id is bigint => id !== null && id >= COLLECTIBLE_ID_START) ?? [];
+    .filter((id): id is bigint => id !== null && id >= BigInt(COLLECTIBLE_ID_START)) ?? [];
 
-  const shopInfoCalls = useMemo(() =>
+  const shopInfoCalls = useMemo(() => 
     shopTokenIds.map(id => ({
       address: contractAddress!,
       abi: RewardABI as Abi,
-      functionName: "getCollectibleInfo",
+      functionName: "getCollectibleInfo" as const,
       args: [id],
-    } as const)),
+    })),
     [contractAddress, shopTokenIds]
   );
 
@@ -280,27 +331,29 @@ export default function CollectibleInventoryBar({
   const shopItems = useMemo(() => {
     if (!shopInfoResults) return [];
 
-    return shopInfoResults.map((res, i) => {
-      if (res?.status !== "success") return null;
-      const [perkBig, strengthBig, tycPriceBig, usdcPriceBig, stockBig] = res.result as [bigint, bigint, bigint, bigint, bigint];
-      const perk = Number(perkBig);
-      const stock = Number(stockBig);
-      if (stock === 0) return null;
+    return shopInfoResults
+      .map((res, i) => {
+        if (res?.status !== "success") return null;
+        const [perkBig, , tycPriceBig, usdcPriceBig, stockBig] = res.result as [bigint, bigint, bigint, bigint, bigint];
+        const perk = Number(perkBig);
+        const stock = Number(stockBig);
+        if (stock === 0) return null;
 
-      const meta = perkMetadata[perk] || perkMetadata[10];
+        const meta = perkMetadata[perk] ?? perkMetadata[10];
 
-      return {
-        tokenId: shopTokenIds[i],
-        perk,
-        tycPrice: formatUnits(tycPriceBig, 18),
-        usdcPrice: formatUnits(usdcPriceBig, 6),
-        stock,
-        name: meta.name,
-        icon: meta.icon,
-        gradient: meta.gradient,
-        image: meta.image,
-      };
-    }).filter((item): item is NonNullable<typeof item> => !!item);
+        return {
+          tokenId: shopTokenIds[i],
+          perk,
+          tycPrice: formatUnits(tycPriceBig, 18),
+          usdcPrice: formatUnits(usdcPriceBig, 6),
+          stock,
+          name: meta.name,
+          icon: meta.icon,
+          gradient: meta.gradient,
+          image: meta.image,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
 
   // === BUY LOGIC ===
@@ -339,11 +392,11 @@ export default function CollectibleInventoryBar({
     if (approveSuccess && approvingId !== null) {
       toast.dismiss("approve");
       toast.success("Approved! Completing purchase...");
-      const item = shopItems.find(i => i?.tokenId === approvingId);
+      const item = shopItems.find(i => i.tokenId === approvingId);
       if (item) handleBuy(item);
       setApprovingId(null);
     }
-  }, [approveSuccess, approvingId, shopItems]);
+  }, [approveSuccess, approvingId, shopItems, handleBuy]);
 
   useEffect(() => {
     if (buyHash && !buyingPending && !confirmingBuy) {
@@ -353,7 +406,7 @@ export default function CollectibleInventoryBar({
   }, [buyHash, buyingPending, confirmingBuy]);
 
   // === PERK ACTIVATION ===
-  const handleUsePerk = async (
+  const handleUsePerk = (
     tokenId: bigint,
     perkId: number,
     name: string,
@@ -378,102 +431,97 @@ export default function CollectibleInventoryBar({
       return;
     }
 
-    // Perks that require selection
-    if (perkId === 6 || perkId === 10) {
-      setPendingPerkTokenId(tokenId);
-      return;
-    }
-
-    const confirmed = window.confirm(`Use ${name}? This will BURN your collectible.`);
-    if (!confirmed) return;
-
-    const toastId = toast.loading("Activating perk...", { duration: 10000 });
-
-    try {
-      await burnCollectible(tokenId); // ← still commented out
-
-      let success = false;
-      let amount = 0;
-
-      if (perkId === 5) {
-        // Instant Cash – using fixed tier array
-        amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)] || 0;
-        success = await applyCashAdjustment(currentPlayer.user_id, amount);
-        if (success && amount > 0) {
-          toast.success(`+$${amount.toLocaleString()} instant cash added!`, { id: toastId });
-        } else if (amount === 0) {
-          toast("Instant Cash activated (Tier 0 - no cash added)", { id: toastId });
-        }
-      } 
-      else if (perkId === 9) {
-        // Tax Refund – smaller fixed tiers
-        amount = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)] || 0;
-        success = await applyCashAdjustment(currentPlayer.user_id, amount);
-        if (success && amount > 0) {
-          toast.success(`+$${amount.toLocaleString()} tax refund received!`, { id: toastId });
-        } else if (amount === 0) {
-          toast("Tax Refund activated (Tier 0 - no refund)", { id: toastId });
-        }
-      }
-
-      if (success || amount === 0) {
-        toast.success(`${name} activated! 🎉`, { id: toastId });
-      } else {
-        throw new Error("Perk effect failed");
-      }
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || err.message || "Failed to activate perk";
-      toast.error(errorMsg, { id: toastId });
-      console.error("Perk activation error:", err);
-    }
+    setPendingPerk({ tokenId, perkId, name, strength });
   };
 
- const handleConfirmSpecialPerk = async () => {
-    if (!pendingPerkTokenId || !currentPlayer) return;
+  useEffect(() => {
+    if (!pendingPerk || !burnSuccess || !currentPlayer) return;
 
-    const perkItem = ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId);
-    if (!perkItem) return;
+    const { perkId, name, strength = 1 } = pendingPerk;
 
-    const { perk } = perkItem;
+    const toastId = toast.loading("Applying perk effect...");
 
-    if (perk === 6 && selectedPositionIndex === null) {
-      toast.error("Select a position to teleport to");
-      return;
-    }
+    (async () => {
+      try {
+        let success = false;
 
-    if (perk === 10 && selectedRollTotal === null) {
-      toast.error("Select your exact roll value");
-      return;
-    }
+        switch (perkId) {
+          case 1: // Extra Turn
+            toast.success("Extra Turn activated! Roll again!", { id: toastId });
+            setTimeout(() => ROLL_DICE(), 800);
+            success = true;
+            break;
+          case 2: // Jail Free Card
+            success = await escapeJail(currentPlayer.user_id);
+            if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
+            break;
+          case 5: // Instant Cash
+            const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
+            success = await applyCashAdjustment(currentPlayer.user_id, amount);
+            if (success) toast.success(`+$${amount} Instant Cash!`, { id: toastId });
+            break;
+          case 8: // Property Discount
+            const discount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
+            success = await applyCashAdjustment(currentPlayer.user_id, discount);
+            if (success && discount > 0) toast.success(`+$${discount} Property Discount!`, { id: toastId });
+            break;
+          case 9: // Tax Refund
+            const refund = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
+            success = await applyCashAdjustment(currentPlayer.user_id, refund);
+            if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+            break;
+          case 6: // Teleport
+          case 10: // Exact Roll
+            if (triggerSpecialLanding && selectedPositionIndex !== null) {
+              const targetPos = perkId === 6
+                ? selectedPositionIndex
+                : (currentPlayer.position + (selectedRollTotal ?? 0)) % 40;
 
-    const confirmed = window.confirm(`Burn collectible and activate ${perkItem.name}?`);
-    if (!confirmed) return;
+              const posSuccess = await applyPositionChange(currentPlayer.user_id, targetPos);
+              if (posSuccess) {
+                triggerSpecialLanding(targetPos, true);
+                toast.success(`${name} activated! Moved!`, { id: toastId });
+                success = true;
+              }
+            }
+            break;
+        }
 
-    const toastId = toast.loading("Activating...", { duration: 10000 });
+        if (success || perkId === 1) {
+          toast.success(`${name} activated & collectible burned! 🔥`, { id: toastId });
+        } else {
+          toast.error("Effect failed — contact support", { id: toastId });
+        }
+      } catch (err) {
+        toast.error("Activation failed", { id: toastId });
+      } finally {
+        setPendingPerk(null);
+        setSelectedPositionIndex(null);
+        setSelectedRollTotal(null);
+      }
+    })();
+  }, [
+    burnSuccess,
+    pendingPerk,
+    currentPlayer,
+    ROLL_DICE,
+    triggerSpecialLanding,
+    selectedPositionIndex,
+    selectedRollTotal
+  ]);
+
+  const handleConfirmBurnAndActivate = async () => {
+    if (!pendingPerk) return;
+
+    const toastId = toast.loading("Burning collectible... 🔥");
 
     try {
-      await burnCollectible(pendingPerkTokenId); // ← commented out
-
-      if (perk === 6) {
-        const success = await applyPositionChange(
-          currentPlayer.user_id,
-          selectedPositionIndex!
-        );
-        if (success) {
-          toast.success(`Teleported to ${BOARD_POSITIONS[selectedPositionIndex!]}! 🚀`, { id: toastId });
-        } else {
-          throw new Error("Teleport failed");
-        }
-      } else if (perk === 10) {
-        toast.success(`Next roll set to ${selectedRollTotal} (preview only)`, { id: toastId });
-      }
-
-      setPendingPerkTokenId(null);
+      await burnCollectible(pendingPerk.tokenId);
+    } catch (err) {
+      toast.error("Burn failed — perk not activated", { id: toastId });
+      setPendingPerk(null);
       setSelectedPositionIndex(null);
       setSelectedRollTotal(null);
-    } catch (err) {
-      const errorMsg =  "Failed to activate perk";
-      toast.error(errorMsg, { id: toastId });
     }
   };
 
@@ -481,51 +529,60 @@ export default function CollectibleInventoryBar({
 
   return (
     <>
-      {/* Your Perks - Vertical Full-Width Cards in Popup */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold text-cyan-300">Your Perks ({totalOwned})</h3>
+      {/* PERKS LIST */}
+      <div className="space-y-4 pb-40 md:pb-32 px-2 sm:px-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <h3 className="text-2xl md:text-3xl font-bold text-cyan-300">
+            Your Perks ({totalOwned})
+          </h3>
+
           <button
             onClick={() => setShowMiniShop(true)}
-            className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-xl text-black font-bold shadow-lg hover:shadow-cyan-500/50"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/40 transition active:scale-97"
           >
-            <ShoppingBag className="w-6 h-6" />
-            Open Shop
+            <ShoppingBag className="w-5 h-5" />
+            Shop
           </button>
         </div>
 
-        {ownedCollectibles.map((item) => (
-          <motion.button
-            key={item.tokenId.toString()}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
-            disabled={!isMyTurn || !item.canBeActivated}
-            className={`w-full p-6 rounded-2xl overflow-hidden relative transition-all ${
-              !isMyTurn || !item.canBeActivated
-                ? "opacity-60"
-                : "hover:shadow-2xl hover:shadow-cyan-500/30 active:scale-98"
-            }`}
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-90`} />
-            <div className="relative flex items-center gap-6">
-              <div className="text-white">{item.icon}</div>
-              <div className="text-left flex-1">
-                <p className="text-2xl font-bold text-white">{item.name}</p>
-                {!item.canBeActivated && (
-                  <p className="text-sm text-gray-200 mt-1">
-                    {item.fakeDescription || "Coming Soon"}
-                  </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ownedCollectibles.map((item) => (
+            <motion.button
+              key={item.tokenId.toString()}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
+              disabled={!isMyTurn || !item.canBeActivated}
+              className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 text-left transition-all
+                ${!isMyTurn || !item.canBeActivated
+                  ? "opacity-55 cursor-not-allowed"
+                  : "hover:shadow-xl hover:shadow-cyan-500/30 active:scale-[0.98]"}
+              `}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-85`} />
+              <div className="relative flex items-center gap-3 sm:gap-4">
+                <div className="text-white shrink-0">
+                  {React.cloneElement(item.icon as React.ReactElement, { className: "w-8 h-8 sm:w-10 sm:h-10" })}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-white text-base sm:text-lg md:text-xl leading-tight">{item.name}</p>
+                  {!item.canBeActivated && (
+                    <p className="text-xs sm:text-sm text-gray-200 mt-1">
+                      {item.fakeDescription || "Coming Soon"}
+                    </p>
+                  )}
+                </div>
+
+                {!isMyTurn && (
+                  <div className="text-xs text-gray-300 whitespace-nowrap">Your turn</div>
                 )}
               </div>
-              {!isMyTurn && (
-                <p className="text-sm text-gray-300">Wait for turn</p>
-              )}
-            </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          ))}
+        </div>
       </div>
 
-      {/* Shop Modal */}
+      {/* SHOP BOTTOM SHEET */}
       <AnimatePresence>
         {showMiniShop && (
           <>
@@ -534,86 +591,99 @@ export default function CollectibleInventoryBar({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMiniShop(false)}
-              className="fixed inset-0 bg-black/80 z-50"
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9998]"
             />
+
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="
+                fixed inset-x-0 bottom-0
+                z-[9999]
+                max-h-[92vh]
+                bg-gradient-to-b from-[#0A1418] to-[#061015]
+                rounded-t-3xl
+                border-t border-cyan-600/40
+                flex flex-col
+                shadow-2xl shadow-black/60
+              "
             >
-              <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
-                <h2 className="text-3xl font-bold flex items-center gap-4">
-                  <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
+              <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/40 px-4 py-3.5 flex items-center justify-between">
+                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2.5 text-cyan-300">
+                  <ShoppingBag className="w-7 h-7" />
                   Perk Shop
                 </h2>
-                <button onClick={() => setShowMiniShop(false)} className="p-2">
-                  <X className="w-8 h-8 text-gray-400" />
+                <button onClick={() => setShowMiniShop(false)} className="p-2 rounded-full hover:bg-white/10">
+                  <X className="w-6 h-6 text-gray-300" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
-                <div className="flex justify-between text-lg">
-                  <div className="flex items-center gap-3">
-                    <Wallet className="w-6 h-6 text-cyan-400" />
+              <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
+                <div className="flex flex-wrap justify-between gap-4 text-sm sm:text-base">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-cyan-400" />
                     <span>TYC: {tycBal ? Number(tycBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Wallet className="w-6 h-6 text-cyan-400" />
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-cyan-400" />
                     <span>USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setUseUsdc(!useUsdc)}
-                  className="w-full py-4 bg-cyan-900/50 rounded-xl border border-cyan-500 text-lg font-medium"
+                  className="w-full py-3.5 sm:py-4 bg-cyan-950/60 rounded-2xl border border-cyan-700/50 text-base sm:text-lg font-medium hover:bg-cyan-900/60 transition"
                 >
                   Pay with {useUsdc ? "USDC" : "TYC"}
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 pb-8 space-y-6">
+              <div className="flex-1 overflow-y-auto px-4 pb-6 sm:pb-8 space-y-5 sm:space-y-6">
                 {shopItems.length === 0 ? (
-                  <p className="text-center text-gray-400 text-xl py-20">
-                    No items available right now...
-                  </p>
+                  <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-gray-400 text-base sm:text-lg">
+                    No items in stock right now...
+                  </div>
                 ) : (
                   shopItems.map((item) => (
-                    <motion.div
+                    <div
                       key={item.tokenId.toString()}
-                      whileTap={{ scale: 0.97 }}
-                      className="bg-gradient-to-br from-[#0E1415] to-[#0A1C1E] rounded-2xl border border-cyan-900/50 overflow-hidden shadow-xl"
+                      className="bg-gradient-to-br from-[#0F1A1F] to-[#0A1418] rounded-2xl border border-cyan-900/40 overflow-hidden shadow-xl"
                     >
-                      <div className="relative h-56">
+                      <div className="relative h-48 sm:h-56 md:h-64">
                         <Image
                           src={item.image || "/game/shop/placeholder.jpg"}
                           alt={item.name}
                           fill
                           className="object-cover"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
-                        <div className="absolute bottom-6 left-6 flex items-center gap-4">
-                          <div className="text-white text-5xl">{item.icon}</div>
-                          <div>
-                            <h3 className="text-3xl font-bold text-white">{item.name}</h3>
-                            <p className="text-gray-300">Stock: {item.stock}</p>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent" />
+
+                        <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 flex items-end justify-between">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
+                            <div className="text-white text-4xl sm:text-5xl">{item.icon}</div>
+                            <div>
+                              <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white">{item.name}</h3>
+                              <p className="text-xs sm:text-sm text-gray-300">Stock: {item.stock}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-6">
-                        <p className="text-3xl font-bold text-cyan-300 mb-6">
-                          {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
+                      <div className="p-4 sm:p-5">
+                        <p className="text-xl sm:text-2xl md:text-3xl font-bold text-cyan-300 mb-4 sm:mb-5">
+                          {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `${Number(item.tycPrice).toFixed(1)} TYC`}
                         </p>
+
                         <button
                           onClick={() => handleBuy(item)}
                           disabled={buyingId === item.tokenId || approvingId === item.tokenId}
-                          className="w-full py-5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-cyan-400 text-black text-xl font-bold disabled:opacity-60 flex items-center justify-center gap-3"
+                          className="w-full py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold text-base sm:text-lg disabled:opacity-60 flex items-center justify-center gap-2 sm:gap-3"
                         >
                           {buyingId === item.tokenId || approvingId === item.tokenId ? (
                             <>
-                              <Loader2 className="w-7 h-7 animate-spin" />
+                              <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                               Processing...
                             </>
                           ) : (
@@ -621,7 +691,7 @@ export default function CollectibleInventoryBar({
                           )}
                         </button>
                       </div>
-                    </motion.div>
+                    </div>
                   ))
                 )}
               </div>
@@ -630,95 +700,128 @@ export default function CollectibleInventoryBar({
         )}
       </AnimatePresence>
 
-      {/* Special Perk Selection Modal */}
+      {/* BURN CONFIRMATION SHEET */}
       <AnimatePresence>
-        {pendingPerkTokenId && currentPlayer && (
+        {pendingPerk && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 z-50"
+              className="fixed inset-0 bg-black/80 z-[9998]"
               onClick={() => {
-                setPendingPerkTokenId(null);
+                setPendingPerk(null);
                 setSelectedPositionIndex(null);
                 setSelectedRollTotal(null);
               }}
             />
+
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 top-20 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 p-6 z-50 overflow-y-auto shadow-2xl"
+              className="
+                fixed inset-x-0 bottom-20
+                z-[100000]
+                max-h-[90vh]
+                overflow-y-auto
+                bg-[#0A1418]
+                rounded-t-3xl
+                border-t border-red-600/50
+                shadow-2xl shadow-black/60
+
+              "
             >
-              <h3 className="text-3xl font-bold text-cyan-300 mb-8 text-center">
-                {ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId)?.perk === 6
-                  ? "Choose Teleport Destination"
-                  : "Choose Exact Roll"}
-              </h3>
+              <div className="p-5 sm:p-6 text-center">
+                <Flame className="w-16 h-16 sm:w-20 sm:h-20 text-red-500 mx-auto mb-5 sm:mb-6 animate-pulse" />
+                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 sm:mb-4">Burn Collectible?</h2>
+                <p className="text-xl sm:text-2xl text-cyan-300 font-semibold mb-5 sm:mb-6">{pendingPerk.name}</p>
 
-              {ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId)?.perk === 6 && (
-                <div className="grid grid-cols-2 gap-4 mb-10">
-                  {BOARD_POSITIONS.map((name, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedPositionIndex(index)}
-                      className={`py-4 px-4 rounded-xl text-base font-medium transition-all ${
-                        selectedPositionIndex === index
-                          ? "bg-cyan-600 text-black shadow-lg shadow-cyan-500/50"
-                          : "bg-gray-800 hover:bg-gray-700"
-                      }`}
-                    >
-                      {index}. {name}
-                    </button>
-                  ))}
+                <p className="text-red-300 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8">
+                  This action is <strong>permanent</strong>.<br />
+                  The collectible will be <strong>burned forever</strong>.
+                </p>
+
+                {(pendingPerk.perkId === 6 || pendingPerk.perkId === 10) && (
+                  <div className="mb-8 sm:mb-10">
+                    <p className="text-lg sm:text-xl text-white mb-4 sm:mb-6">
+                      {pendingPerk.perkId === 6 ? "Choose destination:" : "Choose exact roll:"}
+                    </p>
+
+                    {pendingPerk.perkId === 6 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3 max-h-64 sm:max-h-80 overflow-y-auto">
+                        {BOARD_POSITIONS.map((name, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSelectedPositionIndex(i)}
+                            className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
+                              selectedPositionIndex === i
+                                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/40"
+                                : "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                            }`}
+                          >
+                            {i}. {name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {pendingPerk.perkId === 10 && (
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5 sm:gap-3">
+                        {[2,3,4,5,6,7,8,9,10,11,12].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setSelectedRollTotal(n)}
+                            className={`py-4 sm:py-6 rounded-xl text-xl sm:text-2xl font-bold transition-all ${
+                              selectedRollTotal === n
+                                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/50 scale-105"
+                                : "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-6 sm:mt-8">
+                  <button
+                    onClick={() => {
+                      setPendingPerk(null);
+                      setSelectedPositionIndex(null);
+                      setSelectedRollTotal(null);
+                    }}
+                    className="py-4 sm:py-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-base sm:text-lg transition"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={handleConfirmBurnAndActivate}
+                    disabled={
+                      isBurning ||
+                      (pendingPerk.perkId === 6 && selectedPositionIndex === null) ||
+                      (pendingPerk.perkId === 10 && selectedRollTotal === null)
+                    }
+                    className="py-4 sm:py-5 rounded-2xl bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-60 text-white font-bold text-base sm:text-lg flex items-center justify-center gap-2 sm:gap-3 transition shadow-lg"
+                  >
+                    {isBurning ? (
+                      <>
+                        <Loader2 className="w-6 h-6 sm:w-7 sm:h-7 animate-spin" />
+                        Burning...
+                      </>
+                    ) : (
+                      <>
+                        <Flame className="w-6 h-6 sm:w-7 sm:h-7" />
+                        Burn & Use
+                      </>
+                    )}
+                  </button>
                 </div>
-              )}
-
-              {ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId)?.perk === 10 && (
-                <div className="grid grid-cols-4 gap-5 mb-10">
-                  {[2,3,4,5,6,7,8,9,10,11,12].map((total) => (
-                    <button
-                      key={total}
-                      onClick={() => setSelectedRollTotal(total)}
-                      className={`py-8 rounded-2xl text-3xl font-bold transition-all ${
-                        selectedRollTotal === total
-                          ? "bg-cyan-600 text-black shadow-2xl shadow-cyan-500/60"
-                          : "bg-gray-800 hover:bg-gray-700"
-                      }`}
-                    >
-                      {total}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-5">
-                <button
-                  onClick={() => {
-                    setPendingPerkTokenId(null);
-                    setSelectedPositionIndex(null);
-                    setSelectedRollTotal(null);
-                  }}
-                  className="py-5 rounded-xl bg-gray-800 hover:bg-gray-700 text-xl font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmSpecialPerk}
-                  disabled={isBurning}
-                  className="py-5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-black text-xl font-bold disabled:opacity-60 flex items-center justify-center gap-3"
-                >
-                  {isBurning ? (
-                    <>
-                      <Loader2 className="w-7 h-7 animate-spin" />
-                      Activating...
-                    </>
-                  ) : (
-                    "Activate Perk"
-                  )}
-                </button>
               </div>
             </motion.div>
           </>

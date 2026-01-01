@@ -5,8 +5,8 @@ import { Property } from "@/types/game";
 interface TradeSectionProps {
   showTrade: boolean;
   toggleTrade: () => void;
-  openTrades: any[];
-  tradeRequests: any[];
+  openTrades: any[];        // Your outgoing/active trades
+  tradeRequests: any[];     // Incoming trade requests
   properties: Property[];
   game: any;
   handleTradeAction: (id: number, action: "accepted" | "declined" | "counter") => void;
@@ -84,11 +84,20 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
     );
   };
 
-  const handleClearAllTrades = () => {
+  const handleClearAllOutgoing = () => {
     if (openTrades.length === 0) return;
-    if (!confirm("Decline and clear ALL your active trade offers?")) return;
+    if (!confirm("Decline and cancel ALL your active trade offers? This cannot be undone.")) return;
 
     openTrades.forEach((trade) => {
+      handleTradeAction(trade.id, "declined");
+    });
+  };
+
+  const handleDeclineAllIncoming = () => {
+    if (tradeRequests.length === 0) return;
+    if (!confirm(`Decline ALL ${tradeRequests.length} incoming trade request(s)?`)) return;
+
+    tradeRequests.forEach((trade) => {
       handleTradeAction(trade.id, "declined");
     });
   };
@@ -99,7 +108,12 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
         onClick={toggleTrade}
         className="w-full text-xl font-bold text-pink-300 flex justify-between items-center"
       >
-        <span>TRADES {tradeRequests.length > 0 && `(${tradeRequests.length} pending)`}</span>
+        <span>
+          TRADES{" "}
+          {tradeRequests.length > 0 && (
+            <span className="text-cyan-400">({tradeRequests.length} incoming)</span>
+          )}
+        </span>
         <motion.span animate={{ rotate: showTrade ? 180 : 0 }} className="text-3xl text-cyan-400">
           ▼
         </motion.span>
@@ -111,40 +125,54 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
             initial={{ height: 0 }}
             animate={{ height: "auto" }}
             exit={{ height: 0 }}
-            className="overflow-hidden mt-3 space-y-3"
+            className="overflow-hidden mt-3 space-y-6"
           >
-            {/* Active trades */}
-            {openTrades.length > 0 && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
-                    <span>📤</span> <span>MY ACTIVE TRADES</span>
-                  </h4>
-                  <button
-                    onClick={handleClearAllTrades}
-                    className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
-                  >
-                    Clear All
-                  </button>
-                </div>
-                <div className="space-y-2">{openTrades.map((t) => renderTradeItem(t, false))}</div>
-              </div>
-            )}
-
-            {/* Incoming */}
+            {/* Incoming Requests */}
             {tradeRequests.length > 0 && (
               <div>
-                <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
-                  <span>📥</span> <span>INCOMING REQUESTS</span>
-                </h4>
-                <div className="space-y-2">{tradeRequests.map((t) => renderTradeItem(t, true))}</div>
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                    <span>📥</span> INCOMING REQUESTS
+                  </h4>
+                  <button
+                    onClick={handleDeclineAllIncoming}
+                    className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
+                  >
+                    Decline All
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {tradeRequests.map((t) => renderTradeItem(t, true))}
+                </div>
               </div>
             )}
 
+            {/* Your Active Outgoing Trades */}
+            {openTrades.length > 0 && (
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                    <span>📤</span> MY ACTIVE TRADES
+                  </h4>
+                  <button
+                    onClick={handleClearAllOutgoing}
+                    className="px-3 py-1.5 bg-orange-800/70 hover:bg-orange-700 text-xs font-semibold rounded border border-orange-600/50 text-orange-200 transition"
+                  >
+                    Cancel All
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {openTrades.map((t) => renderTradeItem(t, false))}
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
             {openTrades.length === 0 && tradeRequests.length === 0 && (
-              <div className="text-center text-gray-500 py-4">
-                <div className="text-3xl mb-1">💱</div>
-                <p className="text-sm">No trades yet..</p>
+              <div className="text-center text-gray-500 py-8">
+                <div className="text-5xl mb-3">💱</div>
+                <p className="text-lg">No active trades</p>
+                <p className="text-sm mt-1">Make an offer or wait for incoming requests</p>
               </div>
             )}
           </motion.div>
