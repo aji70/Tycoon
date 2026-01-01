@@ -668,17 +668,6 @@ useEffect(() => {
             handleTradeAction={handleTradeAction}
           />
         </section>
-
-        {/* Dev Mode Button */}
-        {isDevMode && (
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setClaimModalOpen(true)}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-xl text-white font-bold text-lg shadow-lg shadow-purple-900/50 active:shadow-pink-900/70 transition-all"
-          >
-            ⚙️ DEV: Claim Property
-          </motion.button>
-        )}
       </div>
 
       {/* Bottom safe area padding for mobile */}

@@ -12,7 +12,8 @@ interface BoardProps {
   players: Player[];
   currentGameProperties: GameProperty[];
   animatedPositions: Record<number, number>;
-  currentPlayerId: number | null | undefined; // Now accepts null explicitly
+  currentPlayerId: number | null | undefined;
+  onPropertyClick?: (propertyId: number) => void; // ← NEW: Click handler
 }
 
 const isTopRow = (square: Property) => square.grid_row === 1;
@@ -26,6 +27,7 @@ const Board: React.FC<BoardProps> = ({
   currentGameProperties,
   animatedPositions,
   currentPlayerId,
+  onPropertyClick,
 }) => {
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +55,6 @@ const Board: React.FC<BoardProps> = ({
 
   useEffect(() => {
     if (boardRef.current && currentPlayerId != null) {
-      // currentPlayerId is number | null | undefined → != null checks both
       const currentPlayer = players.find(p => p.user_id === currentPlayerId);
       if (currentPlayer?.position != null) {
         const squareElement = boardRef.current.querySelector(`[data-position="${currentPlayer.position}"]`);
@@ -87,6 +88,9 @@ const Board: React.FC<BoardProps> = ({
           else if (isRightColumn(square)) devPositionClass = "top-1/2 -translate-y-1/2 left-1";
           else devPositionClass = "top-0.5 right-0.5";
 
+          // Determine if this square should be clickable (only regular properties)
+          const isClickable = square.type === "property";
+
           return (
             <motion.div
               key={square.id}
@@ -96,10 +100,11 @@ const Board: React.FC<BoardProps> = ({
                 gridColumnStart: square.grid_col,
               }}
               className="w-full h-full p-[1px] relative box-border group hover:z-10 transition-transform duration-200"
-              whileHover={{ scale: 1.5, zIndex: 50 }}
+              whileHover={{ scale: isClickable ? 1.5 : 1, zIndex: 50 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              onClick={() => isClickable && onPropertyClick?.(square.id)} // ← CLICK HANDLER
             >
-              <div className={`w-full h-full transform group-hover:scale-150 ${isTopRow(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5 relative`}>
+              <div className={`w-full h-full transform group-hover:scale-150 ${isTopRow(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5 relative ${isClickable ? 'cursor-pointer' : ''}`}>
                 {square.type === "property" && <PropertyCardMobile square={square} owner={propertyOwner(square.id)} />}
                 {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                 {square.type === "corner" && <CornerCard square={square} />}
