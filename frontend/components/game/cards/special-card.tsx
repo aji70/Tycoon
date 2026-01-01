@@ -72,9 +72,6 @@ const SpecialCard = ({ square }: SpecialCardProps) => {
           fill
           className="object-contain"
         />
-        <p className="absolute top-0 left-0 right-0 text-center text-[3.5px] md:text-[4.5px] uppercase font-bold bg-white py-0.5">
-          Community Chest
-        </p>
       </div>
     );
 
