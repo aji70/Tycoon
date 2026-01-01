@@ -15,8 +15,8 @@ import { PropertyActionModal } from "../../modals/property-action";
 import { AiTradePopup } from "../../modals/ai-trade";
 import { AiResponsePopup } from "../../modals/ai-response";
 import { VictoryModal } from "../../modals/victory";
-import { TradeModal } from "../../modals/trade";
-import ClaimPropertyModal from "../../dev";
+import { TradeModal } from "../../modals/trade-mobile";
+import ClaimPropertyModal from "../../dev-mobile";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
