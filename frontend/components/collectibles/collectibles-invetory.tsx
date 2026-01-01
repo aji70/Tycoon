@@ -20,7 +20,6 @@ import { ApiResponse } from "@/types/api";
 
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
-// Full Monopoly board position names (0–39)
 const BOARD_POSITIONS = [
   "GO", "Mediterranean Avenue", "Community Chest", "Baltic Avenue", "Income Tax",
   "Reading Railroad", "Oriental Avenue", "Chance", "Vermont Avenue", "Connecticut Avenue",
@@ -32,41 +31,46 @@ const BOARD_POSITIONS = [
   "Short Line Railroad", "Chance", "Park Place", "Luxury Tax", "Boardwalk"
 ];
 
-// Fixed cash tiers for Instant Cash (#5)
 const CASH_TIERS = [0, 100, 250, 500, 700, 1000];
-// Balanced refund tiers for Tax Refund (#9) ~60% of cash values
 const REFUND_TIERS = [0, 60, 150, 300, 420, 600];
+const DISCOUNT_TIERS = [0, 100, 200, 300, 400, 500];
 
 interface CollectibleInventoryBarProps {
   game: Game;
   game_properties: GameProperty[];
   isMyTurn: boolean;
+  ROLL_DICE?: () => void;
+  END_TURN: () => void;
+  triggerSpecialLanding?: (position: number, isSpecial: boolean) => void;
+  endTurnAfterSpecial?: () => void;
 }
 
-const perkMetadata: Record<number, { 
-  name: string; 
-  icon: React.ReactNode; 
-  gradient: string; 
+const perkMetadata: Record<number, {
+  name: string;
+  icon: React.ReactNode;
+  gradient: string;
   image?: string;
   canBeActivated: boolean;
   fakeDescription?: string;
 }> = {
-  1: { name: "Extra Turn", icon: <Zap className="w-6 h-6" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
-  2: { name: "Jail Free Card", icon: <Crown className="w-6 h-6" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
+  1: { name: "Extra Turn", icon: <Zap className="w-6 h-6" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: true },
+  2: { name: "Jail Free Card", icon: <Crown className="w-6 h-6" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: true },
   3: { name: "Double Rent", icon: <Coins className="w-6 h-6" />, gradient: "from-green-600 to-emerald-600", image: "/game/shop/c.jpeg", canBeActivated: false, fakeDescription: "Not Available Yet" },
   4: { name: "Roll Boost", icon: <Sparkles className="w-6 h-6" />, gradient: "from-blue-600 to-cyan-600", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
   5: { name: "Instant Cash", icon: <Gem className="w-6 h-6" />, gradient: "from-cyan-600 to-teal-600", image: "/game/shop/b.jpeg", canBeActivated: true },
   6: { name: "Teleport", icon: <Zap className="w-6 h-6" />, gradient: "from-pink-600 to-rose-600", image: "/game/shop/c.jpeg", canBeActivated: true },
   7: { name: "Shield", icon: <Shield className="w-6 h-6" />, gradient: "from-indigo-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
-  8: { name: "Property Discount", icon: <Coins className="w-6 h-6" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: false, fakeDescription: "Not Available Yet" },
+  8: { name: "Property Discount", icon: <Coins className="w-6 h-6" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: true },
   9: { name: "Tax Refund", icon: <Gem className="w-6 h-6" />, gradient: "from-teal-600 to-cyan-600", image: "/game/shop/c.jpeg", canBeActivated: true },
-  10: { name: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: false, fakeDescription: "Coming Soon" },
+  10: { name: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: true },
 };
 
 export default function CollectibleInventoryBar({
   game,
   game_properties,
   isMyTurn,
+  ROLL_DICE,
+  triggerSpecialLanding,
 }: CollectibleInventoryBarProps) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -80,7 +84,6 @@ export default function CollectibleInventoryBar({
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
 
-  // Modal states for Teleport & Exact Roll
   const [pendingPerkTokenId, setPendingPerkTokenId] = useState<bigint | null>(null);
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
@@ -109,101 +112,82 @@ export default function CollectibleInventoryBar({
 
   const { burn: burnCollectible, isPending: isBurning } = useRewardBurnCollectible();
 
-  // Current player lookup
   const currentPlayer = useMemo(() => {
     if (!address || !game?.players) return null;
     return game.players.find(p => p.address?.toLowerCase() === address.toLowerCase()) || null;
   }, [address, game?.players]);
 
-  // Helper: Find real game player id from wallet address
+  useEffect(() => {
+    if (currentPlayer) {
+      console.log("%c[DEBUG] Current Game Player:", "color: #00ffff; font-weight: bold;", currentPlayer);
+    } else if (address && game?.players) {
+      console.log("%c[DEBUG] No player found for connected wallet:", "color: #ff6b6b;", address);
+    }
+  }, [currentPlayer, address, game?.players]);
+
   const getRealPlayerId = (walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
-    const owned = game_properties.find(
-      gp => gp.address?.toLowerCase() === walletAddress.toLowerCase()
-    );
+    const owned = game_properties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
     return owned?.player_id ?? null;
   };
 
-  // Direct cash adjustment
   const applyCashAdjustment = async (playerId: number, amount: number): Promise<boolean> => {
-    if (amount === 0) {
-      toast.error("Amount cannot be zero");
-      return false;
-    }
-
+    if (amount === 0) return true;
     const targetPlayer = game.players.find(p => p.user_id === playerId);
-    if (!targetPlayer?.address) {
-      toast.error("Player not found or missing wallet address");
-      return false;
-    }
-
+    if (!targetPlayer?.address) return false;
     const realPlayerId = getRealPlayerId(targetPlayer.address);
-    console.log("Real player ID for cash adjustment:", realPlayerId);
-
     if (!realPlayerId) {
-      toast.error("Player must own at least one property");
+      toast.error("Must own a property");
       return false;
     }
-
     try {
       const res = await apiClient.put<ApiResponse>(`/game-players/${realPlayerId}`, {
         game_id: game.id,
         user_id: targetPlayer.user_id,
         balance: (targetPlayer.balance ?? 0) + amount,
       });
-
-      // Flexible success check (any 2xx status)
-      console.log("Response 1:  ", res)
-      if (res?.success) {
-        console.log("Cash update response:", res.data);
-        return true;
-      } else {
-        throw new Error(res.data?.message || "Cash update failed");
-      }
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || error.message || "Failed to adjust cash";
-      toast.error(msg);
-      console.error("Cash adjustment error:", error);
+      return res?.success ?? false;
+    } catch {
+      toast.error("Cash adjustment failed");
       return false;
     }
   };
 
-  // Direct position change
   const applyPositionChange = async (playerId: number, newPos: number): Promise<boolean> => {
-    if (newPos < 0 || newPos > 39) {
-      toast.error("Position must be between 0 and 39");
-      return false;
-    }
-
+    if (newPos < 0 || newPos > 39) return false;
     const targetPlayer = game.players.find(p => p.user_id === playerId);
-    if (!targetPlayer?.address) {
-      toast.error("Player not found or missing wallet address");
-      return false;
-    }
-
+    if (!targetPlayer?.address) return false;
     const realPlayerId = getRealPlayerId(targetPlayer.address);
-    if (!realPlayerId) {
-      toast.error("Player must own at least one property");
-      return false;
-    }
-
+    if (!realPlayerId) return false;
     try {
       const res = await apiClient.put<ApiResponse>(`/game-players/${realPlayerId}`, {
         game_id: game.id,
-        user_id: targetPlayer.user_id,
+        user_id: playerId,
         position: newPos,
       });
+      return res?.success ?? false;
+    } catch {
+      toast.error("Position change failed");
+      return false;
+    }
 
-      console.log("Response 2:  ", res)
-      if (res?.success) {
-        return true;
-      } else {
-        throw new Error(res.data?.message || "Position update failed");
-      }
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || error.message || "Failed to change position";
-      toast.error(msg);
-      console.error("Position change error:", error);
+
+  };
+
+  const escapeJail = async (playerId: number): Promise<boolean> => {
+    const targetPlayer = game.players.find(p => p.user_id === playerId);
+    if (!targetPlayer?.address) return false;
+    const realPlayerId = getRealPlayerId(targetPlayer.address);
+    if (!realPlayerId) return false;
+    try {
+      const res = await apiClient.put<ApiResponse>(`/game-players/${realPlayerId}`, {
+        game_id: game.id,
+        user_id: playerId,
+        in_jail: false,
+      });
+      return res?.success ?? false;
+    } catch {
+      toast.error("Failed to escape jail");
       return false;
     }
   };
@@ -219,15 +203,12 @@ export default function CollectibleInventoryBar({
 
   const ownedCount = Number(ownedCountRaw ?? 0);
 
-  const tokenCalls = useMemo(() =>
-    Array.from({ length: ownedCount }, (_, i) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex",
-      args: [address!, BigInt(i)],
-    } as const)),
-    [contractAddress, address, ownedCount]
-  );
+  const tokenCalls = useMemo(() => Array.from({ length: ownedCount }, (_, i) => ({
+    address: contractAddress!,
+    abi: RewardABI as Abi,
+    functionName: "tokenOfOwnerByIndex" as const,
+    args: [address!, BigInt(i)],
+  })), [contractAddress, address, ownedCount]);
 
   const { data: tokenResults } = useReadContracts({
     contracts: tokenCalls,
@@ -238,15 +219,12 @@ export default function CollectibleInventoryBar({
     ?.map(r => r.status === "success" ? r.result as bigint : null)
     .filter((id): id is bigint => id !== null && id >= COLLECTIBLE_ID_START) ?? [];
 
-  const infoCalls = useMemo(() =>
-    ownedTokenIds.map(id => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "getCollectibleInfo",
-      args: [id],
-    } as const)),
-    [contractAddress, ownedTokenIds]
-  );
+  const infoCalls = useMemo(() => ownedTokenIds.map(id => ({
+    address: contractAddress!,
+    abi: RewardABI as Abi,
+    functionName: "getCollectibleInfo" as const,
+    args: [id],
+  })), [contractAddress, ownedTokenIds]);
 
   const { data: infoResults } = useReadContracts({
     contracts: infoCalls,
@@ -256,26 +234,30 @@ export default function CollectibleInventoryBar({
   const ownedCollectibles = useMemo(() => {
     if (!infoResults) return [];
 
-    return infoResults.map((res, i) => {
-      if (res?.status !== "success") return null;
-      const [perkBig, strengthBig] = res.result as [bigint, bigint];
-      const perk = Number(perkBig);
-      const meta = perkMetadata[perk] || perkMetadata[10];
-      const displayName = (perk === 5 || perk === 9) 
-        ? `${meta.name} (Tier ${Number(strengthBig)})` 
-        : meta.name;
+    return infoResults
+      .map((res, i) => {
+        if (res?.status !== "success") return null;
+        const [perkBig, strengthBig] = res.result as [bigint, bigint];
+        const perk = Number(perkBig);
+        const strength = Number(strengthBig);
+        const meta = perkMetadata[perk] ?? perkMetadata[10];
 
-      return {
-        tokenId: ownedTokenIds[i],
-        perk,
-        name: displayName,
-        icon: meta.icon,
-        gradient: meta.gradient,
-        canBeActivated: meta.canBeActivated,
-        fakeDescription: meta.fakeDescription,
-        strength: Number(strengthBig),
-      };
-    }).filter((item): item is NonNullable<typeof item> => !!item);
+        const displayName = (perk === 5 || perk === 8 || perk === 9)
+          ? `${meta.name} (Tier ${strength})`
+          : meta.name;
+
+        return {
+          tokenId: ownedTokenIds[i],
+          perk,
+          name: displayName,
+          icon: meta.icon,
+          gradient: meta.gradient,
+          canBeActivated: meta.canBeActivated,
+          fakeDescription: meta.fakeDescription,
+          strength,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
   }, [infoResults, ownedTokenIds]);
 
   const totalOwned = ownedCollectibles.length;
@@ -291,15 +273,12 @@ export default function CollectibleInventoryBar({
 
   const shopCount = Number(shopCountRaw ?? 0);
 
-  const shopTokenCalls = useMemo(() =>
-    Array.from({ length: shopCount }, (_, i) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "tokenOfOwnerByIndex",
-      args: [contractAddress!, BigInt(i)],
-    } as const)),
-    [contractAddress, shopCount]
-  );
+  const shopTokenCalls = useMemo(() => Array.from({ length: shopCount }, (_, i) => ({
+    address: contractAddress!,
+    abi: RewardABI as Abi,
+    functionName: "tokenOfOwnerByIndex" as const,
+    args: [contractAddress!, BigInt(i)],
+  })), [contractAddress, shopCount]);
 
   const { data: shopTokenResults } = useReadContracts({
     contracts: shopTokenCalls,
@@ -310,15 +289,12 @@ export default function CollectibleInventoryBar({
     ?.map(r => r.status === "success" ? r.result as bigint : null)
     .filter((id): id is bigint => id !== null && id >= COLLECTIBLE_ID_START) ?? [];
 
-  const shopInfoCalls = useMemo(() =>
-    shopTokenIds.map(id => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "getCollectibleInfo",
-      args: [id],
-    } as const)),
-    [contractAddress, shopTokenIds]
-  );
+  const shopInfoCalls = useMemo(() => shopTokenIds.map(id => ({
+    address: contractAddress!,
+    abi: RewardABI as Abi,
+    functionName: "getCollectibleInfo" as const,
+    args: [id],
+  })), [contractAddress, shopTokenIds]);
 
   const { data: shopInfoResults } = useReadContracts({
     contracts: shopInfoCalls,
@@ -328,30 +304,32 @@ export default function CollectibleInventoryBar({
   const shopItems = useMemo(() => {
     if (!shopInfoResults) return [];
 
-    return shopInfoResults.map((res, i) => {
-      if (res?.status !== "success") return null;
-      const [perkBig, strengthBig, tycPriceBig, usdcPriceBig, stockBig] = res.result as [bigint, bigint, bigint, bigint, bigint];
-      const perk = Number(perkBig);
-      const stock = Number(stockBig);
-      if (stock === 0) return null;
+    return shopInfoResults
+      .map((res, i) => {
+        if (res?.status !== "success") return null;
+        const [perkBig, , tycPriceBig, usdcPriceBig, stockBig] = res.result as [bigint, bigint, bigint, bigint, bigint];
+        const perk = Number(perkBig);
+        const stock = Number(stockBig);
+        if (stock === 0) return null;
 
-      const meta = perkMetadata[perk] || perkMetadata[10];
+        const meta = perkMetadata[perk] ?? perkMetadata[10];
 
-      return {
-        tokenId: shopTokenIds[i],
-        perk,
-        tycPrice: formatUnits(tycPriceBig, 18),
-        usdcPrice: formatUnits(usdcPriceBig, 6),
-        stock,
-        name: meta.name,
-        icon: meta.icon,
-        gradient: meta.gradient,
-        image: meta.image,
-      };
-    }).filter((item): item is NonNullable<typeof item> => !!item);
+        return {
+          tokenId: shopTokenIds[i],
+          perk,
+          tycPrice: formatUnits(tycPriceBig, 18),
+          usdcPrice: formatUnits(usdcPriceBig, 6),
+          stock,
+          name: meta.name,
+          icon: meta.icon,
+          gradient: meta.gradient,
+          image: meta.image,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
 
-  // === BUY LOGIC ===
+  // === BUY & APPROVE LOGIC ===
   const handleBuy = async (item: typeof shopItems[number]) => {
     if (!contractAddress || !address) {
       toast.error("Wallet not connected");
@@ -387,7 +365,7 @@ export default function CollectibleInventoryBar({
     if (approveSuccess && approvingId !== null) {
       toast.dismiss("approve");
       toast.success("Approved! Completing purchase...");
-      const item = shopItems.find(i => i?.tokenId === approvingId);
+      const item = shopItems.find(i => i.tokenId === approvingId);
       if (item) handleBuy(item);
       setApprovingId(null);
     }
@@ -426,7 +404,6 @@ export default function CollectibleInventoryBar({
       return;
     }
 
-    // Perks that require selection
     if (perkId === 6 || perkId === 10) {
       setPendingPerkTokenId(tokenId);
       return;
@@ -435,101 +412,101 @@ export default function CollectibleInventoryBar({
     const confirmed = window.confirm(`Use ${name}? This will BURN your collectible.`);
     if (!confirmed) return;
 
-    const toastId = toast.loading("Activating perk...", { duration: 10000 });
+    const toastId = toast.loading("Activating perk...");
 
     try {
-      await burnCollectible(tokenId); // ← still commented out
-
       let success = false;
       let amount = 0;
 
-      if (perkId === 5) {
-        // Instant Cash – using fixed tier array
-        amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)] || 0;
-        success = await applyCashAdjustment(currentPlayer.user_id, amount);
-        if (success && amount > 0) {
-          toast.success(`+$${amount.toLocaleString()} instant cash added!`, { id: toastId });
-        } else if (amount === 0) {
-          toast("Instant Cash activated (Tier 0 - no cash added)", { id: toastId });
-        }
-      } 
-      else if (perkId === 9) {
-        // Tax Refund – smaller fixed tiers
-        amount = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)] || 0;
-        success = await applyCashAdjustment(currentPlayer.user_id, amount);
-        if (success && amount > 0) {
-          toast.success(`+$${amount.toLocaleString()} tax refund received!`, { id: toastId });
-        } else if (amount === 0) {
-          toast("Tax Refund activated (Tier 0 - no refund)", { id: toastId });
-        }
+      switch (perkId) {
+        case 5:
+          amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
+          success = await applyCashAdjustment(currentPlayer.user_id, amount);
+          break;
+        case 9:
+          amount = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
+          success = await applyCashAdjustment(currentPlayer.user_id, amount);
+          break;
+        case 8:
+          amount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
+          success = await applyCashAdjustment(currentPlayer.user_id, amount);
+          if (success && amount > 0) toast.success(`+$${amount} Property Discount!`, { id: toastId });
+          break;
+        case 2:
+          success = await escapeJail(currentPlayer.user_id);
+          if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
+          break;
+        case 1:
+          if (ROLL_DICE) {
+            toast.success("Extra Turn! Roll again!", { id: toastId });
+            setTimeout(() => ROLL_DICE(), 800);
+            success = true;
+          } else {
+            toast.error("Extra Turn not supported", { id: toastId });
+          }
+          break;
       }
 
       if (success || amount === 0) {
         toast.success(`${name} activated! 🎉`, { id: toastId });
-      } else {
-        throw new Error("Perk effect failed");
       }
-    } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || err.message || "Failed to activate perk";
-      toast.error(errorMsg, { id: toastId });
-      console.error("Perk activation error:", err);
+    } catch {
+      toast.error("Activation failed", { id: toastId });
     }
   };
 
-  const handleConfirmSpecialPerk = async () => {
-    if (!pendingPerkTokenId || !currentPlayer) return;
+const handleConfirmSpecialPerk = async () => {
+  if (!pendingPerkTokenId || !currentPlayer || !triggerSpecialLanding) {
+    toast.error("Cannot activate right now");
+    return;
+  }
 
-    const perkItem = ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId);
-    if (!perkItem) return;
+  const perkItem = ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId);
+  if (!perkItem) return;
 
-    const { perk } = perkItem;
+  let targetPosition: number;
 
-    if (perk === 6 && selectedPositionIndex === null) {
-      toast.error("Select a position to teleport to");
-      return;
-    }
+  if (perkItem.perk === 6) { // Teleport
+    if (selectedPositionIndex === null) return toast.error("Choose destination");
+    targetPosition = selectedPositionIndex;
+  } else if (perkItem.perk === 10) { // Exact Roll
+    if (selectedRollTotal === null) return toast.error("Choose roll value");
+    targetPosition = (currentPlayer.position + selectedRollTotal) % 40;
+  } else {
+    return;
+  }
 
-    if (perk === 10 && selectedRollTotal === null) {
-      toast.error("Select your exact roll value");
-      return;
-    }
+  const confirmed = window.confirm(`Burn and activate ${perkItem.name}?`);
+  if (!confirmed) return;
 
-    const confirmed = window.confirm(`Burn collectible and activate ${perkItem.name}?`);
-    if (!confirmed) return;
+  const toastId = toast.loading("Activating...");
 
-    const toastId = toast.loading("Activating...", { duration: 10000 });
+  try {
+    const success = await applyPositionChange(currentPlayer.user_id, targetPosition);
 
-    try {
-      await burnCollectible(pendingPerkTokenId); // ← commented out
+    if (success) {
+      toast.success(`${perkItem.name} activated! Moving...`, { id: toastId });
 
-      if (perk === 6) {
-        const success = await applyPositionChange(
-          currentPlayer.user_id,
-          selectedPositionIndex!
-        );
-        if (success) {
-          toast.success(`Teleported to ${BOARD_POSITIONS[selectedPositionIndex!]}! 🚀`, { id: toastId });
-        } else {
-          throw new Error("Teleport failed");
-        }
-      } else if (perk === 10) {
-        toast.success(`Next roll set to ${selectedRollTotal} (preview only)`, { id: toastId });
-      }
+      // This is the key line — hand over control to AiBoard
+      triggerSpecialLanding(targetPosition, true);
 
+      // Reset UI
       setPendingPerkTokenId(null);
       setSelectedPositionIndex(null);
       setSelectedRollTotal(null);
-    } catch (err) {
-      const errorMsg =  "Failed to activate perk";
-      toast.error(errorMsg, { id: toastId });
+    } else {
+      throw new Error("Position update failed");
     }
-  };
+  } catch (e) {
+    toast.error("Activation failed", { id: toastId });
+  }
+};
 
   if (!isConnected || totalOwned === 0) return null;
 
   return (
     <>
-      {/* Main Perk Inventory Bar */}
+      {/* Inventory Bar */}
       <div className="fixed bottom-6 right-6 z-50 pointer-events-auto">
         <div className="bg-black/90 backdrop-blur-xl rounded-2xl border border-cyan-500/40 p-5 shadow-2xl max-h-[70vh] overflow-y-auto w-72">
           <div className="flex items-center justify-between mb-4">
@@ -548,20 +525,10 @@ export default function CollectibleInventoryBar({
             {ownedCollectibles.map((item) => (
               <button
                 key={item.tokenId.toString()}
-                onClick={() => handleUsePerk(
-                  item.tokenId,
-                  item.perk,
-                  item.name,
-                  item.canBeActivated,
-                  item.strength
-                )}
-                disabled={!isMyTurn}
-                className={`w-full relative rounded-xl overflow-hidden transition-all duration-200 ${
-                  isMyTurn
-                    ? item.canBeActivated
-                      ? "hover:scale-105 cursor-pointer active:scale-100"
-                      : "opacity-70 cursor-not-allowed"
-                    : "opacity-60 cursor-not-allowed"
+                onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
+                disabled={!isMyTurn || !item.canBeActivated}
+                className={`w-full relative rounded-xl overflow-hidden transition-all ${
+                  isMyTurn && item.canBeActivated ? "hover:scale-105 cursor-pointer" : "opacity-60 cursor-not-allowed"
                 }`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-90`} />
@@ -571,16 +538,14 @@ export default function CollectibleInventoryBar({
                     <div>
                       <p className="text-white text-base font-bold">{item.name}</p>
                       {!item.canBeActivated && (
-                        <p className="text-xs text-gray-300 mt-1">
-                          {item.fakeDescription || "Coming Soon"}
-                        </p>
+                        <p className="text-xs text-gray-300 mt-1">{item.fakeDescription || "Coming Soon"}</p>
                       )}
                     </div>
                   </div>
                 </div>
                 {!isMyTurn && (
                   <div className="absolute inset-0 bg-black/60 rounded-xl flex items-center justify-center">
-                    <p className="text-sm text-gray-300">Wait for your turn</p>
+                    <p className="text-sm text-gray-300">Wait for turn</p>
                   </div>
                 )}
               </button>
@@ -638,7 +603,7 @@ export default function CollectibleInventoryBar({
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6 px-6 pb-8 overflow-y-auto max-h-full">
                 {shopItems.length === 0 ? (
                   <p className="col-span-full text-center text-gray-400 py-12">
-                    No items available in the shop right now...
+                    No items available right now...
                   </p>
                 ) : (
                   shopItems.map((item) => (
@@ -661,9 +626,7 @@ export default function CollectibleInventoryBar({
                         </div>
                       </div>
                       <div className="p-4">
-                        <p className="text-xs text-gray-400 mb-2">
-                          Stock remaining: {item.stock}
-                        </p>
+                        <p className="text-xs text-gray-400 mb-2">Stock: {item.stock}</p>
                         <p className="text-lg text-cyan-300 mb-4 font-medium">
                           {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
                         </p>
@@ -691,7 +654,7 @@ export default function CollectibleInventoryBar({
         )}
       </AnimatePresence>
 
-      {/* Special Perk Modal – Teleport & Exact Roll */}
+      {/* Special Perk Modal (Teleport & Exact Roll) */}
       <AnimatePresence>
         {pendingPerkTokenId && currentPlayer && (
           <>
@@ -713,12 +676,10 @@ export default function CollectibleInventoryBar({
               className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0A1C1E] rounded-2xl border border-cyan-500/50 p-8 z-50 w-[520px] max-h-[85vh] overflow-y-auto shadow-2xl"
             >
               <h3 className="text-2xl font-bold text-cyan-300 mb-6 text-center">
-                {ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId)?.perk === 6
-                  ? "Teleport Destination"
-                  : "Choose Exact Roll"}
+                {ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId)?.perk === 6 ? "Teleport Destination" : "Choose Exact Roll"}
               </h3>
 
-              {ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId)?.perk === 6 && (
+              {ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId)?.perk === 6 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8 max-h-96 overflow-y-auto pr-2">
                   {BOARD_POSITIONS.map((name, index) => (
                     <button
@@ -736,7 +697,7 @@ export default function CollectibleInventoryBar({
                 </div>
               )}
 
-              {ownedCollectibles.find(c => c?.tokenId === pendingPerkTokenId)?.perk === 10 && (
+              {ownedCollectibles.find(c => c.tokenId === pendingPerkTokenId)?.perk === 10 && (
                 <div className="grid grid-cols-4 gap-4 mb-8">
                   {[2,3,4,5,6,7,8,9,10,11,12].map((total) => (
                     <button

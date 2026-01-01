@@ -153,6 +153,7 @@ const AiBoard = ({
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [isSpecialMove, setIsSpecialMove] = useState(false);
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -181,6 +182,8 @@ const AiBoard = ({
   );
 
   const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && currentPlayer?.in_jail === true;
+
+  
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
     winner: Player | null;
@@ -321,6 +324,37 @@ const AiBoard = ({
       showToast("Purchase failed", "error");
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
+
+  const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
+  // Prevent double calls / race conditions
+  if (landedPositionThisTurn.current !== null) return;
+
+  landedPositionThisTurn.current = newPosition;
+  setIsSpecialMove(isSpecial);
+
+  // Force buy prompt check
+  setRoll({ die1: 0, die2: 0, total: 0 }); // fake roll just to trigger useEffect
+  setHasMovementFinished(true);
+
+  // Optional: tiny delay for better UX
+  setTimeout(() => {
+    const square = properties.find(p => p.id === newPosition);
+    if (square?.price != null) {
+      const isOwned = game_properties.some(gp => gp.property_id === newPosition);
+      if (!isOwned && ["land", "railway", "utility"].includes(PROPERTY_ACTION(newPosition) || "")) {
+        setBuyPrompted(true);
+        toast(`Landed on ${square.name}! ${isSpecial ? "(Special Move)" : ""}`, { icon: "✨" });
+      }
+    }
+  }, 300);
+}, [properties, game_properties, setBuyPrompted, setHasMovementFinished]);
+
+const endTurnAfterSpecialMove = useCallback(() => {
+  setBuyPrompted(false);
+  landedPositionThisTurn.current = null;
+  setIsSpecialMove(false);
+  setTimeout(END_TURN, 800);
+}, [END_TURN]);
 
   const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
     if (!propertyId || !newPlayerId) {
@@ -1029,11 +1063,15 @@ const AiBoard = ({
         }}
       />
 
-      <CollectibleInventoryBar
-        game={game}
-        game_properties={game_properties}
-        isMyTurn={isMyTurn}
-      />
+     <CollectibleInventoryBar
+  game={game}
+  game_properties={game_properties}
+  isMyTurn={isMyTurn}
+  ROLL_DICE={ROLL_DICE}
+  END_TURN={END_TURN}
+  triggerSpecialLanding={triggerLandingLogic}
+  endTurnAfterSpecial={endTurnAfterSpecialMove}
+/>
     </div>
   );
 };

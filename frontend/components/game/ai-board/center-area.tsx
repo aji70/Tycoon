@@ -122,17 +122,6 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Persistent Quit Button - Top Right */}
-      <div className="absolute top-4 right-4 z-50 pointer-events-none">
-        <button
-          onClick={onDeclareBankruptcy}
-          disabled={isPending}
-          className="px-5 py-2 text-sm font-bold text-white bg-red-600 rounded-lg shadow-lg hover:bg-red-700 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed pointer-events-auto"
-        >
-          Quit
-        </button>
-      </div>
-
       {/* Action Log at the bottom */}
       <ActionLog history={history} />
     </div>
