@@ -84,11 +84,20 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
     );
   };
 
-  const handleClearAllTrades = () => {
+  const handleClearAllOutgoingTrades = () => {
     if (openTrades.length === 0) return;
     if (!confirm("Decline and clear ALL your active trade offers?")) return;
 
     openTrades.forEach((trade) => {
+      handleTradeAction(trade.id, "declined");
+    });
+  };
+
+  const handleClearAllIncomingTrades = () => {
+    if (tradeRequests.length === 0) return;
+    if (!confirm("Decline ALL incoming trade requests?")) return;
+
+    tradeRequests.forEach((trade) => {
       handleTradeAction(trade.id, "declined");
     });
   };
@@ -124,7 +133,7 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
                       <span>📤</span> <span>MY ACTIVE TRADES</span>
                     </h4>
                     <button
-                      onClick={handleClearAllTrades}
+                      onClick={handleClearAllOutgoingTrades}
                       className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
                     >
                       Clear All
@@ -137,9 +146,17 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
               {/* Incoming */}
               {tradeRequests.length > 0 && (
                 <div>
-                  <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
-                    <span>📥</span> <span>INCOMING REQUESTS</span>
-                  </h4>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                      <span>📥</span> <span>INCOMING REQUESTS</span>
+                    </h4>
+                    <button
+                      onClick={handleClearAllIncomingTrades}
+                      className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
+                    >
+                      Decline All
+                    </button>
+                  </div>
                   <div className="space-y-2">{tradeRequests.map((t) => renderTradeItem(t, true))}</div>
                 </div>
               )}
