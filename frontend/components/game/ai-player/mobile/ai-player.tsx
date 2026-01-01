@@ -16,7 +16,6 @@ import { AiTradePopup } from "../../modals/ai-trade";
 import { AiResponsePopup } from "../../modals/ai-response";
 import { VictoryModal } from "../../modals/victory";
 import { TradeModal } from "../../modals/trade-mobile";
-import ClaimPropertyModal from "../../dev-mobile";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
@@ -756,18 +755,6 @@ useEffect(() => {
           targetPlayerAddress={
             game.players.find((p) => p.user_id === counterModal.trade?.target_player_id)?.address
           }
-        />
-
-        <ClaimPropertyModal
-          open={claimModalOpen && isDevMode}
-          game_properties={game_properties}
-          properties={properties}
-          me={me}
-          game={game}
-          onClose={() => setClaimModalOpen(false)}
-          onClaim={handleClaimProperty}
-          onDelete={handleDeleteGameProperty}
-          onTransfer={handlePropertyTransfer}
         />
       </AnimatePresence>
     </div>

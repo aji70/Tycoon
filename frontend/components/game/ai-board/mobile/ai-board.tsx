@@ -29,7 +29,8 @@ const MONOPOLY_STATS = {
     5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
     19: 11, 21: 12, 23: 13, 24: 14, 26: 15, 27: 16, 29: 17, 31: 18, 32: 19, 34: 20, 37: 21, 39: 22,
     1: 30, 2: 25, 3: 29, 4: 35, 12: 32, 17: 28, 22: 26, 28: 33, 33: 27, 36: 24, 38: 23,
-  },
+  } as { [key: number]: number },
+
   colorGroups: {
     brown: [1, 3],
     lightblue: [6, 8, 9],
@@ -246,14 +247,12 @@ const MobileGameLayout = ({
 
     const isInJail = player.in_jail === true && player.position === JAIL_POSITION;
 
-    // Special handling for jail: skip animation entirely
     if (isInJail) {
       setIsRolling(true);
       showToast(`${player.username} is in jail — attempting to roll out...`, "default");
 
       const value = getDiceValues();
       if (!value || value.die1 !== value.die2) {
-        // Failed to roll doubles
         setTimeout(async () => {
           try {
             await apiClient.post("/game-players/change-position", {
@@ -277,7 +276,6 @@ const MobileGameLayout = ({
         return;
       }
 
-      // Rolled doubles — get out of jail
       setRoll(value);
       const totalMove = value.total;
       const newPos = (player.position + totalMove) % BOARD_SQUARES;
@@ -304,7 +302,6 @@ const MobileGameLayout = ({
       return;
     }
 
-    // Normal roll (not in jail)
     setIsRolling(true);
     setRoll(null);
     setHasMovementFinished(false);
@@ -551,6 +548,53 @@ const MobileGameLayout = ({
     }
   };
 
+  // NEW: AI Buy Decision
+  const handleAiBuyDecision = useCallback(async () => {
+    if (!isAITurn || !justLandedProperty || !justLandedProperty.price || !currentPlayer) return;
+
+    const isOwned = currentGameProperties.some(gp => gp.property_id === justLandedProperty.id);
+    if (isOwned || justLandedProperty.type !== "property") return;
+
+    const balance = currentPlayer.balance ?? 0;
+    const price = justLandedProperty.price;
+
+    // Simple AI buy logic: buy if affordable and either completes a set or is high-value
+    const ownedInGroup = getPlayerOwnedProperties(currentPlayer.address, currentGameProperties, properties)
+      .filter(o => {
+        return Object.entries(MONOPOLY_STATS.colorGroups).some(([_, ids]) => 
+          ids.includes(o.prop.id) && ids.includes(justLandedProperty.id)
+        );
+      }).length;
+
+    const groupSize = Object.values(MONOPOLY_STATS.colorGroups)
+      .find(ids => ids.includes(justLandedProperty.id))?.length || 0;
+
+    const completesMonopoly = groupSize > 0 && ownedInGroup === groupSize - 1;
+    const goodLandingRank = MONOPOLY_STATS.landingRank[justLandedProperty.id] <= 15;
+    const affordable = balance >= price + 200; // keep some reserve
+
+    const shouldBuy = completesMonopoly || (goodLandingRank && affordable);
+
+    if (shouldBuy) {
+      showToast(`${currentPlayer.username} is buying ${justLandedProperty.name}...`, "default");
+      try {
+        await apiClient.post("/game-properties/buy", {
+          user_id: currentPlayer.user_id,
+          game_id: currentGame.id,
+          property_id: justLandedProperty.id,
+        });
+        showToast(`${currentPlayer.username} bought ${justLandedProperty.name}!`, "success");
+        await fetchUpdatedGame();
+      } catch (err) {
+        showToast("AI purchase failed", "error");
+      }
+    } else {
+      showToast(`${currentPlayer.username} skipped buying ${justLandedProperty.name}`, "default");
+    }
+
+    landedPositionThisTurn.current = null;
+  }, [isAITurn, justLandedProperty, currentPlayer, currentGameProperties, properties, currentGame.id, fetchUpdatedGame, showToast]);
+
   const refreshGame = async () => {
     await fetchUpdatedGame();
   };
@@ -646,7 +690,15 @@ const MobileGameLayout = ({
     }
   }, [isAITurn, isRolling, roll, actionLock, strategyRanThisTurn, ROLL_DICE]);
 
-  // Buy prompt logic
+  // Trigger AI buy decision after landing
+  useEffect(() => {
+    if (isAITurn && hasMovementFinished && roll && landedPositionThisTurn.current !== null) {
+      const timer = setTimeout(handleAiBuyDecision, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [isAITurn, hasMovementFinished, roll, landedPositionThisTurn.current, handleAiBuyDecision]);
+
+  // Buy prompt logic (only for human)
   useEffect(() => {
     if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
       setBuyPrompted(false);
@@ -664,18 +716,18 @@ const MobileGameLayout = ({
     const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
     const canBuy = !isOwned && square.type === "property";
 
-    setBuyPrompted(canBuy);
+    setBuyPrompted(canBuy && isMyTurn);
 
     if (canBuy && (currentPlayer?.balance ?? 0) < square.price) {
       showToast(`Not enough money to buy ${square.name}`, "error");
     }
-  }, [roll, landedPositionThisTurn.current, hasMovementFinished, currentGameProperties, properties, currentPlayer, showToast]);
+  }, [roll, landedPositionThisTurn.current, hasMovementFinished, currentGameProperties, properties, currentPlayer, showToast, isMyTurn]);
 
-  // Auto-end turn for BOTH human and AI when no action is needed
+  // Auto-end turn when no action needed
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
 
-    const timer = setTimeout(END_TURN, 2000); // Increased delay to allow backend effects
+    const timer = setTimeout(END_TURN, 2000);
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
@@ -704,45 +756,42 @@ const MobileGameLayout = ({
 
       <DiceAnimation isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)} roll={roll} />
 
-      {/* ROLL DICE BUTTON */}
-     {/* ROLL DICE BUTTON */}
-{isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
-  <button
-    onClick={() => ROLL_DICE(false)}
-    className="
-      w-full max-w-sm mx-auto
-      px-12 py-5
-      bg-gradient-to-r from-emerald-600 to-teal-600
-      hover:from-emerald-700 hover:to-teal-700
-      active:from-emerald-800 active:to-teal-800
-      text-white font-bold text-2xl tracking-wide
-      rounded-2xl
-      shadow-2xl
-      border border-emerald-300/20
-      transition-all duration-300 ease-out
-      hover:scale-105 hover:shadow-cyan-500/30 hover:shadow-2xl
-      active:scale-95
-      flex items-center justify-center gap-4
-      mt-8
-    "
-  >
-    <span className="drop-shadow-lg">
-      {isRolling ? "Rolling..." : "Roll Dice"}
-    </span>
+      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+        <button
+          onClick={() => ROLL_DICE(false)}
+          className="
+            w-full max-w-sm mx-auto
+            px-12 py-5
+            bg-gradient-to-r from-emerald-600 to-teal-600
+            hover:from-emerald-700 hover:to-teal-700
+            active:from-emerald-800 active:to-teal-800
+            text-white font-bold text-2xl tracking-wide
+            rounded-2xl
+            shadow-2xl
+            border border-emerald-300/20
+            transition-all duration-300 ease-out
+            hover:scale-105 hover:shadow-cyan-500/30 hover:shadow-2xl
+            active:scale-95
+            flex items-center justify-center gap-4
+            mt-8
+          "
+        >
+          <span className="drop-shadow-lg">
+            {isRolling ? "Rolling..." : "Roll Dice"}
+          </span>
 
-    {/* Stylish glowing dice icon */}
-    {!isRolling && (
-      <svg className="w-9 h-9 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="3" width="18" height="18" rx="4" ry="4" className="stroke-white/80" />
-        <circle cx="8" cy="8" r="2" fill="white" />
-        <circle cx="16" cy="16" r="2" fill="white" />
-        <circle cx="16" cy="8" r="2" fill="white" />
-        <circle cx="8" cy="16" r="2" fill="white" />
-      </svg>
-    )}
-  </button>
-)}
-      {/* BUY PROMPT */}
+          {!isRolling && (
+            <svg className="w-9 h-9 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="4" ry="4" className="stroke-white/80" />
+              <circle cx="8" cy="8" r="2" fill="white" />
+              <circle cx="16" cy="16" r="2" fill="white" />
+              <circle cx="16" cy="8" r="2" fill="white" />
+              <circle cx="8" cy="16" r="2" fill="white" />
+            </svg>
+          )}
+        </button>
+      )}
+
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
           <motion.div

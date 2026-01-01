@@ -53,19 +53,19 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
           <div className="grid grid-cols-3 gap-1.5">
             <button
               onClick={() => handleTradeAction(trade.id, "accepted")}
-              className="py-1.5 bg-green-600 rounded text-xs font-bold text-white hover:bg-green-500"
+              className="py-1.5 bg-green-600 rounded text-xs font-bold text-white hover:bg-green-500 transition"
             >
               ACCEPT
             </button>
             <button
               onClick={() => handleTradeAction(trade.id, "declined")}
-              className="py-1.5 bg-red-600 rounded text-xs font-bold text-white hover:bg-red-500"
+              className="py-1.5 bg-red-600 rounded text-xs font-bold text-white hover:bg-red-500 transition"
             >
               DECLINE
             </button>
             <button
               onClick={() => handleTradeAction(trade.id, "counter")}
-              className="py-1.5 bg-yellow-600 rounded text-xs font-bold text-black hover:bg-yellow-500"
+              className="py-1.5 bg-yellow-600 rounded text-xs font-bold text-black hover:bg-yellow-500 transition"
             >
               COUNTER
             </button>
@@ -111,42 +111,46 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
             initial={{ height: 0 }}
             animate={{ height: "auto" }}
             exit={{ height: 0 }}
-            className="overflow-hidden mt-3 space-y-3"
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden mt-3"
           >
-            {/* Active trades */}
-            {openTrades.length > 0 && (
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
-                    <span>📤</span> <span>MY ACTIVE TRADES</span>
-                  </h4>
-                  <button
-                    onClick={handleClearAllTrades}
-                    className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
-                  >
-                    Clear All
-                  </button>
+            {/* Scrollable inner container */}
+            <div className="max-h-96 overflow-y-auto pr-2 pb-6 space-y-4 scrollbar-thin scrollbar-thumb-cyan-800 scrollbar-track-black/50">
+              {/* Active trades */}
+              {openTrades.length > 0 && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                      <span>📤</span> <span>MY ACTIVE TRADES</span>
+                    </h4>
+                    <button
+                      onClick={handleClearAllTrades}
+                      className="px-3 py-1.5 bg-red-800/70 hover:bg-red-700 text-xs font-semibold rounded border border-red-600/50 text-red-200 transition"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <div className="space-y-2">{openTrades.map((t) => renderTradeItem(t, false))}</div>
                 </div>
-                <div className="space-y-2">{openTrades.map((t) => renderTradeItem(t, false))}</div>
-              </div>
-            )}
+              )}
 
-            {/* Incoming */}
-            {tradeRequests.length > 0 && (
-              <div>
-                <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
-                  <span>📥</span> <span>INCOMING REQUESTS</span>
-                </h4>
-                <div className="space-y-2">{tradeRequests.map((t) => renderTradeItem(t, true))}</div>
-              </div>
-            )}
+              {/* Incoming */}
+              {tradeRequests.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-bold text-cyan-400 mb-2 flex items-center gap-2">
+                    <span>📥</span> <span>INCOMING REQUESTS</span>
+                  </h4>
+                  <div className="space-y-2">{tradeRequests.map((t) => renderTradeItem(t, true))}</div>
+                </div>
+              )}
 
-            {openTrades.length === 0 && tradeRequests.length === 0 && (
-              <div className="text-center text-gray-500 py-4">
-                <div className="text-3xl mb-1">💱</div>
-                <p className="text-sm">No trades yet..</p>
-              </div>
-            )}
+              {openTrades.length === 0 && tradeRequests.length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  <div className="text-5xl mb-2">💱</div>
+                  <p className="text-base">No trades yet..</p>
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
