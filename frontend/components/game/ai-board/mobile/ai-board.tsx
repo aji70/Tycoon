@@ -112,10 +112,9 @@ const MobileGameLayout = ({
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
-  // Property zoom & manage
+  // Property details modal (single modal - no separate manage modal)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
-  const [showManageModal, setShowManageModal] = useState(false);
 
   const currentPlayerId = currentGame.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -150,8 +149,6 @@ const MobileGameLayout = ({
     else if (type === "error") toast.error(message);
     else toast(message, { icon: "➤" });
   }, []);
-
-  
 
   const fetchUpdatedGame = useCallback(async () => {
     try {
@@ -197,8 +194,6 @@ const MobileGameLayout = ({
     setIsRaisingFunds(false);
   }, [currentPlayerId]);
 
-  
-
   const END_TURN = useCallback(async () => {
     if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
     turnEndInProgress.current = true;
@@ -219,17 +214,14 @@ const MobileGameLayout = ({
   }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
-    // Prevent double calls / race conditions
     if (landedPositionThisTurn.current !== null) return;
   
     landedPositionThisTurn.current = newPosition;
     setIsSpecialMove(isSpecial);
   
-    // Force buy prompt check
-    setRoll({ die1: 0, die2: 0, total: 0 }); // fake roll just to trigger useEffect
+    setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
   
-    // Optional: tiny delay for better UX
     setTimeout(() => {
       const square = properties.find(p => p.id === newPosition);
       if (square?.price != null) {
@@ -240,8 +232,8 @@ const MobileGameLayout = ({
         }
       }
     }, 300);
-  }, [properties, game_properties, setBuyPrompted, setHasMovementFinished]);
-  
+  }, [properties, game_properties]);
+
   const endTurnAfterSpecialMove = useCallback(() => {
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
@@ -416,9 +408,7 @@ const MobileGameLayout = ({
     fetchUpdatedGame, showToast, END_TURN
   ]);
 
-  // ── AI STRATEGY HELPERS (unchanged) ─────────────────────────────────────
-  // ... [all AI helpers remain exactly as before] ...
-
+  // ── AI STRATEGY HELPERS (simplified) ─────────────────────────────────────
   const getPlayerOwnedProperties = (playerAddress: string | undefined, gameProperties: GameProperty[], properties: Property[]) => {
     if (!playerAddress) return [];
     return gameProperties
@@ -449,101 +439,6 @@ const MobileGameLayout = ({
     });
 
     return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
-  };
-
-  const getNearCompleteOpportunities = (playerAddress: string | undefined, gameProperties: GameProperty[], properties: Property[]) => {
-    if (!playerAddress) return [];
-
-    const owned = getPlayerOwnedProperties(playerAddress, gameProperties, properties);
-    const opportunities: {
-      group: string;
-      needs: number;
-      missing: { id: number; name: string; ownerAddress: string | null; ownerName: string }[];
-    }[] = [];
-
-    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-      if (groupName === "railroad" || groupName === "utility") return;
-
-      const ownedCount = owned.filter(o => ids.includes(o.prop.id)).length;
-      const needs = ids.length - ownedCount;
-
-      if (needs === 1 || needs === 2) {
-        const missing = ids
-          .filter(id => !owned.some(o => o.prop.id === id))
-          .map(id => {
-            const gp = gameProperties.find(g => g.property_id === id);
-            const prop = properties.find(p => p.id === id)!;
-            const ownerName = gp?.address
-              ? players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
-              : "Bank";
-            return {
-              id,
-              name: prop.name,
-              ownerAddress: gp?.address || null,
-              ownerName,
-            };
-          });
-
-        opportunities.push({ group: groupName, needs, missing });
-      }
-    });
-
-    return opportunities.sort((a, b) => {
-      if (a.needs !== b.needs) return a.needs - b.needs;
-      return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
-    });
-  };
-
-  const calculateFairCashOffer = (propertyId: number, completesSet: boolean, basePrice: number) => {
-    return completesSet ? Math.floor(basePrice * 1.6) : Math.floor(basePrice * 1.3);
-  };
-
-  const getPropertyToOffer = (playerAddress: string, excludeGroups: string[] = []) => {
-    const owned = getPlayerOwnedProperties(playerAddress, currentGameProperties, properties);
-    const candidates = owned.filter(o => {
-      const group = Object.keys(MONOPOLY_STATS.colorGroups).find(g =>
-        MONOPOLY_STATS.colorGroups[g as keyof typeof MONOPOLY_STATS.colorGroups].includes(o.prop.id)
-      );
-      if (!group || excludeGroups.includes(group)) return false;
-      if (o.gp.development! > 0) return false;
-      return true;
-    });
-
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
-    return candidates[0];
-  };
-
-  const calculateTradeFavorability = (
-    trade: { offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number },
-    receiverAddress: string
-  ) => {
-    let score = 0;
-
-    score += trade.offer_amount - trade.requested_amount;
-
-    trade.requested_properties.forEach(id => {
-      const prop = properties.find(p => p.id === id);
-      if (!prop) return;
-      score += prop.price || 0;
-
-      const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
-      if (group && !["railroad", "utility"].includes(prop.color!)) {
-        const currentOwned = group.filter(gid =>
-          currentGameProperties.find(gp => gp.property_id === gid && gp.address === receiverAddress)
-        ).length;
-        if (currentOwned === group.length - 1) score += 300;
-        else if (currentOwned === group.length - 2) score += 120;
-      }
-    });
-
-    trade.offer_properties.forEach(id => {
-      const prop = properties.find(p => p.id === id);
-      if (!prop) return;
-      score -= (prop.price || 0) * 1.3;
-    });
-
-    return score;
   };
 
   const handleAiBuilding = async (player: Player) => {
@@ -630,9 +525,8 @@ const MobileGameLayout = ({
       } catch (err) {
         showToast("AI purchase failed", "error");
       }
-    } else {
+    } else
       showToast(`${currentPlayer.username} skipped buying ${justLandedProperty.name}`, "default");
-    }
 
     landedPositionThisTurn.current = null;
   }, [isAITurn, justLandedProperty, currentPlayer, currentGameProperties, properties, currentGame.id, fetchUpdatedGame, showToast]);
@@ -642,77 +536,10 @@ const MobileGameLayout = ({
 
     showToast(`${currentPlayer.username} is thinking... 🧠`, "default");
 
-    const opportunities = getNearCompleteOpportunities(currentPlayer.address, currentGameProperties, properties);
-    let maxTradeAttempts = 1;
-
-    for (const opp of opportunities) {
-      if (maxTradeAttempts <= 0) break;
-
-      for (const missing of opp.missing) {
-        if (!missing.ownerAddress || missing.ownerAddress === "bank") continue;
-
-        const targetPlayer = players.find(p => p.address?.toLowerCase() === missing.ownerAddress?.toLowerCase());
-        if (!targetPlayer) continue;
-
-        const basePrice = properties.find(p => p.id === missing.id)?.price || 200;
-        const cashOffer = calculateFairCashOffer(missing.id, opp.needs === 1, basePrice);
-
-        let offerProperties: number[] = [];
-        if ((currentPlayer.balance ?? 0) < cashOffer + 300) {
-          const toOffer = getPropertyToOffer(currentPlayer.address!, [opp.group]);
-          if (toOffer) {
-            offerProperties = [toOffer.prop.id];
-            showToast(`AI offering ${toOffer.prop.name} in deal`, "default");
-          }
-        }
-
-        const payload = {
-          game_id: currentGame.id,
-          player_id: currentPlayer.user_id,
-          target_player_id: targetPlayer.user_id,
-          offer_properties: offerProperties,
-          offer_amount: cashOffer,
-          requested_properties: [missing.id],
-          requested_amount: 0,
-        };
-
-        try {
-          const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-          if (res?.data?.success) {
-            showToast(`AI offered $${cashOffer}${offerProperties.length ? " + property" : ""} for ${missing.name}`, "default");
-            maxTradeAttempts--;
-
-            if (isAIPlayer(targetPlayer)) {
-              await new Promise(r => setTimeout(r, 800));
-              const favorability = calculateTradeFavorability(
-                { ...payload, requested_amount: 0 },
-                targetPlayer.address!
-              );
-
-              if (favorability >= 50) {
-                await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
-                showToast(`${targetPlayer.username} accepted deal! 🤝`, "success");
-                await fetchUpdatedGame();
-              } else {
-                await apiClient.post("/game-trade-requests/decline", { id: res.data.data.id });
-                showToast(`${targetPlayer.username} declined`, "default");
-              }
-            } else {
-              showToast(`Trade proposed to ${targetPlayer.username}`, "default");
-            }
-          }
-        } catch (err) {
-          console.error("Trade failed", err);
-        }
-
-        await new Promise(r => setTimeout(r, 1200));
-      }
-    }
-
     await handleAiBuilding(currentPlayer);
     setStrategyRanThisTurn(true);
     showToast(`${currentPlayer.username} ready to roll`, "default");
-  }, [currentPlayer, isAITurn, strategyRanThisTurn, currentGameProperties, properties, players, showToast, currentGame.id]);
+  }, [currentPlayer, isAITurn, strategyRanThisTurn, currentGameProperties, properties, showToast, currentGame.id]);
 
   useEffect(() => {
     if (isAITurn && currentPlayer && !strategyRanThisTurn) {
@@ -766,67 +593,43 @@ const MobileGameLayout = ({
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
-  // ── PROPERTY MANAGEMENT (FIXED) ─────────────────────────────────────
-const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
-  // If unowned or no game property data → base rent (site only)
-  if (!gp || !gp.address) {
-    return prop.rent_site_only || 0;
-  }
-
-  // MORTGAGED = NO RENT (critical!)
-  if (gp.mortgaged) {
-    return 0;
-  }
-
-  // Hotel
-  if (gp.development === 5) {
-    return prop.rent_hotel || 0;
-  }
-
-  // Houses
-  if (gp.development && gp.development > 0) {
-    switch (gp.development) {
-      case 1: return prop.rent_one_house || 0;
-      case 2: return prop.rent_two_houses || 0;
-      case 3: return prop.rent_three_houses || 0;
-      case 4: return prop.rent_four_houses || 0;
-      default: return prop.rent_site_only || 0;
-    }
-  }
-
-  // No houses: check for monopoly (double base rent)
-  const groupEntry = Object.entries(MONOPOLY_STATS.colorGroups).find(
-    ([_, ids]) => ids.includes(prop.id)
-  );
-
-  if (groupEntry) {
-    const [groupName] = groupEntry;
-    if (groupName !== "railroad" && groupName !== "utility") {
-      const groupIds = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-      const ownedInGroup = currentGameProperties.filter(
-        (g) => groupIds.includes(g.property_id) && g.address === gp.address
-      ).length;
-
-      if (ownedInGroup === groupIds.length) {
-        return (prop.rent_site_only || 0) * 2; // Monopoly: double site-only rent
+  // ── PROPERTY MANAGEMENT (TYPE-SAFE) ─────────────────────────────────────
+  const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
+    if (!gp || !gp.address) return prop.rent_site_only || 0;
+    if (gp.mortgaged) return 0;
+    if (gp.development === 5) return prop.rent_hotel || 0;
+    if (gp.development && gp.development > 0) {
+      switch (gp.development) {
+        case 1: return prop.rent_one_house || 0;
+        case 2: return prop.rent_two_houses || 0;
+        case 3: return prop.rent_three_houses || 0;
+        case 4: return prop.rent_four_houses || 0;
+        default: return prop.rent_site_only || 0;
       }
     }
-  }
 
-  // Default: just the base site-only rent
-  return prop.rent_site_only || 0;
-};
+    const groupEntry = Object.entries(MONOPOLY_STATS.colorGroups).find(([_, ids]) => ids.includes(prop.id));
+    if (groupEntry) {
+      const [groupName] = groupEntry;
+      if (groupName !== "railroad" && groupName !== "utility") {
+        const groupIds = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
+        const ownedInGroup = currentGameProperties.filter(g => groupIds.includes(g.property_id) && g.address === gp.address).length;
+        if (ownedInGroup === groupIds.length) return (prop.rent_site_only || 0) * 2;
+      }
+    }
+
+    return prop.rent_site_only || 0;
+  };
+
   const handlePropertyClick = (propertyId: number) => {
     const prop = properties.find(p => p.id === propertyId);
     const gp = currentGameProperties.find(g => g.property_id === propertyId);
     if (prop) {
       setSelectedProperty(prop);
-      setSelectedGameProperty(gp || undefined);
-      setShowManageModal(false);
+      setSelectedGameProperty(gp);
     }
   };
 
-  // Build or sell house/hotel
   const handleDevelopment = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
       showToast("Not your turn or invalid property", "error");
@@ -841,10 +644,13 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
       });
 
       if (res.data?.success) {
-        const action = selectedGameProperty.development >= (selectedGameProperty.development ?? 0) + 1 ? "sold" : "built";
-        showToast(`House/hotel ${action}!`, "success");
+        const currentDev = selectedGameProperty.development ?? 0;
+        const isBuilding = currentDev < 5;
+        const item = currentDev === 4 && isBuilding ? "hotel" : "house";
+        const action = isBuilding ? "built" : "sold";
+        showToast(`Successfully ${action} ${item}!`, "success");
         await fetchUpdatedGame();
-        setShowManageModal(false);
+        setSelectedProperty(null);
       } else {
         showToast(res.data?.message || "Action failed", "error");
       }
@@ -853,7 +659,6 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
     }
   };
 
-  // Toggle mortgage
   const handleMortgageToggle = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
       showToast("Not your turn or invalid property", "error");
@@ -871,7 +676,7 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
         const action = selectedGameProperty.mortgaged ? "redeemed" : "mortgaged";
         showToast(`Property ${action}!`, "success");
         await fetchUpdatedGame();
-        setShowManageModal(false);
+        setSelectedProperty(null);
       } else {
         showToast(res.data?.message || "Mortgage failed", "error");
       }
@@ -879,6 +684,38 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
       showToast(err?.response?.data?.message || "Mortgage action failed", "error");
     }
   };
+
+  const handleSellProperty = async () => {
+    if (!selectedGameProperty || !me || !isMyTurn) {
+      showToast("Not your turn or invalid property", "error");
+      return;
+    }
+
+    if ((selectedGameProperty.development ?? 0) > 0) {
+      showToast("Cannot sell property with buildings!", "error");
+      return;
+    }
+
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/sell", {
+        game_id: currentGame.id,
+        user_id: me.user_id,
+        property_id: selectedGameProperty.property_id,
+      });
+
+      if (res.data?.success) {
+        showToast("Property sold back to bank!", "success");
+        await fetchUpdatedGame();
+        setSelectedProperty(null);
+      } else {
+        showToast(res.data?.message || "Sell failed", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || "Failed to sell property", "error");
+    }
+  };
+
+  const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
@@ -889,11 +726,7 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
         Refresh
       </button>
 
-      <PlayerStatus
-        currentPlayer={currentPlayer}
-        isAITurn={isAITurn}
-        buyPrompted={buyPrompted}
-      />
+      <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
 
       <Board
         properties={properties}
@@ -964,17 +797,14 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
         )}
       </AnimatePresence>
 
-      {/* PROPERTY ZOOM MODAL */}
+      {/* SINGLE PROPERTY DETAILS MODAL WITH ACTIONS */}
       <AnimatePresence>
         {selectedProperty && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => {
-              setSelectedProperty(null);
-              setShowManageModal(false);
-            }}
+            onClick={() => setSelectedProperty(null)}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
           >
             <motion.div
@@ -1015,126 +845,100 @@ const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number =>
                   )}
                 </div>
 
-                {selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase() && (
-                  <button
-                    onClick={() => setShowManageModal(true)}
-                    className="w-full mt-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-lg hover:scale-105 transition"
-                  >
-                    Manage Property
-                  </button>
+                {/* Action buttons - only if owned by me and it's my turn */}
+                {isOwnedByMe && isMyTurn && selectedGameProperty && (
+                  <div className="grid grid-cols-2 gap-4 mt-8">
+                    <button
+                      onClick={handleDevelopment}
+                      disabled={selectedGameProperty.development === 5}
+                      className="py-3 bg-green-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 transition"
+                    >
+                      {selectedGameProperty.development === 4 ? "Build Hotel" : "Build House"}
+                    </button>
+                    <button
+                      onClick={handleDevelopment}
+                      disabled={!selectedGameProperty.development || selectedGameProperty.development === 0}
+                      className="py-3 bg-orange-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-500 transition"
+                    >
+                      Sell House/Hotel
+                    </button>
+                    <button
+                      onClick={handleMortgageToggle}
+                      className="py-3 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition"
+                    >
+                      {selectedGameProperty.mortgaged ? "Redeem" : "Mortgage"}
+                    </button>
+                    <button
+                      onClick={handleSellProperty}
+                      disabled={(selectedGameProperty.development ?? 0) > 0}
+                      className="py-3 bg-purple-600 rounded-xl font-bold disabled:opacity-50 hover:bg-purple-500 transition"
+                    >
+                      Sell Property
+                    </button>
+                  </div>
                 )}
+
+                <button
+                  onClick={() => setSelectedProperty(null)}
+                  className="w-full mt-6 py-3 bg-gray-700 rounded-xl font-bold hover:bg-gray-600 transition"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-        {/* Floating Perks Button */}
-            <button
-              onClick={() => setShowPerksModal(true)}
-              className="fixed bottom-20 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-            >
-              <Sparkles className="w-8 h-8 text-black" />
-            </button>
-      
-            {/* Perks Full-Screen Modal */}
-            <AnimatePresence>
-              {showPerksModal && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setShowPerksModal(false)}
-                    className="fixed inset-0 bg-black/80 z-50"
-                  />
-      
-                  <motion.div
-                    initial={{ y: "100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "100%" }}
-                    transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                    className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
-                  >
-                    <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
-                      <h2 className="text-3xl font-bold flex items-center gap-4">
-                        <Sparkles className="w-10 h-10 text-[#00F0FF]" />
-                        My Perks
-                      </h2>
-                      <button
-                        onClick={() => setShowPerksModal(false)}
-                        className="text-gray-400 hover:text-white p-2"
-                      >
-                        <X className="w-8 h-8" />
-                      </button>
-                    </div>
-      
-                    <div className="flex-1 overflow-y-auto px-6 pb-8">
-                     <CollectibleInventoryBar
-                        game={game}
-                        game_properties={game_properties}
-                        isMyTurn={isMyTurn}
-                        ROLL_DICE={ROLL_DICE}
-                        END_TURN={END_TURN}
-                        triggerSpecialLanding={triggerLandingLogic}
-                        endTurnAfterSpecial={endTurnAfterSpecialMove}
-                      />
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+      <button
+        onClick={() => setShowPerksModal(true)}
+        className="fixed bottom-20 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+      >
+        <Sparkles className="w-8 h-8 text-black" />
+      </button>
 
-      {/* MANAGE PROPERTY MODAL */}
       <AnimatePresence>
-        {showManageModal && selectedProperty && selectedGameProperty && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur z-[80] flex items-end"
-            onClick={() => setShowManageModal(false)}
-          >
+        {showPerksModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPerksModal(false)}
+              className="fixed inset-0 bg-black/80 z-50"
+            />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full bg-gray-900 rounded-t-3xl p-6 shadow-2xl border-t border-cyan-500/50"
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
             >
-              <h3 className="text-2xl font-bold text-center mb-6">Manage {selectedProperty.name}</h3>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
+                <h2 className="text-3xl font-bold flex items-center gap-4">
+                  <Sparkles className="w-10 h-10 text-[#00F0FF]" />
+                  My Perks
+                </h2>
                 <button
-                  onClick={handleDevelopment}
-                  disabled={selectedGameProperty.development >= 5}
-                  className="py-4 bg-green-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 transition"
+                  onClick={() => setShowPerksModal(false)}
+                  className="text-gray-400 hover:text-white p-2"
                 >
-                  {selectedGameProperty.development === 4 ? "Build Hotel" : "Build House"}
-                </button>
-                <button
-                  onClick={handleDevelopment}
-                  disabled={!selectedGameProperty.development || selectedGameProperty.development === 0}
-                  className="py-4 bg-orange-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-500 transition"
-                >
-                  Sell House/Hotel
-                </button>
-                <button
-                  onClick={handleMortgageToggle}
-                  className="py-4 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition"
-                >
-                  {selectedGameProperty.mortgaged ? "Redeem Mortgage" : "Mortgage"}
+                  <X className="w-8 h-8" />
                 </button>
               </div>
-
-              <button
-                onClick={() => setShowManageModal(false)}
-                className="w-full mt-6 py-3 bg-gray-700 rounded-xl font-bold hover:bg-gray-600 transition"
-              >
-                Close
-              </button>
+              <div className="flex-1 overflow-y-auto px-6 pb-8">
+                <CollectibleInventoryBar
+                  game={game}
+                  game_properties={game_properties}
+                  isMyTurn={isMyTurn}
+                  ROLL_DICE={ROLL_DICE}
+                  END_TURN={END_TURN}
+                  triggerSpecialLanding={triggerLandingLogic}
+                  endTurnAfterSpecial={endTurnAfterSpecialMove}
+                />
+              </div>
             </motion.div>
-          </motion.div>
+          </>
         )}
       </AnimatePresence>
 
