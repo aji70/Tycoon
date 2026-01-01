@@ -27,9 +27,8 @@ import {
   useCreateAiGame,
 } from "@/context/ContractProvider";
 
-// All possible AI addresses (we'll pick randomly from this pool)
+// Expanded pool of AI addresses for variety
 const AI_ADDRESSES = [
-  "0xA1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t",
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
   "0xB2EE17D003e63985f3648f6c1d213BE86B474B11",
   "0xC3FF882E779aCbc112165fa1E7fFC093e9353B21",
@@ -40,10 +39,9 @@ const AI_ADDRESSES = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
   "0x9a8b7c6d5e4f3g2h1i0j9k8l7m6n5o4p3q2r1s0t",
   "0x11223344556677889900aabbccddeeff00112233",
-  "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 ] as const;
 
-function getRandomAIs(count: number) {
+function getRandomAIs(count: number): string[] {
   const shuffled = [...AI_ADDRESSES].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
@@ -116,20 +114,20 @@ export default function PlayWithAI() {
       const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
       if (!dbGameId) throw new Error("Failed to save game");
 
-      // Randomize AI addresses every time
+      // Random AI addresses + unique symbols
       const randomAiAddresses = getRandomAIs(settings.aiCount);
-
       const usedSymbols = [settings.symbol];
+
       for (let i = 0; i < settings.aiCount; i++) {
-        const aiAddress = randomAiAddresses[i];
         const available = GamePieces.filter(p => !usedSymbols.includes(p.id));
         const aiSymbol = available.length > 0
           ? available[Math.floor(Math.random() * available.length)].id
-          : "dog";
+          : "dog"; // fallback
+
         usedSymbols.push(aiSymbol);
 
         await apiClient.post("/game-players/join", {
-          address: aiAddress,
+          address: randomAiAddresses[i],
           symbol: aiSymbol,
           code: gameCode,
         });
@@ -162,13 +160,9 @@ export default function PlayWithAI() {
       }
 
       let message = "Something went wrong. Please try again.";
-      if (err?.message?.includes("insufficient funds")) {
-        message = "Not enough funds for gas fees";
-      } else if (err?.shortMessage) {
-        message = err.shortMessage;
-      } else if (err?.reason) {
-        message = err.reason;
-      }
+      if (err?.message?.includes("insufficient funds")) message = "Not enough funds for gas fees";
+      else if (err?.shortMessage) message = err.shortMessage;
+      else if (err?.reason) message = err.reason;
 
       toast.update(toastId, {
         render: message,
@@ -181,43 +175,45 @@ export default function PlayWithAI() {
 
   if (isRegisteredLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
-        <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">LOADING ARENA...</p>
+      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover bg-center">
+        <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">
+          LOADING ARENA...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-3 xs:p-4">
-      <div className="w-full max-w-2xl bg-black/70 backdrop-blur-2xl rounded-2xl border border-cyan-500/60 shadow-2xl p-5 xs:p-6 sm:p-8">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-start pt-8 px-4 pb-12">
+      <div className="w-full max-w-lg bg-black/70 backdrop-blur-2xl rounded-3xl border border-cyan-500/60 shadow-2xl p-5 xs:p-6">
 
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition text-sm xs:text-base"
+            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-200 transition text-sm"
           >
-            <House className="w-5 h-5 xs:w-6 xs:h-6" />
+            <House className="w-5 h-5" />
             <span className="font-medium">BACK</span>
           </button>
-          <h1 className="text-4xl xs:text-5xl sm:text-6xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-3xl xs:text-4xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 to-purple-600 bg-clip-text text-transparent">
             AI DUEL
           </h1>
-          <div className="w-16 xs:w-20" />
+          <div className="w-12" />
         </div>
 
-        {/* Settings */}
-        <div className="space-y-6 mb-8">
+        {/* Game Settings - Vertical Stack, Horizontal Rows */}
+        <div className="space-y-5 mb-8">
           {/* Your Piece */}
-          <div className="bg-gradient-to-r from-cyan-900/60 to-blue-900/60 rounded-xl p-4 border border-cyan-500/40">
-            <div className="flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-cyan-900/50 to-blue-900/50 rounded-2xl p-4 border border-cyan-500/40">
+            <div className="flex justify-between items-center gap-3">
               <div className="flex items-center gap-3">
-                <FaUser className="w-6 h-6 text-cyan-400" />
-                <span className="text-cyan-300 font-bold text-base xs:text-lg">Your Piece</span>
+                <FaUser className="w-6 h-6 text-cyan-300" />
+                <span className="text-white font-semibold text-base">Your Piece</span>
               </div>
-              <div className="w-36 xs:w-40">
-                <Select value={settings.symbol} onValueChange={v => setSettings(p => ({ ...p, symbol: v }))}>
-                  <SelectTrigger className="h-10 text-sm xs:text-base bg-black/50 border-cyan-500/60 text-white">
+              <div className="w-32">
+                <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
+                  <SelectTrigger className="h-10 text-sm bg-black/40 border-cyan-600/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -231,21 +227,22 @@ export default function PlayWithAI() {
           </div>
 
           {/* AI Opponents */}
-          <div className="bg-gradient-to-r from-purple-900/60 to-pink-900/60 rounded-xl p-4 border border-purple-500/40">
-            <div className="flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-2xl p-4 border border-purple-500/40">
+            <div className="flex justify-between items-center gap-3">
               <div className="flex items-center gap-3">
-                <FaRobot className="w-6 h-6 text-purple-400" />
-                <span className="text-purple-300 font-bold text-base xs:text-lg">AI Opponents</span>
+                <FaRobot className="w-6 h-6 text-purple-300" />
+                <span className="text-white font-semibold text-base">AI Opponents</span>
               </div>
-              <div className="w-36 xs:w-40">
-                <Select value={settings.aiCount.toString()} onValueChange={v => setSettings(p => ({ ...p, aiCount: +v }))}>
-                  <SelectTrigger className="h-10 text-sm xs:text-base bg-black/50 border-purple-500/60 text-white">
+              <div className="w-32">
+                <Select value={settings.aiCount.toString()} onValueChange={(v) => setSettings(p => ({ ...p, aiCount: +v }))}>
+                  <SelectTrigger className="h-10 text-sm bg-black/40 border-purple-600/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1">1 AI</SelectItem>
                     <SelectItem value="2">2 AI</SelectItem>
                     <SelectItem value="3">3 AI</SelectItem>
+                    <SelectItem value="6">6 AI</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -253,15 +250,15 @@ export default function PlayWithAI() {
           </div>
 
           {/* Difficulty */}
-          <div className="bg-gradient-to-r from-red-900/60 to-orange-900/60 rounded-xl p-4 border border-red-500/40">
-            <div className="flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-red-900/50 to-orange-900/50 rounded-2xl p-4 border border-red-500/40">
+            <div className="flex justify-between items-center gap-3">
               <div className="flex items-center gap-3">
-                <FaBrain className="w-6 h-6 text-red-400" />
-                <span className="text-red-300 font-bold text-base xs:text-lg">Difficulty</span>
+                <FaBrain className="w-6 h-6 text-red-300" />
+                <span className="text-white font-semibold text-base">Difficulty</span>
               </div>
-              <div className="w-36 xs:w-40">
-                <Select value={settings.aiDifficulty} onValueChange={v => setSettings(p => ({ ...p, aiDifficulty: v as any }))}>
-                  <SelectTrigger className="h-10 text-sm xs:text-base bg-black/50 border-red-500/60 text-white">
+              <div className="w-32">
+                <Select value={settings.aiDifficulty} onValueChange={(v) => setSettings(p => ({ ...p, aiDifficulty: v as any }))}>
+                  <SelectTrigger className="h-10 text-sm bg-black/40 border-red-600/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -276,15 +273,15 @@ export default function PlayWithAI() {
           </div>
 
           {/* Starting Cash */}
-          <div className="bg-gradient-to-r from-yellow-900/60 to-amber-900/60 rounded-xl p-4 border border-yellow-500/40">
-            <div className="flex items-center justify-between gap-4">
+          <div className="bg-gradient-to-r from-yellow-900/50 to-amber-900/50 rounded-2xl p-4 border border-yellow-500/40">
+            <div className="flex justify-between items-center gap-3">
               <div className="flex items-center gap-3">
-                <FaCoins className="w-6 h-6 text-yellow-400" />
-                <span className="text-yellow-300 font-bold text-base xs:text-lg">Starting Cash</span>
+                <FaCoins className="w-6 h-6 text-yellow-300" />
+                <span className="text-white font-semibold text-base">Starting Cash</span>
               </div>
-              <div className="w-36 xs:w-40">
-                <Select value={settings.startingCash.toString()} onValueChange={v => setSettings(p => ({ ...p, startingCash: +v }))}>
-                  <SelectTrigger className="h-10 text-sm xs:text-base bg-black/50 border-yellow-500/60 text-white">
+              <div className="w-32">
+                <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
+                  <SelectTrigger className="h-10 text-sm bg-black/40 border-yellow-600/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -301,8 +298,8 @@ export default function PlayWithAI() {
         </div>
 
         {/* House Rules */}
-        <div className="bg-black/70 rounded-2xl p-5 xs:p-6 border border-cyan-500/50 mb-8">
-          <h3 className="text-xl xs:text-2xl font-orbitron font-bold text-cyan-300 mb-5 text-center">HOUSE RULES</h3>
+        <div className="bg-black/60 rounded-2xl p-5 border border-cyan-500/40 mb-8">
+          <h3 className="text-xl font-orbitron font-bold text-cyan-300 mb-5 text-center">HOUSE RULES</h3>
           <div className="space-y-4">
             {[
               { icon: RiAuctionFill, label: "Auction", key: "auction" },
@@ -311,35 +308,36 @@ export default function PlayWithAI() {
               { icon: IoBuild, label: "Even Build", key: "evenBuild" },
               { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
             ].map(r => (
-              <div key={r.key} className="flex justify-between items-center">
+              <div key={r.key} className="flex justify-between items-center py-1">
                 <div className="flex items-center gap-3">
-                  <r.icon className="w-6 h-6 text-cyan-400" />
-                  <span className="text-white text-base xs:text-lg font-medium">{r.label}</span>
+                  <r.icon className="w-5 h-5 text-cyan-400" />
+                  <span className="text-white text-sm font-medium">{r.label}</span>
                 </div>
                 <Switch
                   checked={settings[r.key as keyof typeof settings] as boolean}
-                  onCheckedChange={v => setSettings(p => ({ ...p, [r.key]: v }))}
+                  onCheckedChange={(v) => setSettings(p => ({ ...p, [r.key]: v }))}
                 />
               </div>
             ))}
           </div>
         </div>
 
-        {/* START BATTLE Button – smaller & perfectly centered */}
+        {/* Start Battle Button */}
         <div className="flex justify-center">
           <button
             onClick={handlePlay}
             disabled={isCreatePending}
-            className="mx-auto px-10 py-3.5 text-xl xs:text-2xl font-orbitron font-bold tracking-wider
-                       bg-gradient-to-r from-cyan-500 to-purple-600 
-                       hover:from-purple-600 hover:to-pink-600
-                       rounded-full shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300
+            className="w-full max-w-xs px-10 py-5 text-2xl font-orbitron font-bold tracking-wider
+                       bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600
+                       hover:from-purple-600 hover:via-pink-600 hover:to-red-600
+                       rounded-full shadow-2xl transform hover:scale-105 active:scale-95 transition-all duration-300
                        disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100
-                       border-4 border-cyan-400/80 overflow-hidden group"
+                       border-4 border-cyan-300/80 overflow-hidden group"
           >
-            <span className="relative z-10 text-black drop-shadow">
+            <span className="relative z-10 text-black drop-shadow-lg">
               {isCreatePending ? "SUMMONING..." : "START BATTLE"}
             </span>
+            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </button>
         </div>
 
