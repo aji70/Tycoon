@@ -52,20 +52,6 @@ const PropertyCardMobile = ({ square, owner }: PropertyCardMobileProps) => {
        
       </div>
 
-      <p
-        className={`text-[5px] md:text-[6px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${priceOrientationClasses[position]}`}
-      >
-        ${price}
-      </p>
-
-      {rent_site_only && (
-        <p
-          className={`text-[5px] md:text-[6px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${rent_site_onlyOrientationClasses[position]}`}
-        >
-          ${rent_site_only}
-        </p>
-      )}
-
       {owner ? (
         <p className="text-[4px] md:text-[5px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-amber-600">
           {owner}
