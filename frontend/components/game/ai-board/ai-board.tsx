@@ -25,7 +25,7 @@ import { ApiResponse } from "@/types/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
-import { PropertyActionModal } from "../modals/property-action"; // Add this import (adjust path)
+import { PropertyActionModal } from "../modals/property-action";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 
 const MONOPOLY_STATS = {
@@ -127,7 +127,6 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
 
 const JAIL_POSITION = 10;
 
-// Helper to detect AI player
 const isAIPlayer = (player: Player | undefined): boolean =>
   player?.username?.toLowerCase().includes("ai_") ||
   player?.username?.toLowerCase().includes("bot") ||
@@ -153,7 +152,7 @@ const AiBoard = ({
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // NEW: For board clicks
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -275,40 +274,6 @@ const AiBoard = ({
 
   const unlockAction = useCallback(() => setActionLock(null), []);
 
-//   // In your GameBoard or PlayerTurn component
-// const handleUsePerk = async (tokenId: bigint, name: string) => {
-//   if (!isMyTurn) return;
-
-//   try {
-//     // Trigger on-chain transaction (e.g. using writeContract)
-//     const hash = await writeContract({
-//       address: contractAddress,
-//       abi: RewardABI,
-//       functionName: "useCollectible", // or "burnForEffect", etc.
-//       args: [tokenId],
-//     });
-
-//     // Wait for confirmation
-//     await waitForTransactionReceipt({ hash });
-
-//     // ONLY AFTER SUCCESS: Apply in-game effect
-//     toast.success(`${name} activated!`);
-    
-//     // Example game logic:
-//     if (name.includes("Extra Turn")) {
-//       grantExtraTurn();
-//     } else if (name.includes("Shield")) {
-//       applyShieldProtection();
-//     }
-//     // ... other effects
-
-//   } catch (error: any) {
-//     toast.error(error.shortMessage || "Failed to use perk");
-//   }
-// };
-
-
-
   const END_TURN = useCallback(async () => {
     if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
 
@@ -387,23 +352,6 @@ const AiBoard = ({
       console.error("Property transfer failed:", error);
     }
   };
-
-  // ── PERKS FUNCTIONS ─────────────────────────────────────
-   const handleCashPerK = async (id: number, amount: number) => {
-      if (!me) return;
-      try {
-        const res = await apiClient.put<ApiResponse>(`/game-players/${id}`, {
-          game_id: game.id,
-          user_id: me.user_id,
-          balance: me.balance + amount,
-        });
-        if (res?.data?.success) toast.success("Property developed successfully");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to develop property");
-      }
-    };
-
-
 
   // ── AI STRATEGY HELPERS ─────────────────────────────────────
 
@@ -667,7 +615,6 @@ const AiBoard = ({
     showToast(`${currentPlayer.username} ready to roll`, "default");
   };
 
-  // Run AI strategy at start of turn
   useEffect(() => {
     if (isAITurn && currentPlayer && !strategyRanThisTurn) {
       const timer = setTimeout(handleAiStrategy, 1000);
@@ -765,14 +712,12 @@ const AiBoard = ({
     showToast, END_TURN
   ]);
 
-  // AI auto-roll after strategy
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId || !strategyRanThisTurn) return;
     const timer = setTimeout(() => ROLL_DICE(true), 1500);
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE, strategyRanThisTurn]);
 
-  // Buy prompt logic — Fixed operator precedence
   useEffect(() => {
     if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
       setBuyPrompted(false);
@@ -795,7 +740,6 @@ const AiBoard = ({
 
     setBuyPrompted(canBuy);
 
-    // Fixed: parentheses around (currentPlayer?.balance ?? 0)
     if (canBuy && (currentPlayer?.balance ?? 0) < square.price) {
       showToast(`Not enough money to buy ${square.name}`, "error");
     }
@@ -809,7 +753,6 @@ const AiBoard = ({
     showToast
   ]);
 
-  // Card detection
   useEffect(() => {
     const history = game.history ?? [];
     if (history.length <= prevHistoryLength.current) return;
@@ -849,7 +792,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [game.history]);
 
-  // AI buy decision
   useEffect(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty || buyScore === null) return;
 
@@ -870,7 +812,6 @@ const AiBoard = ({
     return () => clearTimeout(timer);
   }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
 
-  // Auto-end turn
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
 
@@ -930,7 +871,6 @@ const AiBoard = ({
     }
   };
 
-  // NEW: Property action handlers (copied from GamePlayers)
   const handleDevelopment = async (id: number) => {
     if (!isMyTurn || !me) return;
     try {
@@ -990,7 +930,6 @@ const AiBoard = ({
     }
   };
 
-  // Handle board property click
   const handlePropertyClick = (square: Property) => {
     const gp = game_properties.find(gp => gp.property_id === square.id);
     if (gp?.address === me?.address) {
@@ -1037,7 +976,7 @@ const AiBoard = ({
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
-                  onClick={() => handlePropertyClick(square)} // NEW: Click handler
+                  onClick={() => handlePropertyClick(square)}
                 />
               );
             })}
@@ -1058,7 +997,6 @@ const AiBoard = ({
         onReturnHome={() => window.location.href = "/"}
       />
 
-      {/* NEW: PropertyActionModal for board clicks */}
       <PropertyActionModal
         property={selectedProperty}
         onClose={() => setSelectedProperty(null)}
@@ -1091,28 +1029,11 @@ const AiBoard = ({
         }}
       />
 
-
       <CollectibleInventoryBar
-      isMyTurn={isMyTurn}
-      onUseCollectible={async (tokenId, name) => {
-      if (!isMyTurn) {
-          toast("Wait for your turn!", { icon: "⏳" });
-          return;
-      }
-
-    const confirmed = window.confirm(`Use ${name}? This will burn 1 copy.`);
-    if (!confirmed) return;
-
-    try {
-      // This will be your burn function — coming next!
-      // await burnCollectible(tokenId);
-      toast.success(`${name} used! Effect applied.`);
-      // Refresh balances after burn
-    } catch (err: any) {
-      toast.error(err.shortMessage || "Failed to use collectible");
-    }
-  }}
-/>
+        game={game}
+        game_properties={game_properties}
+        isMyTurn={isMyTurn}
+      />
     </div>
   );
 };
