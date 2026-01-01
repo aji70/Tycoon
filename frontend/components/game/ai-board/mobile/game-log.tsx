@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+// components/game/game-log.tsx
+import React, { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Game } from "@/types/game";
 
@@ -6,7 +7,7 @@ type ActionLogProps = {
   history: Game["history"];
 };
 
-export default function ActionLog({ history }: ActionLogProps) {
+export default function GameLog({ history }: ActionLogProps) {
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,15 +28,19 @@ export default function ActionLog({ history }: ActionLogProps) {
         {(!history || history.length === 0) ? (
           <p className="text-center text-gray-500 text-xs italic py-8">No actions yet</p>
         ) : (
-          history.map((h, i) => (
+          history.map((entry, i) => (
             <motion.p
               key={i}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
               className="text-xs text-gray-300"
             >
-              <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
-              {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
+              <span className="font-medium text-cyan-200">{entry.player_name}</span>{" "}
+              {entry.comment || "(no comment)"}
+              {entry.rolled != null && (
+                <span className="text-cyan-400 font-bold ml-1">[Rolled {entry.rolled}]</span>
+              )}
             </motion.p>
           ))
         )}
