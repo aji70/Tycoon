@@ -12,13 +12,15 @@ import PlayerList from "./player-list";
 import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../../modals/property-action";
-import { AiTradePopup } from "../../modals/ai-trade";
 import { AiResponsePopup } from "../../modals/ai-response";
 import { VictoryModal } from "../../modals/victory";
 import { TradeModal } from "../../modals/trade-mobile";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
+import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
+
+import { Sparkles, X } from "lucide-react";
 
 interface GamePlayersProps {
   game: Game;
@@ -41,7 +43,9 @@ export default function MobileGamePlayers({
   isAITurn,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const isDevMode = true;
+
+  // Perks popup state
+  const [showPerksModal, setShowPerksModal] = useState(false);
 
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -67,8 +71,6 @@ export default function MobileGamePlayers({
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
 
-  const [claimModalOpen, setClaimModalOpen] = useState(false);
-
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
   const onChainGameId = contractGame?.id;
   const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
@@ -85,7 +87,6 @@ export default function MobileGamePlayers({
   const {
     openTrades,
     tradeRequests,
-    aiTradePopup,
     closeAiTradePopup,
     refreshTrades,
   } = useGameTrades({
@@ -128,9 +129,8 @@ export default function MobileGamePlayers({
     [game?.players]
   );
 
-  
-  // → keep them unchanged
- const handleCreateTrade = async () => {
+  // All handlers remain unchanged
+  const handleCreateTrade = async () => {
     if (!me || !tradeModal.target) return;
 
     const targetPlayer = tradeModal.target;
@@ -457,114 +457,106 @@ export default function MobileGamePlayers({
     }
   };
 
-useEffect(() => {
-  if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
+  useEffect(() => {
+    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
 
-  const handleAiLiquidationAndPossibleBankruptcy = async () => {
-    toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
+    const handleAiLiquidationAndPossibleBankruptcy = async () => {
+      toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
 
-    const raisedFromHouses = await aiSellHouses(Infinity);
-    const raisedFromMortgages = await aiMortgageProperties(Infinity);
-    const totalRaised = raisedFromHouses + raisedFromMortgages;
+      const raisedFromHouses = await aiSellHouses(Infinity);
+      const raisedFromMortgages = await aiMortgageProperties(Infinity);
+      const totalRaised = raisedFromHouses + raisedFromMortgages;
 
-    // Refresh player data after liquidation attempts
-    // (balance might have changed)
-    // Note: In a real app you'd refetch game state here, but we'll assume balance is updated via polling
-
-    if (currentPlayer.balance >= 0) {
-      toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`);
-      return;
-    }
-
-    toast(`${currentPlayer.username} still cannot pay — bankrupt!`);
-
-    try {
-      // === NEW: Explicitly end the AI's turn BEFORE removal ===
-      try {
-        await apiClient.post("/game-players/end-turn", {
-          user_id: currentPlayer.user_id,
-          game_id: game.id,
-        });
-        // No toast needed — keeps flow clean
-      } catch (err) {
-        console.warn("Failed to end AI turn before bankruptcy", err);
-        // Continue anyway — bankruptcy is more important
+      if (currentPlayer.balance >= 0) {
+        toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`);
+        return;
       }
 
-      // Transfer or return properties
-      const landedGameProperty = game_properties.find(
-        gp => gp.property_id === currentPlayer.position
-      );
+      toast(`${currentPlayer.username} still cannot pay — bankrupt!`);
 
-      const creditorAddress =
-        landedGameProperty?.address && landedGameProperty.address !== "bank"
-          ? landedGameProperty.address
+      try {
+        try {
+          await apiClient.post("/game-players/end-turn", {
+            user_id: currentPlayer.user_id,
+            game_id: game.id,
+          });
+        } catch (err) {
+          console.warn("Failed to end AI turn before bankruptcy", err);
+        }
+
+        const landedGameProperty = game_properties.find(
+          gp => gp.property_id === currentPlayer.position
+        );
+
+        const creditorAddress =
+          landedGameProperty?.address && landedGameProperty.address !== "bank"
+            ? landedGameProperty.address
+            : null;
+
+        const creditorPlayer = creditorAddress
+          ? game.players.find(
+              p => p.address?.toLowerCase() === creditorAddress.toLowerCase()
+            )
           : null;
 
-      const creditorPlayer = creditorAddress
-        ? game.players.find(
-            p => p.address?.toLowerCase() === creditorAddress.toLowerCase()
-          )
-        : null;
+        const aiProperties = game_properties.filter(
+          gp => gp.address === currentPlayer.address
+        );
 
-      const aiProperties = game_properties.filter(
-        gp => gp.address === currentPlayer.address
-      );
+        let successCount = 0;
 
-      let successCount = 0;
+        if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
+          const creditorRealPlayerId = getGamePlayerId(creditorPlayer.address);
 
-      if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
-        const creditorRealPlayerId = getGamePlayerId(creditorPlayer.address);
-
-        if (!creditorRealPlayerId) {
-          toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
-          for (const prop of aiProperties) {
-            await handleDeleteGameProperty(prop.id);
-            successCount++;
+          if (!creditorRealPlayerId) {
+            toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
+            for (const prop of aiProperties) {
+              await handleDeleteGameProperty(prop.id);
+              successCount++;
+            }
+          } else {
+            toast(`Transferring properties to ${creditorPlayer.username}...`);
+            for (const prop of aiProperties) {
+              try {
+                await handlePropertyTransfer(prop.id, creditorRealPlayerId, "");
+                successCount++;
+              } catch (err) {
+                console.error(`Transfer failed for property ${prop.id}`, err);
+              }
+            }
+            toast.success(
+              `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`
+            );
           }
         } else {
-          toast(`Transferring properties to ${creditorPlayer.username}...`);
+          toast(`Returning properties to bank...`);
           for (const prop of aiProperties) {
             try {
-              await handlePropertyTransfer(prop.id, creditorRealPlayerId, "");
+              await handleDeleteGameProperty(prop.id);
               successCount++;
             } catch (err) {
-              console.error(`Transfer failed for property ${prop.id}`, err);
+              console.error(`Delete failed for property ${prop.id}`, err);
             }
           }
-          toast.success(
-            `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`
-          );
+          toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
         }
-      } else {
-        toast(`Returning properties to bank...`);
-        for (const prop of aiProperties) {
-          try {
-            await handleDeleteGameProperty(prop.id);
-            successCount++;
-          } catch (err) {
-            console.error(`Delete failed for property ${prop.id}`, err);
-          }
-        }
-        toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
+
+        await apiClient.post("/game-players/leave", {
+          address: currentPlayer.address,
+          code: game.code,
+          reason: "bankruptcy",
+        });
+
+        toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
+      } catch (err: any) {
+        console.error("Bankruptcy handling failed:", err);
+        toast.error("AI bankruptcy process failed");
       }
+    };
 
-      // Now remove the AI player
-      await apiClient.post("/game-players/leave", {
-        address: currentPlayer.address,
-        code: game.code,
-        reason: "bankruptcy",
-      });
+    handleAiLiquidationAndPossibleBankruptcy();
+  }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
 
-      toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
-    } catch (err: any) {
-      console.error("Bankruptcy handling failed:", err);
-      toast.error("AI bankruptcy process failed");
-    }
-  };
-
-  handleAiLiquidationAndPossibleBankruptcy();
-}, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
 
@@ -610,10 +602,11 @@ useEffect(() => {
       if (endGameReset) endGameReset();
     }
   };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white relative overflow-x-hidden">
       {/* Top Neon Glow Bar */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/70 z-10" />
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/70 z-50" />
 
       {/* Header */}
       <div className="relative z-10 px-4 pt-5 pb-3 backdrop-blur-xl bg-black/30 border-b border-purple-500/40">
@@ -633,7 +626,7 @@ useEffect(() => {
       </div>
 
       {/* Main Scrollable Content */}
-      <div className="px-4 py-6 space-y-6 overflow-y-auto min-h-[calc(100vh-140px)]">
+      <div className="px-4 py-6 space-y-6 pb-24">
         {/* Player List */}
         <section className="bg-black/30 backdrop-blur-sm rounded-2xl p-4 border border-purple-500/30 shadow-lg">
           <PlayerList
@@ -670,10 +663,63 @@ useEffect(() => {
         </section>
       </div>
 
-      {/* Bottom safe area padding for mobile */}
-      <div className="h-16" />
+      {/* Floating Perks Button */}
+      <button
+        onClick={() => setShowPerksModal(true)}
+        className="fixed bottom-20 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+      >
+        <Sparkles className="w-8 h-8 text-black" />
+      </button>
 
-      {/* All Modals - same as desktop */}
+      {/* Perks Full-Screen Modal Popup */}
+      <AnimatePresence>
+        {showPerksModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPerksModal(false)}
+              className="fixed inset-0 bg-black/80 z-50"
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
+                <h2 className="text-3xl font-bold flex items-center gap-4">
+                  <Sparkles className="w-10 h-10 text-[#00F0FF]" />
+                  My Perks
+                </h2>
+                <button
+                  onClick={() => setShowPerksModal(false)}
+                  className="text-gray-400 hover:text-white p-2"
+                >
+                  <X className="w-8 h-8" />
+                </button>
+              </div>
+
+              {/* Scrollable Perks Content */}
+              <div className="flex-1 overflow-y-auto px-6 pb-8">
+                <CollectibleInventoryBar
+                  game={game}
+                  game_properties={game_properties}
+                  isMyTurn={isNext}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* All Other Modals */}
       <AnimatePresence>
         <PropertyActionModal
           property={selectedProperty}
@@ -684,7 +730,6 @@ useEffect(() => {
           onUnmortgage={handleUnmortgage}
         />
 
-        {/* <AiTradePopup ... /> */}
         <AiResponsePopup
           popup={aiResponsePopup}
           properties={properties}
