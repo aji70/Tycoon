@@ -18,9 +18,6 @@ import { TradeModal } from "../../modals/trade-mobile";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
-import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
-
-import { Sparkles, X } from "lucide-react";
 
 interface GamePlayersProps {
   game: Game;
@@ -751,15 +748,6 @@ export default function MobileGamePlayers({
           />
         </CollapsibleSection>
       </div>
-
-      {/* Floating Perks Button */}
-      <button
-        onClick={() => setShowPerksModal(true)}
-        className="fixed bottom-20 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-      >
-        <Sparkles className="w-8 h-8 text-black" />
-      </button>
-
 
       {/* All Other Modals */}
       <AnimatePresence>
