@@ -12,7 +12,7 @@ import DiceAnimation from "./dice-animation";
 import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import PlayerStatus from "./player-status";
-import { Sparkles, X } from "lucide-react";
+import { Sparkles, X, Bell } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
 interface ApiResponse<T = any> {
@@ -25,6 +25,55 @@ const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 const JAIL_POSITION = 10;
+
+// Default zoomed-out state
+const DEFAULT_SCALE = 1.0;
+const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
+
+// Precise token positions (in % relative to board container)
+// Bottom-right is GO (position 0), going counter-clockwise
+const TOKEN_POSITIONS: Record<number, { x: number; y: number }> = {
+  0: { x: 91.5, y: 91.5 },   // GO (bottom-right corner)
+  1: { x: 81.5, y: 91.5 },
+  2: { x: 71.5, y: 91.5 },
+  3: { x: 61.5, y: 91.5 },
+  4: { x: 51.5, y: 91.5 },
+  5: { x: 41.5, y: 91.5 },
+  6: { x: 31.5, y: 91.5 },
+  7: { x: 21.5, y: 91.5 },
+  8: { x: 11.5, y: 91.5 },
+  9: { x: 1.5, y: 91.5 },
+  10: { x: 1.5, y: 91.5 },   // Jail / Just Visiting (bottom-left)
+  11: { x: 1.5, y: 81.5 },
+  12: { x: 1.5, y: 71.5 },
+  13: { x: 1.5, y: 61.5 },
+  14: { x: 1.5, y: 51.5 },
+  15: { x: 1.5, y: 41.5 },
+  16: { x: 1.5, y: 31.5 },
+  17: { x: 1.5, y: 21.5 },
+  18: { x: 1.5, y: 11.5 },
+  19: { x: 1.5, y: 1.5 },
+  20: { x: 1.5, y: 1.5 },    // Free Parking (top-left)
+  21: { x: 11.5, y: 1.5 },
+  22: { x: 21.5, y: 1.5 },
+  23: { x: 31.5, y: 1.5 },
+  24: { x: 41.5, y: 1.5 },
+  25: { x: 51.5, y: 1.5 },
+  26: { x: 61.5, y: 1.5 },
+  27: { x: 71.5, y: 1.5 },
+  28: { x: 81.5, y: 1.5 },
+  29: { x: 91.5, y: 1.5 },
+  30: { x: 91.5, y: 1.5 },   // Go To Jail (top-right)
+  31: { x: 91.5, y: 11.5 },
+  32: { x: 91.5, y: 21.5 },
+  33: { x: 91.5, y: 31.5 },
+  34: { x: 91.5, y: 41.5 },
+  35: { x: 91.5, y: 51.5 },
+  36: { x: 91.5, y: 61.5 },
+  37: { x: 91.5, y: 71.5 },
+  38: { x: 91.5, y: 81.5 },
+  39: { x: 91.5, y: 91.5 },
+};
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -46,8 +95,6 @@ const MONOPOLY_STATS = {
     utility: [12, 28],
   },
 };
-
-const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
@@ -112,9 +159,13 @@ const MobileGameLayout = ({
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
-  // Property details modal
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
+
+  // Board zoom & focus control
+  const [boardScale, setBoardScale] = useState(DEFAULT_SCALE);
+  const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
+  const [isFollowingMyMove, setIsFollowingMyMove] = useState(false);
 
   const currentPlayerId = currentGame.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -166,41 +217,41 @@ const MobileGameLayout = ({
     }
   }, [game.code, game.id]);
 
-  // Add this useEffect in MobileGameLayout, near the other useEffects
-useEffect(() => {
-  if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
-    setBuyPrompted(false);
-    return;
-  }
+  // Buy prompt logic
+  useEffect(() => {
+    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+      setBuyPrompted(false);
+      return;
+    }
 
-  const pos = landedPositionThisTurn.current;
-  const square = properties.find(p => p.id === pos);
+    const pos = landedPositionThisTurn.current;
+    const square = properties.find(p => p.id === pos);
 
-  if (!square || square.price == null) {
-    setBuyPrompted(false);
-    return;
-  }
+    if (!square || square.price == null) {
+      setBuyPrompted(false);
+      return;
+    }
 
-  const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
-  const action = PROPERTY_ACTION(pos);
-  const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
 
-  const canBuy = !isOwned && isBuyableType;
+    const canBuy = !isOwned && isBuyableType;
 
-  setBuyPrompted(canBuy);
+    setBuyPrompted(canBuy);
 
-  if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
-    showToast(`Not enough money to buy ${square.name}`, "error");
-  }
-}, [
-  roll,
-  landedPositionThisTurn.current,
-  hasMovementFinished,
-  properties,
-  currentGameProperties,
-  currentPlayer,
-  showToast,
-]);  
+    if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
+      showToast(`Not enough money to buy ${square.name}`, "error");
+    }
+  }, [
+    roll,
+    landedPositionThisTurn.current,
+    hasMovementFinished,
+    properties,
+    currentGameProperties,
+    currentPlayer,
+    showToast,
+  ]);
 
   useEffect(() => {
     const interval = setInterval(fetchUpdatedGame, 3000);
@@ -230,6 +281,31 @@ useEffect(() => {
     setIsRaisingFunds(false);
   }, [currentPlayerId]);
 
+  // Precise zoom centered on my token during my move only
+  useEffect(() => {
+    if (!isMyTurn || !roll || !hasMovementFinished) {
+      setBoardScale(DEFAULT_SCALE);
+      setBoardTransformOrigin("50% 50%");
+      setIsFollowingMyMove(false);
+      return;
+    }
+
+    const myPos = animatedPositions[me!.user_id] ?? me?.position ?? 0;
+    const coord = TOKEN_POSITIONS[myPos] || { x: 50, y: 50 };
+
+    setBoardScale(1.8);
+    setBoardTransformOrigin(`${coord.x}% ${coord.y}%`);
+    setIsFollowingMyMove(true);
+  }, [isMyTurn, roll, hasMovementFinished, me, animatedPositions]);
+
+  // Force zoomed out during AI turns
+  useEffect(() => {
+    if (isAITurn) {
+      setBoardScale(DEFAULT_SCALE);
+      setBoardTransformOrigin("50% 50%");
+    }
+  }, [isAITurn]);
+
   const END_TURN = useCallback(async () => {
     if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
     turnEndInProgress.current = true;
@@ -257,18 +333,7 @@ useEffect(() => {
 
     setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
-
-    setTimeout(() => {
-      const square = properties.find(p => p.id === newPosition);
-      if (square?.price != null) {
-        const isOwned = currentGameProperties.some(gp => gp.property_id === newPosition);
-        if (!isOwned && ["land", "railway", "utility"].includes(PROPERTY_ACTION(newPosition) || "")) {
-          setBuyPrompted(true);
-          toast(`Landed on ${square.name}! ${isSpecial ? "(Special Move)" : ""}`, { icon: "✨" });
-        }
-      }
-    }, 300);
-  }, [properties, currentGameProperties]);
+  }, []);
 
   const endTurnAfterSpecialMove = useCallback(() => {
     setBuyPrompted(false);
@@ -391,9 +456,8 @@ useEffect(() => {
       const currentPos = player.position ?? 0;
       const totalMove = value.total + pendingRoll;
       let newPos = (currentPos + totalMove) % BOARD_SQUARES;
-      let shouldAnimate = totalMove > 0;
 
-      if (shouldAnimate) {
+      if (totalMove > 0 && !forAI) {
         const movePath: number[] = [];
         for (let i = 1; i <= totalMove; i++) {
           movePath.push((currentPos + i) % BOARD_SQUARES);
@@ -444,7 +508,6 @@ useEffect(() => {
     fetchUpdatedGame, showToast, END_TURN
   ]);
 
-  // ── AI STRATEGY HELPERS ───────────────────────────────────────────────────────
   const getPlayerOwnedProperties = useCallback((playerAddress: string | undefined) => {
     if (!playerAddress) return [];
     return currentGameProperties
@@ -458,19 +521,14 @@ useEffect(() => {
 
   const getCompleteMonopolies = useCallback((playerAddress: string | undefined) => {
     if (!playerAddress) return [];
-
     const owned = getPlayerOwnedProperties(playerAddress);
     const monopolies: string[] = [];
 
     Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
       if (groupName === "railroad" || groupName === "utility") return;
-
       const ownedInGroup = owned.filter(o => ids.includes(o.prop.id));
-      if (ownedInGroup.length === ids.length) {
-        const allUnmortgaged = ownedInGroup.every(o => !o.gp.mortgaged);
-        if (allUnmortgaged) {
-          monopolies.push(groupName);
-        }
+      if (ownedInGroup.length === ids.length && ownedInGroup.every(o => !o.gp.mortgaged)) {
+        monopolies.push(groupName);
       }
     });
 
@@ -509,7 +567,6 @@ useEffect(() => {
             user_id: player.user_id,
             property_id: gp.property_id,
           });
-          showToast(`AI built on ${prop.name} (${groupName})`, "success");
           built = true;
           await fetchUpdatedGame();
           await new Promise(r => setTimeout(r, 600));
@@ -549,36 +606,28 @@ useEffect(() => {
     const shouldBuy = completesMonopoly || (goodLandingRank && affordable);
 
     if (shouldBuy) {
-      showToast(`${currentPlayer.username} is buying ${justLandedProperty.name}...`, "default");
       try {
         await apiClient.post("/game-properties/buy", {
           user_id: currentPlayer.user_id,
           game_id: currentGame.id,
           property_id: justLandedProperty.id,
         });
-        showToast(`${currentPlayer.username} bought ${justLandedProperty.name}!`, "success");
         await fetchUpdatedGame();
       } catch (err) {
-        showToast("AI purchase failed", "error");
+        console.error("AI purchase failed", err);
       }
-    } else {
-      showToast(`${currentPlayer.username} skipped buying ${justLandedProperty.name}`, "default");
     }
 
     landedPositionThisTurn.current = null;
-  }, [isAITurn, justLandedProperty, currentPlayer, currentGameProperties, properties, currentGame.id, fetchUpdatedGame, showToast, getPlayerOwnedProperties]);
+  }, [isAITurn, justLandedProperty, currentPlayer, currentGameProperties, properties, currentGame.id, fetchUpdatedGame, getPlayerOwnedProperties]);
 
   const handleAiStrategy = useCallback(async () => {
     if (!currentPlayer || !isAITurn || strategyRanThisTurn) return;
 
-    showToast(`${currentPlayer.username} is thinking... 🧠`, "default");
-
     await handleAiBuilding(currentPlayer);
     setStrategyRanThisTurn(true);
-    showToast(`${currentPlayer.username} ready to roll`, "default");
-  }, [currentPlayer, isAITurn, strategyRanThisTurn, handleAiBuilding, showToast]);
+  }, [currentPlayer, isAITurn, strategyRanThisTurn, handleAiBuilding]);
 
-  // ── AI TURN AUTOMATION ───────────────────────────────────────────────────────
   useEffect(() => {
     if (isAITurn && currentPlayer && !strategyRanThisTurn) {
       const timer = setTimeout(handleAiStrategy, 1000);
@@ -600,25 +649,15 @@ useEffect(() => {
     }
   }, [isAITurn, hasMovementFinished, roll, landedPositionThisTurn.current, handleAiBuyDecision]);
 
-  // ── AI LIQUIDATION & BANKRUPTCY LOGIC ─────────────────────────────────────────
   const aiSellHouses = async (player: Player) => {
     const improved = currentGameProperties
-      .filter(gp => gp.address === player.address && (gp.development ?? 0) > 0)
-      .sort((a, b) => {
-        const pa = properties.find(p => p.id === a.property_id);
-        const pb = properties.find(p => p.id === b.property_id);
-        return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
-      });
-
-    let raised = 0;
+      .filter(gp => gp.address === player.address && (gp.development ?? 0) > 0);
 
     for (const gp of improved) {
       const prop = properties.find(p => p.id === gp.property_id);
       if (!prop?.cost_of_house) continue;
 
-      const sellValue = Math.floor(prop.cost_of_house / 2);
       const houses = gp.development ?? 0;
-
       for (let i = 0; i < houses; i++) {
         try {
           await apiClient.post("/game-properties/downgrade", {
@@ -626,8 +665,6 @@ useEffect(() => {
             user_id: player.user_id,
             property_id: gp.property_id,
           });
-          raised += sellValue;
-          showToast(`AI sold a house on ${prop.name} (+$${sellValue})`, "default");
           await fetchUpdatedGame();
         } catch (err) {
           console.error("AI failed to sell house", err);
@@ -635,35 +672,24 @@ useEffect(() => {
         }
       }
     }
-    return raised;
   };
 
   const aiMortgageProperties = async (player: Player) => {
     const unmortgaged = currentGameProperties
-      .filter(gp => gp.address === player.address && !gp.mortgaged && gp.development === 0)
-      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
-      .filter(({ prop }) => prop?.price)
-      .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
+      .filter(gp => gp.address === player.address && !gp.mortgaged && gp.development === 0);
 
-    let raised = 0;
-
-    for (const { gp, prop } of unmortgaged) {
-      if (!prop) continue;
-      const mortgageValue = Math.floor(prop.price / 2);
+    for (const gp of unmortgaged) {
       try {
         await apiClient.post("/game-properties/mortgage", {
           game_id: currentGame.id,
           user_id: player.user_id,
           property_id: gp.property_id,
         });
-        raised += mortgageValue;
-        showToast(`AI mortgaged ${prop.name} (+$${mortgageValue})`, "default");
         await fetchUpdatedGame();
       } catch (err) {
         console.error("AI failed to mortgage", err);
       }
     }
-    return raised;
   };
 
   const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
@@ -697,104 +723,55 @@ useEffect(() => {
     return ownedProp?.player_id ?? null;
   }, [currentGameProperties]);
 
+  // Consolidated bankruptcy handling – only one toast
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
 
-    const handleAiLiquidationAndBankruptcy = async () => {
-      const toastId = toast.loading(`${currentPlayer.username} cannot pay — raising funds...`);
+    const handleAiBankruptcy = async () => {
+      const mainToast = toast.loading(`${currentPlayer.username} is bankrupt — eliminating...`, { duration: 12000 });
 
       try {
         setIsRaisingFunds(true);
 
-        const housesRaised = await aiSellHouses(currentPlayer);
-        const mortgagesRaised = await aiMortgageProperties(currentPlayer);
-        const totalRaised = housesRaised + mortgagesRaised;
-
+        await aiSellHouses(currentPlayer);
+        await aiMortgageProperties(currentPlayer);
         await fetchUpdatedGame();
-        await new Promise(r => setTimeout(r, 1200));
 
-        if (currentPlayer.balance >= 0) {
-          toast.dismiss(toastId);
-          toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`, { duration: 4000 });
-          setIsRaisingFunds(false);
-          return;
-        }
-
-        toast.dismiss(toastId);
-        const bankruptcyToast = toast.loading(`${currentPlayer.username} is bankrupt! Processing...`);
-
-        // End turn first
-        try {
-          await apiClient.post("/game-players/end-turn", {
-            user_id: currentPlayer.user_id,
-            game_id: currentGame.id,
-          });
-        } catch (err) {
-          console.warn("Failed to end AI turn before bankruptcy", err);
-        }
-
-        // Determine creditor
+        const aiProps = currentGameProperties.filter(gp => gp.address === currentPlayer.address);
         const landedGp = currentGameProperties.find(gp => gp.property_id === currentPlayer.position);
-        const creditorAddress = landedGp?.address && landedGp.address !== "bank" ? landedGp.address : null;
-        const creditorPlayer = creditorAddress
-          ? players.find(p => p.address?.toLowerCase() === creditorAddress.toLowerCase())
-          : null;
+        const creditorAddr = landedGp?.address && landedGp.address !== "bank" ? landedGp.address : null;
+        const creditor = creditorAddr ? players.find(p => p.address?.toLowerCase() === creditorAddr.toLowerCase()) : null;
 
-        const aiProperties = currentGameProperties.filter(gp => gp.address === currentPlayer.address);
-        let successCount = 0;
-
-        if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
-          const creditorPlayerId = getGamePlayerId(creditorPlayer.address);
-
-          if (creditorPlayerId) {
-            toast("Transferring properties to creditor...", { id: bankruptcyToast });
-            for (const prop of aiProperties) {
-              const success = await handlePropertyTransfer(prop.id, creditorPlayerId);
-              if (success) successCount++;
-            }
-            toast.dismiss(bankruptcyToast);
-            toast.success(`${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`);
+        if (creditor && !isAIPlayer(creditor)) {
+          const creditorId = getGamePlayerId(creditor.address);
+          if (creditorId) {
+            for (const prop of aiProps) await handlePropertyTransfer(prop.id, creditorId);
           } else {
-            // Fallback to bank if ID not found
-            for (const prop of aiProperties) {
-              const success = await handleDeleteGameProperty(prop.id);
-              if (success) successCount++;
-            }
-            toast.dismiss(bankruptcyToast);
-            toast.success(`${successCount}/${aiProperties.length} properties returned to bank (creditor ID issue).`);
+            for (const prop of aiProps) await handleDeleteGameProperty(prop.id);
           }
         } else {
-          toast("Returning properties to bank...", { id: bankruptcyToast });
-          for (const prop of aiProperties) {
-            const success = await handleDeleteGameProperty(prop.id);
-            if (success) successCount++;
-          }
-          toast.dismiss(bankruptcyToast);
-          toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
+          for (const prop of aiProps) await handleDeleteGameProperty(prop.id);
         }
 
-        // Remove AI player
         await apiClient.post("/game-players/leave", {
           address: currentPlayer.address,
           code: game.code,
           reason: "bankruptcy",
         });
-
-        // Final refresh after removal
-        await new Promise(r => setTimeout(r, 800));
         await fetchUpdatedGame();
 
+        toast.dismiss(mainToast);
         toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
       } catch (err) {
-        toast.dismiss(toastId);
-        console.error("AI bankruptcy process failed:", err);
-        toast.error("AI bankruptcy handling failed");
+        toast.dismiss(mainToast);
+        toast.error("Bankruptcy processing failed");
+        console.error(err);
       } finally {
         setIsRaisingFunds(false);
       }
     };
 
-    handleAiLiquidationAndBankruptcy();
+    handleAiBankruptcy();
   }, [
     isAITurn,
     currentPlayer,
@@ -807,21 +784,15 @@ useEffect(() => {
     getGamePlayerId,
   ]);
 
-  // ── FIXED VICTORY CONDITION CHECK ─────────────────────────────────────────────
   useEffect(() => {
     if (!me) return;
 
     const aiPlayers = players.filter(p => isAIPlayer(p));
     const humanPlayer = me;
 
-    // Victory conditions:
-    // - Only 1 player left in the game → that player wins (most common after AI removal)
-    // - Exactly 2 players, but all AIs have ≤ 0 balance → human wins
     const shouldDeclareVictory =
       (players.length === 1 && players[0].user_id === me.user_id) ||
-      (players.length === 2 &&
-        aiPlayers.every(ai => ai.balance <= 0) &&
-        humanPlayer.balance > 0);
+      (players.length === 2 && aiPlayers.every(ai => ai.balance <= 0) && humanPlayer.balance > 0);
 
     if (shouldDeclareVictory) {
       setWinner(humanPlayer);
@@ -833,15 +804,32 @@ useEffect(() => {
     }
   }, [players, me]);
 
-  // ── AUTO END TURN WHEN READY ─────────────────────────────────────────────────
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
-
     const timer = setTimeout(END_TURN, 2000);
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
-  // ── PROPERTY RENT CALCULATION ────────────────────────────────────────────────
+  // Trade notification
+  // useEffect(() => {
+  //   const newTrades = currentGame.trade_requests?.filter(
+  //     tr => tr.target_player_id === me?.user_id && tr.status === "pending"
+  //   );
+
+  //   if (newTrades && newTrades.length > 0) {
+  //     toast.custom(
+  //       <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-4 rounded-2xl shadow-2xl border border-purple-400">
+  //         <Bell className="w-6 h-6 animate-pulse" />
+  //         <div>
+  //           <div className="font-bold">Trade Offer Received!</div>
+  //           <div className="text-sm opacity-90">Tap here to review</div>
+  //         </div>
+  //       </div>,
+  //       { duration: 8000, position: "top-center" }
+  //     );
+  //   }
+  // }, [currentGame.trade_requests, me?.user_id]);
+
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
     if (gp.mortgaged) return 0;
@@ -974,41 +962,64 @@ useEffect(() => {
         Refresh
       </button>
 
-      <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
+      {/* Player Status + My Balance (small and clean) */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-4">
+        <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
 
-      <Board
-        properties={properties}
-        players={players}
-        currentGameProperties={currentGameProperties}
-        animatedPositions={animatedPositions}
-        currentPlayerId={currentPlayerId}
-        onPropertyClick={handlePropertyClick}
+        {me && (
+          <div className="mt-4 flex items-center justify-center gap-3 bg-white/10 backdrop-blur-md rounded-xl px-5 py-3 border border-white/20">
+            <span className="text-sm opacity-80">My Balance:</span>
+            <span className="text-xl font-bold text-yellow-300">
+              ${Number(me.balance ?? 0).toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Board with precise token-centered zoom */}
+      <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
+        <motion.div
+          animate={{ scale: boardScale }}
+          style={{ transformOrigin: boardTransformOrigin }}
+          transition={{ type: "spring", stiffness: 120, damping: 30 }}
+        >
+          <Board
+            properties={properties}
+            players={players}
+            currentGameProperties={currentGameProperties}
+            animatedPositions={animatedPositions}
+            currentPlayerId={currentPlayerId}
+            onPropertyClick={handlePropertyClick}
+          />
+        </motion.div>
+      </div>
+
+      <DiceAnimation
+        isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
+        roll={roll}
       />
 
-      <DiceAnimation isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)} roll={roll} />
-
-  {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
- <button
-    onClick={() => ROLL_DICE(false)}
-    className="
-      w-full max-w-xs mx-auto
-      py-3 px-8
-      bg-gradient-to-r from-emerald-500 to-teal-600
-      hover:from-emerald-600 hover:to-teal-700
-      active:from-emerald-700 active:to-teal-800
-      text-white font-bold text-lg tracking-wide
-      rounded-full
-      shadow-md shadow-emerald-500/30
-      border border-white/20
-      transition-all duration-300
-      hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40
-      active:scale-95
-      mt-5
-    "
-  >
-    Roll Dice
-  </button>
-)}
+      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+        <button
+          onClick={() => ROLL_DICE(false)}
+          className="
+            w-full max-w-xs mx-auto
+            py-3 px-8 mb-8
+            bg-gradient-to-r from-emerald-500 to-teal-600
+            hover:from-emerald-600 hover:to-teal-700
+            active:from-emerald-700 active:to-teal-800
+            text-white font-bold text-lg tracking-wide
+            rounded-full
+            shadow-md shadow-emerald-500/30
+            border border-white/20
+            transition-all duration-300
+            hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40
+            active:scale-95
+          "
+        >
+          Roll Dice
+        </button>
+      )}
 
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
@@ -1027,7 +1038,10 @@ useEffect(() => {
                 Price: ${justLandedProperty.price?.toLocaleString()}
               </p>
               <div className="grid grid-cols-2 gap-4">
-                <button onClick={BUY_PROPERTY} className="py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-2xl shadow-lg hover:scale-105 transition">
+                <button
+                  onClick={BUY_PROPERTY}
+                  className="py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-2xl shadow-lg hover:scale-105 transition"
+                >
                   Buy
                 </button>
                 <button
@@ -1047,7 +1061,6 @@ useEffect(() => {
         )}
       </AnimatePresence>
 
-      {/* SINGLE PROPERTY DETAILS MODAL WITH ACTIONS */}
       <AnimatePresence>
         {selectedProperty && (
           <motion.div
