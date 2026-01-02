@@ -962,19 +962,34 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      {/* Player Status + My Balance (small and clean) */}
-      <div className="w-full max-w-2xl mx-auto px-4 mt-4">
-        <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
+     {/* Player Status + My Balance (small and clean) */}
+<div className="w-full max-w-2xl mx-auto px-4 mt-4">
+  <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
 
-        {me && (
-          <div className="mt-4 flex items-center justify-center gap-3 bg-white/10 backdrop-blur-md rounded-xl px-5 py-3 border border-white/20">
-            <span className="text-sm opacity-80">My Balance:</span>
-            <span className="text-xl font-bold text-yellow-300">
-              ${Number(me.balance ?? 0).toLocaleString()}
-            </span>
-          </div>
-        )}
-      </div>
+  {me && (
+    <div className="mt-4 flex items-center justify-start gap-4 bg-white/10 backdrop-blur-md rounded-xl px-5 py-3 border border-white/20">
+      <span className="text-sm opacity-80">My Balance:</span>
+      
+      {/* Balance with dynamic color matching PlayerList */}
+      {(() => {
+        const balance = me.balance ?? 0;
+        const getBalanceColor = (bal: number): string => {
+          if (bal >= 1300) return "text-cyan-300";
+          if (bal >= 1000) return "text-emerald-400";
+          if (bal >= 750) return "text-yellow-400";
+          if (bal >= 150) return "text-orange-400";
+          return "text-red-500 animate-pulse";
+        };
+
+        return (
+          <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
+            ${Number(balance).toLocaleString()}
+          </span>
+        );
+      })()}
+    </div>
+  )}
+</div>
 
       {/* Board with precise token-centered zoom */}
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
