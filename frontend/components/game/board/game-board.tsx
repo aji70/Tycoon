@@ -695,7 +695,7 @@ const GameBoard = ({
                       disabled={isRolling}
                       className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
                     >
-                      {isRolling ? "Rolling..." : "🤖 AUTO Roll Dice"}
+                      {isRolling ? "Rolling..." : "Roll Dice"}
                     </button>
                   )}
 
