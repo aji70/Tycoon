@@ -858,30 +858,30 @@ const MobileGameLayout = ({
 
   // === FIXED VICTORY DETECTION ===
   // Now relies solely on server-side winner_id (assumed to be set on the Game object)
-  useEffect(() => {
-    if (!currentGame.winner_id || !me) {
-      setWinner(null);
-      setEndGameCandidate({ winner: null, position: 0, balance: BigInt(0) });
-      return;
-    }
+  // useEffect(() => {
+  //   if (!currentGame.winner_id || !me) {
+  //     setWinner(null);
+  //     setEndGameCandidate({ winner: null, position: 0, balance: BigInt(0) });
+  //     return;
+  //   }
 
-    const winnerPlayer = players.find(p => p.user_id === currentGame.winner_id);
+  //   const winnerPlayer = players.find(p => p.user_id === currentGame.winner_id);
 
-    if (winnerPlayer) {
-      setWinner(winnerPlayer);
+  //   if (winnerPlayer) {
+  //     setWinner(winnerPlayer);
 
-      // Only the actual winner prepares the on-chain end game transaction
-      if (winnerPlayer.user_id === me.user_id) {
-        setEndGameCandidate({
-          winner: winnerPlayer,
-          position: winnerPlayer.position ?? 0,
-          balance: BigInt(winnerPlayer.balance ?? 0),
-        });
-      }
-    } else {
-      setWinner(null);
-    }
-  }, [currentGame.winner_id, players, me]);
+  //     // Only the actual winner prepares the on-chain end game transaction
+  //     if (winnerPlayer.user_id === me.user_id) {
+  //       setEndGameCandidate({
+  //         winner: winnerPlayer,
+  //         position: winnerPlayer.position ?? 0,
+  //         balance: BigInt(winnerPlayer.balance ?? 0),
+  //       });
+  //     }
+  //   } else {
+  //     setWinner(null);
+  //   }
+  // }, [currentGame.winner_id, players, me]);
 
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
