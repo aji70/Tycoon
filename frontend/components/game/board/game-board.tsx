@@ -88,11 +88,11 @@ const Board = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
-  const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
 
   const [showCardModal, setShowCardModal] = useState(false);
+
   const [cardData, setCardData] = useState<{
     type: "chance" | "community";
     text: string;
@@ -122,11 +122,11 @@ const Board = ({
 
   
 
-  // const [endGameCandidate, setEndGameCandidate] = useState<{
-  //   winner: Player | null;
-  //   position: number;
-  //   balance: bigint;
-  // }>({ winner: null, position: 0, balance: BigInt(0) });
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+  }>({ winner: null, position: 0, balance: BigInt(0) });
 
   const currentProperty = useMemo(() => {
     return currentPlayer?.position
@@ -198,7 +198,6 @@ const Board = ({
     lastToastMessage.current = null;
     setAnimatedPositions({});
     setHasMovementFinished(false);
-    setStrategyRanThisTurn(false);
   }, [currentPlayerId]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
