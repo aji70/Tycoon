@@ -180,7 +180,7 @@ const MobileGameLayout = ({
   const [bellFlash, setBellFlash] = useState(false);
   const prevIncomingTradeCount = useRef(0);
 
-  // Fetch trade data (same hook used in sidebar)
+  // Fetch trade data
   const {
     tradeRequests = [],
     refreshTrades,
@@ -190,7 +190,6 @@ const MobileGameLayout = ({
     players: game?.players ?? [],
   });
 
-  // Incoming trades aimed at the current player (me)
   const myIncomingTrades = useMemo(() => {
     if (!me) return [];
     return tradeRequests.filter(
@@ -198,7 +197,7 @@ const MobileGameLayout = ({
     );
   }, [tradeRequests, me]);
 
-  // Detect new incoming trade and show notification
+  // Trade notification effect
   useEffect(() => {
     const currentCount = myIncomingTrades.length;
     const previousCount = prevIncomingTradeCount.current;
@@ -225,6 +224,7 @@ const MobileGameLayout = ({
     prevIncomingTradeCount.current = currentCount;
   }, [myIncomingTrades]);
 
+  // Board scale calculation
   useEffect(() => {
     const calculateScale = () => {
       const width = window.innerWidth;
@@ -289,54 +289,26 @@ const MobileGameLayout = ({
     }
   }, [game.code, game.id, refreshTrades]);
 
-  // Buy prompt logic
+  // STRICT WIN CONDITION: Only declare victory when you're the LAST HUMAN PLAYER with positive balance
   useEffect(() => {
-    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
-      setBuyPrompted(false);
-      return;
+    if (!me) return;
+
+    const aliveHumans = players.filter(
+      (p) => !isAIPlayer(p) && (p.balance ?? 0) > 0
+    );
+
+    const iAmTheLastHumanStanding =
+      aliveHumans.length === 1 && aliveHumans[0].user_id === me.user_id;
+
+    if (iAmTheLastHumanStanding) {
+      setWinner(me);
+      setEndGameCandidate({
+        winner: me,
+        position: me.position ?? 0,
+        balance: BigInt(me.balance ?? 0),
+      });
     }
-
-    const pos = landedPositionThisTurn.current;
-    const square = properties.find(p => p.id === pos);
-
-    if (!square || square.price == null) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
-    const action = PROPERTY_ACTION(pos);
-    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-
-    const canBuy = !isOwned && isBuyableType;
-
-    setBuyPrompted(canBuy);
-
-    if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
-      showToast(`Not enough money to buy ${square.name}`, "error");
-    }
-  }, [
-    roll,
-    landedPositionThisTurn.current,
-    hasMovementFinished,
-    properties,
-    currentGameProperties,
-    currentPlayer,
-    showToast,
-  ]);
-
-  useEffect(() => {
-    const interval = setInterval(fetchUpdatedGame, 3000);
-    return () => clearInterval(interval);
-  }, [fetchUpdatedGame]);
-
-  const lockAction = useCallback((type: "ROLL" | "END") => {
-    if (actionLock) return false;
-    setActionLock(type);
-    return true;
-  }, [actionLock]);
-
-  const unlockAction = useCallback(() => setActionLock(null), []);
+  }, [players, me]);
 
   useEffect(() => {
     setRoll(null);
@@ -353,7 +325,7 @@ const MobileGameLayout = ({
     setIsRaisingFunds(false);
   }, [currentPlayerId]);
 
-  // Precise zoom centered on my token during my move only
+  // Board zoom & focus
   useEffect(() => {
     if (!isMyTurn || !roll || !hasMovementFinished) {
       setBoardScale(defaultScale);
@@ -370,13 +342,20 @@ const MobileGameLayout = ({
     setIsFollowingMyMove(true);
   }, [isMyTurn, roll, hasMovementFinished, me, animatedPositions, defaultScale]);
 
-  // Force zoomed out during AI turns
   useEffect(() => {
     if (isAITurn) {
       setBoardScale(defaultScale);
       setBoardTransformOrigin("50% 50%");
     }
   }, [isAITurn, defaultScale]);
+
+  const lockAction = useCallback((type: "ROLL" | "END") => {
+    if (actionLock) return false;
+    setActionLock(type);
+    return true;
+  }, [actionLock]);
+
+  const unlockAction = useCallback(() => setActionLock(null), []);
 
   const END_TURN = useCallback(async () => {
     if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
@@ -795,7 +774,7 @@ const MobileGameLayout = ({
     return ownedProp?.player_id ?? null;
   }, [currentGameProperties]);
 
-  // Consolidated bankruptcy handling – only one toast
+  // AI Bankruptcy handling
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
 
@@ -856,33 +835,7 @@ const MobileGameLayout = ({
     getGamePlayerId,
   ]);
 
-  // === FIXED VICTORY DETECTION ===
-  // Now relies solely on server-side winner_id (assumed to be set on the Game object)
-  // useEffect(() => {
-  //   if (!currentGame.winner_id || !me) {
-  //     setWinner(null);
-  //     setEndGameCandidate({ winner: null, position: 0, balance: BigInt(0) });
-  //     return;
-  //   }
-
-  //   const winnerPlayer = players.find(p => p.user_id === currentGame.winner_id);
-
-  //   if (winnerPlayer) {
-  //     setWinner(winnerPlayer);
-
-  //     // Only the actual winner prepares the on-chain end game transaction
-  //     if (winnerPlayer.user_id === me.user_id) {
-  //       setEndGameCandidate({
-  //         winner: winnerPlayer,
-  //         position: winnerPlayer.position ?? 0,
-  //         balance: BigInt(winnerPlayer.balance ?? 0),
-  //       });
-  //     }
-  //   } else {
-  //     setWinner(null);
-  //   }
-  // }, [currentGame.winner_id, players, me]);
-
+  // Auto-end turn after actions
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
     const timer = setTimeout(END_TURN, 2000);
@@ -1022,7 +975,7 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      {/* Bell Notification – Trade Incoming Indicator */}
+      {/* Trade Notification Bell */}
       <div className="fixed top-4 right-20 z-50 flex items-center">
         <motion.button
           animate={bellFlash ? { rotate: [0, -20, 20, -20, 20, 0] } : { rotate: 0 }}
@@ -1102,7 +1055,7 @@ const MobileGameLayout = ({
         </button>
       )}
 
-      {/* Buy Prompt Modal */}
+      {/* Buy Prompt */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
           <motion.div
@@ -1316,6 +1269,7 @@ const MobileGameLayout = ({
         showToast={showToast}
       />
 
+      {/* Bell ring animation */}
       <style jsx>{`
         @keyframes bell-ring {
           0%, 100% { transform: rotate(0deg); }
