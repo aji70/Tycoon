@@ -112,7 +112,7 @@ const MobileGameLayout = ({
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
-  // Property details modal (single modal - no separate manage modal)
+  // Property details modal
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
 
@@ -132,10 +132,10 @@ const MobileGameLayout = ({
   }, [landedPositionThisTurn.current, properties]);
 
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
-  const id = contractGame?.id;
+  const onChainGameId = contractGame?.id;
 
-  const { write: endGame, isPending, reset } = useEndAiGame(
-    Number(id),
+  const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
+    Number(onChainGameId),
     endGameCandidate.position,
     endGameCandidate.balance,
     !!endGameCandidate.winner
@@ -215,24 +215,24 @@ const MobileGameLayout = ({
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
-  
+
     landedPositionThisTurn.current = newPosition;
     setIsSpecialMove(isSpecial);
-  
+
     setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
-  
+
     setTimeout(() => {
       const square = properties.find(p => p.id === newPosition);
       if (square?.price != null) {
-        const isOwned = game_properties.some(gp => gp.property_id === newPosition);
+        const isOwned = currentGameProperties.some(gp => gp.property_id === newPosition);
         if (!isOwned && ["land", "railway", "utility"].includes(PROPERTY_ACTION(newPosition) || "")) {
           setBuyPrompted(true);
           toast(`Landed on ${square.name}! ${isSpecial ? "(Special Move)" : ""}`, { icon: "✨" });
         }
       }
     }, 300);
-  }, [properties, game_properties]);
+  }, [properties, currentGameProperties]);
 
   const endTurnAfterSpecialMove = useCallback(() => {
     setBuyPrompted(false);
@@ -408,22 +408,22 @@ const MobileGameLayout = ({
     fetchUpdatedGame, showToast, END_TURN
   ]);
 
-  // ── AI STRATEGY HELPERS (simplified) ─────────────────────────────────────
-  const getPlayerOwnedProperties = (playerAddress: string | undefined, gameProperties: GameProperty[], properties: Property[]) => {
+  // ── AI STRATEGY HELPERS ───────────────────────────────────────────────────────
+  const getPlayerOwnedProperties = useCallback((playerAddress: string | undefined) => {
     if (!playerAddress) return [];
-    return gameProperties
+    return currentGameProperties
       .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase())
       .map(gp => ({
         gp,
         prop: properties.find(p => p.id === gp.property_id)!,
       }))
       .filter(item => !!item.prop);
-  };
+  }, [currentGameProperties, properties]);
 
-  const getCompleteMonopolies = (playerAddress: string | undefined, gameProperties: GameProperty[], properties: Property[]) => {
+  const getCompleteMonopolies = useCallback((playerAddress: string | undefined) => {
     if (!playerAddress) return [];
 
-    const owned = getPlayerOwnedProperties(playerAddress, gameProperties, properties);
+    const owned = getPlayerOwnedProperties(playerAddress);
     const monopolies: string[] = [];
 
     Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
@@ -439,12 +439,12 @@ const MobileGameLayout = ({
     });
 
     return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
-  };
+  }, [getPlayerOwnedProperties]);
 
   const handleAiBuilding = async (player: Player) => {
     if (!player.address) return;
 
-    const monopolies = getCompleteMonopolies(player.address, currentGameProperties, properties);
+    const monopolies = getCompleteMonopolies(player.address);
     if (monopolies.length === 0) return;
 
     let built = false;
@@ -496,9 +496,9 @@ const MobileGameLayout = ({
     const balance = currentPlayer.balance ?? 0;
     const price = justLandedProperty.price;
 
-    const ownedInGroup = getPlayerOwnedProperties(currentPlayer.address, currentGameProperties, properties)
+    const ownedInGroup = getPlayerOwnedProperties(currentPlayer.address)
       .filter(o => {
-        return Object.entries(MONOPOLY_STATS.colorGroups).some(([_, ids]) => 
+        return Object.entries(MONOPOLY_STATS.colorGroups).some(([_, ids]) =>
           ids.includes(o.prop.id) && ids.includes(justLandedProperty.id)
         );
       }).length;
@@ -525,11 +525,12 @@ const MobileGameLayout = ({
       } catch (err) {
         showToast("AI purchase failed", "error");
       }
-    } else
+    } else {
       showToast(`${currentPlayer.username} skipped buying ${justLandedProperty.name}`, "default");
+    }
 
     landedPositionThisTurn.current = null;
-  }, [isAITurn, justLandedProperty, currentPlayer, currentGameProperties, properties, currentGame.id, fetchUpdatedGame, showToast]);
+  }, [isAITurn, justLandedProperty, currentPlayer, currentGameProperties, properties, currentGame.id, fetchUpdatedGame, showToast, getPlayerOwnedProperties]);
 
   const handleAiStrategy = useCallback(async () => {
     if (!currentPlayer || !isAITurn || strategyRanThisTurn) return;
@@ -539,8 +540,9 @@ const MobileGameLayout = ({
     await handleAiBuilding(currentPlayer);
     setStrategyRanThisTurn(true);
     showToast(`${currentPlayer.username} ready to roll`, "default");
-  }, [currentPlayer, isAITurn, strategyRanThisTurn, currentGameProperties, properties, showToast, currentGame.id]);
+  }, [currentPlayer, isAITurn, strategyRanThisTurn, handleAiBuilding, showToast]);
 
+  // ── AI TURN AUTOMATION ───────────────────────────────────────────────────────
   useEffect(() => {
     if (isAITurn && currentPlayer && !strategyRanThisTurn) {
       const timer = setTimeout(handleAiStrategy, 1000);
@@ -562,30 +564,240 @@ const MobileGameLayout = ({
     }
   }, [isAITurn, hasMovementFinished, roll, landedPositionThisTurn.current, handleAiBuyDecision]);
 
+  // ── AI LIQUIDATION & BANKRUPTCY LOGIC ─────────────────────────────────────────
+  const aiSellHouses = async (player: Player) => {
+    const improved = currentGameProperties
+      .filter(gp => gp.address === player.address && (gp.development ?? 0) > 0)
+      .sort((a, b) => {
+        const pa = properties.find(p => p.id === a.property_id);
+        const pb = properties.find(p => p.id === b.property_id);
+        return (pb?.rent_hotel || 0) - (pa?.rent_hotel || 0);
+      });
+
+    let raised = 0;
+
+    for (const gp of improved) {
+      const prop = properties.find(p => p.id === gp.property_id);
+      if (!prop?.cost_of_house) continue;
+
+      const sellValue = Math.floor(prop.cost_of_house / 2);
+      const houses = gp.development ?? 0;
+
+      for (let i = 0; i < houses; i++) {
+        try {
+          await apiClient.post("/game-properties/downgrade", {
+            game_id: currentGame.id,
+            user_id: player.user_id,
+            property_id: gp.property_id,
+          });
+          raised += sellValue;
+          showToast(`AI sold a house on ${prop.name} (+$${sellValue})`, "default");
+          await fetchUpdatedGame();
+        } catch (err) {
+          console.error("AI failed to sell house", err);
+          break;
+        }
+      }
+    }
+    return raised;
+  };
+
+  const aiMortgageProperties = async (player: Player) => {
+    const unmortgaged = currentGameProperties
+      .filter(gp => gp.address === player.address && !gp.mortgaged && gp.development === 0)
+      .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
+      .filter(({ prop }) => prop?.price)
+      .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
+
+    let raised = 0;
+
+    for (const { gp, prop } of unmortgaged) {
+      if (!prop) continue;
+      const mortgageValue = Math.floor(prop.price / 2);
+      try {
+        await apiClient.post("/game-properties/mortgage", {
+          game_id: currentGame.id,
+          user_id: player.user_id,
+          property_id: gp.property_id,
+        });
+        raised += mortgageValue;
+        showToast(`AI mortgaged ${prop.name} (+$${mortgageValue})`, "default");
+        await fetchUpdatedGame();
+      } catch (err) {
+        console.error("AI failed to mortgage", err);
+      }
+    }
+    return raised;
+  };
+
+  const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
+    try {
+      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
+        game_id: currentGame.id,
+        player_id: newPlayerId,
+      });
+      return res.data?.success ?? false;
+    } catch (err) {
+      console.error("Transfer failed", err);
+      return false;
+    }
+  };
+
+  const handleDeleteGameProperty = async (id: number) => {
+    try {
+      const res = await apiClient.delete<ApiResponse>(`/game-properties/${id}`, {
+        data: { game_id: currentGame.id },
+      });
+      return res.data?.success ?? false;
+    } catch (err) {
+      console.error("Delete failed", err);
+      return false;
+    }
+  };
+
+  const getGamePlayerId = useCallback((walletAddress: string | undefined): number | null => {
+    if (!walletAddress) return null;
+    const ownedProp = currentGameProperties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
+    return ownedProp?.player_id ?? null;
+  }, [currentGameProperties]);
+
   useEffect(() => {
-    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
-      setBuyPrompted(false);
-      return;
+    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
+
+    const handleAiLiquidationAndBankruptcy = async () => {
+      const toastId = toast.loading(`${currentPlayer.username} cannot pay — raising funds...`);
+
+      try {
+        setIsRaisingFunds(true);
+
+        const housesRaised = await aiSellHouses(currentPlayer);
+        const mortgagesRaised = await aiMortgageProperties(currentPlayer);
+        const totalRaised = housesRaised + mortgagesRaised;
+
+        await fetchUpdatedGame();
+        await new Promise(r => setTimeout(r, 1200));
+
+        if (currentPlayer.balance >= 0) {
+          toast.dismiss(toastId);
+          toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`, { duration: 4000 });
+          setIsRaisingFunds(false);
+          return;
+        }
+
+        toast.dismiss(toastId);
+        const bankruptcyToast = toast.loading(`${currentPlayer.username} is bankrupt! Processing...`);
+
+        // End turn first
+        try {
+          await apiClient.post("/game-players/end-turn", {
+            user_id: currentPlayer.user_id,
+            game_id: currentGame.id,
+          });
+        } catch (err) {
+          console.warn("Failed to end AI turn before bankruptcy", err);
+        }
+
+        // Determine creditor
+        const landedGp = currentGameProperties.find(gp => gp.property_id === currentPlayer.position);
+        const creditorAddress = landedGp?.address && landedGp.address !== "bank" ? landedGp.address : null;
+        const creditorPlayer = creditorAddress
+          ? players.find(p => p.address?.toLowerCase() === creditorAddress.toLowerCase())
+          : null;
+
+        const aiProperties = currentGameProperties.filter(gp => gp.address === currentPlayer.address);
+        let successCount = 0;
+
+        if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
+          const creditorPlayerId = getGamePlayerId(creditorPlayer.address);
+
+          if (creditorPlayerId) {
+            toast("Transferring properties to creditor...", { id: bankruptcyToast });
+            for (const prop of aiProperties) {
+              const success = await handlePropertyTransfer(prop.id, creditorPlayerId);
+              if (success) successCount++;
+            }
+            toast.dismiss(bankruptcyToast);
+            toast.success(`${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`);
+          } else {
+            // Fallback to bank if ID not found
+            for (const prop of aiProperties) {
+              const success = await handleDeleteGameProperty(prop.id);
+              if (success) successCount++;
+            }
+            toast.dismiss(bankruptcyToast);
+            toast.success(`${successCount}/${aiProperties.length} properties returned to bank (creditor ID issue).`);
+          }
+        } else {
+          toast("Returning properties to bank...", { id: bankruptcyToast });
+          for (const prop of aiProperties) {
+            const success = await handleDeleteGameProperty(prop.id);
+            if (success) successCount++;
+          }
+          toast.dismiss(bankruptcyToast);
+          toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
+        }
+
+        // Remove AI player
+        await apiClient.post("/game-players/leave", {
+          address: currentPlayer.address,
+          code: game.code,
+          reason: "bankruptcy",
+        });
+
+        // Final refresh after removal
+        await new Promise(r => setTimeout(r, 800));
+        await fetchUpdatedGame();
+
+        toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
+      } catch (err) {
+        toast.dismiss(toastId);
+        console.error("AI bankruptcy process failed:", err);
+        toast.error("AI bankruptcy handling failed");
+      } finally {
+        setIsRaisingFunds(false);
+      }
+    };
+
+    handleAiLiquidationAndBankruptcy();
+  }, [
+    isAITurn,
+    currentPlayer,
+    currentGame.id,
+    currentGameProperties,
+    properties,
+    players,
+    game.code,
+    fetchUpdatedGame,
+    getGamePlayerId,
+  ]);
+
+  // ── FIXED VICTORY CONDITION CHECK ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!me) return;
+
+    const aiPlayers = players.filter(p => isAIPlayer(p));
+    const humanPlayer = me;
+
+    // Victory conditions:
+    // - Only 1 player left in the game → that player wins (most common after AI removal)
+    // - Exactly 2 players, but all AIs have ≤ 0 balance → human wins
+    const shouldDeclareVictory =
+      (players.length === 1 && players[0].user_id === me.user_id) ||
+      (players.length === 2 &&
+        aiPlayers.every(ai => ai.balance <= 0) &&
+        humanPlayer.balance > 0);
+
+    if (shouldDeclareVictory) {
+      setWinner(humanPlayer);
+      setEndGameCandidate({
+        winner: humanPlayer,
+        position: humanPlayer.position ?? 0,
+        balance: BigInt(humanPlayer.balance),
+      });
     }
+  }, [players, me]);
 
-    const pos = landedPositionThisTurn.current;
-    const square = properties.find(p => p.id === pos);
-
-    if (!square || square.price == null) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
-    const canBuy = !isOwned && square.type === "property";
-
-    setBuyPrompted(canBuy && isMyTurn);
-
-    if (canBuy && (currentPlayer?.balance ?? 0) < square.price) {
-      showToast(`Not enough money to buy ${square.name}`, "error");
-    }
-  }, [roll, landedPositionThisTurn.current, hasMovementFinished, currentGameProperties, properties, currentPlayer, showToast, isMyTurn]);
-
+  // ── AUTO END TURN WHEN READY ─────────────────────────────────────────────────
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
 
@@ -593,7 +805,7 @@ const MobileGameLayout = ({
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
-  // ── PROPERTY MANAGEMENT (TYPE-SAFE) ─────────────────────────────────────
+  // ── PROPERTY RENT CALCULATION ────────────────────────────────────────────────
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
     if (gp.mortgaged) return 0;
@@ -845,7 +1057,6 @@ const MobileGameLayout = ({
                   )}
                 </div>
 
-                {/* Action buttons - only if owned by me and it's my turn */}
                 {isOwnedByMe && isMyTurn && selectedGameProperty && (
                   <div className="grid grid-cols-2 gap-4 mt-8">
                     <button
@@ -959,9 +1170,9 @@ const MobileGameLayout = ({
         me={me}
         players={players}
         currentGame={currentGame}
-        isPending={isPending}
+        isPending={endGamePending}
         endGame={endGame}
-        reset={reset}
+        reset={endGameReset}
         setShowInsolvencyModal={setShowInsolvencyModal}
         setIsRaisingFunds={setIsRaisingFunds}
         setShowBankruptcyModal={setShowBankruptcyModal}

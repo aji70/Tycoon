@@ -7,7 +7,7 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag } from 'lucide-react';
 import useSound from 'use-sound';
-import { useAppKitAccount } from '@reown/appkit/react';
+import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
 import WalletConnectModal from './wallet-connect-modal';
@@ -23,6 +23,11 @@ const NavBarMobile = () => {
   });
 
   const { address, isConnected } = useAppKitAccount();
+  const { caipNetwork, chainId } = useAppKitNetwork();
+
+  // Use caipNetwork?.name for the full/pretty name (e.g., "Ethereum", "Base", "Polygon")
+  // Falls back to "Chain ${chainId}" for testnets/unknown, then "Change Network"
+  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Change Network');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [play, { pause }] = useSound('/sound/monopoly-theme.mp3', {
@@ -124,7 +129,7 @@ const NavBarMobile = () => {
                     </div>
                   </div>
 
-                  {/* Network Switcher */}
+                  {/* Network Switcher – Shows the proper network name from caipNetwork.name */}
                   <button
                     onClick={() => {
                       setIsNetworkModalOpen(true);
@@ -133,7 +138,9 @@ const NavBarMobile = () => {
                     className="w-full py-5 rounded-2xl bg-[#003B3E]/70 hover:bg-[#003B3E] border border-[#00F0FF]/40 text-[#00F0FF] font-orbitron text-lg flex items-center justify-center gap-4 transition"
                   >
                     <Globe size={24} />
-                    Change Network
+                    <span className="truncate max-w-[200px]">
+                      {networkDisplay}
+                    </span>
                   </button>
                 </div>
               )}

@@ -458,105 +458,128 @@ export default function MobileGamePlayers({
     }
   };
 
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
+  // ==================== FIXED AI BANKRUPTCY EFFECT (react-hot-toast v2 compatible) ====================
+  // useEffect(() => {
+  //   if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
 
-    const handleAiLiquidationAndPossibleBankruptcy = async () => {
-      toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
+  //   const handleAiLiquidationAndPossibleBankruptcy = async () => {
+  //     const toastId = toast.loading(`${currentPlayer.username} cannot pay — raising funds...`);
 
-      const raisedFromHouses = await aiSellHouses(Infinity);
-      const raisedFromMortgages = await aiMortgageProperties(Infinity);
-      const totalRaised = raisedFromHouses + raisedFromMortgages;
+  //     try {
+  //       await aiSellHouses(Infinity);
+  //       await aiMortgageProperties(Infinity);
 
-      if (currentPlayer.balance >= 0) {
-        toast.success(`${currentPlayer.username} raised $${totalRaised} and survived! 💪`);
-        return;
-      }
+  //       // Force refresh to get the latest balance
+  //       refreshTrades?.();
 
-      toast(`${currentPlayer.username} still cannot pay — bankrupt!`);
+  //       // Wait for state to propagate
+  //       await new Promise(resolve => setTimeout(resolve, 1200));
 
-      try {
-        try {
-          await apiClient.post("/game-players/end-turn", {
-            user_id: currentPlayer.user_id,
-            game_id: game.id,
-          });
-        } catch (err) {
-          console.warn("Failed to end AI turn before bankruptcy", err);
-        }
+  //       if (currentPlayer.balance >= 0) {
+  //         toast.dismiss(toastId);
+  //         toast.success(`${currentPlayer.username} raised funds and survived! 💪`);
+  //         return;
+  //       }
 
-        const landedGameProperty = game_properties.find(
-          gp => gp.property_id === currentPlayer.position
-        );
+  //       // Update toast to bankruptcy phase
+  //       toast.dismiss(toastId);
+  //       toast.loading(`${currentPlayer.username} is bankrupt! Eliminating...`);
 
-        const creditorAddress =
-          landedGameProperty?.address && landedGameProperty.address !== "bank"
-            ? landedGameProperty.address
-            : null;
+  //       // End turn
+  //       try {
+  //         await apiClient.post("/game-players/end-turn", {
+  //           user_id: currentPlayer.user_id,
+  //           game_id: game.id,
+  //         });
+  //       } catch (err) {
+  //         console.warn("Failed to end AI turn before bankruptcy", err);
+  //       }
 
-        const creditorPlayer = creditorAddress
-          ? game.players.find(
-              p => p.address?.toLowerCase() === creditorAddress.toLowerCase()
-            )
-          : null;
+  //       // Handle properties
+  //       const landedGameProperty = game_properties.find(
+  //         gp => gp.property_id === currentPlayer.position
+  //       );
 
-        const aiProperties = game_properties.filter(
-          gp => gp.address === currentPlayer.address
-        );
+  //       const creditorAddress =
+  //         landedGameProperty?.address && landedGameProperty.address !== "bank"
+  //           ? landedGameProperty.address
+  //           : null;
 
-        let successCount = 0;
+  //       const creditorPlayer = creditorAddress
+  //         ? game.players.find(
+  //             p => p.address?.toLowerCase() === creditorAddress.toLowerCase()
+  //           )
+  //         : null;
 
-        if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
-          const creditorRealPlayerId = getGamePlayerId(creditorPlayer.address);
+  //       const aiProperties = game_properties.filter(
+  //         gp => gp.address === currentPlayer.address
+  //       );
 
-          if (!creditorRealPlayerId) {
-            toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
-            for (const prop of aiProperties) {
-              await handleDeleteGameProperty(prop.id);
-              successCount++;
-            }
-          } else {
-            toast(`Transferring properties to ${creditorPlayer.username}...`);
-            for (const prop of aiProperties) {
-              try {
-                await handlePropertyTransfer(prop.id, creditorRealPlayerId, "");
-                successCount++;
-              } catch (err) {
-                console.error(`Transfer failed for property ${prop.id}`, err);
-              }
-            }
-            toast.success(
-              `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`
-            );
-          }
-        } else {
-          toast(`Returning properties to bank...`);
-          for (const prop of aiProperties) {
-            try {
-              await handleDeleteGameProperty(prop.id);
-              successCount++;
-            } catch (err) {
-              console.error(`Delete failed for property ${prop.id}`, err);
-            }
-          }
-          toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
-        }
+  //       let successCount = 0;
 
-        await apiClient.post("/game-players/leave", {
-          address: currentPlayer.address,
-          code: game.code,
-          reason: "bankruptcy",
-        });
+  //       if (creditorPlayer && !isAIPlayer(creditorPlayer)) {
+  //         const creditorRealPlayerId = getGamePlayerId(creditorPlayer.address);
 
-        toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
-      } catch (err: any) {
-        console.error("Bankruptcy handling failed:", err);
-        toast.error("AI bankruptcy process failed");
-      }
-    };
+  //         if (!creditorRealPlayerId) {
+  //           toast.error(`Cannot transfer: ${creditorPlayer.username} has no valid player_id`);
+  //           for (const prop of aiProperties) {
+  //             await handleDeleteGameProperty(prop.id);
+  //             successCount++;
+  //           }
+  //         } else {
+  //           toast(`Transferring properties to ${creditorPlayer.username}...`);
+  //           for (const prop of aiProperties) {
+  //             try {
+  //               await handlePropertyTransfer(prop.id, creditorRealPlayerId, "");
+  //               successCount++;
+  //             } catch (err) {
+  //               console.error(`Transfer failed for property ${prop.id}`, err);
+  //             }
+  //           }
+  //           toast.success(
+  //             `${successCount}/${aiProperties.length} properties transferred to ${creditorPlayer.username}!`
+  //           );
+  //         }
+  //       } else {
+  //         toast(`Returning properties to bank...`);
+  //         for (const prop of aiProperties) {
+  //           try {
+  //             await handleDeleteGameProperty(prop.id);
+  //             successCount++;
+  //           } catch (err) {
+  //             console.error(`Delete failed for property ${prop.id}`, err);
+  //           }
+  //         }
+  //         toast.success(`${successCount}/${aiProperties.length} properties returned to bank.`);
+  //       }
 
-    handleAiLiquidationAndPossibleBankruptcy();
-  }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
+  //       // Remove AI player
+  //       await apiClient.post("/game-players/leave", {
+  //         address: currentPlayer.address,
+  //         code: game.code,
+  //         reason: "bankruptcy",
+  //       });
+
+  //       toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
+  //     } catch (err: any) {
+  //       toast.dismiss(toastId);
+  //       console.error("AI bankruptcy process failed:", err);
+  //       toast.error("AI bankruptcy process failed");
+  //     }
+  //   };
+
+  //   handleAiLiquidationAndPossibleBankruptcy();
+  // }, [
+  //   isAITurn,
+  //   currentPlayer?.user_id,
+  //   currentPlayer?.balance,
+  //   currentPlayer?.address,
+  //   game_properties,
+  //   game.id,
+  //   game.code,
+  //   game.players,
+  //   refreshTrades,
+  // ]);
 
   useEffect(() => {
     if (!me || game.players.length !== 2) return;

@@ -565,12 +565,12 @@ useEffect(() => {
   handleAiLiquidationAndPossibleBankruptcy();
 }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
   useEffect(() => {
-    if (!me || game.players.length !== 2) return;
+    if (!me) return;
 
-    const aiPlayer = game.players.find(p => isAIPlayer(p));
+    const aiPlayer = game.players.find(p => isAIPlayer(p) && p.user_id !== me.user_id);
     const humanPlayer = me;
 
-    if ((!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
+    if (game.players.length <= 2 && (!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,

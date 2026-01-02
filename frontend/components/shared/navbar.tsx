@@ -7,7 +7,7 @@ import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Globe } from 'lucide-react';
 import useSound from 'use-sound';
-import { useAppKitAccount } from '@reown/appkit/react';
+import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
@@ -24,6 +24,10 @@ const NavBar = () => {
   });
 
   const { address, isConnected } = useAppKitAccount();
+  const { caipNetwork, chainId } = useAppKitNetwork();
+
+  // Prioritize shortName if available (e.g., "Ethereum"), fall back to name, then chain ID
+  const networkDisplay =  caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Network');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [play, { pause }] = useSound('/sound/monopoly-theme.mp3', {
@@ -116,19 +120,21 @@ const NavBar = () => {
           {!isConnected ? (
             <button
               onClick={() => setIsConnectModalOpen(true)}
-               className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
+              className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
             >
               Connect
             </button>
           ) : (
             <div className="flex items-center gap-3">
-              {/* Network Switcher Button */}
+              {/* Network Switcher Button – Now properly shows network name */}
               <button
                 onClick={() => setIsNetworkModalOpen(true)}
                 className="px-4 py-3 rounded-[12px] bg-[#003B3E] hover:bg-[#005458] border border-[#00F0FF]/30 text-[#00F0FF] font-orbitron font-medium text-sm transition-all flex items-center gap-2 shadow-md"
               >
                 <Globe className="w-4 h-4" />
-                <span>Network</span>
+                <span className="truncate max-w-[120px]">
+                  {networkDisplay}
+                </span>
               </button>
 
               {/* Wallet Address + Avatar */}
