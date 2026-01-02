@@ -2,8 +2,8 @@
 
 import GameBoard from "@/components/game/board/game-board";
 import GameRoom from "@/components/game/game-room";
-import GamePlayers from "@/components/game/player/players";
-import MobileGamePlayers from "@/components/game/player/players-mobile";
+import GamePlayers from "@/components/game/player/player";
+import MobileGamePlayers from "@/components/game/player/mobile/player";
 import { apiClient } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -119,17 +119,16 @@ export default function GamePlayPage() {
               game={game}
               properties={properties}
               game_properties={game_properties}
-              // my_properties={my_properties}
               me={me}
             />
           )}
           {activeTab === 'players' && (
             <MobileGamePlayers
               game={game}
-              properties={properties}
-              game_properties={game_properties}
-              my_properties={my_properties}
-              me={me}
+        properties={properties}
+        game_properties={game_properties}
+        my_properties={my_properties}
+        me={me}
             />
           )}
           {activeTab === 'chat' && (
@@ -175,7 +174,6 @@ export default function GamePlayPage() {
           game={game}
           properties={properties}
           game_properties={game_properties}
-          my_properties={my_properties}
           me={me}
         />
       </div>

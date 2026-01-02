@@ -241,7 +241,7 @@ export default function GameWaiting(): JSX.Element {
         const gameData = res.data.data;
 
         if (gameData.status === "RUNNING") {
-          router.push(`/ai-play?gameCode=${encodeURIComponent(gameCode)}`);
+          router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
           return;
         }
 
@@ -259,7 +259,7 @@ export default function GameWaiting(): JSX.Element {
             { status: "RUNNING" }
           );
           if (updateRes?.data?.success)
-            router.push(`/ai-play?gameCode=${gameCode}`);
+            router.push(`/game-play?gameCode=${gameCode}`);
         }
       } catch (err: any) {
         if (!mountedRef.current) return;
