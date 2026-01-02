@@ -988,22 +988,22 @@ useEffect(() => {
       <DiceAnimation isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)} roll={roll} />
 
   {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
-  <button
+ <button
     onClick={() => ROLL_DICE(false)}
     className="
       w-full max-w-xs mx-auto
-      py-4 px-8
+      py-3 px-8
       bg-gradient-to-r from-emerald-500 to-teal-600
       hover:from-emerald-600 hover:to-teal-700
       active:from-emerald-700 active:to-teal-800
-      text-white font-bold text-xl tracking-wide
+      text-white font-bold text-lg tracking-wide
       rounded-full
-      shadow-lg shadow-emerald-500/30
+      shadow-md shadow-emerald-500/30
       border border-white/20
       transition-all duration-300
-      hover:scale-105 hover:shadow-xl hover:shadow-cyan-500/40
+      hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40
       active:scale-95
-      mt-6
+      mt-5
     "
   >
     Roll Dice
