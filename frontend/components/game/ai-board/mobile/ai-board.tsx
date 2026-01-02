@@ -30,7 +30,7 @@ const JAIL_POSITION = 10;
 // BIGGER BOARD - Adaptive scale for mobile
 // =============================================
 const MIN_SCALE = 1.0;
-const MAX_SCALE = 1.15;
+const MAX_SCALE = 1.0;
 const BASE_WIDTH_REFERENCE = 390; // typical older phone width reference
 
 const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
