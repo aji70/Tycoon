@@ -6,6 +6,7 @@ import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
+import { useGameTrades } from "@/hooks/useGameTrades";
 
 import Board from "./board";
 import DiceAnimation from "./dice-animation";
@@ -29,8 +30,8 @@ const JAIL_POSITION = 10;
 // =============================================
 // BIGGER BOARD - Adaptive scale for mobile
 // =============================================
-const MIN_SCALE = 1.0;
-const MAX_SCALE = 1.0;
+const MIN_SCALE = 1.05;
+const MAX_SCALE = 1.05;
 const BASE_WIDTH_REFERENCE = 390; // typical older phone width reference
 
 const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
@@ -175,10 +176,61 @@ const MobileGameLayout = ({
   // Dynamic board scale based on screen size (bigger on mobile)
   const [defaultScale, setDefaultScale] = useState(1.45);
 
+  // ==== TRADE NOTIFICATION BELL ====
+  const [bellFlash, setBellFlash] = useState(false);
+  const prevIncomingTradeCount = useRef(0);
+
+  // Fetch trade data (same hook used in sidebar)
+  const {
+    tradeRequests = [],
+    refreshTrades,
+  } = useGameTrades({
+    gameId: game?.id,
+    myUserId: me?.user_id,
+    players: game?.players ?? [],
+  });
+
+  // Incoming trades aimed at the current player (me)
+  const myIncomingTrades = useMemo(() => {
+    if (!me) return [];
+    return tradeRequests.filter(
+      (t) => t.target_player_id === me.user_id && t.status === "pending"
+    );
+  }, [tradeRequests, me]);
+
+  // Detect new incoming trade and show notification
+  useEffect(() => {
+    const currentCount = myIncomingTrades.length;
+    const previousCount = prevIncomingTradeCount.current;
+
+    if (currentCount > previousCount && previousCount > 0) {
+      // New trade arrived (skip initial load)
+      const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
+      const senderName = latestTrade?.player?.username || "Someone";
+
+      toast.custom(
+        <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 rounded-xl shadow-2xl">
+          <Bell className="w-6 h-6 animate-bell-ring" />
+          <div>
+            <div className="font-bold">New Trade Offer!</div>
+            <div className="text-sm opacity-90">{senderName} sent you a trade</div>
+          </div>
+        </div>,
+        { duration: 5000, position: "top-center" }
+      );
+
+      // Flash the bell icon
+      setBellFlash(true);
+      setTimeout(() => setBellFlash(false), 800);
+    }
+
+    prevIncomingTradeCount.current = currentCount;
+  }, [myIncomingTrades]);
+
   useEffect(() => {
     const calculateScale = () => {
       const width = window.innerWidth;
-      let scale = (width / BASE_WIDTH_REFERENCE) * 1.48; // slightly higher base
+      let scale = (width / BASE_WIDTH_REFERENCE) * 1.48;
       scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
       setDefaultScale(scale);
     };
@@ -233,10 +285,12 @@ const MobileGameLayout = ({
       if (propertiesRes?.data?.success && propertiesRes.data.data) {
         setCurrentGameProperties(propertiesRes.data.data);
       }
+      // Also refresh trades when game updates
+      refreshTrades?.();
     } catch (err) {
       console.error("Sync failed:", err);
     }
-  }, [game.code, game.id]);
+  }, [game.code, game.id, refreshTrades]);
 
   // Buy prompt logic
   useEffect(() => {
@@ -314,7 +368,7 @@ const MobileGameLayout = ({
     const myPos = animatedPositions[me!.user_id] ?? me?.position ?? 0;
     const coord = TOKEN_POSITIONS[myPos] || { x: 50, y: 50 };
 
-    setBoardScale(defaultScale * 1.8); // keep zoom-in effect relative to new base
+    setBoardScale(defaultScale * 1.8);
     setBoardTransformOrigin(`${coord.x}% ${coord.y}%`);
     setIsFollowingMyMove(true);
   }, [isMyTurn, roll, hasMovementFinished, me, animatedPositions, defaultScale]);
@@ -956,6 +1010,7 @@ const MobileGameLayout = ({
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
+      {/* Refresh Button */}
       <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
@@ -963,15 +1018,35 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      {/* Player Status + My Balance (small and clean) */}
+      {/* Bell Notification – Trade Incoming Indicator */}
+      <div className="fixed top-4 right-20 z-50 flex items-center">
+        <motion.button
+          animate={bellFlash ? { rotate: [0, -20, 20, -20, 20, 0] } : { rotate: 0 }}
+          transition={{ duration: 0.6 }}
+          onClick={() => {
+            toast("Check the Trades section in the sidebar →", { duration: 4000 });
+            // If you have a way to open the sidebar programmatically, do it here
+          }}
+          className="relative p-3 bg-purple-700/80 backdrop-blur-md rounded-full shadow-lg hover:bg-purple-600 transition"
+        >
+          <Bell className="w-7 h-7 text-white" />
+
+          {/* Badge with count */}
+          {myIncomingTrades.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
+              {myIncomingTrades.length}
+            </span>
+          )}
+        </motion.button>
+      </div>
+
+      {/* Player Status + My Balance */}
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
 
         {me && (
           <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20">
             <span className="text-sm opacity-80">Bal:</span>
-            
-            {/* Balance with dynamic color matching PlayerList */}
             {(() => {
               const balance = me.balance ?? 0;
               const getBalanceColor = (bal: number): string => {
@@ -992,7 +1067,7 @@ const MobileGameLayout = ({
         )}
       </div>
 
-      {/* Board with precise token-centered zoom - now bigger by default */}
+      {/* Board */}
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
         <motion.div
           animate={{ scale: boardScale }}
@@ -1019,25 +1094,13 @@ const MobileGameLayout = ({
       {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
         <button
           onClick={() => ROLL_DICE(false)}
-          className="
-            w-full max-w-xs mx-auto
-            py-3 px-8 mb-8
-            bg-gradient-to-r from-emerald-500 to-teal-600
-            hover:from-emerald-600 hover:to-teal-700
-            active:from-emerald-700 active:to-teal-800
-            text-white font-bold text-lg tracking-wide
-            rounded-full
-            shadow-md shadow-emerald-500/30
-            border border-white/20
-            transition-all duration-300
-            hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40
-            active:scale-95
-          "
+          className="w-full max-w-xs mx-auto py-3 px-8 mb-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95"
         >
           Roll Dice
         </button>
       )}
 
+      {/* Buy Prompt Modal */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
           <motion.div
@@ -1078,6 +1141,7 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
+      {/* Property Detail Modal */}
       <AnimatePresence>
         {selectedProperty && (
           <motion.div
@@ -1169,6 +1233,7 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
+      {/* Perks Button */}
       <button
         onClick={() => setShowPerksModal(true)}
         className="fixed bottom-20 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
@@ -1176,6 +1241,7 @@ const MobileGameLayout = ({
         <Sparkles className="w-8 h-8 text-black" />
       </button>
 
+      {/* Perks Modal */}
       <AnimatePresence>
         {showPerksModal && (
           <>
@@ -1247,6 +1313,18 @@ const MobileGameLayout = ({
         fetchUpdatedGame={fetchUpdatedGame}
         showToast={showToast}
       />
+
+      {/* Bell ring animation keyframes */}
+      <style jsx>{`
+        @keyframes bell-ring {
+          0%, 100% { transform: rotate(0deg); }
+          10%, 30%, 50%, 70%, 90% { transform: rotate(-15deg); }
+          20%, 40%, 60%, 80% { transform: rotate(15deg); }
+        }
+        .animate-bell-ring {
+          animation: bell-ring 0.8s ease-in-out;
+        }
+      `}</style>
 
       <Toaster
         position="top-center"
