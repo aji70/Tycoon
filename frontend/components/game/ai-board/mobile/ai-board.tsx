@@ -166,6 +166,42 @@ const MobileGameLayout = ({
     }
   }, [game.code, game.id]);
 
+  // Add this useEffect in MobileGameLayout, near the other useEffects
+useEffect(() => {
+  if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+    setBuyPrompted(false);
+    return;
+  }
+
+  const pos = landedPositionThisTurn.current;
+  const square = properties.find(p => p.id === pos);
+
+  if (!square || square.price == null) {
+    setBuyPrompted(false);
+    return;
+  }
+
+  const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
+  const action = PROPERTY_ACTION(pos);
+  const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+
+  const canBuy = !isOwned && isBuyableType;
+
+  setBuyPrompted(canBuy);
+
+  if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
+    showToast(`Not enough money to buy ${square.name}`, "error");
+  }
+}, [
+  roll,
+  landedPositionThisTurn.current,
+  hasMovementFinished,
+  properties,
+  currentGameProperties,
+  currentPlayer,
+  showToast,
+]);
+
   useEffect(() => {
     const interval = setInterval(fetchUpdatedGame, 3000);
     return () => clearInterval(interval);
