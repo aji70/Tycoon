@@ -9,7 +9,6 @@ type CenterAreaProps = {
   isMyTurn: boolean;
   currentPlayer?: Player;
   playerCanRoll: boolean;
-  isInsolvent: boolean;
   isRolling: boolean;
   roll: { die1: number; die2: number; total: number } | null;
   buyPrompted: boolean;
@@ -27,7 +26,6 @@ export default function CenterArea({
   isMyTurn,
   currentPlayer,
   playerCanRoll,
-  isInsolvent,
   isRolling,
   roll,
   buyPrompted,
@@ -49,73 +47,73 @@ export default function CenterArea({
       {roll && !isRolling && <RollResult roll={roll} />}
 
       {/* Game Title */}
-      <h1 className="text-4xl lg:text-6xl font-bold text-[#F0F7F7] font-orbitron text-center mb-8 tracking-wider">
+      <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-6 z-10">
         Tycoon
       </h1>
 
-      {/* Main Action Area */}
-      {!buyPrompted && (
-        <>
-          {/* Insolvent State */}
-          {isInsolvent ? (
-            <button
-              onClick={onDeclareBankruptcy}
-              disabled={isPending}
-              className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50 disabled:opacity-70"
-            >
-              {isPending ? "Ending Game..." : "💔 Declare Bankruptcy"}
-            </button>
-          ) : isMyTurn && playerCanRoll && !roll && !isRolling ? (
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onRollDice}
-              className="px-10 py-5 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black text-3xl rounded-full shadow-2xl"
-            >
-              ROLL DICE
-            </motion.button>
-          ) : (
-            !isMyTurn && (
-              <div className="text-center">
-                <p className="text-2xl text-gray-400 animate-pulse mb-2">
-                  Waiting for your turn...
-                </p>
-                <p className="text-3xl text-cyan-300 font-bold">
-                  {currentPlayer?.username}'s turn
-                </p>
-              </div>
-            )
-          )}
-        </>
+      {/* Player's Turn: Roll or Bankruptcy */}
+      {isMyTurn && !roll && !isRolling && (
+        playerCanRoll ? (
+          <button
+            onClick={onRollDice}
+            className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-xl"
+          >
+            Roll Dice
+          </button>
+        ) : (
+          <button
+            onClick={onDeclareBankruptcy}
+            disabled={isPending}
+            className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50 disabled:opacity-70"
+          >
+            {isPending ? "Ending Game..." : "💔 Declare Bankruptcy"}
+          </button>
+        )
       )}
 
-      {/* Buy Property Prompt - Inline, clean */}
-      {buyPrompted && currentProperty && (
-        <div className="flex gap-6 flex-wrap justify-center mt-6">
+      {/* Buy Property Prompt */}
+      {isMyTurn && buyPrompted && currentProperty && (
+        <div className="flex gap-4 flex-wrap justify-center mt-4">
           <button
             onClick={onBuyProperty}
             disabled={currentProperty.price != null && currentPlayerBalance < currentProperty.price}
-            className={`px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-2xl rounded-full shadow-xl transform transition-all ${
+            className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
               currentProperty.price != null && currentPlayerBalance < currentProperty.price
                 ? "opacity-50 cursor-not-allowed"
-                : "hover:from-green-400 hover:to-emerald-500 hover:scale-110 active:scale-95"
+                : ""
             }`}
           >
-            BUY • ${currentProperty.price?.toLocaleString()}
+            Buy for ${currentProperty.price}
           </button>
           <button
             onClick={onSkipBuy}
-            className="px-8 py-4 bg-gray-600 hover:bg-gray-500 text-white font-bold text-2xl rounded-full shadow-xl transform hover:scale-105 active:scale-95 transition"
+            className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
           >
-            SKIP
+            Skip
           </button>
         </div>
       )}
 
-      {/* Action Log - Naturally at bottom */}
-      <div className="mt-8 w-full max-w-3xl ml-52">
-        <ActionLog history={history} />
-      </div>
+      {/* AI Turn Indicator */}
+      {!isMyTurn && (
+        <div className="mt-5 text-center z-10">
+          <motion.h2
+            className="text-2xl font-bold text-pink-300 mb-3"
+            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            {currentPlayer?.username} is playing…
+          </motion.h2>
+     
+          <div className="flex justify-center mt-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
+          </div>
+         
+        </div>
+      )}
+
+      {/* Action Log at the bottom */}
+      <ActionLog history={history} />
     </div>
   );
 }

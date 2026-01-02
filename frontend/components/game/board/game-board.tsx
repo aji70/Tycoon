@@ -1,89 +1,59 @@
 "use client";
 
 import React, {
-  Component,
-  ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
-import PropertyCard from "../cards/property-card";
-import SpecialCard from "../cards/special-card";
-import CornerCard from "../cards/corner-card";
+import { toast, Toaster } from "react-hot-toast";
+
 import {
   Game,
   GameProperty,
   Property,
   Player,
   PROPERTY_ACTION,
-  CardTypes,
 } from "@/types/game";
-import { useAccount } from "wagmi";
-import { getPlayerSymbol } from "@/lib/types/symbol";
 import { apiClient } from "@/lib/api";
-import { useQueryClient } from "@tanstack/react-query";
-import toast, { Toaster } from "react-hot-toast";
+
+// Child components
+import BoardSquare from "./board-square";
+import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+import { BankruptcyModal } from "../modals/bankruptcy";
+import { CardModal } from "../modals/cards";
+import { PropertyActionModal } from "../modals/property-action";
+import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 
-/* ============================================
-   TYPES
-   ============================================ */
+const MONOPOLY_STATS = {
+  landingRank: {
+    5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
+    19: 11, 21: 12, 23: 13, 24: 14, 26: 15, 27: 16, 29: 17, 31: 18, 32: 19, 34: 20, 37: 21, 39: 22,
+    1: 30, 2: 25, 3: 29, 4: 35, 12: 32, 17: 28, 22: 26, 28: 33, 33: 27, 36: 24, 38: 23,
+  },
+  colorGroups: {
+    brown: [1, 3],
+    lightblue: [6, 8, 9],
+    pink: [11, 13, 14],
+    orange: [16, 18, 19],
+    red: [21, 23, 24],
+    yellow: [26, 27, 29],
+    green: [31, 32, 34],
+    darkblue: [37, 39],
+    railroad: [5, 15, 25, 35],
+    utility: [12, 28],
+  },
+};
 
-interface GameProps {
-  game: Game;
-  properties: Property[];
-  game_properties: GameProperty[];
-  my_properties: Property[];
-  me: Player | null;
-}
+const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
-
-interface CardPopup {
-  type: "chance" | "community_chest";
-  message: string;
-  action?: string;
-}
-
-/* ============================================
-   ERROR BOUNDARY
-   ============================================ */
-
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="text-red-400 text-center mt-10">
-          Something went wrong. Please refresh the page.
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-/* ============================================
-   CONSTANTS
-   ============================================ */
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
-
-/* ============================================
-   HELPERS
-   ============================================ */
+const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
@@ -92,745 +62,682 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
   return total === 12 ? null : { die1, die2, total };
 };
 
-const isTopHalf = (square: any) => {
-  return square.grid_row === 1;
-};
+const JAIL_POSITION = 10;
 
-/* ============================================
-   SAFE STATE HOOK
-   ============================================ */
+const isAIPlayer = (player: Player | undefined): boolean =>
+  player?.username?.toLowerCase().includes("ai_") ||
+  player?.username?.toLowerCase().includes("bot") ||
+  false;
 
-function useSafeState<S>(initial: S) {
-  const isMounted = useRef(false);
-  const [state, setState] = useState(initial);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  const safeSetState = useCallback(
-    (value: React.SetStateAction<S>) => {
-      if (isMounted.current) setState(value);
-    },
-    []
-  );
-
-  return [state, safeSetState] as const;
-}
-
-/* ============================================
-   GAME BOARD COMPONENT
-   ============================================ */
-
-const DiceFace = ({ value }: { value: number }) => {
-  const dotPositions: Record<number, [number, number][]> = {
-    1: [[50, 50]],
-    2: [[28, 28], [72, 72]],
-    3: [[28, 28], [50, 50], [72, 72]],
-    4: [[28, 28], [28, 72], [72, 28], [72, 72]],
-    5: [[28, 28], [28, 72], [50, 50], [72, 28], [72, 72]],
-    6: [[28, 28], [28, 50], [28, 72], [72, 28], [72, 50], [72, 72]],
-  };
-
-  return (
-    <>
-      {dotPositions[value].map(([x, y], i) => (
-        <div
-          key={i}
-          className="absolute w-7 h-7 bg-black rounded-full shadow-inner"
-          style={{
-            top: `${y}%`,
-            left: `${x}%`,
-            transform: "translate(-50%, -50%)",
-          }}
-        />
-      ))}
-    </>
-  );
-};
-
-const GameBoard = ({
+const Board = ({
   game,
   properties,
   game_properties,
-  my_properties,
   me,
-}: GameProps) => {
-  const { address } = useAccount();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
-  /* ---------- State ---------- */
-  const [players, setPlayers] = useSafeState<Player[]>(game?.players ?? []);
-  const [boardData] = useSafeState<Property[]>(properties ?? []);
-  const [error, setError] = useSafeState<string | null>(null);
-  const [isRolling, setIsRolling] = useSafeState(false);
-  const [rollAgain, setRollAgain] = useSafeState(false);
-  const [roll, setRoll] = useSafeState<{ die1: number; die2: number; total: number } | null>(
-    null
-  );
-  const [pendingRoll, setPendingRoll] = useSafeState<number>(0);
-  const [canRoll, setCanRoll] = useSafeState<boolean>(false);
-  const [actionLock, setActionLock] = useSafeState<"ROLL" | "END" | null>(null);
-  const [currentCard, setCurrentCard] = useSafeState<CardPopup | null>(null);
-
-  /* ---------- Locks ---------- */
-  const lockAction = useCallback(
-    (type: "ROLL" | "END") => {
-      if (actionLock) return false;
-      setActionLock(type);
-      return true;
-    },
-    [actionLock, setActionLock]
-  );
-
-  const unlockAction = useCallback(() => setActionLock(null), [setActionLock]);
-
-  const [currentAction, setCurrentAction] = useSafeState<string | null>(null);
-  const [currentProperty, setCurrentProperty] = useSafeState<Property | null>(null);
-  const [currentGameProperty, setCurrentGameProperty] = useSafeState<GameProperty | null>(null);
+}: {
+  game: Game;
+  properties: Property[];
+  game_properties: GameProperty[];
+  me: Player | null;
+}) => {
+  const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
+  const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  const [isRolling, setIsRolling] = useState(false);
+  const [pendingRoll, setPendingRoll] = useState(0);
+  const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
-  const isMyTurn = me?.user_id && game?.next_player_id === me.user_id;
+  const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
+  const [hasMovementFinished, setHasMovementFinished] = useState(false);
+  const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [isSpecialMove, setIsSpecialMove] = useState(false);
 
-  // Track last processed position to prevent multiple triggers
-  const lastProcessedPosition = useRef<number | null>(null);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardData, setCardData] = useState<{
+    type: "chance" | "community";
+    text: string;
+    effect?: string;
+    isGood: boolean;
+  } | null>(null);
+  const [cardPlayerName, setCardPlayerName] = useState("");
+  const prevHistoryLength = useRef(game.history?.length ?? 0);
 
-  /* ---------- React Query Utilities ---------- */
-  const forceRefetch = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["game", game.code] });
-  }, [queryClient, game.code]);
+  const landedPositionThisTurn = useRef<number | null>(null);
+  const turnEndInProgress = useRef(false);
+  const lastToastMessage = useRef<string | null>(null);
+  const rolledForPlayerId = useRef<number | null>(null);
+  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
-  /* ---------- Fetch Updated Game ---------- */
-  const fetchUpdatedGame = useCallback(async () => {
-    try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`)
-      if (res?.data?.success) {
-        const gameData = res.data?.data;
-        if (gameData && Array.isArray((gameData as any).players)) {
-          setPlayers((prev) => {
-            const changed = JSON.stringify(prev) !== JSON.stringify((gameData as any).players);
-            return changed ? (gameData as any).players : prev;
-          });
-        }
-        return gameData;
-      }
-    } catch (err) {
-      console.error("fetchUpdatedGame error:", err);
-      return null;
-    }
-  }, [game.code, setPlayers]);
+  const currentPlayerId = game.next_player_id ?? -1;
+  const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
-  /* ---------- Turn Management ---------- */
-  const checkCanRoll = useCallback(async () => {
-    if (!me?.user_id) return;
+  const isMyTurn = me?.user_id === currentPlayerId;
+  const isAITurn = isAIPlayer(currentPlayer);
 
-    try {
-      const res = await apiClient.post<ApiResponse>(
-        "/game-players/can-roll",
-        { user_id: me.user_id, game_id: game.id }
-      );
-      const allowed = Boolean(res?.data?.data?.canRoll);
-      setCanRoll(allowed);
-
-      if (allowed) toast.success("🎲 It's your turn — roll the dice!");
-    } catch (err) {
-      console.error("checkCanRoll error:", err);
-      setCanRoll(false);
-    }
-  }, [me?.user_id, game.id, setCanRoll]);
-
-  useEffect(() => {
-    checkCanRoll();
-    const poll = async () => {
-      await fetchUpdatedGame();
-    };
-    poll();
-    const interval = setInterval(poll, 10000);
-    return () => clearInterval(interval);
-  }, [fetchUpdatedGame, checkCanRoll]);
-
-  // Property Action & Card Trigger
-
-  const stableProperties = useMemo(() => properties, [properties]);
-
-  useEffect(() => {
-    if (!stableProperties.length || !me?.position || !game?.players) return;
-
-    // Only process if position has changed
-    if (me.position === lastProcessedPosition.current) return;
-
-    lastProcessedPosition.current = me.position;
-
-    const square = stableProperties.find((p) => p.id === me.position);
-    if (!square) return;
-
-    const game_property =
-      game_properties.length === 0
-        ? null
-        : game_properties.find((p) => p.property_id === square.id);
-
-    const action = PROPERTY_ACTION(square.id);
-
-    setCurrentProperty(square);
-    setCurrentGameProperty(game_property || null);
-    setCurrentAction(action);
-
-    const meInGame = game.players.find((p) => p.user_id === me?.user_id);
-    const hasRolled = (meInGame?.rolls ?? 0) > 0;
-
-    if (
-      isMyTurn &&
-      !buyPrompted &&
-      hasRolled &&
-      isRolling === false &&
-      roll !== null &&
-      action === "land" &&
-      !game_property
-    ) {
-      toast("💰 You can buy this property!", { icon: "🏠" });
-      setBuyPrompted(true);
-    }
-
-    if (!isMyTurn || roll === null || meInGame?.rolls === 0) {
-      setBuyPrompted(false);
-    }
-  }, [
-    me?.position,
-    stableProperties,
-    game_properties,
-    game?.players,
-    isMyTurn,
-    isRolling,
-    roll,
-    setCurrentProperty,
-    setCurrentGameProperty,
-    setCurrentAction,
-    buyPrompted,
-  ]);
-
-  // Extract real card message from action log
-  const latestCardEntry = useMemo<CardPopup | null>(() => {
-    if (!game.history || game.history.length === 0) return null;
-
-    const entry = game.history[game.history.length - 1];
-    const rawComment = entry.comment ?? "";
-    const comment = rawComment.toLowerCase();
-    if (
-      !comment.includes("drew chance") &&
-      !comment.includes("drew community chest") &&
-      !comment.includes("chance:") &&
-      !comment.includes("community chest:")
-    ) return null;
-
-    const isChance = comment.includes("chance");
-
-    const match = rawComment.match(/(?:drew chance|drew community chest)[:-]?\s*(.+)/i);
-    const message = match ? match[1].trim() : rawComment;
-
-    return {
-      type: isChance ? ("chance" as const) : ("community_chest" as const),
-      message: message || "Card drawn",
-    };
-  }, [game.history]);
-
-  // Auto-show card when a new card appears in the log
-  const historyLengthRef = useRef(0);
-  useEffect(() => {
-    if (latestCardEntry && game.history.length > historyLengthRef.current) {
-      setCurrentCard(latestCardEntry);
-      const timer = setTimeout(() => setCurrentCard(null), 8000);
-      historyLengthRef.current = game.history.length;
-      return () => clearTimeout(timer);
-    }
-  }, [game.history, latestCardEntry, setCurrentCard]);
-
-  /* ---------- Buy Property ---------- */
-  const BUY_PROPERTY = useCallback(async () => {
-    if (!me?.user_id || !currentProperty) return;
-
-    try {
-      const res = await apiClient.post<ApiResponse>(
-        "/game-properties/buy",
-        {
-          user_id: me.user_id,
-          game_id: game.id,
-          property_id: currentProperty.id,
-        }
-      );
-
-      if (res?.data?.success) {
-
-        toast.success(`🏠 You bought ${currentProperty.name}!`);
-        await fetchUpdatedGame();
-        forceRefetch();
-      }
-      toast.error(res.data?.message || "Failed to buy property.");
-      return;
-    } catch (err) {
-      console.error("BUY_PROPERTY error:", err);
-      toast.error("Unable to complete property purchase.");
-    }
-  }, [me?.user_id, currentProperty, game.id, fetchUpdatedGame, forceRefetch]);
-
-  /* ---------- End Turn ---------- */
-  const END_TURN = useCallback(
-    async (id?: number) => {
-      if (!id || !lockAction("END")) return;
-
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-players/end-turn", {
-          user_id: id,
-          game_id: game.id,
-        });
-
-        if (!res?.data?.success) throw new Error(res?.data?.message || "Server rejected turn end.");
-
-        const updatedGame = await fetchUpdatedGame();
-        if (updatedGame?.players) {
-          setPlayers(updatedGame.players);
-          toast.success("Turn ended. Waiting for next player...");
-          setCanRoll(false);
-          setRoll(null);
-        }
-
-        forceRefetch();
-      } catch (err: any) {
-        console.error("END_TURN error:", err);
-        toast.error(err?.response?.data?.message || "Failed to end turn.");
-        forceRefetch();
-      } finally {
-        unlockAction();
-      }
-    },
-    [game.id, fetchUpdatedGame, lockAction, unlockAction, forceRefetch, setPlayers, setCanRoll, setRoll]
+  const playerCanRoll = Boolean(
+    isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
   );
 
-  /* ---------- Roll Dice ---------- */
-  const ROLL_DICE = useCallback(async () => {
+  const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && currentPlayer?.in_jail === true;
+
+  
+
+  // const [endGameCandidate, setEndGameCandidate] = useState<{
+  //   winner: Player | null;
+  //   position: number;
+  //   balance: bigint;
+  // }>({ winner: null, position: 0, balance: BigInt(0) });
+
+  const currentProperty = useMemo(() => {
+    return currentPlayer?.position
+      ? properties.find((p) => p.id === currentPlayer.position) ?? null
+      : null;
+  }, [currentPlayer?.position, properties]);
+
+  const justLandedProperty = useMemo(() => {
+    if (landedPositionThisTurn.current === null) return null;
+    return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
+  }, [landedPositionThisTurn.current, properties]);
+
+  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+  const onChainGameId = contractGame?.id;
+
+  // const { write: endGame, isPending, reset } = useEndAiGame(
+  //   Number(onChainGameId),
+  //   endGameCandidate.position,
+  //   endGameCandidate.balance,
+  //   !!endGameCandidate.winner
+  // );
+
+  if (!game || !Array.isArray(properties) || properties.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white text-2xl">
+        Loading game board...
+      </div>
+    );
+  }
+
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    if (message === lastToastMessage.current) return;
+    lastToastMessage.current = message;
+
+    toast.dismiss();
+    if (type === "success") toast.success(message);
+    else if (type === "error") toast.error(message);
+    else toast(message, { icon: "➤" });
+  }, []);
+
+  // Sync players
+  useEffect(() => {
+    if (game?.players) setPlayers(game.players);
+  }, [game?.players]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+        if (res?.data?.success && res.data.data?.players) {
+          setPlayers(res.data.data.players);
+        }
+      } catch (err) {
+        console.error("Sync failed:", err);
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [game.code]);
+
+  // Reset turn state
+  useEffect(() => {
+    setRoll(null);
+    setBuyPrompted(false);
+    setIsRolling(false);
+    setPendingRoll(0);
+    landedPositionThisTurn.current = null;
+    rolledForPlayerId.current = null;
+    turnEndInProgress.current = false;
+    lastToastMessage.current = null;
+    setAnimatedPositions({});
+    setHasMovementFinished(false);
+    setStrategyRanThisTurn(false);
+  }, [currentPlayerId]);
+
+  const lockAction = useCallback((type: "ROLL" | "END") => {
+    if (actionLock) return false;
+    setActionLock(type);
+    return true;
+  }, [actionLock]);
+
+  const unlockAction = useCallback(() => setActionLock(null), []);
+
+  const END_TURN = useCallback(async () => {
+    if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
+
+    turnEndInProgress.current = true;
+
+    try {
+      await apiClient.post("/game-players/end-turn", {
+        user_id: currentPlayerId,
+        game_id: game.id,
+      });
+      showToast("Turn ended", "success");
+    } catch {
+      showToast("Failed to end turn", "error");
+    } finally {
+      unlockAction();
+      turnEndInProgress.current = false;
+    }
+  }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
+
+  const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
+    if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
+      showToast("Cannot buy right now", "error");
+      return;
+    }
+
+    const playerBalance = currentPlayer.balance ?? 0;
+    if (playerBalance < justLandedProperty.price) {
+      showToast("Not enough money!", "error");
+      return;
+    }
+
+    try {
+      await apiClient.post("/game-properties/buy", {
+        user_id: currentPlayer.user_id,
+        game_id: game.id,
+        property_id: justLandedProperty.id,
+      });
+
+      showToast(isAiAction ? `AI bought ${justLandedProperty.name}!` : `You bought ${justLandedProperty.name}!`, "success");
+
+      setBuyPrompted(false);
+      landedPositionThisTurn.current = null;
+      setTimeout(END_TURN, 800);
+    } catch {
+      showToast("Purchase failed", "error");
+    }
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
+
+  const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
+  // Prevent double calls / race conditions
+  if (landedPositionThisTurn.current !== null) return;
+
+  landedPositionThisTurn.current = newPosition;
+  setIsSpecialMove(isSpecial);
+
+  // Force buy prompt check
+  setRoll({ die1: 0, die2: 0, total: 0 }); // fake roll just to trigger useEffect
+  setHasMovementFinished(true);
+
+  // Optional: tiny delay for better UX
+  setTimeout(() => {
+    const square = properties.find(p => p.id === newPosition);
+    if (square?.price != null) {
+      const isOwned = game_properties.some(gp => gp.property_id === newPosition);
+      if (!isOwned && ["land", "railway", "utility"].includes(PROPERTY_ACTION(newPosition) || "")) {
+        setBuyPrompted(true);
+        toast(`Landed on ${square.name}! ${isSpecial ? "(Special Move)" : ""}`, { icon: "✨" });
+      }
+    }
+  }, 300);
+}, [properties, game_properties, setBuyPrompted, setHasMovementFinished]);
+
+const endTurnAfterSpecialMove = useCallback(() => {
+  setBuyPrompted(false);
+  landedPositionThisTurn.current = null;
+  setIsSpecialMove(false);
+  setTimeout(END_TURN, 800);
+}, [END_TURN]);
+
+  const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
+    if (!propertyId || !newPlayerId) {
+      toast("Cannot transfer: missing property or player");
+      return;
+    }
+
+    try {
+      const response = await apiClient.put<ApiResponse>(
+        `/game-properties/${propertyId}`,
+        {
+          game_id: game.id,
+          player_id: newPlayerId,
+        }
+      );
+
+      if (response.data?.success) {
+        toast.success("Property transferred successfully! 🎉");
+      } else {
+        throw new Error(response.data?.message || "Transfer failed");
+      }
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to transfer property";
+
+      toast.error(message);
+      console.error("Property transfer failed:", error);
+    }
+  };
+
+  // ── AI STRATEGY HELPERS ─────────────────────────────────────
+
+  const getPlayerOwnedProperties = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+    if (!playerAddress) return [];
+    return game_properties
+      .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase())
+      .map(gp => ({
+        gp,
+        prop: properties.find(p => p.id === gp.property_id)!,
+      }))
+      .filter(item => !!item.prop);
+  };
+
+  const getCompleteMonopolies = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+    if (!playerAddress) return [];
+
+    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+    const monopolies: string[] = [];
+
+    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
+      if (groupName === "railroad" || groupName === "utility") return;
+
+      const ownedInGroup = owned.filter(o => ids.includes(o.prop.id));
+      if (ownedInGroup.length === ids.length) {
+        const allUnmortgaged = ownedInGroup.every(o => !o.gp.mortgaged);
+        if (allUnmortgaged) {
+          monopolies.push(groupName);
+        }
+      }
+    });
+
+    return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
+  };
+
+  const getNearCompleteOpportunities = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
+    if (!playerAddress) return [];
+
+    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
+    const opportunities: {
+      group: string;
+      needs: number;
+      missing: { id: number; name: string; ownerAddress: string | null; ownerName: string }[];
+    }[] = [];
+
+    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
+      if (groupName === "railroad" || groupName === "utility") return;
+
+      const ownedCount = owned.filter(o => ids.includes(o.prop.id)).length;
+      const needs = ids.length - ownedCount;
+
+      if (needs === 1 || needs === 2) {
+        const missing = ids
+          .filter(id => !owned.some(o => o.prop.id === id))
+          .map(id => {
+            const gp = game_properties.find(g => g.property_id === id);
+            const prop = properties.find(p => p.id === id)!;
+            const ownerName = gp?.address
+              ? players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
+              : "Bank";
+            return {
+              id,
+              name: prop.name,
+              ownerAddress: gp?.address || null,
+              ownerName,
+            };
+          });
+
+        opportunities.push({ group: groupName, needs, missing });
+      }
+    });
+
+    return opportunities.sort((a, b) => {
+      if (a.needs !== b.needs) return a.needs - b.needs;
+      return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
+    });
+  };
+
+  const refreshGame = async () => {
+    try {
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      if (res?.data?.success) {
+        setPlayers(res.data.data.players);
+      }
+    } catch (err) {
+      console.error("Refresh failed", err);
+    }
+  };
+
+
+
+  const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
-    setError(null);
-    if (rollAgain) {
-      setPendingRoll(12);
-    }
-    setRollAgain(false);
     setIsRolling(true);
+    setRoll(null);
+    setHasMovementFinished(false);
 
-    try {
-      const res = await apiClient.post<ApiResponse>(
-        "/game-players/can-roll",
-        { user_id: me?.user_id, game_id: game.id }
-      );
-
-      const allowed = Boolean(res?.data?.data?.canRoll);
-      if (!allowed) {
-        toast.error("⏳ Not your turn! Wait for your turn to roll.");
+    setTimeout(async () => {
+      const value = getDiceValues();
+      if (!value) {
+        showToast("DOUBLES! Roll again!", "success");
         setIsRolling(false);
         unlockAction();
         return;
       }
 
-      // Animation delay
-      setTimeout(async () => {
-        const value = getDiceValues();
-        if (!value) {
-          setRollAgain(true);
-          setIsRolling(false);
-          unlockAction();
-          return;
-        }
+      setRoll(value);
+      const playerId = forAI ? currentPlayerId : me!.user_id;
+      const player = players.find((p) => p.user_id === playerId);
+      if (!player) return;
 
-        setRoll(value);
-        const currentPos = me?.position ?? 0;
-        const newPosition = (currentPos + value.total + pendingRoll) % BOARD_SQUARES;
+      const currentPos = player.position ?? 0;
+      const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
 
-        try {
-          const updateResp = await apiClient.post<ApiResponse>(
-            "/game-players/change-position",
-            {
-              position: newPosition,
-              user_id: me?.user_id,
-              game_id: game.id,
-              rolled: value.total + pendingRoll,
-              is_double: value.die1 == value.die2
-            }
-          );
+      console.log("player in jail", isInJail)
 
-          if (!updateResp?.data?.success) toast.error("Unable to move from current position");
 
-          setPendingRoll(0);
-          const updatedGame = await fetchUpdatedGame();
-          if (updatedGame?.players) {
-            setPlayers(updatedGame.players);
+      let newPos = currentPos;
+      let shouldAnimate = false;
+
+      if (!isInJail) {
+        const totalMove = value.total + pendingRoll;
+        newPos = (currentPos + totalMove) % BOARD_SQUARES;
+        shouldAnimate = totalMove > 0;
+
+        if (shouldAnimate) {
+          const movePath: number[] = [];
+          for (let i = 1; i <= totalMove; i++) {
+            movePath.push((currentPos + i) % BOARD_SQUARES);
           }
 
-          setCanRoll(false);
-        } catch (err) {
-          console.error("Persist move error:", err);
-          toast.error("Position update failed, syncing...");
-          forceRefetch();
-        } finally {
-          setIsRolling(false);
-          unlockAction();
+          for (let i = 0; i < movePath.length; i++) {
+            await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+            setAnimatedPositions((prev) => ({
+              ...prev,
+              [playerId]: movePath[i],
+            }));
+          }
         }
-      }, ROLL_ANIMATION_MS);
-    } catch (err) {
-      console.error("ROLL_DICE error:", err);
-      toast.error("Failed to verify roll eligibility.");
-      setIsRolling(false);
-      unlockAction();
-      forceRefetch();
-    }
+      } else {
+        showToast(
+          `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total}`,
+          "default"
+        );
+      }
+
+      setHasMovementFinished(true);
+
+      try {
+        await apiClient.post("/game-players/change-position", {
+          user_id: playerId,
+          game_id: game.id,
+          position: newPos,
+          rolled: value.total + pendingRoll,
+          is_double: value.die1 === value.die2,
+        });
+
+        setPendingRoll(0);
+        landedPositionThisTurn.current = isInJail ? null : newPos;
+
+        if (!isInJail) {
+          showToast(
+            `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
+            "success"
+          );
+        }
+
+        if (forAI) rolledForPlayerId.current = currentPlayerId;
+      } catch (err) {
+        console.error("Move failed:", err);
+        showToast("Move failed", "error");
+        END_TURN();
+      } finally {
+        setIsRolling(false);
+        unlockAction();
+      }
+    }, ROLL_ANIMATION_MS);
   }, [
-    isRolling,
-    actionLock,
-    lockAction,
-    unlockAction,
-    me?.user_id,
-    me?.position,
-    game.id,
-    setIsRolling,
-    setPlayers,
-    setRollAgain,
-    setRoll,
-    fetchUpdatedGame,
-    forceRefetch,
-    setCanRoll,
+    isRolling, actionLock, lockAction, unlockAction,
+    currentPlayerId, me, players, pendingRoll, game.id,
+    showToast, END_TURN
   ]);
 
-  /* ---------- Derived Data ---------- */
+
+  useEffect(() => {
+    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const pos = landedPositionThisTurn.current;
+    const square = properties.find(p => p.id === pos);
+
+    if (!square || square.price == null) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const isOwned = game_properties.some(gp => gp.property_id === pos);
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+
+    const canBuy = !isOwned && isBuyableType;
+
+    setBuyPrompted(canBuy);
+
+    if (canBuy && (currentPlayer?.balance ?? 0) < square.price) {
+      showToast(`Not enough money to buy ${square.name}`, "error");
+    }
+  }, [
+    roll,
+    landedPositionThisTurn.current,
+    hasMovementFinished,
+    game_properties,
+    properties,
+    currentPlayer,
+    showToast
+  ]);
+
+
+  useEffect(() => {
+    if (actionLock || isRolling || buyPrompted || !roll) return;
+
+    const timer = setTimeout(() => {
+      END_TURN();
+    }, isAITurn ? 1000 : 1200);
+
+    return () => clearTimeout(timer);
+  }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
+
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
-      const pos = Number(p.position ?? 0);
+      const pos = animatedPositions[p.user_id] !== undefined ? animatedPositions[p.user_id] : (p.position ?? 0);
       if (!map.has(pos)) map.set(pos, []);
       map.get(pos)!.push(p);
     });
     return map;
-  }, [players]);
+  }, [players, animatedPositions]);
 
+  const propertyOwner = (id: number) => {
+    const gp = game_properties.find((gp) => gp.property_id === id);
+    return gp ? players.find((p) => p.address === gp.address)?.username || null : null;
+  };
 
-  const propertyOwner = (property_id: number) => {
-    const gp = game_properties.find((gp) => gp.property_id === property_id);
-    if (gp) {
-      const player = players.find((p) => p.address === gp.address)
-      if (player) {
-        return player.username
-      }
+  const developmentStage = (id: number) =>
+    game_properties.find((gp) => gp.property_id === id)?.development ?? 0;
+
+  const isPropertyMortgaged = (id: number) =>
+    game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
+
+  const handleRollDice = () => ROLL_DICE(false);
+  const handleBuyProperty = () => BUY_PROPERTY(false);
+  const handleSkipBuy = () => {
+    showToast("Skipped purchase");
+    setBuyPrompted(false);
+    landedPositionThisTurn.current = null;
+    setTimeout(END_TURN, 900);
+  };
+
+  const handleDeclareBankruptcy = async () => {
+    showToast("Declaring bankruptcy...", "default");
+
+    try {
+      // if (endGame) await endGame();
+
+      const opponent = players.find(p => p.user_id !== me?.user_id);
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: opponent?.user_id || null,
+      });
+
+      showToast("Game over! You have declared bankruptcy.", "error");
+      setShowBankruptcyModal(true);
+    } catch (err) {
+      showToast("Failed to end game", "error");
     }
-    return null;
-  }
+  };
 
-  const getGamePropertyForSquare = useCallback((property_id: number): GameProperty | null => {
-    return game_properties.find((gp) => gp.property_id === property_id) || null;
-  }, [game_properties]);
+  const handleDevelopment = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property developed successfully");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to develop property");
+    }
+  };
 
-  const developmentStage = useCallback(
-    (property_id: number) =>
-      game_properties.find((gp) => gp.property_id === property_id)?.development ?? 0,
-    [game_properties]
-  );
+  const handleDowngrade = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
+    }
+  };
 
-  const currentPlayer = players.find((p) => p.user_id === game.next_player_id);
+  const handleMortgage = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property mortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to mortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to mortgage property");
+    }
+  };
 
-  /* ---------- Activity Log Helpers ---------- */
-  const logRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    // auto-scroll to bottom when history changes
-    if (!logRef.current) return;
-    logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [game.history]);
+  const handleUnmortgage = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property unmortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unmortgage property");
+    }
+  };
 
-  /* ---------- Render ---------- */
+  const handlePropertyClick = (square: Property) => {
+    const gp = game_properties.find(gp => gp.property_id === square.id);
+    if (gp?.address === me?.address) {
+      setSelectedProperty(square);
+    } else {
+      showToast("You don't own this property", "error");
+    }
+  };
+
   return (
-    <ErrorBoundary>
-      <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-        <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
-          <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
-            <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
-              {/* Center Area */}
-              <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative">
-                <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4">
-                  Tycoon
-                </h1>
+    <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
+      <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
+        <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+          <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
+            <CenterArea
+              isMyTurn={isMyTurn}
+              currentPlayer={currentPlayer}
+              playerCanRoll={playerCanRoll}
+              isRolling={isRolling}
+              roll={roll}
+              buyPrompted={buyPrompted}
+              currentProperty={justLandedProperty || currentProperty}
+              currentPlayerBalance={currentPlayer?.balance ?? 0}
+              history={game.history ?? []}
+              onRollDice={handleRollDice}
+              onBuyProperty={handleBuyProperty}
+              onSkipBuy={handleSkipBuy}
+              onDeclareBankruptcy={handleDeclareBankruptcy}
+              isPending={false}
+            />
 
-                {/* Rolling Dice Animation */}
-                <AnimatePresence>
-                  {isRolling && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      className="absolute inset-0 flex items-center justify-center gap-16 z-20 pointer-events-none"
-                    >
-                      <motion.div
-                        animate={{ rotateX: [0, 360, 720, 1080], rotateY: [0, 360, -360, 720] }}
-                        transition={{ duration: 1.2, ease: "easeOut" }}
-                        className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
-                        style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)" }}
-                      >
-                        {roll ? <DiceFace value={roll.die1} /> : <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-6xl font-bold text-gray-400">?</motion.div>}
-                      </motion.div>
-                      <motion.div
-                        animate={{ rotateX: [0, -720, 360, 1080], rotateY: [0, -360, 720, -360] }}
-                        transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
-                        className="relative w-28 h-28 bg-white rounded-2xl shadow-2xl border-4 border-gray-800"
-                        style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.7), inset 0 10px 20px rgba(255,255,255,0.5)" }}
-                      >
-                        {roll ? <DiceFace value={roll.die2} /> : <motion.div animate={{ rotate: -360 }} transition={{ duration: 0.3, repeat: Infinity, ease: "linear" }} className="flex h-full items-center justify-center text-6xl font-bold text-gray-400">?</motion.div>}
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+            {properties.map((square) => {
+              const allPlayersHere = playersByPosition.get(square.id) ?? [];
+              const playersHere = allPlayersHere;
 
-                {roll && !isRolling && (
-                  <motion.div
-                    initial={{ scale: 0, y: 50 }}
-                    animate={{ scale: 1, y: 0 }}
-                    className="flex items-center gap-6 text-7xl font-bold mb-4"
-                  >
-                    <span className="text-cyan-400 drop-shadow-2xl">{roll.die1}</span>
-                    <span className="text-white text-6xl">+</span>
-                    <span className="text-pink-400 drop-shadow-2xl">{roll.die2}</span>
-                    <span className="text-white mx-4 text-6xl">=</span>
-                    <span className="text-yellow-400 text-9xl drop-shadow-2xl">{roll.total}</span>
-                  </motion.div>
-                )}
-
-                {isMyTurn ? (
-                  (() => {
-                    const myPlayer = game?.players?.find((p) => p.user_id === me?.user_id);
-                    const hasRolled = (myPlayer?.rolls ?? 0) > 0;
-
-                    if (!hasRolled) {
-                      return (
-                        <button
-                          onClick={ROLL_DICE}
-                          disabled={isRolling}
-                          className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xl rounded-full hover:from-cyan-600 hover:to-blue-700 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
-                        >
-                          {isRolling ? "Rolling..." : "Roll Dice"}
-                        </button>
-                      );
-                    }
-
-                    return (
-                      <div className="flex gap-4 flex-wrap justify-center">
-                        {
-                          currentAction && ["land", "railway", "utility"].includes(currentAction) && !currentGameProperty && currentProperty && (
-                            <button
-                              onClick={BUY_PROPERTY}
-                              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg"
-                            >
-                              Buy for ${currentProperty?.price}
-                            </button>
-                          )
-                        }
-                        <button
-                          onClick={() => END_TURN(me?.user_id)}
-                          disabled={actionLock === "ROLL"}
-                          className="px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-xl rounded-full hover:from-blue-600 hover:to-indigo-600 transform hover:scale-110 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
-                        >
-                          End Turn
-                        </button>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="mt-5 text-center z-10">
-                    <motion.h2
-                      className="text-2xl font-bold text-pink-300 mb-3"
-                      animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      {currentPlayer?.username} is playing…
-                    </motion.h2>
-                    <div className="flex justify-center mt-4">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
-                    </div>
-                  </div>
-                )}
-
-                {rollAgain && <p className="text-center text-xs text-red-500">🎯 You rolled a double! Roll again!</p>}
-
-                <div ref={logRef} className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48">
-                  <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
-                    <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-cyan-600">
-                    {(!game.history || game.history.length === 0) ? (
-                      <p className="text-center text-gray-500 text-xs italic py-8">No actions yet</p>
-                    ) : (
-                      game.history.map((h, i) => (
-                        <motion.p key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-gray-300">
-                          <span className="font-medium text-cyan-200">{h.player_name}</span> {h.comment}
-                          {h.rolled && <span className="text-cyan-400 font-bold ml-1">[Rolled {h.rolled}]</span>}
-                        </motion.p>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Card Popup Modal */}
-              <AnimatePresence>
-                {currentCard && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-                    onClick={() => setCurrentCard(null)}
-                  >
-                    <motion.div
-                      initial={{ scale: 0, rotateY: -180 }}
-                      animate={{ scale: 1, rotateY: 0 }}
-                      exit={{ scale: 0, rotateY: 180 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      className={`relative w-96 max-w-full mx-4 p-10 rounded-3xl shadow-2xl overflow-hidden border
-                        ${currentCard.type === "chance"
-                          ? "bg-gradient-to-br from-orange-600/90 to-amber-600/90 border-orange-400"
-                          : "bg-gradient-to-br from-indigo-600/90 to-purple-600/90 border-purple-400"
-                        }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Card Back Pattern */}
-                      <div className ="absolute inset-0 opacity-10">
-                        {currentCard.type === "chance" ? "Chance" : "Community Chest"}
-                      </div>
-
-                      {/* Glow effect */}
-                      <div className="absolute inset-0 bg-white/20 animate-pulse" />
-
-                      {/* Header */}
-                      <motion.div
-                        initial={{ y: -30, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="text-center mb-6"
-                      >
-                        <h2 className="text-4xl font-bold uppercase tracking-widest text-white drop-shadow-lg">
-                          {currentCard.type === "chance" ? "Chance" : "Community Chest"}
-                        </h2>
-                        {currentCard.type === "chance" ? (
-                          <span className="text-6xl">?</span>
-                        ) : (
-                          <span className="text-6xl">Chest</span>
-                        )}
-                      </motion.div>
-
-                      {/* Message */}
-                      <motion.p
-                        initial={{ y: 30, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.4 }}
-                        className="text-xl md:text-2xl text-center font-medium text-white leading-relaxed px-4 drop-shadow-md"
-                      >
-                        {currentCard.message}
-                      </motion.p>
-
-                      {/* Close button */}
-                      <button
-                        onClick={() => setCurrentCard(null)}
-                        className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl transition"
-                      >
-                        ×
-                      </button>
-
-                      {/* Decorative bottom glow */}
-                      <div className="absolute bottom-0 left-0 right-0 h-2 bg-white/30" />
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Board Squares */}
-              {boardData.map((square) => {
-                const playersHere = playersByPosition.get(square.id) ?? [];
-                const gameProp = getGamePropertyForSquare(square.id);
-                const devLevel = developmentStage(square.id);
-
-                return (
-                  <motion.div
-                    key={square.id}
-                    style={{
-                      gridRowStart: square.grid_row,
-                      gridColumnStart: square.grid_col,
-                    }}
-                    className="w-full h-full p-[2px] relative box-border group hover:z-10 transition-transform duration-200"
-                    whileHover={{ scale: 1.75, zIndex: 50 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  >
-                    <div className={`w-full h-full transform group-hover:scale-200 ${isTopHalf(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[100px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-md overflow-hidden bg-black/20 p-1`}>
-                      {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
-                      {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
-                      {square.type === "corner" && <CornerCard square={square} />}
-
-                      {/* Development Level Indicator */}
-                      {square.type === "property" && devLevel > 0 && (
-                        <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-bold rounded px-1 z-20 flex items-center gap-0.5">
-                          {devLevel === 5 ? '🏨' : `🏠 ${devLevel}`}
-                        </div>
-                      )}
-
-                      <div className="absolute bottom-1 left-1 flex flex-wrap gap-2 z-10">
-                        {playersHere.map((p) => {
-                          const isCurrentPlayer = p.user_id === game.next_player_id;
-                          return (
-                            <motion.span
-                              key={p.user_id}
-                              title={`${p.username} (${p.balance})`}
-                              className={`text-xl md:text-2xl lg:text-3xl border-2 rounded ${isCurrentPlayer ? 'border-cyan-300' : 'border-transparent'}`}
-                              initial={{ scale: 1 }}
-                              animate={{
-                                y: isCurrentPlayer 
-                                  ? [0, -8, 0]  // Bouncy animation for current player
-                                  : [0, -3, 0], // Subtle float for others
-                                scale: isCurrentPlayer ? [1, 1.1, 1] : 1,
-                                rotate: isCurrentPlayer ? [0, 5, -5, 0] : 0, // Slight wobble for current
-                              }}
-                              transition={{
-                                y: {
-                                  duration: isCurrentPlayer ? 1.2 : 2,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                },
-                                scale: {
-                                  duration: isCurrentPlayer ? 1.2 : 0,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                },
-                                rotate: {
-                                  duration: isCurrentPlayer ? 1.5 : 0,
-                                  repeat: Infinity,
-                                  ease: "easeInOut",
-                                },
-                              }}
-                              whileHover={{ scale: 1.2, y: -2 }}
-                            >
-                              {getPlayerSymbol(p.symbol)}
-                            </motion.span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+              return (
+                <BoardSquare
+                  key={square.id}
+                  square={square}
+                  playersHere={playersHere}
+                  currentPlayerId={currentPlayerId}
+                  owner={propertyOwner(square.id)}
+                  devLevel={developmentStage(square.id)}
+                  mortgaged={isPropertyMortgaged(square.id)}
+                  onClick={() => handlePropertyClick(square)}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
+
+      <CardModal
+        isOpen={showCardModal}
+        onClose={() => setShowCardModal(false)}
+        card={cardData}
+        playerName={cardPlayerName}
+      />
+
+      <BankruptcyModal
+        isOpen={showBankruptcyModal}
+        tokensAwarded={0.5}
+        onReturnHome={() => window.location.href = "/"}
+      />
+
+      <PropertyActionModal
+        property={selectedProperty}
+        onClose={() => setSelectedProperty(null)}
+        onDevelop={handleDevelopment}
+        onDowngrade={handleDowngrade}
+        onMortgage={handleMortgage}
+        onUnmortgage={handleUnmortgage}
+      />
+
       <Toaster
         position="top-center"
         reverseOrder={false}
         gutter={12}
         containerClassName="z-50"
         toastOptions={{
-          duration: 3000,
+          duration: 3200,
           style: {
             background: "rgba(15, 23, 42, 0.95)",
             color: "#fff",
@@ -842,18 +749,22 @@ const GameBoard = ({
             boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
             backdropFilter: "blur(10px)",
           },
-          success: {
-            icon: "✔",
-            style: { borderColor: "#10b981" },
-          },
-          error: {
-            icon: "✖",
-            style: { borderColor: "#ef4444" },
-          },
+          success: { icon: "✔", style: { borderColor: "#10b981" } },
+          error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
-    </ErrorBoundary>
+
+     {/* <CollectibleInventoryBar
+  game={game}
+  game_properties={game_properties}
+  isMyTurn={isMyTurn}
+  ROLL_DICE={ROLL_DICE}
+  END_TURN={END_TURN}
+  triggerSpecialLanding={triggerLandingLogic}
+  endTurnAfterSpecial={endTurnAfterSpecialMove}
+/> */}
+    </div>
   );
 };
 
-export default GameBoard;
+export default Board;
