@@ -290,25 +290,25 @@ const MobileGameLayout = ({
   }, [game.code, game.id, refreshTrades]);
 
   // STRICT WIN CONDITION: Only declare victory when you're the LAST HUMAN PLAYER with positive balance
-  useEffect(() => {
-    if (!me) return;
+  // useEffect(() => {
+  //   if (!me) return;
 
-    const aliveHumans = players.filter(
-      (p) => !isAIPlayer(p) && (p.balance ?? 0) > 0
-    );
+  //   const aliveHumans = players.filter(
+  //     (p) => !isAIPlayer(p) && (p.balance ?? 0) > 0
+  //   );
 
-    const iAmTheLastHumanStanding =
-      aliveHumans.length === 1 && aliveHumans[0].user_id === me.user_id;
+  //   const iAmTheLastHumanStanding =
+  //     aliveHumans.length === 1 && aliveHumans[0].user_id === me.user_id;
 
-    if (iAmTheLastHumanStanding) {
-      setWinner(me);
-      setEndGameCandidate({
-        winner: me,
-        position: me.position ?? 0,
-        balance: BigInt(me.balance ?? 0),
-      });
-    }
-  }, [players, me]);
+  //   if (iAmTheLastHumanStanding) {
+  //     setWinner(me);
+  //     setEndGameCandidate({
+  //       winner: me,
+  //       position: me.position ?? 0,
+  //       balance: BigInt(me.balance ?? 0),
+  //     });
+  //   }
+  // }, [players, me]);
 
   useEffect(() => {
     setRoll(null);
