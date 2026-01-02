@@ -204,6 +204,7 @@ const MobileGameLayout = ({
     const previousCount = prevIncomingTradeCount.current;
 
     if (currentCount > previousCount && previousCount > 0) {
+      // New trade arrived (skip initial load)
       const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
       const senderName = latestTrade?.player?.username || "Someone";
 
@@ -218,6 +219,7 @@ const MobileGameLayout = ({
         { duration: 5000, position: "top-center" }
       );
 
+      // Flash the bell icon
       setBellFlash(true);
       setTimeout(() => setBellFlash(false), 800);
     }
@@ -283,6 +285,7 @@ const MobileGameLayout = ({
       if (propertiesRes?.data?.success && propertiesRes.data.data) {
         setCurrentGameProperties(propertiesRes.data.data);
       }
+      // Also refresh trades when game updates
       refreshTrades?.();
     } catch (err) {
       console.error("Sync failed:", err);
@@ -856,32 +859,25 @@ const MobileGameLayout = ({
     getGamePlayerId,
   ]);
 
-  // === FIXED VICTORY DETECTION ===
-  // Now relies solely on server-side winner_id (assumed to be set on the Game object)
   useEffect(() => {
-    if (!currentGame.winner_id || !me) {
-      setWinner(null);
-      setEndGameCandidate({ winner: null, position: 0, balance: BigInt(0) });
-      return;
+    if (!me) return;
+
+    const aiPlayers = players.filter(p => isAIPlayer(p));
+    const humanPlayer = me;
+
+    const shouldDeclareVictory =
+      (players.length === 1 && players[0].user_id === me.user_id) ||
+      (players.length === 2 && aiPlayers.every(ai => ai.balance <= 0) && humanPlayer.balance > 0);
+
+    if (shouldDeclareVictory) {
+      setWinner(humanPlayer);
+      setEndGameCandidate({
+        winner: humanPlayer,
+        position: humanPlayer.position ?? 0,
+        balance: BigInt(humanPlayer.balance),
+      });
     }
-
-    const winnerPlayer = players.find(p => p.user_id === currentGame.winner_id);
-
-    if (winnerPlayer) {
-      setWinner(winnerPlayer);
-
-      // Only the actual winner prepares the on-chain end game transaction
-      if (winnerPlayer.user_id === me.user_id) {
-        setEndGameCandidate({
-          winner: winnerPlayer,
-          position: winnerPlayer.position ?? 0,
-          balance: BigInt(winnerPlayer.balance ?? 0),
-        });
-      }
-    } else {
-      setWinner(null);
-    }
-  }, [currentGame.winner_id, players, me]);
+  }, [players, me]);
 
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
@@ -1029,11 +1025,13 @@ const MobileGameLayout = ({
           transition={{ duration: 0.6 }}
           onClick={() => {
             toast("Check the Trades section in the sidebar →", { duration: 4000 });
+            // If you have a way to open the sidebar programmatically, do it here
           }}
           className="relative p-3 bg-purple-700/80 backdrop-blur-md rounded-full shadow-lg hover:bg-purple-600 transition"
         >
           <Bell className="w-7 h-7 text-white" />
 
+          {/* Badge with count */}
           {myIncomingTrades.length > 0 && (
             <span className="absolute -top-1 -right-1 flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
               {myIncomingTrades.length}
@@ -1316,6 +1314,7 @@ const MobileGameLayout = ({
         showToast={showToast}
       />
 
+      {/* Bell ring animation keyframes */}
       <style jsx>{`
         @keyframes bell-ring {
           0%, 100% { transform: rotate(0deg); }
