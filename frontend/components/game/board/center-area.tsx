@@ -189,7 +189,7 @@ export default function CenterArea({
       </div>
 
       {/* Action Log - Perfectly Centered Horizontally & Moved Up */}
-     <div className=" bottom-24 w-full flex justify-center ml-60 z-10">
+     <div className=" bottom-24 w-full flex justify-center ml-55 z-10">
   <div className="max-w-3xl w-full">
     <ActionLog history={history} />
   </div>
