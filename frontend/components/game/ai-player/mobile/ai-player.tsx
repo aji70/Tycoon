@@ -41,10 +41,12 @@ export default function MobileGamePlayers({
 }: GamePlayersProps) {
   const { address } = useAccount();
 
-  // Perks modal state
-  const [showPerksModal, setShowPerksModal] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState({
+    players: true,
+    empire: true,
+    trades: false,
+  });
 
-  // Trade-related states
   const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
     open: false,
     target: null,
@@ -66,6 +68,8 @@ export default function MobileGamePlayers({
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
+  const [showEmpire, setShowEmpire] = useState(true);
+  const [showTrade, setShowTrade] = useState(false);
 
   const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
   const onChainGameId = contractGame?.id;
@@ -76,6 +80,8 @@ export default function MobileGamePlayers({
     !!endGameCandidate.winner
   );
 
+  const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
+  const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = !!me && game.next_player_id === me.user_id;
 
   const {
@@ -88,6 +94,8 @@ export default function MobileGamePlayers({
     myUserId: me?.user_id,
     players: game?.players ?? [],
   });
+
+  const totalActiveTrades = openTrades.length + tradeRequests.length;
 
   const resetTradeFields = () => {
     setOfferCash(0);
@@ -596,160 +604,148 @@ export default function MobileGamePlayers({
     }
   };
 
-  // Persistent collapsible states — survives re-renders!
-  const [sectionOpen, setSectionOpen] = useState<{
-    players: boolean;
-    empire: boolean;
-    trades: boolean;
-  }>({
-    players: true,
-    empire: false,
-    trades: false, // will be auto-opened below if needed
-  });
-
-  const totalActiveTrades = openTrades.length + tradeRequests.length;
-
-  // Auto-open trades section when new trades appear
+  // Auto-open sections intelligently
   useEffect(() => {
-    if (totalActiveTrades > 0) {
-      setSectionOpen(prev => ({ ...prev, trades: true }));
-    }
-  }, [totalActiveTrades]);
-
-  // Controlled Collapsible Section
-  const CollapsibleSection = ({
-    title,
-    children,
-    isOpen,
-    onToggle,
-    badgeCount,
-    borderColor = "purple-500",
-  }: {
-    title: string;
-    children: React.ReactNode;
-    isOpen: boolean;
-    onToggle: () => void;
-    badgeCount?: number;
-    borderColor?: string;
-  }) => {
-    return (
-      <section className={`bg-black/30 backdrop-blur-sm rounded-2xl border border-${borderColor}/30 shadow-lg overflow-hidden relative`}>
-        {badgeCount !== undefined && badgeCount > 0 && (
-          <div className="absolute -top-3 -right-3 w-10 h-10 bg-gradient-to-br from-pink-500 to-red-600 rounded-full flex items-center justify-center text-white text-sm font-bold animate-pulse shadow-lg z-10">
-            {badgeCount}
-          </div>
-        )}
-        <button
-          onClick={onToggle}
-          className="w-full px-5 py-4 flex items-center justify-between text-left"
-        >
-          <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400">
-            {title}
-          </h3>
-          <motion.div
-            animate={{ rotate: isOpen ? 180 : 0 }}
-            transition={{ duration: 0.3 }}
-            className="text-cyan-300"
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </motion.div>
-        </button>
-        <AnimatePresence initial={false}>
-          {isOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="overflow-hidden"
-            >
-              <div className="px-5 pb-6 pt-2">{children}</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-    );
-  };
+    setSectionOpen({
+      players: true,
+      empire: my_properties.length > 0 || showEmpire,
+      trades: totalActiveTrades > 0,
+    });
+  }, [my_properties.length, totalActiveTrades]);
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white relative overflow-x-hidden">
+    <div className="w-full h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white flex flex-col overflow-hidden">
       {/* Top Neon Glow Bar */}
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/70 z-50" />
 
       {/* Header */}
-      <div className="relative z-10 px-4 pt-5 pb-3 backdrop-blur-xl bg-black/30 border-b border-purple-500/40">
+      <div className="relative z-10 px-5 pt-6 pb-4 shrink-0 backdrop-blur-xl bg-black/30 border-b border-purple-500/40">
         <motion.h2
           animate={{
             textShadow: ["0 0 10px #06b6d4", "0 0 20px #06b6d4", "0 0 10px #06b6d4"],
           }}
           transition={{ duration: 3, repeat: Infinity }}
-          className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400 text-center tracking-wider"
+          className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400 text-center tracking-wider"
         >
           PLAYERS
         </motion.h2>
-
-        <div className="mt-2 text-center text-sm text-purple-200 opacity-80">
-          Game Code: <span className="font-mono font-bold text-cyan-300">{game.code}</span>
+        <div className="mt-3 text-center text-lg text-purple-200 opacity-80">
+          Game Code: <span className="font-mono font-bold text-cyan-300 text-xl">{game.code}</span>
         </div>
       </div>
 
-      {/* Main Scrollable Content */}
-      <div className="px-4 py-6 space-y-6 pb-32">
-        {/* Players Section */}
-        <CollapsibleSection
-          title="PLAYERS"
-          isOpen={sectionOpen.players}
-          onToggle={() => setSectionOpen(prev => ({ ...prev, players: !prev.players }))}
-          borderColor="purple-500"
-        >
-          <PlayerList
-            game={game}
-            sortedPlayers={sortedPlayers}
-            startTrade={startTrade}
-            isNext={isNext}
-          />
-        </CollapsibleSection>
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-20 scrollbar-thin">
+        <div className="space-y-6 py-6">
 
-        {/* My Empire */}
-        <CollapsibleSection
-          title="MY EMPIRE"
-          isOpen={sectionOpen.empire}
-          onToggle={() => setSectionOpen(prev => ({ ...prev, empire: !prev.empire }))}
-          borderColor="cyan-500"
-        >
-          <MyEmpire
-            showEmpire={true}
-            toggleEmpire={() => {}}
-            my_properties={my_properties}
-            properties={properties}
-            game_properties={game_properties}
-            setSelectedProperty={setSelectedProperty}
-          />
-        </CollapsibleSection>
+          {/* Players Section */}
+          <section className="bg-black/30 backdrop-blur-sm rounded-2xl border border-purple-500/30 shadow-xl overflow-hidden">
+            <button
+              onClick={() => setSectionOpen(prev => ({ ...prev, players: !prev.players }))}
+              className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
+            >
+              <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400">
+                PLAYERS ({game.players.length})
+              </h3>
+              <motion.div
+                animate={{ rotate: sectionOpen.players ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-cyan-300"
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </motion.div>
+            </button>
 
-        {/* Active Trades */}
-        <CollapsibleSection
-          title={`ACTIVE TRADES${totalActiveTrades > 0 ? ` (${totalActiveTrades})` : ""}`}
-          isOpen={sectionOpen.trades}
-          onToggle={() => setSectionOpen(prev => ({ ...prev, trades: !prev.trades }))}
-          badgeCount={totalActiveTrades > 0 ? totalActiveTrades : undefined}
-          borderColor="pink-500"
-        >
-          <TradeSection
-            showTrade={true}
-            toggleTrade={() => {}}
-            openTrades={openTrades}
-            tradeRequests={tradeRequests}
-            properties={properties}
-            game={game}
-            handleTradeAction={handleTradeAction}
-          />
-        </CollapsibleSection>
+            <AnimatePresence initial={false}>
+              {sectionOpen.players && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-6 pb-8">
+                    <PlayerList
+                      game={game}
+                      sortedPlayers={sortedPlayers}
+                      startTrade={startTrade}
+                      isNext={isNext}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+
+          {/* My Empire Section */}
+          <section className="bg-black/40 backdrop-blur-md rounded-2xl border border-cyan-500/40 shadow-2xl shadow-cyan-900/50 overflow-hidden">
+            <MyEmpire
+              showEmpire={showEmpire}
+              toggleEmpire={toggleEmpire}
+              my_properties={my_properties}
+              properties={properties}
+              game_properties={game_properties}
+              setSelectedProperty={setSelectedProperty}
+            />
+          </section>
+
+          {/* Active Trades Section */}
+          <section className="bg-black/30 backdrop-blur-sm rounded-2xl border border-pink-500/30 shadow-xl overflow-hidden">
+            <button
+              onClick={() => setSectionOpen(prev => ({ ...prev, trades: !prev.trades }))}
+              className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-white/5 transition-colors relative"
+            >
+              <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-red-400">
+                ACTIVE TRADES {totalActiveTrades > 0 && `(${totalActiveTrades})`}
+              </h3>
+              {totalActiveTrades > 0 && (
+                <div className="absolute -top-2 -right-2 w-9 h-9 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold animate-pulse shadow-lg">
+                  {totalActiveTrades}
+                </div>
+              )}
+              <motion.div
+                animate={{ rotate: sectionOpen.trades ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-pink-300"
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </motion.div>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {sectionOpen.trades && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-6 pb-8">
+                    <TradeSection
+                      showTrade={true}
+                      toggleTrade={toggleTrade}
+                      openTrades={openTrades}
+                      tradeRequests={tradeRequests}
+                      properties={properties}
+                      game={game}
+                      handleTradeAction={handleTradeAction}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+
+        </div>
       </div>
 
-      {/* All Other Modals */}
+      {/* All Modals */}
       <AnimatePresence>
         <PropertyActionModal
           property={selectedProperty}
@@ -821,6 +817,23 @@ export default function MobileGamePlayers({
           }
         />
       </AnimatePresence>
+
+      {/* Custom Scrollbar */}
+      <style jsx>{`
+        .scrollbar-thin::-webkit-scrollbar {
+          width: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+          background: rgba(168, 85, 247, 0.6);
+          border-radius: 3px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+          background: rgba(168, 85, 247, 0.9);
+        }
+      `}</style>
     </div>
   );
 }
