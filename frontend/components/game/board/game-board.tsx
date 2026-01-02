@@ -82,14 +82,16 @@ const MultiplayerBoard = ({
 
   const isMyTurn = me?.user_id === currentPlayerId;
 
+  // NEW: Allow negative balance, but block roll if ≤ 0
   const playerCanRoll = Boolean(
     isMyTurn &&
     currentPlayer &&
-    (currentPlayer.balance ?? 0) > 0 &&
+    (currentPlayer.balance ?? 0) > 0 &&  // Must have positive balance to roll
     !currentPlayer.in_jail
   );
 
-  const isBankruptTurn = isMyTurn && (currentPlayer?.balance ?? 0) <= 0;
+  // NEW: Player is insolvent (balance ≤ 0) on their turn
+  const isInsolvent: boolean = isMyTurn && !!currentPlayer && (currentPlayer.balance ?? 0) <= 0;
 
   const currentProperty = useMemo(() => {
     return currentPlayer?.position
@@ -343,9 +345,6 @@ const MultiplayerBoard = ({
     setClaimError(null);
 
     try {
-      // Here you would call your on-chain claim function if you have one
-      // await endGame?.(); // example
-
       await apiClient.post("/games/claim-victory", {
         game_id: game.id,
         user_id: me.user_id,
@@ -503,64 +502,64 @@ const MultiplayerBoard = ({
     }
   };
 
-    const handleDevelopment = async (id: number) => {
-      if (!isMyTurn || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/development", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property developed successfully");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to develop property");
-      }
-    };
-  
-    const handleDowngrade = async (id: number) => {
-      if (!isMyTurn || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property downgraded successfully");
-        else toast.error(res.data?.message ?? "Failed to downgrade property");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to downgrade property");
-      }
-    };
-  
-    const handleMortgage = async (id: number) => {
-      if (!isMyTurn || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property mortgaged successfully");
-        else toast.error(res.data?.message ?? "Failed to mortgage property");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to mortgage property");
-      }
-    };
-  
-    const handleUnmortgage = async (id: number) => {
-      if (!isMyTurn || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property unmortgaged successfully");
-        else toast.error(res.data?.message ?? "Failed to unmortgage property");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to unmortgage property");
-      }
-    };
+  const handleDevelopment = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property developed successfully");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to develop property");
+    }
+  };
+
+  const handleDowngrade = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
+    }
+  };
+
+  const handleMortgage = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property mortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to mortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to mortgage property");
+    }
+  };
+
+  const handleUnmortgage = async (id: number) => {
+    if (!isMyTurn || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property unmortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unmortgage property");
+    }
+  };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
@@ -571,7 +570,7 @@ const MultiplayerBoard = ({
               isMyTurn={isMyTurn}
               currentPlayer={currentPlayer}
               playerCanRoll={playerCanRoll}
-              isBankruptTurn={isBankruptTurn}
+              isInsolvent={isInsolvent} 
               isRolling={isRolling}
               roll={roll}
               buyPrompted={buyPrompted}
@@ -620,7 +619,6 @@ const MultiplayerBoard = ({
         onReturnHome={() => window.location.href = "/"}
       />
 
-   
       <PropertyActionModal
         property={selectedProperty}
         onClose={() => setSelectedProperty(null)}
