@@ -26,8 +26,13 @@ const ROLL_ANIMATION_MS = 1200;
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 const JAIL_POSITION = 10;
 
-// Default zoomed-out state
-const DEFAULT_SCALE = 1.0;
+// =============================================
+// BIGGER BOARD - Adaptive scale for mobile
+// =============================================
+const MIN_SCALE = 1.0;
+const MAX_SCALE = 1.15;
+const BASE_WIDTH_REFERENCE = 390; // typical older phone width reference
+
 const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
 
 // Precise token positions (in % relative to board container)
@@ -163,9 +168,25 @@ const MobileGameLayout = ({
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
 
   // Board zoom & focus control
-  const [boardScale, setBoardScale] = useState(DEFAULT_SCALE);
+  const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
   const [isFollowingMyMove, setIsFollowingMyMove] = useState(false);
+
+  // Dynamic board scale based on screen size (bigger on mobile)
+  const [defaultScale, setDefaultScale] = useState(1.45);
+
+  useEffect(() => {
+    const calculateScale = () => {
+      const width = window.innerWidth;
+      let scale = (width / BASE_WIDTH_REFERENCE) * 1.48; // slightly higher base
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+      setDefaultScale(scale);
+    };
+
+    calculateScale();
+    window.addEventListener("resize", calculateScale);
+    return () => window.removeEventListener("resize", calculateScale);
+  }, []);
 
   const currentPlayerId = currentGame.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -284,7 +305,7 @@ const MobileGameLayout = ({
   // Precise zoom centered on my token during my move only
   useEffect(() => {
     if (!isMyTurn || !roll || !hasMovementFinished) {
-      setBoardScale(DEFAULT_SCALE);
+      setBoardScale(defaultScale);
       setBoardTransformOrigin("50% 50%");
       setIsFollowingMyMove(false);
       return;
@@ -293,18 +314,18 @@ const MobileGameLayout = ({
     const myPos = animatedPositions[me!.user_id] ?? me?.position ?? 0;
     const coord = TOKEN_POSITIONS[myPos] || { x: 50, y: 50 };
 
-    setBoardScale(1.8);
+    setBoardScale(defaultScale * 1.8); // keep zoom-in effect relative to new base
     setBoardTransformOrigin(`${coord.x}% ${coord.y}%`);
     setIsFollowingMyMove(true);
-  }, [isMyTurn, roll, hasMovementFinished, me, animatedPositions]);
+  }, [isMyTurn, roll, hasMovementFinished, me, animatedPositions, defaultScale]);
 
   // Force zoomed out during AI turns
   useEffect(() => {
     if (isAITurn) {
-      setBoardScale(DEFAULT_SCALE);
+      setBoardScale(defaultScale);
       setBoardTransformOrigin("50% 50%");
     }
-  }, [isAITurn]);
+  }, [isAITurn, defaultScale]);
 
   const END_TURN = useCallback(async () => {
     if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
@@ -810,26 +831,6 @@ const MobileGameLayout = ({
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
-  // Trade notification
-  // useEffect(() => {
-  //   const newTrades = currentGame.trade_requests?.filter(
-  //     tr => tr.target_player_id === me?.user_id && tr.status === "pending"
-  //   );
-
-  //   if (newTrades && newTrades.length > 0) {
-  //     toast.custom(
-  //       <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-4 rounded-2xl shadow-2xl border border-purple-400">
-  //         <Bell className="w-6 h-6 animate-pulse" />
-  //         <div>
-  //           <div className="font-bold">Trade Offer Received!</div>
-  //           <div className="text-sm opacity-90">Tap here to review</div>
-  //         </div>
-  //       </div>,
-  //       { duration: 8000, position: "top-center" }
-  //     );
-  //   }
-  // }, [currentGame.trade_requests, me?.user_id]);
-
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
     if (gp.mortgaged) return 0;
@@ -962,41 +963,42 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-     {/* Player Status + My Balance (small and clean) */}
-<div className="w-full max-w-2xl mx-auto px-4 mt-4">
-  <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
+      {/* Player Status + My Balance (small and clean) */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-4">
+        <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
 
-  {me && (
-    <div className="mt-4 flex items-center justify-start gap-4 bg-white/10 backdrop-blur-md rounded-xl px-5 py-3 border border-white/20">
-      <span className="text-sm opacity-80">My Balance:</span>
-      
-      {/* Balance with dynamic color matching PlayerList */}
-      {(() => {
-        const balance = me.balance ?? 0;
-        const getBalanceColor = (bal: number): string => {
-          if (bal >= 1300) return "text-cyan-300";
-          if (bal >= 1000) return "text-emerald-400";
-          if (bal >= 750) return "text-yellow-400";
-          if (bal >= 150) return "text-orange-400";
-          return "text-red-500 animate-pulse";
-        };
+        {me && (
+          <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20">
+            <span className="text-sm opacity-80">Bal:</span>
+            
+            {/* Balance with dynamic color matching PlayerList */}
+            {(() => {
+              const balance = me.balance ?? 0;
+              const getBalanceColor = (bal: number): string => {
+                if (bal >= 1300) return "text-cyan-300";
+                if (bal >= 1000) return "text-emerald-400";
+                if (bal >= 750) return "text-yellow-400";
+                if (bal >= 150) return "text-orange-400";
+                return "text-red-500 animate-pulse";
+              };
 
-        return (
-          <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
-            ${Number(balance).toLocaleString()}
-          </span>
-        );
-      })()}
-    </div>
-  )}
-</div>
+              return (
+                <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
+                  ${Number(balance).toLocaleString()}
+                </span>
+              );
+            })()}
+          </div>
+        )}
+      </div>
 
-      {/* Board with precise token-centered zoom */}
+      {/* Board with precise token-centered zoom - now bigger by default */}
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
         <motion.div
           animate={{ scale: boardScale }}
           style={{ transformOrigin: boardTransformOrigin }}
           transition={{ type: "spring", stiffness: 120, damping: 30 }}
+          className="origin-center"
         >
           <Board
             properties={properties}
