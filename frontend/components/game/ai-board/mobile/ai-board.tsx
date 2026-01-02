@@ -987,26 +987,59 @@ useEffect(() => {
 
       <DiceAnimation isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)} roll={roll} />
 
-      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
-        <button
-          onClick={() => ROLL_DICE(false)}
-          className="w-full max-w-sm mx-auto px-12 py-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 text-white font-bold text-2xl tracking-wide rounded-2xl shadow-2xl border border-emerald-300/20 transition-all duration-300 ease-out hover:scale-105 hover:shadow-cyan-500/30 hover:shadow-2xl active:scale-95 flex items-center justify-center gap-4 mt-8"
-        >
-          <span className="drop-shadow-lg">
-            {isRolling ? "Rolling..." : "Roll Dice"}
-          </span>
+  {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+  <button
+    onClick={() => ROLL_DICE(false)}
+    className="
+      relative overflow-hidden
+      w-full max-w-md mx-auto
+      py-5 px-10
+      bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500
+      hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600
+      active:from-emerald-700 active:via-teal-700 active:to-cyan-700
+      text-white font-extrabold text-2xl tracking-wider
+      rounded-full
+      shadow-2xl shadow-cyan-500/40
+      border-2 border-white/30
+      transition-all duration-400 ease-out
+      hover:scale-105 hover:shadow-cyan-500/60
+      active:scale-95 active:duration-100
+      flex items-center justify-center gap-4
+      mt-6
+    "
+  >
+    {/* Shimmer effect on hover */}
+    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 skew-x-12" />
 
-          {!isRolling && (
-            <svg className="w-9 h-9 opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="4" ry="4" className="stroke-white/80" />
-              <circle cx="8" cy="8" r="2" fill="white" />
-              <circle cx="16" cy="16" r="2" fill="white" />
-              <circle cx="16" cy="8" r="2" fill="white" />
-              <circle cx="8" cy="16" r="2" fill="white" />
-            </svg>
-          )}
-        </button>
-      )}
+    {/* Text */}
+    <span className="relative drop-shadow-lg">
+      Roll Dice
+    </span>
+
+    {/* Dice icon with gentle bounce */}
+    <motion.div
+      animate={{ y: [0, -8, 0] }}
+      transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 4 }}
+    >
+      <svg
+        className="w-10 h-10 drop-shadow-xl"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="5" ry="5" className="stroke-white" fill="rgba(255,255,255,0.15)" />
+        <circle cx="7" cy="7" r="2" fill="white" />
+        <circle cx="17" cy="17" r="2" fill="white" />
+        <circle cx="17" cy="7" r="2" fill="white" />
+        <circle cx="7" cy="17" r="2" fill="white" />
+      </svg>
+    </motion.div>
+
+    {/* Pulsing glow ring */}
+    <span className="absolute -inset-2 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 opacity-0 group-hover:opacity-50 blur-xl animate-pulse -z-10" />
+  </button>
+)}
 
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
