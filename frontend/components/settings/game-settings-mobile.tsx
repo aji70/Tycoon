@@ -1,6 +1,7 @@
 "use client";
+
 import React, { useState } from "react";
-import { FaUsers, FaUser } from "react-icons/fa6";
+import { FaUsers, FaUser, FaCoins } from "react-icons/fa6";
 import { House } from "lucide-react";
 import {
   Select,
@@ -36,6 +37,7 @@ interface Settings {
   evenBuild: boolean;
   startingCash: string;
   randomPlayOrder: boolean;
+  stake: number; // ← NEW: Stake
 }
 
 const GameSettingsMobile = () => {
@@ -52,6 +54,7 @@ const GameSettingsMobile = () => {
     evenBuild: false,
     startingCash: "1500",
     randomPlayOrder: false,
+    stake: 1, // ← Default stake = 1
   });
 
   const { data: isUserRegistered, isLoading: isRegisteredLoading } =
@@ -63,14 +66,24 @@ const GameSettingsMobile = () => {
   const numberOfPlayers = Number.parseInt(settings.maxPlayers, 10);
 
   const { data: username } = useGetUsername(address);
+
+  // Updated: pass stake to contract
   const {
     write: createGame,
     isPending,
-  } = useCreateGame(username ?? "", gameType, playerSymbol, numberOfPlayers, gameCode, BigInt(settings.startingCash));
+  } = useCreateGame(
+    username ?? "",
+    gameType,
+    playerSymbol,
+    numberOfPlayers,
+    gameCode,
+    BigInt(settings.startingCash),
+    BigInt(settings.stake) // ← Stake on-chain
+  );
 
   const handleSettingChange = (
     key: keyof Settings,
-    value: string | boolean
+    value: string | boolean | number
   ) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
@@ -104,6 +117,7 @@ const GameSettingsMobile = () => {
         address,
         symbol: playerSymbol,
         number_of_players: numberOfPlayers,
+        stake: settings.stake, // ← Save stake to backend
         settings: {
           auction: settings.auction,
           rent_in_prison: settings.rentInPrison,
@@ -160,43 +174,44 @@ const GameSettingsMobile = () => {
   if (isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
-        <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">LOADING ARENA...</p>
+        <p className="text-[#00F0FF] text-2xl xs:text-3xl sm:text-4xl font-orbitron animate-pulse text-center px-4">
+          LOADING ARENA...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-3 xs:p-4">
-      <div className="w-full max-w-2xl bg-black/70 backdrop-blur-2xl rounded-2xl border border-cyan-500/60 shadow-2xl p-5 xs:p-6 sm:p-8">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pt-safe pb-safe">
+      {/* Header */}
+      <div className="px-4 pt-6 pb-4 flex justify-between items-center">
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-2 text-cyan-400 hover:text-cyan-200 transition text-sm"
+        >
+          <House className="w-6 h-6" />
+          <span className="font-medium">BACK</span>
+        </button>
+        <h1 className="text-4xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          CREATE GAME
+        </h1>
+        <div className="w-12" />
+      </div>
 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition text-sm xs:text-base"
-          >
-            <House className="w-5 h-5 xs:w-6 xs:h-6" />
-            <span className="font-medium">BACK</span>
-          </button>
-          <h1 className="text-4xl xs:text-5xl sm:text-6xl font-orbitron font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            CREATE GAME
-          </h1>
-          <div className="w-16 xs:w-20" />
-        </div>
-
-        {/* Settings - Horizontal rows (mobile-friendly) */}
-        <div className="space-y-6 mb-8">
+      {/* Scrollable Settings */}
+      <div className="flex-1 overflow-y-auto px-4 pb-8">
+        <div className="max-w-md mx-auto space-y-5">
 
           {/* Your Piece */}
           <div className="bg-gradient-to-r from-cyan-900/60 to-blue-900/60 rounded-xl p-4 border border-cyan-500/40">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <FaUser className="w-6 h-6 text-cyan-400" />
-                <span className="text-cyan-300 font-bold text-base xs:text-lg">Your Piece</span>
+                <FaUser className="w-7 h-7 text-cyan-400" />
+                <span className="text-cyan-300 font-bold text-lg">Your Piece</span>
               </div>
-              <div className="w-40 xs:w-48">
+              <div className="w-44">
                 <Select value={settings.symbol} onValueChange={v => handleSettingChange("symbol", v)}>
-                  <SelectTrigger className="h-10 xs:h-11 text-sm xs:text-base bg-black/50 border-cyan-500/60 text-white">
+                  <SelectTrigger className="h-11 bg-black/50 border-cyan-500/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -213,12 +228,12 @@ const GameSettingsMobile = () => {
           <div className="bg-gradient-to-r from-purple-900/60 to-pink-900/60 rounded-xl p-4 border border-purple-500/40">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <FaUsers className="w-6 h-6 text-purple-400" />
-                <span className="text-purple-300 font-bold text-base xs:text-lg">Max Players</span>
+                <FaUsers className="w-7 h-7 text-purple-400" />
+                <span className="text-purple-300 font-bold text-lg">Max Players</span>
               </div>
-              <div className="w-40 xs:w-48">
+              <div className="w-44">
                 <Select value={settings.maxPlayers} onValueChange={v => handleSettingChange("maxPlayers", v)}>
-                  <SelectTrigger className="h-10 xs:h-11 text-sm xs:text-base bg-black/50 border-purple-500/60 text-white">
+                  <SelectTrigger className="h-11 bg-black/50 border-purple-500/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -235,9 +250,9 @@ const GameSettingsMobile = () => {
           <div className="bg-gradient-to-r from-emerald-900/60 to-teal-900/60 rounded-xl p-4 border border-emerald-500/40">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <MdPrivateConnectivity className="w-6 h-6 text-emerald-400" />
+                <MdPrivateConnectivity className="w-7 h-7 text-emerald-400" />
                 <div>
-                  <span className="text-emerald-300 font-bold text-base xs:text-lg">Private Room</span>
+                  <span className="text-emerald-300 font-bold text-lg">Private Room</span>
                   <p className="text-gray-400 text-xs">Only joinable via code</p>
                 </div>
               </div>
@@ -252,12 +267,12 @@ const GameSettingsMobile = () => {
           <div className="bg-gradient-to-r from-yellow-900/60 to-amber-900/60 rounded-xl p-4 border border-yellow-500/40">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <FaHandHoldingDollar className="w-6 h-6 text-yellow-400" />
-                <span className="text-yellow-300 font-bold text-base xs:text-lg">Starting Cash</span>
+                <FaHandHoldingDollar className="w-7 h-7 text-yellow-400" />
+                <span className="text-yellow-300 font-bold text-lg">Starting Cash</span>
               </div>
-              <div className="w-40 xs:w-48">
+              <div className="w-44">
                 <Select value={settings.startingCash} onValueChange={v => handleSettingChange("startingCash", v)}>
-                  <SelectTrigger className="h-10 xs:h-11 text-sm xs:text-base bg-black/50 border-yellow-500/60 text-white">
+                  <SelectTrigger className="h-11 bg-black/50 border-yellow-500/60 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -271,52 +286,78 @@ const GameSettingsMobile = () => {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* House Rules */}
-        <div className="bg-black/70 rounded-2xl p-5 xs:p-6 border border-cyan-500/50 mb-8">
-          <h3 className="text-xl xs:text-2xl font-orbitron font-bold text-cyan-300 mb-5 text-center">HOUSE RULES</h3>
-          <div className="space-y-4">
-            {[
-              { icon: RiAuctionFill, label: "Auction", key: "auction" },
-              { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
-              { icon: GiBank, label: "Mortgage", key: "mortgage" },
-              { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-              { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
-            ].map(item => (
-              <div key={item.key} className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <item.icon className="w-6 h-6 text-cyan-400" />
-                  <span className="text-white text-base xs:text-lg font-medium">{item.label}</span>
-                </div>
-                <Switch
-                  checked={settings[item.key as keyof Settings] as boolean}
-                  onCheckedChange={v => handleSettingChange(item.key as keyof Settings, v)}
-                />
+          {/* NEW: Stake */}
+          <div className="bg-gradient-to-r from-green-900/60 to-emerald-900/60 rounded-xl p-4 border border-green-500/40">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <FaCoins className="w-7 h-7 text-green-400" />
+                <span className="text-green-300 font-bold text-lg">Entry Stake</span>
               </div>
-            ))}
+              <div className="w-44">
+                <Select value={settings.stake.toString()} onValueChange={v => handleSettingChange("stake", Number(v))}>
+                  <SelectTrigger className="h-11 bg-black/50 border-green-500/60 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1</SelectItem>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* House Rules */}
+          <div className="bg-black/70 rounded-2xl p-6 border border-cyan-500/50">
+            <h3 className="text-2xl font-orbitron font-bold text-cyan-300 mb-6 text-center">
+              HOUSE RULES
+            </h3>
+            <div className="space-y-5">
+              {[
+                { icon: RiAuctionFill, label: "Auction", key: "auction" },
+                { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
+                { icon: GiBank, label: "Mortgage", key: "mortgage" },
+                { icon: IoBuild, label: "Even Build", key: "evenBuild" },
+                { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
+              ].map(item => (
+                <div key={item.key} className="flex justify-between items-center py-2">
+                  <div className="flex items-center gap-4">
+                    <item.icon className="w-6 h-6 text-cyan-400" />
+                    <span className="text-white text-base font-medium">{item.label}</span>
+                  </div>
+                  <Switch
+                    checked={settings[item.key as keyof Settings] as boolean}
+                    onCheckedChange={v => handleSettingChange(item.key as keyof Settings, v)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Create Game Button - Smaller & centered */}
-        <div className="flex justify-center">
-          <button
-            onClick={handlePlay}
-            disabled={isPending}
-            className="relative px-10 xs:px-14 py-4 xs:py-5 text-2xl xs:text-3xl font-orbitron font-bold tracking-wider
-                       bg-gradient-to-r from-cyan-500 to-purple-600 
-                       hover:from-purple-600 hover:to-pink-600
-                       rounded-full shadow-2xl transform hover:scale-110 active:scale-105 transition-all duration-300
-                       disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100
-                       border-4 border-cyan-400/80 overflow-hidden group"
-          >
-            <span className="relative z-10 text-black drop-shadow-lg">
-              {isPending ? "CREATING..." : "CREATE GAME"}
-            </span>
-            <div className="absolute inset-0 bg-white/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          </button>
-        </div>
-
+      {/* Fixed Bottom Button */}
+      <div className="px-4 pb-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+        <button
+          onClick={handlePlay}
+          disabled={isPending}
+          className="w-full py-5 text-2xl font-orbitron font-bold tracking-wider
+                     bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600
+                     hover:from-purple-600 hover:via-pink-600 hover:to-red-600
+                     rounded-2xl shadow-2xl transform hover:scale-105 active:scale-95 transition-all duration-300
+                     disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100
+                     border-4 border-cyan-300/80 overflow-hidden group"
+        >
+          <span className="relative z-10 text-black drop-shadow-lg">
+            {isPending ? "CREATING..." : "CREATE GAME"}
+          </span>
+          <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        </button>
       </div>
     </div>
   );

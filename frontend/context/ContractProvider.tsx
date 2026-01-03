@@ -193,7 +193,8 @@ export function useCreateGame(
   playerSymbol: string,
   numberOfPlayers: number,
   code: string,
-  startingCash: bigint
+  startingCash: bigint,
+  stake: bigint,
 ) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
@@ -206,8 +207,8 @@ export function useCreateGame(
       address: contractAddress,
       abi: TycoonABI,
       functionName: 'createGame',
-      args: [creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingCash],
-      value: BigInt(STAKE_AMOUNT),
+      args: [creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingCash, stake],
+      value: BigInt(stake),
     });
     return hash;
   }, [writeContractAsync, contractAddress, creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingCash]);

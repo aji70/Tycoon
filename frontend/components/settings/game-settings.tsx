@@ -1,6 +1,7 @@
 "use client";
+
 import React, { useState } from "react";
-import { FaUsers, FaUser } from "react-icons/fa6";
+import { FaUsers, FaUser, FaCoins } from "react-icons/fa6";
 import { House } from "lucide-react";
 import {
   Select,
@@ -36,6 +37,7 @@ interface Settings {
   evenBuild: boolean;
   startingCash: string;
   randomPlayOrder: boolean;
+  stake: number; // ← NEW: Stake amount
 }
 
 const GameSettings = () => {
@@ -52,6 +54,7 @@ const GameSettings = () => {
     evenBuild: false,
     startingCash: "1500",
     randomPlayOrder: false,
+    stake: 1, // ← Default stake = 1
   });
 
   const { data: isUserRegistered, isLoading: isRegisteredLoading } =
@@ -63,105 +66,115 @@ const GameSettings = () => {
   const numberOfPlayers = Number.parseInt(settings.maxPlayers, 10);
 
   const { data: username } = useGetUsername(address);
+
+  // Updated hook call – added stake as BigInt
   const {
     write: createGame,
     isPending,
     error: contractError,
-  } = useCreateGame(username ?? "", gameType, playerSymbol, numberOfPlayers, gameCode, BigInt(settings.startingCash));
+  } = useCreateGame(
+    username ?? "",
+    gameType,
+    playerSymbol,
+    numberOfPlayers,
+    gameCode,
+    BigInt(settings.startingCash),
+    BigInt(settings.stake) // ← Pass stake on-chain
+  );
 
   const handleSettingChange = (
     key: keyof Settings,
-    value: string | boolean
+    value: string | boolean | number
   ) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-const handlePlay = async () => {
-  if (!address) {
-    toast.error("Please connect your wallet first!", { autoClose: 5000 });
-    return;
-  }
-
-  if (!isUserRegistered) {
-    toast.warn("You need to register before creating a game", { autoClose: 5000 });
-    router.push("/");
-    return;
-  }
-
-  const toastId = toast.loading("Creating your game room...", {
-    position: "top-center",
-  });
-
-  try {
-    const gameId = await createGame();
-
-    if (!gameId) {
-      throw new Error("Failed to get game ID from contract");
-    }
-
-    await apiClient.post<ApiResponse>("/games", {
-      id: gameId,
-      code: gameCode,
-      mode: gameType,
-      address,
-      symbol: playerSymbol,
-      number_of_players: numberOfPlayers,
-      settings: {
-        auction: settings.auction,
-        rent_in_prison: settings.rentInPrison,
-        mortgage: settings.mortgage,
-        even_build: settings.evenBuild,
-        starting_cash: Number(settings.startingCash),
-        randomize_play_order: settings.randomPlayOrder,
-      },
-    });
-
-    toast.update(toastId, {
-      render: `Game created! Share code: ${gameCode}`,
-      type: "success",
-      isLoading: false,
-      autoClose: 4000,
-      onClose: () => {
-        router.push(`/game-waiting?gameCode=${gameCode}`);
-      },
-    });
-  } catch (err: any) {
-    // Wallet rejection
-    if (
-      err?.code === 4001 ||
-      err?.message?.includes("User rejected") ||
-      err?.message?.includes("User denied") ||
-      err?.message?.includes("ACTION_REJECTED")
-    ) {
-      toast.update(toastId, {
-        render: "You cancelled the transaction – no worries!",
-        type: "info",
-        isLoading: false,
-        autoClose: 4000,
-      });
+  const handlePlay = async () => {
+    if (!address) {
+      toast.error("Please connect your wallet first!", { autoClose: 5000 });
       return;
     }
 
-    let message = "Failed to create game. Please try again.";
-
-    if (err?.message?.includes("insufficient funds")) {
-      message = "Not enough funds for gas fees";
-    } else if (err?.shortMessage) {
-      message = err.shortMessage;
-    } else if (err?.reason) {
-      message = err.reason;
-    } else if (contractError?.message) {
-      message = contractError.message;
+    if (!isUserRegistered) {
+      toast.warn("You need to register before creating a game", { autoClose: 5000 });
+      router.push("/");
+      return;
     }
 
-    toast.update(toastId, {
-      render: message,
-      type: "error",
-      isLoading: false,
-      autoClose: 6000,
+    const toastId = toast.loading("Creating your game room...", {
+      position: "top-center",
     });
-  }
-};
+
+    try {
+      const gameId = await createGame();
+
+      if (!gameId) {
+        throw new Error("Failed to get game ID from contract");
+      }
+
+      await apiClient.post<ApiResponse>("/games", {
+        id: gameId,
+        code: gameCode,
+        mode: gameType,
+        address,
+        symbol: playerSymbol,
+        number_of_players: numberOfPlayers,
+        stake: settings.stake, // ← Save stake to DB
+        settings: {
+          auction: settings.auction,
+          rent_in_prison: settings.rentInPrison,
+          mortgage: settings.mortgage,
+          even_build: settings.evenBuild,
+          starting_cash: Number(settings.startingCash),
+          randomize_play_order: settings.randomPlayOrder,
+        },
+      });
+
+      toast.update(toastId, {
+        render: `Game created! Share code: ${gameCode}`,
+        type: "success",
+        isLoading: false,
+        autoClose: 4000,
+        onClose: () => {
+          router.push(`/game-waiting?gameCode=${gameCode}`);
+        },
+      });
+    } catch (err: any) {
+      if (
+        err?.code === 4001 ||
+        err?.message?.includes("User rejected") ||
+        err?.message?.includes("User denied") ||
+        err?.message?.includes("ACTION_REJECTED")
+      ) {
+        toast.update(toastId, {
+          render: "You cancelled the transaction – no worries!",
+          type: "info",
+          isLoading: false,
+          autoClose: 4000,
+        });
+        return;
+      }
+
+      let message = "Failed to create game. Please try again.";
+
+      if (err?.message?.includes("insufficient funds")) {
+        message = "Not enough funds for gas fees";
+      } else if (err?.shortMessage) {
+        message = err.shortMessage;
+      } else if (err?.reason) {
+        message = err.reason;
+      } else if (contractError?.message) {
+        message = contractError.message;
+      }
+
+      toast.update(toastId, {
+        render: message,
+        type: "error",
+        isLoading: false,
+        autoClose: 6000,
+      });
+    }
+  };
 
   if (isRegisteredLoading) {
     return (
@@ -190,7 +203,7 @@ const handlePlay = async () => {
           <div className="w-16" />
         </div>
 
-        {/* Main Grid */}
+        {/* Main Grid – Now supports 3 columns on larger screens if needed */}
         <div className="grid lg:grid-cols-2 gap-6">
 
           {/* Left Column – Core Settings */}
@@ -263,6 +276,27 @@ const handlePlay = async () => {
                   <SelectItem value="1500">$1,500</SelectItem>
                   <SelectItem value="2000">$2,000</SelectItem>
                   <SelectItem value="5000">$5,000</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* NEW: Stake */}
+            <div className="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-5 border border-green-500/30">
+              <div className="flex items-center gap-2 mb-3">
+                <FaCoins className="w-6 h-6 text-green-400" />
+                <h3 className="text-xl font-bold text-green-300">Entry Stake</h3>
+              </div>
+              <Select value={settings.stake.toString()} onValueChange={v => handleSettingChange("stake", Number(v))}>
+                <SelectTrigger className="h-12 bg-black/40 border-green-500/50 text-white text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
                 </SelectContent>
               </Select>
             </div>
