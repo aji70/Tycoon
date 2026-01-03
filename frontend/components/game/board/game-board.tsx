@@ -54,7 +54,7 @@ const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green",
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
-const MOVE_ANIMATION_MS_PER_SQUARE = 250;
+const MOVE_ANIMATION_MS_PER_SQUARE = 150; // Reduced for smoother feel (faster steps)
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
@@ -291,12 +291,11 @@ const Board = ({
     setHasMovementFinished(false);
 
     setTimeout(async () => {
-      const value = getDiceValues();
-      if (!value) {
-        showToast("DOUBLES! Roll again!", "success");
-        setIsRolling(false);
-        unlockAction();
-        return;
+      let value = getDiceValues();
+      while (value === null) { // Handle doubles by re-rolling immediately
+        showToast("DOUBLES! Rolling again...", "success");
+        await new Promise(resolve => setTimeout(resolve, 500)); // Short delay for feedback
+        value = getDiceValues();
       }
 
       setRoll(value);
@@ -321,13 +320,18 @@ const Board = ({
             movePath.push((currentPos + i) % BOARD_SQUARES);
           }
 
-          for (let i = 0; i < movePath.length; i++) {
-            await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          // Use requestAnimationFrame for smoother step updates
+          let i = 0;
+          const animateStep = () => {
+            if (i >= movePath.length) return;
             setAnimatedPositions((prev) => ({
               ...prev,
               [playerId]: movePath[i],
             }));
-          }
+            i++;
+            setTimeout(animateStep, MOVE_ANIMATION_MS_PER_SQUARE);
+          };
+          animateStep();
         }
       } else {
         showToast(
@@ -373,8 +377,9 @@ const Board = ({
     showToast, END_TURN
   ]);
 
+  // Consolidated buy prompt logic with dependency on hasMovementFinished
   useEffect(() => {
-    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+    if (!hasMovementFinished || landedPositionThisTurn.current === null) {
       setBuyPrompted(false);
       return;
     }
@@ -393,30 +398,33 @@ const Board = ({
 
     const canBuy = !isOwned && isBuyableType;
 
-    setBuyPrompted(canBuy);
-
-    if (canBuy && (currentPlayer?.balance ?? 0) < square.price) {
-      showToast(`Not enough money to buy ${square.name}`, "error");
+    if (canBuy) {
+      setBuyPrompted(true);
+      if ((currentPlayer?.balance ?? 0) < square.price) {
+        showToast(`Not enough money to buy ${square.name}`, "error");
+      }
+    } else {
+      setBuyPrompted(false);
     }
   }, [
-    roll,
-    landedPositionThisTurn.current,
     hasMovementFinished,
+    landedPositionThisTurn.current,
     game_properties,
     properties,
     currentPlayer,
     showToast
   ]);
 
+  // Auto-end turn only if no buy prompt and movement finished
   useEffect(() => {
-    if (actionLock || isRolling || buyPrompted || !roll) return;
+    if (actionLock || isRolling || buyPrompted || !roll || !hasMovementFinished) return;
 
     const timer = setTimeout(() => {
       END_TURN();
     }, isAITurn ? 1000 : 1200);
 
     return () => clearTimeout(timer);
-  }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
+  }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN, hasMovementFinished]);
 
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
