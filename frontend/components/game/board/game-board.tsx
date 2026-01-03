@@ -520,6 +520,7 @@ const Board = ({
               playerCanRoll={playerCanRoll}
               isRolling={isRolling}
               roll={roll}
+              currentPlayer={currentPlayer}
               buyPrompted={buyPrompted}
               currentProperty={justLandedProperty || currentProperty}
               currentPlayerBalance={currentPlayer?.balance ?? 0}
