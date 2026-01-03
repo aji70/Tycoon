@@ -432,50 +432,99 @@ const Board = ({
     setTimeout(END_TURN, 900);
   };
 
-  const handleBankruptcy = useCallback(async () => {
-    if (!me || !game.id || !game.code) {
-      showToast("Cannot declare bankruptcy right now", "error");
-      return;
+const handleBankruptcy = useCallback(async () => {
+  if (!me || !game.id || !game.code) {
+    showToast("Cannot declare bankruptcy right now", "error");
+    return;
+  }
+
+  showToast("Declaring bankruptcy...", "error");
+
+  let creditorPlayerId: number | null = null;
+
+  // Check if we landed on an owned property → that owner is the creditor
+  if (justLandedProperty) {
+    const landedGameProp = game_properties.find(
+      (gp) => gp.property_id === justLandedProperty.id
+    );
+
+    if (landedGameProp?.address) {
+      const owner = players.find(
+        (p) =>
+          p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
+          p.user_id !== me.user_id
+      );
+
+      if (owner) {
+        creditorPlayerId = owner.user_id;
+      }
+    }
+  }
+
+  try {
+    // Get ALL properties owned by the bankrupt player (me)
+    const myOwnedProperties = game_properties.filter(
+      (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+    );
+
+    if (creditorPlayerId && myOwnedProperties.length > 0) {
+      // CASE 1: Transfer ALL properties to the creditor (landlord)
+      showToast("All your properties transferred to the landlord!", "error");
+
+      // You can batch this on backend, but here we do one by one for reliability
+      for (const gp of myOwnedProperties) {
+        await apiClient.put(`/game-properties/${gp.id}`, {
+          game_id: game.id,
+          player_id: creditorPlayerId,
+          address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
+        });
+      }
+    } else if (myOwnedProperties.length > 0) {
+      // CASE 2: Delete ALL properties (return to bank = permanent delete as you want)
+      showToast("All your properties permanently deleted (returned to bank)", "error");
+
+      for (const gp of myOwnedProperties) {
+        await apiClient.delete(`/game-properties/${gp.id}`, {
+          data: { game_id: game.id },
+        });
+      }
     }
 
-    showToast("Declaring bankruptcy... Your assets are forfeited.", "error");
+    // Finally, leave the game
+    await apiClient.post("/game-players/leave", {
+      address: me.address,
+      code: game.code,
+      reason: "bankruptcy",
+    });
 
-    try {
-      // Simply leave the game — backend should handle asset cleanup on insolvency/leave
-      await apiClient.post("/game-players/leave", {
-        address: me.address,
-        code: game.code,
-        reason: "bankruptcy",
-      });
+    await fetchUpdatedGame();
 
-      // Refresh game state to reflect removal
-      await fetchUpdatedGame();
+    // Optional exit prompt
+    setShowExitPrompt(true);
+  } catch (err: any) {
+    console.error("Bankruptcy process failed:", err);
+    showToast("Bankruptcy failed — you are still eliminated.", "error");
 
-      // Optional: trigger exit UI if you have it
-      setShowExitPrompt(true);
-    } catch (err: any) {
-      console.warn("Leave API failed during bankruptcy (proceeding anyway)", err);
-
-      // Even if leave fails, treat as bankrupt — player is out
-      showToast("You are bankrupt and eliminated from the game.", "error");
-
-      // Force redirect after delay
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 3000);
-    } finally {
-      // Always clean up modal and turn state
-      setShowBankruptcyModal(false);
-      setBuyPrompted(false);
-      landedPositionThisTurn.current = null;
-    }
-  }, [
-    me,
-    game.id,
-    game.code,
-    showToast,
-    fetchUpdatedGame,
-  ]);
+    // Force redirect anyway
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 3000);
+  } finally {
+    // Always clean up UI
+    setShowBankruptcyModal(false);
+    setBuyPrompted(false);
+    landedPositionThisTurn.current = null;
+  }
+}, [
+  me,
+  game.id,
+  game.code,
+  justLandedProperty,
+  game_properties,
+  players,
+  showToast,
+  fetchUpdatedGame,
+]);
 
   // Toggle function for the sparkle button
   const togglePerksModal = () => {
