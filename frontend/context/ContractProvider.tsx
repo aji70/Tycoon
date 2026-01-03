@@ -245,7 +245,7 @@ export function useCreateAIGame(
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
-export function useJoinGame(gameId: bigint, username: string, playerSymbol: string, code: string) {
+export function useJoinGame(gameId: bigint, username: string, playerSymbol: string, code: string, stake: bigint) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
@@ -258,7 +258,7 @@ export function useJoinGame(gameId: bigint, username: string, playerSymbol: stri
       abi: TycoonABI,
       functionName: 'joinGame',
       args: [gameId, username, playerSymbol, code],
-      value: BigInt(STAKE_AMOUNT),
+      value: BigInt(stake),
     });
     return hash;
   }, [writeContractAsync, contractAddress, gameId, username, playerSymbol, code]);

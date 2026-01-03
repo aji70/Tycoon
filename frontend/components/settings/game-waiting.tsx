@@ -65,6 +65,7 @@ export default function GameWaiting(): JSX.Element {
     username ?? "",
     playerSymbol?.value ?? "",
     gameCode,
+    contractGame?.stakePerPlayer ? BigInt(contractGame.stakePerPlayer) : BigInt(0) // ← Pass stakePerPlayer to join game
   );
 
   const mountedRef = useRef(true);
@@ -296,6 +297,7 @@ export default function GameWaiting(): JSX.Element {
     contractGame?.joinedPlayers ?? game?.players.length ?? 0;
   const maxPlayers =
     contractGame?.numberOfPlayers ?? game?.number_of_players ?? 0;
+  const stakePerPlayer = contractGame?.stakePerPlayer  ?? 0; 
 
   const handleJoinGame = useCallback(async () => {
     if (!game) {
@@ -441,6 +443,9 @@ export default function GameWaiting(): JSX.Element {
             </div>
             <p className="text-[#00F0FF] text-lg font-bold">
               Players Ready: {playersJoined}/{maxPlayers}
+            </p>
+            <p className="text-[#00F0FF] text-lg font-bold">
+              Stake per Player: {stakePerPlayer} {/* ← Display stakePerPlayer */}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 justify-center">
               {Array.from({ length: maxPlayers }).map((_, index) => {
