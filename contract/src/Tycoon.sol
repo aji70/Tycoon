@@ -2,53 +2,56 @@
 pragma solidity ^0.8.30;
 
 import {TycoonLib} from "./TycoonLib.sol";
-import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {ERC1155} from "lib/openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
-import {ERC1155Burnable} from "lib/openzeppelin-contracts/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
-import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 // ============================================================================
 //                  TYCOON REWARD & COLLECTIBLES SYSTEM (ERC-1155)
 // ============================================================================
 // Features:
-// - Unique redeemable TYC vouchers
-// - Unique and semi-fungible collectible perks (shop supports multiple copies)
-// - Dynamic metadata via on-chain uri()
-// - Fixed cash perk tiers: [0, 10, 25, 50, 100, 250]
+// - Claimable vouchers → redeem for TYC tokens
+// - Burnable collectibles → burn to get in-game perks
+// - Cash perk now uses fixed tiers: [0, 10, 25, 50, 100, 250]
 contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable, Pausable, ReentrancyGuard {
-    IERC20 public tycToken;
+    IERC20 public immutable tycToken;
     IERC20 public immutable usdc;
 
-    // Token ID ranges
+    // ------------------------------------------------------------------------
+    // TOKEN ID RANGES
+    // ------------------------------------------------------------------------
+    // 1_000_000_000+ → Claimable TYC vouchers
+    // 2_000_000_000+ → Collectibles (perks)
     uint256 private _nextVoucherId = 1_000_000_000;
     uint256 private _nextCollectibleId = 2_000_000_000;
 
-    // Voucher data
+    // VOUCHERS: redeemable value in TYC
     mapping(uint256 => uint256) public voucherRedeemValue;
 
-    // Fixed cash tiers (index 1–5)
+    // Cash / Refund tiers: index 1–5
     uint256[] private CASH_TIERS = [0, 10, 25, 50, 100, 250];
 
-    // Dynamic metadata
-    string private _baseURI = "https://gateway.pinata.cloud/ipfs/bafkreiabe7dquw4ekh2p4b2b4fysqckzyclk5mcycih462xvqgxcwlgjjy";
-
-    // Collectible data (shared across all copies of the same tokenId)
     mapping(uint256 => TycoonLib.CollectiblePerk) public collectiblePerk;
-    mapping(uint256 => uint256) public collectiblePerkStrength;
+    mapping(uint256 => uint256) public collectiblePerkStrength; // tier or strength value
+
+    // SHOP PRICES (0 = not for sale in that currency)
     mapping(uint256 => uint256) public collectibleTycPrice;
     mapping(uint256 => uint256) public collectibleUsdcPrice;
 
-    // Admin
+    // Admin / backend
     address public backendMinter;
 
-    // Owner enumeration
+    // Enumeration: Track unique token IDs owned by each address (balance > 0)
     mapping(address => uint256[]) private _ownedTokens;
     mapping(address => mapping(uint256 => uint256)) private _ownedTokensIndex;
 
-    // Events
+    // ------------------------------------------------------------------------
+    // EVENTS
+    // ------------------------------------------------------------------------
     event VoucherMinted(uint256 indexed tokenId, address indexed to, uint256 tycValue);
     event CollectibleMinted(
         uint256 indexed tokenId, address indexed to, TycoonLib.CollectiblePerk perk, uint256 strength
@@ -63,10 +66,9 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     event CashPerkActivated(uint256 indexed tokenId, address indexed burner, uint256 cashAmount);
     event BackendMinterUpdated(address indexed newMinter);
     event FundsWithdrawn(address indexed token, address indexed to, uint256 amount);
-    event BaseURIUpdated(string newBaseURI);
 
     constructor(address _tycToken, address _usdc, address initialOwner)
-        ERC1155("") // URI handled dynamically
+        ERC1155("https://gateway.pinata.cloud/ipfs/bafkreiabe7dquw4ekh2p4b2b4fysqckzyclk5mcycih462xvqgxcwlgjjy")
         Ownable(initialOwner)
     {
         require(_tycToken != address(0), "Invalid TYC token");
@@ -76,10 +78,13 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     }
 
     modifier onlyBackend() {
-        require(msg.sender == backendMinter || msg.sender == owner(), "Unauthorized: backend or owner");
+        require(msg.sender == backendMinter || msg.sender == owner(), "Unauthorized");
         _;
     }
 
+    // ------------------------------------------------------------------------
+    // INTERFACE OVERRIDE (required due to ERC1155 + ERC1155Holder inheritance)
+    // ------------------------------------------------------------------------
     function supportsInterface(bytes4 interfaceId)
         public
         view
@@ -90,17 +95,13 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         return super.supportsInterface(interfaceId);
     }
 
-    // ============================= ADMIN =============================
+    // ------------------------------------------------------------------------
+    // ADMIN FUNCTIONS
+    // ------------------------------------------------------------------------
     function setBackendMinter(address newMinter) external onlyOwner {
         require(newMinter != address(0), "Invalid address");
         backendMinter = newMinter;
         emit BackendMinterUpdated(newMinter);
-    }
-
-    function setBaseURI(string memory newBaseURI) external onlyOwner {
-        require(bytes(newBaseURI).length > 0, "Empty URI");
-        _baseURI = newBaseURI;
-        emit BaseURIUpdated(newBaseURI);
     }
 
     function pause() external onlyOwner {
@@ -111,26 +112,19 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         _unpause();
     }
 
+    // Withdraw collected TYC/USDC revenue
     function withdrawFunds(IERC20 token, address to, uint256 amount) external onlyOwner nonReentrant {
-        require(to != address(0), "Invalid recipient");
+        require(to != address(0), "Invalid address");
         require(token.transfer(to, amount), "Transfer failed");
         emit FundsWithdrawn(address(token), to, amount);
     }
 
-    function setTycToken(address newTycToken) external onlyOwner {
-        require(newTycToken != address(0), "Invalid token");
-        tycToken = IERC20(newTycToken);
-    }
-
-    // ============================= METADATA =============================
-    function uri(uint256 tokenId) public view virtual override returns (string memory) {
-        return string(abi.encodePacked(_baseURI, _uintToString(tokenId), ".json"));
-    }
-
-    // ============================= VOUCHERS =============================
+    // ------------------------------------------------------------------------
+    // VOUCHER FUNCTIONS
+    // ------------------------------------------------------------------------
     function mintVoucher(address to, uint256 tycValue) external onlyBackend returns (uint256 tokenId) {
+        require(tycValue > 0, "Value must be positive");
         require(to != address(0), "Invalid recipient");
-        require(tycValue > 0, "Value > 0");
 
         tokenId = _nextVoucherId++;
         voucherRedeemValue[tokenId] = tycValue;
@@ -140,7 +134,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     }
 
     function redeemVoucher(uint256 tokenId) external whenNotPaused {
-        require(balanceOf(msg.sender, tokenId) == 1, "Must own voucher");
+        require(balanceOf(msg.sender, tokenId) == 1, "Not owner");
         uint256 value = voucherRedeemValue[tokenId];
         require(value > 0, "Invalid voucher");
 
@@ -152,14 +146,16 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         emit VoucherRedeemed(tokenId, msg.sender, value);
     }
 
-    // ============================= COLLECTIBLES =============================
+    // ------------------------------------------------------------------------
+    // COLLECTIBLE MINTING (non-shop rewards)
+    // ------------------------------------------------------------------------
     function mintCollectible(address to, TycoonLib.CollectiblePerk perk, uint256 strength)
         external
         onlyBackend
         returns (uint256 tokenId)
     {
-        require(to != address(0), "Invalid recipient");
         require(perk != TycoonLib.CollectiblePerk.NONE, "Invalid perk");
+        require(to != address(0), "Invalid recipient");
         _validateStrength(perk, strength);
 
         tokenId = _nextCollectibleId++;
@@ -170,7 +166,9 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         emit CollectibleMinted(tokenId, to, perk, strength);
     }
 
-    // Shop
+    // ------------------------------------------------------------------------
+    // SHOP MANAGEMENT
+    // ------------------------------------------------------------------------
     function stockShop(
         uint256 amount,
         TycoonLib.CollectiblePerk perk,
@@ -207,6 +205,9 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         emit CollectiblePricesUpdated(tokenId, newTycPrice, newUsdcPrice);
     }
 
+    // ------------------------------------------------------------------------
+    // BUY FROM SHOP
+    // ------------------------------------------------------------------------
     function buyCollectible(uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
         uint256 price = useUsdc ? collectibleUsdcPrice[tokenId] : collectibleTycPrice[tokenId];
         IERC20 paymentToken = useUsdc ? usdc : tycToken;
@@ -220,7 +221,9 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         emit CollectibleBought(tokenId, msg.sender, price, useUsdc);
     }
 
-    // Fixed burn function
+    // ------------------------------------------------------------------------
+    // BURN FOR PERK
+    // ------------------------------------------------------------------------
     function burnCollectibleForPerk(uint256 tokenId) external whenNotPaused {
         require(balanceOf(msg.sender, tokenId) >= 1, "Insufficient balance");
 
@@ -236,14 +239,16 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
 
         _burn(msg.sender, tokenId, 1);
         emit CollectibleBurned(tokenId, msg.sender, perk, strength);
-        // Metadata intentionally preserved for remaining copies
     }
 
-    // ============================= HELPERS =============================
+    // ------------------------------------------------------------------------
+    // INTERNAL HELPERS
+    // ------------------------------------------------------------------------
     function _validateStrength(TycoonLib.CollectiblePerk perk, uint256 strength) internal pure {
         if (perk == TycoonLib.CollectiblePerk.CASH_TIERED || perk == TycoonLib.CollectiblePerk.TAX_REFUND) {
-            require(strength >= 1 && strength <= 5, "Tier must be 1-5");
+            require(strength >= 1 && strength <= 5, "Invalid tier (1-5)");
         }
+        // Add more validations here if you create new tiered perks
     }
 
     function _uintToString(uint256 value) internal pure returns (string memory) {
@@ -263,24 +268,25 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         return string(buffer);
     }
 
-    // Enumeration
     function _addTokenToOwnerEnumeration(address owner, uint256 tokenId) private {
-        if (balanceOf(owner, tokenId) == 0) return;
+        if (balanceOf(owner, tokenId) == 0) return; // Only add if balance > 0
         uint256 index = _ownedTokensIndex[owner][tokenId];
         if (_ownedTokens[owner].length == 0 || _ownedTokens[owner][index] != tokenId) {
+            uint256 length = _ownedTokens[owner].length;
             _ownedTokens[owner].push(tokenId);
-            _ownedTokensIndex[owner][tokenId] = _ownedTokens[owner].length - 1;
+            _ownedTokensIndex[owner][tokenId] = length;
         }
     }
 
     function _removeTokenFromOwnerEnumeration(address owner, uint256 tokenId) private {
-        if (balanceOf(owner, tokenId) > 0) return;
+        if (balanceOf(owner, tokenId) > 0) return; // Only remove if balance == 0
 
-        uint256 lastIndex = _ownedTokens[owner].length - 1;
+        uint256 lastTokenIndex = _ownedTokens[owner].length - 1;
         uint256 tokenIndex = _ownedTokensIndex[owner][tokenId];
 
-        if (tokenIndex <= lastIndex) {
-            uint256 lastTokenId = _ownedTokens[owner][lastIndex];
+        if (tokenIndex <= lastTokenIndex) {
+            uint256 lastTokenId = _ownedTokens[owner][lastTokenIndex];
+
             _ownedTokens[owner][tokenIndex] = lastTokenId;
             _ownedTokensIndex[owner][lastTokenId] = tokenIndex;
         }
@@ -289,6 +295,7 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         delete _ownedTokensIndex[owner][tokenId];
     }
 
+    // Override _update to handle enumeration
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
         internal
         virtual
@@ -296,15 +303,23 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
     {
         super._update(from, to, ids, values);
 
-        for (uint256 i = 0; i < ids.length; ++i) {
+        uint256 length = ids.length;
+        for (uint256 i = 0; i < length; i++) {
             uint256 id = ids[i];
-            uint256 val = values[i];
-            if (from != address(0) && val > 0) _removeTokenFromOwnerEnumeration(from, id);
-            if (to != address(0) && val > 0) _addTokenToOwnerEnumeration(to, id);
+            uint256 value = values[i];
+
+            if (from != address(0) && value > 0) {
+                _removeTokenFromOwnerEnumeration(from, id);
+            }
+            if (to != address(0) && value > 0) {
+                _addTokenToOwnerEnumeration(to, id);
+            }
         }
     }
 
-    // ============================= VIEWS =============================
+    // ------------------------------------------------------------------------
+    // VIEW FUNCTIONS
+    // ------------------------------------------------------------------------
     function getCollectibleInfo(uint256 tokenId)
         external
         view
@@ -328,18 +343,20 @@ contract TycoonRewardSystem is ERC1155, ERC1155Burnable, ERC1155Holder, Ownable,
         return CASH_TIERS[tier];
     }
 
+    // Total unique token IDs owned by an address (vouchers + collectibles)
     function ownedTokenCount(address owner) external view returns (uint256) {
         return _ownedTokens[owner].length;
     }
 
+    // Get token ID at index for an owner (0-based index)
     function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
         require(index < _ownedTokens[owner].length, "Index out of bounds");
         return _ownedTokens[owner][index];
     }
 
+    // Optional: allow contract to receive ETH if accidentally sent
     receive() external payable {}
 }
-
 // ============================================================================
 //                          MAIN TYCOON GAME CONTRACT
 // ============================================================================
