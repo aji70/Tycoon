@@ -54,7 +54,7 @@ const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green",
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
-const MOVE_ANIMATION_MS_PER_SQUARE = 300; // Reduced for smoother feel (faster steps)
+const MOVE_ANIMATION_MS_PER_SQUARE = 250; // Reduced for smoother feel (faster steps)
 
 const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
   const die1 = Math.floor(Math.random() * 6) + 1;
