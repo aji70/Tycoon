@@ -62,20 +62,26 @@ library TycoonLib {
         uint256 totalWithdrawn;
     }
 
+    struct GamePosition {
+        address winner;
+        address runnersup;
+        address losers;
+    }
+
     struct Game {
         uint256 id;
         string code;
         address creator;
         GameStatus status;
-        uint256 nextPlayer; // 1-based index of current turn
         address winner;
         uint8 numberOfPlayers;
         uint8 joinedPlayers;
         GameType mode;
         bool ai;
+        uint256 stakePerPlayer;
+        uint256 totalStaked; // Track total stakes for this game
         uint64 createdAt;
         uint64 endedAt;
-        uint256 totalStaked; // Track total stakes for this game
     }
 
     struct GamePlayer {
