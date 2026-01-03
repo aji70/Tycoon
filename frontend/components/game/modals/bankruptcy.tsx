@@ -7,252 +7,278 @@ import { AlertTriangle, Skull, Coins } from "lucide-react";
 interface BankruptcyModalProps {
   isOpen: boolean;
   onClose?: () => void;
+  onConfirmBankruptcy?: () => Promise<void> | void;
   message?: string;
   onReturnHome?: () => void;
-  autoCloseDelay?: number; // in milliseconds
+  autoCloseDelay?: number; // milliseconds
   tokensAwarded?: number;
 }
 
 export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   isOpen,
   onClose,
-  message = "Your empire has fallen... but the game isn't over forever!",
+  onConfirmBankruptcy,
+  message = "You cannot pay your debts. Your empire has collapsed.",
   onReturnHome = () => (window.location.href = "/"),
-  autoCloseDelay = 8000,
+  autoCloseDelay = 10000,
   tokensAwarded = 0.5,
 }) => {
-  const [shouldShow, setShouldShow] = useState(isOpen);
+  const [shouldShow, setShouldShow] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(Math.round(autoCloseDelay / 1000));
+  const [isConfirming, setIsConfirming] = useState(false);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasNavigated = useRef(false);
 
   // Sync visibility with isOpen prop
   useEffect(() => {
     if (isOpen) {
       setShouldShow(true);
-      setSecondsLeft(Math.round(autoCloseDelay / 1000));
+      setIsConfirming(false);
       hasNavigated.current = false;
+
+      // Only reset countdown if in auto mode
+      if (!onConfirmBankruptcy) {
+        setSecondsLeft(Math.round(autoCloseDelay / 1000));
+      }
+    } else {
+      setShouldShow(false);
     }
-  }, [isOpen, autoCloseDelay]);
+  }, [isOpen, autoCloseDelay, onConfirmBankruptcy]);
 
-  // Countdown + auto-exit logic
+  // Auto-close logic (only when no manual confirmation needed)
   useEffect(() => {
-    if (!shouldShow) return;
+    if (!shouldShow || onConfirmBankruptcy) {
+      // Clean up any running timers
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+      return;
+    }
 
-    // Countdown interval
+    // Countdown timer
     timerRef.current = setInterval(() => {
       setSecondsLeft((prev) => {
-        const next = prev - 1;
-        if (next <= 0) {
+        if (prev <= 1) {
           clearInterval(timerRef.current!);
           return 0;
         }
-        return next;
+        return prev - 1;
       });
     }, 1000);
 
-    // Exit sequence timer (triggers exactly when countdown should hit 0)
-    const exitTimer = setTimeout(() => {
+    // Auto navigation after delay
+    exitTimerRef.current = setTimeout(() => {
       if (hasNavigated.current) return;
       hasNavigated.current = true;
 
-      // Trigger exit animation
       setShouldShow(false);
 
-      // Wait for FULL exit animation before navigation (no board flash!)
-      const EXIT_DURATION = 1000; // Increased to ensure no flash
+      // Navigate after exit animation completes
       setTimeout(() => {
         onReturnHome();
-      }, EXIT_DURATION);
+      }, 1200);
     }, autoCloseDelay);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      clearTimeout(exitTimer);
+      if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
-  }, [shouldShow, autoCloseDelay, onReturnHome]);
+  }, [shouldShow, autoCloseDelay, onReturnHome, onConfirmBankruptcy]);
 
   const handleManualClose = () => {
     if (hasNavigated.current) return;
     hasNavigated.current = true;
+
     setShouldShow(false);
     setTimeout(() => {
-      if (onClose) onClose();
-      else onReturnHome();
-    }, 1000);
+      onClose?.();
+    }, 1200);
+  };
+
+  const handleDeclareBankruptcy = async () => {
+    if (isConfirming || hasNavigated.current) return;
+    setIsConfirming(true);
+
+    try {
+      await onConfirmBankruptcy?.();
+    } catch (error) {
+      console.error("Bankruptcy declaration failed:", error);
+      setIsConfirming(false);
+      return;
+    } finally {
+      // Always exit after confirmation (success or fail)
+      hasNavigated.current = true;
+      setShouldShow(false);
+
+      setTimeout(() => {
+        onReturnHome();
+      }, 1200);
+    }
   };
 
   if (!shouldShow) return null;
+
+  const isManualMode = !!onConfirmBankruptcy;
 
   return (
     <AnimatePresence mode="wait">
       {shouldShow && (
         <motion.div
-          key="backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.7 }}
-          className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-[9999] p-4"
+          transition={{ duration: 0.8 }}
+          className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999] p-4"
         >
-          {/* Background effects */}
+          {/* Pulsing background */}
           <motion.div
-            className="absolute inset-0 bg-gradient-to-br from-red-950 via-black to-rose-950"
-            animate={{ opacity: [0.5, 0.8, 0.5], scale: [1, 1.04, 1] }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute inset-0 bg-gradient-to-br from-red-950 via-black to-purple-950"
+            animate={{ opacity: [0.4, 0.7, 0.4], scale: [1, 1.06, 1] }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
           />
 
           <motion.div
-            key="content"
-            initial={{ scale: 0.75, y: 80, opacity: 0 }}
+            initial={{ scale: 0.7, y: 100, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{
-              scale: 0.65,
-              y: 140,
-              opacity: 0,
-              transition: { duration: 0.9, ease: [0.4, 0, 0.2, 1] }
-            }}
-            transition={{ type: "spring", stiffness: 100, damping: 14, delay: 0.1 }}
+            exit={{ scale: 0.6, y: 200, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 90, damping: 16 }}
             className="
-              relative w-full max-w-md sm:max-w-lg md:max-w-xl
-              p-8 sm:p-10 md:p-12
-              rounded-3xl border-4 border-red-700/60
-              bg-gradient-to-b from-slate-950 via-red-950/80 to-black/90
-              backdrop-blur-xl shadow-2xl shadow-red-900/70
+              relative w-full max-w-lg md:max-w-2xl
+              p-8 md:p-12 rounded-3xl
+              border-4 border-red-800/70
+              bg-gradient-to-b from-slate-950/95 via-red-950/70 to-black/95
+              backdrop-blur-2xl shadow-2xl shadow-red-900/80
               text-center overflow-hidden
             "
           >
-            {/* Falling money animation */}
-            {Array.from({ length: 12 }).map((_, i) => (
+            {/* Falling money & assets */}
+            {Array.from({ length: 18 }).map((_, i) => (
               <motion.div
                 key={i}
-                className="absolute text-3xl sm:text-4xl pointer-events-none select-none"
-                initial={{
-                  x: Math.random() * 300 - 150,
-                  y: -200,
-                  opacity: 0,
-                  rotate: Math.random() * 360 - 180,
-                }}
-                animate={{
-                  y: [0, 800, 1000],
-                  opacity: [0.7, 1, 0],
-                  rotate: Math.random() * 720 - 360,
-                }}
+                className="absolute text-4xl md:text-5xl pointer-events-none select-none"
+                initial={{ x: Math.random() * 500 - 250, y: -400, opacity: 0 }}
+                animate={{ y: 1200, opacity: [0.8, 1, 0] }}
                 transition={{
-                  duration: 4 + Math.random() * 3,
-                  delay: i * 0.15 + Math.random() * 0.4,
-                  ease: "easeIn",
+                  duration: 6 + Math.random() * 5,
+                  delay: i * 0.2,
                   repeat: Infinity,
-                  repeatDelay: Math.random() * 2,
+                  ease: "easeIn",
                 }}
                 style={{ left: `${Math.random() * 100}%` }}
               >
-                {Math.random() > 0.6 ? "💸" : "₿"}
+                {["💸", "₿", "🏠", "💰", "🪙"][Math.floor(Math.random() * 5)]}
               </motion.div>
             ))}
 
-            {/* Main skull + alert */}
+            {/* Skull icon */}
             <motion.div
-              initial={{ scale: 0.6, rotate: -20 }}
+              initial={{ scale: 0.4, rotate: -40 }}
               animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 140, delay: 0.3 }}
-              className="relative mb-8"
+              transition={{ type: "spring", stiffness: 110, delay: 0.2 }}
+              className="mb-10"
             >
-              <Skull className="w-28 h-28 sm:w-32 sm:h-32 mx-auto text-red-500 drop-shadow-[0_0_40px_rgba(239,68,68,0.9)]" />
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <AlertTriangle className="w-16 h-16 sm:w-20 sm:h-20 text-red-400/50" />
-              </motion.div>
+              <Skull className="w-40 h-40 mx-auto text-red-500 drop-shadow-[0_0_60px_rgba(239,68,68,1)]" />
             </motion.div>
 
             {/* Title */}
             <motion.h1
-              initial={{ y: -40, opacity: 0 }}
+              initial={{ y: -60, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.4 }}
               className="
-                text-4xl sm:text-5xl md:text-6xl lg:text-7xl 
-                font-black tracking-tight mb-4 leading-none
-                bg-clip-text text-transparent bg-gradient-to-r from-red-400 via-rose-500 to-red-600
-                animate-pulse
+                text-6xl md:text-8xl font-black tracking-tighter mb-6
+                bg-clip-text text-transparent
+                bg-gradient-to-b from-red-400 via-red-600 to-red-800
+                drop-shadow-2xl
               "
-              style={{ textShadow: "0 0 30px rgba(239,68,68,0.85)" }}
             >
-              BANKRUPTCY
+              BANKRUPT
             </motion.h1>
 
+            {/* Message */}
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.7 }}
-              className="text-xl sm:text-2xl md:text-3xl font-bold text-red-200/90 mb-8 max-w-md mx-auto"
+              className="text-xl md:text-2xl font-medium text-red-200/90 mb-12 max-w-lg mx-auto leading-relaxed"
             >
               {message}
             </motion.p>
 
-            {/* Token reward */}
+            {/* Token Reward */}
             <motion.div
-              initial={{ scale: 0.75, y: 40, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              transition={{ delay: 0.9, type: "spring", stiffness: 130 }}
-              className="mb-10 p-6 bg-black/60 rounded-2xl border border-amber-600/50 inline-block"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.9, type: "spring", stiffness: 100 }}
+              className="mb-12 p-8 bg-amber-950/50 rounded-3xl border-2 border-amber-600/70"
             >
-              <div className="flex items-center justify-center gap-4 sm:gap-6">
-                <Coins className="w-10 h-10 sm:w-12 sm:h-12 text-amber-400 drop-shadow-[0_0_20px_rgba(245,158,11,0.8)]" />
+              <div className="flex items-center justify-center gap-6">
+                <Coins className="w-16 h-16 text-amber-400 drop-shadow-[0_0_40px_rgba(251,191,36,1)]" />
                 <div className="text-left">
-                  <p className="text-lg sm:text-xl font-bold text-amber-300">Compensated with</p>
-                  <p className="text-3xl sm:text-4xl font-black text-amber-100">
+                  <p className="text-amber-300 text-xl font-bold">Consolation Prize</p>
+                  <p className="text-5xl md:text-6xl font-black text-amber-100">
                     +{tokensAwarded} TYC
                   </p>
-                  <p className="text-sm sm:text-base text-amber-200/80">Tycoon Tokens</p>
+                  <p className="text-amber-200 text-lg">Tycoon Tokens Awarded</p>
                 </div>
               </div>
-              <p className="mt-4 text-amber-100/90 text-base sm:text-lg">
-                Your tokens have been added — come back stronger!
-              </p>
             </motion.div>
 
-            {/* Live countdown */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1.3 }}
-              className="text-base sm:text-lg text-red-300/80 mb-8 font-medium"
-            >
-              {secondsLeft > 0 ? (
-                <>
-                  Redirecting to home in{" "}
-                  <span className="text-red-100 font-bold text-xl">{secondsLeft}</span>{" "}
-                  second{secondsLeft !== 1 ? "s" : ""}...
-                </>
-              ) : (
-                <span className="text-red-100 font-bold text-2xl animate-pulse">
-                  Final countdown complete... 👋
-                </span>
-              )}
-            </motion.p>
-
-            {/* Optional close button */}
-            {onClose && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                onClick={handleManualClose}
-                className="
-                  px-8 py-4 text-base sm:text-lg font-semibold rounded-xl
-                  bg-slate-800/70 hover:bg-slate-700
-                  border border-slate-600 text-slate-300
-                  transition-colors
-                "
+            {/* Action Area */}
+            {isManualMode ? (
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 1.1 }}
+                className="space-y-6"
               >
-                Close Preview
-              </motion.button>
+                <button
+                  onClick={handleDeclareBankruptcy}
+                  disabled={isConfirming}
+                  className="
+                    w-full max-w-md mx-auto px-12 py-6 text-3xl font-bold rounded-3xl
+                    bg-red-600 hover:bg-red-700 active:scale-95 disabled:opacity-70
+                    text-white shadow-2xl shadow-red-900/80
+                    border-4 border-red-900/60
+                    transition-all duration-300
+                  "
+                >
+                  {isConfirming ? "Declaring..." : "Declare Bankruptcy"}
+                </button>
+
+                {onClose && (
+                  <button
+                    onClick={handleManualClose}
+                    className="text-red-300 hover:text-red-100 underline text-lg font-medium"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.1 }}
+                className="text-xl md:text-2xl text-red-300 font-medium"
+              >
+                {secondsLeft > 0 ? (
+                  <>
+                    Returning to home in{" "}
+                    <span className="text-red-100 font-black text-4xl">{secondsLeft}</span>{" "}
+                    second{secondsLeft !== 1 ? "s" : ""}...
+                  </>
+                ) : (
+                  <span className="text-4xl font-bold text-red-100 animate-pulse">
+                    Farewell, Tycoon...
+                  </span>
+                )}
+              </motion.div>
             )}
 
-            <p className="mt-8 text-xs sm:text-sm text-red-400/50">
-              The Tycoon never truly falls • Rise again soon
+            <p className="mt-12 text-sm md:text-base text-red-400/60 italic">
+              Every great tycoon falls once. Rise again — stronger.
             </p>
           </motion.div>
         </motion.div>

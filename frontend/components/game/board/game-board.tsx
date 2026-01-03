@@ -109,6 +109,7 @@ const Board = ({
   const lastToastMessage = useRef<string | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -121,12 +122,6 @@ const Board = ({
   );
 
   const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && currentPlayer?.in_jail === true;
-
-  const [endGameCandidate, setEndGameCandidate] = useState<{
-    winner: Player | null;
-    position: number;
-    balance: bigint;
-  }>({ winner: null, position: 0, balance: BigInt(0) });
 
   const currentProperty = useMemo(() => {
     return currentPlayer?.position
@@ -277,124 +272,16 @@ const Board = ({
     setTimeout(END_TURN, 800);
   }, [END_TURN]);
 
-  const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
-    if (!propertyId || !newPlayerId) {
-      toast("Cannot transfer: missing property or player");
-      return;
-    }
-
+  const fetchUpdatedGame = useCallback(async () => {
     try {
-      const response = await apiClient.put<ApiResponse>(
-        `/game-properties/${propertyId}`,
-        {
-          game_id: game.id,
-          player_id: newPlayerId,
-        }
-      );
-
-      if (response.data?.success) {
-        toast.success("Property transferred successfully! 🎉");
-      } else {
-        throw new Error(response.data?.message || "Transfer failed");
-      }
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to transfer property";
-
-      toast.error(message);
-      console.error("Property transfer failed:", error);
-    }
-  };
-
-  // ── AI STRATEGY HELPERS ─────────────────────────────────────
-
-  const getPlayerOwnedProperties = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
-    if (!playerAddress) return [];
-    return game_properties
-      .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase())
-      .map(gp => ({
-        gp,
-        prop: properties.find(p => p.id === gp.property_id)!,
-      }))
-      .filter(item => !!item.prop);
-  };
-
-  const getCompleteMonopolies = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
-    if (!playerAddress) return [];
-
-    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
-    const monopolies: string[] = [];
-
-    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-      if (groupName === "railroad" || groupName === "utility") return;
-
-      const ownedInGroup = owned.filter(o => ids.includes(o.prop.id));
-      if (ownedInGroup.length === ids.length) {
-        const allUnmortgaged = ownedInGroup.every(o => !o.gp.mortgaged);
-        if (allUnmortgaged) {
-          monopolies.push(groupName);
-        }
-      }
-    });
-
-    return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
-  };
-
-  const getNearCompleteOpportunities = (playerAddress: string | undefined, game_properties: GameProperty[], properties: Property[]) => {
-    if (!playerAddress) return [];
-
-    const owned = getPlayerOwnedProperties(playerAddress, game_properties, properties);
-    const opportunities: {
-      group: string;
-      needs: number;
-      missing: { id: number; name: string; ownerAddress: string | null; ownerName: string }[];
-    }[] = [];
-
-    Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-      if (groupName === "railroad" || groupName === "utility") return;
-
-      const ownedCount = owned.filter(o => ids.includes(o.prop.id)).length;
-      const needs = ids.length - ownedCount;
-
-      if (needs === 1 || needs === 2) {
-        const missing = ids
-          .filter(id => !owned.some(o => o.prop.id === id))
-          .map(id => {
-            const gp = game_properties.find(g => g.property_id === id);
-            const prop = properties.find(p => p.id === id)!;
-            const ownerName = gp?.address
-              ? players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
-              : "Bank";
-            return {
-              id,
-              name: prop.name,
-              ownerAddress: gp?.address || null,
-              ownerName,
-            };
-          });
-
-        opportunities.push({ group: groupName, needs, missing });
-      }
-    });
-
-    return opportunities.sort((a, b) => {
-      if (a.needs !== b.needs) return a.needs - b.needs;
-      return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
-    });
-  };
-
-  const refreshGame = async () => {
-    try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
-      if (res?.data?.success) {
+      const res = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
+      if (res?.data?.success && res.data.data) {
         setPlayers(res.data.data.players);
       }
     } catch (err) {
-      console.error("Refresh failed", err);
+      console.error("Failed to refresh game state", err);
     }
-  };
+  }, [game.code]);
 
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -561,23 +448,6 @@ const Board = ({
     setTimeout(END_TURN, 900);
   };
 
-  const handleDeclareBankruptcy = async () => {
-    showToast("Declaring bankruptcy...", "default");
-
-    try {
-      const opponent = players.find(p => p.user_id !== me?.user_id);
-      await apiClient.put(`/games/${game.id}`, {
-        status: "FINISHED",
-        winner_id: opponent?.user_id || null,
-      });
-
-      showToast("Game over! You have declared bankruptcy.", "error");
-      setShowBankruptcyModal(true);
-    } catch (err) {
-      showToast("Failed to end game", "error");
-    }
-  };
-
   const handleDevelopment = async (id: number) => {
     if (!isMyTurn || !me) return;
     try {
@@ -646,6 +516,91 @@ const Board = ({
     }
   };
 
+  // ========================
+  // BANKRUPTCY HANDLER
+  // ========================
+  const handleBankruptcy = useCallback(async () => {
+    if (!me || !game.id || !game.code) {
+      showToast("Cannot declare bankruptcy right now", "error");
+      return;
+    }
+
+    const currentPlayer = me;
+    const landedProperty = justLandedProperty;
+
+    let targetPlayerId: number | null = null;
+
+    if (landedProperty) {
+      const gameProp = game_properties.find(
+        (gp) => gp.property_id === landedProperty.id
+      );
+
+      if (gameProp?.address) {
+        const ownerPlayer = players.find(
+          (p) =>
+            p.address?.toLowerCase() === gameProp.address?.toLowerCase()
+        );
+
+        if (ownerPlayer && ownerPlayer.user_id !== currentPlayer.user_id) {
+          targetPlayerId = ownerPlayer.user_id;
+        }
+      }
+    }
+
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/bankrupt", {
+        game_id: game.id,
+        user_id: currentPlayer.user_id,
+        transfer_to_player_id: targetPlayerId,
+      });
+
+      if (!res.data?.success) {
+        showToast(res.data?.message || "Bankruptcy failed", "error");
+        return;
+      }
+
+      showToast(
+        targetPlayerId
+          ? "Bankrupt! All properties transferred to the landlord."
+          : "Bankrupt! All properties returned to the bank.",
+        "error"
+      );
+
+      try {
+        await apiClient.post("/game-players/leave", {
+          address: currentPlayer.address,
+          code: game.code,
+          reason: "bankruptcy",
+        });
+      } catch (leaveErr) {
+        console.warn("Leave API failed (non-critical)", leaveErr);
+      }
+
+      setShowBankruptcyModal(false);
+      setBuyPrompted(false);
+      landedPositionThisTurn.current = null;
+
+      await fetchUpdatedGame();
+
+      setShowExitPrompt(true);
+    } catch (err: any) {
+      console.error("Bankruptcy process failed:", err);
+      showToast(
+        err?.response?.data?.message || "Failed to declare bankruptcy",
+        "error"
+      );
+    }
+  }, [
+    me,
+    game.id,
+    game.code,
+    justLandedProperty,
+    game_properties,
+    players,
+    showToast,
+    fetchUpdatedGame,
+  ]);
+
   // Toggle function for the sparkle button
   const togglePerksModal = () => {
     setShowPerksModal(prev => !prev);
@@ -669,7 +624,7 @@ const Board = ({
               onRollDice={handleRollDice}
               onBuyProperty={handleBuyProperty}
               onSkipBuy={handleSkipBuy}
-              onDeclareBankruptcy={handleDeclareBankruptcy}
+              onDeclareBankruptcy={handleBankruptcy}
               isPending={false}
             />
 
@@ -715,7 +670,7 @@ const Board = ({
               className="fixed inset-0 bg-black/70 z-50"
             />
 
-            {/* Perks Panel - ONLY in bottom-right corner, small and fixed */}
+            {/* Perks Panel - ONLY in bottom-left corner */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 50 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -723,8 +678,8 @@ const Board = ({
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="fixed bottom-6 left-6 z-50 w-80 max-h-[80vh]"
             >
-              <div >
-                <div className="p-5 border-b border-cyan-900/50 flex items-center justify-between left-6">
+              <div className="bg-[#0A1C1E] rounded-2xl shadow-2xl border border-cyan-500/30 overflow-hidden">
+                <div className="p-5 border-b border-cyan-900/50 flex items-center justify-between">
                   <h2 className="text-2xl font-bold flex items-center gap-3">
                     <Sparkles className="w-8 h-8 text-[#00F0FF]" />
                     My Perks
@@ -736,7 +691,7 @@ const Board = ({
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                
+                <div className="p-4 overflow-y-auto max-h-[60vh]">
                   <CollectibleInventoryBar
                     game={game}
                     game_properties={game_properties}
@@ -746,7 +701,7 @@ const Board = ({
                     triggerSpecialLanding={triggerLandingLogic}
                     endTurnAfterSpecial={endTurnAfterSpecialMove}
                   />
-                
+                </div>
               </div>
             </motion.div>
           </>
@@ -764,6 +719,7 @@ const Board = ({
       <BankruptcyModal
         isOpen={showBankruptcyModal}
         tokensAwarded={0.5}
+        onConfirmBankruptcy={handleBankruptcy}
         onReturnHome={() => window.location.href = "/"}
       />
 

@@ -610,52 +610,7 @@ const MobileGameLayout = ({
     return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
   }, [getPlayerOwnedProperties]);
 
-  const handleAiBuilding = async (player: Player) => {
-    if (!player.address) return;
-
-    const monopolies = getCompleteMonopolies(player.address);
-    if (monopolies.length === 0) return;
-
-    let built = false;
-
-    for (const groupName of monopolies) {
-      const ids = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-      const groupGps = currentGameProperties.filter(gp => ids.includes(gp.property_id) && gp.address === player.address);
-
-      const developments = groupGps.map(gp => gp.development ?? 0);
-      const minHouses = Math.min(...developments);
-      const maxHouses = Math.max(...developments);
-
-      if (maxHouses > minHouses + 1 || minHouses >= 5) continue;
-
-      const prop = properties.find(p => ids.includes(p.id))!;
-      const houseCost = prop.cost_of_house ?? 0;
-      if (houseCost === 0) continue;
-
-      const affordable = Math.floor((player.balance ?? 0) / houseCost);
-      if (affordable < ids.length) continue;
-
-      for (const gp of groupGps.filter(g => (g.development ?? 0) === minHouses)) {
-        try {
-          await apiClient.post("/game-properties/development", {
-            game_id: currentGame.id,
-            user_id: player.user_id,
-            property_id: gp.property_id,
-          });
-          built = true;
-          await fetchUpdatedGame();
-          await new Promise(r => setTimeout(r, 600));
-        } catch (err) {
-          console.error("Build failed", err);
-          break;
-        }
-      }
-
-      if (built) break;
-    }
-  };
-
- 
+  
   const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
     try {
       const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
