@@ -51,7 +51,7 @@ export default function GameWaiting(): JSX.Element {
     data: contractGame,
     isLoading: contractGameLoading,
     error: contractGameError,
-  } = useGetGameByCode(gameCode, { enabled: !!gameCode });
+  } = useGetGameByCode(gameCode);
 
   const contractId = contractGame?.id ?? null;
   const { data: username } = useGetUsername(address);
@@ -61,7 +61,7 @@ export default function GameWaiting(): JSX.Element {
     isPending: isJoining,
     error: joinError,
   } = useJoinGame(
-    contractId ? Number(contractId) : 0,
+    contractId ? BigInt(contractId) : BigInt(0),
     username ?? "",
     playerSymbol?.value ?? "",
     gameCode,

@@ -9,8 +9,8 @@ import { useAccount } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
-  useRegister,
-  usePreviousGame,
+  useRegisterPlayer,
+  usePreviousGameCode,
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
@@ -27,20 +27,16 @@ const HeroSectionMobile: React.FC = () => {
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
 
-  const { write: registerPlayer, isPending: registerPending } = useRegister();
+  const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
   const {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
-  } = useIsRegistered(address, { enabled: !!address });
+  } = useIsRegistered(address);
 
-  const { data: fetchedUsername } = useGetUsername(address, {
-    enabled: !!address,
-  });
+  const { data: fetchedUsername } = useGetUsername(address);
 
-  const { data: gameCode } = usePreviousGame(address, {
-    enabled: !!address,
-  });
+  const { data: gameCode } = usePreviousGameCode(address);
 
   const [user, setUser] = useState<UserType | null>(null);
 

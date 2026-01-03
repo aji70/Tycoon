@@ -28,10 +28,8 @@ interface LeaderboardEntry {
 const GameStats: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
-  const { data: isUserRegistered, error: registeredError } = useIsRegistered(address, {
-    enabled: !!address,
-  });
-  const { data: username } = useGetUsername(address, { enabled: !!address });
+  const { data: isUserRegistered, error: registeredError } = useIsRegistered(address);
+  const { data: username } = useGetUsername(address);
   const [playerStats] = useState<PlayerStats>({
     totalGames: 42,
     wins: 15,

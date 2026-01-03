@@ -22,7 +22,7 @@ import { apiClient } from "@/lib/api";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
-import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action";
@@ -205,15 +205,25 @@ const AiBoard = ({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
-  const onChainGameId = contractGame?.id;
+const { data: contractGame } = useGetGameByCode(game.code);
 
-  const { write: endGame, isPending, reset } = useEndAiGame(
-    Number(onChainGameId),
-    endGameCandidate.position,
-    endGameCandidate.balance,
-    !!endGameCandidate.winner
-  );
+// Extract the on-chain game ID (it's a bigint now)
+const onChainGameId = contractGame?.id;
+
+// Hook for ending an AI game and claiming rewards
+const {
+  write: endGame,
+  isPending: endGamePending,
+  isSuccess: endGameSuccess,
+  error: endGameError,
+  txHash: endGameTxHash,
+  reset: endGameReset,
+} = useEndAIGameAndClaim(
+  onChainGameId ?? BigInt(0),                    // gameId: bigint (use 0n as fallback if undefined)
+  endGameCandidate.position,              // finalPosition: number (uint8, 0-39)
+  BigInt(endGameCandidate.balance),       // finalBalance: bigint
+  !!endGameCandidate.winner               // isWin: boolean
+);
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;

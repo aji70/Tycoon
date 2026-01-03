@@ -24,7 +24,7 @@ import { apiClient } from "@/lib/api";
 import {
   useIsRegistered,
   useGetUsername,
-  useCreateAiGame,
+  useCreateAIGame,
 } from "@/context/ContractProvider";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { checksumAddress } from "viem";
@@ -43,8 +43,8 @@ const ai_address = [
 export default function PlayWithAIMobile() {
   const router = useRouter();
   const { address } = useAccount();
-  const { data: username } = useGetUsername(address, { enabled: !!address });
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address, { enabled: !!address });
+  const { data: username } = useGetUsername(address);
+  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -61,13 +61,13 @@ export default function PlayWithAIMobile() {
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
 
-  const { write: createAiGame, isPending: isCreatePending } = useCreateAiGame(
+  const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
     totalPlayers,
     gameCode,
-    settings.startingCash
+    BigInt(settings.startingCash)
   );
 
 const handlePlay = async () => {

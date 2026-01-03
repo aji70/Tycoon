@@ -24,7 +24,7 @@ import { apiClient } from "@/lib/api";
 import {
   useIsRegistered,
   useGetUsername,
-  useCreateAiGame,
+  useCreateAIGame,
 } from "@/context/ContractProvider";
 
 const ai_address = [
@@ -41,8 +41,8 @@ const ai_address = [
 export default function PlayWithAI() {
   const router = useRouter();
   const { address } = useAccount();
-  const { data: username } = useGetUsername(address, { enabled: !!address });
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address, { enabled: !!address });
+  const { data: username } = useGetUsername(address);
+  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -59,13 +59,13 @@ export default function PlayWithAI() {
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
 
-  const { write: createAiGame, isPending: isCreatePending } = useCreateAiGame(
+  const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
     totalPlayers,
     gameCode,
-    settings.startingCash
+    BigInt(settings.startingCash)
   );
 
   const handlePlay = async () => {

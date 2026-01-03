@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
@@ -255,15 +255,25 @@ const MobileGameLayout = ({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
-  const onChainGameId = contractGame?.id;
+const { data: contractGame } = useGetGameByCode(game.code);
 
-  const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
-    Number(onChainGameId),
-    endGameCandidate.position,
-    endGameCandidate.balance,
-    !!endGameCandidate.winner
-  );
+// Extract the on-chain game ID (it's a bigint now)
+const onChainGameId = contractGame?.id;
+
+// Hook for ending an AI game and claiming rewards
+const {
+  write: endGame,
+  isPending: endGamePending,
+  isSuccess: endGameSuccess,
+  error: endGameError,
+  txHash: endGameTxHash,
+  reset: endGameReset,
+} = useEndAIGameAndClaim(
+  onChainGameId ?? BigInt(0),                    // gameId: bigint (use 0n as fallback if undefined)
+  endGameCandidate.position,              // finalPosition: number (uint8, 0-39)
+  BigInt(endGameCandidate.balance),       // finalBalance: bigint
+  !!endGameCandidate.winner               // isWin: boolean
+);
 
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     if (message === lastToastMessage.current) return;

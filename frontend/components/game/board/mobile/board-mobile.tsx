@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useEndAiGame, useGetGameByCode } from "@/context/ContractProvider";
+import {  useGetGameByCode } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
@@ -255,15 +255,15 @@ const MobileGameLayout = ({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-  const { data: contractGame } = useGetGameByCode(game.code, { enabled: !!game.code });
+  const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
 
-  const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
-    Number(onChainGameId),
-    endGameCandidate.position,
-    endGameCandidate.balance,
-    !!endGameCandidate.winner
-  );
+  // const { write: endGame, isPending: endGamePending, reset: endGameReset } = useEndAiGame(
+  //   Number(onChainGameId),
+  //   endGameCandidate.position,
+  //   endGameCandidate.balance,
+  //   !!endGameCandidate.winner
+  // );
 
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     if (message === lastToastMessage.current) return;
@@ -1089,9 +1089,9 @@ const MobileGameLayout = ({
         me={me}
         players={players}
         currentGame={currentGame}
-        isPending={endGamePending}
-        endGame={endGame}
-        reset={endGameReset}
+        isPending={true}
+        // endGame={()=> {}}
+        // reset={()=> {}}
         setShowInsolvencyModal={setShowInsolvencyModal}
         setIsRaisingFunds={setIsRaisingFunds}
         setShowBankruptcyModal={setShowBankruptcyModal}

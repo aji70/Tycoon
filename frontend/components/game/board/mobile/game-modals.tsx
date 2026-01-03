@@ -25,8 +25,8 @@ interface GameModalsProps {
   players: Player[];
   currentGame: Game;
   isPending: boolean;
-  endGame: () => Promise<any>;
-  reset: () => void;
+  // endGame: () => Promise<any>;
+  // reset: () => void;
   setShowInsolvencyModal: (value: boolean) => void;
   setIsRaisingFunds: (value: boolean) => void;
   setShowBankruptcyModal: (value: boolean) => void;
@@ -50,8 +50,8 @@ const GameModals: React.FC<GameModalsProps> = ({
   players,
   currentGame,
   isPending,
-  endGame,
-  reset,
+  // endGame,
+  // reset,
   setShowInsolvencyModal,
   setIsRaisingFunds,
   setShowBankruptcyModal,
@@ -70,7 +70,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      if (endGame) await endGame();
+      // if (endGame) await endGame();
 
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${currentGame.id}`, {
@@ -106,7 +106,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     );
 
     try {
-      await endGame();
+      // await endGame();
       toast.success(
         winner?.user_id === me?.user_id
           ? "Prize claimed! 🎉"
@@ -120,7 +120,7 @@ const GameModals: React.FC<GameModalsProps> = ({
         { id: toastId, duration: 8000 }
       );
     } finally {
-      reset();
+      // reset();
     }
   };
 

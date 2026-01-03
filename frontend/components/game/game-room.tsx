@@ -15,7 +15,7 @@ const GameRoom = () => {
   const gameRoomLink =
     typeof window !== "undefined"
       ? window.location.href
-      : "https://blockopoly.io/";
+      : "https://tycoon.io/";
 
   // Function to copy the link to clipboard
   const copyToClipboard = async () => {

@@ -55,7 +55,7 @@ const GameSettingsMobile = () => {
   });
 
   const { data: isUserRegistered, isLoading: isRegisteredLoading } =
-    useIsRegistered(address, { enabled: !!address });
+    useIsRegistered(address);
 
   const gameType = settings.privateRoom ? "PRIVATE" : "PUBLIC";
   const gameCode = settings.code;
@@ -66,7 +66,7 @@ const GameSettingsMobile = () => {
   const {
     write: createGame,
     isPending,
-  } = useCreateGame(username ?? "", gameType, playerSymbol, numberOfPlayers, gameCode, Number(settings.startingCash));
+  } = useCreateGame(username ?? "", gameType, playerSymbol, numberOfPlayers, gameCode, BigInt(settings.startingCash));
 
   const handleSettingChange = (
     key: keyof Settings,
