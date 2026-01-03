@@ -7,12 +7,15 @@ import { Property, Player, Game } from "@/types/game";
 
 type CenterAreaProps = {
   isMyTurn: boolean;
+  isAITurn: boolean;
+  currentPlayer?: Player;
   playerCanRoll: boolean;
   isRolling: boolean;
   roll: { die1: number; die2: number; total: number } | null;
   buyPrompted: boolean;
   currentProperty: Property | null | undefined;
   currentPlayerBalance: number;
+  buyScore: number | null;
   history: Game["history"];
   onRollDice: () => void;
   onBuyProperty: () => void;
@@ -23,12 +26,15 @@ type CenterAreaProps = {
 
 export default function CenterArea({
   isMyTurn,
+  isAITurn,
+  currentPlayer,
   playerCanRoll,
   isRolling,
   roll,
   buyPrompted,
   currentProperty,
   currentPlayerBalance,
+  buyScore,
   history,
   onRollDice,
   onBuyProperty,
@@ -89,6 +95,30 @@ export default function CenterArea({
           >
             Skip
           </button>
+        </div>
+      )}
+
+      {/* AI Turn Indicator */}
+      {isAITurn && (
+        <div className="mt-5 text-center z-10">
+          <motion.h2
+            className="text-2xl font-bold text-pink-300 mb-3"
+            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            {currentPlayer?.username} is playing…
+          </motion.h2>
+          {buyPrompted && buyScore !== null && (
+            <p className="text-lg text-yellow-300 font-bold">
+              Buy Confidence: {buyScore}%
+            </p>
+          )}
+          <div className="flex justify-center mt-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
+          </div>
+          <p className="text-pink-200 text-sm italic mt-3">
+            Smart AI • Decides automatically
+          </p>
         </div>
       )}
 

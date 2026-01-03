@@ -41,11 +41,6 @@ const getDiceValues = (): { die1: number; die2: number; total: number } | null =
 
 const JAIL_POSITION = 10;
 
-const isAIPlayer = (player: Player | undefined): boolean =>
-  player?.username?.toLowerCase().includes("ai_") ||
-  player?.username?.toLowerCase().includes("bot") ||
-  false;
-
 const Board = ({
   game,
   properties,
@@ -80,7 +75,6 @@ const Board = ({
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
-  const rolledForPlayerId = useRef<number | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
 
@@ -88,7 +82,6 @@ const Board = ({
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
   const isMyTurn = me?.user_id === currentPlayerId;
-  const isAITurn = isAIPlayer(currentPlayer);
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
@@ -125,7 +118,7 @@ const Board = ({
     else toast(message, { icon: "➤" });
   }, []);
 
-  // Sync players
+  // Sync players from server
   useEffect(() => {
     if (game?.players) setPlayers(game.players);
   }, [game?.players]);
@@ -144,14 +137,13 @@ const Board = ({
     return () => clearInterval(interval);
   }, [game.code]);
 
-  // Reset turn state
+  // Reset turn state + clear animation
   useEffect(() => {
     setRoll(null);
     setBuyPrompted(false);
     setIsRolling(false);
     setPendingRoll(0);
     landedPositionThisTurn.current = null;
-    rolledForPlayerId.current = null;
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
     setAnimatedPositions({});
@@ -185,7 +177,7 @@ const Board = ({
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
-  const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
+  const BUY_PROPERTY = useCallback(async () => {
     if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
       showToast("Cannot buy right now", "error");
       return;
@@ -204,7 +196,7 @@ const Board = ({
         property_id: justLandedProperty.id,
       });
 
-      showToast(isAiAction ? `AI bought ${justLandedProperty.name}!` : `You bought ${justLandedProperty.name}!`, "success");
+      showToast(`You bought ${justLandedProperty.name}!`, "success");
 
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
@@ -253,12 +245,14 @@ const Board = ({
     }
   }, [game.code]);
 
-  const ROLL_DICE = useCallback(async (forAI = false) => {
+  // SMOOTH MOVEMENT ANIMATION (fixed version)
+  const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
     setIsRolling(true);
     setRoll(null);
     setHasMovementFinished(false);
+    setAnimatedPositions({});
 
     setTimeout(async () => {
       let value = getDiceValues();
@@ -269,9 +263,13 @@ const Board = ({
       }
 
       setRoll(value);
-      const playerId = forAI ? currentPlayerId : me!.user_id;
-      const player = players.find((p) => p.user_id === playerId);
-      if (!player) return;
+
+      const player = currentPlayer;
+      if (!player || !me) {
+        setIsRolling(false);
+        unlockAction();
+        return;
+      }
 
       const currentPos = player.position ?? 0;
       const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
@@ -290,21 +288,22 @@ const Board = ({
             movePath.push((currentPos + i) % BOARD_SQUARES);
           }
 
-          let i = 0;
-          const animateStep = () => {
-            if (i >= movePath.length) return;
+          for (let i = 0; i < movePath.length; i++) {
+            await new Promise(resolve => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
             setAnimatedPositions((prev) => ({
               ...prev,
-              [playerId]: movePath[i],
+              [player.user_id]: movePath[i],
             }));
-            i++;
-            setTimeout(animateStep, MOVE_ANIMATION_MS_PER_SQUARE);
-          };
-          animateStep();
+          }
+
+          setAnimatedPositions((prev) => ({
+            ...prev,
+            [player.user_id]: newPos,
+          }));
         }
       } else {
         showToast(
-          `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total}`,
+          `${player.username || "You"} rolled while in jail: ${value.die1} + ${value.die2} = ${value.total}`,
           "default"
         );
       }
@@ -313,7 +312,7 @@ const Board = ({
 
       try {
         await apiClient.post("/game-players/change-position", {
-          user_id: playerId,
+          user_id: me.user_id,
           game_id: game.id,
           position: newPos,
           rolled: value.total + pendingRoll,
@@ -325,20 +324,9 @@ const Board = ({
 
         if (!isInJail) {
           showToast(
-            `${player.username || "Player"} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
+            `You rolled ${value.die1} + ${value.die2} = ${value.total}!`,
             "success"
           );
-        }
-
-        if (forAI) rolledForPlayerId.current = currentPlayerId;
-
-        // Tweak: Check for multiple players on the landed position
-        if (players.length > 1 && landedPositionThisTurn.current !== null) {
-          const playersOnSquare = players.filter(p => p.position === landedPositionThisTurn.current);
-          if (playersOnSquare.length > 1) {
-            showToast(`Multiple players on ${justLandedProperty?.name || 'this property'}! Connected player token shown.`, "default");
-            // Assuming BoardSquare handles multiple tokens (up to 8 squeezed in one box via CSS grid/flex)
-          }
         }
       } catch (err) {
         console.error("Move failed:", err);
@@ -351,10 +339,11 @@ const Board = ({
     }, ROLL_ANIMATION_MS);
   }, [
     isRolling, actionLock, lockAction, unlockAction,
-    currentPlayerId, me, players, pendingRoll, game.id,
-    showToast, END_TURN, justLandedProperty
+    currentPlayer, me, pendingRoll, game.id,
+    showToast, END_TURN
   ]);
 
+  // Buy prompt logic
   useEffect(() => {
     if (!hasMovementFinished || landedPositionThisTurn.current === null) {
       setBuyPrompted(false);
@@ -392,20 +381,23 @@ const Board = ({
     showToast
   ]);
 
+  // Auto-end turn when no action needed
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || !hasMovementFinished) return;
 
     const timer = setTimeout(() => {
       END_TURN();
-    }, isAITurn ? 1000 : 1200);
+    }, 1500);
 
     return () => clearTimeout(timer);
-  }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN, hasMovementFinished]);
+  }, [roll, buyPrompted, isRolling, actionLock, END_TURN, hasMovementFinished]);
 
   const playersByPosition = useMemo(() => {
     const map = new Map<number, Player[]>();
     players.forEach((p) => {
-      const pos = animatedPositions[p.user_id] !== undefined ? animatedPositions[p.user_id] : (p.position ?? 0);
+      const pos = animatedPositions[p.user_id] !== undefined
+        ? animatedPositions[p.user_id]
+        : (p.position ?? 0);
       if (!map.has(pos)) map.set(pos, []);
       map.get(pos)!.push(p);
     });
@@ -423,8 +415,8 @@ const Board = ({
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
-  const handleRollDice = () => ROLL_DICE(false);
-  const handleBuyProperty = () => BUY_PROPERTY(false);
+  const handleRollDice = () => ROLL_DICE();
+  const handleBuyProperty = () => BUY_PROPERTY();
   const handleSkipBuy = () => {
     showToast("Skipped purchase");
     setBuyPrompted(false);
@@ -432,101 +424,88 @@ const Board = ({
     setTimeout(END_TURN, 900);
   };
 
-const handleBankruptcy = useCallback(async () => {
-  if (!me || !game.id || !game.code) {
-    showToast("Cannot declare bankruptcy right now", "error");
-    return;
-  }
+  const handleBankruptcy = useCallback(async () => {
+    if (!me || !game.id || !game.code) {
+      showToast("Cannot declare bankruptcy right now", "error");
+      return;
+    }
 
-  showToast("Declaring bankruptcy...", "error");
+    showToast("Declaring bankruptcy...", "error");
 
-  let creditorPlayerId: number | null = null;
+    let creditorPlayerId: number | null = null;
 
-  // Check if we landed on an owned property → that owner is the creditor
-  if (justLandedProperty) {
-    const landedGameProp = game_properties.find(
-      (gp) => gp.property_id === justLandedProperty.id
-    );
-
-    if (landedGameProp?.address) {
-      const owner = players.find(
-        (p) =>
-          p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
-          p.user_id !== me.user_id
+    if (justLandedProperty) {
+      const landedGameProp = game_properties.find(
+        (gp) => gp.property_id === justLandedProperty.id
       );
 
-      if (owner) {
-        creditorPlayerId = owner.user_id;
-      }
-    }
-  }
+      if (landedGameProp?.address) {
+        const owner = players.find(
+          (p) =>
+            p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
+            p.user_id !== me.user_id
+        );
 
-  try {
-    // Get ALL properties owned by the bankrupt player (me)
-    const myOwnedProperties = game_properties.filter(
-      (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
-    );
-
-    if (creditorPlayerId && myOwnedProperties.length > 0) {
-      // CASE 1: Transfer ALL properties to the creditor (landlord)
-      showToast("All your properties transferred to the landlord!", "error");
-
-      // You can batch this on backend, but here we do one by one for reliability
-      for (const gp of myOwnedProperties) {
-        await apiClient.put(`/game-properties/${gp.id}`, {
-          game_id: game.id,
-          player_id: creditorPlayerId,
-          address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
-        });
-      }
-    } else if (myOwnedProperties.length > 0) {
-      // CASE 2: Delete ALL properties (return to bank = permanent delete as you want)
-      showToast("All your properties permanently deleted (returned to bank)", "error");
-
-      for (const gp of myOwnedProperties) {
-        await apiClient.delete(`/game-properties/${gp.id}`, {
-          data: { game_id: game.id },
-        });
+        if (owner) {
+          creditorPlayerId = owner.user_id;
+        }
       }
     }
 
-    // Finally, leave the game
-    await apiClient.post("/game-players/leave", {
-      address: me.address,
-      code: game.code,
-      reason: "bankruptcy",
-    });
+    try {
+      const myOwnedProperties = game_properties.filter(
+        (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+      );
 
-    await fetchUpdatedGame();
+      if (creditorPlayerId && myOwnedProperties.length > 0) {
+        showToast("All your properties transferred to the landlord!", "error");
 
-    // Optional exit prompt
-    setShowExitPrompt(true);
-  } catch (err: any) {
-    console.error("Bankruptcy process failed:", err);
-    showToast("Bankruptcy failed — you are still eliminated.", "error");
+        for (const gp of myOwnedProperties) {
+          await apiClient.put(`/game-properties/${gp.id}`, {
+            game_id: game.id,
+            player_id: creditorPlayerId,
+            address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
+          });
+        }
+      } else if (myOwnedProperties.length > 0) {
+        showToast("All your properties returned to bank", "error");
 
-    // Force redirect anyway
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 3000);
-  } finally {
-    // Always clean up UI
-    setShowBankruptcyModal(false);
-    setBuyPrompted(false);
-    landedPositionThisTurn.current = null;
-  }
-}, [
-  me,
-  game.id,
-  game.code,
-  justLandedProperty,
-  game_properties,
-  players,
-  showToast,
-  fetchUpdatedGame,
-]);
+        for (const gp of myOwnedProperties) {
+          await apiClient.delete(`/game-properties/${gp.id}`, {
+            data: { game_id: game.id },
+          });
+        }
+      }
 
-  // Toggle function for the sparkle button
+      await apiClient.post("/game-players/leave", {
+        address: me.address,
+        code: game.code,
+        reason: "bankruptcy",
+      });
+
+      await fetchUpdatedGame();
+      setShowExitPrompt(true);
+    } catch (err: any) {
+      console.error("Bankruptcy failed:", err);
+      showToast("Bankruptcy failed", "error");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 3000);
+    } finally {
+      setShowBankruptcyModal(false);
+      setBuyPrompted(false);
+      landedPositionThisTurn.current = null;
+    }
+  }, [
+    me,
+    game,
+    justLandedProperty,
+    game_properties,
+    players,
+    showToast,
+    fetchUpdatedGame,
+  ]);
+
   const togglePerksModal = () => {
     setShowPerksModal(prev => !prev);
   };
@@ -538,7 +517,6 @@ const handleBankruptcy = useCallback(async () => {
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
             <CenterArea
               isMyTurn={isMyTurn}
-              currentPlayer={currentPlayer}
               playerCanRoll={playerCanRoll}
               isRolling={isRolling}
               roll={roll}
@@ -554,8 +532,7 @@ const handleBankruptcy = useCallback(async () => {
             />
 
             {properties.map((square) => {
-              const allPlayersHere = playersByPosition.get(square.id) ?? [];
-              const playersHere = allPlayersHere;
+              const playersHere = playersByPosition.get(square.id) ?? [];
 
               return (
                 <BoardSquare
@@ -573,7 +550,7 @@ const handleBankruptcy = useCallback(async () => {
         </div>
       </div>
 
-      {/* Sparkle Button - Now toggles the modal */}
+      {/* Perks Button */}
       <button
         onClick={togglePerksModal}
         className="fixed bottom-20 left-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
@@ -581,11 +558,10 @@ const handleBankruptcy = useCallback(async () => {
         <Sparkles className="w-8 h-8 text-black" />
       </button>
 
-      {/* Perks Overlay: Dark backdrop + Corner Perks Panel */}
+      {/* Perks Modal */}
       <AnimatePresence>
         {showPerksModal && (
           <>
-            {/* Backdrop - covers entire screen */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -594,7 +570,6 @@ const handleBankruptcy = useCallback(async () => {
               className="fixed inset-0 bg-black/70 z-50"
             />
 
-            {/* Perks Panel - ONLY in bottom-left corner */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 50 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -632,7 +607,7 @@ const handleBankruptcy = useCallback(async () => {
         )}
       </AnimatePresence>
 
-      {/* Other Modals */}
+      {/* Modals */}
       <CardModal
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
