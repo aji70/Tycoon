@@ -18,6 +18,7 @@ const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.0
 
 /* ----------------------- Types (Matching New Contracts) ----------------------- */
 
+
 type User = {
   id: bigint;
   username: string;
@@ -53,10 +54,12 @@ type Game = {
   mode: number;
   ai: boolean;
   createdAt: bigint;
+  stakePerPlayer: bigint;
   endedAt: bigint;
   totalStaked: bigint;
-  stakePerPlayer: bigint;
 };
+
+type ExtendedGameData = Game;
 type GameTuple = [bigint, string, Address, number, number, Address, number, number, number, boolean, bigint, bigint, bigint, bigint];
 
 type GamePlayer = {
@@ -369,39 +372,43 @@ export function useGetGame(gameId?: bigint) {
   };
 }
 
-export function useGetGameByCode(code?: string) {
+export function useGetGameByCode(code?: string, options = { enabled: true }) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
-
   const result = useReadContract({
     address: contractAddress,
     abi: TycoonABI,
     functionName: 'getGameByCode',
     args: code ? [code] : undefined,
-    query: { enabled: !!code && !!contractAddress },
+    query: {
+      enabled: options.enabled && !!contractAddress,
+      retry: false,
+    },
   });
 
-  return {
-    data: result.data ? {
-      id: (result.data as GameTuple)[0],
-      code: (result.data as GameTuple)[1],
-      creator: (result.data as GameTuple)[2],
-      status: (result.data as GameTuple)[3],
-      winner: (result.data as GameTuple)[5],
-      numberOfPlayers: (result.data as GameTuple)[6],
-      joinedPlayers: (result.data as GameTuple)[7],
-      mode: (result.data as GameTuple)[8],
-      ai: (result.data as GameTuple)[9],
-      createdAt: (result.data as GameTuple)[10],
-      endedAt: (result.data as GameTuple)[11],
-      totalStaked: (result.data as GameTuple)[12],
-      stakePerPlayer: (result.data as GameTuple)[13],
-    } : undefined,
-    isLoading: result.isLoading,
-    error: result.error,
-  };
-}
+  let gameData: ExtendedGameData | undefined;
 
+  if (result.data && typeof result.data === 'object') {
+    const d = result.data as Record<string, unknown>;
+    gameData = {
+      id: BigInt(d.id as string),
+      code: String(d.code),
+      creator: d.creator as Address,
+      status: Number(d.status),
+      winner: d.winner as Address,
+      numberOfPlayers: Number(d.numberOfPlayers),
+      joinedPlayers: Number(d.joinedPlayers),
+      mode: Number(d.mode),
+      ai: Boolean(d.ai),
+      stakePerPlayer: BigInt(d.stakePerPlayer as string),
+      totalStaked: BigInt(d.totalStaked as string),  // New
+      createdAt: BigInt(d.createdAt as string),
+      endedAt: BigInt(d.endedAt as string),
+    };
+  }
+
+  return { data: gameData, isLoading: result.isLoading, error: result.error };
+}
 export function useGetGamePlayerByAddress(gameId?: bigint, playerAddress?: Address) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];

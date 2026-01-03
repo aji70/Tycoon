@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PiTelegramLogoLight } from "react-icons/pi";
-import { FaXTwitter } from "react-icons/fa6";
+import { FaXTwitter, FaCoins } from "react-icons/fa6";
 import { SiFarcaster } from "react-icons/si";
 import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
 import { useAccount } from "wagmi";
@@ -47,11 +47,11 @@ export default function GameWaiting(): JSX.Element {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
   // Contract hooks
-  const {
+   const {
     data: contractGame,
     isLoading: contractGameLoading,
     error: contractGameError,
-  } = useGetGameByCode(gameCode);
+  } = useGetGameByCode(gameCode, { enabled: !!gameCode });
 
   const contractId = contractGame?.id ?? null;
   const { data: username } = useGetUsername(address);
@@ -67,6 +67,7 @@ export default function GameWaiting(): JSX.Element {
     gameCode,
     contractGame?.stakePerPlayer ? BigInt(contractGame.stakePerPlayer) : BigInt(0) // ← Pass stakePerPlayer to join game
   );
+
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -147,10 +148,9 @@ export default function GameWaiting(): JSX.Element {
   // Determine if current user is the creator
   const isCreator = useMemo(() => {
     if (!game || !address) return false;
-    return address.toLowerCase() === address.toLowerCase();
+    return address.toLowerCase() === String(contractGame?.creator).toLowerCase();
   }, [game, address]);
 
-  console.log("game", game);
 
   // Show share section if there are open slots OR if user is the creator
   const showShare = useMemo(() => {
@@ -294,10 +294,10 @@ export default function GameWaiting(): JSX.Element {
   }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
 
   const playersJoined =
-    contractGame?.joinedPlayers ?? game?.players.length ?? 0;
+    contractGame?.joinedPlayers ? Number(contractGame.joinedPlayers) : (game?.players.length ?? 0);
   const maxPlayers =
-    contractGame?.numberOfPlayers ?? game?.number_of_players ?? 0;
-  const stakePerPlayer = contractGame?.stakePerPlayer  ?? 0; 
+    contractGame?.numberOfPlayers ? Number(contractGame.numberOfPlayers) : (game?.number_of_players ?? 0);
+  const stakePerPlayer = contractGame?.stakePerPlayer ? Number(contractGame.stakePerPlayer) : 0; 
 
   const handleJoinGame = useCallback(async () => {
     if (!game) {
@@ -444,9 +444,16 @@ export default function GameWaiting(): JSX.Element {
             <p className="text-[#00F0FF] text-lg font-bold">
               Players Ready: {playersJoined}/{maxPlayers}
             </p>
-            <p className="text-[#00F0FF] text-lg font-bold">
-              Stake per Player: {stakePerPlayer} {/* ← Display stakePerPlayer */}
-            </p>
+            {stakePerPlayer > 0 ? (
+              <p className="text-yellow-400 text-lg font-bold flex items-center justify-center gap-2 animate-pulse">
+                <FaCoins className="w-6 h-6" />
+                Entry Stake: {stakePerPlayer}
+              </p>
+            ) : (
+              <p className="text-green-400 text-base font-bold">
+                Free Practice Game – No Stake Required
+              </p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 justify-center">
               {Array.from({ length: maxPlayers }).map((_, index) => {
                 const player = game.players[index];
