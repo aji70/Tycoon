@@ -54,18 +54,21 @@ export default function PlayWithAI() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
+    stake: 1, // ← NEW: Default stake = 1
   });
 
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
 
+  // Updated hook call to include stake (adjust the hook signature if needed)
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
     totalPlayers,
     gameCode,
-    BigInt(settings.startingCash)
+    BigInt(settings.startingCash),
+    BigInt(settings.stake) // ← Pass stake as BigInt (assuming it's in wei or similar)
   );
 
   const handlePlay = async () => {
@@ -91,6 +94,7 @@ export default function PlayWithAI() {
         number_of_players: totalPlayers,
         ai_opponents: settings.aiCount,
         ai_difficulty: settings.aiDifficulty,
+        stake: settings.stake, // ← Save stake to DB
         settings: {
           auction: settings.auction,
           rent_in_prison: settings.rentInPrison,
@@ -104,23 +108,18 @@ export default function PlayWithAI() {
       const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
       if (!dbGameId) throw new Error("Failed to save game");
 
-      // === FIXED: Proper unique symbol assignment for AIs (TypeScript-safe) ===
-      let availablePieces = [...GamePieces.filter(p => p.id !== settings.symbol)]; // ← Creates mutable copy
+      // Assign symbols for AIs (unchanged)
+      let availablePieces = [...GamePieces.filter(p => p.id !== settings.symbol)];
       const assignedSymbols: string[] = [settings.symbol];
 
       for (let i = 0; i < settings.aiCount; i++) {
         if (availablePieces.length === 0) {
-          // Fallback: reset pool if somehow depleted (shouldn't happen with 8+ pieces)
           availablePieces = [...GamePieces];
         }
 
         const randomIndex = Math.floor(Math.random() * availablePieces.length);
         const aiSymbol = availablePieces[randomIndex].id;
-
-        // Remove selected symbol to prevent duplicates
         availablePieces.splice(randomIndex, 1);
-        // Alternative (also valid): availablePieces = availablePieces.filter(p => p.id !== aiSymbol);
-
         assignedSymbols.push(aiSymbol);
 
         const aiAddress = ai_address[i];
@@ -143,6 +142,7 @@ export default function PlayWithAI() {
 
       router.push(`/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
+      // ... error handling unchanged
       if (
         err?.code === 4001 ||
         err?.message?.includes("User rejected") ||
@@ -184,7 +184,7 @@ export default function PlayWithAI() {
 
   return (
     <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-3xl bg-black/70 backdrop-blur-2xl rounded-2xl border border-cyan-500/60 shadow-2xl p-6 sm:p-8">
+      <div className="w-full max-w-4xl bg-black/70 backdrop-blur-2xl rounded-2xl border border-cyan-500/60 shadow-2xl p-6 sm:p-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <button
@@ -200,9 +200,9 @@ export default function PlayWithAI() {
           <div className="w-16" />
         </div>
 
-        {/* Main Grid */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Left: Settings */}
+        {/* Main Grid - Now 3 columns on larger screens */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          {/* Left Column: Core Settings */}
           <div className="space-y-5">
             {/* Your Piece */}
             <div className="bg-gradient-to-br from-cyan-900/60 to-blue-900/60 rounded-2xl p-5 border border-cyan-500/40">
@@ -259,7 +259,10 @@ export default function PlayWithAI() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
+          {/* Middle Column: Money & Stake */}
+          <div className="space-y-5">
             {/* Starting Cash */}
             <div className="bg-gradient-to-br from-yellow-900/60 to-amber-900/60 rounded-2xl p-5 border border-yellow-500/40">
               <div className="flex items-center gap-3 mb-3">
@@ -279,9 +282,30 @@ export default function PlayWithAI() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* NEW: Stake */}
+            <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 rounded-2xl p-5 border border-green-500/40">
+              <div className="flex items-center gap-3 mb-3">
+                <FaCoins className="w-6 h-6 text-green-400" />
+                <h3 className="text-xl font-bold text-green-300">Stake</h3>
+              </div>
+              <Select value={settings.stake.toString()} onValueChange={v => setSettings(p => ({ ...p, stake: +v }))}>
+                <SelectTrigger className="h-12 bg-black/50 border-green-500/60 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Right: House Rules */}
+          {/* Right Column: House Rules */}
           <div className="bg-black/70 rounded-2xl p-6 border border-cyan-500/50">
             <h3 className="text-2xl font-orbitron font-bold text-cyan-300 mb-6 text-center">HOUSE RULES</h3>
             <div className="space-y-5">
