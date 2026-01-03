@@ -27,6 +27,8 @@ import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, X } from "lucide-react";
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -154,6 +156,7 @@ const AiBoard = ({
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
+  const [showPerksModal, setShowPerksModal] = useState(false);
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -976,6 +979,11 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   };
 
+    // Toggle function for the sparkle button
+  const togglePerksModal = () => {
+    setShowPerksModal(prev => !prev);
+  };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
@@ -1020,6 +1028,65 @@ const endTurnAfterSpecialMove = useCallback(() => {
           </div>
         </div>
       </div>
+
+         {/* Sparkle Button - Now toggles the modal */}
+            <button
+              onClick={togglePerksModal}
+              className="fixed bottom-20 left-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+            >
+              <Sparkles className="w-8 h-8 text-black" />
+            </button>
+      
+            {/* Perks Overlay: Dark backdrop + Corner Perks Panel */}
+            <AnimatePresence>
+              {showPerksModal && (
+                <>
+                  {/* Backdrop - covers entire screen */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowPerksModal(false)}
+                    className="fixed inset-0 bg-black/70 z-50"
+                  />
+      
+                  {/* Perks Panel - ONLY in bottom-right corner, small and fixed */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 50 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 50 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    className="fixed bottom-6 left-6 z-50 w-80 max-h-[80vh]"
+                  >
+                    <div >
+                      <div className="p-5 border-b border-cyan-900/50 flex items-center justify-between left-6">
+                        <h2 className="text-2xl font-bold flex items-center gap-3">
+                          <Sparkles className="w-8 h-8 text-[#00F0FF]" />
+                          My Perks
+                        </h2>
+                        <button
+                          onClick={() => setShowPerksModal(false)}
+                          className="text-gray-400 hover:text-white p-1"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+                      
+                        <CollectibleInventoryBar
+                          game={game}
+                          game_properties={game_properties}
+                          isMyTurn={isMyTurn}
+                          ROLL_DICE={ROLL_DICE}
+                          END_TURN={END_TURN}
+                          triggerSpecialLanding={triggerLandingLogic}
+                          endTurnAfterSpecial={endTurnAfterSpecialMove}
+                        />
+                      
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
       <CardModal
         isOpen={showCardModal}
@@ -1066,7 +1133,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         }}
       />
 
-     <CollectibleInventoryBar
+     {/* <CollectibleInventoryBar
   game={game}
   game_properties={game_properties}
   isMyTurn={isMyTurn}
@@ -1074,7 +1141,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   END_TURN={END_TURN}
   triggerSpecialLanding={triggerLandingLogic}
   endTurnAfterSpecial={endTurnAfterSpecialMove}
-/>
+/> */}
     </div>
   );
 };

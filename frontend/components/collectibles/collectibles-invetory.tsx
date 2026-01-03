@@ -496,7 +496,7 @@ export default function CollectibleInventoryBar({
   return (
     <>
       {/* Inventory Bar */}
-      <div className="fixed bottom-6 right-6 z-50 pointer-events-auto">
+      <div className="fixed bottom-6 left-6 z-50 pointer-events-auto">
         <div className="bg-black/90 backdrop-blur-xl rounded-2xl border border-cyan-500/40 p-5 shadow-2xl max-h-[70vh] overflow-y-auto w-72">
           <div className="flex items-center justify-between mb-4">
             <p className="text-cyan-300 text-sm font-bold uppercase tracking-wider">
