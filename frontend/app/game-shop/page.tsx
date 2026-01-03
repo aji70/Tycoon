@@ -1,33 +1,56 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   useAccount,
   useChainId,
+  useBalance,
   useReadContract,
   useReadContracts,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-  useBalance,
 } from 'wagmi';
-import { formatUnits, type Address, type Abi, erc20Abi } from 'viem';
+import { formatUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  ShoppingBag, Coins, Loader2, CreditCard, Zap, Shield, Sparkles, Gem, Crown,
-  Ticket, Wallet, RefreshCw, X,
+  ShoppingBag,
+  Coins,
+  Loader2,
+  CreditCard,
+  Zap,
+  Shield,
+  Sparkles,
+  Gem,
+  Crown,
+  Ticket,
+  Wallet,
+  RefreshCw,
+  X,
 } from 'lucide-react';
 
-import RewardABI from "@/context/abi/rewardabi.json";
-import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import RewardABI from '@/context/abi/rewardabi.json';
+import {
+  REWARD_CONTRACT_ADDRESSES,
+  TYC_TOKEN_ADDRESS,
+  USDC_TOKEN_ADDRESS,
+} from '@/constants/contracts';
+
+// Import user-facing reward hooks
+import {
+  useRewardBuyCollectible,
+  useRewardRedeemVoucher,
+  useRewardCollectibleInfo,
+} from '@/context/ContractProvider'; // Adjust path if needed
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
 const isVoucherToken = (tokenId: bigint): boolean =>
   tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
+
+const isCollectibleToken = (tokenId: bigint): boolean =>
+  tokenId >= COLLECTIBLE_ID_START;
 
 // Perk metadata
 const perkMetadata = [
@@ -52,20 +75,27 @@ export default function GameShop() {
   const tycTokenAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
   const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
-  const [buyingId, setBuyingId] = useState<bigint | null>(null);
-  const [approvingItem, setApprovingItem] = useState<bigint | null>(null);
   const [useUsdc, setUseUsdc] = useState(false);
-  const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
 
-  const selectedToken = useUsdc ? usdcTokenAddress : tycTokenAddress;
-  const selectedDecimals = useUsdc ? 6 : 18;
+  // Buy & Redeem hooks
+  const {
+    buy,
+    isPending: buyingPending,
+    isConfirming: buyingConfirming,
+    isSuccess: buySuccess,
+    error: buyError,
+    reset: resetBuy,
+  } = useRewardBuyCollectible();
 
-  const { writeContract, data: buyHash, isPending: writing, error: writeError, reset } = useWriteContract();
-  const { writeContract: writeApprove, data: approveHash, isPending: approving } = useWriteContract();
-
-  const { isLoading: confirmingBuy, isSuccess: buySuccess } = useWaitForTransactionReceipt({ hash: buyHash });
-  const { isLoading: confirmingApprove, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveHash });
+  const {
+    redeem,
+    isPending: redeemingPending,
+    isConfirming: redeemingConfirming,
+    isSuccess: redeemSuccess,
+    error: redeemError,
+    reset: resetRedeem,
+  } = useRewardRedeemVoucher();
 
   // Balances
   const { data: tycBalanceData, isLoading: tycLoading, refetch: refetchTyc } = useBalance({
@@ -83,79 +113,72 @@ export default function GameShop() {
   const tycBalance = tycBalanceData ? Number(tycBalanceData.formatted).toFixed(2) : '0.00';
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
-  // Allowance check for selected token
-  const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
-    address: selectedToken,
-    abi: erc20Abi,
-    functionName: 'allowance',
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: {
-      enabled: !!address && !!contractAddress && !!selectedToken && isConnected,
-    },
-  });
-
-  const currentAllowance = allowanceData ?? 0;
-
-  // ── SHOP COLLECTIBLES ─────────────────────────────────────
-  const contractTokenCount = useReadContract({
+  // ── Shop Items: Collectibles owned by contract (in shop stock) ──
+  const { data: contractOwnedCount } = useReadContract({
     address: contractAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: [contractAddress!],
-    query: { enabled: !!contractAddress && isConnected },
+    args: contractAddress ? [contractAddress] : undefined,
+    query: { enabled: !!contractAddress },
   });
 
-  const tokenCount = Number(contractTokenCount.data ?? 0);
+  const contractTokenCount = Number(contractOwnedCount ?? 0);
 
-  const tokenOfOwnerCalls = useMemo(() =>
-    Array.from({ length: tokenCount }, (_, i) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [contractAddress!, BigInt(i)],
-    } as const)),
-    [contractAddress, tokenCount]
+  const contractTokenIdCalls = useMemo(
+    () =>
+      Array.from({ length: contractTokenCount }, (_, i) => ({
+        address: contractAddress!,
+        abi: RewardABI as Abi,
+        functionName: 'tokenOfOwnerByIndex' as const,
+        args: [contractAddress!, BigInt(i)] as const,
+      })),
+    [contractAddress, contractTokenCount]
   );
 
-  const tokenIdResults = useReadContracts({
-    contracts: tokenOfOwnerCalls,
-    allowFailure: true,
-    query: { enabled: !!contractAddress && tokenCount > 0 && isConnected },
+  const { data: contractTokenIdResults } = useReadContracts({
+    contracts: contractTokenIdCalls,
+    query: { enabled: contractTokenCount > 0 && !!contractAddress },
   });
 
-  const allTokenIds = tokenIdResults.data
-    ?.map((res) => (res?.status === 'success' ? (res.result as bigint) : undefined))
-    .filter((id): id is bigint => id !== undefined) ?? [];
+  const shopTokenIds = useMemo(() => {
+    return (
+      contractTokenIdResults
+        ?.map((res) => (res.status === 'success' ? (res.result as bigint) : undefined))
+        .filter((id): id is bigint => id !== undefined && isCollectibleToken(id)) ?? []
+    );
+  }, [contractTokenIdResults]);
 
-  const collectibleInfoCalls = useMemo(() =>
-    allTokenIds.map((tokenId) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
-      args: [tokenId],
-    } as const)),
-    [contractAddress, allTokenIds]
+  const shopInfoCalls = useMemo(
+    () =>
+      shopTokenIds.map((tokenId) => ({
+        address: contractAddress!,
+        abi: RewardABI as Abi,
+        functionName: 'getCollectibleInfo' as const,
+        args: [tokenId] as const,
+      })),
+    [contractAddress, shopTokenIds]
   );
 
-  const tokenInfoResults = useReadContracts({
-    contracts: collectibleInfoCalls,
-    allowFailure: true,
-    query: { enabled: !!contractAddress && allTokenIds.length > 0 && isConnected },
+  const { data: shopInfoResults } = useReadContracts({
+    contracts: shopInfoCalls,
+    query: { enabled: shopTokenIds.length > 0 && !!contractAddress },
   });
 
   const shopItems = useMemo(() => {
-    return tokenInfoResults.data
-      ?.map((result, index) => {
-        if (result?.status !== 'success') return null;
+    if (!shopInfoResults) return [];
+
+    return shopInfoResults
+      .map((result, index) => {
+        if (result.status !== 'success') return null;
         const [perk, strength, tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
         if (stock === BigInt(0)) return null;
 
-        const tokenId = allTokenIds[index];
-        const meta = perkMetadata.find(m => m.perk === perk) || {
+        const tokenId = shopTokenIds[index];
+        const meta = perkMetadata.find((m) => m.perk === perk) || {
           name: `Perk #${perk}`,
-          desc: "Powerful game advantage",
+          desc: 'Powerful game advantage',
           icon: <Gem className="w-12 h-12 text-gray-400" />,
-          image: "/game/shop/placeholder.jpg",
+          image: '/game/shop/placeholder.jpg',
         };
 
         return {
@@ -168,191 +191,134 @@ export default function GameShop() {
           ...meta,
         };
       })
-      .filter((item): item is NonNullable<typeof item> => item !== null) ?? [];
-  }, [tokenInfoResults.data, allTokenIds]);
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }, [shopInfoResults, shopTokenIds]);
 
-  // ── USER VOUCHERS ───────────────────────────────────────────
-  const userOwnedCount = useReadContract({
+  // ── User Vouchers ──
+  const { data: userOwnedCount } = useReadContract({
     address: contractAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
     args: address ? [address] : undefined,
-    query: { enabled: !!address && !!contractAddress && isConnected },
+    query: { enabled: !!address && !!contractAddress },
   });
 
-  const ownedCount = Number(userOwnedCount.data ?? 0);
+  const userTokenCount = Number(userOwnedCount ?? 0);
 
-  const userTokenCalls = useMemo(() =>
-    Array.from({ length: ownedCount }, (_, i) => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'tokenOfOwnerByIndex',
-      args: [address!, BigInt(i)],
-    } as const)),
-    [contractAddress, address, ownedCount]
+  const userTokenIdCalls = useMemo(
+    () =>
+      Array.from({ length: userTokenCount }, (_, i) => ({
+        address: contractAddress!,
+        abi: RewardABI as Abi,
+        functionName: 'tokenOfOwnerByIndex' as const,
+        args: [address!, BigInt(i)] as const,
+      })),
+    [contractAddress, address, userTokenCount]
   );
 
-  const userTokenResults = useReadContracts({
-    contracts: userTokenCalls,
-    allowFailure: true,
-    query: { enabled: !!address && !!contractAddress && ownedCount > 0 && isConnected },
+  const { data: userTokenIdResults } = useReadContracts({
+    contracts: userTokenIdCalls,
+    query: { enabled: userTokenCount > 0 && !!address && !!contractAddress },
   });
 
-  const userTokenIds = userTokenResults.data
-    ?.map(res => res?.status === 'success' ? res.result as bigint : undefined)
-    .filter((id): id is bigint => id !== undefined && isVoucherToken(id)) ?? [];
+  const userVoucherIds = useMemo(() => {
+    return (
+      userTokenIdResults
+        ?.map((res) => (res.status === 'success' ? (res.result as bigint) : undefined))
+        .filter((id): id is bigint => id !== undefined && isVoucherToken(id)) ?? []
+    );
+  }, [userTokenIdResults]);
 
-  const voucherInfoCalls = useMemo(() =>
-    userTokenIds.map(tokenId => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
-      args: [tokenId],
-    } as const)),
-    [contractAddress, userTokenIds]
+  const voucherInfoCalls = useMemo(
+    () =>
+      userVoucherIds.map((tokenId) => ({
+        address: contractAddress!,
+        abi: RewardABI as Abi,
+        functionName: 'getCollectibleInfo' as const,
+        args: [tokenId] as const,
+      })),
+    [contractAddress, userVoucherIds]
   );
 
-  const voucherInfoResults = useReadContracts({
+  const { data: voucherInfoResults } = useReadContracts({
     contracts: voucherInfoCalls,
-    allowFailure: true,
-    query: { enabled: !!contractAddress && userTokenIds.length > 0 },
+    query: { enabled: userVoucherIds.length > 0 && !!contractAddress },
   });
 
   const myVouchers = useMemo(() => {
-    return voucherInfoResults.data?.map((result, i) => {
-      if (result?.status !== 'success') return null;
-      const [, , tycPrice] = result.result as [number, bigint, bigint, bigint, bigint];
-      const tokenId = userTokenIds[i];
-      return {
-        tokenId,
-        value: formatUnits(tycPrice, 18),
-      };
-    }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
-  }, [voucherInfoResults.data, userTokenIds]);
+    if (!voucherInfoResults) return [];
 
-  // ── APPROVE FUNCTION ───────────────────────────────────────
-  const approveToken = useCallback(
-    async (amount: bigint) => {
-      if (!selectedToken || !contractAddress) {
-        throw new Error('Token or contract address not available');
-      }
+    return voucherInfoResults
+      .map((result, i) => {
+        if (result.status !== 'success') return null;
+        const [, , tycPrice] = result.result as [number, bigint, bigint, bigint, bigint];
+        const tokenId = userVoucherIds[i];
+        return {
+          tokenId,
+          value: formatUnits(tycPrice, 18),
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+  }, [voucherInfoResults, userVoucherIds]);
 
-      writeApprove({
-        address: selectedToken,
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [contractAddress, amount],
-      });
-    },
-    [writeApprove, selectedToken, contractAddress]
-  );
-
-  // ── BUY HANDLER WITH APPROVAL LOGIC ───────────────────────
-  const proceedWithPurchase = useCallback(
-    async (item: any) => {
-      setBuyingId(item.tokenId);
-
-      try {
-        writeContract({
-          address: contractAddress!,
-          abi: RewardABI,
-          functionName: "buyCollectible",
-          args: [item.tokenId, useUsdc],
-        });
-      } catch (err: any) {
-        toast.error(err.shortMessage || "Purchase failed");
-        setBuyingId(null);
-      }
-    },
-    [writeContract, contractAddress, useUsdc]
-  );
-
-  const handleBuy = async (item: any) => {
-    if (!isConnected || !address || !contractAddress || !selectedToken) {
-      toast.error("Connect wallet first");
+  // ── Handlers ──
+  const handleBuy = async (item: typeof shopItems[0]) => {
+    if (!isConnected || !address) {
+      toast.error('Please connect your wallet');
       return;
     }
-
-    const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
-    if (Number(priceStr) === 0) {
-      toast.error("Not available with selected currency");
-      return;
-    }
-
-    const priceBigInt = BigInt(Math.round(parseFloat(priceStr) * 10 ** selectedDecimals));
-
-    // Check if allowance is sufficient
-    if (currentAllowance < priceBigInt) {
-      setApprovingItem(item.tokenId);
-      toast.info(`Approval required for ${useUsdc ? 'USDC' : 'TYC'}...`);
-
-      try {
-        await approveToken(priceBigInt);
-        // Wait for approval success in useEffect below
-      } catch (err: any) {
-        toast.error(err.shortMessage || "Approval failed");
-        setApprovingItem(null);
-      }
-      return;
-    }
-
-    // Sufficient allowance → buy directly
-    proceedWithPurchase(item);
-  };
-
-  // Auto-proceed to purchase after successful approval
-  useEffect(() => {
-    if (approveSuccess && approvingItem !== null) {
-      toast.success("Approval successful! Completing purchase...");
-      const item = shopItems.find(i => i.tokenId === approvingItem);
-      if (item) {
-        proceedWithPurchase(item);
-      }
-      setApprovingItem(null);
-      refetchAllowance();
-    }
-  }, [approveSuccess, approvingItem, shopItems, proceedWithPurchase, refetchAllowance]);
-
-  // Success toast for purchase
-  useEffect(() => {
-    if (buySuccess && buyHash) {
-      toast.success("Purchase successful! 🎉");
-      refetchAllowance();
-      refetchTyc();
-      refetchUsdc();
-    }
-  }, [buySuccess, buyHash, refetchAllowance, refetchTyc, refetchUsdc]);
-
-  // ── REDEEM HANDLER ──────────────────────────────────────────
-  const handleRedeemVoucher = async (tokenId: bigint) => {
-    if (!isConnected || !contractAddress) return;
-
-    setRedeemingId(tokenId);
 
     try {
-      writeContract({
-        address: contractAddress,
-        abi: RewardABI,
-        functionName: 'redeemVoucher',
-        args: [tokenId],
-      });
+      await buy(item.tokenId, useUsdc);
     } catch (err: any) {
-      toast.error(err.shortMessage || 'Redemption failed');
-    } finally {
-      setRedeemingId(null);
-      reset();
+      toast.error(err.message || 'Purchase failed');
     }
   };
 
-  const handleBack = () => router.push("/");
+  const handleRedeemVoucher = async (tokenId: bigint) => {
+    if (!isConnected) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    try {
+      await redeem(tokenId);
+    } catch (err: any) {
+      toast.error(err.message || 'Redemption failed');
+    }
+  };
+
+  // ── Success/Error Toasts ──
+  useEffect(() => {
+    if (buySuccess) {
+      toast.success('Purchase successful! 🎉');
+      refetchTyc();
+      refetchUsdc();
+      resetBuy();
+    }
+  }, [buySuccess, refetchTyc, refetchUsdc, resetBuy]);
+
+  useEffect(() => {
+    if (redeemSuccess) {
+      toast.success('Voucher redeemed successfully!');
+      refetchTyc();
+      resetRedeem();
+    }
+  }, [redeemSuccess, refetchTyc, resetRedeem]);
+
+  useEffect(() => {
+    if (buyError) toast.error(buyError.message || 'Purchase failed');
+    if (redeemError) toast.error(redeemError.message || 'Redemption failed');
+  }, [buyError, redeemError]);
+
+  const handleBack = () => router.push('/');
 
   const hasVouchers = myVouchers.length > 0;
-  const isLoadingShop = tokenCount > 0 && shopItems.length === 0;
+  const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
 
   return (
     <section className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-[#F0F7F7] py-8 px-4">
       <div className="max-w-7xl mx-auto relative">
-
         {/* Header */}
         <div className="flex justify-between items-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-wide flex items-center gap-4">
@@ -393,7 +359,7 @@ export default function GameShop() {
               onClick={() => setUseUsdc(!useUsdc)}
               className="px-8 py-4 bg-[#003B3E] rounded-xl border-2 border-[#00F0FF] flex items-center gap-4 hover:bg-[#00F0FF]/20 transition text-lg font-semibold"
             >
-              Pay with <span className="text-[#00F0FF]">{useUsdc ? "USDC 💵" : "TYC 🪙"}</span>
+              Pay with <span className="text-[#00F0FF]">{useUsdc ? 'USDC 💵' : 'TYC 🪙'}</span>
             </button>
           </div>
         </div>
@@ -412,8 +378,7 @@ export default function GameShop() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
             {shopItems.map((item) => {
               const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
-              const priceBigInt = BigInt(Math.round(parseFloat(priceStr) * 10 ** selectedDecimals));
-              const needsApproval = currentAllowance < priceBigInt;
+              const isProcessing = buyingPending || buyingConfirming;
 
               return (
                 <motion.div
@@ -426,7 +391,7 @@ export default function GameShop() {
                 >
                   <div className="relative h-56 overflow-hidden">
                     <Image
-                      src={item.image || "/game/shop/placeholder.jpg"}
+                      src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
                       fill
                       className="object-cover transition-transform duration-500 hover:scale-110"
@@ -456,32 +421,19 @@ export default function GameShop() {
 
                     <button
                       onClick={() => handleBuy(item)}
-                      disabled={
-                        item.stock === 0 ||
-                        buyingId === item.tokenId ||
-                        approvingItem === item.tokenId ||
-                        writing ||
-                        confirmingBuy ||
-                        approving ||
-                        confirmingApprove
-                      }
+                      disabled={item.stock === 0 || isProcessing}
                       className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg transition ${
                         item.stock === 0
-                          ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                          : (approvingItem === item.tokenId && (approving || confirmingApprove)) ||
-                            (buyingId === item.tokenId && (writing || confirmingBuy))
-                          ? "bg-yellow-600 text-black cursor-wait"
-                          : "bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] text-black hover:shadow-[#00F0FF]/50"
+                          ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                          : isProcessing
+                          ? 'bg-yellow-600 text-black cursor-wait'
+                          : 'bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] text-black hover:shadow-[#00F0FF]/50'
                       }`}
                     >
-                      {approvingItem === item.tokenId && (approving || confirmingApprove) ? (
-                        <> <Loader2 className="w-6 h-6 animate-spin" /> Approving... </>
-                      ) : buyingId === item.tokenId && (writing || confirmingBuy) ? (
+                      {isProcessing ? (
                         <> <Loader2 className="w-6 h-6 animate-spin" /> Purchasing... </>
                       ) : item.stock === 0 ? (
-                        "Sold Out"
-                      ) : needsApproval ? (
-                        <> <Shield className="w-6 h-6" /> Approve & Buy </>
+                        'Sold Out'
                       ) : (
                         <> <Coins className="w-6 h-6" /> Buy Now </>
                       )}
@@ -493,7 +445,7 @@ export default function GameShop() {
           </div>
         )}
 
-        {/* Voucher Teaser Button */}
+        {/* Voucher Teaser */}
         <AnimatePresence>
           {hasVouchers && !isVoucherPanelOpen && (
             <motion.button
@@ -526,10 +478,10 @@ export default function GameShop() {
               />
 
               <motion.div
-                initial={{ x: "100%" }}
+                initial={{ x: '100%' }}
                 animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="fixed right-0 top-0 h-full w-full max-w-md bg-[#0A1F20] shadow-2xl z-50 overflow-y-auto border-l border-amber-600/50"
               >
                 <div className="p-8">
@@ -547,42 +499,40 @@ export default function GameShop() {
                   </div>
 
                   {myVouchers.length === 0 ? (
-                    <p className="text-center text-gray-400 py-20">
-                      No vouchers found.
-                    </p>
+                    <p className="text-center text-gray-400 py-20">No vouchers found.</p>
                   ) : (
                     <div className="grid gap-6">
-                      {myVouchers.map((voucher) => (
-                        <motion.div
-                          key={voucher.tokenId.toString()}
-                          whileHover={{ scale: 1.03 }}
-                          className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-6 border border-amber-600/50 flex flex-col items-center text-center"
-                        >
-                          <Ticket className="w-16 h-16 text-amber-400 mb-4" />
-                          <p className="text-2xl font-bold text-amber-300">
-                            {voucher.value} TYC
-                          </p>
-                          <p className="text-sm text-gray-400 mt-2 mb-6">
-                            ID: {voucher.tokenId.toString()}
-                          </p>
+                      {myVouchers.map((voucher) => {
+                        const isProcessing = redeemingPending || redeemingConfirming;
 
-                          <button
-                            onClick={() => handleRedeemVoucher(voucher.tokenId)}
-                            disabled={redeemingId === voucher.tokenId || writing || confirmingBuy}
-                            className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition ${
-                              redeemingId === voucher.tokenId || writing || confirmingBuy
-                                ? "bg-gray-700 text-gray-400 cursor-wait"
-                                : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black"
-                            }`}
+                        return (
+                          <motion.div
+                            key={voucher.tokenId.toString()}
+                            whileHover={{ scale: 1.03 }}
+                            className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-6 border border-amber-600/50 flex flex-col items-center text-center"
                           >
-                            {redeemingId === voucher.tokenId && (writing || confirmingBuy) ? (
-                              <> <Loader2 className="w-6 h-6 animate-spin" /> Redeeming... </>
-                            ) : (
-                              <> <Coins className="w-6 h-6" /> Redeem Now </>
-                            )}
-                          </button>
-                        </motion.div>
-                      ))}
+                            <Ticket className="w-16 h-16 text-amber-400 mb-4" />
+                            <p className="text-2xl font-bold text-amber-300">{voucher.value} TYC</p>
+                            <p className="text-sm text-gray-400 mt-2 mb-6">ID: {voucher.tokenId.toString()}</p>
+
+                            <button
+                              onClick={() => handleRedeemVoucher(voucher.tokenId)}
+                              disabled={isProcessing}
+                              className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition ${
+                                isProcessing
+                                  ? 'bg-gray-700 text-gray-400 cursor-wait'
+                                  : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black'
+                              }`}
+                            >
+                              {isProcessing ? (
+                                <> <Loader2 className="w-6 h-6 animate-spin" /> Redeeming... </>
+                              ) : (
+                                <> <Coins className="w-6 h-6" /> Redeem Now </>
+                              )}
+                            </button>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

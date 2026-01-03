@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useAccount,
   useChainId,
   useReadContract,
   useReadContracts,
-  useWriteContract,
-  useWaitForTransactionReceipt,
 } from 'wagmi';
 import { parseUnits, formatUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,7 +33,23 @@ import {
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
-import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, TYC_TOKEN_ADDRESS } from '@/constants/contracts';
+import {
+  REWARD_CONTRACT_ADDRESSES,
+  USDC_TOKEN_ADDRESS,
+  TYC_TOKEN_ADDRESS,
+} from '@/constants/contracts';
+
+// Import ALL admin reward hooks from your context
+import {
+  useRewardSetBackendMinter,
+  useRewardMintVoucher,
+  useRewardMintCollectible,
+  useRewardStockShop,
+  useRewardRestockCollectible,
+  useRewardUpdateCollectiblePrices,
+  useRewardPause,
+  useRewardWithdrawFunds,
+} from '@/context/ContractProvider'; 
 
 enum CollectiblePerk {
   NONE = 0,
@@ -110,10 +124,6 @@ export default function RewardAdminPanel() {
   const [backendMinter, setBackendMinter] = useState<Address | null>(null);
   const [owner, setOwner] = useState<Address | null>(null);
 
-  const { writeContract, data: txHash, isPending: isWriting, error: writeError, reset } = useWriteContract();
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
-  const isLoading = isWriting || isConfirming;
-
   // Form states
   const [newMinter, setNewMinter] = useState('');
   const [voucherRecipient, setVoucherRecipient] = useState('');
@@ -130,7 +140,81 @@ export default function RewardAdminPanel() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawTo, setWithdrawTo] = useState('');
 
-  // ── Contract state reads ───────────────────────────────────────────────────
+  // Admin hooks from context
+  const {
+    setMinter: setBackendMinterFn,
+    isPending: pendingMinter,
+    isSuccess: successMinter,
+    error: errorMinter,
+    txHash: txMinter,
+    reset: resetMinter,
+  } = useRewardSetBackendMinter();
+
+  const {
+    mint: mintVoucher,
+    isPending: pendingVoucher,
+    isSuccess: successVoucher,
+    error: errorVoucher,
+    txHash: txVoucher,
+    reset: resetVoucher,
+  } = useRewardMintVoucher();
+
+  const {
+    mint: mintCollectible,
+    isPending: pendingCollectible,
+    isSuccess: successCollectible,
+    error: errorCollectible,
+    txHash: txCollectible,
+    reset: resetCollectible,
+  } = useRewardMintCollectible();
+
+  const {
+    stock: stockShop,
+    isPending: pendingStock,
+    isSuccess: successStock,
+    error: errorStock,
+    txHash: txStock,
+    reset: resetStock,
+  } = useRewardStockShop();
+
+  const {
+    restock,
+    isPending: pendingRestock,
+    isSuccess: successRestock,
+    error: errorRestock,
+    txHash: txRestock,
+    reset: resetRestock,
+  } = useRewardRestockCollectible();
+
+  const {
+    update,
+    isPending: pendingUpdate,
+    isSuccess: successUpdate,
+    error: errorUpdate,
+    txHash: txUpdate,
+    reset: resetUpdate,
+  } = useRewardUpdateCollectiblePrices();
+
+  const {
+    pause,
+    unpause,
+    isPending: pendingPause,
+    isSuccess: successPause,
+    error: errorPause,
+    txHash: txPause,
+    reset: resetPause,
+  } = useRewardPause();
+
+  const {
+    withdraw,
+    isPending: pendingWithdraw,
+    isSuccess: successWithdraw,
+    error: errorWithdraw,
+    txHash: txWithdraw,
+    reset: resetWithdraw,
+  } = useRewardWithdrawFunds();
+
+  // Contract state reads
   const pausedResult = useReadContract({
     address: contractAddress,
     abi: RewardABI,
@@ -156,7 +240,7 @@ export default function RewardAdminPanel() {
     address: tycAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [contractAddress!],
+    args: contractAddress ? [contractAddress] : undefined,
     query: { enabled: !!contractAddress && !!tycAddress },
   });
 
@@ -164,30 +248,16 @@ export default function RewardAdminPanel() {
     address: usdcAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [contractAddress!],
+    args: contractAddress ? [contractAddress] : undefined,
     query: { enabled: !!contractAddress && !!usdcAddress },
   });
 
-  const tycDecimals = useReadContract({
-    address: tycAddress,
-    abi: ERC20_ABI,
-    functionName: 'decimals',
-    query: { enabled: !!tycAddress },
-  });
-
-  const usdcDecimals = useReadContract({
-    address: usdcAddress,
-    abi: ERC20_ABI,
-    functionName: 'decimals',
-    query: { enabled: !!usdcAddress },
-  });
-
-  // ── Get ALL tokens owned by the contract (address(this)) ──────────────────
+  // Token holdings for overview
   const contractTokenCount = useReadContract({
     address: contractAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: [contractAddress!],
+    args: contractAddress ? [contractAddress] : undefined,
     query: { enabled: !!contractAddress },
   });
 
@@ -196,8 +266,8 @@ export default function RewardAdminPanel() {
   const tokenOfOwnerCalls = Array.from({ length: tokenCount }, (_, i) => ({
     address: contractAddress!,
     abi: RewardABI as Abi,
-    functionName: 'tokenOfOwnerByIndex' as const,
-    args: [contractAddress!, BigInt(i)] as const,
+    functionName: 'tokenOfOwnerByIndex',
+    args: [contractAddress!, BigInt(i)],
   } as const));
 
   const tokenIdResults = useReadContracts({
@@ -207,15 +277,14 @@ export default function RewardAdminPanel() {
   });
 
   const allTokenIds = tokenIdResults.data
-    ?.map((res) => (res.status === 'success' ? (res.result as bigint | undefined) : undefined))
+    ?.map((res) => (res.status === 'success' ? res.result : undefined))
     .filter((id): id is bigint => id !== undefined) ?? [];
 
-  // ── Batch fetch info for ALL tokens ────────────────────────────────────────
   const collectibleInfoCalls = allTokenIds.map((tokenId) => ({
     address: contractAddress!,
     abi: RewardABI as Abi,
-    functionName: 'getCollectibleInfo' as const,
-    args: [tokenId] as const,
+    functionName: 'getCollectibleInfo',
+    args: [tokenId],
   } as const));
 
   const tokenInfoResults = useReadContracts({
@@ -224,22 +293,19 @@ export default function RewardAdminPanel() {
     query: { enabled: !!contractAddress && allTokenIds.length > 0 },
   });
 
-  // ── Process all tokens ─────────────────────────────────────────────────────
   const allTokens = tokenInfoResults.data
     ?.map((result, index) => {
       if (result?.status !== 'success') return null;
-
       const [perk, , tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
-
       const tokenId = allTokenIds[index];
-      const isVoucher = tokenId < 2000000000;
-      const isCollectible = tokenId >= 2000000010;
+      const isVoucher = tokenId < 2_000_000_000;
+      const isCollectible = tokenId >= 2_000_000_000;
 
       return {
         tokenId,
         perk: isCollectible ? (perk as CollectiblePerk) : undefined,
         name: isVoucher
-          ? `Voucher #${tokenId}`
+          ? `Voucher #${tokenId.toString()}`
           : PERK_NAMES[perk as CollectiblePerk] || `Collectible #${perk}`,
         type: isVoucher ? 'voucher' : 'collectible',
         tycPrice,
@@ -250,7 +316,7 @@ export default function RewardAdminPanel() {
     })
     .filter((item): item is NonNullable<typeof item> => item !== null) ?? [];
 
-  // ── State updates ──────────────────────────────────────────────────────────
+  // Update local state from contract reads
   useEffect(() => {
     setIsPaused(!!pausedResult.data);
     setBackendMinter((backendMinterResult.data as Address) ?? null);
@@ -258,130 +324,148 @@ export default function RewardAdminPanel() {
     setWithdrawTo((ownerResult.data as string) ?? '');
   }, [pausedResult.data, backendMinterResult.data, ownerResult.data]);
 
+  // Global success/error feedback
   useEffect(() => {
-    if (txHash && !isConfirming && !isWriting) {
+    const successes = [
+      successMinter,
+      successVoucher,
+      successCollectible,
+      successStock,
+      successRestock,
+      successUpdate,
+      successPause,
+      successWithdraw,
+    ];
+    if (successes.some(Boolean)) {
       setStatus({ type: 'success', message: 'Transaction successful!' });
-      reset();
+      resetMinter?.();
+      resetVoucher?.();
+      resetCollectible?.();
+      resetStock?.();
+      resetRestock?.();
+      resetUpdate?.();
+      resetPause?.();
+      resetWithdraw?.();
     }
-    if (writeError) {
-      setStatus({ type: 'error', message: 'Transaction failed' });
-      reset();
-    }
-  }, [txHash, isConfirming, isWriting, writeError, reset]);
+  }, [
+    successMinter,
+    successVoucher,
+    successCollectible,
+    successStock,
+    successRestock,
+    successUpdate,
+    successPause,
+    successWithdraw,
+  ]);
 
-  // ── Action handlers ────────────────────────────────────────────────────────
-  const handleSetBackendMinter = () => {
-    if (!contractAddress || !newMinter) return;
-    writeContract({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'setBackendMinter',
-      args: [newMinter as Address],
-    });
+  useEffect(() => {
+    const errors = [
+      errorMinter,
+      errorVoucher,
+      errorCollectible,
+      errorStock,
+      errorRestock,
+      errorUpdate,
+      errorPause,
+      errorWithdraw,
+    ].filter(Boolean);
+    if (errors.length > 0) {
+      setStatus({ type: 'error', message: errors[0]?.message || 'Transaction failed' });
+    }
+  }, [
+    errorMinter,
+    errorVoucher,
+    errorCollectible,
+    errorStock,
+    errorRestock,
+    errorUpdate,
+    errorPause,
+    errorWithdraw,
+  ]);
+
+  // Handlers using context hooks
+  const handleSetBackendMinter = async () => {
+    if (!newMinter) return;
+    await setBackendMinterFn(newMinter as Address);
     setNewMinter('');
   };
 
-  const handleMintVoucher = () => {
-    if (!contractAddress || !voucherRecipient || !voucherValue) return;
+  const handleMintVoucher = async () => {
+    if (!voucherRecipient || !voucherValue) return;
     const valueWei = parseUnits(voucherValue, 18);
-    writeContract({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'mintVoucher',
-      args: [voucherRecipient as Address, valueWei],
-    });
+    await mintVoucher(voucherRecipient as Address, valueWei);
     setVoucherRecipient('');
     setVoucherValue('');
   };
 
-  const handleMintCollectible = () => {
-    if (!contractAddress || !collectibleRecipient) return;
-    writeContract({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'mintCollectible',
-      args: [collectibleRecipient as Address, BigInt(selectedPerk), BigInt(collectibleStrength || '1')],
-    });
+  const handleMintCollectible = async () => {
+    if (!collectibleRecipient) return;
+    await mintCollectible(collectibleRecipient as Address, selectedPerk, Number(collectibleStrength || 1));
     setCollectibleRecipient('');
     setCollectibleStrength('1');
   };
 
-  const handleStockShop = useCallback((perk: CollectiblePerk, strength: number) => {
-  if (!contractAddress) return;
+  const handleStockShop = async (perk: CollectiblePerk, strength: number) => {
+    const selectedItem = INITIAL_COLLECTIBLES.find(
+      (item) => item.perk === perk && item.strength === strength
+    );
+    const tycPrice = selectedItem
+      ? parseUnits(selectedItem.tycPrice, 18)
+      : parseUnits("1.0", 18);
+    const usdcPrice = selectedItem
+      ? parseUnits(selectedItem.usdcPrice, 6)
+      : parseUnits("0.20", 6);
 
-  // Optional: find price from INITIAL_COLLECTIBLES for realism
-  const selectedItem = INITIAL_COLLECTIBLES.find(
-    item => item.perk === perk && item.strength === strength
-  );
+    await stockShop(50, perk, strength, Number(tycPrice), Number(usdcPrice));
+  };
 
-  const tycPrice = selectedItem 
-    ? parseUnits(selectedItem.tycPrice, 18) 
-    : parseUnits("1.0", 18);
-
-  const usdcPrice = selectedItem 
-    ? parseUnits(selectedItem.usdcPrice, 6) 
-    : parseUnits("0.20", 6);
-
-  writeContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'stockShop',
-    args: [50, BigInt(perk), BigInt(strength), tycPrice, usdcPrice],
-  });
-}, [contractAddress, writeContract]);
-  const handleRestock = () => {
-    if (!contractAddress || !restockTokenId || !restockAmount) return;
-    writeContract({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'restockCollectible',
-      args: [BigInt(restockTokenId), BigInt(restockAmount)],
-    });
+  const handleRestock = async () => {
+    if (!restockTokenId || !restockAmount) return;
+    await restock(BigInt(restockTokenId), BigInt(restockAmount));
     setRestockTokenId('');
     setRestockAmount('50');
   };
 
-  const handleUpdatePrices = () => {
-    if (!contractAddress || !updateTokenId) return;
+  const handleUpdatePrices = async () => {
+    if (!updateTokenId) return;
     const tycWei = updateTycPrice ? parseUnits(updateTycPrice, 18) : 0;
     const usdcWei = updateUsdcPrice ? parseUnits(updateUsdcPrice, 6) : 0;
-    writeContract({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: 'updateCollectiblePrices',
-      args: [BigInt(updateTokenId), tycWei, usdcWei],
-    });
+    await update(BigInt(updateTokenId), BigInt(tycWei), BigInt(usdcWei));
     setUpdateTokenId('');
     setUpdateTycPrice('');
     setUpdateUsdcPrice('');
   };
 
-  const handlePause = (pause: boolean) => {
-    if (!contractAddress) return;
-    writeContract({
-      address: contractAddress,
-      abi: RewardABI,
-      functionName: pause ? 'pause' : 'unpause',
-    });
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || !withdrawTo) return;
+    const tokenAddr = withdrawToken === 'TYC' ? tycAddress! : usdcAddress!;
+    const decimals = withdrawToken === 'TYC' ? 18 : 6;
+    const amountWei = parseUnits(withdrawAmount, decimals);
+    await withdraw(tokenAddr, withdrawTo as Address, amountWei);
+    setWithdrawAmount('');
   };
 
-  // const handleWithdraw = () => {
-  //   if (!contractAddress || !withdrawAmount || !withdrawTo) return;
-  //   const tokenAddr = withdrawToken === 'TYC' ? tycAddress! : usdcAddress!;
-  //   const decimals = withdrawToken === 'TYC' ? (tycDecimals.data ?? 18) : (usdcDecimals.data ?? 6);
-  //   const amountWei = parseUnits(withdrawAmount, decimals);
-    
-  //   writeContract({
-  //     address: contractAddress,
-  //     abi: RewardABI,
-  //     functionName: 'withdrawFunds',
-  //     args: [tokenAddr, withdrawTo as Address, amountWei],
-  //   });
-  //   setWithdrawAmount('');
-  //   setWithdrawTo((owner ?? '') as string);
-  // };
+  const anyPending =
+    pendingMinter ||
+    pendingVoucher ||
+    pendingCollectible ||
+    pendingStock ||
+    pendingRestock ||
+    pendingUpdate ||
+    pendingPause ||
+    pendingWithdraw;
 
-  // ── Early returns ──────────────────────────────────────────────────────────
+  const currentTxHash =
+    txMinter ||
+    txVoucher ||
+    txCollectible ||
+    txStock ||
+    txRestock ||
+    txUpdate ||
+    txPause ||
+    txWithdraw;
+
+  // Early returns
   if (!isConnected || !userAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27]">
@@ -422,11 +506,14 @@ export default function RewardAdminPanel() {
     );
   }
 
-  // ── Main render ────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] text-white py-12 px-4">
       <div className="max-w-7xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Tycoon Reward Admin Panel
           </h1>
@@ -463,9 +550,11 @@ export default function RewardAdminPanel() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className={`mb-8 p-6 rounded-2xl border text-center max-w-2xl mx-auto ${
-                status.type === 'success' ? 'bg-green-900/40 border-green-600' :
-                status.type === 'error' ? 'bg-red-900/40 border-red-600' :
-                'bg-blue-900/40 border-blue-600'
+                status.type === 'success'
+                  ? 'bg-green-900/40 border-green-600'
+                  : status.type === 'error'
+                  ? 'bg-red-900/40 border-red-600'
+                  : 'bg-blue-900/40 border-blue-600'
               }`}
             >
               <p className="font-medium">{status.message}</p>
@@ -475,19 +564,23 @@ export default function RewardAdminPanel() {
 
         {activeSection === 'overview' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
-            {/* Contract Status */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Settings className="w-6 h-6 text-cyan-400" /> Contract Status
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-lg">
-                <div>Paused: <span className={isPaused ? 'text-red-400' : 'text-green-400'}>{isPaused ? 'Yes' : 'No'}</span></div>
-                <div>Owner: <span className="font-mono text-sm">{owner ? `${owner.slice(0,8)}...${owner.slice(-6)}` : '—'}</span></div>
-                <div>Backend Minter: <span className="font-mono text-sm">{backendMinter ? `${backendMinter.slice(0,8)}...${backendMinter.slice(-6)}` : 'Not set'}</span></div>
+                <div>
+                  Paused: <span className={isPaused ? 'text-red-400' : 'text-green-400'}>{isPaused ? 'Yes' : 'No'}</span>
+                </div>
+                <div>
+                  Owner: <span className="font-mono text-sm">{owner ? `${owner.slice(0, 8)}...${owner.slice(-6)}` : '—'}</span>
+                </div>
+                <div>
+                  Backend Minter: <span className="font-mono text-sm">{backendMinter ? `${backendMinter.slice(0, 8)}...${backendMinter.slice(-6)}` : 'Not set'}</span>
+                </div>
               </div>
             </div>
 
-            {/* All Tokens as Beautiful Cards */}
             <div>
               <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
                 <Package className="w-8 h-8 text-purple-400" /> Contract Token Holdings
@@ -518,20 +611,12 @@ export default function RewardAdminPanel() {
                     >
                       <div className="absolute inset-0 bg-white/5 backdrop-blur-xl" />
                       <div className="relative z-10">
-                        <div className={`mx-auto mb-4 p-4 rounded-full ${
-                          item.type === 'voucher' ? 'bg-amber-900/60' : 'bg-purple-900/60'
-                        }`}>
+                        <div className={`mx-auto mb-4 p-4 rounded-full ${item.type === 'voucher' ? 'bg-amber-900/60' : 'bg-purple-900/60'}`}>
                           {item.icon}
                         </div>
-                        <h4 className="font-bold text-lg mb-2 truncate">
-                          {item.name}
-                        </h4>
-                        <p className="text-xs opacity-80 mb-4">
-                          ID: {item.tokenId.toString()}
-                        </p>
-                        <div className="text-2xl font-bold text-emerald-400">
-                          {item.stock.toString()}
-                        </div>
+                        <h4 className="font-bold text-lg mb-2 truncate">{item.name}</h4>
+                        <p className="text-xs opacity-80 mb-4">ID: {item.tokenId.toString()}</p>
+                        <div className="text-2xl font-bold text-emerald-400">{item.stock.toString()}</div>
                         <p className="text-xs opacity-75">In Stock</p>
 
                         {item.type === 'collectible' && item.tycPrice > 0 && (
@@ -553,10 +638,8 @@ export default function RewardAdminPanel() {
           </motion.div>
         )}
 
-        {/* Mint Section */}
         {activeSection === 'mint' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Mint Voucher */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Gift className="w-6 h-6 text-blue-400" /> Mint Voucher
@@ -571,22 +654,21 @@ export default function RewardAdminPanel() {
                 />
                 <input
                   type="number"
-                  placeholder="TYC Value"
+                  placeholder="TYC Value (e.g. 10)"
                   value={voucherValue}
                   onChange={(e) => setVoucherValue(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   onClick={handleMintVoucher}
-                  disabled={isLoading || !voucherRecipient || !voucherValue}
+                  disabled={anyPending || !voucherRecipient || !voucherValue}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Minting...' : 'Mint Voucher'}
+                  {pendingVoucher ? 'Minting...' : 'Mint Voucher'}
                 </button>
               </div>
             </div>
 
-            {/* Mint Collectible */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Gem className="w-6 h-6 text-purple-400" /> Mint Collectible
@@ -602,32 +684,33 @@ export default function RewardAdminPanel() {
                 <select
                   value={selectedPerk}
                   onChange={(e) => setSelectedPerk(Number(e.target.value) as CollectiblePerk)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
                 >
                   {Object.entries(PERK_NAMES).map(([value, name]) => (
-                    <option key={value} value={value}>{name}</option>
+                    <option key={value} value={value}>
+                      {name}
+                    </option>
                   ))}
                 </select>
                 <input
                   type="number"
-                  placeholder="Strength (for tiered)"
+                  placeholder="Strength (for tiered perks)"
                   value={collectibleStrength}
                   onChange={(e) => setCollectibleStrength(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
                 <button
                   onClick={handleMintCollectible}
-                  disabled={isLoading || !collectibleRecipient}
+                  disabled={anyPending || !collectibleRecipient}
                   className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Minting...' : 'Mint Collectible'}
+                  {pendingCollectible ? 'Minting...' : 'Mint Collectible'}
                 </button>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* Stock Section */}
         {activeSection === 'stock' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2 justify-center">
@@ -638,62 +721,52 @@ export default function RewardAdminPanel() {
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {INITIAL_COLLECTIBLES.map((item) => {
-                const isSelected = selectedPerk === item.perk && collectibleStrength === String(item.strength);
+              {INITIAL_COLLECTIBLES.map((item) => (
+                <motion.div
+                  key={`${item.perk}-${item.strength}`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="rounded-2xl p-6 border-2 cursor-pointer transition-all text-center bg-gray-800/40 border-gray-700 hover:border-green-500/50"
+                  onClick={() => {
+                    setSelectedPerk(item.perk);
+                    setCollectibleStrength(String(item.strength));
+                  }}
+                >
+                  <div className="flex flex-col items-center mb-4">
+                    <div className="p-4 rounded-full mb-3 bg-gray-700/50">
+                      {item.icon}
+                    </div>
+                    <h4 className="font-bold text-lg">{item.name}</h4>
+                    {item.strength > 1 && <p className="text-sm text-gray-400">Tier {item.strength}</p>}
+                  </div>
 
-                return (
-                  <motion.div
-                    key={`${item.perk}-${item.strength}`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`rounded-2xl p-6 border-2 cursor-pointer transition-all text-center ${
-                      isSelected
-                        ? 'bg-gradient-to-br from-green-600/40 to-green-800/40 border-green-400 shadow-lg shadow-green-500/30'
-                        : 'bg-gray-800/40 border-gray-700 hover:border-green-500/50'
-                    }`}
-                    onClick={() => {
-                      setSelectedPerk(item.perk);
-                      setCollectibleStrength(String(item.strength));
+                  <div className="space-y-2 mb-4">
+                    <p className="text-sm text-emerald-300">
+                      <span className="font-semibold">{item.tycPrice} TYC</span>
+                    </p>
+                    <p className="text-sm text-cyan-300 font-semibold">
+                      {item.usdcPrice} USDC
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStockShop(item.perk, item.strength);
                     }}
+                    disabled={anyPending}
+                    className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-xl font-bold transition disabled:opacity-50 shadow-md"
                   >
-                    <div className="flex flex-col items-center mb-4">
-                      <div className={`p-4 rounded-full mb-3 ${isSelected ? 'bg-green-600/30' : 'bg-gray-700/50'}`}>
-                        {item.icon}
-                      </div>
-                      <h4 className="font-bold text-lg">{item.name}</h4>
-                      {item.strength > 1 && <p className="text-sm text-gray-400">Tier {item.strength}</p>}
-                    </div>
-
-                    <div className="space-y-2 mb-4">
-                      <p className="text-sm text-emerald-300">
-                        <span className="font-semibold">{item.tycPrice} TYC</span>
-                      </p>
-                      <p className="text-sm text-cyan-300 font-semibold">
-                        {item.usdcPrice} USDC
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStockShop(item.perk, item.strength);  
-                      }}
-                      disabled={isLoading || !contractAddress}
-                      className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-xl font-bold transition disabled:opacity-50 shadow-md"
-                    >
-                      {isLoading ? 'Stocking...' : 'Stock 50 Units'}
-                    </button>
-                  </motion.div>
-                );
-              })}
+                    {pendingStock ? 'Stocking...' : 'Stock 50 Units'}
+                  </button>
+                </motion.div>
+              ))}
             </div>
           </motion.div>
         )}
 
-        {/* Manage Section */}
         {activeSection === 'manage' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Set Backend Minter */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Settings className="w-6 h-6 text-yellow-400" /> Set Backend Minter
@@ -708,38 +781,36 @@ export default function RewardAdminPanel() {
                 />
                 <button
                   onClick={handleSetBackendMinter}
-                  disabled={isLoading || !newMinter}
+                  disabled={anyPending || !newMinter}
                   className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Setting...' : 'Set Minter'}
+                  {pendingMinter ? 'Setting...' : 'Set Minter'}
                 </button>
               </div>
             </div>
 
-            {/* Pause / Unpause */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <PauseCircle className="w-6 h-6 text-red-400" /> Contract Control
               </h3>
               <div className="flex gap-4">
                 <button
-                  onClick={() => handlePause(true)}
-                  disabled={isLoading || isPaused}
+                  onClick={() => pause()}
+                  disabled={anyPending || isPaused}
                   className="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Pausing...' : 'Pause'}
+                  {pendingPause ? 'Pausing...' : 'Pause'}
                 </button>
                 <button
-                  onClick={() => handlePause(false)}
-                  disabled={isLoading || !isPaused}
+                  onClick={() => unpause()}
+                  disabled={anyPending || !isPaused}
                   className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Unpausing...' : 'Unpause'}
+                  {pendingPause ? 'Unpausing...' : 'Unpause'}
                 </button>
               </div>
             </div>
 
-            {/* Restock */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <RefreshCw className="w-6 h-6 text-blue-400" /> Restock Collectible
@@ -754,22 +825,21 @@ export default function RewardAdminPanel() {
                 />
                 <input
                   type="number"
-                  placeholder="Additional Amount"
+                  placeholder="Amount to Add"
                   value={restockAmount}
                   onChange={(e) => setRestockAmount(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   onClick={handleRestock}
-                  disabled={isLoading || !restockTokenId || !restockAmount}
+                  disabled={anyPending || !restockTokenId || !restockAmount}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Restocking...' : 'Restock'}
+                  {pendingRestock ? 'Restocking...' : 'Restock'}
                 </button>
               </div>
             </div>
 
-            {/* Update Prices */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <DollarSign className="w-6 h-6 text-green-400" /> Update Prices
@@ -800,17 +870,16 @@ export default function RewardAdminPanel() {
                 />
                 <button
                   onClick={handleUpdatePrices}
-                  disabled={isLoading || !updateTokenId}
+                  disabled={anyPending || !updateTokenId}
                   className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
                 >
-                  {isLoading ? 'Updating...' : 'Update Prices'}
+                  {pendingUpdate ? 'Updating...' : 'Update Prices'}
                 </button>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* Funds Section */}
         {activeSection === 'funds' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -820,7 +889,7 @@ export default function RewardAdminPanel() {
               <select
                 value={withdrawToken}
                 onChange={(e) => setWithdrawToken(e.target.value as 'TYC' | 'USDC')}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white"
               >
                 <option value="TYC">TYC</option>
                 <option value="USDC">USDC</option>
@@ -835,23 +904,23 @@ export default function RewardAdminPanel() {
               />
               <input
                 type="text"
-                placeholder="To Address"
+                placeholder="Recipient Address"
                 value={withdrawTo}
                 onChange={(e) => setWithdrawTo(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
               />
               <button
-                // onClick={handleWithdraw}
-                disabled={isLoading || !withdrawAmount || !withdrawTo}
+                onClick={handleWithdraw}
+                disabled={anyPending || !withdrawAmount || !withdrawTo}
                 className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50"
               >
-                {isLoading ? 'Withdrawing...' : 'Withdraw'}
+                {pendingWithdraw ? 'Withdrawing...' : 'Withdraw'}
               </button>
             </div>
           </motion.div>
         )}
 
-        {txHash && (
+        {currentTxHash && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -859,7 +928,7 @@ export default function RewardAdminPanel() {
           >
             <p className="text-xl font-bold text-green-300 text-center">Transaction Sent!</p>
             <a
-              href={`https://basescan.org/tx/${txHash}`}
+              href={`https://basescan.org/tx/${currentTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block mt-3 text-cyan-300 underline text-center"
