@@ -54,18 +54,21 @@ export default function PlayWithAIMobile() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
+    stake: 1, // ← NEW: Default stake = 1
   });
 
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
 
+  // Updated to pass stake (update your useCreateAIGame hook if needed)
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
     totalPlayers,
     gameCode,
-    BigInt(settings.startingCash)
+    BigInt(settings.startingCash),
+    BigInt(settings.stake) // ← Pass stake on-chain (as BigInt)
   );
 
   const handlePlay = async () => {
@@ -91,6 +94,7 @@ export default function PlayWithAIMobile() {
         number_of_players: totalPlayers,
         ai_opponents: settings.aiCount,
         ai_difficulty: settings.aiDifficulty,
+        stake: settings.stake, // ← Save stake to database
         settings: {
           auction: settings.auction,
           rent_in_prison: settings.rentInPrison,
@@ -104,6 +108,7 @@ export default function PlayWithAIMobile() {
       const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
       if (!dbGameId) throw new Error("Failed to save game");
 
+      // AI symbol assignment
       let availablePieces = [...GamePieces.filter(p => p.id !== settings.symbol)];
       const assignedSymbols: string[] = [settings.symbol];
 
@@ -268,6 +273,27 @@ export default function PlayWithAIMobile() {
                 <SelectItem value="1500">$1,500</SelectItem>
                 <SelectItem value="2000">$2,000</SelectItem>
                 <SelectItem value="5000">$5,000</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* NEW: Stake */}
+          <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 rounded-2xl p-5 border border-green-500/40">
+            <div className="flex items-center gap-3 mb-4">
+              <FaCoins className="w-7 h-7 text-green-400" />
+              <h3 className="text-xl font-bold text-green-300">Stake</h3>
+            </div>
+            <Select value={settings.stake.toString()} onValueChange={v => setSettings(p => ({ ...p, stake: +v }))}>
+              <SelectTrigger className="h-12 bg-black/50 border-green-500/60 text-white text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1</SelectItem>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
               </SelectContent>
             </Select>
           </div>
