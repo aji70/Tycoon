@@ -93,20 +93,38 @@ export default function GamePlayers({
   const isNext = !!me && game.next_player_id === me.user_id;
 
   useEffect(() => {
-      if (!me) return;
-  
-      const otherPlayer = game.players.find(p => isAIPlayer(p) && p.user_id !== me.user_id);
-      const humanPlayer = me;
-  
-      if (game.players.length <= 2 && (!otherPlayer) && humanPlayer.balance > 0) {
-        setWinner(humanPlayer);
-        setEndGameCandidate({
-          winner: humanPlayer,
-          position: humanPlayer.position ?? 0,
-          balance: BigInt(humanPlayer.balance),
-        });
-      }
-    }, [game.players, me]);
+  if (!game || game.status === "FINISHED" || !me) return;
+
+  // Count players who are still "active" (not bankrupt)
+  const activePlayers = game.players.filter((player) => {
+    // Has money?
+    if ((player.balance ?? 0) > 0) return true;
+
+    // Or owns at least one unmortgaged property?
+    return game_properties.some(
+      (gp) =>
+        gp.address?.toLowerCase() === player.address?.toLowerCase() &&
+        gp.mortgaged !== true
+    );
+  });
+
+  // Only one active player left → they win!
+  if (activePlayers.length === 1) {
+    const theWinner = activePlayers[0];
+
+    // Prevent triggering multiple times
+    if (winner?.user_id === theWinner.user_id) return;
+
+    toast.success(`${theWinner.username} wins the game! 🎉🏆`);
+
+    setWinner(theWinner);
+    setEndGameCandidate({
+      winner: theWinner,
+      position: theWinner.position ?? 0,
+      balance: BigInt(theWinner.balance ?? 0),
+    });
+  }
+}, [game.players, game_properties, game.status, me, winner, game_properties]);
 
   const {
     openTrades,
