@@ -32,11 +32,11 @@ const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
-const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
+const getDiceValues = (): { die1: number; die2: number; total: number } => {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
   const total = die1 + die2;
-  return total === 12 ? null : { die1, die2, total };
+  return { die1, die2, total };
 };
 
 const JAIL_POSITION = 10;
@@ -55,7 +55,6 @@ const Board = ({
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
-  const [pendingRoll, setPendingRoll] = useState(0);
   const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
@@ -142,7 +141,6 @@ const Board = ({
     setRoll(null);
     setBuyPrompted(false);
     setIsRolling(false);
-    setPendingRoll(0);
     landedPositionThisTurn.current = null;
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
@@ -200,11 +198,13 @@ const Board = ({
 
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
-      setTimeout(END_TURN, 800);
+      if (!(roll?.die1 === roll?.die2)) {
+        setTimeout(END_TURN, 800);
+      }
     } catch {
       showToast("Purchase failed", "error");
     }
-  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -212,7 +212,6 @@ const Board = ({
     landedPositionThisTurn.current = newPosition;
     setIsSpecialMove(isSpecial);
 
-    setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
 
     setTimeout(() => {
@@ -239,9 +238,12 @@ const Board = ({
       const res = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
       if (res?.data?.success && res.data.data) {
         setPlayers(res.data.data.players);
+        return res.data.data;
       }
+      return null;
     } catch (err) {
       console.error("Failed to refresh game state", err);
+      return null;
     }
   }, [game.code]);
 
@@ -255,13 +257,7 @@ const Board = ({
     setAnimatedPositions({});
 
     setTimeout(async () => {
-      let value = getDiceValues();
-      while (value === null) {
-        showToast("DOUBLES! Rolling again...", "success");
-        await new Promise(resolve => setTimeout(resolve, 500));
-        value = getDiceValues();
-      }
-
+      const value = getDiceValues();
       setRoll(value);
 
       const player = currentPlayer;
@@ -271,21 +267,40 @@ const Board = ({
         return;
       }
 
-      const currentPos = player.position ?? 0;
-      const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
+      const oldPos = player.position ?? 0;
+      const isDouble = value.die1 === value.die2;
 
-      let newPos = currentPos;
-      let shouldAnimate = false;
+      try {
+        await apiClient.post("/game-players/change-position", {
+          user_id: me.user_id,
+          game_id: game.id,
+          rolled: value.total,
+          is_double: isDouble,
+        });
 
-      if (!isInJail) {
-        const totalMove = value.total + pendingRoll;
-        newPos = (currentPos + totalMove) % BOARD_SQUARES;
-        shouldAnimate = totalMove > 0;
+        const updatedGame = await fetchUpdatedGame();
+        if (!updatedGame) {
+          showToast("Failed to update game state", "error");
+          setIsRolling(false);
+          unlockAction();
+          return;
+        }
 
-        if (shouldAnimate) {
+        const newCurrentPlayer = updatedGame.players.find(p => p.user_id === currentPlayerId);
+        if (!newCurrentPlayer) {
+          showToast("Player not found after update", "error");
+          setIsRolling(false);
+          unlockAction();
+          return;
+        }
+
+        const newPos = newCurrentPlayer.position ?? oldPos;
+        const movedSquares = (newPos - oldPos + BOARD_SQUARES) % BOARD_SQUARES;
+
+        if (movedSquares > 0) {
           const movePath: number[] = [];
-          for (let i = 1; i <= totalMove; i++) {
-            movePath.push((currentPos + i) % BOARD_SQUARES);
+          for (let i = 1; i <= movedSquares; i++) {
+            movePath.push((oldPos + i) % BOARD_SQUARES);
           }
 
           for (let i = 0; i < movePath.length; i++) {
@@ -301,32 +316,16 @@ const Board = ({
             [player.user_id]: newPos,
           }));
         }
-      } else {
-        showToast(
-          `${player.username || "You"} rolled while in jail: ${value.die1} + ${value.die2} = ${value.total}`,
-          "default"
-        );
-      }
 
-      setHasMovementFinished(true);
+        setHasMovementFinished(true);
+        landedPositionThisTurn.current = !newCurrentPlayer.in_jail ? newPos : null;
 
-      try {
-        await apiClient.post("/game-players/change-position", {
-          user_id: me.user_id,
-          game_id: game.id,
-          position: newPos,
-          rolled: value.total + pendingRoll,
-          is_double: value.die1 === value.die2,
-        });
+        showToast(`You rolled ${value.die1} + ${value.die2} = ${value.total}!`, "success");
 
-        setPendingRoll(0);
-        landedPositionThisTurn.current = isInJail ? null : newPos;
-
-        if (!isInJail) {
-          showToast(
-            `You rolled ${value.die1} + ${value.die2} = ${value.total}!`,
-            "success"
-          );
+        if (newCurrentPlayer.in_jail) {
+          showToast("Still in jail");
+        } else if (oldPos === JAIL_POSITION && newPos !== JAIL_POSITION) {
+          showToast("Got out of jail!");
         }
       } catch (err) {
         console.error("Move failed:", err);
@@ -339,8 +338,8 @@ const Board = ({
     }, ROLL_ANIMATION_MS);
   }, [
     isRolling, actionLock, lockAction, unlockAction,
-    currentPlayer, me, pendingRoll, game.id,
-    showToast, END_TURN
+    currentPlayer, me, game.id,
+    showToast, END_TURN, currentPlayerId, fetchUpdatedGame
   ]);
 
   // Buy prompt logic
@@ -383,7 +382,7 @@ const Board = ({
 
   // Auto-end turn when no action needed
   useEffect(() => {
-    if (actionLock || isRolling || buyPrompted || !roll || !hasMovementFinished) return;
+    if (actionLock || isRolling || buyPrompted || !roll || !hasMovementFinished || (roll?.die1 === roll?.die2)) return;
 
     const timer = setTimeout(() => {
       END_TURN();
@@ -421,7 +420,9 @@ const Board = ({
     showToast("Skipped purchase");
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
-    setTimeout(END_TURN, 900);
+    if (!(roll?.die1 === roll?.die2)) {
+      setTimeout(END_TURN, 900);
+    }
   };
 
   const handleBankruptcy = useCallback(async () => {
@@ -560,12 +561,17 @@ const Board = ({
 
             {properties.map((square) => {
               const playersHere = playersByPosition.get(square.id) ?? [];
+              const sortedPlayersHere = [...playersHere].sort((a, b) => {
+                if (a.user_id === me?.user_id) return 1;
+                if (b.user_id === me?.user_id) return -1;
+                return 0;
+              });
 
               return (
                 <BoardSquare
                   key={square.id}
                   square={square}
-                  playersHere={playersHere}
+                  playersHere={sortedPlayersHere}
                   currentPlayerId={currentPlayerId}
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
