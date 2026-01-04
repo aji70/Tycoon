@@ -289,6 +289,26 @@ export function useEndAIGameAndClaim(gameId: bigint, finalPosition: number, fina
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+export function useExitGame(gameId: bigint) {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const exit = useCallback(async () => {
+    if (!contractAddress) throw new Error('Contract not deployed');
+    const hash = await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'exitGame',
+      args: [gameId],
+    });
+    return hash;
+  }, [writeContractAsync, contractAddress, gameId]);
+
+  return { exit, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 export function useClaimReward(gameId: bigint) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
@@ -595,6 +615,48 @@ export function useRewardBuyCollectible() {
 
   return { buy, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
+
+/* ----------------------- New Reward View Hooks (from updated contract) ----------------------- */
+
+export function useRewardOwnedTokenCount(address?: Address) {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const result = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'ownedTokenCount',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && !!contractAddress },
+  });
+
+  return {
+    data: result.data ? BigInt(result.data as bigint) : undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
+
+export function useRewardTokenOfOwnerByIndex(address?: Address, index?: bigint) {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const result = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'tokenOfOwnerByIndex',
+    args: address && index !== undefined ? [address, index] : undefined,
+    query: { enabled: !!address && index !== undefined && !!contractAddress },
+  });
+
+  return {
+    data: result.data ? BigInt(result.data as bigint) : undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
+
+
 
 /* ----------------------- Admin Reward Hooks ----------------------- */
 

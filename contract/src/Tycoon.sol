@@ -384,10 +384,16 @@ contract Tycoon is ReentrancyGuard, Ownable {
     mapping(uint256 => mapping(address => TycoonLib.GamePlayer)) public gamePlayers;
     mapping(address => string) public previousGameCode;
     mapping(string => TycoonLib.GamePosition) public gameFinalPositions;
-    mapping(uint256 => mapping(address => bool)) public hasClaimedReward;
+    mapping(uint256 => mapping(address => bool)) public hasClaimed; // gameId => player => claimed
+    mapping(uint256 => mapping(address => address)) public playerVotes; // gameId => voter => votedTarget
+    mapping(string => TycoonLib.GamePosition) public position;
 
     TycoonRewardSystem public immutable rewardSystem;
 
+    // Add these new events (alongside other events)
+    event VoteCast(uint256 indexed gameId, address indexed voter, address indexed target);
+    event PlayerVotedOut(uint256 indexed gameId, address indexed removed, uint256 voteCount);
+    event PlayerExited(uint256 indexed gameId, address indexed player);
     event PlayerCreated(string indexed username, address indexed player, uint64 timestamp);
     event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp);
     event PlayerJoined(uint256 indexed gameId, address indexed player, uint8 order);
@@ -753,56 +759,105 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return true;
     }
 
-    function claimReward(uint256 gameId)
-        external
-        nonReentrant
-        onlyPlayerInGame(gameId, msg.sender)
-        returns (uint256 reward)
-    {
+    // UPDATE the claimReward function:
+    // Add hasClaimed check/set, remove game.totalStaked=0, keep delete position but move it to end (optional, but to allow any claim order, comment out delete or make per-position)
+    function claimReward(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (uint256) {
         TycoonLib.Game storage game = games[gameId];
-        require(game.status == TycoonLib.GameStatus.Ended, "Not ended");
-        require(!game.ai, "Use AI claim");
-        require(!hasClaimedReward[gameId][msg.sender], "Already claimed");
+        require(game.status == TycoonLib.GameStatus.Ended, "Game not ended");
+        require(game.ai == false, "Use endAIGame for AI rewards");
+        require(!hasClaimed[gameId][msg.sender], "Already claimed");
 
-        TycoonLib.GamePosition storage pos = gameFinalPositions[game.code];
+        TycoonLib.GamePosition storage pos = position[game.code];
+
+        uint256 reward = 0;
         uint256 pot = game.totalStaked;
         uint256 stake = game.stakePerPlayer;
 
+        // === 1ST PLACE: WINNER ===
         if (pos.winner == msg.sender) {
-            require(pot >= 2 * stake, "Min 2 players");
-            uint256 losersPool = pot - stake;
+            require(pot >= 2 * stake, "Min 2 players required");
+
+            uint256 losersPool = pot - stake; // All other players' stakes
             uint256 houseCut = (losersPool * 40) / 100;
             reward = stake + (losersPool * 60) / 100;
+
             houseBalance += houseCut;
+
+            // Winner gets TYC voucher
             rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
             emit PlayerWonWithRewards(gameId, msg.sender, reward, TOKEN_REWARD);
-        } else if (pos.runnersup == msg.sender) {
-            uint256 earlyPool = pot - 2 * stake;
-            if (earlyPool > 0) reward = (earlyPool * 30) / 100;
-            if (reward > 0) rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 2);
-        } else if (pos.losers == msg.sender && game.numberOfPlayers >= 4) {
-            uint256 earlyPool = pot - 3 * stake;
-            if (earlyPool > 0) reward = (earlyPool * 20) / 100;
-            else if (game.numberOfPlayers == 4) reward = stake / 10;
-            if (reward > 0) rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 4);
+        }
+        // === 2ND PLACE: RUNNER-UP ===
+        else if (pos.runnersup == msg.sender) {
+            uint256 earlyLosersPool = pot - 2 * stake; // Stakes from players eliminated before final 2
+            if (earlyLosersPool > 0) {
+                reward = (earlyLosersPool * 30) / 100; // 30% of early losers' pool
+            }
+
+            // Runner-up gets smaller voucher
+            if (reward > 0) {
+                rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 2); // 0.5 TYC
+            }
+        }
+        // === 3RD PLACE: BONUS CONSOLATION ===
+        else if (pos.losers == msg.sender && game.numberOfPlayers >= 4) {
+            // Only award 3rd place if there were at least 4 players (so someone actually finished 3rd)
+            uint256 earlyLosersPool = pot - 3 * stake; // Stakes from players eliminated before top 3
+            if (earlyLosersPool > 0) {
+                reward = (earlyLosersPool * 20) / 100; // 20% of very early losers' pool
+            } else if (game.numberOfPlayers == 4) {
+                // Special case: 4-player game → 3rd gets small fixed consolation
+                reward = stake / 10;
+            }
+
+            // 3rd place gets a tiny voucher
+            if (reward > 0) {
+                rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 4); // 0.25 TYC
+            }
         } else {
-            revert("No reward");
+            revert("No reward position");
         }
 
-        require(reward > 0, "No reward");
+        require(reward > 0, "No reward available");
 
-        (bool sent,) = payable(msg.sender).call{value: reward}("");
-        require(sent, "Transfer failed");
+        // Transfer ETH reward
+        (bool success,) = payable(msg.sender).call{value: reward}("");
+        require(success, "Transfer failed");
 
-        users[gamePlayers[gameId][msg.sender].username].totalEarned += reward;
-        hasClaimedReward[gameId][msg.sender] = true;
+        // Update user stats
+        string memory username = gamePlayers[gameId][msg.sender].username;
+        TycoonLib.User storage user = users[username];
+        user.totalEarned += reward;
 
-        if (pos.winner == msg.sender) pos.winner = address(0);
-        else if (pos.runnersup == msg.sender) pos.runnersup = address(0);
-        else if (pos.losers == msg.sender) pos.losers = address(0);
+        // Mark as claimed
+        hasClaimed[gameId][msg.sender] = true;
+
+        // Optional: Clear position only if winner (but to allow any order, move or remove)
+        // If you want to clear after all claimed, add checks, but for simplicity, keep as is but note potential issue if winner claims first
+        // Better: delete specific position
+        if (pos.winner == msg.sender) {
+            pos.winner = address(0);
+        } else if (pos.runnersup == msg.sender) {
+            pos.runnersup = address(0);
+        } else if (pos.losers == msg.sender) {
+            pos.losers = address(0);
+        }
 
         emit RewardClaimed(gameId, msg.sender, reward);
+        return reward;
     }
+
+    // REPLACE with these 2 NEW FUNCTIONS:
+    function exitGame(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (bool) {
+        TycoonLib.Game storage game = games[gameId];
+        require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
+        require(!game.ai, "Cannot exit AI game");
+
+        _removePlayer(gameId, msg.sender);
+        emit PlayerExited(gameId, msg.sender);
+        return true;
+    }
+
 
     function setMinStake(uint256 newMin) external onlyOwner {
         require(newMin > 0, "Min > 0");
