@@ -876,9 +876,7 @@ const {
     const humanPlayer = me;
 
     const shouldDeclareVictory =
-      (players.length === 1 && players[0].user_id === me.user_id) ||
-      (players.length === 2 && aiPlayers.every(ai => ai.balance <= 0) && humanPlayer.balance > 0);
-
+      (players.length === 1 && players[0].user_id === me.user_id) 
     if (shouldDeclareVictory) {
       setWinner(humanPlayer);
       setEndGameCandidate({
