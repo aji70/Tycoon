@@ -28,6 +28,7 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
+import { VictoryModal } from "../modals/victory";
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
@@ -78,6 +79,14 @@ const Board = ({
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
 
+  // Victory handling
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+  }>({ winner: null, position: 0, balance: BigInt(0) });
+
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
@@ -122,8 +131,6 @@ const Board = ({
   useEffect(() => {
     if (game?.players) setPlayers(game.players);
   }, [game?.players]);
-
-
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -250,7 +257,7 @@ const Board = ({
     }
   }, [game.code]);
 
-  // SMOOTH MOVEMENT ANIMATION (fixed version)
+  // SMOOTH MOVEMENT ANIMATION
   const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
@@ -429,215 +436,187 @@ const Board = ({
     }
   };
 
+  // On-chain exit hook (same as bankruptcy)
   const { data: contractGame } = useGetGameByCode(game.code);
-  // Extract the on-chain game ID (it's a bigint now)
-const onChainGameId = contractGame?.id;
+  const onChainGameId = contractGame?.id;
 
   const {
     exit: endGame,
     isPending: endGamePending,
     isSuccess: endGameSuccess,
     error: endGameError,
-    txHash: endGameTxHash,
     reset: endGameReset,
   } = useExitGame(onChainGameId ?? BigInt(0));
 
+  // Bankruptcy handling
   const handleBankruptcy = useCallback(async () => {
-  if (!me || !game.id || !game.code) {
-    showToast("Cannot declare bankruptcy right now", "error");
-    return;
-  }
+    if (!me || !game.id || !game.code) {
+      showToast("Cannot declare bankruptcy right now", "error");
+      return;
+    }
 
-  showToast("Declaring bankruptcy...", "error");
+    showToast("Declaring bankruptcy...", "error");
 
-  let creditorPlayerId: number | null = null;
+    let creditorPlayerId: number | null = null;
 
-  // Determine if we owe rent to another player (landlord)
-  if (justLandedProperty) {
-    const landedGameProp = game_properties.find(
-      (gp) => gp.property_id === justLandedProperty.id
-    );
-
-    if (landedGameProp?.address) {
-      const owner = players.find(
-        (p) =>
-          p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
-          p.user_id !== me.user_id
+    if (justLandedProperty) {
+      const landedGameProp = game_properties.find(
+        (gp) => gp.property_id === justLandedProperty.id
       );
 
-      if (owner) {
-        creditorPlayerId = owner.user_id;
-      }
-    }
-  }
+      if (landedGameProp?.address) {
+        const owner = players.find(
+          (p) =>
+            p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
+            p.user_id !== me.user_id
+        );
 
-  try {
-
-    if (endGame) await endGame();
-    // Get all properties owned by the bankrupt player
-    const myOwnedProperties = game_properties.filter(
-      (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
-    );
-
-    // CASE 1: Transfer properties to creditor (if we landed on their property)
-    if (creditorPlayerId && myOwnedProperties.length > 0) {
-      showToast("All your properties transferred to the landlord!", "error");
-
-      for (const gp of myOwnedProperties) {
-        await apiClient.put(`/game-properties/${gp.id}`, {
-          game_id: game.id,
-          player_id: creditorPlayerId,
-          address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
-        });
-      }
-    }
-    // CASE 2: Return properties to bank (no creditor)
-    else if (myOwnedProperties.length > 0) {
-      showToast("All your properties returned to bank", "error");
-
-      for (const gp of myOwnedProperties) {
-        await apiClient.delete(`/game-properties/${gp.id}`, {
-          data: { game_id: game.id },
-        });
+        if (owner) {
+          creditorPlayerId = owner.user_id;
+        }
       }
     }
 
-    // IMPORTANT: End the turn so next_player_id advances
-    // This ensures the game continues for remaining players
-    await END_TURN();
-    
-    // Officially leave the game
-    await apiClient.post("/game-players/leave", {
-      address: me.address,
-      code: game.code,
-      reason: "bankruptcy",
+    try {
+      if (endGame) await endGame();
+
+      const myOwnedProperties = game_properties.filter(
+        (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+      );
+
+      if (creditorPlayerId && myOwnedProperties.length > 0) {
+        showToast("All your properties transferred to the landlord!", "error");
+        for (const gp of myOwnedProperties) {
+          await apiClient.put(`/game-properties/${gp.id}`, {
+            game_id: game.id,
+            player_id: creditorPlayerId,
+            address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
+          });
+        }
+      } else if (myOwnedProperties.length > 0) {
+        showToast("All your properties returned to bank", "error");
+        for (const gp of myOwnedProperties) {
+          await apiClient.delete(`/game-properties/${gp.id}`, {
+            data: { game_id: game.id },
+          });
+        }
+      }
+
+      await END_TURN();
+
+      await apiClient.post("/game-players/leave", {
+        address: me.address,
+        code: game.code,
+        reason: "bankruptcy",
+      });
+
+      await fetchUpdatedGame();
+
+      showToast("You have declared bankruptcy and left the game.", "error");
+      setShowExitPrompt(true);
+    } catch (err: any) {
+      console.error("Bankruptcy process failed:", err);
+      showToast("Bankruptcy failed — but you are eliminated.", "error");
+      try { await END_TURN(); } catch {}
+      setTimeout(() => { window.location.href = "/"; }, 3000);
+    } finally {
+      setShowBankruptcyModal(false);
+      setBuyPrompted(false);
+      landedPositionThisTurn.current = null;
+    }
+  }, [
+    me,
+    game,
+    justLandedProperty,
+    game_properties,
+    players,
+    showToast,
+    fetchUpdatedGame,
+    END_TURN,
+    endGame,
+  ]);
+
+  // ── MULTIPLAYER WIN DETECTION & VICTORY MODAL ─────────────────────
+  useEffect(() => {
+    if (!game || game.status === "FINISHED" || !me) return;
+    if (players.length === 0) return;
+
+    const activePlayers = players.filter((player) => {
+      if ((player.balance ?? 0) > 0) return true;
+      return game_properties.some(
+        (gp) =>
+          gp.address?.toLowerCase() === player.address?.toLowerCase() &&
+          gp.mortgaged !== true
+      );
     });
 
-    // Refresh game state to reflect changes
-    await fetchUpdatedGame();
+    if (activePlayers.length === 1) {
+      const theWinner = activePlayers[0];
+      const iAmTheWinner = me.user_id === theWinner.user_id;
 
-    showToast("You have declared bankruptcy and left the game.", "error");
+      if (turnEndInProgress.current) return;
+      turnEndInProgress.current = true;
 
-    
+      showToast(`${theWinner.username} wins the game! 🎉🏆`, "success");
 
-    setShowExitPrompt(true);
-  } catch (err: any) {
-    console.error("Bankruptcy process failed:", err);
-    showToast("Bankruptcy failed — but you are eliminated.", "error");
+      setWinner(theWinner);
+      setEndGameCandidate({
+        winner: theWinner,
+        position: theWinner.position ?? 0,
+        balance: BigInt(theWinner.balance ?? 0),
+      });
 
-    // Even on failure, try to end the turn to unblock the game
-    try {
-      await END_TURN();
-    } catch (endErr) {
-      console.error("Failed to end turn after bankruptcy error:", endErr);
-    }
-
-    // Force redirect after delay
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 3000);
-  } finally {
-    // Clean up UI state regardless of success/failure
-    setShowBankruptcyModal(false);
-    setBuyPrompted(false);
-    landedPositionThisTurn.current = null;
-  }
-}, [
-  me,
-  game,
-  justLandedProperty,
-  game_properties,
-  players,
-  showToast,
-  fetchUpdatedGame,
-  END_TURN, // ← Make sure END_TURN is in the dependency array
-]);
-
-  // ── AUTO DETECT WINNER & FINISH GAME (INCLUDING ON-CHAIN) ─────────────────────
-  // ── AUTO DETECT WINNER & FINISH GAME (INCLUDING ON-CHAIN) ─────────────────────
-useEffect(() => {
-  if (!game || game.status === "FINISHED") return;
-
-  // Allow running when there's 1 or more players
-  // We specifically want to detect when only 1 active player remains
-  if (players.length === 0) return;
-
-  const activePlayers = players.filter((player) => {
-    const balance = player.balance ?? 0;
-    if (balance > 0) return true;
-
-    // Still active if owns at least one unmortgaged property
-    const hasUnmortgagedProperties = game_properties.some(
-      (gp) =>
-        gp.address?.toLowerCase() === player.address?.toLowerCase() &&
-        gp.mortgaged !== true
-    );
-    return hasUnmortgagedProperties;
-  });
-
-  console.log("Active players count:", activePlayers.length, "Total players:", players.length);
-
-  if (activePlayers.length === 1) {
-    const winner = activePlayers[0];
-    const isMeTheWinner = me?.user_id === winner.user_id;
-
-    // Prevent double-trigger
-    if (turnEndInProgress.current) return;
-    turnEndInProgress.current = true;
-
-    showToast(`${winner.username} wins the game! 🎉🏆`, "success");
-
-    const finishGameAsWinner = async () => {
-      try {
-        // 1. Finish on-chain (same as bankruptcy)
-        if (onChainGameId && endGame) {
-          await endGame();
-
-          if (endGameSuccess) {
-            toast.success("Game finished on-chain & rewards claimed! 🚀");
-          } else if (endGameError) {
-            toast.error("On-chain exit failed: " + (endGameError?.message || ""));
-          }
-        }
-
-        // 2. Update backend
-        await apiClient.put(`/games/${game.id}`, {
-          status: "FINISHED",
-          winner_id: winner.user_id,
-        });
-
-        // 3. Show exit prompt for loser
-        if (!isMeTheWinner) {
-          setTimeout(() => setShowExitPrompt(true), 2500);
-        }
-
-        if (isMeTheWinner) {
-          toast.success("Congratulations! You are the Monopoly champion! 🏆");
-        }
-      } catch (err) {
-        console.error("Failed to finish game properly:", err);
-        toast.error("Game ended locally but sync may have failed.");
-
-        if (!isMeTheWinner) {
-          setTimeout(() => setShowExitPrompt(true), 2000);
-        }
+      if (iAmTheWinner) {
+        toast.success("You are the Tycoon! 🏆");
       }
-    };
+    }
+  }, [
+    players,
+    game_properties,
+    game?.status,
+    game?.players,
+    me,
+    showToast,
+  ]);
 
-    finishGameAsWinner();
-  }
-}, [
-  players,                    // triggers when player leaves
-  game_properties,           // triggers when properties are transferred/removed
-  game?.status,
-  game?.id,
-  me,
-  onChainGameId,
-  endGame,
-  endGameSuccess,
-  endGameError,
-  showToast,
-]);
+  // Finalize game & redirect
+  const handleFinalizeAndLeave = async () => {
+    if (!winner) return;
+
+    const toastId = toast.loading(
+      winner.user_id === me?.user_id
+        ? "Claiming your prize..."
+        : "Finalizing game..."
+    );
+
+    try {
+      if (endGame) await endGame();
+
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: winner.user_id,
+      });
+
+      toast.success(
+        winner.user_id === me?.user_id
+          ? "Prize claimed! 🎉"
+          : "Game finished — thanks for playing!",
+        { id: toastId }
+      );
+
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 2000);
+    } catch (err: any) {
+      console.error("Finalize failed:", err);
+      toast.error("Something went wrong — redirecting anyway", { id: toastId });
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 3000);
+    } finally {
+      if (endGameReset) endGameReset();
+    }
+  };
 
   const togglePerksModal = () => {
     setShowPerksModal(prev => !prev);
@@ -759,6 +738,13 @@ useEffect(() => {
         tokensAwarded={0.5}
         onConfirmBankruptcy={handleBankruptcy}
         onReturnHome={() => window.location.href = "/"}
+      />
+
+      <VictoryModal
+        winner={winner}
+        me={me}
+        onClaim={handleFinalizeAndLeave}
+        claiming={endGamePending}
       />
 
       <Toaster
