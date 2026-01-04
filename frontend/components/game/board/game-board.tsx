@@ -74,6 +74,7 @@ const Board = ({
     isGood: boolean;
   } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
+  const isNext = !!me && game.next_player_id === me.user_id;
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
@@ -570,6 +571,65 @@ const onChainGameId = contractGame?.id;
     setShowPerksModal(prev => !prev);
   };
 
+    const handleDevelopment = async (id: number) => {
+      if (!isNext || !me) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+          game_id: game.id,
+          user_id: me.user_id,
+          property_id: id,
+        });
+        if (res?.data?.success) toast.success("Property developed successfully");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to develop property");
+      }
+    };
+  
+    const handleDowngrade = async (id: number) => {
+      if (!isNext || !me) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+          game_id: game.id,
+          user_id: me.user_id,
+          property_id: id,
+        });
+        if (res?.data?.success) toast.success("Property downgraded successfully");
+        else toast.error(res.data?.message ?? "Failed to downgrade property");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to downgrade property");
+      }
+    };
+  
+    const handleMortgage = async (id: number) => {
+      if (!isNext || !me) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+          game_id: game.id,
+          user_id: me.user_id,
+          property_id: id,
+        });
+        if (res?.data?.success) toast.success("Property mortgaged successfully");
+        else toast.error(res.data?.message ?? "Failed to mortgage property");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to mortgage property");
+      }
+    };
+  
+    const handleUnmortgage = async (id: number) => {
+      if (!isNext || !me) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+          game_id: game.id,
+          user_id: me.user_id,
+          property_id: id,
+        });
+        if (res?.data?.success) toast.success("Property unmortgaged successfully");
+        else toast.error(res.data?.message ?? "Failed to unmortgage property");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to unmortgage property");
+      }
+    };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
@@ -687,6 +747,15 @@ const onChainGameId = contractGame?.id;
         onConfirmBankruptcy={handleBankruptcy}
         onReturnHome={() => window.location.href = "/"}
       />
+
+         <PropertyActionModal
+              property={selectedProperty}
+              onClose={() => setSelectedProperty(null)}
+              onDevelop={handleDevelopment}
+              onDowngrade={handleDowngrade}
+              onMortgage={handleMortgage}
+              onUnmortgage={handleUnmortgage}
+            />
 
       <Toaster
         position="top-center"
