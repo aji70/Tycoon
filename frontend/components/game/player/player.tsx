@@ -62,6 +62,8 @@ export default function GamePlayers({
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
+   const [showPlayerList, setShowPlayerList] = useState(true);
+  
 
   const [claimModalOpen, setClaimModalOpen] = useState(false);
 
@@ -430,16 +432,48 @@ export default function GamePlayers({
       </div>
 
       {/* Scrollable Content with Custom Scrollbar */}
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
-  <div className="space-y-2"> {/* Reduced from space-y-8 to space-y-4 */}
+       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
+  <div className="space-y-2">
     {/* Player List Section */}
-    <section>
-      <PlayerList
-        game={game}
-        sortedPlayers={sortedPlayers}
-        startTrade={startTrade}
-        isNext={isNext}
-      />
+      {/* Collapsible Player List Section - Slim & Efficient */}
+    <section className="backdrop-blur-md bg-white/10 rounded-2xl border border-cyan-500/40 shadow-xl shadow-cyan-900/40 overflow-hidden">
+      <button
+        onClick={() => setShowPlayerList(prev => !prev)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/10 transition-all duration-200"
+      >
+        <h3 className="text-lg font-bold text-cyan-300 tracking-wide">
+          Active Players ({sortedPlayers.length})
+        </h3>
+        <motion.div
+          animate={{ rotate: showPlayerList ? 180 : 0 }}
+          transition={{ duration: 0.3 }}
+          className="text-cyan-300"
+        >
+          ▼
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {showPlayerList && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="px-4 pb-4"
+          >
+            <div className="space-y-2.5"> {/* Tighter spacing */}
+              <PlayerList
+                game={game}
+                sortedPlayers={sortedPlayers}
+                startTrade={startTrade}
+                isNext={isNext}
+                compact={true}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
 
     {/* My Empire Section */}
@@ -466,9 +500,20 @@ export default function GamePlayers({
         handleTradeAction={handleTradeAction}
       />
     </section>
+
+    {/* Dev Mode Button */}
+    {isDevMode && (
+      <motion.button
+        whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(168, 85, 247, 0.6)" }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setClaimModalOpen(true)}
+        className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-2xl text-white font-bold text-lg tracking-wide shadow-2xl shadow-purple-800/60 hover:shadow-pink-800/70 transition-all duration-300 border border-purple-400/50"
+      >
+        ⚙️ DEV: Claim Property
+      </motion.button>
+    )}
   </div>
 </div>
-
       {/* Custom Scrollbar Styles */}
       <style jsx>{`
         .scrollbar-custom {

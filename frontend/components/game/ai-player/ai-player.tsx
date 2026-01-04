@@ -651,7 +651,7 @@ useEffect(() => {
 
       {/* Scrollable Content with Custom Scrollbar */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
-  <div className="space-y-2"> {/* Reduced from space-y-8 to space-y-4 */}
+  <div className="space-y-2">
     {/* Player List Section */}
       {/* Collapsible Player List Section - Slim & Efficient */}
     <section className="backdrop-blur-md bg-white/10 rounded-2xl border border-cyan-500/40 shadow-xl shadow-cyan-900/40 overflow-hidden">

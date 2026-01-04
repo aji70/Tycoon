@@ -11,6 +11,7 @@ interface PlayerListProps {
   sortedPlayers: Player[];
   isNext: boolean;
   startTrade: (player: Player) => void;
+  compact?: boolean; // New optional prop for even tighter mode (when collapsed)
 }
 
 const getBalanceColor = (balance: number): string => {
@@ -26,11 +27,11 @@ const PlayerList: React.FC<PlayerListProps> = ({
   sortedPlayers,
   isNext,
   startTrade,
+  compact = false,
 }) => {
   const { address: connectedAddress } = useAccount();
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
-  // Find key players
   const myPlayer = sortedPlayers.find(
     (p) => p.address?.toLowerCase() === connectedAddress?.toLowerCase()
   );
@@ -39,7 +40,6 @@ const PlayerList: React.FC<PlayerListProps> = ({
     (p) => p.user_id === game.next_player_id
   );
 
-  // Reorder: YOU → Current Turn → One more → Rest
   const otherPlayers = sortedPlayers.filter(
     (p) => p !== myPlayer && p !== currentTurnPlayer
   );
@@ -47,155 +47,129 @@ const PlayerList: React.FC<PlayerListProps> = ({
   const reorderedPlayers = [
     ...(myPlayer ? [myPlayer] : []),
     ...(currentTurnPlayer && currentTurnPlayer !== myPlayer ? [currentTurnPlayer] : []),
-    ...otherPlayers.slice(0, 1),
-    ...otherPlayers.slice(1),
+    ...otherPlayers,
   ];
 
   const handlePlayerTap = (player: Player) => {
+    if (compact) {
+      // In compact mode, tap directly starts trade if possible
+      const canTrade = isNext && !player.in_jail && player !== myPlayer;
+      if (canTrade) {
+        startTrade(player);
+      }
+      return;
+    }
     setSelectedPlayerId((prev) => (prev === player.user_id ? null : player.user_id));
   };
 
   return (
-    <div className="space-y-3"> {/* Reduced from space-y-4 */}
-      {/* Top glowing bar */}
-      <div className="h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 rounded-full shadow-lg shadow-cyan-400/60" />
+    <div className={compact ? "space-y-2" : "space-y-3"}>
+      {reorderedPlayers.map((p) => {
+        const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
+        const isTurn = p.user_id === game.next_player_id;
+        const canTrade = isNext && !p.in_jail && !isMe;
+        const isSelected = selectedPlayerId === p.user_id;
 
-      {/* Scrollable player list */}
-      <div className="overflow-y-auto h-96 pr-3 scrollbar-custom">
-        <div className="space-y-3 pb-2"> {/* ← FIXED: pb-8 → pb-2 (main gap reducer) */}
-          {reorderedPlayers.map((p) => {
-            const isMe = p.address?.toLowerCase() === connectedAddress?.toLowerCase();
-            const isTurn = p.user_id === game.next_player_id;
-            const canTrade = isNext && !p.in_jail && !isMe;
-            const isSelected = selectedPlayerId === p.user_id;
+        const displayName =
+          p.username || p.address?.slice(0, 6) + "..." || "Player";
+        const isAI =
+          displayName.toLowerCase().includes("ai_") ||
+          displayName.toLowerCase().includes("bot");
 
-            const displayName =
-              p.username || p.address?.slice(0, 6) + "..." || "Player";
-            const isAI =
-              displayName.toLowerCase().includes("ai_") ||
-              displayName.toLowerCase().includes("bot");
+        const balanceColor = getBalanceColor(p.balance);
 
-            const balanceColor = getBalanceColor(p.balance);
+        return (
+          <motion.div
+            key={p.user_id}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => handlePlayerTap(p)}
+            className={`
+              relative rounded-xl border transition-all duration-300 cursor-pointer
+              flex items-center justify-between gap-3 overflow-hidden
+              ${compact ? "py-2.5 px-3" : "py-3.5 px-4"}
+              ${isTurn
+                ? "border-cyan-400/80 bg-cyan-900/50 shadow-lg shadow-cyan-500/40"
+                : "border-purple-600/50 bg-purple-900/20"
+              }
+              ${p.in_jail ? "opacity-60" : ""}
+              ${isSelected || (compact && canTrade) ? "ring-2 ring-pink-500/70" : ""}
+            `}
+          >
+            {/* Pulsing background for current turn */}
+            {isTurn && (
+              <div className="absolute inset-0 bg-cyan-400/10 animate-pulse pointer-events-none rounded-xl" />
+            )}
 
-            return (
-              <motion.div
-                key={p.user_id}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => handlePlayerTap(p)}
-                className={`
-                  relative p-4 rounded-2xl border-3 transition-all duration-300 
-                  cursor-pointer overflow-hidden select-none
-                  ${isTurn
-                    ? "border-cyan-400 bg-cyan-900/60 shadow-2xl shadow-cyan-500/70"
-                    : "border-purple-700/70 bg-purple-900/30 shadow-xl"
-                  }
-                  ${p.in_jail ? "opacity-70" : ""}
-                  ${isSelected ? "ring-4 ring-pink-500 ring-offset-2 ring-offset-black/50" : ""}
-                `}
-              >
-                {isTurn && (
-                  <div className="absolute inset-0 bg-cyan-400/10 animate-pulse pointer-events-none rounded-2xl" />
-                )}
+            <div className="relative z-10 flex items-center gap-3 min-w-0 flex-1">
+              <span className={compact ? "text-2xl" : "text-3xl"}>{getPlayerSymbol(p.symbol)}</span>
 
-                <div className="relative z-10 flex justify-between items-center gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-3xl drop-shadow-md flex-shrink-0">
-                      {getPlayerSymbol(p.symbol)}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`font-bold truncate ${compact ? "text-sm" : "text-base"} text-cyan-100`}>
+                    {displayName}
+                  </span>
+                  {isMe && (
+                    <span className="px-1.5 py-0.5 bg-yellow-500/90 text-black text-xs font-black rounded-full">
+                      YOU
                     </span>
-
-                    <div className="min-w-0">
-                      <div className="font-bold text-cyan-100 text-base flex items-center gap-2 flex-wrap">
-                        <span className="truncate max-w-[140px]">{displayName}</span>
-                        {isMe && (
-                          <span className="px-2 py-0.5 bg-yellow-500/90 text-black text-xs font-black rounded-full flex-shrink-0">
-                            YOU
-                          </span>
-                        )}
-                        {p.in_jail && (
-                          <span className="text-red-400 text-xs font-bold flex-shrink-0">
-                            [JAIL]
-                          </span>
-                        )}
-                      </div>
-
-                      {isTurn && (
-                        <div className="text-xs text-cyan-300 font-medium mt-1 flex items-center gap-1">
-                          <motion.div
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                            className="w-2 h-2 bg-cyan-300 rounded-full"
-                          />
-                          Current Turn
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={`text-xl font-black ${balanceColor} drop-shadow-md`}>
-                    ${p.balance.toLocaleString()}
-                  </div>
+                  )}
+                  {p.in_jail && (
+                    <span className="text-red-400 text-xs font-bold">[JAIL]</span>
+                  )}
+                  {isAI && <span className="text-gray-500 text-xs">🤖</span>}
                 </div>
 
-                <AnimatePresence>
-                  {isSelected && canTrade && (
+                {isTurn && !compact && (
+                  <div className="text-xs text-cyan-300 font-medium mt-0.5 flex items-center gap-1">
                     <motion.div
-                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                      animate={{ opacity: 1, height: "auto", marginTop: 16 }}
-                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startTrade(p);
-                          setSelectedPlayerId(null);
-                        }}
-                        className="
-                          w-full py-3 
-                          bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600
-                          hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500
-                          text-white font-bold rounded-xl text-base
-                          shadow-xl shadow-purple-900/50 transition-all duration-300
-                        "
-                      >
-                        💱 TRADE WITH {displayName.split(" ")[0].toUpperCase()}
-                      </motion.button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
+                      animate={{ opacity: [0.6, 1, 0.6] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="w-1.5 h-1.5 bg-cyan-300 rounded-full"
+                    />
+                    Current Turn
+                  </div>
+                )}
+                {isTurn && compact && (
+                  <span className="text-xs text-cyan-300">● Turn</span>
+                )}
+              </div>
+            </div>
 
-      {/* Custom Scrollbar Styles */}
-      <style jsx>{`
-        .scrollbar-custom {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(147, 51, 234, 0.4) rgba(30, 10, 58, 0.6);
-        }
+            <div className={`font-black drop-shadow-md ${compact ? "text-sm" : "text-lg"} ${balanceColor}`}>
+              ${p.balance.toLocaleString()}
+            </div>
 
-        .scrollbar-custom::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        .scrollbar-custom::-webkit-scrollbar-track {
-          background: rgba(30, 10, 58, 0.6);
-          border-radius: 4px;
-        }
-
-        .scrollbar-custom::-webkit-scrollbar-thumb {
-          background: linear-gradient(to bottom, #a855f7, #ec4899);
-          border-radius: 4px;
-          box-shadow: 0 0 6px rgba(236, 72, 153, 0.5);
-        }
-
-        .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(to bottom, #c084fc, #f43f5e);
-        }
-      `}</style>
+            {/* Trade button - only in non-compact mode or on selection */}
+            <AnimatePresence>
+              {(isSelected || (compact && canTrade)) && !compact && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute inset-x-3 bottom-2 left-3 right-3"
+                >
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startTrade(p);
+                      setSelectedPlayerId(null);
+                    }}
+                    className="
+                      w-full py-2 text-sm font-bold rounded-lg
+                      bg-gradient-to-r from-pink-600 to-purple-600
+                      hover:from-pink-500 hover:to-purple-500
+                      text-white shadow-lg
+                    "
+                  >
+                    💱 TRADE
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        );
+      })}
     </div>
   );
 };
