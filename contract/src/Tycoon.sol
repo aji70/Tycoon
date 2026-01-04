@@ -383,7 +383,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
     mapping(string => TycoonLib.Game) public codeToGame;
     mapping(uint256 => mapping(address => TycoonLib.GamePlayer)) public gamePlayers;
     mapping(address => string) public previousGameCode;
-    mapping(string => TycoonLib.GamePosition) public gameFinalPositions;
     mapping(uint256 => mapping(address => bool)) public hasClaimed; // gameId => player => claimed
     mapping(uint256 => mapping(address => address)) public playerVotes; // gameId => voter => votedTarget
     mapping(string => TycoonLib.GamePosition) public position;
@@ -675,8 +674,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
         emit PlayerRemoved(gameId, playerToRemove, uint64(block.timestamp));
 
-        if (before == 2) gameFinalPositions[game.code].runnersup = playerToRemove;
-        else if (before == 3) gameFinalPositions[game.code].losers = playerToRemove;
+        if (before == 2) position[game.code].runnersup = playerToRemove;
+        else if (before == 3) position[game.code].losers = playerToRemove;
 
         if (game.joinedPlayers == 1) {
             address winner;
@@ -691,7 +690,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             users[gamePlayers[gameId][winner].username].gamesWon++;
 
-            gameFinalPositions[game.code].winner = winner;
+            position[game.code].winner = winner;
             game.status = TycoonLib.GameStatus.Ended;
             game.winner = winner;
             game.endedAt = uint64(block.timestamp);
