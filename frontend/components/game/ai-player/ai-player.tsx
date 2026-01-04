@@ -582,7 +582,7 @@ useEffect(() => {
     const aiPlayer = game.players.find(p => isAIPlayer(p) && p.user_id !== me.user_id);
     const humanPlayer = me;
 
-    if (game.players.length <= 2 && (!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
+    if (game.players.length <= 2 && (!aiPlayer) && humanPlayer.balance > 0) {
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,
