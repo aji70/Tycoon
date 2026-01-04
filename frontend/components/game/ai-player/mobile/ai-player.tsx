@@ -597,7 +597,7 @@ export default function MobileGamePlayers({
     const aiPlayer = game.players.find(p => isAIPlayer(p));
     const humanPlayer = me;
 
-    if ((!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
+    if ((!aiPlayer) && humanPlayer.balance > 0) {
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,
