@@ -142,10 +142,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                 <div className="flex items-center justify-center gap-5">
                   <Coins className="w-12 h-12 text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.8)]" />
                   <div className="text-left">
-                    <p className="text-xl font-bold text-amber-300">Your Rewards</p>
-                    <p className="text-4xl font-black text-amber-100 mt-1">
-                      +1 TYC
-                    </p>
+                    <p className="text-xl font-bold text-amber-300">Check Your Profile for Your Rewards</p>
                     <p className="text-base text-amber-200/80 mt-2">
                       Victory Bonus • Stake refunded
                     </p>

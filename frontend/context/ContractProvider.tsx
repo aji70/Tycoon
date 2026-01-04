@@ -315,7 +315,7 @@ export function useClaimReward(gameId: bigint) {
   const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const write = useCallback(async () => {
+  const claim = useCallback(async () => {
     if (!contractAddress) throw new Error('Contract not deployed');
     const hash = await writeContractAsync({
       address: contractAddress,
@@ -326,7 +326,7 @@ export function useClaimReward(gameId: bigint) {
     return hash;
   }, [writeContractAsync, contractAddress, gameId]);
 
-  return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+  return { claim, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 export function useGetUser(username?: string) {

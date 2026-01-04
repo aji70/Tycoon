@@ -31,14 +31,17 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasNavigated = useRef(false);
 
+  // NEW: Track if bankruptcy has been successfully confirmed
+  const bankruptcyConfirmed = useRef(false);
+
   // Sync visibility with isOpen prop
   useEffect(() => {
     if (isOpen) {
       setShouldShow(true);
       setIsConfirming(false);
       hasNavigated.current = false;
+      bankruptcyConfirmed.current = false; // reset
 
-      // Only reset countdown if in auto mode
       if (!onConfirmBankruptcy) {
         setSecondsLeft(Math.round(autoCloseDelay / 1000));
       }
@@ -50,13 +53,11 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   // Auto-close logic (only when no manual confirmation needed)
   useEffect(() => {
     if (!shouldShow || onConfirmBankruptcy) {
-      // Clean up any running timers
       if (timerRef.current) clearInterval(timerRef.current);
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
       return;
     }
 
-    // Countdown timer
     timerRef.current = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
@@ -67,14 +68,12 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
       });
     }, 1000);
 
-    // Auto navigation after delay
     exitTimerRef.current = setTimeout(() => {
       if (hasNavigated.current) return;
       hasNavigated.current = true;
 
       setShouldShow(false);
 
-      // Navigate after exit animation completes
       setTimeout(() => {
         onReturnHome();
       }, 1200);
@@ -85,6 +84,22 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
   }, [shouldShow, autoCloseDelay, onReturnHome, onConfirmBankruptcy]);
+
+  // NEW: Force redirect 5 seconds AFTER bankruptcy confirmation
+  useEffect(() => {
+    if (bankruptcyConfirmed.current && !hasNavigated.current) {
+      const redirectTimer = setTimeout(() => {
+        hasNavigated.current = true;
+        setShouldShow(false);
+
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1200); // wait for exit animation
+      }, 5000); // 5 seconds after confirmation
+
+      return () => clearTimeout(redirectTimer);
+    }
+  }, []);
 
   const handleManualClose = () => {
     if (hasNavigated.current) return;
@@ -102,18 +117,17 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
 
     try {
       await onConfirmBankruptcy?.();
+      bankruptcyConfirmed.current = true; // Mark as confirmed
     } catch (error) {
       console.error("Bankruptcy declaration failed:", error);
       setIsConfirming(false);
       return;
     } finally {
-      // Always exit after confirmation (success or fail)
+      // Always close modal after action
       hasNavigated.current = true;
       setShouldShow(false);
 
-      setTimeout(() => {
-        onReturnHome();
-      }, 1200);
+      // The new useEffect above will handle the 5-second redirect
     }
   };
 
@@ -131,7 +145,6 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
           transition={{ duration: 0.8 }}
           className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999] p-4"
         >
-          {/* Pulsing background */}
           <motion.div
             className="absolute inset-0 bg-gradient-to-br from-red-950 via-black to-purple-950"
             animate={{ opacity: [0.4, 0.7, 0.4], scale: [1, 1.06, 1] }}
@@ -152,7 +165,6 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               text-center overflow-hidden
             "
           >
-            {/* Falling money & assets */}
             {Array.from({ length: 18 }).map((_, i) => (
               <motion.div
                 key={i}
@@ -171,7 +183,6 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               </motion.div>
             ))}
 
-            {/* Skull icon */}
             <motion.div
               initial={{ scale: 0.4, rotate: -40 }}
               animate={{ scale: 1, rotate: 0 }}
@@ -181,7 +192,6 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               <Skull className="w-40 h-40 mx-auto text-red-500 drop-shadow-[0_0_60px_rgba(239,68,68,1)]" />
             </motion.div>
 
-            {/* Title */}
             <motion.h1
               initial={{ y: -60, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -196,7 +206,6 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               BANKRUPT
             </motion.h1>
 
-            {/* Message */}
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -206,7 +215,6 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               {message}
             </motion.p>
 
-            {/* Token Reward */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -216,16 +224,13 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
               <div className="flex items-center justify-center gap-6">
                 <Coins className="w-16 h-16 text-amber-400 drop-shadow-[0_0_40px_rgba(251,191,36,1)]" />
                 <div className="text-left">
-                  <p className="text-amber-300 text-xl font-bold">Consolation Prize</p>
-                  <p className="text-5xl md:text-6xl font-black text-amber-100">
-                    +{tokensAwarded} TYC
+                  <p className="text-amber-300 text-xl font-bold">
+                    Check your profile after claiming for Consolation Prize
                   </p>
-                  <p className="text-amber-200 text-lg">Tycoon Tokens Awarded</p>
                 </div>
               </div>
             </motion.div>
 
-            {/* Action Area */}
             {isManualMode ? (
               <motion.div
                 initial={{ y: 60, opacity: 0 }}
@@ -254,6 +259,13 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
                   >
                     Cancel
                   </button>
+                )}
+
+                {/* NEW: Show countdown after confirmation */}
+                {bankruptcyConfirmed.current && (
+                  <p className="text-amber-300 text-xl font-bold animate-pulse">
+                    Redirecting to home in 5 seconds...
+                  </p>
                 )}
               </motion.div>
             ) : (

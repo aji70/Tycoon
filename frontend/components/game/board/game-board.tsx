@@ -27,7 +27,7 @@ import { CardModal } from "../modals/cards";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
+import { useExitGame, useGetGameByCode, useClaimReward } from "@/context/ContractProvider";
 import { VictoryModal } from "../modals/victory";
 import { PropertyActionModal } from "../modals/property-action";
 
@@ -450,6 +450,15 @@ const Board = ({
     reset: endGameReset,
   } = useExitGame(onChainGameId ?? BigInt(0));
 
+    const {
+    claim: claim,
+    isPending: claimPending,
+    isSuccess: claimSuccess,
+    error: claimError,
+    txHash: claimTxHash,
+    reset: claimReset,
+  } = useClaimReward(onChainGameId ?? BigInt(0));
+
  const handleBankruptcy = useCallback(async () => {
   if (!me || !game.id || !game.code) {
     showToast("Cannot declare bankruptcy right now", "error");
@@ -482,6 +491,7 @@ const Board = ({
   try {
     // On-chain exit first
     if (endGame) await endGame();
+    if (claim)   await claim();
 
     const myOwnedProperties = game_properties.filter(
       (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
