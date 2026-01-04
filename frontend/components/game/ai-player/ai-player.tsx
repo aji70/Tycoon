@@ -576,7 +576,9 @@ useEffect(() => {
 
   handleAiLiquidationAndPossibleBankruptcy();
 }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
-  useEffect(() => {
+ 
+
+useEffect(() => {
     if (!me) return;
 
     const aiPlayer = game.players.find(p => isAIPlayer(p) && p.user_id !== me.user_id);

@@ -92,6 +92,22 @@ export default function GamePlayers({
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = !!me && game.next_player_id === me.user_id;
 
+  useEffect(() => {
+      if (!me) return;
+  
+      const otherPlayer = game.players.find(p => isAIPlayer(p) && p.user_id !== me.user_id);
+      const humanPlayer = me;
+  
+      if (game.players.length <= 2 && (!otherPlayer) && humanPlayer.balance > 0) {
+        setWinner(humanPlayer);
+        setEndGameCandidate({
+          winner: humanPlayer,
+          position: humanPlayer.position ?? 0,
+          balance: BigInt(humanPlayer.balance),
+        });
+      }
+    }, [game.players, me]);
+
   const {
     openTrades,
     tradeRequests,
