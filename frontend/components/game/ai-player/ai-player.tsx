@@ -69,6 +69,7 @@ export default function GamePlayers({
   const [requestCash, setRequestCash] = useState<number>(0);
 
   const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [showPlayerList, setShowPlayerList] = useState(true);
 
  const { data: contractGame } = useGetGameByCode(game.code);
  
@@ -626,20 +627,75 @@ useEffect(() => {
   return (
     <aside className="w-80 h-full bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] border-r-4 border-purple-600 shadow-2xl shadow-purple-900/60 flex flex-col relative overflow-hidden">
       {/* Top Neon Glow Bar */}
- <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
-  <div className="flex flex-col gap-4">  {/* Main consistent gap */}
-    {/* Player List Section - no extra top margin needed */}
-    <section>
-      <PlayerList
-        game={game}
-        sortedPlayers={sortedPlayers}
-        startTrade={startTrade}
-        isNext={isNext}
-      />
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-pink-500 via-cyan-400 to-purple-600 shadow-lg shadow-cyan-400/80 z-50" />
+
+      {/* Floating Header with Glass Effect */}
+      <div className="relative z-10 p-5 pb-3 flex-shrink-0 backdrop-blur-xl bg-black/20 border-b border-purple-500/30">
+        <motion.h2
+          animate={{
+            textShadow: [
+              "0 0 15px #06b6d4",
+              "0 0 30px #06b6d4",
+              "0 0 15px #06b6d4",
+            ],
+          }}
+          transition={{ duration: 3, repeat: Infinity }}
+          className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400 text-center tracking-wider drop-shadow-2xl"
+        >
+          PLAYERS
+        </motion.h2>
+        <div className="text-center mt-2 text-sm text-purple-300 opacity-80">
+          Game Code: <span className="font-mono font-bold text-cyan-300">{game.code}</span>
+        </div>
+      </div>
+
+      {/* Scrollable Content with Custom Scrollbar */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-custom px-5 pb-8 pt-4">
+  <div className="space-y-2"> {/* Reduced from space-y-8 to space-y-4 */}
+    {/* Player List Section */}
+      {/* Collapsible Player List Section - Slim & Efficient */}
+    <section className="backdrop-blur-md bg-white/10 rounded-2xl border border-cyan-500/40 shadow-xl shadow-cyan-900/40 overflow-hidden">
+      <button
+        onClick={() => setShowPlayerList(prev => !prev)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/10 transition-all duration-200"
+      >
+        <h3 className="text-lg font-bold text-cyan-300 tracking-wide">
+          Active Players ({sortedPlayers.length})
+        </h3>
+        <motion.div
+          animate={{ rotate: showPlayerList ? 180 : 0 }}
+          transition={{ duration: 0.3 }}
+          className="text-cyan-300"
+        >
+          ▼
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {showPlayerList && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="px-4 pb-4"
+          >
+            <div className="space-y-2.5"> {/* Tighter spacing */}
+              <PlayerList
+                game={game}
+                sortedPlayers={sortedPlayers}
+                startTrade={startTrade}
+                isNext={isNext}
+                compact={true}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
 
-    {/* My Empire Section - small gap above it only */}
-    <section className="mt-2 backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-purple-500/30 shadow-xl shadow-purple-900/40">
+    {/* My Empire Section */}
+    <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-purple-500/30 shadow-xl shadow-purple-900/40">
       <MyEmpire
         showEmpire={showEmpire}
         toggleEmpire={toggleEmpire}
@@ -663,13 +719,13 @@ useEffect(() => {
       />
     </section>
 
-    {/* Dev Mode Button - add some breathing room if needed */}
+    {/* Dev Mode Button */}
     {isDevMode && (
       <motion.button
         whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(168, 85, 247, 0.6)" }}
         whileTap={{ scale: 0.98 }}
         onClick={() => setClaimModalOpen(true)}
-        className="mt-4 w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-2xl text-white font-bold text-lg tracking-wide shadow-2xl shadow-purple-800/60 hover:shadow-pink-800/70 transition-all duration-300 border border-purple-400/50"
+        className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 rounded-2xl text-white font-bold text-lg tracking-wide shadow-2xl shadow-purple-800/60 hover:shadow-pink-800/70 transition-all duration-300 border border-purple-400/50"
       >
         ⚙️ DEV: Claim Property
       </motion.button>
