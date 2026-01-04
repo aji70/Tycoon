@@ -450,103 +450,123 @@ const Board = ({
     reset: endGameReset,
   } = useExitGame(onChainGameId ?? BigInt(0));
 
-  const handleBankruptcy = useCallback(async () => {
-    if (!me || !game.id || !game.code) {
-      showToast("Cannot declare bankruptcy right now", "error");
-      return;
-    }
+ const handleBankruptcy = useCallback(async () => {
+  if (!me || !game.id || !game.code) {
+    showToast("Cannot declare bankruptcy right now", "error");
+    return;
+  }
 
-    showToast("Declaring bankruptcy...", "error");
+  showToast("Declaring bankruptcy...", "error");
 
-    let creditorPlayerId: number | null = null;
+  let creditorPlayerId: number | null = null;
 
-    if (justLandedProperty) {
-      const landedGameProp = game_properties.find(
-        (gp) => gp.property_id === justLandedProperty.id
+  // Find who we owe money to (if we landed on their property)
+  if (justLandedProperty) {
+    const landedGameProp = game_properties.find(
+      (gp) => gp.property_id === justLandedProperty.id
+    );
+
+    if (landedGameProp?.address && landedGameProp.address !== "bank") {
+      const owner = players.find(
+        (p) =>
+          p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
+          p.user_id !== me.user_id
       );
 
-      if (landedGameProp?.address) {
-        const owner = players.find(
-          (p) =>
-            p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
-            p.user_id !== me.user_id
-        );
-
-        if (owner) {
-          creditorPlayerId = owner.user_id;
-        }
+      if (owner) {
+        creditorPlayerId = owner.user_id;
       }
     }
+  }
 
-    try {
-      if (endGame) await endGame();
+  try {
+    // On-chain exit first
+    if (endGame) await endGame();
 
-      const myOwnedProperties = game_properties.filter(
-        (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
-      );
+    const myOwnedProperties = game_properties.filter(
+      (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+    );
 
-      if (creditorPlayerId && myOwnedProperties.length > 0) {
-        showToast("All your properties transferred to the landlord!", "error");
+    if (myOwnedProperties.length === 0) {
+      showToast("You have no properties to transfer.", "default");
+    } else if (creditorPlayerId) {
+      // TRANSFER TO CREDITOR (correct Monopoly rule)
+      showToast(`Transferring all properties to the player who bankrupted you...`, "error");
 
-        for (const gp of myOwnedProperties) {
+      let successCount = 0;
+      for (const gp of myOwnedProperties) {
+        try {
           await apiClient.put(`/game-properties/${gp.id}`, {
             game_id: game.id,
             player_id: creditorPlayerId,
             address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
           });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to transfer property ${gp.property_id}`, err);
         }
       }
-      else if (myOwnedProperties.length > 0) {
-        showToast("All your properties returned to bank", "error");
 
-        for (const gp of myOwnedProperties) {
+      toast.success(`${successCount}/${myOwnedProperties.length} properties transferred!`);
+    } else {
+      // NO CREDITOR → return to bank
+      showToast("Returning all properties to the bank...", "error");
+
+      let successCount = 0;
+      for (const gp of myOwnedProperties) {
+        try {
           await apiClient.delete(`/game-properties/${gp.id}`, {
             data: { game_id: game.id },
           });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to return property ${gp.property_id}`, err);
         }
       }
 
-      await END_TURN();
-
-      await apiClient.post("/game-players/leave", {
-        address: me.address,
-        code: game.code,
-        reason: "bankruptcy",
-      });
-
-      await fetchUpdatedGame();
-
-      showToast("You have declared bankruptcy and left the game.", "error");
-
-      setShowExitPrompt(true);
-    } catch (err: any) {
-      console.error("Bankruptcy process failed:", err);
-      showToast("Bankruptcy failed — but you are eliminated.", "error");
-
-      try {
-        await END_TURN();
-      } catch (endErr) {
-        console.error("Failed to end turn after bankruptcy error:", endErr);
-      }
-
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 3000);
-    } finally {
-      setShowBankruptcyModal(false);
-      setBuyPrompted(false);
-      landedPositionThisTurn.current = null;
+      toast.success(`${successCount}/${myOwnedProperties.length} properties returned to bank.`);
     }
-  }, [
-    me,
-    game,
-    justLandedProperty,
-    game_properties,
-    players,
-    showToast,
-    fetchUpdatedGame,
-    END_TURN,
-  ]);
+
+    // End turn + leave game
+    await END_TURN();
+
+    await apiClient.post("/game-players/leave", {
+      address: me.address,
+      code: game.code,
+      reason: "bankruptcy",
+    });
+
+    await fetchUpdatedGame();
+
+    showToast("You have declared bankruptcy and left the game.", "error");
+    setShowExitPrompt(true);
+  } catch (err: any) {
+    console.error("Bankruptcy process failed:", err);
+    showToast("Bankruptcy failed — but you are eliminated.", "error");
+
+    try {
+      await END_TURN();
+    } catch {}
+
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 3000);
+  } finally {
+    setShowBankruptcyModal(false);
+    setBuyPrompted(false);
+    landedPositionThisTurn.current = null;
+  }
+}, [
+  me,
+  game,
+  justLandedProperty,
+  game_properties,
+  players,
+  showToast,
+  fetchUpdatedGame,
+  END_TURN,
+  endGame,
+]);
 
   const togglePerksModal = () => {
     setShowPerksModal(prev => !prev);
