@@ -268,6 +268,7 @@ const Board = ({
       }
 
       const oldPos = player.position ?? 0;
+      const wasInJail = player.position === JAIL_POSITION && player.in_jail === true;
       const isDouble = value.die1 === value.die2;
 
       try {
@@ -297,7 +298,7 @@ const Board = ({
         const newPos = newCurrentPlayer.position ?? oldPos;
         const movedSquares = (newPos - oldPos + BOARD_SQUARES) % BOARD_SQUARES;
 
-        if (movedSquares > 0) {
+        if (!wasInJail && movedSquares > 0) {
           const movePath: number[] = [];
           for (let i = 1; i <= movedSquares; i++) {
             movePath.push((oldPos + i) % BOARD_SQUARES);
@@ -310,12 +311,12 @@ const Board = ({
               [player.user_id]: movePath[i],
             }));
           }
-
-          setAnimatedPositions((prev) => ({
-            ...prev,
-            [player.user_id]: newPos,
-          }));
         }
+
+        setAnimatedPositions((prev) => ({
+          ...prev,
+          [player.user_id]: newPos,
+        }));
 
         setHasMovementFinished(true);
         landedPositionThisTurn.current = !newCurrentPlayer.in_jail ? newPos : null;
