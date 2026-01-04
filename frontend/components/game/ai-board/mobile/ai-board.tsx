@@ -204,7 +204,6 @@ const MobileGameLayout = ({
     const previousCount = prevIncomingTradeCount.current;
 
     if (currentCount > previousCount && previousCount > 0) {
-      // New trade arrived (skip initial load)
       const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
       const senderName = latestTrade?.player?.username || "Someone";
 
@@ -219,7 +218,6 @@ const MobileGameLayout = ({
         { duration: 5000, position: "top-center" }
       );
 
-      // Flash the bell icon
       setBellFlash(true);
       setTimeout(() => setBellFlash(false), 800);
     }
@@ -255,25 +253,23 @@ const MobileGameLayout = ({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-const { data: contractGame } = useGetGameByCode(game.code);
+  const { data: contractGame } = useGetGameByCode(game.code);
 
-// Extract the on-chain game ID (it's a bigint now)
-const onChainGameId = contractGame?.id;
+  const onChainGameId = contractGame?.id;
 
-// Hook for ending an AI game and claiming rewards
-const {
-  write: endGame,
-  isPending: endGamePending,
-  isSuccess: endGameSuccess,
-  error: endGameError,
-  txHash: endGameTxHash,
-  reset: endGameReset,
-} = useEndAIGameAndClaim(
-  onChainGameId ?? BigInt(0),                    // gameId: bigint (use 0n as fallback if undefined)
-  endGameCandidate.position,              // finalPosition: number (uint8, 0-39)
-  BigInt(endGameCandidate.balance),       // finalBalance: bigint
-  !!endGameCandidate.winner               // isWin: boolean
-);
+  const {
+    write: endGame,
+    isPending: endGamePending,
+    isSuccess: endGameSuccess,
+    error: endGameError,
+    txHash: endGameTxHash,
+    reset: endGameReset,
+  } = useEndAIGameAndClaim(
+    onChainGameId ?? BigInt(0),
+    endGameCandidate.position,
+    BigInt(endGameCandidate.balance),
+    !!endGameCandidate.winner
+  );
 
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
     if (message === lastToastMessage.current) return;
@@ -295,7 +291,6 @@ const {
       if (propertiesRes?.data?.success && propertiesRes.data.data) {
         setCurrentGameProperties(propertiesRes.data.data);
       }
-      // Also refresh trades when game updates
       refreshTrades?.();
     } catch (err) {
       console.error("Sync failed:", err);
@@ -808,7 +803,7 @@ const {
     return ownedProp?.player_id ?? null;
   }, [currentGameProperties]);
 
-  // Consolidated bankruptcy handling – only one toast
+  // Consolidated bankruptcy handling for AI
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
 
@@ -869,6 +864,16 @@ const {
     getGamePlayerId,
   ]);
 
+  // Human player negative balance → force bankruptcy button (no raising funds)
+  useEffect(() => {
+    if (!me) return;
+
+    if (me.balance < 0) {
+      // Player is bankrupt — show bankruptcy button instead of roll
+    }
+  }, [me?.balance]);
+
+  // Victory detection
   useEffect(() => {
     if (!me) return;
 
@@ -876,7 +881,8 @@ const {
     const humanPlayer = me;
 
     const shouldDeclareVictory =
-      (players.length === 1 && players[0].user_id === me.user_id) 
+      (players.length === 1 && players[0].user_id === me.user_id);
+
     if (shouldDeclareVictory) {
       setWinner(humanPlayer);
       setEndGameCandidate({
@@ -1016,6 +1022,27 @@ const {
 
   const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
 
+
+
+    const declareBankruptcy = async () => {
+      showToast("Declaring bankruptcy...", "default");
+  
+      try {
+        if (endGame) await endGame();
+  
+        const opponent = players.find(p => p.user_id !== me?.user_id);
+        await apiClient.put(`/games/${game.id}`, {
+          status: "FINISHED",
+          winner_id: opponent?.user_id || null,
+        });
+  
+        showToast("Game over! You have declared bankruptcy.", "error");
+        setShowBankruptcyModal(true);
+      } catch (err) {
+        showToast("Failed to end game", "error");
+      }
+    };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
       {/* Refresh Button */}
@@ -1033,13 +1060,11 @@ const {
           transition={{ duration: 0.6 }}
           onClick={() => {
             toast("Check the Trades section in the sidebar →", { duration: 4000 });
-            // If you have a way to open the sidebar programmatically, do it here
           }}
           className="relative p-3 bg-purple-700/80 backdrop-blur-md rounded-full shadow-lg hover:bg-purple-600 transition"
         >
           <Bell className="w-7 h-7 text-white" />
 
-          {/* Badge with count */}
           {myIncomingTrades.length > 0 && (
             <span className="absolute -top-1 -right-1 flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
               {myIncomingTrades.length}
@@ -1099,13 +1124,35 @@ const {
         roll={roll}
       />
 
-      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
-        <button
-          onClick={() => ROLL_DICE(false)}
-          className="w-full max-w-xs mx-auto py-3 px-8 mb-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95"
-        >
-          Roll Dice
-        </button>
+      {/* Roll Dice OR Declare Bankruptcy */}
+      {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+        <>
+          {me && me.balance >= 0 && !roll && (
+            <button
+              onClick={() => ROLL_DICE(false)}
+              className="w-full max-w-xs mx-auto py-3 px-8 mb-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95"
+            >
+              Roll Dice
+            </button>
+          )}
+
+          {me && me.balance < 0 && (
+            <div className="w-full max-w-md mx-auto mb-8 text-center">
+              <div className="text-red-400 text-xl font-bold mb-4 animate-pulse">
+                BANKRUPT — Balance: ${Math.abs(me.balance).toLocaleString()}
+              </div>
+              <button
+                onClick={declareBankruptcy}
+                className="w-full py-4 px-8 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-800 text-white font-black text-2xl tracking-wide rounded-full shadow-2xl shadow-red-900/50 border-4 border-red-400 transition-all duration-300 hover:scale-105 active:scale-95 animate-pulse"
+              >
+                DECLARE BANKRUPTCY
+              </button>
+              <p className="text-gray-400 text-sm mt-4">
+                You cannot continue with a negative balance.
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Buy Prompt Modal */}
