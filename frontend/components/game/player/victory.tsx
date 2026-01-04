@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Sparkles, Coins, AlertCircle } from "lucide-react";
+import { Crown, Sparkles, Coins, AlertCircle, Trophy, HeartHandshake } from "lucide-react";
 import { Player } from "@/types/game";
 
 interface VictoryModalProps {
@@ -24,10 +24,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 }) => {
   if (!winner) return null;
 
-  const isWinner = winner.user_id === me?.user_id;
-
-  // Only show modal if current user is the winner
-  if (!isWinner) return null;
+  const isWinner = me?.user_id === winner.user_id;
 
   const handleClaimClick = () => {
     onClearError?.();
@@ -72,23 +69,30 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
           />
 
           <div className="relative z-10">
-            {/* Crown */}
+            {/* Icon */}
             <motion.div
               initial={{ scale: 0.5, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 160, delay: 0.2 }}
               className="mb-8 relative"
             >
-              <Crown className="w-32 h-32 sm:w-36 sm:h-36 mx-auto text-amber-300 drop-shadow-[0_0_45px_rgba(245,158,11,0.9)]" />
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-0 flex items-center justify-center"
-              >
-                <Sparkles className="w-16 h-16 text-amber-200/60" />
-              </motion.div>
+              {isWinner ? (
+                <>
+                  <Crown className="w-32 h-32 sm:w-36 sm:h-36 mx-auto text-amber-300 drop-shadow-[0_0_45px_rgba(245,158,11,0.9)]" />
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-0 flex items-center justify-center"
+                  >
+                    <Sparkles className="w-16 h-16 text-amber-200/60" />
+                  </motion.div>
+                </>
+              ) : (
+                <Trophy className="w-32 h-32 sm:w-36 sm:h-36 mx-auto text-amber-400 drop-shadow-[0_0_45px_rgba(251,191,36,0.8)]" />
+              )}
             </motion.div>
 
+            {/* Title */}
             <motion.h1
               initial={{ y: -40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -100,43 +104,70 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               "
               style={{ textShadow: "0 0 40px rgba(245,158,11,0.8)" }}
             >
-              VICTORY!
+              {isWinner ? "VICTORY!" : "GAME OVER"}
             </motion.h1>
 
+            {/* Winner announcement */}
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-200/90 mb-8"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-200/90 mb-6"
             >
-              Congratulations, {me?.username || "Tycoon"}!
+              {winner.username} is the Tycoon!
             </motion.p>
 
-            {/* Rewards summary */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
+            {/* Personal message */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={{ delay: 0.8 }}
-              className="mb-10 p-7 bg-black/50 rounded-2xl border border-amber-600/50 inline-block"
+              className="text-xl sm:text-2xl text-amber-100/90 mb-10"
             >
-              <div className="flex items-center justify-center gap-5">
-                <Coins className="w-12 h-12 text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.8)]" />
-                <div className="text-left">
-                  <p className="text-xl font-bold text-amber-300">Your Rewards</p>
-                  <p className="text-4xl font-black text-amber-100 mt-1">
-                    +1 TYC
-                  </p>
-                  <p className="text-base text-amber-200/80 mt-2">
-                    Victory Bonus • Stake refunded
-                  </p>
-                </div>
-              </div>
-              <p className="mt-4 text-amber-100/90 text-base">
-                Your empire's wealth is yours to claim!
-              </p>
-            </motion.div>
+              {isWinner ? (
+                <>Congratulations, {me?.username || "Champion"}! You conquered the board!</>
+              ) : (
+                <>Well played, {me?.username || "Player"}! Better luck next time.</>
+              )}
+            </motion.p>
 
-            {/* Error message if any */}
+            {/* Winner gets rewards */}
+            {isWinner && (
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1 }}
+                className="mb-10 p-7 bg-black/50 rounded-2xl border border-amber-600/50 inline-block"
+              >
+                <div className="flex items-center justify-center gap-5">
+                  <Coins className="w-12 h-12 text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.8)]" />
+                  <div className="text-left">
+                    <p className="text-xl font-bold text-amber-300">Your Rewards</p>
+                    <p className="text-4xl font-black text-amber-100 mt-1">
+                      +1 TYC
+                    </p>
+                    <p className="text-base text-amber-200/80 mt-2">
+                      Victory Bonus • Stake refunded
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Loser gets encouragement */}
+            {!isWinner && (
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1 }}
+                className="mb-10 flex items-center justify-center gap-4 text-amber-200/80"
+              >
+                <HeartHandshake className="w-10 h-10" />
+                <p className="text-xl">Great game! Practice makes perfect.</p>
+              </motion.div>
+            )}
+
+            {/* Error message */}
             <AnimatePresence>
               {claimError && (
                 <motion.div
@@ -154,26 +185,29 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               )}
             </AnimatePresence>
 
-            {/* Claim button */}
+            {/* Action button */}
             <motion.button
               whileHover={{ scale: 1.07, y: -4 }}
               whileTap={{ scale: 0.96 }}
-              disabled={claiming}
-              onClick={handleClaimClick}
+              disabled={claiming && isWinner}
+              onClick={isWinner ? handleClaimClick : () => window.location.href = "/"}
               className={`
                 px-12 py-6 md:px-16 md:py-8 text-xl md:text-2xl font-black
                 rounded-2xl md:rounded-3xl
                 shadow-2xl shadow-amber-900/50 border-2 border-amber-300/30
                 transition-all duration-300 relative overflow-hidden group
                 disabled:opacity-60 disabled:cursor-wait
-                ${claiming 
+                ${claiming && isWinner 
                   ? "bg-gray-800" 
                   : "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:via-yellow-500 hover:to-amber-600"
                 }
               `}
             >
               <span className="relative z-10">
-                {claiming ? "Claiming Rewards..." : "Claim Your Rewards"}
+                {isWinner 
+                  ? (claiming ? "Claiming Rewards..." : "Claim Your Rewards")
+                  : "Return to Lobby"
+                }
               </span>
               <motion.div
                 className="absolute inset-0 bg-white/15"
@@ -184,7 +218,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             </motion.button>
 
             <p className="mt-12 text-base sm:text-lg text-amber-200/60 font-light">
-              Thanks for playing <span className="text-amber-300 font-medium">Tycoon</span> • Legend status achieved
+              Thanks for playing <span className="text-amber-300 font-medium">Tycoon</span>
             </p>
           </div>
         </motion.div>

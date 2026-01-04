@@ -14,7 +14,7 @@ import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../modals/property-action";
 import { AiTradePopup } from "../modals/ai-trade";
 import { AiResponsePopup } from "../modals/ai-response";
-import { VictoryModal } from "../modals/victory";
+import { VictoryModal } from "./victory";
 import { TradeModal } from "../modals/trade";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
@@ -64,6 +64,7 @@ export default function GamePlayers({
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
    const [showPlayerList, setShowPlayerList] = useState(true);
+   const [showVictoryModal, setShowVictoryModal] = useState(false);
   
 
   const [claimModalOpen, setClaimModalOpen] = useState(false);
@@ -110,20 +111,25 @@ export default function GamePlayers({
 
   // Only one active player left → they win!
   if (activePlayers.length === 1) {
-    const theWinner = activePlayers[0];
+  const theWinner = activePlayers[0];
 
-    // Prevent triggering multiple times
-    if (winner?.user_id === theWinner.user_id) return;
+  if (winner?.user_id === theWinner.user_id) return; // prevent double trigger
 
-    toast.success(`${theWinner.username} wins the game! 🎉🏆`);
+  toast.success(`${theWinner.username} wins the game! 🎉🏆`);
 
-    setWinner(theWinner);
-    setEndGameCandidate({
-      winner: theWinner,
-      position: theWinner.position ?? 0,
-      balance: BigInt(theWinner.balance ?? 0),
-    });
+  setWinner(theWinner);
+  setEndGameCandidate({
+    winner: theWinner,
+    position: theWinner.position ?? 0,
+    balance: BigInt(theWinner.balance ?? 0),
+  });
+
+  setShowVictoryModal(true); // ← THIS OPENS THE MODAL
+
+  if (me?.user_id === theWinner.user_id) {
+    toast.success("You are the Monopoly champion! 🏆");
   }
+}
 }, [game.players, game_properties, game.status, me, winner, game_properties]);
 
   const {
@@ -438,6 +444,36 @@ export default function GamePlayers({
     }
   };
 
+   const handleFinalizeAndLeave = async () => {
+      const toastId = toast.loading(
+        winner?.user_id === me?.user_id
+          ? "Claiming your prize..."
+          : "Finalizing game..."
+      );
+  
+      try {
+        if (endGame) await endGame();
+  
+        toast.success(
+          winner?.user_id === me?.user_id
+            ? "Prize claimed! 🎉"
+            : "Game completed — thanks for playing!",
+          { id: toastId, duration: 5000 }
+        );
+  
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1500);
+      } catch (err: any) {
+        toast.error(
+          err?.message || "Something went wrong — try again later",
+          { id: toastId, duration: 8000 }
+        );
+      } finally {
+        if (endGameReset) endGameReset();
+      }
+    };
+
 
   
 
@@ -603,7 +639,13 @@ export default function GamePlayers({
           onClose={() => setAiResponsePopup(null)}
         />
 
-
+            <VictoryModal
+              // ← Add this
+      winner={winner}
+      me={me}
+      onClaim={handleFinalizeAndLeave}
+      claiming={endGamePending}
+    />
 
         <TradeModal
           open={tradeModal.open}
