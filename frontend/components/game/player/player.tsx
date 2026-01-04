@@ -19,6 +19,7 @@ import { TradeModal } from "../modals/trade";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
 import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
+import ClaimPropertyModal from "../dev";
 
 interface GamePlayersProps {
   game: Game;
@@ -617,6 +618,17 @@ export default function GamePlayers({
             game.players.find(p => p.user_id === counterModal.trade?.target_player_id)?.address
           }
         />
+           <ClaimPropertyModal
+                  open={claimModalOpen && isDevMode}
+                  game_properties={game_properties}
+                  properties={properties}
+                  me={me}
+                  game={game}
+                  onClose={() => setClaimModalOpen(false)}
+                  onClaim={handleClaimProperty}
+                  onDelete={handleDeleteGameProperty}
+                  onTransfer={handlePropertyTransfer}
+                />
       </AnimatePresence>
     </aside>
   );
