@@ -630,6 +630,15 @@ const onChainGameId = contractGame?.id;
       }
     };
 
+      const handlePropertyClick = (square: Property) => {
+        const gp = game_properties.find(gp => gp.property_id === square.id);
+        if (gp?.address === me?.address) {
+          setSelectedProperty(square);
+        } else {
+          showToast("You don't own this property", "error");
+        }
+      };
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
@@ -669,6 +678,7 @@ const onChainGameId = contractGame?.id;
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
                   mortgaged={isPropertyMortgaged(square.id)}
+                  onClick={() => handlePropertyClick(square)}
                 />
               );
             })}
