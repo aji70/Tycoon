@@ -123,6 +123,8 @@ const Board = ({
     if (game?.players) setPlayers(game.players);
   }, [game?.players]);
 
+
+
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -550,6 +552,88 @@ const onChainGameId = contractGame?.id;
   fetchUpdatedGame,
   END_TURN, // ← Make sure END_TURN is in the dependency array
 ]);
+
+  // ── AUTO DETECT WINNER & FINISH GAME (INCLUDING ON-CHAIN) ─────────────────────
+  useEffect(() => {
+    if (!game || game.status === "FINISHED" || players.length < 2) return;
+
+    const activePlayers = players.filter((player) => {
+      const balance = player.balance ?? 0;
+      if (balance > 0) return true;
+
+      // Still active if owns at least one unmortgaged property
+      const hasUnmortgagedProperties = game_properties.some(
+        (gp) =>
+          gp.address?.toLowerCase() === player.address?.toLowerCase() &&
+          gp.mortgaged !== true
+      );
+      return hasUnmortgagedProperties;
+    });
+
+    if (activePlayers.length === 1) {
+      const winner = activePlayers[0];
+      const isMeTheWinner = me?.user_id === winner.user_id;
+
+      // Prevent double-trigger
+      if (turnEndInProgress.current) return;
+      turnEndInProgress.current = true;
+
+      showToast(`${winner.username} wins the game! 🎉🏆`, "success");
+
+      const finishGameAsWinner = async () => {
+        try {
+          // 1. Finish on-chain first (exact same as bankruptcy/exit)
+          if (onChainGameId && endGame) {
+            await endGame();  // This calls the on-chain exit function
+
+            if (endGameSuccess) {
+              toast.success("Game finished on-chain & rewards claimed! 🚀");
+            } else if (endGameError) {
+              toast.error("On-chain exit failed: " + (endGameError?.message || ""));
+              // Continue anyway so game ends locally
+            }
+          }
+
+          // 2. Update backend: mark game finished with winner
+          await apiClient.put(`/games/${game.id}`, {
+            status: "FINISHED",
+            winner_id: winner.user_id,
+          });
+
+          // 3. Show exit prompt for the loser
+          if (!isMeTheWinner) {
+            setTimeout(() => setShowExitPrompt(true), 2500);
+          }
+
+          // If I'm the winner, optional nice message
+          if (isMeTheWinner) {
+            toast.success("Congratulations! You are the Monopoly champion! 🏆");
+          }
+        } catch (err) {
+          console.error("Failed to finish game properly:", err);
+          toast.error("Game ended locally but some sync failed.");
+          
+          // Fallback: still show exit for loser
+          if (!isMeTheWinner) {
+            setTimeout(() => setShowExitPrompt(true), 2000);
+          }
+        }
+      };
+
+      finishGameAsWinner();
+    }
+  }, [
+    players,
+    game_properties,
+    game?.status,
+    game?.id,
+    me,
+    onChainGameId,
+    endGame,
+    endGameSuccess,
+    endGameError,
+    showToast,
+  ]);
   const togglePerksModal = () => {
     setShowPerksModal(prev => !prev);
   };
