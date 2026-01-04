@@ -372,7 +372,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     uint256 public houseBalance;
     uint256 public constant TOKEN_REWARD = 1 ether;
 
-    uint256 public minStake = 0.01 ether;
+    uint256 public minStake = 1;
 
     mapping(uint256 => mapping(uint8 => address)) public gameOrderToPlayer;
     mapping(string => TycoonLib.User) public users;

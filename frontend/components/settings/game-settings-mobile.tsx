@@ -292,7 +292,7 @@ const GameSettingsMobile = () => {
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <FaCoins className="w-7 h-7 text-green-400" />
-                <span className="text-green-300 font-bold text-lg">Entry Stake</span>
+                <span className="text-green-300 font-bold text-lg">Entry Stake in WEI</span>
               </div>
               <div className="w-44">
                 <Select value={settings.stake.toString()} onValueChange={v => handleSettingChange("stake", Number(v))}>

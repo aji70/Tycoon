@@ -284,7 +284,7 @@ const GameSettings = () => {
             <div className="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-5 border border-green-500/30">
               <div className="flex items-center gap-2 mb-3">
                 <FaCoins className="w-6 h-6 text-green-400" />
-                <h3 className="text-xl font-bold text-green-300">Entry Stake</h3>
+                <h3 className="text-xl font-bold text-green-300">Entry Stake in WEI</h3>
               </div>
               <Select value={settings.stake.toString()} onValueChange={v => handleSettingChange("stake", Number(v))}>
                 <SelectTrigger className="h-12 bg-black/40 border-green-500/50 text-white text-base">

@@ -287,7 +287,7 @@ export default function PlayWithAI() {
             <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 rounded-2xl p-5 border border-green-500/40">
               <div className="flex items-center gap-3 mb-3">
                 <FaCoins className="w-6 h-6 text-green-400" />
-                <h3 className="text-xl font-bold text-green-300">Stake</h3>
+                <h3 className="text-xl font-bold text-green-300">Stake in WEI</h3>
               </div>
               <Select value={settings.stake.toString()} onValueChange={v => setSettings(p => ({ ...p, stake: +v }))}>
                 <SelectTrigger className="h-12 bg-black/50 border-green-500/60 text-white">
