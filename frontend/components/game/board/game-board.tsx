@@ -27,6 +27,7 @@ import { CardModal } from "../modals/cards";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
@@ -426,6 +427,19 @@ const Board = ({
     }
   };
 
+  const { data: contractGame } = useGetGameByCode(game.code);
+  // Extract the on-chain game ID (it's a bigint now)
+const onChainGameId = contractGame?.id;
+
+  const {
+    exit: endGame,
+    isPending: endGamePending,
+    isSuccess: endGameSuccess,
+    error: endGameError,
+    txHash: endGameTxHash,
+    reset: endGameReset,
+  } = useExitGame(onChainGameId ?? BigInt(0));
+
   const handleBankruptcy = useCallback(async () => {
   if (!me || !game.id || !game.code) {
     showToast("Cannot declare bankruptcy right now", "error");
@@ -456,6 +470,8 @@ const Board = ({
   }
 
   try {
+
+    if (endGame) await endGame();
     // Get all properties owned by the bankrupt player
     const myOwnedProperties = game_properties.filter(
       (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
