@@ -8,27 +8,56 @@ import { getPlayerSymbol, getPlayerSymbolData } from "@/lib/types/symbol";
 type BoardSquareProps = {
   square: Property;
   playersHere: Player[];
+  playerCount: number; // ← Added from Board component
   currentPlayerId: number;
   owner: string | null;
   devLevel: number;
   mortgaged: boolean;
-  onClick?: () => void; // NEW: Optional click handler (for owned properties)
+  onClick?: () => void;
 };
 
 export default function BoardSquare({
   square,
   playersHere,
+  playerCount,
   currentPlayerId,
   owner,
   devLevel,
   mortgaged,
-  onClick, // NEW
+  onClick,
 }: BoardSquareProps) {
   const isTopHalf = square.grid_row === 1;
-  const playerCount = playersHere.length;
-
-  // Only make property squares clickable if it's a buildable property
   const isClickableProperty = square.type === "property" && onClick;
+
+  // Dynamic token sizing and layout based on player count
+  const getTokenConfig = (count: number) => {
+    if (count === 1) return { size: 60, font: 36, layout: "single" };
+    if (count === 2) return { size: 48, font: 28, layout: "row" };
+    if (count === 3) return { size: 42, font: 24, layout: "triangle" };
+    if (count === 4) return { size: 38, font: 22, layout: "grid-2x2" };
+    if (count <= 6) return { size: 34, font: 20, layout: "grid-3x2" };
+    return { size: 30, font: 18, layout: "grid-4x2" }; // 7–8 players
+  };
+
+  const { size, font, layout } = getTokenConfig(playerCount);
+
+  const getPositionClass = (index: number, count: number) => {
+    if (count === 1) return "";
+    if (count === 2) return index === 0 ? "-translate-x-4" : "translate-x-4";
+    if (count === 3) {
+      return index === 0
+        ? "-translate-x-6 translate-y-2"
+        : index === 1
+        ? "translate-x-6 translate-y-2"
+        : "-translate-y-8";
+    }
+    if (count === 4) {
+      const positions = ["-translate-x-4 -translate-y-4", "translate-x-4 -translate-y-4", "-translate-x-4 translate-y-4", "translate-x-4 translate-y-4"];
+      return positions[index] || "";
+    }
+    // For 5–8: use flex-wrap grid with centered alignment (no manual positioning needed)
+    return "";
+  };
 
   return (
     <motion.div
@@ -41,7 +70,7 @@ export default function BoardSquare({
       }`}
       whileHover={{ scale: 1.75, zIndex: 50 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      onClick={isClickableProperty ? onClick : undefined} // Trigger modal only on owned properties
+      onClick={isClickableProperty ? onClick : undefined}
     >
       <div
         className={`w-full h-full transform group-hover:scale-200 ${
@@ -62,16 +91,11 @@ export default function BoardSquare({
           </div>
         )}
 
-        {/* Enhanced Mortgaged Overlay */}
+        {/* Mortgaged Overlay */}
         {mortgaged && (
           <>
-            {/* Dark overlay */}
             <div className="absolute inset-0 bg-black/60 z-10 pointer-events-none" />
-            
-            {/* Diagonal red stripe */}
             <div className="absolute inset-0 bg-gradient-to-br from-transparent via-red-600/70 to-transparent z-20 pointer-events-none" />
-            
-            {/* Bold MORTGAGED text */}
             <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
               <span className="text-red-300 text-2xl font-black tracking-wider drop-shadow-2xl rotate-[-30deg] scale-150">
                 MORTGAGED
@@ -83,57 +107,48 @@ export default function BoardSquare({
         {/* Player Tokens */}
         {playerCount > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-3">
-            <div className="relative w-full h-full flex flex-wrap items-center justify-center gap-2">
+            <div
+              className={`
+                relative flex flex-wrap items-center justify-center gap-1
+                ${layout === "grid-3x2" || layout === "grid-4x2" ? "max-w-full" : ""}
+              `}
+              style={{
+                width: layout.includes("grid") ? "100%" : "auto",
+                height: layout.includes("grid") ? "100%" : "auto",
+              }}
+            >
               {playersHere.map((player, index) => {
                 const isCurrent = player.user_id === currentPlayerId;
                 const symbol = getPlayerSymbol(player.symbol ?? "hat") || "🎲";
                 const tokenData = getPlayerSymbolData(player.symbol ?? "hat");
                 const tokenName = tokenData?.name || "Classic Token";
 
-                const size = playerCount === 1 
-                  ? 60
-                  : playerCount === 2 
-                  ? 42
-                  : playerCount <= 4 
-                  ? 36
-                  : 30;
-
-                const fontSize = playerCount === 1 
-                  ? 36
-                  : playerCount === 2 
-                  ? 26
-                  : playerCount <= 4 
-                  ? 22
-                  : 18;
-
                 return (
                   <motion.div
                     key={player.user_id}
                     className={`
                       flex items-center justify-center rounded-full
-                      bg-transparent text-white font-bold shadow-2xl
-                      ${isCurrent 
-                        ? "ring-2 ring-cyan-400 ring-offset-1"
-                        : "border border-white/40"
-                      }
+                      bg-transparent text-white font-bold shadow-2xl backdrop-blur-sm
+                      ${isCurrent ? "ring-4 ring-cyan-400 ring-offset-2 ring-offset-transparent" : "border-2 border-white/50"}
+                      ${getPositionClass(index, playerCount)}
                     `}
                     style={{
                       width: `${size}px`,
                       height: `${size}px`,
-                      fontSize: `${fontSize}px`,
+                      fontSize: `${font}px`,
                       minWidth: `${size}px`,
                       minHeight: `${size}px`,
                     }}
-                    title={tokenName}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
+                    title={`${player.username} • ${tokenName}`}
+                    initial={{ scale: 0, rotate: -180, opacity: 0 }}
+                    animate={{ scale: 1, rotate: 0, opacity: 1 }}
                     transition={{
                       type: "spring",
-                      stiffness: 350,
-                      damping: 20,
-                      delay: index * 0.07,
+                      stiffness: 400,
+                      damping: 25,
+                      delay: index * 0.05,
                     }}
-                    whileHover={{ scale: 1.15 }}
+                    whileHover={{ scale: 1.2, zIndex: 10 }}
                   >
                     {symbol}
                   </motion.div>

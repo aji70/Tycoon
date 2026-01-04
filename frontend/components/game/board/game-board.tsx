@@ -264,7 +264,6 @@ const Board = ({
     }
   }, [game.code]);
 
-  // FIXED ROLL_DICE: Correct user_id, no animation in jail, proper doubles handling
   const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL") || !currentPlayer) return;
 
@@ -276,7 +275,6 @@ const Board = ({
     setTimeout(async () => {
       let value = getDiceValues();
 
-      // Handle doubles (roll 12 → invalid, reroll)
       while (value === null) {
         showToast("DOUBLES! Rolling again...", "success");
         await new Promise(resolve => setTimeout(resolve, 600));
@@ -312,7 +310,6 @@ const Board = ({
           }
         }
 
-        // Final position
         setAnimatedPositions(prev => ({
           ...prev,
           [currentPlayer.user_id]: newPos,
@@ -328,7 +325,6 @@ const Board = ({
       landedPositionThisTurn.current = isInJail ? null : newPos;
 
       try {
-        // CRITICAL: Use currentPlayer.user_id so opponent movement works in multiplayer
         await apiClient.post("/game-players/change-position", {
           user_id: currentPlayer.user_id,
           game_id: game.id,
@@ -363,7 +359,6 @@ const Board = ({
     END_TURN,
   ]);
 
-  // Buy prompt logic
   useEffect(() => {
     if (!hasMovementFinished || landedPositionThisTurn.current === null) {
       setBuyPrompted(false);
@@ -401,7 +396,6 @@ const Board = ({
     showToast
   ]);
 
-  // Auto-end turn when no action needed
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || !hasMovementFinished) return;
 
@@ -445,8 +439,7 @@ const Board = ({
   };
 
   const { data: contractGame } = useGetGameByCode(game.code);
-  // Extract the on-chain game ID (it's a bigint now)
-const onChainGameId = contractGame?.id;
+  const onChainGameId = contractGame?.id;
 
   const {
     exit: endGame,
@@ -458,186 +451,174 @@ const onChainGameId = contractGame?.id;
   } = useExitGame(onChainGameId ?? BigInt(0));
 
   const handleBankruptcy = useCallback(async () => {
-  if (!me || !game.id || !game.code) {
-    showToast("Cannot declare bankruptcy right now", "error");
-    return;
-  }
+    if (!me || !game.id || !game.code) {
+      showToast("Cannot declare bankruptcy right now", "error");
+      return;
+    }
 
-  showToast("Declaring bankruptcy...", "error");
+    showToast("Declaring bankruptcy...", "error");
 
-  let creditorPlayerId: number | null = null;
+    let creditorPlayerId: number | null = null;
 
-  // Determine if we owe rent to another player (landlord)
-  if (justLandedProperty) {
-    const landedGameProp = game_properties.find(
-      (gp) => gp.property_id === justLandedProperty.id
-    );
-
-    if (landedGameProp?.address) {
-      const owner = players.find(
-        (p) =>
-          p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
-          p.user_id !== me.user_id
+    if (justLandedProperty) {
+      const landedGameProp = game_properties.find(
+        (gp) => gp.property_id === justLandedProperty.id
       );
 
-      if (owner) {
-        creditorPlayerId = owner.user_id;
-      }
-    }
-  }
+      if (landedGameProp?.address) {
+        const owner = players.find(
+          (p) =>
+            p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
+            p.user_id !== me.user_id
+        );
 
-  try {
-
-    if (endGame) await endGame();
-    // Get all properties owned by the bankrupt player
-    const myOwnedProperties = game_properties.filter(
-      (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
-    );
-
-    // CASE 1: Transfer properties to creditor (if we landed on their property)
-    if (creditorPlayerId && myOwnedProperties.length > 0) {
-      showToast("All your properties transferred to the landlord!", "error");
-
-      for (const gp of myOwnedProperties) {
-        await apiClient.put(`/game-properties/${gp.id}`, {
-          game_id: game.id,
-          player_id: creditorPlayerId,
-          address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
-        });
-      }
-    }
-    // CASE 2: Return properties to bank (no creditor)
-    else if (myOwnedProperties.length > 0) {
-      showToast("All your properties returned to bank", "error");
-
-      for (const gp of myOwnedProperties) {
-        await apiClient.delete(`/game-properties/${gp.id}`, {
-          data: { game_id: game.id },
-        });
+        if (owner) {
+          creditorPlayerId = owner.user_id;
+        }
       }
     }
 
-    // IMPORTANT: End the turn so next_player_id advances
-    // This ensures the game continues for remaining players
-    await END_TURN();
-    
-    // Officially leave the game
-    await apiClient.post("/game-players/leave", {
-      address: me.address,
-      code: game.code,
-      reason: "bankruptcy",
-    });
-
-    // Refresh game state to reflect changes
-    await fetchUpdatedGame();
-
-    showToast("You have declared bankruptcy and left the game.", "error");
-
-    
-
-    setShowExitPrompt(true);
-  } catch (err: any) {
-    console.error("Bankruptcy process failed:", err);
-    showToast("Bankruptcy failed — but you are eliminated.", "error");
-
-    // Even on failure, try to end the turn to unblock the game
     try {
-      await END_TURN();
-    } catch (endErr) {
-      console.error("Failed to end turn after bankruptcy error:", endErr);
-    }
+      if (endGame) await endGame();
 
-    // Force redirect after delay
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 3000);
-  } finally {
-    // Clean up UI state regardless of success/failure
-    setShowBankruptcyModal(false);
-    setBuyPrompted(false);
-    landedPositionThisTurn.current = null;
-  }
-}, [
-  me,
-  game,
-  justLandedProperty,
-  game_properties,
-  players,
-  showToast,
-  fetchUpdatedGame,
-  END_TURN, // ← Make sure END_TURN is in the dependency array
-]);
+      const myOwnedProperties = game_properties.filter(
+        (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+      );
+
+      if (creditorPlayerId && myOwnedProperties.length > 0) {
+        showToast("All your properties transferred to the landlord!", "error");
+
+        for (const gp of myOwnedProperties) {
+          await apiClient.put(`/game-properties/${gp.id}`, {
+            game_id: game.id,
+            player_id: creditorPlayerId,
+            address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
+          });
+        }
+      }
+      else if (myOwnedProperties.length > 0) {
+        showToast("All your properties returned to bank", "error");
+
+        for (const gp of myOwnedProperties) {
+          await apiClient.delete(`/game-properties/${gp.id}`, {
+            data: { game_id: game.id },
+          });
+        }
+      }
+
+      await END_TURN();
+
+      await apiClient.post("/game-players/leave", {
+        address: me.address,
+        code: game.code,
+        reason: "bankruptcy",
+      });
+
+      await fetchUpdatedGame();
+
+      showToast("You have declared bankruptcy and left the game.", "error");
+
+      setShowExitPrompt(true);
+    } catch (err: any) {
+      console.error("Bankruptcy process failed:", err);
+      showToast("Bankruptcy failed — but you are eliminated.", "error");
+
+      try {
+        await END_TURN();
+      } catch (endErr) {
+        console.error("Failed to end turn after bankruptcy error:", endErr);
+      }
+
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 3000);
+    } finally {
+      setShowBankruptcyModal(false);
+      setBuyPrompted(false);
+      landedPositionThisTurn.current = null;
+    }
+  }, [
+    me,
+    game,
+    justLandedProperty,
+    game_properties,
+    players,
+    showToast,
+    fetchUpdatedGame,
+    END_TURN,
+  ]);
+
   const togglePerksModal = () => {
     setShowPerksModal(prev => !prev);
   };
 
-    const handleDevelopment = async (id: number) => {
-      if (!isNext || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/development", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property developed successfully");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to develop property");
-      }
-    };
-  
-    const handleDowngrade = async (id: number) => {
-      if (!isNext || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property downgraded successfully");
-        else toast.error(res.data?.message ?? "Failed to downgrade property");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to downgrade property");
-      }
-    };
-  
-    const handleMortgage = async (id: number) => {
-      if (!isNext || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property mortgaged successfully");
-        else toast.error(res.data?.message ?? "Failed to mortgage property");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to mortgage property");
-      }
-    };
-  
-    const handleUnmortgage = async (id: number) => {
-      if (!isNext || !me) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
-          game_id: game.id,
-          user_id: me.user_id,
-          property_id: id,
-        });
-        if (res?.data?.success) toast.success("Property unmortgaged successfully");
-        else toast.error(res.data?.message ?? "Failed to unmortgage property");
-      } catch (error: any) {
-        toast.error(error?.message || "Failed to unmortgage property");
-      }
-    };
+  const handleDevelopment = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property developed successfully");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to develop property");
+    }
+  };
 
-      const handlePropertyClick = (square: Property) => {
-        const gp = game_properties.find(gp => gp.property_id === square.id);
-        if (gp?.address === me?.address) {
-          setSelectedProperty(square);
-        } else {
-          showToast("You don't own this property", "error");
-        }
-      };
+  const handleDowngrade = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
+    }
+  };
+
+  const handleMortgage = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property mortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to mortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to mortgage property");
+    }
+  };
+
+  const handleUnmortgage = async (id: number) => {
+    if (!isNext || !me) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/unmortgage", {
+        game_id: game.id,
+        user_id: me.user_id,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property unmortgaged successfully");
+      else toast.error(res.data?.message ?? "Failed to unmortgage property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unmortgage property");
+    }
+  };
+
+  const handlePropertyClick = (square: Property) => {
+    const gp = game_properties.find(gp => gp.property_id === square.id);
+    if (gp?.address?.toLowerCase() === me?.address?.toLowerCase()) {
+      setSelectedProperty(square);
+    } else {
+      showToast("You don't own this property", "error");
+    }
+  };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
@@ -663,17 +644,25 @@ const onChainGameId = contractGame?.id;
 
             {properties.map((square) => {
               const playersHere = playersByPosition.get(square.id) ?? [];
+
+              // Sort: connected player (by address) on top (rendered last)
               const sortedPlayersHere = [...playersHere].sort((a, b) => {
-                if (a.user_id === me?.user_id) return 1;
-                if (b.user_id === me?.user_id) return -1;
+                const aIsMe = me?.address && a.address?.toLowerCase() === me.address.toLowerCase();
+                const bIsMe = me?.address && b.address?.toLowerCase() === me.address.toLowerCase();
+
+                if (aIsMe) return 1;   // me → last (on top)
+                if (bIsMe) return -1;  // other → before me
                 return 0;
               });
+
+              const playerCount = sortedPlayersHere.length;
 
               return (
                 <BoardSquare
                   key={square.id}
                   square={square}
                   playersHere={sortedPlayersHere}
+                  playerCount={playerCount}   // ← new prop for dynamic sizing
                   currentPlayerId={currentPlayerId}
                   owner={propertyOwner(square.id)}
                   devLevel={developmentStage(square.id)}
@@ -758,14 +747,14 @@ const onChainGameId = contractGame?.id;
         onReturnHome={() => window.location.href = "/"}
       />
 
-         <PropertyActionModal
-              property={selectedProperty}
-              onClose={() => setSelectedProperty(null)}
-              onDevelop={handleDevelopment}
-              onDowngrade={handleDowngrade}
-              onMortgage={handleMortgage}
-              onUnmortgage={handleUnmortgage}
-            />
+      <PropertyActionModal
+        property={selectedProperty}
+        onClose={() => setSelectedProperty(null)}
+        onDevelop={handleDevelopment}
+        onDowngrade={handleDowngrade}
+        onMortgage={handleMortgage}
+        onUnmortgage={handleUnmortgage}
+      />
 
       <Toaster
         position="top-center"
