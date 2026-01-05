@@ -372,7 +372,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     uint256 public houseBalance;
     uint256 public constant TOKEN_REWARD = 1 ether;
 
-    uint256 public minStake = 1;
+    uint256 public minStake = 1000;
 
     mapping(uint256 => mapping(uint8 => address)) public gameOrderToPlayer;
     mapping(string => TycoonLib.User) public users;
@@ -682,7 +682,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         else if (before == 3) position[game.code].losers = playerToRemove;
     }
 
-    function endAIGameAndClaim(uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin)
+       function endAIGameAndClaim(uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin)
         external
         nonReentrant
         returns (bool)
@@ -706,6 +706,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint256 strength = 1;
 
         if (isWin) {
+            // Winner: full stake refunded
             (bool sent,) = payable(msg.sender).call{value: stake}("");
             require(sent, "Refund failed");
 
@@ -722,7 +723,17 @@ contract Tycoon is ReentrancyGuard, Ownable {
             user.gamesWon++;
             user.totalEarned += stake;
         } else {
-            houseBalance += stake;
+            // Loser: 80% refunded, 20% goes to house
+            uint256 refundAmount = (stake * 80) / 100;
+            uint256 houseCut = stake - refundAmount; // 20%
+
+            if (refundAmount > 0) {
+                (bool sent,) = payable(msg.sender).call{value: refundAmount}("");
+                require(sent, "Partial refund failed");
+            }
+
+            houseBalance += houseCut;
+
             voucherAmount = TOKEN_REWARD;
 
             uint8 r = uint8(block.prevrandao % 100);
@@ -736,12 +747,12 @@ contract Tycoon is ReentrancyGuard, Ownable {
         rewardSystem.mintVoucher(msg.sender, voucherAmount);
         rewardSystem.mintCollectible(msg.sender, perk, strength);
 
-        emit PlayerWonWithVoucher(gameId, msg.sender, isWin ? stake : 0, voucherAmount);
+        emit PlayerWonWithVoucher(gameId, msg.sender, isWin ? stake : (stake * 80 / 100), voucherAmount);
         emit AIGameEnded(gameId, msg.sender, uint64(block.timestamp));
         return true;
     }
 
-    function _payoutReward(uint256 gameId, address player, uint256 rank) private {
+       function _payoutReward(uint256 gameId, address player, uint256 rank) private {
         TycoonLib.Game storage game = games[gameId];
         uint256 pot = game.totalStaked;
 
@@ -759,21 +770,66 @@ contract Tycoon is ReentrancyGuard, Ownable {
                 activeWeight += rankWeights[i];
             }
 
-            uint256 reward = (distributable * rankWeights[rank - 1]) / activeWeight;
+            uint256 ethReward = (distributable * rankWeights[rank - 1]) / activeWeight;
 
-            // require(reward > 0, "No ETH reward");
+            require(ethReward > 0, "No ETH reward");
 
-            (bool success,) = player.call{value: reward}("");
+            (bool success,) = player.call{value: ethReward}("");
             require(success, "ETH transfer failed");
 
             string memory username = addressToUsername[player];
             TycoonLib.User storage user = users[username];
-            user.totalEarned += reward;
+            user.totalEarned += ethReward;
 
-            emit RewardClaimed(gameId, player, reward);
+            // Mint collectible + voucher for placement
+            if (rank <= 3) {
+                _mintPlacementCollectible(player, rank);
+            } else {
+                // 4th place gets only the voucher
+                rewardSystem.mintVoucher(player, TOKEN_REWARD);
+            }
+
+            emit RewardClaimed(gameId, player, ethReward);
         }
 
         delete claims[gameId][player];
+    }
+
+    function _mintPlacementCollectible(address player, uint256 rank) internal {
+        require(rank <= 3, "Only top 3 get collectibles");
+
+        TycoonLib.CollectiblePerk perk;
+        uint256 strength = 1;
+
+        if (rank == 1) {
+            strength = 2;
+        }
+
+        uint8 r = uint8(block.prevrandao % 100);
+
+        if (rank == 1) {
+            if (r < 30) perk = TycoonLib.CollectiblePerk.JAIL_FREE;
+            else if (r < 55) perk = TycoonLib.CollectiblePerk.SHIELD;
+            else if (r < 75) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
+            else if (r < 90) perk = TycoonLib.CollectiblePerk.TELEPORT;
+            else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
+        } else if (rank == 2) {
+            if (r < 35) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
+            else if (r < 60) perk = TycoonLib.CollectiblePerk.JAIL_FREE;
+            else if (r < 80) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
+            else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
+        } else if (rank == 3) {
+            if (r < 40) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
+            else if (r < 70) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
+            else if (r < 90) perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
+            else perk = TycoonLib.CollectiblePerk.SHIELD;
+        }
+
+        if (perk != TycoonLib.CollectiblePerk.NONE) {
+            rewardSystem.mintCollectible(player, perk, strength);
+        }
+
+        rewardSystem.mintVoucher(player, TOKEN_REWARD);
     }
 
     function exitGame(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (bool) {
