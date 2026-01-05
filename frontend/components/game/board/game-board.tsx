@@ -490,7 +490,7 @@ const Board = ({
 
   try {
     // On-chain exit first
-    // if (endGame) await endGame();
+    if (endGame) await endGame();
     // if (claim)   await claim();
 
     const myOwnedProperties = game_properties.filter(

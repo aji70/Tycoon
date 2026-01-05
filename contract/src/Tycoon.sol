@@ -387,6 +387,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
     mapping(uint256 => mapping(address => address)) public playerVotes;
     mapping(address => uint256) public voteCount; // player => number of votes against them
     mapping(address => mapping(address => bool)) public votesAgainst; // target => (voter => hasVoted)
+        // Tracks elimination order: last eliminated = 2nd place, second-to-last = 3rd place, etc.
+    mapping(string => address[]) public eliminationOrder; // game.code => eliminated players in order
 
     mapping(string => TycoonLib.GamePosition) public position;
 
@@ -672,13 +674,13 @@ contract Tycoon is ReentrancyGuard, Ownable {
         delete gamePlayers[gameId][playerToRemove];
         delete gameOrderToPlayer[gameId][order];
 
-        uint8 before = game.joinedPlayers;
+        
         game.joinedPlayers--;
 
-        emit PlayerRemoved(gameId, playerToRemove, uint64(block.timestamp));
+        // Record elimination order (critical for correct 2nd/3rd place)
+        eliminationOrder[game.code].push(playerToRemove);
 
-        if (before == 2) position[game.code].runnersup = playerToRemove;
-        else if (before == 3) position[game.code].losers = playerToRemove;
+        emit PlayerRemoved(gameId, playerToRemove, uint64(block.timestamp));
 
         if (game.joinedPlayers == 1) {
             address winner;
@@ -693,7 +695,17 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             users[gamePlayers[gameId][winner].username].gamesWon++;
 
+            // Set final positions
             position[game.code].winner = winner;
+
+            uint256 elimCount = eliminationOrder[game.code].length;
+            if (elimCount >= 1) {
+                position[game.code].runnersup = eliminationOrder[game.code][elimCount - 1]; // last eliminated = 2nd
+            }
+            if (elimCount >= 2) {
+                position[game.code].losers = eliminationOrder[game.code][elimCount - 2]; // second-to-last = 3rd
+            }
+
             game.status = TycoonLib.GameStatus.Ended;
             game.winner = winner;
             game.endedAt = uint64(block.timestamp);
@@ -762,10 +774,9 @@ contract Tycoon is ReentrancyGuard, Ownable {
     }
 
     // UPDATE the claimReward function:
-    // Add hasClaimed check/set, remove game.totalStaked=0, keep delete position but move it to end (optional, but to allow any claim order, comment out delete or make per-position)
     function claimReward(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (uint256) {
         TycoonLib.Game storage game = games[gameId];
-        require(game.ai == false, "Use endAIGame for AI rewards");
+        require(!game.ai, "Use endAIGame for AI rewards");
         require(!hasClaimed[gameId][msg.sender], "Already claimed");
 
         TycoonLib.GamePosition storage pos = position[game.code];
@@ -778,7 +789,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         if (pos.winner == msg.sender) {
             require(pot >= 2 * stake, "Min 2 players required");
 
-            uint256 losersPool = pot - stake; // All other players' stakes
+            uint256 losersPool = pot - stake; // All others' stakes
             uint256 houseCut = (losersPool * 40) / 100;
             reward = stake + (losersPool * 60) / 100;
 
@@ -786,32 +797,30 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             // Winner gets TYC voucher
             rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
+
             emit PlayerWonWithRewards(gameId, msg.sender, reward, TOKEN_REWARD);
         }
         // === 2ND PLACE: RUNNER-UP ===
         else if (pos.runnersup == msg.sender) {
             uint256 earlyLosersPool = pot - 2 * stake; // Stakes from players eliminated before final 2
             if (earlyLosersPool > 0) {
-                reward = (earlyLosersPool * 30) / 100; // 30% of early losers' pool
+                reward = (earlyLosersPool * 30) / 100; // 30% of early eliminations pool
             }
 
-            // Runner-up gets smaller voucher
             if (reward > 0) {
                 rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 2); // 0.5 TYC
             }
         }
-        // === 3RD PLACE: BONUS CONSOLATION ===
+        // === 3RD PLACE: CONSOLATION (only if started with 4+ players) ===
         else if (pos.losers == msg.sender && game.numberOfPlayers >= 4) {
-            // Only award 3rd place if there were at least 4 players (so someone actually finished 3rd)
-            uint256 earlyLosersPool = pot - 3 * stake; // Stakes from players eliminated before top 3
+            uint256 earlyLosersPool = pot - 3 * stake;
             if (earlyLosersPool > 0) {
-                reward = (earlyLosersPool * 20) / 100; // 20% of very early losers' pool
+                reward = (earlyLosersPool * 20) / 100;
             } else if (game.numberOfPlayers == 4) {
-                // Special case: 4-player game → 3rd gets small fixed consolation
+                // Special small consolation for 4-player game 3rd place
                 reward = stake / 10;
             }
 
-            // 3rd place gets a tiny voucher
             if (reward > 0) {
                 rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 4); // 0.25 TYC
             }
@@ -819,30 +828,25 @@ contract Tycoon is ReentrancyGuard, Ownable {
             revert("No reward position");
         }
 
-        require(reward > 0, "No reward available");
+        require(reward > 0 || pos.winner == msg.sender, "No reward available"); // Winner always gets at least stake back
 
-        // Transfer ETH reward
-        (bool success,) = payable(msg.sender).call{value: reward}("");
-        require(success, "Transfer failed");
+        if (reward > 0) {
+            (bool success,) = payable(msg.sender).call{value: reward}("");
+            require(success, "Transfer failed");
+        }
 
         // Update user stats
         string memory username = gamePlayers[gameId][msg.sender].username;
         TycoonLib.User storage user = users[username];
         user.totalEarned += reward;
 
-        // Mark as claimed
+        // Mark claimed
         hasClaimed[gameId][msg.sender] = true;
 
-        // Optional: Clear position only if winner (but to allow any order, move or remove)
-        // If you want to clear after all claimed, add checks, but for simplicity, keep as is but note potential issue if winner claims first
-        // Better: delete specific position
-        if (pos.winner == msg.sender) {
-            pos.winner = address(0);
-        } else if (pos.runnersup == msg.sender) {
-            pos.runnersup = address(0);
-        } else if (pos.losers == msg.sender) {
-            pos.losers = address(0);
-        }
+        // Clear claimed position to prevent double-claim edge cases
+        if (pos.winner == msg.sender) pos.winner = address(0);
+        else if (pos.runnersup == msg.sender) pos.runnersup = address(0);
+        else if (pos.losers == msg.sender) pos.losers = address(0);
 
         emit RewardClaimed(gameId, msg.sender, reward);
         return reward;
@@ -860,29 +864,25 @@ contract Tycoon is ReentrancyGuard, Ownable {
         require(!game.ai, "Cannot vote out in AI game");
         require(playerToVoteOut != msg.sender, "Cannot vote against yourself");
 
-        if(msg.sender == playerToVoteOut){
+        if (msg.sender == playerToVoteOut) {
             voteCount[playerToVoteOut] = 0;
+        } else {
+            // Record the vote (prevent double voting per player)
+            require(votesAgainst[playerToVoteOut][msg.sender] == false, "You already voted against this player");
+            votesAgainst[playerToVoteOut][msg.sender] = true;
+
+            // Increment the vote count for this player
+            voteCount[playerToVoteOut]++;
+
+            // Check if unanimous votes against (everyone except the player himself voted against)
+            uint256 totalPlayers = game.numberOfPlayers; // assuming game has address[] players or similar
+            uint256 requiredVotes = totalPlayers - 1;
+
+            if (voteCount[playerToVoteOut] >= requiredVotes) {
+                _removePlayer(gameId, playerToVoteOut);
+                emit PlayerVotedOut(gameId, playerToVoteOut, requiredVotes); // better event name
+            }
         }
-
-      else{
-          // Record the vote (prevent double voting per player)
-        require(votesAgainst[playerToVoteOut][msg.sender] == false, "You already voted against this player");
-        votesAgainst[playerToVoteOut][msg.sender] = true;
-
-        // Increment the vote count for this player
-        voteCount[playerToVoteOut]++;
-
-        // Check if unanimous votes against (everyone except the player himself voted against)
-        uint256 totalPlayers = game.numberOfPlayers; // assuming game has address[] players or similar
-        uint256 requiredVotes = totalPlayers - 1; 
-
-        if (voteCount[playerToVoteOut] >= requiredVotes) {
-            _removePlayer(gameId, playerToVoteOut);
-            emit PlayerVotedOut(gameId, playerToVoteOut, requiredVotes); // better event name
-            
-        }
-
-      }
         return true;
     }
 
