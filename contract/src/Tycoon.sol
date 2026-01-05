@@ -761,7 +761,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             uint256 reward = (distributable * rankWeights[rank - 1]) / activeWeight;
 
-            require(reward > 0, "No ETH reward");
+            // require(reward > 0, "No ETH reward");
 
             (bool success,) = player.call{value: reward}("");
             require(success, "ETH transfer failed");
