@@ -54,7 +54,7 @@ const GameSettings = () => {
     evenBuild: false,
     startingCash: "1500",
     randomPlayOrder: false,
-    stake: 1, // ← Default stake = 1
+    stake: 100, // ← Default stake = 1
   });
 
   const { data: isUserRegistered, isLoading: isRegisteredLoading } =
