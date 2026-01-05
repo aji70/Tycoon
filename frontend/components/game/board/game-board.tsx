@@ -459,7 +459,7 @@ const Board = ({
     reset: claimReset,
   } = useClaimReward(onChainGameId ?? BigInt(0));
 
- const handleBankruptcy = useCallback(async () => {
+const handleBankruptcy = useCallback(async () => {
   if (!me || !game.id || !game.code) {
     showToast("Cannot declare bankruptcy right now", "error");
     return;
@@ -491,7 +491,7 @@ const Board = ({
   try {
     // On-chain exit first
     if (endGame) await endGame();
-    if (claim)   await claim();
+    if (claim) await claim();
 
     const myOwnedProperties = game_properties.filter(
       (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
@@ -506,10 +506,10 @@ const Board = ({
       let successCount = 0;
       for (const gp of myOwnedProperties) {
         try {
+          // FIXED: Only send game_id and player_id — do NOT send address
           await apiClient.put(`/game-properties/${gp.id}`, {
             game_id: game.id,
             player_id: creditorPlayerId,
-            address: players.find(p => p.user_id === creditorPlayerId)?.address || null,
           });
           successCount++;
         } catch (err) {
@@ -576,6 +576,7 @@ const Board = ({
   fetchUpdatedGame,
   END_TURN,
   endGame,
+  claim, // Make sure 'claim' is included if it's used above
 ]);
 
   const togglePerksModal = () => {
