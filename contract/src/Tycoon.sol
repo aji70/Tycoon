@@ -780,7 +780,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         TycoonLib.Game storage game = games[gameId];
         require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
         require(!game.ai, "Cannot exit AI game");
-        require(game.winner == address(0), "No winner found");
+        
 
         if (game.joinedPlayers == 1) {
             // Winner exit: payout first, then add house cut
