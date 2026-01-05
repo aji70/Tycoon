@@ -384,7 +384,10 @@ contract Tycoon is ReentrancyGuard, Ownable {
     mapping(uint256 => mapping(address => TycoonLib.GamePlayer)) public gamePlayers;
     mapping(address => string) public previousGameCode;
     mapping(uint256 => mapping(address => bool)) public hasClaimed; // gameId => player => claimed
-    mapping(uint256 => mapping(address => address)) public playerVotes; // gameId => voter => votedTarget
+    mapping(uint256 => mapping(address => address)) public playerVotes;
+    mapping(address => uint256) public voteCount; // player => number of votes against them
+    mapping(address => mapping(address => bool)) public votesAgainst; // target => (voter => hasVoted)
+
     mapping(string => TycoonLib.GamePosition) public position;
 
     TycoonRewardSystem public immutable rewardSystem;
@@ -762,7 +765,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
     // Add hasClaimed check/set, remove game.totalStaked=0, keep delete position but move it to end (optional, but to allow any claim order, comment out delete or make per-position)
     function claimReward(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (uint256) {
         TycoonLib.Game storage game = games[gameId];
-        require(game.status == TycoonLib.GameStatus.Ended, "Game not ended");
         require(game.ai == false, "Use endAIGame for AI rewards");
         require(!hasClaimed[gameId][msg.sender], "Already claimed");
 
@@ -846,6 +848,44 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return reward;
     }
 
+    function votePlayerOut(uint256 gameId, address playerToVoteOut)
+        public
+        nonReentrant
+        onlyPlayerInGame(gameId, msg.sender)
+        onlyPlayerInGame(gameId, playerToVoteOut)
+        returns (bool)
+    {
+        TycoonLib.Game storage game = games[gameId];
+        require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
+        require(!game.ai, "Cannot vote out in AI game");
+        require(playerToVoteOut != msg.sender, "Cannot vote against yourself");
+
+        if(msg.sender == playerToVoteOut){
+            voteCount[playerToVoteOut] = 0;
+        }
+
+      else{
+          // Record the vote (prevent double voting per player)
+        require(votesAgainst[playerToVoteOut][msg.sender] == false, "You already voted against this player");
+        votesAgainst[playerToVoteOut][msg.sender] = true;
+
+        // Increment the vote count for this player
+        voteCount[playerToVoteOut]++;
+
+        // Check if unanimous votes against (everyone except the player himself voted against)
+        uint256 totalPlayers = game.numberOfPlayers; // assuming game has address[] players or similar
+        uint256 requiredVotes = totalPlayers - 1; 
+
+        if (voteCount[playerToVoteOut] >= requiredVotes) {
+            _removePlayer(gameId, playerToVoteOut);
+            emit PlayerVotedOut(gameId, playerToVoteOut, requiredVotes); // better event name
+            
+        }
+
+      }
+        return true;
+    }
+
     // REPLACE with these 2 NEW FUNCTIONS:
     function exitGame(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (bool) {
         TycoonLib.Game storage game = games[gameId];
@@ -855,12 +895,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         _removePlayer(gameId, msg.sender);
         emit PlayerExited(gameId, msg.sender);
         return true;
-    }
-
-
-    function setMinStake(uint256 newMin) external onlyOwner {
-        require(newMin > 0, "Min > 0");
-        minStake = newMin;
     }
 
     function withdrawHouse(uint256 amount) external onlyOwner {

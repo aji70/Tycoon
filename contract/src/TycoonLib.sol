@@ -52,7 +52,6 @@ library TycoonLib {
         uint256 id;
         string username;
         address playerAddress;
-        // address playerWallet;
         uint64 registeredAt;
         uint256 gamesPlayed;
         uint256 gamesWon;
