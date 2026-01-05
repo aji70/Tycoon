@@ -383,12 +383,14 @@ contract Tycoon is ReentrancyGuard, Ownable {
     mapping(string => TycoonLib.Game) public codeToGame;
     mapping(uint256 => mapping(address => TycoonLib.GamePlayer)) public gamePlayers;
     mapping(address => string) public previousGameCode;
-    mapping(uint256 => mapping(address => bool)) public hasClaimed; // gameId => player => claimed
     mapping(uint256 => mapping(address => address)) public playerVotes; // gameId => voter => votedTarget
     mapping(string => TycoonLib.GamePosition) public position;
     mapping(uint256 => mapping(address => uint256)) claims;
 
     TycoonRewardSystem public immutable rewardSystem;
+
+    uint256 constant HOUSE_PERCENT = 15; // always
+    uint256 constant CONSOLATION_VOUCHER = TOKEN_REWARD / 10; // 0.1
 
     // Add these new events (alongside other events)
     event VoteCast(uint256 indexed gameId, address indexed voter, address indexed target);
@@ -664,48 +666,20 @@ contract Tycoon is ReentrancyGuard, Ownable {
         TycoonLib.Game storage game = games[gameId];
         TycoonLib.GamePlayer storage gp = gamePlayers[gameId][playerToRemove];
 
-        require(gp.playerAddress != address(0), "Player not in game");
-
         users[gp.username].gamesLost++;
 
         uint8 order = gp.order;
         delete gamePlayers[gameId][playerToRemove];
         delete gameOrderToPlayer[gameId][order];
 
+        uint8 before = game.joinedPlayers;
+        claims[gameId][playerToRemove] = before;
         game.joinedPlayers--;
-
-        // === FIXED: Correct position ranking ===
-        // First eliminated gets highest rank (worst place), e.g., in 3-player game:
-        // 1st eliminated → rank 3, 2nd eliminated → rank 2, last remaining → rank 1
-        uint256 positionRank = game.joinedPlayers + 1;
-
-        claims[gameId][playerToRemove] = positionRank;
 
         emit PlayerRemoved(gameId, playerToRemove, uint64(block.timestamp));
 
-        // Check if only one player remains → game ends
-        if (game.joinedPlayers == 1) {
-            address winner;
-            for (uint8 i = 1; i <= game.numberOfPlayers; i++) {
-                address p = gameOrderToPlayer[gameId][i];
-                if (p != address(0)) {
-                    winner = p;
-                    break;
-                }
-            }
-            require(winner != address(0), "No winner found");
-
-            // Winner gets rank 1
-            claims[gameId][winner] = 1;
-
-            users[gamePlayers[gameId][winner].username].gamesWon++;
-
-            game.status = TycoonLib.GameStatus.Ended;
-            game.winner = winner;
-            game.endedAt = uint64(block.timestamp);
-
-            emit GameEnded(gameId, winner, uint64(block.timestamp));
-        }
+        if (before == 2) position[game.code].runnersup = playerToRemove;
+        else if (before == 3) position[game.code].losers = playerToRemove;
     }
 
     function endAIGameAndClaim(uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin)
@@ -767,88 +741,71 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return true;
     }
 
-    // UPDATE the claimReward function:
-    function claimReward(uint256 gameId) public nonReentrant returns (uint256) {
+    function _payoutReward(uint256 gameId, address player, uint256 rank) private {
         TycoonLib.Game storage game = games[gameId];
-        require(!game.ai, "Use endAIGame for AI rewards");
-        require(!hasClaimed[gameId][msg.sender], "Already claimed");
-
-        uint256 rank = claims[gameId][msg.sender];
-        require(rank > 0, "No recorded position");
-
-        uint256 reward = 0;
         uint256 pot = game.totalStaked;
-        uint256 stake = game.stakePerPlayer;
 
-        // === 1ST PLACE ===
-        if (rank == 1) {
-            require(pot >= 2 * stake, "Min 2 players required");
-
-            uint256 losersPool = pot - stake; // All others' stakes
-            uint256 houseCut = (losersPool * 40) / 100;
-            reward = stake + (losersPool * 60) / 100; // Own stake back + 60% of losers' pool
-
-            houseBalance += houseCut;
-
-            // Full TYC voucher for winner
-            rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD);
-
-            emit PlayerWonWithRewards(gameId, msg.sender, reward, TOKEN_REWARD);
-        }
-        // === 2ND PLACE ===
-        else if (rank == 2) {
-            uint256 earlyLosersPool = pot - 2 * stake;
-            if (earlyLosersPool > 0) {
-                reward = (earlyLosersPool * 30) / 100;
-            }
-
-            if (reward > 0) {
-                rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 2);
-            }
-        }
-        // === 3RD PLACE (only if 4+ players) ===
-        else if (rank == 3 && game.numberOfPlayers >= 4) {
-            uint256 earlyLosersPool = pot - 3 * stake;
-            if (earlyLosersPool > 0) {
-                reward = (earlyLosersPool * 20) / 100;
-            } else if (game.numberOfPlayers == 4) {
-                // Consolation for 4-player game
-                reward = stake / 10;
-            }
-
-            if (reward > 0) {
-                rewardSystem.mintVoucher(msg.sender, TOKEN_REWARD / 4);
-            }
+        if (rank > 4) {
+            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
+            emit RewardClaimed(gameId, player, 0);
         } else {
-            revert("No reward for this position");
+            uint256 distributable = (pot * (100 - HOUSE_PERCENT)) / 100;
+            uint8[4] memory rankWeights = [40, 25, 20, 15];
+
+            uint256 activeWeight = 0;
+            uint256 maxRank = game.numberOfPlayers < 4 ? game.numberOfPlayers : 4;
+
+            for (uint256 i = 0; i < maxRank; i++) {
+                activeWeight += rankWeights[i];
+            }
+
+            uint256 reward = (distributable * rankWeights[rank - 1]) / activeWeight;
+
+            require(reward > 0, "No ETH reward");
+
+            (bool success,) = player.call{value: reward}("");
+            require(success, "ETH transfer failed");
+
+            string memory username = addressToUsername[player];
+            TycoonLib.User storage user = users[username];
+            user.totalEarned += reward;
+
+            emit RewardClaimed(gameId, player, reward);
         }
 
-        require(reward > 0, "No reward available");
-
-        (bool success,) = payable(msg.sender).call{value: reward}("");
-        require(success, "Transfer failed");
-
-        string memory username = gamePlayers[gameId][msg.sender].username;
-        TycoonLib.User storage user = users[username];
-        user.totalEarned += reward;
-
-        hasClaimed[gameId][msg.sender] = true;
-
-        // Optional cleanup
-        delete claims[gameId][msg.sender];
-
-        emit RewardClaimed(gameId, msg.sender, reward);
-
-        return reward;
+        delete claims[gameId][player];
     }
 
-    // REPLACE with these 2 NEW FUNCTIONS:
     function exitGame(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (bool) {
         TycoonLib.Game storage game = games[gameId];
         require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
         require(!game.ai, "Cannot exit AI game");
+        require(game.winner == address(0), "No winner found");
 
-        _removePlayer(gameId, msg.sender);
+        if (game.joinedPlayers == 1) {
+            // Winner exit: payout first, then add house cut
+            uint256 rank = 1;
+            claims[gameId][msg.sender] = rank;
+            _payoutReward(gameId, msg.sender, rank);
+
+            uint256 pot = game.totalStaked;
+            uint256 houseCut = (pot * HOUSE_PERCENT) / 100;
+            houseBalance += houseCut;
+
+            users[gamePlayers[gameId][msg.sender].username].gamesWon++;
+
+            game.status = TycoonLib.GameStatus.Ended;
+            game.winner = msg.sender;
+            game.endedAt = uint64(block.timestamp);
+
+            emit GameEnded(gameId, msg.sender, uint64(block.timestamp));
+        } else {
+            // Loser exit
+            _removePlayer(gameId, msg.sender);
+            uint256 rank = claims[gameId][msg.sender];
+            _payoutReward(gameId, msg.sender, rank);
+        }
+
         emit PlayerExited(gameId, msg.sender);
         return true;
     }
