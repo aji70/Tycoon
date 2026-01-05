@@ -28,7 +28,6 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
-import { VictoryModal } from "../modals/victory";
 import { PropertyActionModal } from "../modals/property-action";
 
 const BOARD_SQUARES = 40;

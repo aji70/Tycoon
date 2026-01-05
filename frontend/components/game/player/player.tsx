@@ -6,7 +6,7 @@ import { Game, Player, Property, GameProperty } from "@/types/game";
 import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useClaimReward, useGetGameByCode } from "@/context/ContractProvider";
+import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import PlayerList from "./player-list";
 import { MyEmpire } from "./my-empire";
@@ -74,14 +74,14 @@ export default function GamePlayers({
  // Extract the on-chain game ID (it's a bigint now)
  const onChainGameId = contractGame?.id;
  
- const {
-       claim: claim,
-    isPending: claimPending,
-    isSuccess: claimSuccess,
-    error: claimError,
-    txHash: claimTxHash,
-    reset: claimReset,
-  } = useClaimReward(onChainGameId ?? BigInt(0));
+  const {
+    exit: endGame,
+    isPending: endGamePending,
+    isSuccess: endGameSuccess,
+    error: endGameError,
+    txHash: endGameTxHash,
+    reset: endGameReset,
+  } = useExitGame(onChainGameId ?? BigInt(0));
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
@@ -446,7 +446,7 @@ export default function GamePlayers({
       );
   
       try {
-        if (claim) await claim();
+        if (endGame) await endGame();
   
         toast.success(
           winner?.user_id === me?.user_id
@@ -464,7 +464,7 @@ export default function GamePlayers({
           { id: toastId, duration: 8000 }
         );
       } finally {
-        if (claimReset) claimReset();
+        if (endGameReset) endGameReset();
       }
     };
 
@@ -638,7 +638,7 @@ export default function GamePlayers({
       winner={winner}
       me={me}
       onClaim={handleFinalizeAndLeave}
-      claiming={claimPending}
+      claiming={endGamePending}
     />
 
         <TradeModal
