@@ -491,7 +491,7 @@ const Board = ({
   try {
     // On-chain exit first
     if (endGame) await endGame();
-    // if (claim)   await claim();
+    if (claim)   await claim();
 
     const myOwnedProperties = game_properties.filter(
       (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()

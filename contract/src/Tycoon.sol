@@ -774,7 +774,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     }
 
     // UPDATE the claimReward function:
-    function claimReward(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (uint256) {
+    function claimReward(uint256 gameId) public nonReentrant returns (uint256) {
         TycoonLib.Game storage game = games[gameId];
         require(!game.ai, "Use endAIGame for AI rewards");
         require(!hasClaimed[gameId][msg.sender], "Already claimed");
