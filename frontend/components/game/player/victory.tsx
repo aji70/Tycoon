@@ -8,13 +8,18 @@ import { Player } from "@/types/game";
 interface VictoryModalProps {
   winner: Player | null;
   me: Player | null;
-  
+  onClaim: () => void;
+  claiming: boolean;
+  claimError?: string | null;
   onClearError?: () => void;
 }
 
 export const VictoryModal: React.FC<VictoryModalProps> = ({
   winner,
   me,
+  onClaim,
+  claiming,
+  claimError = null,
   onClearError,
 }) => {
   if (!winner) return null;
@@ -23,6 +28,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 
   const handleClaimClick = () => {
     onClearError?.();
+    onClaim();
   };
 
   return (
@@ -158,8 +164,55 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               </motion.div>
             )}
 
-          
-            
+            {/* Error message */}
+            <AnimatePresence>
+              {claimError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="mb-8 p-5 bg-red-900/60 border border-red-500/50 rounded-2xl flex items-start gap-4 text-red-100 max-w-lg mx-auto"
+                >
+                  <AlertCircle className="w-7 h-7 flex-shrink-0 mt-1" />
+                  <div className="text-left">
+                    <p className="font-bold text-lg">Claim failed</p>
+                    <p className="text-base mt-1">{claimError}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Action button */}
+            <motion.button
+              whileHover={{ scale: 1.07, y: -4 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={claiming && isWinner}
+              onClick={isWinner ? handleClaimClick : () => window.location.href = "/"}
+              className={`
+                px-12 py-6 md:px-16 md:py-8 text-xl md:text-2xl font-black
+                rounded-2xl md:rounded-3xl
+                shadow-2xl shadow-amber-900/50 border-2 border-amber-300/30
+                transition-all duration-300 relative overflow-hidden group
+                disabled:opacity-60 disabled:cursor-wait
+                ${claiming && isWinner 
+                  ? "bg-gray-800" 
+                  : "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:via-yellow-500 hover:to-amber-600"
+                }
+              `}
+            >
+              <span className="relative z-10">
+                {isWinner 
+                  ? (claiming ? "Claiming Rewards..." : "Claim Your Rewards")
+                  : "Return to Lobby"
+                }
+              </span>
+              <motion.div
+                className="absolute inset-0 bg-white/15"
+                initial={{ x: "-100%" }}
+                whileHover={{ x: "100%" }}
+                transition={{ duration: 0.7 }}
+              />
+            </motion.button>
 
             <p className="mt-12 text-base sm:text-lg text-amber-200/60 font-light">
               Thanks for playing <span className="text-amber-300 font-medium">Tycoon</span>
