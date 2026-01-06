@@ -61,7 +61,7 @@ const NavBarMobile = () => {
       />
 
       {/* Mobile Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[60] border-b border-[#003B3E]/50">
+      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[1000] border-b border-[#003B3E]/50">
         <Logo className="w-[42px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-4">
