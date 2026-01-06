@@ -1,4 +1,4 @@
-const ROOT_URL = "https://tycoonworld.xyz/"
+const ROOT_URL = "https://base-monopoly.vercel.app/"
 
 /**
  * MiniApp configuration object. Must follow the Farcaster MiniApp specification.
