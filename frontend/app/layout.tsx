@@ -27,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       "Tycoon is a decentralized on-chain game inspired by the classic Monopoly game, built on Base. It allows players to buy, sell, and trade digital properties in a trustless gaming environment.",
     other: {
-      "base:app_id": "693bedf4e6be54f5ed71d772", 
+      "base:app_id": "693a9b718a7c4e55fec73df7", 
       "fc:frame": JSON.stringify({
         version: minikitConfig.miniapp.version,
         imageUrl: minikitConfig.miniapp.heroImageUrl,
