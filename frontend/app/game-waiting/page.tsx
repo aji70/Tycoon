@@ -1,9 +1,9 @@
-import GameWaiting from "@/components/settings/game-waiting";
+import GameWaitingClient from "@/clients/WaitingClient";
 
 export default function GameWaitingPage() {
     return (
         <main className="w-full overflow-x-hidden">
-                <GameWaiting />
+                <GameWaitingClient />
         </main>
     );
 }

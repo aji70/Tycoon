@@ -351,7 +351,7 @@ const handleContinuePrevious = () => {
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-xs font-medium gap-1.5">
                     <Gamepad2 size={16} />
-                    Friends
+                    Multiplayer
                   </span>
                 </button>
 
