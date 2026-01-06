@@ -37,7 +37,7 @@ export default function NetworkSwitcherModal({
       {isOpen && (
         <div className="fixed inset-0 flex z-[10000] items-center justify-center ">
           <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             variants={backdropVariants}
             initial="hidden"
             animate="visible"
