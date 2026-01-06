@@ -151,8 +151,6 @@ export default function GameWaiting(): JSX.Element {
     return address.toLowerCase() === String(contractGame?.creator).toLowerCase();
   }, [game, address]);
 
-  console.log("is creator", contractGame?.stakePerPlayer);
-
   // Show share section if there are open slots OR if user is the creator
   const showShare = useMemo(() => {
     if (!game) return false;
