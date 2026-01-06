@@ -199,7 +199,7 @@ const handleContinuePrevious = () => {
   }
 
   return (
-    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12 z-[-20]">
+    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12 z-[999]">
       {/* Background Image */}
       <div className="absolute inset-0">
         <Image
