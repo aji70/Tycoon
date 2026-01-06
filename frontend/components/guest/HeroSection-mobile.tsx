@@ -304,7 +304,7 @@ const handleContinuePrevious = () => {
 
           {/* Registered user actions */}
           {address && registrationStatus === "fully-registered" && (
-            <div className="w-full flex flex-col gap-5">
+            <div className="w-full flex flex-col gap-5 z-[-20]">
               {/* Continue Previous Game - prominent when available */}
               {gameCode && (contractGame?.status == 1) && (
                 <button
