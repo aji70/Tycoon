@@ -199,7 +199,7 @@ const handleContinuePrevious = () => {
   }
 
   return (
-    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12">
+    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12 z-[999]">
       {/* Background Image */}
       <div className="absolute inset-0">
         <Image
@@ -304,7 +304,7 @@ const handleContinuePrevious = () => {
 
           {/* Registered user actions */}
           {address && registrationStatus === "fully-registered" && (
-            <div className="w-full flex flex-col gap-5 z-[-20]">
+            <div className="w-full flex flex-col gap-5">
               {/* Continue Previous Game - prominent when available */}
               {gameCode && (contractGame?.status == 1) && (
                 <button
