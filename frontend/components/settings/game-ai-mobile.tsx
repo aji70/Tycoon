@@ -331,6 +331,7 @@ export default function PlayWithAIMobile() {
               <p className="text-2xl font-bold text-green-400">
                 {settings.stake.toLocaleString()} WEI
               </p>
+              <p className="text-sm text-gray-400">You get back 80% of your stake if you loose</p>
             </div>
           </div>
 
