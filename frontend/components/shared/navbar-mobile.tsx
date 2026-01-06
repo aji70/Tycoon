@@ -49,18 +49,17 @@ const NavBarMobile = () => {
 
   return (
     <>
-      {/* Scroll Progress Bar */}
+      {/* Scroll Progress Bar - Highest priority */}
       <motion.div
-        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] h-[3px] origin-left z-[70]"
+        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] h-[3px] origin-left z-[9999]"
         style={{ scaleX }}
       />
 
-      {/* Mobile Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[60] border-b border-[#003B3E]/50">
+      {/* Fixed Header - Always on top */}
+      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[9998] border-b border-[#003B3E]/50">
         <Logo className="w-[42px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-4">
-          {/* Sound Toggle */}
           <button
             onClick={toggleSound}
             className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
@@ -68,7 +67,6 @@ const NavBarMobile = () => {
             {isSoundPlaying ? <Volume2 size={22} /> : <VolumeOff size={22} />}
           </button>
 
-          {/* Hamburger Menu */}
           <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 transition"
@@ -78,12 +76,12 @@ const NavBarMobile = () => {
         </div>
       </header>
 
-      {/* Mobile Bottom Sheet Menu */}
+      {/* Bottom Sheet Menu */}
       {isMobileMenuOpen && (
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/70 z-[55]"
+            className="fixed inset-0 bg-black/70 z-[9990]"
             onClick={closeMobileMenu}
           />
 
@@ -93,10 +91,9 @@ const NavBarMobile = () => {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[60] max-h-[90vh] overflow-y-auto"
+            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[9995] max-h-[90vh] overflow-y-auto"
           >
             <div className="p-6 pb-10">
-              {/* Drag Handle */}
               <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
 
               {/* Wallet Section */}
@@ -112,7 +109,6 @@ const NavBarMobile = () => {
                 </button>
               ) : (
                 <div className="mb-8 space-y-5">
-                  {/* Connected Address */}
                   <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="h-12 w-12 rounded-full border-3 border-[#0FF0FC] overflow-hidden shadow-lg">
@@ -124,7 +120,6 @@ const NavBarMobile = () => {
                     </div>
                   </div>
 
-                  {/* Network Switcher */}
                   <button
                     onClick={() => {
                       setIsNetworkModalOpen(true);
@@ -138,41 +133,23 @@ const NavBarMobile = () => {
                 </div>
               )}
 
-              {/* Navigation Links */}
               <nav className="space-y-4 mb-10">
-                <Link
-                  href="/"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition"
-                >
-                  <House size={24} />
-                  Home
+                <Link href="/" onClick={closeMobileMenu} className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition">
+                  <House size={24} /> Home
                 </Link>
 
                 {isConnected && (
                   <>
-                    <Link
-                      href="/profile"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
-                    >
-                      <User size={24} />
-                      Profile
+                    <Link href="/profile" onClick={closeMobileMenu} className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition">
+                      <User size={24} /> Profile
                     </Link>
-
-                    <Link
-                      href="/game-shop"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition"
-                    >
-                      <ShoppingBag size={24} />
-                      Shop
+                    <Link href="/game-shop" onClick={closeMobileMenu} className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition">
+                      <ShoppingBag size={24} /> Shop
                     </Link>
                   </>
                 )}
               </nav>
 
-              {/* Disconnect Button */}
               {isConnected && (
                 <button
                   onClick={() => {
@@ -185,7 +162,6 @@ const NavBarMobile = () => {
                 </button>
               )}
 
-              {/* Close Button */}
               <button
                 onClick={closeMobileMenu}
                 className="absolute top-5 right-5 w-10 h-10 rounded-full bg-[#011112]/70 flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
@@ -197,18 +173,21 @@ const NavBarMobile = () => {
         </>
       )}
 
-      {/* Modals */}
+      {/* Modals - Must be on top of everything */}
       <NetworkSwitcherModal
         isOpen={isNetworkModalOpen}
         onClose={() => setIsNetworkModalOpen(false)}
+        
       />
       <WalletConnectModal
         isOpen={isConnectModalOpen}
         onClose={() => setIsConnectModalOpen(false)}
+        
       />
       <WalletDisconnectModal
         isOpen={isDisconnectModalOpen}
         onClose={() => setIsDisconnectModalOpen(false)}
+        
       />
     </>
   );
