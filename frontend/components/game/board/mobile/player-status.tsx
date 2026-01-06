@@ -22,18 +22,11 @@ const PlayerStatus: React.FC<PlayerStatusProps> = ({ currentPlayer, isAITurn, bu
             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
           >
             {currentPlayer.username} is playing…
-          </motion.h2>
-          {buyPrompted && (
-            <p className="text-sm text-yellow-300 font-bold">
-              AI is deciding whether to buy...
-            </p>
-          )}
+          </motion.h2>      
           <div className="flex justify-center mt-3">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div>
           </div>
-          <p className="text-pink-200 text-xs italic mt-2">
-            {currentPlayer.username} • Decides automatically
-          </p>
+     
         </div>
       )}
 
