@@ -15,6 +15,7 @@ import FarcasterReady from "@/components/FarcasterReady";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
+import QueryProvider from "./QueryProvider";
 
 // Remove the duplicate 'cookies' global variable—it's not needed
 
@@ -65,6 +66,7 @@ export default async function RootLayout({
               {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
               
               {/* ← Use the client wrapper here—no more useMediaQuery! */}
+              <QueryProvider>
               <ClientLayout cookies={cookies}>
                 {children}
               </ClientLayout>
@@ -89,6 +91,7 @@ export default async function RootLayout({
                 }}
               />
               <Toaster position="top-center" />
+              </QueryProvider>
               
               {/* </SocketProvider> */}
             </AppKitProviderWrapper>
