@@ -35,7 +35,7 @@ export default function NetworkSwitcherModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 flex z-[99] items-center justify-center z-[10000]">
+        <div className="fixed inset-0 flex z-[10000] items-center justify-center ">
           <motion.div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm"
             variants={backdropVariants}
