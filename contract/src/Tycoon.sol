@@ -736,12 +736,12 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             houseBalance += houseCut;
 
-            voucherAmount = TOKEN_REWARD;
+            // voucherAmount = TOKEN_REWARD;
 
-            uint8 r = uint8(block.prevrandao % 100);
-            if (r < 50) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
-            else if (r < 80) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
-            else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
+            // uint8 r = uint8(block.prevrandao % 100);
+            // if (r < 50) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
+            // else if (r < 80) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
+            // else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
 
             user.gamesLost++;
         }
@@ -863,8 +863,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
         } else {
             // Loser exit
             _removePlayer(gameId, msg.sender);
-            uint256 rank = claims[gameId][msg.sender];
-            _payoutReward(gameId, msg.sender, rank);
+            // uint256 rank = claims[gameId][msg.sender];
+            // _payoutReward(gameId, msg.sender, rank);
         }
         codeToGame[game.code] = games[gameId];
         emit PlayerExited(gameId, msg.sender);

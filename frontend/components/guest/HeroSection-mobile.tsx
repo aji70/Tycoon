@@ -306,7 +306,7 @@ const handleContinuePrevious = () => {
           {address && registrationStatus === "fully-registered" && (
             <div className="w-full flex flex-col gap-5">
               {/* Continue Previous Game - prominent when available */}
-              {gameCode && (
+              {gameCode && (contractGame?.status == 1) && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative w-full h-14 transition-transform active:scale-[0.98]"

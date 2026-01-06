@@ -46,8 +46,6 @@ const HeroSection: React.FC = () => {
 
   const [user, setUser] = useState<UserType | null>(null);
 
-  console.log("Contract Game: ", contractGame)
-
   // Reset on disconnect
   useEffect(() => {
     if (!address) {
@@ -366,7 +364,7 @@ const handleContinuePrevious = () => {
           {address && registrationStatus === "fully-registered" && (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted */}
-              {gameCode && (
+              {gameCode && (contractGame?.status == 1) && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
