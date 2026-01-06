@@ -199,7 +199,7 @@ const handleContinuePrevious = () => {
   }
 
   return (
-    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12">
+    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12 z-[-1000]">
       {/* Background Image */}
       <div className="absolute inset-0">
         <Image
@@ -213,7 +213,7 @@ const handleContinuePrevious = () => {
       </div>
 
       {/* Content Container */}
-      <div className="relative z-10 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
+      <div className="relative  flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
         {/* Title */}
         <h1 className="font-orbitron font-black text-6xl sm:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center mt-10">
           TYCOON
@@ -296,7 +296,7 @@ const handleContinuePrevious = () => {
                   strokeWidth="2"
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-lg font-orbitron font-bold z-10">
+              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-lg font-orbitron font-bold">
                 {loading || registerPending ? "Registering..." : "Let's Go!"}
               </span>
             </button>
