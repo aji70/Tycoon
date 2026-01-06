@@ -660,6 +660,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
         if (game.joinedPlayers == game.numberOfPlayers) {
             game.status = TycoonLib.GameStatus.Ongoing;
         }
+
+        codeToGame[game.code] = games[gameId];
     }
 
     function _removePlayer(uint256 gameId, address playerToRemove) internal {
@@ -743,6 +745,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             user.gamesLost++;
         }
+
+        codeToGame[game.code] = games[gameId];
 
         rewardSystem.mintVoucher(msg.sender, voucherAmount);
         rewardSystem.mintCollectible(msg.sender, perk, strength);
@@ -854,6 +858,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
             game.winner = msg.sender;
             game.endedAt = uint64(block.timestamp);
 
+
             emit GameEnded(gameId, msg.sender, uint64(block.timestamp));
         } else {
             // Loser exit
@@ -861,7 +866,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
             uint256 rank = claims[gameId][msg.sender];
             _payoutReward(gameId, msg.sender, rank);
         }
-
+        codeToGame[game.code] = games[gameId];
         emit PlayerExited(gameId, msg.sender);
         return true;
     }
@@ -901,16 +906,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return previousGameCode[user];
     }
 
-    function getGamePlayer(uint256 gameId, string memory username)
-        external
-        view
-        returns (TycoonLib.GamePlayer memory)
-    {
-        address addr = users[username].playerAddress;
-        require(addr != address(0), "Not registered");
-        require(gamePlayers[gameId][addr].playerAddress != address(0), "Not in game");
-        return gamePlayers[gameId][addr];
-    }
 
     function getGamePlayerByAddress(uint256 gameId, address player)
         external

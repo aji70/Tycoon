@@ -11,6 +11,7 @@ import {
   useGetUsername,
   useRegisterPlayer,
   usePreviousGameCode,
+  useGetGameByCode,
 } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
@@ -41,7 +42,11 @@ const HeroSection: React.FC = () => {
 
   const { data: gameCode } = usePreviousGameCode(address);
 
+  const { data: contractGame } = useGetGameByCode(gameCode);
+
   const [user, setUser] = useState<UserType | null>(null);
+
+  console.log("Contract Game: ", contractGame)
 
   // Reset on disconnect
   useEffect(() => {
@@ -194,11 +199,15 @@ const HeroSection: React.FC = () => {
     }
   };
 
-  const handleContinuePrevious = () => {
-    if (gameCode) {
-      router.push(`/ai-play?gameCode=${gameCode}`);
-    }
-  };
+const handleContinuePrevious = () => {
+  if (!gameCode) return;
+
+  if (contractGame?.ai) {
+    router.push(`/ai-play?gameCode=${gameCode}`);
+  } else {
+    router.push(`/game-play?gameCode=${gameCode}`);
+  }
+};
 
   if (isConnecting) {
     return (
