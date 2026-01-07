@@ -27,19 +27,14 @@ const ROLL_ANIMATION_MS = 1200;
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 const JAIL_POSITION = 10;
 
-// =============================================
-// BIGGER BOARD - Adaptive scale for mobile
-// =============================================
 const MIN_SCALE = 1.05;
 const MAX_SCALE = 1.05;
-const BASE_WIDTH_REFERENCE = 390; // typical older phone width reference
+const BASE_WIDTH_REFERENCE = 390;
 
 const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
 
-// Precise token positions (in % relative to board container)
-// Bottom-right is GO (position 0), going counter-clockwise
 const TOKEN_POSITIONS: Record<number, { x: number; y: number }> = {
-  0: { x: 91.5, y: 91.5 },   // GO (bottom-right corner)
+  0: { x: 91.5, y: 91.5 },
   1: { x: 81.5, y: 91.5 },
   2: { x: 71.5, y: 91.5 },
   3: { x: 61.5, y: 91.5 },
@@ -49,7 +44,7 @@ const TOKEN_POSITIONS: Record<number, { x: number; y: number }> = {
   7: { x: 21.5, y: 91.5 },
   8: { x: 11.5, y: 91.5 },
   9: { x: 1.5, y: 91.5 },
-  10: { x: 1.5, y: 91.5 },   // Jail / Just Visiting (bottom-left)
+  10: { x: 1.5, y: 91.5 },
   11: { x: 1.5, y: 81.5 },
   12: { x: 1.5, y: 71.5 },
   13: { x: 1.5, y: 61.5 },
@@ -59,7 +54,7 @@ const TOKEN_POSITIONS: Record<number, { x: number; y: number }> = {
   17: { x: 1.5, y: 21.5 },
   18: { x: 1.5, y: 11.5 },
   19: { x: 1.5, y: 1.5 },
-  20: { x: 1.5, y: 1.5 },    // Free Parking (top-left)
+  20: { x: 1.5, y: 1.5 },
   21: { x: 11.5, y: 1.5 },
   22: { x: 21.5, y: 1.5 },
   23: { x: 31.5, y: 1.5 },
@@ -69,7 +64,7 @@ const TOKEN_POSITIONS: Record<number, { x: number; y: number }> = {
   27: { x: 71.5, y: 1.5 },
   28: { x: 81.5, y: 1.5 },
   29: { x: 91.5, y: 1.5 },
-  30: { x: 91.5, y: 1.5 },   // Go To Jail (top-right)
+  30: { x: 91.5, y: 1.5 },
   31: { x: 91.5, y: 11.5 },
   32: { x: 91.5, y: 21.5 },
   33: { x: 91.5, y: 31.5 },
@@ -168,19 +163,14 @@ const MobileGameLayout = ({
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
 
-  // Board zoom & focus control
   const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
   const [isFollowingMyMove, setIsFollowingMyMove] = useState(false);
-
-  // Dynamic board scale based on screen size (bigger on mobile)
   const [defaultScale, setDefaultScale] = useState(1.45);
 
-  // ==== TRADE NOTIFICATION BELL ====
   const [bellFlash, setBellFlash] = useState(false);
   const prevIncomingTradeCount = useRef(0);
 
-  // Fetch trade data (same hook used in sidebar)
   const {
     tradeRequests = [],
     refreshTrades,
@@ -190,7 +180,6 @@ const MobileGameLayout = ({
     players: game?.players ?? [],
   });
 
-  // Incoming trades aimed at the current player (me)
   const myIncomingTrades = useMemo(() => {
     if (!me) return [];
     return tradeRequests.filter(
@@ -198,7 +187,6 @@ const MobileGameLayout = ({
     );
   }, [tradeRequests, me]);
 
-  // Detect new incoming trade and show notification
   useEffect(() => {
     const currentCount = myIncomingTrades.length;
     const previousCount = prevIncomingTradeCount.current;
@@ -254,7 +242,6 @@ const MobileGameLayout = ({
   }, [landedPositionThisTurn.current, properties]);
 
   const { data: contractGame } = useGetGameByCode(game.code);
-
   const onChainGameId = contractGame?.id;
 
   const {
@@ -280,7 +267,7 @@ const MobileGameLayout = ({
     else toast(message, { icon: "➤" });
   }, []);
 
-  const fetchUpdatedGame = useCallback(async () => {
+  const fetchUpdatedGame = useCallback(async (retryDelay = 1000) => {
     try {
       const gameRes = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
       if (gameRes?.data?.success && gameRes.data.data) {
@@ -291,50 +278,24 @@ const MobileGameLayout = ({
       if (propertiesRes?.data?.success && propertiesRes.data.data) {
         setCurrentGameProperties(propertiesRes.data.data);
       }
-      refreshTrades?.();
-    } catch (err) {
+      // Safe trade refresh
+      try {
+        await refreshTrades?.();
+      } catch (err) {
+        console.warn("Failed to refresh trades (non-critical):", err);
+      }
+    } catch (err: any) {
+      if (err.response?.status === 429) {
+        console.warn("Rate limited, retrying after delay...", retryDelay);
+        setTimeout(() => fetchUpdatedGame(retryDelay * 2), retryDelay); // exponential backoff
+        return;
+      }
       console.error("Sync failed:", err);
     }
   }, [game.code, game.id, refreshTrades]);
 
-  // Buy prompt logic
   useEffect(() => {
-    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    const pos = landedPositionThisTurn.current;
-    const square = properties.find(p => p.id === pos);
-
-    if (!square || square.price == null) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
-    const action = PROPERTY_ACTION(pos);
-    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-
-    const canBuy = !isOwned && isBuyableType;
-
-    setBuyPrompted(canBuy);
-
-    if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
-      showToast(`Not enough money to buy ${square.name}`, "error");
-    }
-  }, [
-    roll,
-    landedPositionThisTurn.current,
-    hasMovementFinished,
-    properties,
-    currentGameProperties,
-    currentPlayer,
-    showToast,
-  ]);
-
-  useEffect(() => {
-    const interval = setInterval(fetchUpdatedGame, 3000);
+    const interval = setInterval(fetchUpdatedGame, 8000);
     return () => clearInterval(interval);
   }, [fetchUpdatedGame]);
 
@@ -361,7 +322,6 @@ const MobileGameLayout = ({
     setIsRaisingFunds(false);
   }, [currentPlayerId]);
 
-  // Precise zoom centered on my token during my move only
   useEffect(() => {
     if (!isMyTurn || !roll || !hasMovementFinished) {
       setBoardScale(defaultScale);
@@ -378,7 +338,6 @@ const MobileGameLayout = ({
     setIsFollowingMyMove(true);
   }, [isMyTurn, roll, hasMovementFinished, me, animatedPositions, defaultScale]);
 
-  // Force zoomed out during AI turns
   useEffect(() => {
     if (isAITurn) {
       setBoardScale(defaultScale);
@@ -410,8 +369,6 @@ const MobileGameLayout = ({
 
     landedPositionThisTurn.current = newPosition;
     setIsSpecialMove(isSpecial);
-
-    setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
   }, []);
 
@@ -481,7 +438,7 @@ const MobileGameLayout = ({
             await fetchUpdatedGame();
             showToast("No doubles — still in jail", "error");
             setTimeout(END_TURN, 1000);
-          } catch (err) {
+          } catch {
             showToast("Jail roll failed", "error");
             END_TURN();
           } finally {
@@ -492,9 +449,29 @@ const MobileGameLayout = ({
         return;
       }
 
+      // Doubles - escape jail with animation
       setRoll(value);
+      const currentPos = player.position ?? 0;
       const totalMove = value.total;
-      const newPos = (player.position + totalMove) % BOARD_SQUARES;
+      const newPos = (currentPos + totalMove) % BOARD_SQUARES;
+
+      // Animate escape
+      if (totalMove > 0) {
+        const movePath: number[] = [];
+        for (let i = 1; i <= totalMove; i++) {
+          movePath.push((currentPos + i) % BOARD_SQUARES);
+        }
+
+        for (let i = 0; i < movePath.length; i++) {
+          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          setAnimatedPositions((prev) => ({
+            ...prev,
+            [playerId]: movePath[i],
+          }));
+        }
+      }
+
+      setHasMovementFinished(true);
 
       setTimeout(async () => {
         try {
@@ -508,7 +485,7 @@ const MobileGameLayout = ({
           landedPositionThisTurn.current = newPos;
           await fetchUpdatedGame();
           showToast(`${player.username} rolled doubles and escaped jail!`, "success");
-        } catch (err) {
+        } catch {
           showToast("Escape failed", "error");
         } finally {
           setIsRolling(false);
@@ -521,6 +498,7 @@ const MobileGameLayout = ({
     setIsRolling(true);
     setRoll(null);
     setHasMovementFinished(false);
+    setAnimatedPositions({}); // Clear previous animations
 
     setTimeout(async () => {
       const value = getDiceValues();
@@ -537,7 +515,8 @@ const MobileGameLayout = ({
       const totalMove = value.total + pendingRoll;
       let newPos = (currentPos + totalMove) % BOARD_SQUARES;
 
-      if (totalMove > 0 && !forAI) {
+      // Animate movement for BOTH human and AI
+      if (totalMove > 0) {
         const movePath: number[] = [];
         for (let i = 1; i <= totalMove; i++) {
           movePath.push((currentPos + i) % BOARD_SQUARES);
@@ -583,9 +562,18 @@ const MobileGameLayout = ({
       }
     }, ROLL_ANIMATION_MS);
   }, [
-    isRolling, actionLock, lockAction, unlockAction,
-    currentPlayerId, me, players, pendingRoll, currentGame.id,
-    fetchUpdatedGame, showToast, END_TURN
+    isRolling,
+    actionLock,
+    lockAction,
+    unlockAction,
+    currentPlayerId,
+    me,
+    players,
+    pendingRoll,
+    currentGame.id,
+    fetchUpdatedGame,
+    showToast,
+    END_TURN
   ]);
 
   const getPlayerOwnedProperties = useCallback((playerAddress: string | undefined) => {
@@ -803,7 +791,6 @@ const MobileGameLayout = ({
     return ownedProp?.player_id ?? null;
   }, [currentGameProperties]);
 
-  // Consolidated bankruptcy handling for AI
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
 
@@ -864,7 +851,6 @@ const MobileGameLayout = ({
     getGamePlayerId,
   ]);
 
-  // Human player negative balance → force bankruptcy button (no raising funds)
   useEffect(() => {
     if (!me) return;
 
@@ -873,7 +859,6 @@ const MobileGameLayout = ({
     }
   }, [me?.balance]);
 
-  // Victory detection
   useEffect(() => {
     if (!me) return;
 
@@ -1022,36 +1007,70 @@ const MobileGameLayout = ({
 
   const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
 
+  const declareBankruptcy = async () => {
+    showToast("Declaring bankruptcy...", "default");
 
+    try {
+      if (endGame) await endGame();
 
-    const declareBankruptcy = async () => {
-      showToast("Declaring bankruptcy...", "default");
-  
-      try {
-        if (endGame) await endGame();
-  
-        const opponent = players.find(p => p.user_id !== me?.user_id);
-        await apiClient.put(`/games/${game.id}`, {
-          status: "FINISHED",
-          winner_id: opponent?.user_id || null,
-        });
-  
-        showToast("Game over! You have declared bankruptcy.", "error");
-        setShowBankruptcyModal(true);
-      } catch (err) {
-        showToast("Failed to end game", "error");
-      }
-    };
+      const opponent = players.find(p => p.user_id !== me?.user_id);
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: opponent?.user_id || null,
+      });
+
+      showToast("Game over! You have declared bankruptcy.", "error");
+      setShowBankruptcyModal(true);
+    } catch (err) {
+      showToast("Failed to end game", "error");
+    }
+  };
+
+  // Buy prompt logic
+  useEffect(() => {
+    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const pos = landedPositionThisTurn.current;
+    const square = properties.find(p => p.id === pos);
+
+    if (!square || square.price == null) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+
+    const canBuy = !isOwned && isBuyableType;
+
+    setBuyPrompted(canBuy);
+
+    if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
+      showToast(`Not enough money to buy ${square.name}`, "error");
+    }
+  }, [
+    roll,
+    landedPositionThisTurn.current,
+    hasMovementFinished,
+    properties,
+    currentGameProperties,
+    currentPlayer,
+    showToast,
+  ]);
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
       {/* Refresh Button */}
-      <button
+      {/* <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
       >
         Refresh
-      </button>
+      </button> */}
 
       {/* Bell Notification – Trade Incoming Indicator */}
       <div className="fixed top-4 right-20 z-50 flex items-center">
@@ -1369,18 +1388,6 @@ const MobileGameLayout = ({
         showToast={showToast}
       />
 
-      {/* Bell ring animation keyframes */}
-      <style jsx>{`
-        @keyframes bell-ring {
-          0%, 100% { transform: rotate(0deg); }
-          10%, 30%, 50%, 70%, 90% { transform: rotate(-15deg); }
-          20%, 40%, 60%, 80% { transform: rotate(15deg); }
-        }
-        .animate-bell-ring {
-          animation: bell-ring 0.8s ease-in-out;
-        }
-      `}</style>
-
       <Toaster
         position="top-center"
         reverseOrder={false}
@@ -1403,6 +1410,17 @@ const MobileGameLayout = ({
           error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
+
+      <style jsx>{`
+        @keyframes bell-ring {
+          0%, 100% { transform: rotate(0deg); }
+          10%, 30%, 50%, 70%, 90% { transform: rotate(-15deg); }
+          20%, 40%, 60%, 80% { transform: rotate(15deg); }
+        }
+        .animate-bell-ring {
+          animation: bell-ring 0.8s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 };
