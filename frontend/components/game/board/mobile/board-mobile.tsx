@@ -278,7 +278,7 @@ const MobileGameLayout = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!isRolling && !actionLock) {
+      if (!isRolling) {
         fetchUpdatedGame();
       }
     }, 3000);
