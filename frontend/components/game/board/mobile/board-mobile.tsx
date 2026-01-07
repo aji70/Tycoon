@@ -281,7 +281,7 @@ const MobileGameLayout = ({
       if (!isRolling && !actionLock) {
         fetchUpdatedGame();
       }
-    }, 8000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, isRolling, actionLock]);
