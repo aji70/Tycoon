@@ -5,16 +5,17 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Globe, Menu, X } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
 import WalletConnectModal from './wallet-connect-modal';
 import WalletDisconnectModal from './wallet-disconnect-modal';
 import NetworkSwitcherModal from './network-switcher-modal';
 
-const NavBarMobile = () => {
+const NavBar = () => {
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
@@ -24,10 +25,7 @@ const NavBarMobile = () => {
 
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
-
-  // Use caipNetwork?.name for the full/pretty name (e.g., "Ethereum", "Base", "Polygon")
-  // Falls back to "Chain ${chainId}" for testnets/unknown, then "Change Network"
-  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Change Network');
+  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Network');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [play, { pause }] = useSound('/sound/monopoly-theme.mp3', {
@@ -35,10 +33,10 @@ const NavBarMobile = () => {
     loop: true,
   });
 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const toggleSound = () => {
     if (isSoundPlaying) {
@@ -50,175 +48,195 @@ const NavBarMobile = () => {
     }
   };
 
-  const closeMobileMenu = () => setIsMobileMenuOpen(false);
-
   return (
     <>
-      {/* Scroll Progress Bar */}
+      {/* Progress Bar */}
       <motion.div
-        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] h-[3px] origin-left z-[70]"
+        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] origin-[0%] h-[2px] z-[60]"
         style={{ scaleX }}
       />
 
-      {/* Mobile Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[1000] border-b border-[#003B3E]/50">
-        <Logo className="w-[42px]" image={LogoIcon} href="/" />
+      {/* Desktop Navbar - Hidden on Mobile */}
+      <header className="hidden md:flex w-full h-[87px] items-center justify-between px-8 bg-[linear-gradient(180deg,rgba(1,15,16,0.12)_0%,rgba(8,50,52,0.12)_100%)] backdrop-blur-sm z-50">
+        <Logo className="cursor-pointer w-[50px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-4">
-          {/* Sound Toggle */}
-          <button
-            onClick={toggleSound}
-            className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
-          >
-            {isSoundPlaying ? <Volume2 size={22} /> : <VolumeOff size={22} />}
+          {isConnected && (
+            <>
+              <button className="w-[133px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#AFBAC0]">
+                <PiUserCircle className="w-4 h-4" />
+                <span className="text-xs font-dmSans">0 friends online</span>
+              </button>
+
+              <Link href="/profile" className="w-[80px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]">
+                <User className="w-4 h-4" />
+                <span className="text-xs font-dmSans">Profile</span>
+              </Link>
+
+              <Link href="/game-shop" className="w-[70px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]">
+                <ShoppingBag className="w-4 h-4" />
+                <span className="text-xs font-dmSans">Shop</span>
+              </Link>
+            </>
+          )}
+
+          <Link href="/" className="w-10 h-10 border border-[#0E282A] hover:border-[#003B3E] rounded-xl flex items-center justify-center bg-[#011112]">
+            <House className="w-4 h-4 text-white" />
+          </Link>
+
+          <button onClick={toggleSound} className="w-10 h-10 border border-[#0E282A] hover:border-[#003B3E] rounded-xl flex items-center justify-center bg-[#011112]">
+            {isSoundPlaying ? <Volume2 className="w-4 h-4 text-white" /> : <VolumeOff className="w-4 h-4 text-white" />}
           </button>
 
-          {/* Hamburger Menu */}
-          <button
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 transition"
-          >
-            <Menu size={24} />
-          </button>
+          {/* Wallet Section - Desktop */}
+          {!isConnected ? (
+            <button onClick={() => setIsConnectModalOpen(true)} className="px-6 py-3 rounded-xl bg-[#0FF0FC]/80 hover:bg-[#0FF0FC] text-[#0D191B] font-bold transition">
+              Connect
+            </button>
+          ) : (
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsNetworkModalOpen(true)} className="px-5 py-3 rounded-xl bg-[#003B3E] hover:bg-[#005458] border border-[#00F0FF]/30 text-[#00F0FF] font-orbitron text-sm flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                <span className="truncate max-w-32">{networkDisplay}</span>
+              </button>
+
+              <div className="flex items-center gap-3 px-5 py-3 rounded-xl border border-[#0E282A] bg-[#011112] text-[#00F0FF]">
+                <div className="w-8 h-8 rounded-full border-2 border-[#0FF0FC] overflow-hidden">
+                  <Image src={avatar} alt="Avatar" width={32} height={32} className="object-cover" />
+                </div>
+                <span className="font-orbitron text-sm">
+                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
+                </span>
+              </div>
+
+              <button onClick={() => setIsDisconnectModalOpen(true)} className="px-5 py-3 rounded-xl bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-600/40 font-medium text-sm">
+                Disconnect
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Mobile Bottom Sheet Menu */}
-      {isMobileMenuOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/70 z-[55]"
-            onClick={closeMobileMenu}
-          />
+      {/* Mobile Navbar - Fixed Bottom Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#010F10]/95 backdrop-blur-lg border-t border-[#003B3E]/50">
+        <div className="flex items-center justify-around py-3 px-4">
+          {/* Logo + Home */}
+          <Link href="/" className="flex flex-col items-center gap-1 text-[#00F0FF]">
+            <House className="w-6 h-6" />
+            <span className="text-xs font-dmSans">Home</span>
+          </Link>
 
-          {/* Bottom Sheet */}
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[60] max-h-[90vh] overflow-y-auto"
+          {/* Sound Toggle */}
+          <button onClick={toggleSound} className="flex flex-col items-center gap-1 text-white">
+            {isSoundPlaying ? <Volume2 className="w-6 h-6" /> : <VolumeOff className="w-6 h-6" />}
+            <span className="text-xs font-dmSans">Sound</span>
+          </button>
+
+          {/* Mobile Menu Trigger */}
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="flex flex-col items-center gap-1 text-[#0FF0FC]"
           >
-            <div className="p-6 pb-10">
-              {/* Drag Handle */}
-              <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
+            <Menu className="w-6 h-6" />
+            <span className="text-xs font-dmSans">Menu</span>
+          </button>
 
-              {/* Wallet Section */}
-              {!isConnected ? (
-                <button
-                  onClick={() => {
-                    setIsConnectModalOpen(true);
-                    closeMobileMenu();
-                  }}
-                  className="w-full py-5 rounded-2xl bg-gradient-to-r from-[#00F0FF]/20 to-[#0FF0FC]/20 border border-[#00F0FF]/60 text-[#00F0FF] font-orbitron text-xl font-bold tracking-wide mb-8 hover:from-[#00F0FF]/30 hover:to-[#0FF0FC]/30 transition"
-                >
-                  Connect Wallet
-                </button>
-              ) : (
-                <div className="mb-8 space-y-5">
-                  {/* Connected Address */}
-                  <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full border-3 border-[#0FF0FC] overflow-hidden shadow-lg">
-                        <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover" />
-                      </div>
-                      <span className="text-[#00F0FF] font-orbitron text-lg">
+          {/* Wallet / Connect */}
+          {!isConnected ? (
+            <button
+              onClick={() => setIsConnectModalOpen(true)}
+              className="px-6 py-2 rounded-full bg-[#0FF0FC] text-[#010F10] font-bold text-sm"
+            >
+              Connect
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsNetworkModalOpen(true)}
+              className="flex flex-col items-center gap-1 text-[#00F0FF]"
+            >
+              <Globe className="w-6 h-6" />
+              <span className="text-xs font-orbitron truncate max-w-20">{networkDisplay}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Slide-Up Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-[#010F10]/90 backdrop-blur-md">
+          <div className="absolute bottom-0 left-0 right-0 bg-[#011112] rounded-t-3xl border-t border-[#003B3E] overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-[#003B3E]/50">
+              <Logo className="w-10" image={LogoIcon} href="/" />
+              <button onClick={() => setIsMobileMenuOpen(false)} className="text-white">
+                <X className="w-8 h-8" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {isConnected && (
+                <>
+                  {/* Connected User Info */}
+                  <div className="flex items-center gap-4 p-4 bg-[#0E1415] rounded-xl">
+                    <div className="w-12 h-12 rounded-full border-2 border-[#0FF0FC] overflow-hidden">
+                      <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover" />
+                    </div>
+                    <div>
+                      <p className="text-[#00F0FF] font-orbitron text-sm">
                         {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
-                      </span>
+                      </p>
+                      <p className="text-[#AFBAC0] text-xs font-dmSans">Wallet Connected</p>
                     </div>
                   </div>
 
-                  {/* Network Switcher – Shows the proper network name from caipNetwork.name */}
+                  <Link href="/profile" className="flex items-center gap-4 p-4 bg-[#0E1415] rounded-xl text-[#00F0FF]" onClick={() => setIsMobileMenuOpen(false)}>
+                    <User className="w-6 h-6" />
+                    <span className="font-dmSans">Profile</span>
+                  </Link>
+
+                  <Link href="/game-shop" className="flex items-center gap-4 p-4 bg-[#0E1415] rounded-xl text-[#0FF0FC]" onClick={() => setIsMobileMenuOpen(false)}>
+                    <ShoppingBag className="w-6 h-6" />
+                    <span className="font-dmSans">Shop</span>
+                  </Link>
+
+                  <button className="flex items-center gap-4 p-4 bg-[#0E1415] rounded-xl text-[#AFBAC0] w-full">
+                    <PiUserCircle className="w-6 h-6" />
+                    <span className="font-dmSans">0 friends online</span>
+                  </button>
+
                   <button
                     onClick={() => {
-                      setIsNetworkModalOpen(true);
-                      closeMobileMenu();
+                      setIsDisconnectModalOpen(true);
+                      setIsMobileMenuOpen(false);
                     }}
-                    className="w-full py-5 rounded-2xl bg-[#003B3E]/70 hover:bg-[#003B3E] border border-[#00F0FF]/40 text-[#00F0FF] font-orbitron text-lg flex items-center justify-center gap-4 transition"
+                    className="w-full py-4 rounded-xl bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-600/40 font-medium"
                   >
-                    <Globe size={24} />
-                    <span className="truncate max-w-[200px]">
-                      {networkDisplay}
-                    </span>
+                    Disconnect Wallet
                   </button>
-                </div>
+                </>
               )}
 
-              {/* Navigation Links */}
-              <nav className="space-y-4 mb-10">
-                <Link
-                  href="/"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition"
-                >
-                  <House size={24} />
-                  Home
-                </Link>
-
-                {isConnected && (
-                  <>
-                    <Link
-                      href="/profile"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
-                    >
-                      <User size={24} />
-                      Profile
-                    </Link>
-
-                    <Link
-                      href="/game-shop"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition"
-                    >
-                      <ShoppingBag size={24} />
-                      Shop
-                    </Link>
-                  </>
-                )}
-              </nav>
-
-              {/* Disconnect Button */}
-              {isConnected && (
+              {!isConnected && (
                 <button
                   onClick={() => {
-                    setIsDisconnectModalOpen(true);
-                    closeMobileMenu();
+                    setIsConnectModalOpen(true);
+                    setIsMobileMenuOpen(false);
                   }}
-                  className="w-full py-5 rounded-2xl bg-red-900/40 hover:bg-red-900/60 border border-red-600/50 text-red-400 font-orbitron text-lg font-medium transition"
+                  className="w-full py-4 rounded-xl bg-[#0FF0FC] text-[#010F10] font-bold"
                 >
-                  Disconnect Wallet
+                  Connect Wallet
                 </button>
               )}
-
-              {/* Close Button */}
-              <button
-                onClick={closeMobileMenu}
-                className="absolute top-5 right-5 w-10 h-10 rounded-full bg-[#011112]/70 flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
-              >
-                <X size={26} />
-              </button>
             </div>
-          </motion.div>
-        </>
+          </div>
+        </div>
       )}
 
       {/* Modals */}
-      <NetworkSwitcherModal
-        isOpen={isNetworkModalOpen}
-        onClose={() => setIsNetworkModalOpen(false)}
-      />
-      <WalletConnectModal
-        isOpen={isConnectModalOpen}
-        onClose={() => setIsConnectModalOpen(false)}
-      />
-      <WalletDisconnectModal
-        isOpen={isDisconnectModalOpen}
-        onClose={() => setIsDisconnectModalOpen(false)}
-      />
+      <NetworkSwitcherModal isOpen={isNetworkModalOpen} onClose={() => setIsNetworkModalOpen(false)} />
+      <WalletConnectModal isOpen={isConnectModalOpen} onClose={() => setIsConnectModalOpen(false)} />
+      <WalletDisconnectModal isOpen={isDisconnectModalOpen} onClose={() => setIsDisconnectModalOpen(false)} />
     </>
   );
 };
 
-export default NavBarMobile;
+export default NavBar;

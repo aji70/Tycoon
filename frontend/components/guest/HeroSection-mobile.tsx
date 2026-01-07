@@ -18,29 +18,21 @@ import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 
-const HeroSectionMobile: React.FC = () => {
+const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
 
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
-
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
 
   const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
-  const {
-    data: isUserRegistered,
-    isLoading: isRegisteredLoading,
-  } = useIsRegistered(address);
-
+  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
   const { data: fetchedUsername } = useGetUsername(address);
-
   const { data: gameCode } = usePreviousGameCode(address);
-
   const { data: contractGame } = useGetGameByCode(gameCode);
-  
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -63,32 +55,22 @@ const HeroSectionMobile: React.FC = () => {
     const fetchUser = async () => {
       try {
         const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Base`);
-
         if (!isActive) return;
-
-        if (res.success && res.data) {
-          setUser(res.data as UserType);
-        } else {
-          setUser(null);
-        }
+        if (res.success && res.data) setUser(res.data as UserType);
+        else setUser(null);
       } catch (error: any) {
         if (!isActive) return;
-        if (error?.response?.status === 404) {
-          setUser(null);
-        }
+        if (error?.response?.status === 404) setUser(null);
+        else console.error("Error fetching user:", error);
       }
     };
 
     fetchUser();
-
-    return () => {
-      isActive = false;
-    };
+    return () => { isActive = false; };
   }, [address]);
 
   const registrationStatus = useMemo(() => {
     if (!address) return "disconnected";
-
     const hasBackend = !!user;
     const hasOnChain = !!isUserRegistered || localRegistered;
 
@@ -98,31 +80,18 @@ const HeroSectionMobile: React.FC = () => {
   }, [address, user, isUserRegistered, localRegistered]);
 
   const displayUsername = useMemo(() => {
-    return (
-      user?.username ||
-      localUsername ||
-      fetchedUsername ||
-      inputUsername ||
-      "Player"
-    );
+    return user?.username || localUsername || fetchedUsername || inputUsername || "Player";
   }, [user, localUsername, fetchedUsername, inputUsername]);
 
   const handleRegister = async () => {
-    if (!address) {
-      toast.error("Please connect your wallet");
-      return;
-    }
+    if (!address) return toast.error("Please connect your wallet");
 
     let finalUsername = inputUsername.trim();
-
     if (registrationStatus === "backend-only" && user?.username) {
       finalUsername = user.username.trim();
     }
 
-    if (!finalUsername) {
-      toast.warn("Please enter a username");
-      return;
-    }
+    if (!finalUsername) return toast.warn("Please enter a username");
 
     setLoading(true);
     const toastId = toast.loading("Processing registration...");
@@ -138,7 +107,6 @@ const HeroSectionMobile: React.FC = () => {
           address,
           chain: "Base",
         });
-
         if (!res?.success) throw new Error("Failed to save user on backend");
         setUser({ username: finalUsername } as UserType);
       }
@@ -155,40 +123,29 @@ const HeroSectionMobile: React.FC = () => {
 
       router.refresh();
     } catch (err: any) {
+      let message = "Registration failed. Try again.";
       if (err?.code === 4001 || err?.message?.includes("User rejected")) {
-        toast.update(toastId, {
-          render: "Transaction cancelled",
-          type: "info",
-          isLoading: false,
-          autoClose: 3500,
-        });
-        return;
+        message = "Transaction cancelled";
+      } else if (err?.message?.includes("insufficient funds")) {
+        message = "Insufficient gas funds";
+      } else if (err?.shortMessage) {
+        message = err.shortMessage;
       }
 
-      let message = "Registration failed. Try again.";
-      if (err?.shortMessage) message = err.shortMessage;
-      if (err?.message?.includes("insufficient funds")) message = "Insufficient gas funds";
-
-      toast.update(toastId, {
-        render: message,
-        type: "error",
-        isLoading: false,
-        autoClose: 6000,
-      });
+      toast.update(toastId, { render: message, type: err?.code === 4001 ? "info" : "error", isLoading: false, autoClose: 5000 });
     } finally {
       setLoading(false);
     }
   };
 
-const handleContinuePrevious = () => {
-  if (!gameCode) return;
-
-  if (contractGame?.ai) {
-    router.push(`/ai-play?gameCode=${gameCode}`);
-  } else {
-    router.push(`/game-play?gameCode=${gameCode}`);
-  }
-};
+  const handleContinuePrevious = () => {
+    if (!gameCode) return;
+    if (contractGame?.ai) {
+      router.push(`/ai-play?gameCode=${gameCode}`);
+    } else {
+      router.push(`/game-play?gameCode=${gameCode}`);
+    }
+  };
 
   if (isConnecting) {
     return (
@@ -199,219 +156,174 @@ const handleContinuePrevious = () => {
   }
 
   return (
-    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12 z-[999]">
+    <section className="relative w-full min-h-screen bg-[#010F10] overflow-hidden">
       {/* Background Image */}
-      <div className="absolute inset-0">
-        <Image
-          src={herobg}
-          alt="Hero Background"
-          fill
-          className="object-cover hero-bg-zoom"
-          priority
-          quality={90}
-        />
+      <Image
+        src={herobg}
+        alt="Hero Background"
+        fill
+        className="object-cover hero-bg-zoom"
+        priority
+        quality={80}
+      />
+
+      {/* Big TYCOON Title (Top) */}
+      <div className="absolute top-0 left-0 w-full flex items-center justify-center pt-16 sm:pt-20">
+        <h1 className="uppercase font-kronaOne text-transparent text-[48px] sm:text-[60px] md:text-[80px] lg:text-[135px] leading-none bg-clip-text bg-gradient-to-b from-[#00F0FF]/50 to-transparent">
+          TYCOON
+        </h1>
       </div>
 
-      {/* Content Container */}
-      <div className="relative z-10 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
-        {/* Title */}
-        <h1 className="font-orbitron font-black text-6xl sm:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center mt-10">
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 pb-10 pt-32 sm:pt-40">
+        {/* Welcome / Loading */}
+        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") && !loading && (
+          <p className="font-orbitron text-[#00F0FF] text-xl sm:text-2xl font-bold text-center mb-4">
+            Welcome back, {displayUsername}!
+          </p>
+        )}
+        {loading && (
+          <p className="font-orbitron text-[#00F0FF] text-xl sm:text-2xl font-bold text-center mb-4">
+            Registering... Please wait.
+          </p>
+        )}
+
+        {/* Tagline Animation */}
+        <TypeAnimation
+          sequence={[
+            "Conquer", 1200,
+            "Conquer • Build", 1200,
+            "Conquer • Build • Trade On", 1800,
+            "Play Solo vs AI", 2000,
+            "Conquer • Build", 1000,
+            "Conquer", 1000,
+            "", 500,
+          ]}
+          wrapper="p"
+          speed={40}
+          repeat={Infinity}
+          className="font-orbitron text-[#F0F7F7] text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-2"
+        />
+
+        {/* Main TYCOON + ? */}
+        <h1 className="font-orbitron font-black text-[#17ffff] text-6xl sm:text-7xl md:text-8xl lg:text-[116px] leading-tight tracking-tight">
           TYCOON
-          <span className="absolute -top-1 -right-6 text-[#0FF0FC] font-dmSans font-bold text-3xl rotate-12 animate-pulse">
+          <span className="absolute -top-2 sm:top-0 left-[68%] text-[#0FF0FC] text-4xl sm:text-5xl font-dmSans font-bold rotate-12 animate-pulse">
             ?
           </span>
         </h1>
 
-        {/* Welcome / Loading message */}
-        <div className="mt-6 text-center">
-          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") &&
-            !loading && (
-              <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
-                Welcome back, {displayUsername}!
-              </p>
-            )}
-
-          {loading && (
-            <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
-              Registering... Please wait
-            </p>
-          )}
-        </div>
-
-        {/* Animated phrase */}
-        <div className="mt-5">
+        {/* Description Animation */}
+        <div className="max-w-lg text-center mt-6">
           <TypeAnimation
             sequence={[
-              "Conquer", 1200,
-              "Conquer • Build", 1200,
-              "Conquer • Build • Trade", 1800,
-              "Play Solo vs AI", 2000,
-              "Conquer • Build", 1000,
-              "Conquer", 1000,
-              "", 500,
+              "Roll the dice", 2000,
+              "Buy properties", 2000,
+              "Collect rent", 2000,
+              "Play against AI opponents", 2200,
+              "Become the top tycoon", 2000,
             ]}
-            wrapper="span"
-            speed={45}
+            wrapper="p"
+            speed={50}
             repeat={Infinity}
-            className="font-orbitron text-2xl sm:text-3xl font-bold text-[#F0F7F7] text-center block"
+            className="font-orbitron text-[#F0F7F7] text-lg sm:text-xl md:text-2xl font-bold"
           />
+          <p className="font-dmSans text-[#F0F7F7]/90 text-sm sm:text-base mt-4 leading-relaxed px-2">
+            Step into Tycoon — the Web3 twist on the classic game of strategy, ownership, and fortune. Play solo against AI, compete in multiplayer rooms, collect tokens, complete quests, and become the ultimate blockchain tycoon.
+          </p>
         </div>
 
-        {/* Short description */}
-        <p className="mt-6 text-center text-[#DDEEEE] text-base leading-relaxed max-w-[340px] font-dmSans">
-          Roll the dice • Buy properties • Collect rent •
-          Play against AI • Become the top tycoon
-        </p>
-
-        {/* Main action area */}
-        <div className="mt-10 w-full max-w-[380px] flex flex-col items-center gap-6">
-          {/* Username input - only for new users */}
+        {/* Action Area */}
+        <div className="w-full max-w-md flex flex-col items-center mt-10 gap-5">
+          {/* Username Input - Only for new users */}
           {address && registrationStatus === "none" && !loading && (
             <input
               type="text"
               value={inputUsername}
               onChange={(e) => setInputUsername(e.target.value)}
               placeholder="Choose your tycoon name"
-              className="w-full h-12 bg-[#0E1415]/80 backdrop-blur-sm rounded-xl border border-[#004B4F] outline-none px-5 text-[#17ffff] font-orbitron text-base text-center placeholder:text-[#6B8A8F] placeholder:font-dmSans"
+              className="w-full max-w-xs h-12 bg-[#0E1415]/80 rounded-xl border border-[#003B3E] px-4 text-[#17ffff] text-center placeholder:text-[#455A64] focus:outline-none focus:border-[#00F0FF] text-base"
             />
           )}
 
-          {/* Register button */}
+          {/* Register Button */}
           {address && registrationStatus !== "fully-registered" && !loading && (
             <button
               onClick={handleRegister}
               disabled={loading || registerPending || (registrationStatus === "none" && !inputUsername.trim())}
-              className="relative w-full h-14 disabled:opacity-60 transition-transform active:scale-[0.98]"
+              className="w-full max-w-xs h-14 relative overflow-hidden rounded-xl disabled:opacity-60"
             >
-              <svg
-                className="absolute inset-0 w-full h-full"
-                viewBox="0 0 300 56"
-                fill="none"
-                preserveAspectRatio="none"
-              >
+              <svg width="100%" height="100%" viewBox="0 0 280 56" fill="none" className="absolute inset-0">
                 <path
-                  d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                  d="M12 1H268C273.373 1 276 7.85486 273.601 12.5127L250.167 54.5127C249.151 56.0646 247.42 57 245.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
                   fill="#00F0FF"
                   stroke="#0E282A"
-                  strokeWidth="2"
+                  strokeWidth={2}
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-lg font-orbitron font-bold z-10">
+              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-lg font-orbitron font-bold">
                 {loading || registerPending ? "Registering..." : "Let's Go!"}
               </span>
             </button>
           )}
 
-          {/* Registered user actions */}
+          {/* Buttons for Registered Users */}
           {address && registrationStatus === "fully-registered" && (
-            <div className="w-full flex flex-col gap-5">
-              {/* Continue Previous Game - prominent when available */}
-              {gameCode && (contractGame?.status == 1) && (
+            <div className="flex flex-col w-full gap-4">
+              {/* Continue Game - Primary */}
+              {gameCode && contractGame?.status == 1 && (
                 <button
                   onClick={handleContinuePrevious}
-                  className="relative w-full h-14 transition-transform active:scale-[0.98]"
+                  className="w-full h-14 relative overflow-hidden rounded-xl"
                 >
-                  <svg
-                    className="absolute inset-0 w-full h-full"
-                    viewBox="0 0 300 56"
-                    fill="none"
-                    preserveAspectRatio="none"
-                  >
-                    <path
-                      d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                      fill="#00F0FF"
-                      stroke="#0E282A"
-                      strokeWidth="2.5"
-                    />
+                  <svg width="100%" height="100%" viewBox="0 0 320 56" fill="none" className="absolute inset-0 animate-pulse">
+                    <path d="M12 1H308C313.373 1 316 7.85486 313.601 12.5127L290.167 54.5127C289.151 56.0646 287.42 57 285.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={2} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold gap-2">
-                    <Gamepad2 size={20} />
-                    Continue Game
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-xl font-orbitron font-bold">
+                    <Gamepad2 className="mr-2 w-8 h-8" /> Continue Game
                   </span>
                 </button>
               )}
 
-              {/* Secondary buttons grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => router.push("/game-settings")}
-                  className="relative h-12 transition-transform active:scale-[0.97]"
-                >
-                  <svg
-                    className="absolute inset-0 w-full h-full"
-                    viewBox="0 0 227 48"
-                    fill="none"
-                    preserveAspectRatio="none"
-                  >
-                    <path
-                      d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                      fill="#003B3E"
-                      stroke="#004B4F"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-xs font-medium gap-1.5">
-                    <Gamepad2 size={16} />
-                    Multiplayer
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => router.push("/join-room")}
-                  className="relative h-12 transition-transform active:scale-[0.97]"
-                >
-                  <svg
-                    className="absolute inset-0 w-full h-full"
-                    viewBox="0 0 140 48"
-                    fill="none"
-                    preserveAspectRatio="none"
-                  >
-                    <path
-                      d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                      fill="#0E1415"
-                      stroke="#004B4F"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] text-xs font-medium gap-1.5">
-                    <Dices size={16} />
-                    Join
-                  </span>
-                </button>
-              </div>
-
-              {/* Challenge AI - always visible and prominent */}
+              {/* Challenge AI - Primary */}
               <button
                 onClick={() => router.push("/play-ai")}
-                className="relative w-full h-14 transition-transform active:scale-[0.98]"
+                className="w-full h-14 relative overflow-hidden rounded-xl"
               >
-                <svg
-                  className="absolute inset-0 w-full h-full"
-                  viewBox="0 0 300 56"
-                  fill="none"
-                  preserveAspectRatio="none"
-                >
-                  <path
-                    d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth="2.5"
-                  />
+                <svg width="100%" height="100%" viewBox="0 0 280 56" fill="none" className="absolute inset-0">
+                  <path d="M12 1H268C273.373 1 276 7.85486 273.601 12.5127L250.167 54.5127C249.151 56.0646 247.42 57 245.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={2} />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-lg font-orbitron font-bold uppercase">
                   Challenge AI!
                 </span>
               </button>
+
+              {/* Secondary Actions Row */}
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => router.push("/game-settings")}
+                  className="flex-1 h-12 bg-[#003B3E]/50 border border-[#003B3E] rounded-lg flex items-center justify-center text-[#00F0FF] text-sm font-dmSans font-medium hover:border-[#00F0FF] transition"
+                >
+                  <Gamepad2 className="mr-2 w-5 h-5" /> Multiplayer
+                </button>
+                <button
+                  onClick={() => router.push("/join-room")}
+                  className="flex-1 h-12 bg-[#0E1415]/80 border border-[#003B3E] rounded-lg flex items-center justify-center text-[#0FF0FC] text-sm font-dmSans font-medium hover:border-[#00F0FF] transition"
+                >
+                  <Dices className="mr-2 w-5 h-5" /> Join Room
+                </button>
+              </div>
             </div>
           )}
 
-          {!address && !loading && (
-            <p className="text-gray-400 text-sm text-center mt-6">
-              Connect your wallet to start playing
+          {!address && (
+            <p className="text-gray-400 text-center mt-6 text-sm">
+              Please connect your wallet to continue.
             </p>
           )}
         </div>
-      </div>
+      </main>
     </section>
   );
 };
 
-export default HeroSectionMobile;
+export default HeroSection;
