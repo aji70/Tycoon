@@ -6,7 +6,7 @@ import GamePlayers from "@/components/game/ai-player/ai-player";
 import GamePlayersMobile from "@/components/game/ai-player/mobile/ai-player";
 
 import { apiClient } from "@/lib/api";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
@@ -14,13 +14,19 @@ import { useQuery } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 
-import { LayoutGrid, Users, Loader2 } from "lucide-react";
+import { LayoutGrid, Users, Loader2, AlertCircle } from "lucide-react";
+import { useIsRegistered } from "@/context/ContractProvider";
 
 export default function GamePlayPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [gameCode, setGameCode] = useState<string>("");
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { address } = useAccount();
+  const {
+    data: isUserRegistered,
+    isLoading: isRegisteredLoading,
+  } = useIsRegistered(address);
 
   useEffect(() => {
     const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
@@ -29,6 +35,29 @@ export default function GamePlayPage() {
       localStorage.setItem("gameCode", code);
     }
   }, [searchParams]);
+
+  // If not registered → show message and redirect option
+  if (!isRegisteredLoading && isUserRegistered === false) {
+    return (
+      <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center gap-8 px-8 text-center">
+        <AlertCircle className="w-20 h-20 text-red-400" />
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Registration Required
+          </h2>
+          <p className="text-lg text-gray-300 max-w-md">
+            You need to register your wallet before joining or playing any game.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push("/")}
+          className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all transform hover:scale-105"
+        >
+          Go to Home Page
+        </button>
+      </div>
+    );
+  }
 
   const {
     data: game,
@@ -42,7 +71,7 @@ export default function GamePlayPage() {
       if (!res.data?.success) throw new Error("Game not found");
       return res.data.data;
     },
-    enabled: !!gameCode,
+    enabled: !!gameCode && isUserRegistered === true,
     refetchInterval: 5000,
     staleTime: 3000,
   });
@@ -70,7 +99,6 @@ export default function GamePlayPage() {
 
   const {
     data: game_properties = [],
-    isLoading: gamePropertiesLoading,
   } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
     queryFn: async () => {
@@ -93,7 +121,6 @@ export default function GamePlayPage() {
       .sort((a, b) => a.id - b.id);
   }, [game_properties, properties, address]);
 
-  // Compute current player and AI status
   const currentPlayer = useMemo<Player | null>(() => {
     if (!game?.next_player_id || !game?.players) return null;
     return game.players.find(p => p.user_id === game.next_player_id) || null;
@@ -105,13 +132,11 @@ export default function GamePlayPage() {
     return username.includes("ai_") || username.includes("bot") || username.includes("computer");
   }, [currentPlayer]);
 
-  // roll is not available here (managed inside AiBoard), so pass null
-  // The AI liquidation uses low balance as trigger, so null is safe
   const roll = null;
 
   const [activeTab, setActiveTab] = useState<"board" | "players">("board");
 
-  if (gameLoading || propertiesLoading) {
+  if (isRegisteredLoading || gameLoading || propertiesLoading) {
     return (
       <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
         <Loader2 className="w-12 h-12 animate-spin" />
@@ -127,6 +152,12 @@ export default function GamePlayPage() {
         <p className="text-gray-300">
           Invalid or expired game code. Please check and try again.
         </p>
+        <button
+          onClick={() => router.push("/")}
+          className="mt-8 px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all"
+        >
+          Go Home
+        </button>
       </div>
     );
   }
@@ -145,14 +176,14 @@ export default function GamePlayPage() {
             />
           ) : (
             <GamePlayersMobile
-                game={game}
-          properties={properties}
-          game_properties={game_properties}
-          my_properties={my_properties}
-          me={me}
-          currentPlayer={currentPlayer}
-          roll={roll}
-          isAITurn={isAITurn}
+              game={game}
+              properties={properties}
+              game_properties={game_properties}
+              my_properties={my_properties}
+              me={me}
+              currentPlayer={currentPlayer}
+              roll={roll}
+              isAITurn={isAITurn}
             />
           )}
         </div>
