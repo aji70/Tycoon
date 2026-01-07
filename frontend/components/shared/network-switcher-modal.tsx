@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { X, Globe } from "lucide-react";
-import { useAppKit } from "@reown/appkit/react";
+import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 
 interface NetworkSwitcherModalProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ export default function NetworkSwitcherModal({
   onClose,
 }: NetworkSwitcherModalProps) {
   const { open } = useAppKit();
+  const { isConnected } = useAppKitAccount();
 
   const handleOpenNetworkSelector = () => {
     open({ view: "Networks" }); // Opens Reown's native network switcher
@@ -35,7 +36,7 @@ export default function NetworkSwitcherModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 flex z-[10000] items-center justify-center ">
+        <div className="fixed inset-0 flex z-[99] items-center justify-center ">
           <motion.div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             variants={backdropVariants}
@@ -72,6 +73,7 @@ export default function NetworkSwitcherModal({
               </p>
 
               <button
+              type="button"
                 onClick={handleOpenNetworkSelector}
                 className="w-full py-4 px-6 bg-[#0FF0FC]/80 hover:bg-[#0FF0FC] text-[#0D191B] font-bold text-lg rounded-[12px] transition-all"
               >
