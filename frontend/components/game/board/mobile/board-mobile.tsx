@@ -250,7 +250,6 @@ const MobileGameLayout = ({
   }, []);
 
   const isFetching = useRef(false);
-  const backoffDelay = useRef(8000); // Start with base delay
 
   const fetchUpdatedGame = useCallback(async () => {
     if (isFetching.current) return;
@@ -270,24 +269,19 @@ const MobileGameLayout = ({
         setCurrentGameProperties(propertiesRes.data.data);
       }
       refreshTrades?.();
-      backoffDelay.current = 8000; // Reset backoff on success
-    } catch (err: any) {
+    } catch (err) {
       console.error("Sync failed:", err);
-      if (err.response?.status === 429) {
-        showToast("Rate limit hit - retrying later", "error");
-        backoffDelay.current = Math.min(backoffDelay.current * 2, 60000); // Exponential backoff, max 60s
-      }
     } finally {
       isFetching.current = false;
     }
-  }, [game.code, game.id, refreshTrades, showToast]);
+  }, [game.code, game.id, refreshTrades]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isRolling && !actionLock) {
         fetchUpdatedGame();
       }
-    }, backoffDelay.current); // Use dynamic backoff delay
+    }, 8000);
 
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, isRolling, actionLock]);
@@ -1044,7 +1038,7 @@ const MobileGameLayout = ({
 
               return (
                 <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
-                    ${Number(balance).toLocaleString()} 
+                  ${Number(balance).toLocaleString()}
                 </span>
               );
             })()}
