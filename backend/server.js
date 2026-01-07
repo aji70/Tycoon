@@ -18,6 +18,7 @@ import chancesRoutes from "./routes/chances.js";
 import communityChestsRoutes from "./routes/community-chests.js";
 import propertiesRoutes from "./routes/properties.js";
 import gameTradeRequestRoutes from "./routes/game-trade-requests.js";
+import waitlistsRoutes from "./routes/waitlists.js";
 
 // Import perk controller (make sure this file exists!)
 import gamePerkController from "./controllers/gamePerkController.js";
@@ -90,6 +91,7 @@ app.use("/api/game-properties", gamePropertiesRoutes);
 app.use("/api/chances", chancesRoutes);
 app.use("/api/community-chests", communityChestsRoutes);
 app.use("/api/properties", propertiesRoutes);
+app.use("/api/waitlist", waitlistsRoutes);
 
 // 🔥 NEW: Perk Routes (this was missing!)
 app.post("/api/perks/activate", gamePerkController.activatePerk);
