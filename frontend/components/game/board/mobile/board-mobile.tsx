@@ -769,26 +769,6 @@ const MobileGameLayout = ({
     }
   };
 
-  useEffect(() => {
-    if (!me) return;
-
-    const aiPlayers = players.filter(p => isAIPlayer(p));
-    const humanPlayer = me;
-
-    const shouldDeclareVictory =
-      (players.length === 1 && players[0].user_id === me.user_id) ||
-      (players.length === 2 && aiPlayers.every(ai => ai.balance <= 0) && humanPlayer.balance > 0);
-
-    if (shouldDeclareVictory) {
-      setWinner(humanPlayer);
-      setEndGameCandidate({
-        winner: humanPlayer,
-        position: humanPlayer.position ?? 0,
-        balance: BigInt(humanPlayer.balance),
-      });
-      setShowVictoryModal(true);
-    }
-  }, [players, me]);
 
   useEffect(() => {
     if (!currentGame || currentGame.status === "FINISHED" || !me) return;
