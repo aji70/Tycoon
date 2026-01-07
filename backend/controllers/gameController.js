@@ -197,15 +197,16 @@ const gameController = {
       res.status(200).json({ success: false, message: error.message });
     }
   },
-
   async findActive(req, res) {
     try {
-      const { limit, offset } = req.query;
+      const { limit, offset, timeframe } = req.query;
+
       const games = await Game.findActiveGames({
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
+        timeframe: timeframe ? Number(timeframe) : null,
       });
-      // Eager load settings for each game
+
       const withSettingsAndPlayers = await Promise.all(
         games.map(async (g) => ({
           ...g,
@@ -220,7 +221,10 @@ const gameController = {
         data: withSettingsAndPlayers,
       });
     } catch (error) {
-      res.status(200).json({ success: false, message: error.message });
+      res.status(200).json({
+        success: false,
+        message: error.message,
+      });
     }
   },
 

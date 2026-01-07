@@ -58,11 +58,25 @@ const Game = {
       .offset(offset);
   },
 
-  async findActiveGames({ limit = 50, offset = 0 } = {}) {
+  async _findActiveGames({ limit = 50, offset = 0 } = {}) {
     return db("games")
       .whereIn("status", ["PENDING", "RUNNING"])
       .limit(limit)
       .offset(offset);
+  },
+  async findActiveGames({ limit = 50, offset = 0, timeframe = null } = {}) {
+    const query = db("games").whereIn("status", ["PENDING", "RUNNING"]);
+
+    // ⏱️ Timeframe filter (minutes)
+    if (timeframe && Number(timeframe) > 0) {
+      query.andWhere(
+        "created_at",
+        ">=",
+        db.raw("NOW() - INTERVAL ? MINUTE", [Number(timeframe)])
+      );
+    }
+
+    return query.orderBy("created_at", "desc").limit(limit).offset(offset);
   },
 };
 
