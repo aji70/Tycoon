@@ -213,7 +213,7 @@ const handleContinuePrevious = () => {
       </div>
 
       {/* Content Container */}
-      <div className="relative -z-0 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
+      <div className="w-full relative -z-0 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
         {/* Title */}
         <h1 className="font-orbitron font-black text-6xl sm:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center mt-10">
           TYCOON
