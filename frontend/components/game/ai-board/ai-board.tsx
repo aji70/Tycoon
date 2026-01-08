@@ -693,9 +693,6 @@ const endTurnAfterSpecialMove = useCallback(() => {
       const currentPos = player.position ?? 0;
       const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
 
-      console.log("player in jail", isInJail)
-
-
       let newPos = currentPos;
       let shouldAnimate = false;
 

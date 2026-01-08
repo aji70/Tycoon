@@ -955,7 +955,6 @@ const handleAiStrategy = async () => {
       return false;
     }
   };
-console.log("Me: ", me)
   const getGamePlayerId = useCallback((walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
     const ownedProp = currentGameProperties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
