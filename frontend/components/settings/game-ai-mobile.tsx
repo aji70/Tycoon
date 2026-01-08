@@ -247,10 +247,12 @@ export default function PlayWithAIMobile() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">1 AI</SelectItem>
-                <SelectItem value="2">2 AI</SelectItem>
-                <SelectItem value="3">3 AI</SelectItem>
-                <SelectItem value="6">6 AI</SelectItem>
+                 <SelectItem value="1">1 AI</SelectItem>
+                                 <SelectItem value="2">2 AI</SelectItem>
+                                 <SelectItem value="3">3 AI</SelectItem>
+                                 <SelectItem value="4">4 AI</SelectItem>
+                                 <SelectItem value="5">5 AI</SelectItem>
+                                 <SelectItem value="6">6 AI</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -1,11 +1,11 @@
 // components/game/Board.tsx
 import React, { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import PropertyCardMobile from "../../cards/property-card-mobile";
 import SpecialCard from "../../cards/special-card";
 import CornerCard from "../../cards/corner-card";
 import { getPlayerSymbol, getPlayerSymbolData } from "@/lib/types/symbol";
 import { GameProperty, Property, Player } from "@/types/game";
+import PropertyCard from "../../cards/property-card";
 
 interface BoardProps {
   properties: Property[];
@@ -115,7 +115,7 @@ const Board: React.FC<BoardProps> = ({
               onClick={() => isClickable && onPropertyClick?.(square.id)}
             >
               <div className={`w-full h-full transform group-hover:scale-150 ${isTopRow(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5 relative ${isClickable ? 'cursor-pointer' : ''}`}>
-                {square.type === "property" && <PropertyCardMobile square={square} owner={propertyOwner(square.id)} />}
+                {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
                 {["community_chest", "chance", "luxury_tax", "income_tax"].includes(square.type) && <SpecialCard square={square} />}
                 {square.type === "corner" && <CornerCard square={square} />}
 

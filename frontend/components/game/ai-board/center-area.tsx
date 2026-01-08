@@ -108,11 +108,6 @@ export default function CenterArea({
           >
             {currentPlayer?.username} is playing…
           </motion.h2>
-          {buyPrompted && buyScore !== null && (
-            <p className="text-lg text-yellow-300 font-bold">
-              Buy Confidence: {buyScore}%
-            </p>
-          )}
           <div className="flex justify-center mt-4">
             <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
           </div>

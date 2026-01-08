@@ -561,6 +561,11 @@ useEffect(() => {
       }
 
       // Now remove the AI player
+          await apiClient.post("/game-players/end-turn", {
+              user_id: currentPlayer.user_id,
+              game_id: game.id,
+            });
+
       await apiClient.post("/game-players/leave", {
         address: currentPlayer.address,
         code: game.code,
