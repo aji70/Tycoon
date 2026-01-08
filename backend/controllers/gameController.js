@@ -36,7 +36,7 @@ const gameController = {
         status: "PENDING",
       });
 
-      const chat = await Chat({
+      const chat = await Chat.create({
         game_id: game.id,
         status: "open"
       });
