@@ -3,17 +3,14 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
-import { useAccount } from "wagmi";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import PlayerList from "./player-list";
 import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../../modals/property-action";
 import { AiResponsePopup } from "../../modals/ai-response";
-import { VictoryModal } from "../../modals/victory";
 import { TradeModal } from "../../modals/trade-mobile";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
@@ -35,7 +32,6 @@ export default function MobileGamePlayers({
   my_properties,
   me,
 }: GamePlayersProps) {
-  const { address } = useAccount();
 
   const [sectionOpen, setSectionOpen] = useState({
     players: true,
@@ -51,41 +47,13 @@ export default function MobileGamePlayers({
     open: false,
     trade: null,
   });
-  const [aiResponsePopup, setAiResponsePopup] = useState<any | null>(null);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [winner, setWinner] = useState<Player | null>(null);
-  const [endGameCandidate, setEndGameCandidate] = useState<{
-    winner: Player | null;
-    position: number;
-    balance: bigint;
-  }>({ winner: null, position: 0, balance: BigInt(0) });
-
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
   const [showEmpire, setShowEmpire] = useState(true);
   const [showTrade, setShowTrade] = useState(false);
-
- const { data: contractGame } = useGetGameByCode(game.code);
- 
- // Extract the on-chain game ID (it's a bigint now)
- const onChainGameId = contractGame?.id;
- 
- // Hook for ending an AI game and claiming rewards
- const {
-   write: endGame,
-   isPending: endGamePending,
-   isSuccess: endGameSuccess,
-   error: endGameError,
-   txHash: endGameTxHash,
-   reset: endGameReset,
- } = useEndAIGameAndClaim(
-   onChainGameId ?? BigInt(0),                    // gameId: bigint (use 0n as fallback if undefined)
-   endGameCandidate.position,              // finalPosition: number (uint8, 0-39)
-   BigInt(endGameCandidate.balance),       // finalBalance: bigint
-   !!endGameCandidate.winner               // isWin: boolean
- );
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
@@ -162,44 +130,6 @@ export default function MobileGamePlayers({
         setTradeModal({ open: false, target: null });
         resetTradeFields();
         refreshTrades();
-
-        if (isAI) {
-          const sentTrade = {
-            ...payload,
-            id: res.data?.data?.id || Date.now(),
-          };
-
-          const favorability = calculateAiFavorability(sentTrade, properties);
-
-          let decision: "accepted" | "declined" = "declined";
-          let remark = "";
-
-          if (favorability >= 30) {
-            decision = "accepted";
-            remark = "This is a fantastic deal! 🤖";
-          } else if (favorability >= 10) {
-            decision = Math.random() < 0.7 ? "accepted" : "declined";
-            remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
-          } else if (favorability >= 0) {
-            decision = Math.random() < 0.3 ? "accepted" : "declined";
-            remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
-          } else {
-            remark = "This deal is terrible for me! 😤";
-          }
-
-          if (decision === "accepted") {
-            await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
-            toast.success("AI accepted your trade instantly! 🎉");
-            refreshTrades();
-          }
-
-          setAiResponsePopup({
-            trade: sentTrade,
-            favorability,
-            decision,
-            remark,
-          });
-        }
       }
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to create trade");
@@ -312,126 +242,6 @@ export default function MobileGamePlayers({
       else toast.error(res.data?.message ?? "Failed to unmortgage property");
     } catch (error: any) {
       toast.error(error?.message || "Failed to unmortgage property");
-    }
-  };
-
-  const handlePropertyTransfer = async (propertyId: number, newPlayerId: number, player_address: string) => {
-    if (!propertyId || !newPlayerId) {
-      toast("Cannot transfer: missing property or player");
-      return;
-    }
-
-    try {
-      const response = await apiClient.put<ApiResponse>(
-        `/game-properties/${propertyId}`,
-        {
-          game_id: game.id,
-          player_id: newPlayerId,
-        }
-      );
-
-      if (response.data?.success) {
-        toast.success("Property transferred successfully! 🎉");
-      } else {
-        throw new Error(response.data?.message || "Transfer failed");
-      }
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to transfer property";
-
-      toast.error(message);
-      console.error("Property transfer failed:", error);
-    }
-  };
-
-  const getGamePlayerId = (walletAddress: string | undefined): number | null => {
-    if (!walletAddress) return null;
-    const ownedProp = game_properties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
-    return ownedProp?.player_id ?? null;
-  };
-
-  const handleClaimProperty = async (propertyId: number, player: Player) => {
-    const gamePlayerId = getGamePlayerId(player.address);
-
-    if (!gamePlayerId) {
-      toast.error("Cannot claim: unable to determine your game player ID");
-      return;
-    }
-
-    const toastId = toast.loading(`Claiming property #${propertyId}...`);
-
-    try {
-      const payload = {
-        game_id: game.id,
-        player_id: gamePlayerId,
-      };
-
-      const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, payload);
-
-      if (res.data?.success) {
-        toast.success(
-          `You now own ${res.data.data?.property_name || `#${propertyId}`}!`,
-          { id: toastId }
-        );
-      } else {
-        throw new Error(res.data?.message || "Claim unsuccessful");
-      }
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to claim property";
-      console.error("Claim failed:", err);
-      toast.error(errorMessage, { id: toastId });
-    }
-  };
-
-
-  useEffect(() => {
-    if (!me || game.players.length !== 2) return;
-
-    const aiPlayer = game.players.find(p => isAIPlayer(p));
-    const humanPlayer = me;
-
-    if ((!aiPlayer || aiPlayer.balance <= 0) && humanPlayer.balance > 0) {
-      setWinner(humanPlayer);
-      setEndGameCandidate({
-        winner: humanPlayer,
-        position: humanPlayer.position ?? 0,
-        balance: BigInt(humanPlayer.balance),
-      });
-    }
-  }, [game.players, me]);
-
-  const handleFinalizeAndLeave = async () => {
-    const toastId = toast.loading(
-      winner?.user_id === me?.user_id
-        ? "Claiming your prize..."
-        : "Finalizing game..."
-    );
-
-    try {
-      if (endGame) await endGame();
-
-      toast.success(
-        winner?.user_id === me?.user_id
-          ? "Prize claimed! 🎉"
-          : "Game completed — thanks for playing!",
-        { id: toastId, duration: 5000 }
-      );
-
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
-    } catch (err: any) {
-      toast.error(
-        err?.message || "Something went wrong — try again later",
-        { id: toastId, duration: 8000 }
-      );
-    } finally {
-      if (endGameReset) endGameReset();
     }
   };
 
@@ -585,19 +395,6 @@ export default function MobileGamePlayers({
           onDowngrade={handleDowngrade}
           onMortgage={handleMortgage}
           onUnmortgage={handleUnmortgage}
-        />
-
-        <AiResponsePopup
-          popup={aiResponsePopup}
-          properties={properties}
-          onClose={() => setAiResponsePopup(null)}
-        />
-
-        <VictoryModal
-          winner={winner}
-          me={me}
-          onClaim={handleFinalizeAndLeave}
-          claiming={endGamePending}
         />
 
         <TradeModal
