@@ -56,7 +56,7 @@ const ai_address = [
 ];
 
 const USDC_DECIMALS = 6;
-const stakePresets = [10, 50, 100, 250, 500, 1000];
+const stakePresets = [1, 5, 10, 25, 50, 100];
 
 const ai_address_list = ai_address; // For clarity
 

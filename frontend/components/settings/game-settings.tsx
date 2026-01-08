@@ -46,7 +46,7 @@ interface GameCreateResponse {
 }
 
 const USDC_DECIMALS = 6;
-const stakePresets = [10, 50, 100, 250, 500, 1000];
+const stakePresets = [1, 5, 10, 25, 50, 100];
 
 export default function GameSettings() {
   const router = useRouter();
