@@ -199,25 +199,63 @@ export function useCreateGame(
   code: string,
   startingCash: bigint,
   stake: bigint,
+  useUsdc: boolean
 ) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const {
+    writeContractAsync,
+    isPending,
+    error: writeError,
+    data: txHash,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   const write = useCallback(async () => {
     if (!contractAddress) throw new Error('Contract not deployed');
-    const hash = await writeContractAsync({
+
+    return writeContractAsync({
       address: contractAddress,
       abi: TycoonABI,
       functionName: 'createGame',
-      args: [creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingCash, stake],
-      value: BigInt(stake),
+      args: [
+        creatorUsername,
+        gameType,
+        playerSymbol,
+        numberOfPlayers,
+        code,
+        startingCash,
+        stake,
+        useUsdc,
+      ],
+      value: useUsdc ? BigInt(0) : stake, 
     });
-    return hash;
-  }, [writeContractAsync, contractAddress, creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingCash]);
+  }, [
+    writeContractAsync,
+    contractAddress,
+    creatorUsername,
+    gameType,
+    playerSymbol,
+    numberOfPlayers,
+    code,
+    startingCash,
+    stake,
+    useUsdc,
+  ]);
 
-  return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+  return {
+    write,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
 }
 
 export function useCreateAIGame(
@@ -228,26 +266,65 @@ export function useCreateAIGame(
   code: string,
   startingCash: bigint,
   stake: bigint,
+  isUsdc: boolean,
 ) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
-  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const {
+    writeContractAsync,
+    isPending,
+    error: writeError,
+    data: txHash,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   const write = useCallback(async () => {
     if (!contractAddress) throw new Error('Contract not deployed');
-    const hash = await writeContractAsync({
+
+    return writeContractAsync({
       address: contractAddress,
       abi: TycoonABI,
       functionName: 'createAIGame',
-      args: [creatorUsername, gameType, playerSymbol, numberOfAI, code, startingCash, stake],
-      value: BigInt(stake),
+      args: [
+        creatorUsername,
+        gameType,
+        playerSymbol,
+        numberOfAI,
+        code,
+        startingCash,
+        stake,
+        isUsdc,
+      ],
+      value: isUsdc ? BigInt(0) : stake,
     });
-    return hash;
-  }, [writeContractAsync, contractAddress, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingCash]);
+  }, [
+    writeContractAsync,
+    contractAddress,
+    creatorUsername,
+    gameType,
+    playerSymbol,
+    numberOfAI,
+    code,
+    startingCash,
+    stake,
+    isUsdc,
+  ]);
 
-  return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+  return {
+    write,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
 }
+
 
 export function useJoinGame(gameId: bigint, username: string, playerSymbol: string, code: string, stake: bigint) {
   const chainId = useChainId();

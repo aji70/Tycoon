@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaUsers, FaUser, FaCoins } from "react-icons/fa6";
+import { FaUsers, FaUser, FaCoins, FaBrain } from "react-icons/fa6";
 import { House } from "lucide-react";
 import {
   Select,
@@ -15,73 +15,101 @@ import { MdPrivateConnectivity } from "react-icons/md";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiBank, GiPrisoner } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
-import { FaHandHoldingDollar } from "react-icons/fa6";
 import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import {
+  useAccount,
+  useChainId,
+  useReadContract,
+} from 'wagmi';
+import { useAppKitNetwork } from '@reown/appkit/react';
 import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import { useIsRegistered, useGetUsername, useCreateGame } from "@/context/ContractProvider";
-import { ApiResponse } from "@/types/api";
+import Erc20Abi from '@/context/abi/ERC20abi.json';
+import {
+  useIsRegistered,
+  useGetUsername,
+  useCreateGame,
+  useApprove,
+} from "@/context/ContractProvider";
+import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { Address, parseUnits, parseEther } from "viem";
 
-interface Settings {
-  code: string;
-  symbol: string;
-  maxPlayers: string;
-  privateRoom: boolean;
-  auction: boolean;
-  rentInPrison: boolean;
-  mortgage: boolean;
-  evenBuild: boolean;
-  startingCash: string;
-  randomPlayOrder: boolean;
-  stake: number;
+interface GameCreateResponse {
+  data?: {
+    data?: { id: string | number };
+    id?: string | number;
+  };
+  id?: string | number;
 }
 
-const stakePresets = [1000, 5000, 10000, 25000, 50000, 100000];
+const USDC_DECIMALS = 6;
+const stakePresets = [10, 50, 100, 250, 500, 1000];
 
-const GameSettings = () => {
+export default function GameSettings() {
   const router = useRouter();
   const { address } = useAccount();
-  const [settings, setSettings] = useState<Settings>({
-    code: generateGameCode(),
+  const wagmiChainId = useChainId();
+  const { caipNetwork } = useAppKitNetwork();
+
+  const { data: username } = useGetUsername(address);
+  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
+
+  const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
+  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
+  const nativeSymbol = caipNetwork?.nativeCurrency?.symbol || "NATIVE";
+
+  const [settings, setSettings] = useState({
     symbol: "hat",
-    maxPlayers: "4",
-    privateRoom: false,
-    auction: false,
+    maxPlayers: 4,
+    privateRoom: true,
+    auction: true,
     rentInPrison: false,
-    mortgage: false,
-    evenBuild: false,
-    startingCash: "1500",
-    randomPlayOrder: false,
-    stake: 1000,
+    mortgage: true,
+    evenBuild: true,
+    randomPlayOrder: true,
+    startingCash: 1500,
+    stake: 10,
+    useUSDC: true,
+    duration: 60,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
 
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
-  const { data: username } = useGetUsername(address);
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
+  const usdcTokenAddress = USDC_TOKEN_ADDRESS[wagmiChainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
+  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
+    address: usdcTokenAddress,
+    abi: Erc20Abi,
+    functionName: 'allowance',
+    args: address && contractAddress ? [address, contractAddress] : undefined,
+    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress && settings.useUSDC },
+  });
+
+  const gameCode = generateGameCode();
   const gameType = settings.privateRoom ? "PRIVATE" : "PUBLIC";
-  const gameCode = settings.code;
-  const playerSymbol = settings.symbol;
-  const numberOfPlayers = Number.parseInt(settings.maxPlayers, 10);
 
-  const { write: createGame, isPending } = useCreateGame(
-    username ?? "",
+  const {
+    approve: approveUSDC,
+    isPending: approvePending,
+    isConfirming: approveConfirming,
+  } = useApprove();
+
+  const { write: createGame, isPending: isCreatePending } = useCreateGame(
+    username || "",
     gameType,
-    playerSymbol,
-    numberOfPlayers,
+    settings.symbol,
+    settings.maxPlayers,
     gameCode,
     BigInt(settings.startingCash),
-    BigInt(settings.stake)
+    settings.useUSDC
+      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
+      : parseEther(settings.stake.toString()),
+    settings.useUSDC
   );
-
-  const handleSettingChange = (key: keyof Settings, value: string | boolean | number) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleStakeSelect = (value: number) => {
     setSettings((prev) => ({ ...prev, stake: value }));
@@ -91,68 +119,115 @@ const GameSettings = () => {
   const handleCustomStake = (value: string) => {
     setCustomStake(value);
     const num = Number(value);
-    if (!isNaN(num) && num >= 1000) {
+    const min = settings.useUSDC ? 0.01 : 0.001;
+    if (!isNaN(num) && num >= min) {
       setSettings((prev) => ({ ...prev, stake: num }));
     }
   };
 
-
   const handlePlay = async () => {
-    if (!address) {
-      toast.error("Please connect your wallet first!", { autoClose: 5000 });
+    if (!address || !username || !isUserRegistered) {
+      toast.error("Please connect wallet and register first!", { autoClose: 5000 });
       return;
     }
 
-    if (!isUserRegistered) {
-      toast.warn("You need to register before creating a game", { autoClose: 5000 });
-      router.push("/");
+    if (!contractAddress) {
+      toast.error("Contract not deployed on this network.");
       return;
     }
 
-    const toastId = toast.loading("Creating your game room...", { position: "top-center" });
+    if (settings.useUSDC && !usdcTokenAddress) {
+      toast.error("USDC not available on this network.");
+      return;
+    }
+
+    const stakeAmount = settings.useUSDC
+      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
+      : parseEther(settings.stake.toString());
+
+    const toastId = toast.loading("Creating your game room...");
 
     try {
-      const gameId = await createGame();
-      if (!gameId) throw new Error("Failed to get game ID");
+      let needsApproval = false;
+      if (settings.useUSDC) {
+        await refetchAllowance();
+        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
+        if (currentAllowance < stakeAmount) needsApproval = true;
+      }
 
-      await apiClient.post<ApiResponse>("/games", {
-        id: gameId,
-        code: gameCode,
-        mode: gameType,
-        address,
-        symbol: playerSymbol,
-        number_of_players: numberOfPlayers,
-        stake: settings.stake,
-        settings: {
-          auction: settings.auction,
-          rent_in_prison: settings.rentInPrison,
-          mortgage: settings.mortgage,
-          even_build: settings.evenBuild,
-          starting_cash: Number(settings.startingCash),
-          randomize_play_order: settings.randomPlayOrder,
-        },
-      });
+      if (needsApproval) {
+        toast.update(toastId, { render: "Approving USDC spend..." });
+        await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
+        await new Promise(r => setTimeout(r, 3000));
+      }
+
+      toast.update(toastId, { render: "Creating game on-chain..." });
+      const onChainGameId = await createGame();
+      if (!onChainGameId) throw new Error("Failed to create game on-chain");
+
+      toast.update(toastId, { render: "Saving game to server..." });
+
+      let dbGameId: string | number | undefined;
+      try {
+        const saveRes: GameCreateResponse = await apiClient.post<any>("/games", {
+          id: onChainGameId.toString(),
+          code: gameCode,
+          mode: gameType,
+          address,
+          symbol: settings.symbol,
+          number_of_players: settings.maxPlayers,
+          stake: settings.stake,
+          starting_cash: settings.startingCash,
+          is_ai: false,
+          is_minipay: isMiniPay,
+          chain: chainName,
+          duration: settings.duration,
+          use_usdc: settings.useUSDC,
+          settings: {
+            auction: settings.auction,
+            rent_in_prison: settings.rentInPrison,
+            mortgage: settings.mortgage,
+            even_build: settings.evenBuild,
+            randomize_play_order: settings.randomPlayOrder,
+          },
+        });
+
+        dbGameId =
+          typeof saveRes === 'string' || typeof saveRes === 'number'
+            ? saveRes
+            : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
+
+        if (!dbGameId) throw new Error("Backend did not return game ID");
+      } catch (err: any) {
+        throw new Error(err.response?.data?.message || "Failed to save game");
+      }
 
       toast.update(toastId, {
         render: `Game created! Share code: ${gameCode}`,
         type: "success",
         isLoading: false,
-        autoClose: 4000,
+        autoClose: 5000,
         onClose: () => router.push(`/game-waiting?gameCode=${gameCode}`),
       });
     } catch (err: any) {
+      console.error("Create game error:", err);
       let message = "Failed to create game. Please try again.";
-      if (err?.message?.includes("insufficient funds")) message = "Not enough funds for gas fees";
+      if (err.message?.includes("user rejected") || err.code === 4001) {
+        message = "Transaction cancelled.";
+      } else if (err.message?.includes("insufficient")) {
+        message = "Insufficient balance or gas.";
+      } else if (err.message) {
+        message = err.message;
+      }
 
       toast.update(toastId, {
         render: message,
         type: "error",
         isLoading: false,
-        autoClose: 6000,
+        autoClose: 8000,
       });
     }
   };
-
 
   if (isRegisteredLoading) {
     return (
@@ -182,22 +257,22 @@ const GameSettings = () => {
           <div className="w-24" />
         </div>
 
-        {/* Main Grid: 3 columns on large screens */}
+        {/* Main Grid */}
         <div className="grid lg:grid-cols-3 gap-8 mb-10">
           {/* Column 1 */}
           <div className="space-y-6">
-            {/* Game Piece */}
+            {/* Your Piece */}
             <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
               <div className="flex items-center gap-3 mb-4">
                 <FaUser className="w-7 h-7 text-cyan-400" />
                 <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
               </div>
-              <Select value={settings.symbol} onValueChange={(v) => handleSettingChange("symbol", v)}>
+              <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
                 <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {GamePieces.map((p) => (
+                  {GamePieces.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -210,12 +285,12 @@ const GameSettings = () => {
                 <FaUsers className="w-7 h-7 text-purple-400" />
                 <h3 className="text-xl font-bold text-purple-300">Max Players</h3>
               </div>
-              <Select value={settings.maxPlayers} onValueChange={(v) => handleSettingChange("maxPlayers", v)}>
+              <Select value={settings.maxPlayers.toString()} onValueChange={(v) => setSettings(p => ({ ...p, maxPlayers: +v }))}>
                 <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  {[2,3,4,5,6,7,8].map(n => (
                     <SelectItem key={n} value={n.toString()}>{n} Players</SelectItem>
                   ))}
                 </SelectContent>
@@ -232,16 +307,34 @@ const GameSettings = () => {
                     <p className="text-gray-400 text-sm">Join via code only</p>
                   </div>
                 </div>
-                <Switch checked={settings.privateRoom} onCheckedChange={(v) => handleSettingChange("privateRoom", v)} />
+                <Switch
+                  checked={settings.privateRoom}
+                  onCheckedChange={(v) => setSettings(p => ({ ...p, privateRoom: v }))}
+                />
               </div>
             </div>
           </div>
 
-          {/* Column 2 - Stake (center, prominent) */}
+          {/* Column 2 - Stake */}
           <div className="bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-2xl p-8 border border-green-500/40 shadow-xl">
             <div className="flex items-center gap-3 mb-6">
               <FaCoins className="w-8 h-8 text-green-400" />
               <h3 className="text-2xl font-bold text-green-300">Entry Stake</h3>
+            </div>
+
+            {/* Currency Toggle */}
+            <div className="flex items-center justify-center gap-6 mb-6">
+              <span className={`text-lg font-bold ${!settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>
+                {nativeSymbol}
+              </span>
+              <Switch
+                checked={settings.useUSDC}
+                onCheckedChange={(v) => {
+                  setSettings(p => ({ ...p, useUSDC: v }));
+                  setCustomStake("");
+                }}
+              />
+              <span className={`text-lg font-bold ${settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>USDC</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
@@ -255,15 +348,16 @@ const GameSettings = () => {
                       : "bg-black/60 border border-gray-600 text-gray-300"
                   }`}
                 >
-                  {amount.toLocaleString()}
+                  {amount} {settings.useUSDC ? "USDC" : nativeSymbol}
                 </button>
               ))}
             </div>
 
             <input
               type="number"
-              min="1000"
-              placeholder="Custom stake (≥1000)"
+              min={settings.useUSDC ? "0.01" : "0.001"}
+              step={settings.useUSDC ? "0.01" : "0.001"}
+              placeholder={`Custom ≥ ${settings.useUSDC ? "0.01 USDC" : `0.001 ${nativeSymbol}`}`}
               value={customStake}
               onChange={(e) => handleCustomStake(e.target.value)}
               className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400"
@@ -271,9 +365,10 @@ const GameSettings = () => {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-400">Current Stake</p>
-              <p className="text-2xl font-bold text-green-400">
-                {settings.stake.toLocaleString()} WEI
+              <p className="text-3xl font-bold text-green-400">
+                {settings.stake} {settings.useUSDC ? "USDC" : nativeSymbol}
               </p>
+              <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
             </div>
           </div>
 
@@ -282,17 +377,39 @@ const GameSettings = () => {
             {/* Starting Cash */}
             <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
               <div className="flex items-center gap-3 mb-4">
-                <FaHandHoldingDollar className="w-7 h-7 text-amber-400" />
+                <FaCoins className="w-7 h-7 text-amber-400" />
                 <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
               </div>
-              <Select value={settings.startingCash} onValueChange={(v) => handleSettingChange("startingCash", v)}>
+              <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
                 <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["500", "1000", "1500", "2000", "5000"].map((amt) => (
-                    <SelectItem key={amt} value={amt}>${amt}</SelectItem>
-                  ))}
+                  <SelectItem value="500">$500</SelectItem>
+                  <SelectItem value="1000">$1,000</SelectItem>
+                  <SelectItem value="1500">$1,500</SelectItem>
+                  <SelectItem value="2000">$2,000</SelectItem>
+                  <SelectItem value="5000">$5,000</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Game Duration */}
+            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/30">
+              <div className="flex items-center gap-3 mb-4">
+                <FaBrain className="w-7 h-7 text-indigo-400" />
+                <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
+              </div>
+              <Select value={settings.duration.toString()} onValueChange={(v) => setSettings(p => ({ ...p, duration: +v }))}>
+                <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="45">45 minutes</SelectItem>
+                  <SelectItem value="60">60 minutes</SelectItem>
+                  <SelectItem value="90">90 minutes</SelectItem>
+                  <SelectItem value="0">No limit</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -314,8 +431,8 @@ const GameSettings = () => {
                       <span className="text-gray-300 text-sm">{item.label}</span>
                     </div>
                     <Switch
-                      checked={settings[item.key as keyof Settings] as boolean}
-                      onCheckedChange={(v) => handleSettingChange(item.key as keyof Settings, v)}
+                      checked={settings[item.key as keyof typeof settings] as boolean}
+                      onCheckedChange={(v) => setSettings(p => ({ ...p, [item.key]: v }))}
                     />
                   </div>
                 ))}
@@ -328,7 +445,7 @@ const GameSettings = () => {
         <div className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
-            disabled={isPending}
+            disabled={isCreatePending || approvePending || approveConfirming}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
                        bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
                        hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
@@ -337,13 +454,15 @@ const GameSettings = () => {
                        border-4 border-white/20"
           >
             <span className="relative z-10 text-white drop-shadow-2xl">
-              {isPending ? "CREATING..." : "CREATE GAME"}
+              {approvePending || approveConfirming
+                ? "APPROVING..."
+                : isCreatePending
+                ? "CREATING..."
+                : "CREATE GAME"}
             </span>
           </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default GameSettings;
+}

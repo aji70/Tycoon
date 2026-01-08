@@ -370,6 +370,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     uint256 public totalGames;
     uint256 private _nextGameId = 1;
     uint256 public houseBalance;
+    uint256 public houseUSDC;
     uint256 public constant TOKEN_REWARD = 1 ether;
 
     uint256 public minStake = 1000;
@@ -404,6 +405,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
     event RewardClaimed(uint256 indexed gameId, address indexed player, uint256 amount);
     event AIGameEnded(uint256 indexed gameId, address indexed player, uint64 timestamp);
     event HouseWithdrawn(uint256 amount, address indexed to);
+    event HouseUSDCWithdrawn(uint256 amount, address indexed to);
     event PlayerWonWithRewards(uint256 indexed gameId, address indexed winner, uint256 ethReward, uint256 tycVoucher);
     event PlayerWonWithVoucher(uint256 indexed gameId, address indexed player, uint256 ethReward, uint256 tycVoucher);
 
@@ -458,10 +460,10 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint8 numberOfPlayers,
         string memory code,
         uint256 startingBalance,
-        uint256 stakeAmount
+        uint256 stakeAmount,
+        bool useUSDC
     ) external payable nonReentrant nonEmptyUsername(creatorUsername) returns (uint256 gameId) {
         require(numberOfPlayers >= 2 && numberOfPlayers <= 8, "Players 2-8");
-        require(msg.value == stakeAmount, "Wrong ETH");
         require(stakeAmount >= minStake, "Below min stake");
         require(bytes(gameType).length > 0 && bytes(playerSymbol).length > 0, "Invalid params");
         require(startingBalance > 0, "Invalid balance");
@@ -475,6 +477,14 @@ contract Tycoon is ReentrancyGuard, Ownable {
             require(bytes(code).length > 0, "Code required");
         }
 
+        if (useUSDC) {
+            require(msg.value == 0, "No ETH needed for USDC stake");
+            IERC20 usdcToken = rewardSystem.usdc();
+            require(usdcToken.transferFrom(msg.sender, address(this), stakeAmount), "USDC transfer failed");
+        } else {
+            require(msg.value == stakeAmount, "Wrong ETH");
+        }
+
         gameId = _nextGameId++;
         address creator = msg.sender;
 
@@ -485,7 +495,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
             mortgage: true,
             evenBuild: true,
             startingCash: startingBalance,
-            privateRoomCode: code
+            privateRoomCode: code,
+            useUSDC: useUSDC 
         });
 
         games[gameId] = TycoonLib.Game({
@@ -532,10 +543,10 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint8 numberOfAI,
         string memory code,
         uint256 startingBalance,
-        uint256 stakeAmount
+        uint256 stakeAmount,
+        bool useUSDC
     ) external payable nonReentrant nonEmptyUsername(creatorUsername) returns (uint256 gameId) {
         require(numberOfAI >= 1 && numberOfAI <= 7, "AI players 1-7");
-        require(msg.value == stakeAmount, "Wrong ETH");
         require(stakeAmount >= minStake, "Below min stake");
         require(bytes(gameType).length > 0 && bytes(playerSymbol).length > 0, "Invalid params");
         require(startingBalance > 0, "Invalid balance");
@@ -543,6 +554,14 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
         TycoonLib.User storage user = users[creatorUsername];
         require(user.playerAddress == msg.sender, "Username mismatch");
+
+        if (useUSDC) {
+            require(msg.value == 0, "No ETH needed for USDC stake");
+            IERC20 usdcToken = rewardSystem.usdc();
+            require(usdcToken.transferFrom(msg.sender, address(this), stakeAmount), "USDC transfer failed");
+        } else {
+            require(msg.value == stakeAmount, "Wrong ETH");
+        }
 
         uint8 gType = TycoonLib.stringToGameType(gameType);
         gameId = _nextGameId++;
@@ -557,7 +576,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
             mortgage: true,
             evenBuild: true,
             startingCash: startingBalance,
-            privateRoomCode: code
+            privateRoomCode: code,
+            useUSDC: useUSDC // Added
         });
 
         games[gameId] = TycoonLib.Game({
@@ -598,7 +618,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
                 position: 0,
                 order: i,
                 symbol: TycoonLib.PlayerSymbol(0),
-                username: string(abi.encodePacked("AI_", _uintToString(i)))
+                username: string(abi.encodePacked("AI_", TycoonLib.uintToString(i)))
             });
         }
 
@@ -620,8 +640,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
         returns (uint8 order)
     {
         TycoonLib.Game storage game = games[gameId];
+        TycoonLib.GameSettings storage gameS = gameSettings[gameId];
         require(!game.ai, "Cannot join AI game");
-        require(msg.value == game.stakePerPlayer, "Wrong stake");
         require(game.creator != address(0), "Game not found");
         require(game.status == TycoonLib.GameStatus.Pending, "Not open");
         require(game.joinedPlayers < game.numberOfPlayers, "Full");
@@ -636,9 +656,17 @@ contract Tycoon is ReentrancyGuard, Ownable {
             require(keccak256(bytes(joinCode)) == keccak256(bytes(game.code)), "Wrong code");
         }
 
+        if (gameS.useUSDC) {
+            require(msg.value == 0, "No ETH needed for USDC stake");
+            IERC20 usdcToken = rewardSystem.usdc();
+            require(usdcToken.transferFrom(msg.sender, address(this), game.stakePerPlayer), "USDC transfer failed");
+        } else {
+            require(msg.value == game.stakePerPlayer, "Wrong ETH");
+        }
+
         user.gamesPlayed++;
-        user.totalStaked += msg.value;
-        game.totalStaked += msg.value;
+        user.totalStaked += game.stakePerPlayer;
+        game.totalStaked += game.stakePerPlayer;
 
         order = ++game.joinedPlayers;
 
@@ -684,7 +712,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         else if (before == 3) position[game.code].losers = playerToRemove;
     }
 
-       function endAIGameAndClaim(uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin)
+    function endAIGameAndClaim(uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin)
         external
         nonReentrant
         returns (bool)
@@ -706,11 +734,17 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint256 voucherAmount;
         TycoonLib.CollectiblePerk perk;
         uint256 strength = 1;
+        IERC20 usdcToken = rewardSystem.usdc();
+        TycoonLib.GameSettings storage gameS = gameSettings[gameId];
 
         if (isWin) {
             // Winner: full stake refunded
-            (bool sent,) = payable(msg.sender).call{value: stake}("");
-            require(sent, "Refund failed");
+            if (gameS.useUSDC) {
+                require(usdcToken.transfer(msg.sender, stake), "USDC refund failed");
+            } else {
+                (bool sent,) = payable(msg.sender).call{value: stake}("");
+                require(sent, "ETH refund failed");
+            }
 
             voucherAmount = 2 * TOKEN_REWARD;
 
@@ -730,18 +764,19 @@ contract Tycoon is ReentrancyGuard, Ownable {
             uint256 houseCut = stake - refundAmount; // 20%
 
             if (refundAmount > 0) {
-                (bool sent,) = payable(msg.sender).call{value: refundAmount}("");
-                require(sent, "Partial refund failed");
+                if (gameS.useUSDC) {
+                    require(usdcToken.transfer(msg.sender, refundAmount), "USDC partial refund failed");
+                } else {
+                    (bool sent,) = payable(msg.sender).call{value: refundAmount}("");
+                    require(sent, "ETH partial refund failed");
+                }
             }
 
-            houseBalance += houseCut;
-
-            // voucherAmount = TOKEN_REWARD;
-
-            // uint8 r = uint8(block.prevrandao % 100);
-            // if (r < 50) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
-            // else if (r < 80) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
-            // else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
+            if (gameS.useUSDC) {
+                houseUSDC += houseCut;
+            } else {
+                houseBalance += houseCut;
+            }
 
             user.gamesLost++;
         }
@@ -756,9 +791,10 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return true;
     }
 
-       function _payoutReward(uint256 gameId, address player, uint256 rank) private {
+    function _payoutReward(uint256 gameId, address player, uint256 rank) private {
         TycoonLib.Game storage game = games[gameId];
         uint256 pot = game.totalStaked;
+        IERC20 usdcToken = rewardSystem.usdc();
 
         if (rank > 4) {
             rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
@@ -774,16 +810,21 @@ contract Tycoon is ReentrancyGuard, Ownable {
                 activeWeight += rankWeights[i];
             }
 
-            uint256 ethReward = (distributable * rankWeights[rank - 1]) / activeWeight;
+            uint256 rewardAmount = (distributable * rankWeights[rank - 1]) / activeWeight;
 
-            require(ethReward > 0, "No ETH reward");
+            require(rewardAmount > 0, "No reward");
+            TycoonLib.GameSettings storage gameS = gameSettings[gameId];
 
-            (bool success,) = player.call{value: ethReward}("");
-            require(success, "ETH transfer failed");
+            if (gameS.useUSDC) {
+                require(usdcToken.transfer(player, rewardAmount), "USDC transfer failed");
+            } else {
+                (bool success,) = payable(player).call{value: rewardAmount}("");
+                require(success, "ETH transfer failed");
+            }
 
             string memory username = addressToUsername[player];
             TycoonLib.User storage user = users[username];
-            user.totalEarned += ethReward;
+            user.totalEarned += rewardAmount;
 
             // Mint collectible + voucher for placement
             if (rank <= 3) {
@@ -793,7 +834,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
                 rewardSystem.mintVoucher(player, TOKEN_REWARD);
             }
 
-            emit RewardClaimed(gameId, player, ethReward);
+            emit RewardClaimed(gameId, player, rewardAmount);
         }
 
         delete claims[gameId][player];
@@ -840,7 +881,6 @@ contract Tycoon is ReentrancyGuard, Ownable {
         TycoonLib.Game storage game = games[gameId];
         require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
         require(!game.ai, "Cannot exit AI game");
-        
 
         if (game.joinedPlayers == 1) {
             // Winner exit: payout first, then add house cut
@@ -850,7 +890,12 @@ contract Tycoon is ReentrancyGuard, Ownable {
 
             uint256 pot = game.totalStaked;
             uint256 houseCut = (pot * HOUSE_PERCENT) / 100;
-            houseBalance += houseCut;
+            TycoonLib.GameSettings storage gameS = gameSettings[gameId];
+            if (gameS.useUSDC) {
+                houseUSDC += houseCut;
+            } else {
+                houseBalance += houseCut;
+            }
 
             users[gamePlayers[gameId][msg.sender].username].gamesWon++;
 
@@ -858,13 +903,12 @@ contract Tycoon is ReentrancyGuard, Ownable {
             game.winner = msg.sender;
             game.endedAt = uint64(block.timestamp);
 
-
             emit GameEnded(gameId, msg.sender, uint64(block.timestamp));
         } else {
             // Loser exit
             _removePlayer(gameId, msg.sender);
-            // uint256 rank = claims[gameId][msg.sender];
-            // _payoutReward(gameId, msg.sender, rank);
+            uint256 rank = claims[gameId][msg.sender];
+            _payoutReward(gameId, msg.sender, rank); // Uncommented to enable loser payouts
         }
         codeToGame[game.code] = games[gameId];
         emit PlayerExited(gameId, msg.sender);
@@ -876,17 +920,32 @@ contract Tycoon is ReentrancyGuard, Ownable {
         minStake = newMin;
     }
 
-    function withdrawHouse(uint256 amount) external onlyOwner {
-        require(amount <= houseBalance, "Insufficient");
-        houseBalance -= amount;
-        (bool sent,) = payable(owner()).call{value: amount}("");
-        require(sent);
-        emit HouseWithdrawn(amount, owner());
+    event HouseWithdrawn(uint256 amount, address indexed to, bool isUSDC);
+
+    /// @notice Withdraw house fees (ETH or USDC)
+    /// @param amount The amount to withdraw
+    /// @param isUSDC True if withdrawing USDC, false if withdrawing ETH
+    function withdrawHouse(uint256 amount, bool isUSDC) external onlyOwner {
+        address recipient = owner();
+        IERC20 usdcToken = rewardSystem.usdc();
+
+        if (isUSDC) {
+            require(amount <= houseUSDC, "Insufficient USDC");
+            houseUSDC -= amount;
+            require(usdcToken.transfer(recipient, amount), "USDC transfer failed");
+        } else {
+            require(amount <= houseBalance, "Insufficient ETH");
+            houseBalance -= amount;
+            (bool sent, ) = payable(recipient).call{value: amount}("");
+            require(sent, "ETH transfer failed");
+        }
+
+        emit HouseWithdrawn(amount, recipient, isUSDC);
     }
 
     function drainContract() external onlyOwner {
         uint256 bal = address(this).balance;
-        require(bal > 0, "No balance");
+        require(bal > 0, "No ETH balance");
         (bool sent,) = payable(owner()).call{value: bal}("");
         require(sent);
     }
@@ -925,20 +984,4 @@ contract Tycoon is ReentrancyGuard, Ownable {
         return game;
     }
 
-    function _uintToString(uint256 value) private pure returns (string memory) {
-        if (value == 0) return "0";
-        uint256 temp = value;
-        uint256 digits;
-        while (temp != 0) {
-            digits++;
-            temp /= 10;
-        }
-        bytes memory buffer = new bytes(digits);
-        while (value != 0) {
-            digits -= 1;
-            buffer[digits] = bytes1(uint8(48 + (value % 10)));
-            value /= 10;
-        }
-        return string(buffer);
-    }
 }
