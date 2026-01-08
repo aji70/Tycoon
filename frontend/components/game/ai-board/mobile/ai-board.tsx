@@ -253,13 +253,19 @@ const MobileGameLayout = ({
     !!endGameCandidate.winner
   );
 
+  const activeToasts = useRef<Set<string>>(new Set());
+
   const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    if (message === lastToastMessage.current) return;
-    lastToastMessage.current = message;
-    toast.dismiss();
-    if (type === "success") toast.success(message);
-    else if (type === "error") toast.error(message);
-    else toast(message, { icon: "➤" });
+    if (activeToasts.current.has(message)) return;
+    activeToasts.current.add(message);
+
+    const t = type === "success"
+      ? toast.success(message)
+      : type === "error"
+      ? toast.error(message)
+      : toast(message, { icon: "➤" });
+
+    setTimeout(() => activeToasts.current.delete(message), 4000);
   }, []);
 
   const fetchUpdatedGame = useCallback(async (retryDelay = 1000) => {
@@ -961,64 +967,109 @@ const handleAiStrategy = async () => {
     return ownedProp?.player_id ?? null;
   }, [currentGameProperties]);
 
+  const processingBankruptcy = useRef<Set<number>>(new Set());
+
   useEffect(() => {
-    if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0 || !isAIPlayer(currentPlayer)) return;
+    if (
+      !isAITurn ||
+      !currentPlayer ||
+      currentPlayer.balance >= 0 ||
+      !isAIPlayer(currentPlayer) ||
+      processingBankruptcy.current.has(currentPlayer.user_id)
+    ) {
+      return;
+    }
 
     const handleAiBankruptcy = async () => {
-      const mainToast = toast.loading(`${currentPlayer.username} is bankrupt — eliminating...`, { duration: 12000 });
+      // Mark as processing immediately
+      processingBankruptcy.current.add(currentPlayer.user_id);
+
+      const mainToastId = toast.loading(
+        `${currentPlayer.username} is bankrupt — eliminating...`,
+        { duration: 15000 }
+      );
 
       try {
         setIsRaisingFunds(true);
 
+        // Sell houses
         await aiSellHouses(currentPlayer);
+        // Mortgage properties
         await aiMortgageProperties(currentPlayer);
+        // Refresh once after liquidation
         await fetchUpdatedGame();
 
-        const aiProps = currentGameProperties.filter(gp => gp.address === currentPlayer.address);
-        const landedGp = currentGameProperties.find(gp => gp.property_id === currentPlayer.position);
-        const creditorAddr = landedGp?.address && landedGp.address !== "bank" ? landedGp.address : null;
-        const creditor = creditorAddr ? players.find(p => p.address?.toLowerCase() === creditorAddr.toLowerCase()) : null;
+        // Transfer or delete properties
+        const aiProps = currentGameProperties.filter(
+          (gp) => gp.address === currentPlayer.address
+        );
+        const landedGp = currentGameProperties.find(
+          (gp) => gp.property_id === currentPlayer.position
+        );
+        const creditorAddr =
+          landedGp?.address && landedGp.address !== "bank" ? landedGp.address : null;
+        const creditor = creditorAddr
+          ? players.find(
+              (p) =>
+                p.address?.toLowerCase() === creditorAddr.toLowerCase()
+            )
+          : null;
 
         if (creditor && !isAIPlayer(creditor)) {
           const creditorId = getGamePlayerId(creditor.address);
           if (creditorId) {
-            for (const prop of aiProps) await handlePropertyTransfer(prop.id, creditorId);
+            for (const prop of aiProps) {
+              await handlePropertyTransfer(prop.id, creditorId);
+            }
           } else {
-            for (const prop of aiProps) await handleDeleteGameProperty(prop.id);
+            for (const prop of aiProps) {
+              await handleDeleteGameProperty(prop.id);
+            }
           }
         } else {
-          for (const prop of aiProps) await handleDeleteGameProperty(prop.id);
+          for (const prop of aiProps) {
+            await handleDeleteGameProperty(prop.id);
+          }
         }
 
+           await apiClient.post("/game-players/end-turn", {
+                user_id: currentPlayer.user_id,
+                game_id: currentGame.id,
+              });
+
+        // Finally leave the game
         await apiClient.post("/game-players/leave", {
           address: currentPlayer.address,
           code: game.code,
           reason: "bankruptcy",
         });
+
         await fetchUpdatedGame();
 
-        toast.dismiss(mainToast);
-        toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
+        toast.dismiss(mainToastId);
+        toast.success(`${currentPlayer.username} has been eliminated.`, {
+          duration: 6000,
+        });
       } catch (err) {
-        toast.dismiss(mainToast);
-        toast.error("Bankruptcy processing failed");
-        console.error(err);
+        console.error("AI bankruptcy failed:", err);
+        toast.dismiss(mainToastId);
+        toast.error("Failed to process bankruptcy");
       } finally {
         setIsRaisingFunds(false);
+        // Optional: clean up ref after some delay
+        setTimeout(() => {
+          processingBankruptcy.current.delete(currentPlayer.user_id);
+        }, 5000);
       }
     };
 
     handleAiBankruptcy();
   }, [
     isAITurn,
-    currentPlayer,
-    currentGame.id,
-    currentGameProperties,
-    properties,
-    players,
-    game.code,
-    fetchUpdatedGame,
-    getGamePlayerId,
+    currentPlayer?.user_id,
+    currentPlayer?.balance,
+    currentPlayer?.address,
+    currentPlayer?.position,
   ]);
 
   useEffect(() => {
@@ -1119,31 +1170,35 @@ const handleAiStrategy = async () => {
     }
   };
 
-  const handleMortgageToggle = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
+const handleMortgageToggle = async () => {
+  if (!selectedGameProperty || !me || !isMyTurn) {
+    showToast("Not your turn or invalid property", "error");
+    return;
+  }
 
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
+  const isUnmortgaging = selectedGameProperty.mortgaged;
+  const endpoint = isUnmortgaging ? "/game-properties/unmortgage" : "/game-properties/mortgage";
+  const actionVerb = isUnmortgaging ? "redeemed" : "mortgaged";
 
-      if (res.data?.success) {
-        const action = selectedGameProperty.mortgaged ? "redeemed" : "mortgaged";
-        showToast(`Property ${action}!`, "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
-      } else {
-        showToast(res.data?.message || "Mortgage failed", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Mortgage action failed", "error");
+  try {
+    const res = await apiClient.post<ApiResponse>(endpoint, {
+      game_id: currentGame.id,
+      user_id: me.user_id,
+      property_id: selectedGameProperty.property_id,
+    });
+
+    if (res.data?.success) {
+      showToast(`Property ${actionVerb}!`, "success");
+      await fetchUpdatedGame();
+      setSelectedProperty(null); // Assuming it's setSelectedProperty, or setSelectedGameProperty
+    } else {
+      showToast(res.data?.message || `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} failed`, "error");
     }
-  };
+  } catch (err: any) {
+    const message = err?.response?.data?.message || `Failed to ${actionVerb} property`;
+    showToast(message, "error");
+  }
+};
 
   const handleSellProperty = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
@@ -1235,12 +1290,7 @@ const handleAiStrategy = async () => {
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
       {/* Refresh Button */}
-      {/* <button
-        onClick={fetchUpdatedGame}
-        className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
-      >
-        Refresh
-      </button> */}
+
 
       {/* Bell Notification – Trade Incoming Indicator */}
       <div className="fixed top-4 right-20 z-50 flex items-center">

@@ -216,7 +216,7 @@ export default function PlayWithAIMobile() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-6 pb-32">
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-md mx-auto space-y-6">
           {/* Your Piece */}
           <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
@@ -360,11 +360,9 @@ export default function PlayWithAIMobile() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Fixed Bottom Button - Smaller but still bold */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
-        <div className="max-w-md mx-auto">
+        {/* Bottom Button - Smaller but still bold */}
+        <div className="max-w-md mx-auto mt-2">
           <button
             onClick={handlePlay}
             disabled={isCreatePending}
