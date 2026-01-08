@@ -3,6 +3,7 @@ import GameSetting from "../models/GameSetting.js";
 import GamePlayer from "../models/GamePlayer.js";
 import User from "../models/User.js";
 import GamePlayHistory from "../models/GamePlayHistory.js";
+import Chat from "../models/Chat.js";
 
 /**
  * Game Controller
@@ -33,6 +34,11 @@ const gameController = {
         next_player_id: user.id,
         number_of_players,
         status: "PENDING",
+      });
+
+      const chat = await Chat({
+        game_id: game.id,
+        status: "open"
       });
 
       const gameSettingsPayload = {
