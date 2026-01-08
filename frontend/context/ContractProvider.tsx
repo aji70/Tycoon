@@ -11,7 +11,8 @@ import {
 import { Address } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import Erc20Abi from './abi/ERC20abi.json';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from '@/constants/contracts';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -616,7 +617,67 @@ export function useRewardBuyCollectible() {
   return { buy, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+export function useApprove() {
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } =
+    useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
+
+  const approve = useCallback(
+    async (
+      contractAddress: Address,
+      spender: Address,
+      amount: bigint
+    ) => {
+      if (!contractAddress) throw new Error('Reward contract not deployed');
+
+      return await writeContractAsync({
+        address: contractAddress,
+        abi: Erc20Abi,
+        functionName: 'approve',
+        args: [spender, amount],
+      });
+    },
+    [writeContractAsync]
+  );
+
+  return {
+    approve,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
+
 /* ----------------------- New Reward View Hooks (from updated contract) ----------------------- */
+export function useAllowance(
+  owner?: Address,
+  spender?: Address
+) {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const result = useReadContract({
+    address: contractAddress,
+    abi: Erc20Abi,
+    functionName: 'allowance',
+    args: owner && spender ? [owner, spender] : undefined,
+    query: {
+      enabled: !!owner && !!spender && !!contractAddress,
+    },
+  });
+
+  return {
+    data: result.data as bigint | undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
 
 export function useRewardOwnedTokenCount(address?: Address) {
   const chainId = useChainId();

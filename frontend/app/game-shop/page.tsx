@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
+import Erc20Abi from '@/context/abi/ERC20abi.json';
 import {
   REWARD_CONTRACT_ADDRESSES,
   TYC_TOKEN_ADDRESS,
@@ -41,6 +42,7 @@ import {
   useRewardBuyCollectible,
   useRewardRedeemVoucher,
   useRewardCollectibleInfo,
+  useApprove,
 } from '@/context/ContractProvider'; // Adjust path if needed
 
 const VOUCHER_ID_START = 1_000_000_000;
@@ -78,6 +80,23 @@ export default function GameShop() {
   const [useUsdc, setUseUsdc] = useState(false);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
 
+  const { data: tycAllowance } = useReadContract({
+  address: tycTokenAddress,
+  abi: Erc20Abi,
+  functionName: 'allowance',
+  args: address && contractAddress ? [address, contractAddress] : undefined,
+  query: { enabled: !!address && !!tycTokenAddress && !!contractAddress },
+});
+
+const { data: usdcAllowance } = useReadContract({
+  address: usdcTokenAddress,
+  abi: Erc20Abi,
+  functionName: 'allowance',
+  args: address && contractAddress ? [address, contractAddress] : undefined,
+  query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
+});
+
+
   // Buy & Redeem hooks
   const {
     buy,
@@ -87,6 +106,15 @@ export default function GameShop() {
     error: buyError,
     reset: resetBuy,
   } = useRewardBuyCollectible();
+
+    const {
+    approve,
+    isPending: approvePending,
+    isConfirming: approveConfirming,
+    isSuccess: approveSuccess,
+    error: approveError,
+    reset: resetapprove,
+  } = useApprove();
 
   const {
     redeem,
@@ -262,18 +290,47 @@ export default function GameShop() {
   }, [voucherInfoResults, userVoucherIds]);
 
   // ── Handlers ──
-  const handleBuy = async (item: typeof shopItems[0]) => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
+ const handleBuy = async (item: typeof shopItems[0]) => {
+  if (!isConnected || !address) {
+    toast.error('Please connect your wallet');
+    return;
+  }
+
+  try {
+    const isPayingWithUsdc = useUsdc;
+
+    const price = BigInt(
+      isPayingWithUsdc
+        ? Math.round(Number(item.usdcPrice) * 1e6)
+        : Math.round(Number(item.tycPrice) * 1e18)
+    );
+
+    const allowance = isPayingWithUsdc ? usdcAllowance : tycAllowance;
+    const tokenAddress = isPayingWithUsdc ? usdcTokenAddress : tycTokenAddress;
+
+    if (!tokenAddress) {
+      toast.error('Token not supported on this network');
       return;
     }
 
-    try {
-      await buy(item.tokenId, useUsdc);
-    } catch (err: any) {
-      toast.error(err.message || 'Purchase failed');
+    // ── 1️⃣ Check allowance with proper type narrowing ──
+    if (allowance === undefined || allowance === null) {
+      toast.info('Approval required');
+      await approve(tokenAddress, contractAddress!, price);
+      toast.success('Approval successful, completing purchase...');
+    } else if (typeof allowance === 'bigint' && allowance < price) {
+      toast.info('Increasing approval...');
+      await approve(tokenAddress, contractAddress!, price);
+      toast.success('Approval successful, completing purchase...');
     }
-  };
+    // If allowance is sufficient, skip approval
+
+    // ── 2️⃣ Buy collectible ──
+    await buy(item.tokenId, isPayingWithUsdc);
+  } catch (err: any) {
+    toast.error(err.message || 'Transaction failed');
+  }
+};
 
   const handleRedeemVoucher = async (tokenId: bigint) => {
     if (!isConnected) {

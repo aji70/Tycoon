@@ -1,20 +1,18 @@
-"use client";
+'use client';
 
 import React, { useState, useMemo } from 'react';
 import Image from 'next/image';
-import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
 import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { formatUnits, type Address, type Abi } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
-import { useIsRegistered } from '@/context/ContractProvider';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -40,63 +38,20 @@ const getPerkMetadata = (perk: number) => {
 };
 
 export default function ProfilePage() {
-  const router = useRouter();
-  const { address: walletAddress, isConnected } = useAccount();
-
-  const {
-    data: isUserRegistered,
-    isLoading: isRegisteredLoading,
-  } = useIsRegistered(walletAddress);
-
+  const { address: walletAddress, isConnected, chainId } = useAccount();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
-  const [showVouchers, setShowVouchers] = useState(false);
+  const [showVouchers, setShowVouchers] = useState(false); // ← New: toggle vouchers
 
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Registration check loading
-  if (isRegisteredLoading) {
-    return (
-      <div className="min-h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
-        <Loader2 className="w-12 h-12 animate-spin" />
-        <p className="text-xl font-orbitron">Checking registration...</p>
-      </div>
-    );
-  }
-
-  // Not registered → block access
-  if (isUserRegistered === false) {
-    return (
-      <div className="min-h-screen bg-[#010F10] flex flex-col items-center justify-center gap-8 px-8 text-center">
-        <AlertCircle className="w-20 h-20 text-red-400" />
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Registration Required
-          </h2>
-          <p className="text-lg text-gray-300 max-w-md">
-            You need to register your wallet before viewing your profile, perks, or vouchers.
-          </p>
-        </div>
-        <button
-          onClick={() => router.push("/")}
-          className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all transform hover:scale-105"
-        >
-          Go to Home Page
-        </button>
-      </div>
-    );
-  }
-
-  // Rest of your original profile logic (unchanged below)
-
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
-  const { chainId } = useAccount();
   const tycTokenAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
   const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
@@ -120,6 +75,8 @@ export default function ProfilePage() {
     args: username ? [username as string] : undefined,
     query: { enabled: !!username && !!tycoonAddress },
   });
+
+  // ... (same data fetching logic for ownedCollectibles and myVouchers as before)
 
   const ownedCount = useReadContract({
     address: rewardAddress,
@@ -286,12 +243,9 @@ export default function ProfilePage() {
     );
   }
 
-  // Original profile UI (unchanged)
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] text-[#F0F7F7]">
-      {/* ... rest of your beautiful profile UI remains exactly the same ... */}
-      {/* (All the header, player info, perks, vouchers, etc. — unchanged) */}
-
+      {/* Compact Header */}
       <header className="border-b border-cyan-900/30 backdrop-blur-md">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="text-[#00F0FF] font-medium hover:gap-2 flex items-center gap-1 transition-all">
@@ -324,6 +278,7 @@ export default function ProfilePage() {
               <p className="text-gray-400 font-mono text-sm mt-1">{userData.address}</p>
             </div>
 
+            {/* Balances */}
             <div className="flex gap-4">
               <div className="text-center">
                 <p className="text-gray-500 text-xs">TYC</p>
@@ -344,6 +299,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Compact Stats Badges */}
           <div className="flex flex-wrap gap-4 mt-6 justify-center sm:justify-start">
             <div className="bg-white/5 rounded-xl px-4 py-2 border border-white/10">
               <p className="text-xs text-gray-400">Games</p>
@@ -360,9 +316,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Perks and Vouchers sections — unchanged */}
-        {/* ... (your existing code for perks and collapsible vouchers) ... */}
-
+        {/* MAIN: Collectibles (Prominent) */}
         <section className="mb-12">
           <h3 className="text-3xl font-bold mb-6 flex items-center gap-3 justify-center sm:justify-start">
             <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
@@ -418,6 +372,7 @@ export default function ProfilePage() {
           )}
         </section>
 
+        {/* Collapsed Vouchers Section */}
         <section>
           <button
             onClick={() => setShowVouchers(!showVouchers)}
