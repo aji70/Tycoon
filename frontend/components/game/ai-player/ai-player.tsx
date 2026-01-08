@@ -42,7 +42,7 @@ export default function GamePlayers({
   isAITurn,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const isDevMode = true;
+  const isDevMode = false;
 
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
