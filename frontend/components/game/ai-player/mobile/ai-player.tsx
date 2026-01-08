@@ -42,8 +42,8 @@ export default function MobileGamePlayers({
   const { address } = useAccount();
 
   const [sectionOpen, setSectionOpen] = useState({
-    players: true,
-    empire: true,
+    players: false,
+    empire: false,
     trades: false,
   });
 

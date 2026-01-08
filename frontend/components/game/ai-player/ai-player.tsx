@@ -12,7 +12,6 @@ import PlayerList from "./player-list";
 import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../modals/property-action";
-import { AiTradePopup } from "../modals/ai-trade";
 import { AiResponsePopup } from "../modals/ai-response";
 import { VictoryModal } from "../modals/victory";
 import { TradeModal } from "../modals/trade";
@@ -42,7 +41,7 @@ export default function GamePlayers({
   isAITurn,
 }: GamePlayersProps) {
   const { address } = useAccount();
-  const isDevMode = true;
+  const isDevMode = false;
 
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -561,6 +560,11 @@ useEffect(() => {
       }
 
       // Now remove the AI player
+          await apiClient.post("/game-players/end-turn", {
+              user_id: currentPlayer.user_id,
+              game_id: game.id,
+            });
+
       await apiClient.post("/game-players/leave", {
         address: currentPlayer.address,
         code: game.code,

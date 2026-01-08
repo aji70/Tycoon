@@ -24,7 +24,6 @@ export default function AppKitProviderWrapper({
 }) {
   useEffect(() => {
     if (!isInitialized) {
-      console.log('Initializing AppKit'); // Debug initialization
       createAppKit({
         adapters: [wagmiAdapter],
         networks: [baseSepolia, base, celo],

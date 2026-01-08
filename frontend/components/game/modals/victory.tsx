@@ -22,12 +22,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   claimError = null,
   onClearError,
 }) => {
-  if (!winner) return null;
-
-  const isWinner = winner.user_id === me?.user_id;
-
-  // Only show modal if current user is the winner
-  if (!isWinner) return null;
+  if (!winner || winner.user_id !== me?.user_id) return null;
 
   const handleClaimClick = () => {
     onClearError?.();
@@ -40,65 +35,76 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/90 backdrop-blur-lg flex items-center justify-center z-[9999] p-4"
+        className="fixed inset-0 bg-black/95 backdrop-blur-xl flex items-center justify-center z-[9999] p-4"
       >
-        {/* Background glow */}
+        {/* Animated background glow - cyan/teal theme */}
         <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-amber-950"
-          animate={{ opacity: [0.4, 0.65, 0.4], scale: [1, 1.04, 1] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 bg-gradient-to-br from-cyan-950/40 via-black to-teal-950/40"
+          animate={{
+            opacity: [0.3, 0.6, 0.3],
+            scale: [1, 1.05, 1],
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* Pulsing radial glow */}
+        <motion.div
+          className="absolute inset-0 bg-gradient-radial from-cyan-500/20 via-transparent to-transparent"
+          animate={{ scale: [1, 1.3, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeOut" }}
         />
 
         <motion.div
-          initial={{ y: 100, scale: 0.82, opacity: 0 }}
+          initial={{ y: 100, scale: 0.85, opacity: 0 }}
           animate={{ y: 0, scale: 1, opacity: 1 }}
-          exit={{ y: 60, scale: 0.85, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 110, damping: 14, delay: 0.1 }}
+          exit={{ y: 80, scale: 0.9, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 120, damping: 16 }}
           className="
             relative w-full max-w-md sm:max-w-lg md:max-w-xl
             p-10 sm:p-12 md:p-16
             rounded-3xl md:rounded-4xl
-            border-4 border-amber-500/60
-            bg-gradient-to-b from-amber-950/95 via-amber-900/85 to-black/90
-            backdrop-blur-xl shadow-2xl shadow-amber-600/60
+            border-4 border-cyan-500/70
+            bg-gradient-to-b from-black/95 via-cyan-950/80 to-black/90
+            backdrop-blur-2xl shadow-2xl shadow-cyan-600/60
             text-center overflow-hidden
           "
         >
-          {/* Rotating glow effect */}
+          {/* Rotating subtle glow ring */}
           <motion.div
-            className="absolute inset-0 bg-gradient-radial from-amber-400/20 via-transparent to-transparent pointer-events-none"
+            className="absolute inset-0 bg-gradient-conic from-cyan-400/20 via-teal-500/10 to-transparent pointer-events-none"
             animate={{ rotate: 360 }}
-            transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+            transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
           />
 
           <div className="relative z-10">
-            {/* Crown */}
+            {/* Crown with cyan glow */}
             <motion.div
-              initial={{ scale: 0.5, rotate: -20 }}
+              initial={{ scale: 0.5, rotate: -15 }}
               animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 160, delay: 0.2 }}
-              className="mb-8 relative"
+              transition={{ type: "spring", stiffness: 180, delay: 0.2 }}
+              className="mb-8"
             >
-              <Crown className="w-32 h-32 sm:w-36 sm:h-36 mx-auto text-amber-300 drop-shadow-[0_0_45px_rgba(245,158,11,0.9)]" />
+              <Crown className="w-32 h-32 sm:w-40 sm:h-40 mx-auto text-cyan-300 drop-shadow-[0_0_60px_rgba(6,182,212,0.9)]" />
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
                 className="absolute inset-0 flex items-center justify-center"
               >
-                <Sparkles className="w-16 h-16 text-amber-200/60" />
+                <Sparkles className="w-20 h-20 text-cyan-200/50" />
               </motion.div>
             </motion.div>
 
             <motion.h1
-              initial={{ y: -40, opacity: 0 }}
+              initial={{ y: -50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
               className="
-                text-5xl sm:text-6xl md:text-7xl font-black tracking-tighter mb-4
-                bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-yellow-300 to-amber-400
-                animate-pulse leading-tight
+                text-5xl sm:text-6xl md:text-7xl font-black tracking-tight mb-4
+                bg-clip-text text-transparent
+                bg-gradient-to-r from-cyan-200 via-cyan-400 to-teal-300
+                drop-shadow-lg
               "
-              style={{ textShadow: "0 0 40px rgba(245,158,11,0.8)" }}
+              style={{ textShadow: "0 0 50px rgba(6, 182, 212, 0.8)" }}
             >
               VICTORY!
             </motion.h1>
@@ -107,85 +113,88 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-200/90 mb-8"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold text-cyan-100/90 mb-10"
             >
               Congratulations, {me?.username || "Tycoon"}!
             </motion.p>
 
-            {/* Rewards summary */}
+            {/* Rewards Card - Clean cyan style */}
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.8 }}
-              className="mb-10 p-7 bg-black/50 rounded-2xl border border-amber-600/50 inline-block"
+              className="mb-12 p-8 bg-black/60 rounded-3xl border border-cyan-500/40 shadow-xl shadow-cyan-900/30"
             >
-              <div className="flex items-center justify-center gap-5">
-                <Coins className="w-12 h-12 text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.8)]" />
+              <div className="flex items-center justify-center gap-6 mb-4">
+                <Coins className="w-14 h-14 text-cyan-400 drop-shadow-[0_0_30px_rgba(6,182,212,0.8)]" />
                 <div className="text-left">
-                  <p className="text-xl font-bold text-amber-300">Your Rewards</p>
-                  <p className="text-4xl font-black text-amber-100 mt-1">
+                  <p className="text-xl font-bold text-cyan-200">Victory Rewards</p>
+                  <p className="text-5xl font-black text-cyan-100 mt-2">
                     +1 TYC
-                  </p>
-                  <p className="text-base text-amber-200/80 mt-2">
-                    Victory Bonus • Stake refunded
                   </p>
                 </div>
               </div>
-              <p className="mt-4 text-amber-100/90 text-base">
-                Your empire's wealth is yours to claim!
+              <p className="text-cyan-200/80 text-lg mt-4">
+                Stake refunded • Empire secured • Legend earned
               </p>
             </motion.div>
 
-            {/* Error message if any */}
+            {/* Error Message */}
             <AnimatePresence>
               {claimError && (
                 <motion.div
-                  initial={{ opacity: 0, y: -15 }}
+                  initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  className="mb-8 p-5 bg-red-900/60 border border-red-500/50 rounded-2xl flex items-start gap-4 text-red-100 max-w-lg mx-auto"
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mb-8 p-6 bg-red-900/50 border border-red-500/60 rounded-2xl flex items-start gap-4 text-red-100"
                 >
-                  <AlertCircle className="w-7 h-7 flex-shrink-0 mt-1" />
+                  <AlertCircle className="w-8 h-8 flex-shrink-0 mt-1" />
                   <div className="text-left">
-                    <p className="font-bold text-lg">Claim failed</p>
+                    <p className="font-bold text-xl">Claim Failed</p>
                     <p className="text-base mt-1">{claimError}</p>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Claim button */}
+            {/* Claim Button - Cyan theme */}
             <motion.button
-              whileHover={{ scale: 1.07, y: -4 }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.08, y: -5 }}
+              whileTap={{ scale: 0.95 }}
               disabled={claiming}
               onClick={handleClaimClick}
               className={`
-                px-12 py-6 md:px-16 md:py-8 text-xl md:text-2xl font-black
-                rounded-2xl md:rounded-3xl
-                shadow-2xl shadow-amber-900/50 border-2 border-amber-300/30
-                transition-all duration-300 relative overflow-hidden group
-                disabled:opacity-60 disabled:cursor-wait
-                ${claiming 
-                  ? "bg-gray-800" 
-                  : "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:via-yellow-500 hover:to-amber-600"
+                relative px-14 py-7 md:px-20 md:py-9 text-2xl md:text-3xl font-black
+                rounded-3xl shadow-2xl overflow-hidden
+                border-4 border-cyan-400/60
+                transition-all duration-400
+                disabled:opacity-50 disabled:cursor-wait
+                ${claiming
+                  ? "bg-cyan-900/50 text-cyan-300"
+                  : "bg-gradient-to-r from-cyan-600 via-cyan-500 to-teal-600 text-white hover:from-cyan-500 hover:via-cyan-400 hover:to-teal-500"
                 }
               `}
             >
-              <span className="relative z-10">
-                {claiming ? "Claiming Rewards..." : "Claim Your Rewards"}
+              <span className="relative z-10 drop-shadow-lg">
+                {claiming ? "Claiming Rewards..." : "Claim Your Victory"}
               </span>
               <motion.div
-                className="absolute inset-0 bg-white/15"
+                className="absolute inset-0 bg-white/20"
                 initial={{ x: "-100%" }}
                 whileHover={{ x: "100%" }}
-                transition={{ duration: 0.7 }}
+                transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 1 }}
               />
             </motion.button>
 
-            <p className="mt-12 text-base sm:text-lg text-amber-200/60 font-light">
-              Thanks for playing <span className="text-amber-300 font-medium">Tycoon</span> • Legend status achieved
-            </p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="mt-12 text-lg text-cyan-300/70 font-light"
+            >
+              Thank you for playing{" "}
+              <span className="font-bold text-cyan-200">Tycoon</span> • You are a legend.
+            </motion.p>
           </div>
         </motion.div>
       </motion.div>
