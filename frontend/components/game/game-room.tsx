@@ -1,23 +1,25 @@
 "use client";
+
 import { ChevronRight, Copy, Settings } from "lucide-react";
 import React, { useState } from "react";
 import ChatRoom from "./chat-room";
 import { PiChatsCircle } from "react-icons/pi";
 
-const GameRoom = () => {
+interface GameRoomProps {
+  gameId: string;
+}
+
+const GameRoom = ({ gameId }: GameRoomProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // Get the current browser URL
+  // Get the current browser URL (for sharing the room)
   const gameRoomLink =
-    typeof window !== "undefined"
-      ? window.location.href
-      : "https://tycoon.io/";
+    typeof window !== "undefined" ? window.location.href : "https://tycoon.io/";
 
-  // Function to copy the link to clipboard
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(gameRoomLink);
@@ -40,26 +42,18 @@ const GameRoom = () => {
           <PiChatsCircle className="w-5 h-5" />
         </button>
       )}
+
       <aside
-        className={`
-          h-full overflow-y-auto no-scrollbar bg-[#010F10] p-4 rounded-s-[12px] border-l-[1px] border-white/10
-          transition-all duration-300 ease-in-out
-          fixed z-20 top-0 right-0 
-          transform ${
-            isSidebarOpen
-              ? "translate-x-0 lg:translate-x-0"
-              : "translate-x-full lg:translate-x-0"
-          }
-          lg:static lg:transform-none
-          ${
-            isSidebarOpen
-              ? "lg:w-[272px] md:w-1/2 w-full"
-              : "lg:w-[60px] w-full"
-          }
-        `}
+        className={`h-full overflow-y-auto no-scrollbar bg-[#010F10] p-4 rounded-s-[12px] border-l-[1px] border-white/10 transition-all duration-300 ease-in-out fixed z-20 top-0 right-0 transform ${
+          isSidebarOpen
+            ? "translate-x-0 lg:translate-x-0"
+            : "translate-x-full lg:translate-x-0"
+        } lg:static lg:transform-none ${
+          isSidebarOpen ? "lg:w-[272px] md:w-1/2 w-full" : "lg:w-[60px] w-full"
+        }`}
       >
         <div className="w-full h-full flex flex-col gap-3">
-          {/* Toggle button with changing icon */}
+          {/* Toggle button */}
           <button
             type="button"
             onClick={toggleSidebar}
@@ -72,18 +66,15 @@ const GameRoom = () => {
               <PiChatsCircle className="size-[25px]" />
             )}
           </button>
+
           <div
             className={`w-full flex justify-between items-center ${
               !isSidebarOpen && "hidden"
             }`}
           >
-            {/* Show only when the sidebar is open */}
-            <h4
-              className={"font-[700] font-dmSans md:text-[16px] text-[#F0F7F7]"}
-            >
+            <h4 className="font-[700] font-dmSans md:text-[16px] text-[#F0F7F7]">
               Game Room
             </h4>
-            {/* Settings button */}
             <button
               type="button"
               className="text-[#869298] hover:text-[#F0F7F7] bg-[#0B191A] size-[32px] rounded-full flex justify-center items-center cursor-pointer"
@@ -93,13 +84,11 @@ const GameRoom = () => {
             </button>
           </div>
 
-          {/* Game Room Link */}
+          {/* Shareable Link */}
           <div
-            className={`
-              w-full flex
-              transition-opacity duration-200
-              ${isSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"}
-            `}
+            className={`w-full flex transition-opacity duration-200 ${
+              isSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
           >
             <div
               className="flex-1 overflow-x-auto no-scrollbar bg-[#0B191A] px-[12px] py-[8px] rounded-s-[12px] text-[#AFBAC0] text-[12px] font-dmSans font-medium"
@@ -118,8 +107,8 @@ const GameRoom = () => {
             </button>
           </div>
 
-          {/* Chat Room */}
-          {isSidebarOpen && <ChatRoom />}
+          {/* The actual chat */}
+          {isSidebarOpen && <ChatRoom gameId={gameId} />}
         </div>
       </aside>
     </>

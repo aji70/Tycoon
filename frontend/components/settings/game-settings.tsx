@@ -386,7 +386,6 @@ export default function GameSettings() {
                   <p className="text-3xl font-bold text-green-400">
                     {settings.stake} USDC
                   </p>
-                  <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
                 </div>
               </>
             )}

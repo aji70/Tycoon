@@ -132,7 +132,7 @@ export default function GamePlayPage() {
             />
           )}
           {activeTab === 'chat' && (
-            <GameRoom />
+            <GameRoom gameId={game?.code?.toString() ?? ""} />
           )}
         </div>
         <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-cyan-500 flex justify-around items-center h-16 z-50">
@@ -177,7 +177,7 @@ export default function GamePlayPage() {
           me={me}
         />
       </div>
-      <GameRoom />
+      <GameRoom gameId={game?.code?.toString() ?? ""} />
     </main>
   ) : (
     <></>
