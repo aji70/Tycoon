@@ -374,7 +374,6 @@ export function useJoinGame(gameId: bigint, username: string, playerSymbol: stri
       abi: TycoonABI,
       functionName: 'joinGame',
       args: [gameId, username, playerSymbol, code],
-      value: BigInt(stake),
     });
     return hash;
   }, [writeContractAsync, contractAddress, gameId, username, playerSymbol, code]);
