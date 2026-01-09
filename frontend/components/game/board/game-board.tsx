@@ -27,7 +27,7 @@ import { CardModal } from "../modals/cards";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
+import { useExitGame, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
 import { PropertyActionModal } from "../modals/property-action";
 
 const BOARD_SQUARES = 40;
@@ -82,6 +82,7 @@ const Board = ({
   const lastToastMessage = useRef<string | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
   // Victory handling
   const [winner, setWinner] = useState<Player | null>(null);
@@ -202,7 +203,18 @@ const Board = ({
       return;
     }
 
+
+      const buyerUsername = me?.username; 
+
+  if (!buyerUsername) {
+    showToast("Cannot buy: your username is missing", "error");
+    return;
+  }
+
     try {
+      showToast("Sending transaction...", "default");
+      await transferOwnership('', buyerUsername);
+      
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: game.id,
