@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 
@@ -165,6 +165,7 @@ const MobileGameLayout = ({
 
   const [bellFlash, setBellFlash] = useState(false);
   const prevIncomingTradeCount = useRef(0);
+   const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
   const {
     tradeRequests = [],
@@ -392,7 +393,23 @@ const MobileGameLayout = ({
       return;
     }
 
+      const buyerUsername = me?.username;
+  
+
+  if (!buyerUsername) {
+    showToast("Cannot buy: your username is missing", "error");
+    return;
+  }
+
     try {
+       // Show loading state
+    showToast("Sending transaction...", "default");
+
+    // 1. On-chain minimal proof (counters update) - skip if AI is involved
+    if (isMyTurn) {
+      await transferOwnership('', buyerUsername);
+    }
+
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: currentGame.id,
