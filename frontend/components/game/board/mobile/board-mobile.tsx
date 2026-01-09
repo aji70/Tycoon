@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
@@ -7,7 +6,6 @@ import { apiClient } from "@/lib/api";
 import { useGetGameByCode, useExitGame, useTransferPropertyOwnership } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
-
 import Board from "./board";
 import DiceAnimation from "./dice-animation";
 import GameLog from "./game-log";
@@ -78,10 +76,10 @@ const TOKEN_POSITIONS: Record<number, { x: number; y: number }> = {
 const MONOPOLY_STATS = {
   landingRank: {
     5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
-    19: 11, 21: 12, 23: 13, 24: 14, 26: 15, 27: 16, 29: 17, 31: 18, 32: 19, 34: 20, 37: 21, 39: 22,
-    1: 30, 2: 25, 3: 29, 4: 35, 12: 32, 17: 28, 22: 26, 28: 33, 33: 27, 36: 24, 38: 23,
+    19: 11, 21: 12, 23: 13, 24: 14, 26: 15, 27: 16, 29: 17, 31: 18, 32: 19,
+    34: 20, 37: 21, 39: 22, 1: 30, 2: 25, 3: 29, 4: 35, 12: 32, 17: 28,
+    22: 26, 28: 33, 33: 27, 36: 24, 38: 23,
   } as { [key: number]: number },
-
   colorGroups: {
     brown: [1, 3],
     lightblue: [6, 8, 9],
@@ -124,7 +122,6 @@ const MobileGameLayout = ({
   const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [currentGameProperties, setCurrentGameProperties] = useState<GameProperty[]>(game_properties);
-
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
   const [pendingRoll, setPendingRoll] = useState(0);
@@ -132,34 +129,25 @@ const MobileGameLayout = ({
   const [buyPrompted, setBuyPrompted] = useState(false);
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
   const [hasMovementFinished, setHasMovementFinished] = useState(false);
-
   const [showInsolvencyModal, setShowInsolvencyModal] = useState(false);
   const [insolvencyDebt, setInsolvencyDebt] = useState(0);
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
-
   const [winner, setWinner] = useState<Player | null>(null);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
-  const [endGameCandidate, setEndGameCandidate] = useState<{
-    winner: Player | null;
-    position: number;
-    balance: bigint;
-  }>({ winner: null, position: 0, balance: BigInt(0) });
-
+  const [endGameCandidate, setEndGameCandidate] = useState<{ winner: Player | null; position: number; balance: bigint }>({
+    winner: null,
+    position: 0,
+    balance: BigInt(0),
+  });
   const [showCardModal, setShowCardModal] = useState(false);
-  const [cardData, setCardData] = useState<{
-    type: "chance" | "community";
-    text: string;
-    effect?: string;
-    isGood: boolean;
-  } | null>(null);
+  const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
-
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
 
-   const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
+  const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
@@ -167,12 +155,10 @@ const MobileGameLayout = ({
   const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
   const [isFollowingMyMove, setIsFollowingMyMove] = useState(false);
-
   const [defaultScale, setDefaultScale] = useState(1.45);
-
   const [bellFlash, setBellFlash] = useState(false);
-  const prevIncomingTradeCount = useRef(0);
 
+  const prevIncomingTradeCount = useRef(0);
   const { tradeRequests = [], refreshTrades } = useGameTrades({
     gameId: game?.id,
     myUserId: me?.user_id,
@@ -193,7 +179,6 @@ const MobileGameLayout = ({
     if (currentCount > previousCount && previousCount > 0) {
       const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
       const senderName = latestTrade?.player?.username || "Someone";
-
       toast.custom(
         <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 rounded-xl shadow-2xl">
           <Bell className="w-6 h-6 animate-bell-ring" />
@@ -204,7 +189,6 @@ const MobileGameLayout = ({
         </div>,
         { duration: 5000, position: "top-center" }
       );
-
       setBellFlash(true);
       setTimeout(() => setBellFlash(false), 800);
     }
@@ -253,6 +237,26 @@ const MobileGameLayout = ({
 
   const isFetching = useRef(false);
 
+  useEffect(() => {
+    if (
+      isMyTurn &&
+      me &&
+      (me.balance ?? 0) <= 0 &&
+      !showInsolvencyModal &&
+      !isRaisingFunds
+    ) {
+      const timer = setTimeout(() => {
+        setShowInsolvencyModal(true);
+        toast.error(
+          "You don't have enough money! You must raise funds or declare bankruptcy.",
+          { duration: 7000 }
+        );
+      }, 1200);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isMyTurn, me?.balance, showInsolvencyModal, isRaisingFunds]);
+
   const fetchUpdatedGame = useCallback(async () => {
     if (isFetching.current) return;
     isFetching.current = true;
@@ -300,7 +304,6 @@ const MobileGameLayout = ({
 
     const pos = landedPositionThisTurn.current;
     const square = properties.find(p => p.id === pos);
-
     if (!square || square.price == null) {
       setBuyPrompted(false);
       return;
@@ -309,23 +312,13 @@ const MobileGameLayout = ({
     const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
     const action = PROPERTY_ACTION(pos);
     const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-
     const canBuy = !isOwned && isBuyableType;
 
     setBuyPrompted(canBuy);
-
     if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
       showToast(`Not enough money to buy ${square.name}`, "error");
     }
-  }, [
-    roll,
-    landedPositionThisTurn.current,
-    hasMovementFinished,
-    properties,
-    currentGameProperties,
-    currentPlayer,
-    showToast,
-  ]);
+  }, [roll, landedPositionThisTurn.current, hasMovementFinished, properties, currentGameProperties, currentPlayer, showToast]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -392,10 +385,8 @@ const MobileGameLayout = ({
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
-
     landedPositionThisTurn.current = newPosition;
     setIsSpecialMove(isSpecial);
-
     setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
   }, []);
@@ -419,22 +410,15 @@ const MobileGameLayout = ({
       return;
     }
 
-         const buyerUsername = me?.username;
-  
-
-  if (!buyerUsername) {
-    showToast("Cannot buy: your username is missing", "error");
-    return;
-  }
-
+    const buyerUsername = me?.username;
+    if (!buyerUsername) {
+      showToast("Cannot buy: your username is missing", "error");
+      return;
+    }
 
     try {
-         showToast("Sending transaction...", "default");
-
-    // 1. On-chain minimal proof (counters update) - skip if AI is involved
-    
-      await transferOwnership('', buyerUsername);
-    
+      showToast("Sending transaction...", "default");
+      // await transferOwnership('', buyerUsername);
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: currentGame.id,
@@ -515,6 +499,7 @@ const MobileGameLayout = ({
           unlockAction();
         }
       }, 800);
+
       return;
     }
 
@@ -532,7 +517,6 @@ const MobileGameLayout = ({
       }
 
       setRoll(value);
-
       const currentPos = player.position ?? 0;
       const totalMove = value.total + pendingRoll;
       let newPos = (currentPos + totalMove) % BOARD_SQUARES;
@@ -562,11 +546,9 @@ const MobileGameLayout = ({
           rolled: value.total + pendingRoll,
           is_double: value.die1 === value.die2,
         });
-
         setPendingRoll(0);
         landedPositionThisTurn.current = newPos;
         await fetchUpdatedGame();
-
         showToast(
           `${player.username} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
           "success"
@@ -581,9 +563,18 @@ const MobileGameLayout = ({
       }
     }, ROLL_ANIMATION_MS);
   }, [
-    isRolling, actionLock, lockAction, unlockAction,
-    currentPlayerId, me, players, pendingRoll, currentGame.id,
-    fetchUpdatedGame, showToast, END_TURN
+    isRolling,
+    actionLock,
+    lockAction,
+    unlockAction,
+    currentPlayerId,
+    me,
+    players,
+    pendingRoll,
+    currentGame.id,
+    fetchUpdatedGame,
+    showToast,
+    END_TURN,
   ]);
 
   const getPlayerOwnedProperties = useCallback((playerAddress: string | undefined) => {
@@ -653,22 +644,16 @@ const MobileGameLayout = ({
     showToast("Declaring bankruptcy...", "error");
 
     let creditorPlayerId: number | null = null;
-
     if (justLandedProperty) {
       const landedGameProp = currentGameProperties.find(
         (gp) => gp.property_id === justLandedProperty.id
       );
-
       if (landedGameProp?.address && landedGameProp.address !== "bank") {
         const owner = players.find(
-          (p) =>
-            p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
-            p.user_id !== me.user_id
+          (p) => p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
+                 p.user_id !== me.user_id
         );
-
-        if (owner) {
-          creditorPlayerId = owner.user_id;
-        }
+        if (owner) creditorPlayerId = owner.user_id;
       }
     }
 
@@ -683,7 +668,6 @@ const MobileGameLayout = ({
         showToast("You have no properties to transfer.", "default");
       } else if (creditorPlayerId) {
         showToast(`Transferring all properties to the player who bankrupted you...`, "error");
-
         let successCount = 0;
         for (const gp of myOwnedProperties) {
           try {
@@ -696,11 +680,9 @@ const MobileGameLayout = ({
             console.error(`Failed to transfer property ${gp.property_id}`, err);
           }
         }
-
         toast.success(`${successCount}/${myOwnedProperties.length} properties transferred!`);
       } else {
         showToast("Returning all properties to the bank...", "error");
-
         let successCount = 0;
         for (const gp of myOwnedProperties) {
           try {
@@ -712,12 +694,10 @@ const MobileGameLayout = ({
             console.error(`Failed to return property ${gp.property_id}`, err);
           }
         }
-
         toast.success(`${successCount}/${myOwnedProperties.length} properties returned to bank.`);
       }
 
       await END_TURN();
-
       await apiClient.post("/game-players/leave", {
         address: me.address,
         code: currentGame.code,
@@ -725,54 +705,33 @@ const MobileGameLayout = ({
       });
 
       await fetchUpdatedGame();
-
       showToast("You have declared bankruptcy and left the game.", "error");
       setShowExitPrompt(true);
     } catch (err: any) {
       console.error("Bankruptcy process failed:", err);
       showToast("Bankruptcy failed — but you are eliminated.", "error");
-
-      try {
-        await END_TURN();
-      } catch {}
-
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 3000);
+      try { await END_TURN(); } catch {}
+      setTimeout(() => { window.location.href = "/"; }, 3000);
     } finally {
       setShowBankruptcyModal(false);
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
     }
-  }, [
-    me,
-    currentGame,
-    justLandedProperty,
-    currentGameProperties,
-    players,
-    showToast,
-    fetchUpdatedGame,
-    END_TURN,
-    endGame,
-  ]);
+  }, [me, currentGame, justLandedProperty, currentGameProperties, players, showToast, fetchUpdatedGame, END_TURN, endGame]);
 
   const handleFinalizeAndLeave = async () => {
     const toastId = toast.loading(
-      winner?.user_id === me?.user_id
-        ? "Claiming your prize..."
-        : "Finalizing game..."
+      winner?.user_id === me?.user_id ? "Claiming your prize..." : "Finalizing game..."
     );
 
     try {
       if (endGame) await endGame();
-
       toast.success(
         winner?.user_id === me?.user_id
-          ? "Prize claimed! 🎉"
+          ? "Prize claimed! "
           : "Game completed — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
@@ -786,37 +745,32 @@ const MobileGameLayout = ({
     }
   };
 
-
   useEffect(() => {
     if (!currentGame || currentGame.status === "FINISHED" || !me) return;
 
     const activePlayers = currentGame.players.filter((player) => {
       if ((player.balance ?? 0) > 0) return true;
       return currentGameProperties.some(
-        (gp) =>
-          gp.address?.toLowerCase() === player.address?.toLowerCase() &&
-          gp.mortgaged !== true
+        (gp) => gp.address?.toLowerCase() === player.address?.toLowerCase() &&
+                gp.mortgaged !== true
       );
     });
 
     if (activePlayers.length === 1) {
       const theWinner = activePlayers[0];
-
       if (winner?.user_id === theWinner.user_id) return;
 
-      toast.success(`${theWinner.username} wins the game! 🎉🏆`);
-
+      toast.success(`${theWinner.username} wins the game! `);
       setWinner(theWinner);
       setEndGameCandidate({
         winner: theWinner,
         position: theWinner.position ?? 0,
         balance: BigInt(theWinner.balance ?? 0),
       });
-
       setShowVictoryModal(true);
 
       if (me?.user_id === theWinner.user_id) {
-        toast.success("You are the Monopoly champion! 🏆");
+        toast.success("You are the Monopoly champion! ");
       }
     }
   }, [currentGame.players, currentGameProperties, currentGame.status, me, winner, currentGameProperties]);
@@ -841,12 +795,17 @@ const MobileGameLayout = ({
       }
     }
 
-    const groupEntry = Object.entries(MONOPOLY_STATS.colorGroups).find(([_, ids]) => ids.includes(prop.id));
+    const groupEntry = Object.entries(MONOPOLY_STATS.colorGroups).find(([_, ids]) =>
+      ids.includes(prop.id)
+    );
+
     if (groupEntry) {
       const [groupName] = groupEntry;
       if (groupName !== "railroad" && groupName !== "utility") {
         const groupIds = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-        const ownedInGroup = currentGameProperties.filter(g => groupIds.includes(g.property_id) && g.address === gp.address).length;
+        const ownedInGroup = currentGameProperties.filter(
+          g => groupIds.includes(g.property_id) && g.address === gp.address
+        ).length;
         if (ownedInGroup === groupIds.length) return (prop.rent_site_only || 0) * 2;
       }
     }
@@ -881,6 +840,7 @@ const MobileGameLayout = ({
         const isBuilding = currentDev < 5;
         const item = currentDev === 4 && isBuilding ? "hotel" : "house";
         const action = isBuilding ? "built" : "sold";
+
         showToast(`Successfully ${action} ${item}!`, "success");
         await fetchUpdatedGame();
         setSelectedProperty(null);
@@ -955,7 +915,9 @@ const MobileGameLayout = ({
 
     players.forEach((p) => {
       const pos = animatedPositions[p.user_id] ?? p.position ?? 0;
-      const playersHere = players.filter(p2 => (animatedPositions[p2.user_id] ?? p2.position) === pos);
+      const playersHere = players.filter(
+        p2 => (animatedPositions[p2.user_id] ?? p2.position) === pos
+      );
 
       const sorted = [...playersHere].sort((a, b) => {
         if (a.user_id === me?.user_id) return 1;
@@ -989,6 +951,9 @@ const MobileGameLayout = ({
     return playerPositions;
   }, [players, animatedPositions, me]);
 
+  const hasNegativeBalance = (me?.balance ?? 0) <= 0;
+  const isSoloPlayer = players.length === 1 && players[0].user_id === me?.user_id;
+
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
       <button
@@ -1008,7 +973,6 @@ const MobileGameLayout = ({
           className="relative p-3 bg-purple-700/80 backdrop-blur-md rounded-full shadow-lg hover:bg-purple-600 transition"
         >
           <Bell className="w-7 h-7 text-white" />
-
           {myIncomingTrades.length > 0 && (
             <span className="absolute -top-1 -right-1 flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
               {myIncomingTrades.length}
@@ -1019,7 +983,6 @@ const MobileGameLayout = ({
 
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
-
         {me && (
           <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20">
             <span className="text-sm opacity-80">Bal:</span>
@@ -1032,7 +995,6 @@ const MobileGameLayout = ({
                 if (bal >= 150) return "text-orange-400";
                 return "text-red-500 animate-pulse";
               };
-
               return (
                 <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
                   ${Number(balance).toLocaleString()}
@@ -1066,13 +1028,25 @@ const MobileGameLayout = ({
         roll={roll}
       />
 
-      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (me?.balance ?? 0) > 0 && (
-        <button
-          onClick={() => ROLL_DICE(false)}
-          className="w-full max-w-xs mx-auto py-3 px-8 mb-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95"
-        >
-          Roll Dice
-        </button>
+      {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+        <div className="w-full max-w-xs mx-auto mb-8 flex flex-col gap-4 items-center">
+          {hasNegativeBalance ? (
+            <button
+              onClick={() => setShowBankruptcyModal(true)}
+              className="w-full py-4 px-8 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 active:from-red-800 active:to-rose-900 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-red-500/40 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/40 active:scale-95"
+            >
+              Declare Bankruptcy
+            </button>
+          ) : (
+            <button
+              onClick={() => ROLL_DICE(false)}
+              disabled={isRolling}
+              className="w-full py-3 px-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Roll Dice
+            </button>
+          )}
+        </div>
       )}
 
       <AnimatePresence>
@@ -1135,7 +1109,6 @@ const MobileGameLayout = ({
               <div className="p-6">
                 <h2 className="text-2xl font-bold text-center mb-4">{selectedProperty.name}</h2>
                 <p className="text-center text-gray-300 mb-6">Price: ${selectedProperty.price}</p>
-
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span>Current Rent:</span>
@@ -1313,6 +1286,15 @@ const MobileGameLayout = ({
         claiming={endGamePending}
       />
 
+      {isSoloPlayer && !showVictoryModal && winner?.user_id === me?.user_id && (
+        <VictoryModal
+          winner={winner}
+          me={me}
+          onClaim={handleFinalizeAndLeave}
+          claiming={endGamePending}
+        />
+      )}
+
       <style jsx>{`
         @keyframes bell-ring {
           0%, 100% { transform: rotate(0deg); }
@@ -1342,8 +1324,8 @@ const MobileGameLayout = ({
             boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
             backdropFilter: "blur(10px)",
           },
-          success: { icon: "✔", style: { borderColor: "#10b981" } },
-          error: { icon: "✖", style: { borderColor: "#ef4444" } },
+          success: { icon: "", style: { borderColor: "#10b981" } },
+          error: { icon: "", style: { borderColor: "#ef4444" } },
         }}
       />
     </div>

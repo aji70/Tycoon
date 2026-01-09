@@ -43,9 +43,11 @@ interface GameCreateResponse {
     id?: string | number;
   };
   id?: string | number;
+  [key: string]: any;
 }
 
 const USDC_DECIMALS = 6;
+const stakePresets = [1, 5, 10, 25, 50, 100];
 
 export default function CreateGameMobile() {
   const router = useRouter();
@@ -125,6 +127,17 @@ export default function CreateGameMobile() {
     }
   };
 
+  const extractGameId = (response: any): string | number | undefined => {
+    if (typeof response === 'string' || typeof response === 'number') return response;
+    return (
+      response?.data?.data?.id ??
+      response?.data?.id ??
+      response?.id ??
+      response?.gameId ??
+      response?.data?.game?.id
+    );
+  };
+
   const handlePlay = async () => {
     if (!address || !username || !isUserRegistered) {
       toast.error("Please connect wallet and register first!");
@@ -136,10 +149,15 @@ export default function CreateGameMobile() {
       return;
     }
 
+    if (!usdcTokenAddress && !isFreeGame) {
+      toast.error("USDC not available on this network.");
+      return;
+    }
+
     const toastId = toast.loading("Creating your game room...");
 
     try {
-      // Approval only needed for paid games
+      // Approval only for paid games
       if (!isFreeGame) {
         let needsApproval = false;
         await refetchAllowance();
@@ -159,7 +177,7 @@ export default function CreateGameMobile() {
 
       toast.update(toastId, { render: "Saving game to server..." });
 
-      const saveRes: GameCreateResponse = await apiClient.post("/games", {
+      const saveRes = await apiClient.post<any>("/games", {
         id: onChainGameId.toString(),
         code: gameCode,
         mode: gameType,
@@ -182,8 +200,13 @@ export default function CreateGameMobile() {
         },
       });
 
-      const dbGameId = saveRes?.data?.id ?? saveRes?.id;
-      if (!dbGameId) throw new Error("Backend did not return game ID");
+      // ── Robust ID extraction ────────────────────────────────────────
+      const dbGameId = extractGameId(saveRes);
+
+      if (!dbGameId) {
+        console.error("Backend response:", JSON.stringify(saveRes, null, 2));
+        throw new Error("Backend did not return a valid game ID");
+      }
 
       toast.update(toastId, {
         render: `Game created! Share code: ${gameCode}`,
@@ -193,11 +216,15 @@ export default function CreateGameMobile() {
         onClose: () => router.push(`/game-waiting?gameCode=${gameCode}`),
       });
     } catch (err: any) {
-      console.error(err);
-      let message = "Failed to create game.";
-      if (err.message?.includes("user rejected")) message = "Transaction cancelled.";
-      else if (err.message?.includes("insufficient")) message = "Insufficient balance or gas.";
-      else if (err.message) message = err.message;
+      console.error("Create game error:", err);
+      let message = "Failed to create game. Please try again.";
+      if (err.message?.includes("user rejected") || err.code === 4001) {
+        message = "Transaction cancelled.";
+      } else if (err.message?.includes("insufficient")) {
+        message = "Insufficient balance or gas.";
+      } else if (err.message) {
+        message = err.message;
+      }
 
       toast.update(toastId, {
         render: message,
@@ -333,7 +360,7 @@ export default function CreateGameMobile() {
             ) : (
               <>
                 <div className="grid grid-cols-3 gap-3 mb-5">
-                  {[1, 5, 10, 25, 50, 100].map((amt) => (
+                  {stakePresets.map((amt) => (
                     <button
                       key={amt}
                       onClick={() => handleStakeSelect(amt)}
@@ -368,7 +395,7 @@ export default function CreateGameMobile() {
             )}
           </div>
 
-          {/* Starting Cash & Duration - side by side on larger phones */}
+          {/* Starting Cash & Duration */}
           <div className="grid grid-cols-2 gap-4">
             {/* Starting Cash */}
             <div className="bg-gradient-to-br from-amber-900/35 to-orange-900/35 rounded-2xl p-5 border border-amber-500/25">

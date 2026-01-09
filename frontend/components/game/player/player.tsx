@@ -447,6 +447,11 @@ export default function GamePlayers({
   
       try {
         if (endGame) await endGame();
+
+            await apiClient.put(`/games/${game.id}`, {
+                status: "FINISHED",
+                winner_id: me?.user_id || null,
+              });
   
         toast.success(
           winner?.user_id === me?.user_id

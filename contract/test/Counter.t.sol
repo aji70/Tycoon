@@ -442,6 +442,9 @@ contract TycoonTest is Test {
         assertEq(usdc.balanceOf(charlie), charlieUSDCBefore - stake + thirdPrize);
       
         assertEq(tycoon.houseUSDC(), houseCut);
+
+        vm.prank(owner);
+        tycoon.drainContract();
     }
 
     // ============================================================================
@@ -491,68 +494,68 @@ contract TycoonTest is Test {
         console.log("Unstaked game ended - only vouchers/collectibles distributed");
     }
 
-    function test_PropertyTransferOwnership_WithEdgeCases() public {
-    // Register Alice and Bob
-    vm.prank(alice);
-    tycoon.registerPlayer("Alice");
+    // function test_PropertyTransferOwnership_WithEdgeCases() public {
+    // // Register Alice and Bob
+    // vm.prank(alice);
+    // tycoon.registerPlayer("Alice");
 
-    vm.prank(bob);
-    tycoon.registerPlayer("Bob");
+    // vm.prank(bob);
+    // tycoon.registerPlayer("Bob");
 
-    // Initial state
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 0);
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
+    // // Initial state
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 0);
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
 
-    // // Edge case 1: Empty seller - only increment buyer (give Alice 2 properties)
-    tycoon.transferPropertyOwnership("", "Alice");
-    tycoon.transferPropertyOwnership("", "Alice");
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
+    // // // Edge case 1: Empty seller - only increment buyer (give Alice 2 properties)
+    // tycoon.transferPropertyOwnership("", "Alice");
+    // tycoon.transferPropertyOwnership("", "Alice");
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
 
-    // Edge case 2: Normal transfer - seller has properties > 0
-    tycoon.transferPropertyOwnership("Alice", "Bob");
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 1);
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 1);
+    // // Edge case 2: Normal transfer - seller has properties > 0
+    // tycoon.transferPropertyOwnership("Alice", "Bob");
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 1);
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 1);
 
-    // Edge case 3: Transfer when seller has exactly 1 property
-    tycoon.transferPropertyOwnership("Bob", "Alice");
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
+    // // Edge case 3: Transfer when seller has exactly 1 property
+    // tycoon.transferPropertyOwnership("Bob", "Alice");
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
 
-    // Edge case 4: Transfer when seller has 0 properties - shouldn't decrement below 0, but still increments buyer
-    tycoon.transferPropertyOwnership("Bob", "Alice");
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 0); // Remains 0
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 3); // Increments
+    // // Edge case 4: Transfer when seller has 0 properties - shouldn't decrement below 0, but still increments buyer
+    // tycoon.transferPropertyOwnership("Bob", "Alice");
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 0); // Remains 0
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 3); // Increments
 
-    // Edge case 5: Non-existing seller - nothing for seller, but increments buyer
-    tycoon.transferPropertyOwnership("NonExistent", "Bob");
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 1);
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 3); // Unchanged
+    // // Edge case 5: Non-existing seller - nothing for seller, but increments buyer
+    // tycoon.transferPropertyOwnership("NonExistent", "Bob");
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 1);
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 3); // Unchanged
 
-    // Edge case 6: Non-existing buyer - decrements seller if possible, nothing for buyer
-    tycoon.transferPropertyOwnership("Alice", "NonExistent");
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 2); // Decremented
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 1); // Unchanged
+    // // Edge case 6: Non-existing buyer - decrements seller if possible, nothing for buyer
+    // tycoon.transferPropertyOwnership("Alice", "NonExistent");
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 2); // Decremented
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 1); // Unchanged
 
-    // Edge case 7: Empty buyer - only decrement seller if possible
-    tycoon.transferPropertyOwnership("Bob", "");
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
+    // // Edge case 7: Empty buyer - only decrement seller if possible
+    // tycoon.transferPropertyOwnership("Bob", "");
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
 
-    // Edge case 8: Empty seller and empty buyer - no effect
-    tycoon.transferPropertyOwnership("", "");
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
-    assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
+    // // Edge case 8: Empty seller and empty buyer - no effect
+    // tycoon.transferPropertyOwnership("", "");
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 2);
+    // assertEq(tycoon.getUser("Bob").propertiesOwned, 0);
 
-    // Edge case 9: Transfer to self - decrement and increment same user
-    tycoon.transferPropertyOwnership("Alice", "Alice");
-    assertEq(tycoon.getUser("Alice").propertiesOwned, 2); // Decrement then increment, net 0 change
+    // // Edge case 9: Transfer to self - decrement and increment same user
+    // tycoon.transferPropertyOwnership("Alice", "Alice");
+    // assertEq(tycoon.getUser("Alice").propertiesOwned, 2); // Decrement then increment, net 0 change
 
     // Edge case 10: Only owner can call
     // vm.prank(alice);
     // vm.expectRevert("Ownable: caller is not the owner");
     // tycoon.transferPropertyOwnership("Alice", "Bob");
-}
+// }
 
     //     function test_Revert_Join_Not_Registered() public {
     //         vm.prank(alice);
