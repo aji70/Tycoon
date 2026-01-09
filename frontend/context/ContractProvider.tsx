@@ -199,7 +199,6 @@ export function useCreateGame(
   code: string,
   startingCash: bigint,
   stake: bigint,
-  useUsdc: boolean
 ) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
@@ -230,9 +229,7 @@ export function useCreateGame(
         code,
         startingCash,
         stake,
-        useUsdc,
       ],
-      value: useUsdc ? BigInt(0) : stake, 
     });
   }, [
     writeContractAsync,
@@ -244,7 +241,6 @@ export function useCreateGame(
     code,
     startingCash,
     stake,
-    useUsdc,
   ]);
 
   return {

@@ -60,6 +60,8 @@ export default function GameSettings() {
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
 
+  const [isFreeGame, setIsFreeGame] = useState(false);
+
   const [settings, setSettings] = useState({
     symbol: "hat",
     maxPlayers: 4,
@@ -96,6 +98,9 @@ export default function GameSettings() {
     isConfirming: approveConfirming,
   } = useApprove();
 
+  const finalStake = isFreeGame ? 0 : settings.stake;
+  const stakeAmount = parseUnits(finalStake.toString(), USDC_DECIMALS);
+
   const { write: createGame, isPending: isCreatePending } = useCreateGame(
     username || "",
     gameType,
@@ -103,16 +108,17 @@ export default function GameSettings() {
     settings.maxPlayers,
     gameCode,
     BigInt(settings.startingCash),
-    parseUnits(settings.stake.toString(), USDC_DECIMALS),
-    true
+    stakeAmount
   );
 
   const handleStakeSelect = (value: number) => {
+    if (isFreeGame) return;
     setSettings((prev) => ({ ...prev, stake: value }));
     setCustomStake("");
   };
 
   const handleCustomStake = (value: string) => {
+    if (isFreeGame) return;
     setCustomStake(value);
     const num = Number(value);
     const min = 0.01;
@@ -132,25 +138,26 @@ export default function GameSettings() {
       return;
     }
 
-    if (!usdcTokenAddress) {
+    if (!usdcTokenAddress && !isFreeGame) {
       toast.error("USDC not available on this network.");
       return;
     }
 
-    const stakeAmount = parseUnits(settings.stake.toString(), USDC_DECIMALS);
-
     const toastId = toast.loading("Creating your game room...");
 
     try {
-      let needsApproval = false;
-      await refetchAllowance();
-      const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
-      if (currentAllowance < stakeAmount) needsApproval = true;
+      // Only need approval if NOT free game
+      if (!isFreeGame) {
+        let needsApproval = false;
+        await refetchAllowance();
+        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
+        if (currentAllowance < stakeAmount) needsApproval = true;
 
-      if (needsApproval) {
-        toast.update(toastId, { render: "Approving USDC spend..." });
-        await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
-        await new Promise(r => setTimeout(r, 3000));
+        if (needsApproval) {
+          toast.update(toastId, { render: "Approving USDC spend..." });
+          await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
+          await new Promise(r => setTimeout(r, 3000));
+        }
       }
 
       toast.update(toastId, { render: "Creating game on-chain..." });
@@ -168,13 +175,13 @@ export default function GameSettings() {
           address,
           symbol: settings.symbol,
           number_of_players: settings.maxPlayers,
-          stake: settings.stake,
+          stake: finalStake,           // ← important: send 0 when free
           starting_cash: settings.startingCash,
           is_ai: false,
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
-          use_usdc: true,
+          use_usdc: !isFreeGame,       // no USDC if free
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -305,48 +312,84 @@ export default function GameSettings() {
                 />
               </div>
             </div>
+
+            {/* Free Game Toggle */}
+            <div className="bg-black/60 rounded-2xl p-6 border border-yellow-600/50 mt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FaCoins className="w-7 h-7 text-yellow-400" />
+                  <div>
+                    <h3 className="text-xl font-bold text-yellow-300">Free Game</h3>
+                    <p className="text-gray-400 text-sm">Play for fun — 0 USDC</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={isFreeGame}
+                  onCheckedChange={(checked) => {
+                    setIsFreeGame(checked);
+                    if (checked) {
+                      setSettings(prev => ({ ...prev, stake: 0 }));
+                      setCustomStake("0");
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Column 2 - Stake */}
-          <div className="bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-2xl p-8 border border-green-500/40 shadow-xl">
+          <div className={`bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-2xl p-8 border border-green-500/40 shadow-xl transition-opacity duration-300 ${isFreeGame ? 'opacity-50' : ''}`}>
             <div className="flex items-center gap-3 mb-6">
               <FaCoins className="w-8 h-8 text-green-400" />
               <h3 className="text-2xl font-bold text-green-300">Entry Stake</h3>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {stakePresets.map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => handleStakeSelect(amount)}
-                  className={`py-4 rounded-xl font-bold transition-all hover:scale-105 ${
-                    settings.stake === amount
-                      ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
-                      : "bg-black/60 border border-gray-600 text-gray-300"
-                  }`}
-                >
-                  {amount} USDC
-                </button>
-              ))}
-            </div>
+            {isFreeGame ? (
+              <div className="h-64 flex items-center justify-center text-center">
+                <div>
+                  <p className="text-4xl font-black text-yellow-400 mb-4">FREE</p>
+                  <p className="text-lg text-yellow-300/90">No entry fee required</p>
+                  <p className="text-sm text-gray-400 mt-3">Pure fun • No crypto at risk</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  {stakePresets.map((amount) => (
+                    <button
+                      key={amount}
+                      onClick={() => handleStakeSelect(amount)}
+                      className={`py-4 rounded-xl font-bold transition-all hover:scale-105 ${
+                        settings.stake === amount
+                          ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
+                          : "bg-black/60 border border-gray-600 text-gray-300"
+                      }`}
+                    >
+                      {amount} USDC
+                    </button>
+                  ))}
+                </div>
 
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="Custom ≥ 0.01 USDC"
-              value={customStake}
-              onChange={(e) => handleCustomStake(e.target.value)}
-              className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400"
-            />
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="Custom ≥ 0.01 USDC"
+                  value={customStake}
+                  onChange={(e) => handleCustomStake(e.target.value)}
+                  className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400 disabled:opacity-50"
+                  disabled={isFreeGame}
+                />
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-400">Current Stake</p>
-              <p className="text-3xl font-bold text-green-400">
-                {settings.stake} USDC
-              </p>
-              <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
-            </div>
+                <div className="mt-6 text-center">
+                  <p className="text-sm text-gray-400">Current Stake</p>
+                  <p className="text-3xl font-bold text-green-400">
+                    {settings.stake} USDC
+                  </p>
+                  <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Column 3 */}
@@ -422,7 +465,7 @@ export default function GameSettings() {
         <div className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
-            disabled={isCreatePending || approvePending || approveConfirming}
+            disabled={isCreatePending || (approvePending || approveConfirming) && !isFreeGame}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
                        bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
                        hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
@@ -435,6 +478,8 @@ export default function GameSettings() {
                 ? "APPROVING..."
                 : isCreatePending
                 ? "CREATING..."
+                : isFreeGame
+                ? "CREATE FREE GAME"
                 : "CREATE GAME"}
             </span>
           </button>
