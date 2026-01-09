@@ -446,8 +446,8 @@ export default function GameWaiting(): JSX.Element {
             {stakePerPlayer > 0 ? (
               <p className="text-yellow-400 text-lg font-bold flex items-center justify-center gap-2 animate-pulse">
                 <FaCoins className="w-6 h-6" />
-                Entry Stake: {stakePerPlayer}
-                WEI
+                Entry Stake: {stakePerPlayer/1000000}
+                USDC
               </p>
             ) : (
               <p className="text-green-400 text-base font-bold">
