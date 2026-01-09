@@ -171,141 +171,156 @@ export default function JoinRoom(): JSX.Element {
   const handleCreateNew = () => router.push("/game-settings");
 
   return (
-    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center bg-[#010F10] mt-[100px]">
-      <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
-        <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-6 sm:p-8 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
-          <h2 className="text-3xl sm:text-4xl font-bold font-orbitron mb-8 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
+    <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center bg-[#010F10]">
+      <main className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-xl lg:max-w-4xl bg-[#0A1A1B]/80 p-6 sm:p-8 lg:p-12 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-orbitron mb-8 lg:mb-12 text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
             Join Tycoon
           </h2>
 
-          {/* Join by Code Section */}
-          <div className="space-y-6 mb-10">
-            <h3 className="text-xl font-bold text-[#00F0FF] text-center font-orbitron">
-              Enter Game Code
-            </h3>
+          {/* Top Section: Enter Code and Create New Side by Side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            {/* Enter Game Code */}
+            <div className="space-y-6">
+              <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
+                Enter Game Code
+              </h3>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleJoinByCode()}
-                placeholder="ABCD1234"
-                className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
-                maxLength={12}
-              />
-              <button
-                onClick={handleJoinByCode}
-                disabled={loading || !normalizedCode}
-                className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loading ? "Checking..." : "Join"}
-                <IoArrowForwardOutline className="w-6 h-6" />
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleJoinByCode()}
+                  placeholder="ABCD1234"
+                  className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
+                  maxLength={12}
+                />
+                <button
+                  onClick={handleJoinByCode}
+                  disabled={loading || !normalizedCode}
+                  className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? "Checking..." : "Join"}
+                  <IoArrowForwardOutline className="w-6 h-6" />
+                </button>
+              </div>
+
+              {error && (
+                <p className="text-red-400 text-sm text-center bg-red-900/50 p-3 rounded-lg animate-pulse font-orbitron">
+                  {error}
+                </p>
+              )}
             </div>
 
-            {error && (
-              <p className="text-red-400 text-sm text-center bg-red-900/50 p-3 rounded-lg animate-pulse font-orbitron">
-                {error}
+            {/* Create New Game */}
+            <div className="space-y-6 text-center">
+              <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
+                Create New Game
+              </h3>
+              <p className="text-[#869298] text-sm mb-4">Want to host?</p>
+              <button
+                onClick={handleCreateNew}
+                className="bg-gradient-to-r from-[#00FFAA] to-[#00F0FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00FFAA]/50 transform hover:scale-105 w-full md:w-auto"
+              >
+                Create New Game
+              </button>
+            </div>
+          </div>
+
+          {/* Games Section */}
+          <div className="space-y-12">
+            {isConnected && (
+              <>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] font-orbitron">
+                      Recent Public Games
+                    </h3>
+                    <select
+                      value={timeFilter}
+                      onChange={(e) => setTimeFilter(Number(e.target.value))}
+                      className="bg-[#0A1A1B] text-[#F0F7F7] px-3 py-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm"
+                    >
+                      {timeOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {fetchingPending ? (
+                    <p className="text-[#869298] text-center">Loading public games...</p>
+                  ) : pendingGames.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {pendingGames.map((game) => (
+                        <div
+                          key={game.id}
+                          className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex flex-col items-center justify-between group"
+                        >
+                          <div className="text-center mb-4">
+                            <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
+                              Code: {game.code}
+                            </p>
+                            <p className="text-[#869298] text-sm">
+                              Players: {game.players.length}/{game.number_of_players} • Pending
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleJoinPublicGame(game)}
+                            className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-bold px-4 py-2 rounded-lg hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105"
+                          >
+                            Join
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[#869298] text-center">No recent public games available.</p>
+                  )}
+                </div>
+
+                {recentGames.length > 0 && (
+                  <div className="space-y-6">
+                    <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
+                      Continue Game
+                    </h3>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {recentGames.map((game) => (
+                        <button
+                          key={game.id}
+                          onClick={() => handleContinueGame(game)}
+                          className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex flex-col items-center justify-between group"
+                        >
+                          <div className="text-center mb-4">
+                            <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
+                              Code: {game.code}
+                            </p>
+                            <p className="text-[#869298] text-sm">
+                              Players: {game.players.length}/{game.number_of_players} •{" "}
+                              {game.status === "PENDING" ? "Waiting" : "In Progress"}
+                            </p>
+                          </div>
+                          <IoArrowForwardOutline className="w-8 h-8 text-[#00F0FF] group-hover:translate-x-2 transition-transform" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!isConnected && (
+              <p className="text-yellow-400 text-sm text-center mt-6 bg-yellow-900/30 p-3 rounded-lg font-orbitron">
+                Connect your wallet to join or continue games.
               </p>
             )}
           </div>
 
-          {/* Join Public Pending Games */}
-          {isConnected && (
-            <div className="space-y-6 mb-10">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-[#00F0FF] font-orbitron">
-                  Recent Public Games
-                </h3>
-                <select
-                  value={timeFilter}
-                  onChange={(e) => setTimeFilter(Number(e.target.value))}
-                  className="bg-[#0A1A1B] text-[#F0F7F7] px-3 py-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm"
-                >
-                  {timeOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {fetchingPending ? (
-                <p className="text-[#869298] text-center">Loading public games...</p>
-              ) : pendingGames.length > 0 ? (
-                <div className="grid gap-4">
-                  {pendingGames.map((game) => (
-                    <div
-                      key={game.id}
-                      className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex items-center justify-between group"
-                    >
-                      <div className="text-left">
-                        <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
-                          Code: {game.code}
-                        </p>
-                        <p className="text-[#869298] text-sm">
-                          Players: {game.players.length}/{game.number_of_players} • Pending
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleJoinPublicGame(game)}
-                        className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-bold px-4 py-2 rounded-lg hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105"
-                      >
-                        Join
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[#869298] text-center">No recent public games available.</p>
-              )}
-            </div>
-          )}
-
-          {/* Continue Existing Games */}
-          {isConnected && recentGames.length > 0 && (
-            <div className="space-y-6 mb-10">
-              <h3 className="text-xl font-bold text-[#00F0FF] text-center font-orbitron">
-                Continue Game
-              </h3>
-
-              <div className="grid gap-4">
-                {recentGames.map((game) => (
-                  <button
-                    key={game.id}
-                    onClick={() => handleContinueGame(game)}
-                    className="bg-[#010F10]/70 p-5 rounded-xl border border-[#00F0FF]/40 hover:border-[#00F0FF] transition-all shadow-md hover:shadow-[#00F0FF]/50 flex items-center justify-between group"
-                  >
-                    <div className="text-left">
-                      <p className="text-[#F0F7F7] font-orbitron font-bold text-lg">
-                        Code: {game.code}
-                      </p>
-                      <p className="text-[#869298] text-sm">
-                        Players: {game.players.length}/{game.number_of_players} •{" "}
-                        {game.status === "PENDING" ? "Waiting" : "In Progress"}
-                      </p>
-                    </div>
-                    <IoArrowForwardOutline className="w-8 h-8 text-[#00F0FF] group-hover:translate-x-2 transition-transform" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Create New Game */}
-          <div className="text-center">
-            <p className="text-[#869298] text-sm mb-4">Want to host?</p>
-            <button
-              onClick={handleCreateNew}
-              className="bg-gradient-to-r from-[#00FFAA] to-[#00F0FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00FFAA]/50 transform hover:scale-105"
-            >
-              Create New Game
-            </button>
-          </div>
-
           {/* Footer Links */}
-          <div className="flex justify-center mt-10">
+          <div className="flex justify-center mt-10 lg:mt-12">
             <button
               onClick={() => router.push("/")}
               className="flex items-center text-[#0FF0FC] text-base font-orbitron hover:text-[#00D4E6] transition-colors hover:underline gap-2"
@@ -314,13 +329,6 @@ export default function JoinRoom(): JSX.Element {
               Back to HQ
             </button>
           </div>
-
-          {/* Wallet Warning */}
-          {!isConnected && (
-            <p className="text-yellow-400 text-sm text-center mt-6 bg-yellow-900/30 p-3 rounded-lg font-orbitron">
-              Connect your wallet to join or continue games.
-            </p>
-          )}
         </div>
       </main>
     </section>
