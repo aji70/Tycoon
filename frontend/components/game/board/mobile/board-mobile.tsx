@@ -1066,7 +1066,7 @@ const MobileGameLayout = ({
         roll={roll}
       />
 
-      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+      {isMyTurn && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (me?.balance ?? 0) > 0 && (
         <button
           onClick={() => ROLL_DICE(false)}
           className="w-full max-w-xs mx-auto py-3 px-8 mb-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95"

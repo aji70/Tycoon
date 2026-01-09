@@ -11,7 +11,7 @@ if (!projectId) {
   throw new Error('Project ID is not defined')
 }
 
-export const networks = [base, celo]
+export const networks = [celo, base]
 
 //Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({
