@@ -319,6 +319,52 @@ export function useCreateAIGame(
 }
 
 
+
+export function useTransferPropertyOwnership() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+
+  const {
+    writeContractAsync,
+    isPending,
+    error: writeError,
+    data: txHash,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
+
+  const write = useCallback(async (seller: string, buyer: string) => {
+    if (!contractAddress) throw new Error('Contract not deployed');
+
+    return writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'transferPropertyOwnership',
+      args: [
+        seller,
+        buyer
+      ],
+    });
+  }, [
+    writeContractAsync,
+    contractAddress   
+  ]);
+
+  return {
+    write,
+    isPending: isPending || isConfirming,
+    isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
+
+
 export function useJoinGame(gameId: bigint, username: string, playerSymbol: string, code: string, stake: bigint) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];

@@ -22,7 +22,7 @@ import { apiClient } from "@/lib/api";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action";
@@ -194,6 +194,9 @@ const AiBoard = ({
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
 
+    // ── At the top of AiBoard component, with other hooks ──
+
+  const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
   const currentProperty = useMemo(() => {
     return currentPlayer?.position
       ? properties.find((p) => p.id === currentPlayer.position) ?? null
@@ -224,6 +227,7 @@ const {
   BigInt(endGameCandidate.balance),       // finalBalance: bigint
   !!endGameCandidate.winner               // isWin: boolean
 );
+  
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;
@@ -309,34 +313,76 @@ const {
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
-  const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
-    if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
-      showToast("Cannot buy right now", "error");
-      return;
+
+
+// ── Then your BUY_PROPERTY becomes: ──
+const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
+  if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
+    showToast("Cannot buy right now", "error");
+    return;
+  }
+
+  const playerBalance = currentPlayer.balance ?? 0;
+  if (playerBalance < justLandedProperty.price) {
+    showToast("Not enough money!", "error");
+    return;
+  }
+
+  const buyerUsername = me?.username;
+  
+
+  if (!buyerUsername) {
+    showToast("Cannot buy: your username is missing", "error");
+    return;
+  }
+
+  try {
+    // Show loading state
+    showToast("Sending transaction...", "default");
+
+    // 1. On-chain minimal proof (counters update) - skip if AI is involved
+    if (!isAiAction) {
+      await transferOwnership('', buyerUsername);
     }
 
-    const playerBalance = currentPlayer.balance ?? 0;
-    if (playerBalance < justLandedProperty.price) {
-      showToast("Not enough money!", "error");
-      return;
-    }
+    // 2. Update backend
+    await apiClient.post("/game-properties/buy", {
+      user_id: currentPlayer.user_id,
+      game_id: game.id,
+      property_id: justLandedProperty.id,
+    });
 
-    try {
-      await apiClient.post("/game-properties/buy", {
-        user_id: currentPlayer.user_id,
-        game_id: game.id,
-        property_id: justLandedProperty.id,
-      });
+    showToast(
+      isAiAction 
+        ? `AI bought ${justLandedProperty.name}!` 
+        : `You bought ${justLandedProperty.name}!`, 
+      "success"
+    );
 
-      showToast(isAiAction ? `AI bought ${justLandedProperty.name}!` : `You bought ${justLandedProperty.name}!`, "success");
+    setBuyPrompted(false);
+    landedPositionThisTurn.current = null;
+    setTimeout(END_TURN, 800);
 
-      setBuyPrompted(false);
-      landedPositionThisTurn.current = null;
-      setTimeout(END_TURN, 800);
-    } catch {
-      showToast("Purchase failed", "error");
-    }
-  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id]);
+  } catch (err: any) {
+    console.error("Buy failed:", err);
+    
+    const message = 
+      err.message?.includes("user rejected") 
+        ? "Transaction cancelled" 
+        : err.shortMessage || err.message || "Purchase failed";
+
+    showToast(message, "error");
+  }
+}, [
+  currentPlayer, 
+  justLandedProperty, 
+  actionLock, 
+  END_TURN, 
+  showToast, 
+  game.id, 
+  me?.username,
+  transferOwnership   // ← important dependency
+]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
   // Prevent double calls / race conditions
@@ -375,7 +421,28 @@ const endTurnAfterSpecialMove = useCallback(() => {
       return;
     }
 
+    const gp = game_properties.find(gp => gp.property_id === propertyId);
+    if (!gp?.address) {
+      toast("Cannot transfer: no current owner found");
+      return;
+    }
+
+    const sellerPlayer = players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase());
+    const buyerPlayer = players.find(p => p.user_id === newPlayerId);
+
+    if (!sellerPlayer || !buyerPlayer) {
+      toast("Cannot transfer: seller or buyer not found");
+      return;
+    }
+
+    const sellerUsername = sellerPlayer.username;
+    const buyerUsername = buyerPlayer.username;
+
     try {
+      // 1. On-chain update
+      await transferOwnership(sellerUsername, buyerUsername);
+
+      // 2. Update backend
       const response = await apiClient.put<ApiResponse>(
         `/game-properties/${propertyId}`,
         {

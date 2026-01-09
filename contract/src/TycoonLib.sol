@@ -59,7 +59,7 @@ library TycoonLib {
         uint256 totalStaked;
         uint256 totalEarned;
         uint256 totalWithdrawn;
-        uint256 propertiesOwned;
+        uint256 propertiesbought;
         uint256 propertiesSold;
     }
 
