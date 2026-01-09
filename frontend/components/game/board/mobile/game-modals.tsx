@@ -50,8 +50,6 @@ const GameModals: React.FC<GameModalsProps> = ({
   players,
   currentGame,
   isPending,
-  // endGame,
-  // reset,
   setShowInsolvencyModal,
   setIsRaisingFunds,
   setShowBankruptcyModal,
@@ -62,27 +60,6 @@ const GameModals: React.FC<GameModalsProps> = ({
     setShowInsolvencyModal(false);
     setIsRaisingFunds(true);
     showToast("Raise funds (mortgage, sell houses, trade) then click 'Try Again'", "default");
-  };
-
-  const handleDeclareBankruptcy = async () => {
-    setShowInsolvencyModal(false);
-    setIsRaisingFunds(false);
-    showToast("Declaring bankruptcy...", "default");
-
-    try {
-      // if (endGame) await endGame();
-
-      const opponent = players.find(p => p.user_id !== me?.user_id);
-      await apiClient.put(`/games/${currentGame.id}`, {
-        status: "FINISHED",
-        winner_id: opponent?.user_id || null,
-      });
-
-      showToast("Game over! You have declared bankruptcy.", "error");
-      setShowBankruptcyModal(true);
-    } catch (err) {
-      showToast("Failed to end game", "error");
-    }
   };
 
   const handleRetryAfterFunds = () => {
@@ -171,86 +148,48 @@ const GameModals: React.FC<GameModalsProps> = ({
       </AnimatePresence>
 
       {/* Exit Prompt */}
-      <AnimatePresence>
-        {showExitPrompt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
-            >
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-5">One last thing!</h2>
-              {winner?.user_id === me?.user_id ? (
-                <p className="text-lg md:text-xl text-cyan-300 mb-6">Finalize the game to claim your rewards.</p>
-              ) : (
-                <p className="text-lg md:text-xl text-gray-300 mb-6">Finalize the game to wrap things up.</p>
-              )}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={handleFinalizeAndLeave}
-                  disabled={isPending}
-                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
-                >
-                  {isPending ? "Processing..." : "Yes, Finish Game"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowExitPrompt(false);
-                    setTimeout(() => window.location.href = "/", 300);
-                  }}
-                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
-                >
-                  Skip & Leave
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+   <AnimatePresence>
+  {showExitPrompt && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[80] p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.85, y: 40 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.85, y: 40 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-red-500/30 shadow-2xl shadow-red-900/40"
+      >
+        <h2 className="text-3xl font-bold text-white mb-6">Game Over</h2>
 
-      {/* Insolvency Modal */}
-      <AnimatePresence>
-        {showInsolvencyModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-red-500/50 shadow-2xl"
-            >
-              <h2 className="text-4xl font-bold text-red-400 mb-6">You're Broke!</h2>
-              <p className="text-xl text-white mb-8">
-                You owe <span className="text-yellow-400 font-bold">${insolvencyDebt}</span>
-              </p>
-              <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                <button
-                  onClick={handleRaiseFunds}
-                  className="px-10 py-5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xl rounded-2xl shadow-xl hover:scale-105 transition-all"
-                >
-                  Raise Funds & Retry
-                </button>
-                <button
-                  onClick={handleDeclareBankruptcy}
-                  className="px-10 py-5 bg-gradient-to-r from-red-600 to-red-800 text-white font-bold text-xl rounded-2xl shadow-xl hover:scale-105 transition-all"
-                >
-                  Declare Bankruptcy
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <p className="text-xl text-gray-300 mb-8 leading-relaxed">
+          Better luck next time!<br />
+          <span className="text-lg text-red-400 mt-2 block">
+            You gave it a good fight — see you on the board again soon! 🔥
+          </span>
+        </p>
 
+        <button
+          onClick={() => {
+            setShowExitPrompt(false);
+            // Small delay so exit animation can finish nicely
+            setTimeout(() => {
+              window.location.href = "/";
+            }, 400);
+          }}
+          className="px-10 py-4 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 
+                     text-white font-bold text-lg rounded-xl shadow-lg shadow-red-600/40 
+                     transition-all duration-300 hover:scale-105 active:scale-95"
+        >
+          Return Home
+        </button>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
       {/* Bankruptcy Modal */}
       <AnimatePresence>
         {showBankruptcyModal && (

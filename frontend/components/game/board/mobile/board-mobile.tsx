@@ -237,26 +237,6 @@ const MobileGameLayout = ({
 
   const isFetching = useRef(false);
 
-  useEffect(() => {
-    if (
-      isMyTurn &&
-      me &&
-      (me.balance ?? 0) <= 0 &&
-      !showInsolvencyModal &&
-      !isRaisingFunds
-    ) {
-      const timer = setTimeout(() => {
-        setShowInsolvencyModal(true);
-        toast.error(
-          "You don't have enough money! You must raise funds or declare bankruptcy.",
-          { duration: 7000 }
-        );
-      }, 1200);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isMyTurn, me?.balance, showInsolvencyModal, isRaisingFunds]);
-
   const fetchUpdatedGame = useCallback(async () => {
     if (isFetching.current) return;
     isFetching.current = true;
@@ -418,7 +398,7 @@ const MobileGameLayout = ({
 
     try {
       showToast("Sending transaction...", "default");
-      // await transferOwnership('', buyerUsername);
+      await transferOwnership('', buyerUsername);
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: currentGame.id,
@@ -726,6 +706,10 @@ const MobileGameLayout = ({
 
     try {
       if (endGame) await endGame();
+      await apiClient.put(`/games/${currentGame.id}`, {
+        status: "FINISHED",
+        winner_id: me?.user_id || null,
+      });
       toast.success(
         winner?.user_id === me?.user_id
           ? "Prize claimed! "
@@ -773,13 +757,13 @@ const MobileGameLayout = ({
         toast.success("You are the Monopoly champion! ");
       }
     }
-  }, [currentGame.players, currentGameProperties, currentGame.status, me, winner, currentGameProperties]);
+  }, [currentGame.players, currentGameProperties, currentGame.status, me, winner]);
 
   useEffect(() => {
-    if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
+    if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds) return;
     const timer = setTimeout(END_TURN, 2000);
     return () => clearTimeout(timer);
-  }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
+  }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, END_TURN]);
 
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
@@ -1032,7 +1016,7 @@ const MobileGameLayout = ({
         <div className="w-full max-w-xs mx-auto mb-8 flex flex-col gap-4 items-center">
           {hasNegativeBalance ? (
             <button
-              onClick={() => setShowBankruptcyModal(true)}
+              onClick={handleBankruptcy}
               className="w-full py-4 px-8 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 active:from-red-800 active:to-rose-900 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-red-500/40 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/40 active:scale-95"
             >
               Declare Bankruptcy
@@ -1286,14 +1270,6 @@ const MobileGameLayout = ({
         claiming={endGamePending}
       />
 
-      {isSoloPlayer && !showVictoryModal && winner?.user_id === me?.user_id && (
-        <VictoryModal
-          winner={winner}
-          me={me}
-          onClaim={handleFinalizeAndLeave}
-          claiming={endGamePending}
-        />
-      )}
 
       <style jsx>{`
         @keyframes bell-ring {
