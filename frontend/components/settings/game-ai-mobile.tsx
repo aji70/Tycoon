@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaUser, FaRobot, FaCoins, FaBrain } from "react-icons/fa6";
+import { FaUser, FaRobot, FaBrain, FaCoins } from "react-icons/fa6";
 import { House } from "lucide-react";
 import {
   Select,
@@ -16,25 +16,19 @@ import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
-import {
-  useAccount,
-  useChainId,
-  useReadContract,
-} from 'wagmi';
-import { useAppKitNetwork } from '@reown/appkit/react';
+import { useAccount } from "wagmi";
+import { useAppKitNetwork } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import Erc20Abi from '@/context/abi/ERC20abi.json';
 import {
   useIsRegistered,
   useGetUsername,
   useCreateAIGame,
-  useApprove,
 } from "@/context/ContractProvider";
-import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-import { Address, parseUnits, parseEther } from "viem";
+import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { Address } from "viem";
 
 interface GameCreateResponse {
   data?: {
@@ -55,23 +49,16 @@ const ai_address = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
 ];
 
-const USDC_DECIMALS = 6;
-const stakePresets = [1, 5, 10, 25, 50, 100];
-
-const ai_address_list = ai_address; // For clarity
-
 export default function PlayWithAIMobile() {
   const router = useRouter();
   const { address } = useAccount();
-  const wagmiChainId = useChainId();
   const { caipNetwork } = useAppKitNetwork();
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
-  const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
-  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
-  const nativeSymbol = caipNetwork?.nativeCurrency?.symbol || "NATIVE";
+  const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
+  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -83,120 +70,59 @@ export default function PlayWithAIMobile() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    stake: 10,
-    useUSDC: true,
-    duration: 60,
+    duration: 60, // minutes
   });
 
-  const [customStake, setCustomStake] = useState<string>("");
-
-  const contractAddress = TYCOON_CONTRACT_ADDRESSES[wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[wagmiChainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
-
-  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
-    address: usdcTokenAddress,
-    abi: Erc20Abi,
-    functionName: 'allowance',
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress && settings.useUSDC },
-  });
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
 
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
-
-  const {
-    approve: approveUSDC,
-    isPending: approvePending,
-    isConfirming: approveConfirming,
-  } = useApprove();
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
-    totalPlayers,
+    settings.aiCount, // number of AI opponents
     gameCode,
-    BigInt(settings.startingCash),
-    settings.useUSDC
-      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
-      : parseEther(settings.stake.toString()),
-    settings.useUSDC
+    BigInt(settings.startingCash)
   );
-
-  const handleStakeSelect = (value: number) => {
-    setSettings((prev) => ({ ...prev, stake: value }));
-    setCustomStake("");
-  };
-
-  const handleCustomStake = (value: string) => {
-    setCustomStake(value);
-    const num = Number(value);
-    const min = settings.useUSDC ? 0.01 : 0.001;
-    if (!isNaN(num) && num >= min) {
-      setSettings((prev) => ({ ...prev, stake: num }));
-    }
-  };
 
   const handlePlay = async () => {
     if (!address || !username || !isUserRegistered) {
-      toast.error("Please connect wallet & register first!", { autoClose: 5000 });
+      toast.error("Please connect your wallet and register first!", { autoClose: 5000 });
       return;
     }
 
     if (!contractAddress) {
-      toast.error("Contract not deployed on this network.");
+      toast.error("Game contract not deployed on this network.");
       return;
     }
 
-    if (settings.useUSDC && !usdcTokenAddress) {
-      toast.error("USDC not available here.");
-      return;
-    }
-
-    const stakeAmount = settings.useUSDC
-      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
-      : parseEther(settings.stake.toString());
-
-    const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
+    const toastId = toast.loading(`Summoning ${settings.aiCount} AI opponent${settings.aiCount > 1 ? "s" : ""}...`);
 
     try {
-      let needsApproval = false;
-      if (settings.useUSDC) {
-        await refetchAllowance();
-        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
-        if (currentAllowance < stakeAmount) needsApproval = true;
-      }
-
-      if (needsApproval) {
-        toast.update(toastId, { render: "Approving USDC..." });
-        await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
-        await new Promise(r => setTimeout(r, 3000));
-      }
-
-      toast.update(toastId, { render: "Creating game on-chain..." });
+      toast.update(toastId, { render: "Creating AI game on-chain..." });
       const onChainGameId = await createAiGame();
-      if (!onChainGameId) throw new Error("Failed to create game");
+      if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
-      toast.update(toastId, { render: "Saving to server..." });
+      toast.update(toastId, { render: "Saving game to server..." });
 
       let dbGameId: string | number | undefined;
       try {
-        const saveRes: GameCreateResponse = await apiClient.post<any>("/games", {
+        const saveRes: GameCreateResponse = await apiClient.post("/games", {
           id: onChainGameId.toString(),
           code: gameCode,
           mode: "PRIVATE",
-          address,
+          address: address,
           symbol: settings.symbol,
           number_of_players: totalPlayers,
           ai_opponents: settings.aiCount,
           ai_difficulty: settings.aiDifficulty,
-          stake: settings.stake,
           starting_cash: settings.startingCash,
           is_ai: true,
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
-          use_usdc: settings.useUSDC,
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -207,36 +133,43 @@ export default function PlayWithAIMobile() {
         });
 
         dbGameId =
-          typeof saveRes === 'string' || typeof saveRes === 'number'
+          typeof saveRes === "string" || typeof saveRes === "number"
             ? saveRes
             : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
 
-        if (!dbGameId) throw new Error("No game ID returned");
-      } catch (err: any) {
-        throw new Error(err.response?.data?.message || "Failed to save game");
+        if (!dbGameId) throw new Error("Backend did not return game ID");
+      } catch (backendError: any) {
+        console.error("Backend save error:", backendError);
+        throw new Error(backendError.response?.data?.message || "Failed to save game on server");
       }
 
       toast.update(toastId, { render: "Adding AI opponents..." });
 
-      let availablePieces = GamePieces.filter(p => p.id !== settings.symbol);
+      let availablePieces = GamePieces.filter((p) => p.id !== settings.symbol);
       for (let i = 0; i < settings.aiCount; i++) {
         if (availablePieces.length === 0) availablePieces = [...GamePieces];
-        const idx = Math.floor(Math.random() * availablePieces.length);
-        const aiSymbol = availablePieces[idx].id;
-        availablePieces.splice(idx, 1);
+        const randomIndex = Math.floor(Math.random() * availablePieces.length);
+        const aiSymbol = availablePieces[randomIndex].id;
+        availablePieces.splice(randomIndex, 1);
+
+        const aiAddress = ai_address[i];
 
         try {
           await apiClient.post("/game-players/join", {
-            address: ai_address_list[i],
+            address: aiAddress,
             symbol: aiSymbol,
             code: gameCode,
           });
-        } catch (e) {
-          console.warn("AI join failed:", e);
+        } catch (joinErr) {
+          console.warn(`AI player ${i + 1} failed to join:`, joinErr);
         }
       }
 
-      await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
+      try {
+        await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
+      } catch (statusErr) {
+        console.warn("Failed to set game status to RUNNING:", statusErr);
+      }
 
       toast.update(toastId, {
         render: "Battle begins! Good luck, Tycoon!",
@@ -247,14 +180,12 @@ export default function PlayWithAIMobile() {
 
       router.push(`/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
-      console.error(err);
-      let message = "Something went wrong.";
-      if (err.message?.includes("user rejected") || err.code === 4001) {
-        message = "Action cancelled.";
-      } else if (err.message?.includes("insufficient")) {
-        message = "Insufficient balance/gas.";
-      } else if (err.message) {
-        message = err.message;
+      console.error("handlePlay error:", err);
+
+      let message = "Something went wrong. Please try again.";
+
+      if (err.message?.includes("user rejected")) {
+        message = "Transaction rejected by user.";
       }
 
       toast.update(toastId, {
@@ -296,7 +227,7 @@ export default function PlayWithAIMobile() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-6 pb-24">
+      <div className="flex-1 overflow-y-auto px-6 pb-12">
         <div className="max-w-md mx-auto space-y-6">
           {/* Your Piece */}
           <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
@@ -304,13 +235,15 @@ export default function PlayWithAIMobile() {
               <FaUser className="w-7 h-7 text-cyan-400" />
               <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
             </div>
-            <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
+            <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
               <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
                 <SelectValue placeholder="Choose your piece" />
               </SelectTrigger>
               <SelectContent>
-                {GamePieces.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                {GamePieces.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -322,13 +255,18 @@ export default function PlayWithAIMobile() {
               <FaRobot className="w-7 h-7 text-purple-400" />
               <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
             </div>
-            <Select value={settings.aiCount.toString()} onValueChange={(v) => setSettings(p => ({ ...p, aiCount: +v }))}>
+            <Select
+              value={settings.aiCount.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
+            >
               <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[1,2,3,4,5,6].map(n => (
-                  <SelectItem key={n} value={n.toString()}>{n} AI</SelectItem>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <SelectItem key={n} value={n.toString()}>
+                    {n} AI
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -340,7 +278,10 @@ export default function PlayWithAIMobile() {
               <FaBrain className="w-7 h-7 text-red-400" />
               <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
             </div>
-            <Select value={settings.aiDifficulty} onValueChange={(v) => setSettings(p => ({ ...p, aiDifficulty: v as any }))}>
+            <Select
+              value={settings.aiDifficulty}
+              onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
+            >
               <SelectTrigger className="h-14 bg-black/60 border-red-500/40 text-white">
                 <SelectValue />
               </SelectTrigger>
@@ -348,7 +289,32 @@ export default function PlayWithAIMobile() {
                 <SelectItem value="easy">Easy</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
                 <SelectItem value="hard">Hard</SelectItem>
-                <SelectItem value="boss" className="text-pink-400 font-bold">BOSS MODE</SelectItem>
+                <SelectItem value="boss" className="text-pink-400 font-bold">
+                  BOSS MODE
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Starting Cash */}
+          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaCoins className="w-7 h-7 text-amber-400" />
+              <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
+            </div>
+            <Select
+              value={settings.startingCash.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="500">$500</SelectItem>
+                <SelectItem value="1000">$1,000</SelectItem>
+                <SelectItem value="1500">$1,500</SelectItem>
+                <SelectItem value="2000">$2,000</SelectItem>
+                <SelectItem value="5000">$5,000</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -359,7 +325,10 @@ export default function PlayWithAIMobile() {
               <FaBrain className="w-7 h-7 text-indigo-400" />
               <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
             </div>
-            <Select value={settings.duration.toString()} onValueChange={(v) => setSettings(p => ({ ...p, duration: +v }))}>
+            <Select
+              value={settings.duration.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
+            >
               <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
                 <SelectValue />
               </SelectTrigger>
@@ -369,83 +338,6 @@ export default function PlayWithAIMobile() {
                 <SelectItem value="60">60 minutes</SelectItem>
                 <SelectItem value="90">90 minutes</SelectItem>
                 <SelectItem value="0">No limit</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Entry Stake */}
-          <div className="bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-2xl p-8 border border-green-500/40 shadow-xl">
-            <div className="flex items-center gap-3 mb-6">
-              <FaCoins className="w-8 h-8 text-green-400" />
-              <h3 className="text-2xl font-bold text-green-300">Entry Stake</h3>
-            </div>
-
-            {/* Currency Toggle */}
-            <div className="flex items-center justify-center gap-6 mb-6">
-              <span className={`text-lg font-bold ${!settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>
-                {nativeSymbol}
-              </span>
-              <Switch
-                checked={settings.useUSDC}
-                onCheckedChange={(v) => {
-                  setSettings(p => ({ ...p, useUSDC: v }));
-                  setCustomStake("");
-                }}
-              />
-              <span className={`text-lg font-bold ${settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>USDC</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {stakePresets.map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => handleStakeSelect(amount)}
-                  className={`py-3 rounded-xl font-bold text-sm transition-all hover:scale-105 ${
-                    settings.stake === amount
-                      ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
-                      : "bg-black/60 border border-gray-600 text-gray-300"
-                  }`}
-                >
-                  {amount} {settings.useUSDC ? "USDC" : nativeSymbol}
-                </button>
-              ))}
-            </div>
-
-            <input
-              type="number"
-              min={settings.useUSDC ? "0.01" : "0.001"}
-              step={settings.useUSDC ? "0.01" : "0.001"}
-              placeholder={`Custom ≥ ${settings.useUSDC ? "0.01 USDC" : `0.001 ${nativeSymbol}`}`}
-              value={customStake}
-              onChange={(e) => handleCustomStake(e.target.value)}
-              className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400"
-            />
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-400">Current Stake</p>
-              <p className="text-3xl font-bold text-green-400">
-                {settings.stake} {settings.useUSDC ? "USDC" : nativeSymbol}
-              </p>
-              <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
-            </div>
-          </div>
-
-          {/* Starting Cash */}
-          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
-            <div className="flex items-center gap-3 mb-4">
-              <FaCoins className="w-7 h-7 text-amber-400" />
-              <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
-            </div>
-            <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
-              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="500">$500</SelectItem>
-                <SelectItem value="1000">$1,000</SelectItem>
-                <SelectItem value="1500">$1,500</SelectItem>
-                <SelectItem value="2000">$2,000</SelectItem>
-                <SelectItem value="5000">$5,000</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -468,36 +360,30 @@ export default function PlayWithAIMobile() {
                   </div>
                   <Switch
                     checked={settings[item.key as keyof typeof settings] as boolean}
-                    onCheckedChange={(v) => setSettings(p => ({ ...p, [item.key]: v }))}
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
                   />
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Fixed Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent">
-        <div className="max-w-md mx-auto">
-          <button
-            onClick={handlePlay}
-            disabled={isCreatePending || approvePending || approveConfirming}
-            className="w-full relative py-5 text-3xl font-orbitron font-black tracking-widest
+          {/* START BATTLE Button - now in normal flow under House Rules */}
+          <div className="pt-8 pb-6">
+            <button
+              onClick={handlePlay}
+              disabled={isCreatePending}
+              className="w-full relative py-6 text-3xl font-orbitron font-black tracking-widest
                        bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
                        hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
                        rounded-2xl shadow-2xl transform hover:scale-105 active:scale-95
                        transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
                        border-4 border-white/20"
-          >
-            <span className="relative z-10 text-white drop-shadow-2xl">
-              {approvePending || approveConfirming
-                ? "APPROVING..."
-                : isCreatePending
-                ? "SUMMONING..."
-                : "START BATTLE"}
-            </span>
-          </button>
+            >
+              <span className="relative z-10 text-white drop-shadow-2xl">
+                {isCreatePending ? "SUMMONING..." : "START BATTLE"}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

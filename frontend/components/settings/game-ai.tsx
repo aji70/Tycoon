@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaUser, FaRobot, FaCoins, FaBrain } from "react-icons/fa6";
+import { FaUser, FaRobot, FaBrain, FaCoins } from "react-icons/fa6";
 import { House } from "lucide-react";
 import {
   Select,
@@ -16,25 +16,19 @@ import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
 import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
-import {
-  useAccount,
-  useChainId,
-  useReadContract,
-} from 'wagmi';
-import { useAppKitNetwork } from '@reown/appkit/react';
+import { useAccount } from "wagmi";
+import { useAppKitNetwork } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import Erc20Abi from '@/context/abi/ERC20abi.json';
 import {
   useIsRegistered,
   useGetUsername,
   useCreateAIGame,
-  useApprove,
 } from "@/context/ContractProvider";
-import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-import { Address, parseUnits, parseEther } from "viem";
+import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { Address } from "viem";
 
 interface GameCreateResponse {
   data?: {
@@ -55,23 +49,16 @@ const ai_address = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
 ];
 
-const USDC_DECIMALS = 6;
-const stakePresets = [1, 5, 10, 25, 50, 100];
-
 export default function PlayWithAI() {
   const router = useRouter();
   const { address } = useAccount();
-  const wagmiChainId = useChainId();
-  const { caipNetwork } = useAppKitNetwork(); // From Reown/AppKit – gives proper chain name
+  const { caipNetwork } = useAppKitNetwork();
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
-  // Determine if current chain is MiniPay (typically Celo mainnet/testnet)
-  const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
-
-  // Get clean chain name for backend
-  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
+  const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
+  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -83,62 +70,22 @@ export default function PlayWithAI() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    stake: 10,
-    useUSDC: true, // default to USDC
     duration: 60, // minutes
   });
 
-  const [customStake, setCustomStake] = useState<string>("");
-
-  const contractAddress = TYCOON_CONTRACT_ADDRESSES[wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[wagmiChainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
-
-  // Only read allowance if using USDC
-  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
-    address: usdcTokenAddress,
-    abi: Erc20Abi,
-    functionName: 'allowance',
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: {
-      enabled: !!address && !!usdcTokenAddress && !!contractAddress && settings.useUSDC,
-    },
-  });
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
 
   const gameCode = generateGameCode();
   const totalPlayers = settings.aiCount + 1;
-
-  const {
-    approve: approveUSDC,
-    isPending: approvePending,
-    isConfirming: approveConfirming,
-  } = useApprove();
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
-    totalPlayers,
+    settings.aiCount,           // ← number of AI opponents
     gameCode,
-    BigInt(settings.startingCash),
-    settings.useUSDC
-      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
-      : parseEther(settings.stake.toString()),
-    settings.useUSDC
+    BigInt(settings.startingCash)
   );
-
-  const handleStakeSelect = (value: number) => {
-    setSettings((prev) => ({ ...prev, stake: value }));
-    setCustomStake("");
-  };
-
-  const handleCustomStake = (value: string) => {
-    setCustomStake(value);
-    const num = Number(value);
-    const min = settings.useUSDC ? 0.01 : 0.001;
-    if (!isNaN(num) && num >= min) {
-      setSettings((prev) => ({ ...prev, stake: num }));
-    }
-  };
 
   const handlePlay = async () => {
     if (!address || !username || !isUserRegistered) {
@@ -151,36 +98,10 @@ export default function PlayWithAI() {
       return;
     }
 
-    if (settings.useUSDC && !usdcTokenAddress) {
-      toast.error("USDC not available on this network.");
-      return;
-    }
-
-    const stakeAmount = settings.useUSDC
-      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
-      : parseEther(settings.stake.toString());
-
-    const toastId = toast.loading(`Summoning ${settings.aiCount} AI rival${settings.aiCount > 1 ? "s" : ""}...`);
+    const toastId = toast.loading(`Summoning ${settings.aiCount} AI opponent${settings.aiCount > 1 ? "s" : ""}...`);
 
     try {
-      let needsApproval = false;
-
-      if (settings.useUSDC) {
-        await refetchAllowance(); // Ensure latest allowance
-        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
-        if (currentAllowance < stakeAmount) {
-          needsApproval = true;
-        }
-      }
-      // For native token: no approval needed
-
-      if (needsApproval) {
-        toast.update(toastId, { render: "Approving USDC spend..." });
-        await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for confirmation
-      }
-
-      toast.update(toastId, { render: "Creating game on-chain..." });
+      toast.update(toastId, { render: "Creating AI game on-chain..." });
       const onChainGameId = await createAiGame();
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
@@ -188,7 +109,7 @@ export default function PlayWithAI() {
 
       let dbGameId: string | number | undefined;
       try {
-        const saveRes: GameCreateResponse = await apiClient.post<any>("/games", {
+        const saveRes: GameCreateResponse = await apiClient.post("/games", {
           id: onChainGameId.toString(),
           code: gameCode,
           mode: "PRIVATE",
@@ -197,13 +118,11 @@ export default function PlayWithAI() {
           number_of_players: totalPlayers,
           ai_opponents: settings.aiCount,
           ai_difficulty: settings.aiDifficulty,
-          stake: settings.stake,
           starting_cash: settings.startingCash,
           is_ai: true,
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
-          use_usdc: settings.useUSDC,
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -214,7 +133,7 @@ export default function PlayWithAI() {
         });
 
         dbGameId =
-          typeof saveRes === 'string' || typeof saveRes === 'number'
+          typeof saveRes === "string" || typeof saveRes === "number"
             ? saveRes
             : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
 
@@ -226,7 +145,7 @@ export default function PlayWithAI() {
 
       toast.update(toastId, { render: "Adding AI opponents..." });
 
-      let availablePieces = GamePieces.filter(p => p.id !== settings.symbol);
+      let availablePieces = GamePieces.filter((p) => p.id !== settings.symbol);
       for (let i = 0; i < settings.aiCount; i++) {
         if (availablePieces.length === 0) availablePieces = [...GamePieces];
         const randomIndex = Math.floor(Math.random() * availablePieces.length);
@@ -267,10 +186,6 @@ export default function PlayWithAI() {
 
       if (err.message?.includes("user rejected")) {
         message = "Transaction rejected by user.";
-      } else if (err.message?.includes("insufficient funds")) {
-        message = "Insufficient balance or gas.";
-      } else if (err.message) {
-        message = err.message;
       }
 
       toast.update(toastId, {
@@ -310,7 +225,7 @@ export default function PlayWithAI() {
           <div className="w-24" />
         </div>
 
-        {/* Main Grid */}
+        {/* Main Grid - Adjusted layout after stake removal */}
         <div className="grid lg:grid-cols-3 gap-8 mb-10">
           {/* Column 1 */}
           <div className="space-y-6">
@@ -320,13 +235,15 @@ export default function PlayWithAI() {
                 <FaUser className="w-7 h-7 text-cyan-400" />
                 <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
               </div>
-              <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
+              <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
                 <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {GamePieces.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  {GamePieces.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -338,13 +255,18 @@ export default function PlayWithAI() {
                 <FaRobot className="w-7 h-7 text-purple-400" />
                 <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
               </div>
-              <Select value={settings.aiCount.toString()} onValueChange={(v) => setSettings(p => ({ ...p, aiCount: +v }))}>
+              <Select
+                value={settings.aiCount.toString()}
+                onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
+              >
                 <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1,2,3,4,5,6].map(n => (
-                    <SelectItem key={n} value={n.toString()}>{n} AI</SelectItem>
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <SelectItem key={n} value={n.toString()}>
+                      {n} AI
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -356,7 +278,10 @@ export default function PlayWithAI() {
                 <FaBrain className="w-7 h-7 text-red-400" />
                 <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
               </div>
-              <Select value={settings.aiDifficulty} onValueChange={(v) => setSettings(p => ({ ...p, aiDifficulty: v as any }))}>
+              <Select
+                value={settings.aiDifficulty}
+                onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
+              >
                 <SelectTrigger className="h-14 bg-black/60 border-red-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -364,98 +289,46 @@ export default function PlayWithAI() {
                   <SelectItem value="easy">Easy</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="boss" className="text-pink-400 font-bold">BOSS MODE</SelectItem>
+                  <SelectItem value="boss" className="text-pink-400 font-bold">
+                    BOSS MODE
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Column 2 - Stake */}
-          <div className="bg-gradient-to-b from-green-900/60 to-emerald-900/60 rounded-2xl p-8 border border-green-500/40 shadow-xl">
-            <div className="flex items-center gap-3 mb-6">
-              <FaCoins className="w-8 h-8 text-green-400" />
-              <h3 className="text-2xl font-bold text-green-300">Entry Stake</h3>
+          {/* Column 2 - Starting Cash (moved here to fill space) */}
+          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaCoins className="w-7 h-7 text-amber-400" />
+              <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
             </div>
+            <Select
+              value={settings.startingCash.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="500">$500</SelectItem>
+                <SelectItem value="1000">$1,000</SelectItem>
+                <SelectItem value="1500">$1,500</SelectItem>
+                <SelectItem value="2000">$2,000</SelectItem>
+                <SelectItem value="5000">$5,000</SelectItem>
+              </SelectContent>
+            </Select>
 
-            {/* Currency Toggle */}
-            <div className="flex items-center justify-center gap-6 mb-6">
-              <span className={`text-lg font-bold ${!settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>
-                {caipNetwork?.nativeCurrency?.symbol || "NATIVE"}
-              </span>
-              <Switch
-                checked={settings.useUSDC}
-                onCheckedChange={(v) => {
-                  setSettings(p => ({ ...p, useUSDC: v }));
-                  setCustomStake("");
-                }}
-              />
-              <span className={`text-lg font-bold ${settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>USDC</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {stakePresets.map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => handleStakeSelect(amount)}
-                  className={`py-4 rounded-xl font-bold transition-all hover:scale-105 ${
-                    settings.stake === amount
-                      ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
-                      : "bg-black/60 border border-gray-600 text-gray-300"
-                  }`}
-                >
-                  {amount} {settings.useUSDC ? "USDC" : caipNetwork?.nativeCurrency?.symbol || "NATIVE"}
-                </button>
-              ))}
-            </div>
-
-            <input
-              type="number"
-              min={settings.useUSDC ? "0.01" : "0.001"}
-              step={settings.useUSDC ? "0.01" : "0.001"}
-              placeholder={`Custom (≥ ${settings.useUSDC ? "0.01 USDC" : "0.001 " + (caipNetwork?.nativeCurrency?.symbol || "NATIVE")})`}
-              value={customStake}
-              onChange={(e) => handleCustomStake(e.target.value)}
-              className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400"
-            />
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-400">Current Stake</p>
-              <p className="text-3xl font-bold text-green-400">
-                {settings.stake} {settings.useUSDC ? "USDC" : caipNetwork?.nativeCurrency?.symbol || "NATIVE"}
-              </p>
-              <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
-            </div>
-          </div>
-
-          {/* Column 3 */}
-          <div className="space-y-6">
-            {/* Starting Cash */}
-            <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
-              <div className="flex items-center gap-3 mb-4">
-                <FaCoins className="w-7 h-7 text-amber-400" />
-                <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
-              </div>
-              <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
-                <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="500">$500</SelectItem>
-                  <SelectItem value="1000">$1,000</SelectItem>
-                  <SelectItem value="1500">$1,500</SelectItem>
-                  <SelectItem value="2000">$2,000</SelectItem>
-                  <SelectItem value="5000">$5,000</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Game Duration */}
-            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/30">
+            {/* Game Duration - placed here as secondary option */}
+            <div className="mt-8">
               <div className="flex items-center gap-3 mb-4">
                 <FaBrain className="w-7 h-7 text-indigo-400" />
                 <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
               </div>
-              <Select value={settings.duration.toString()} onValueChange={(v) => setSettings(p => ({ ...p, duration: +v }))}>
+              <Select
+                value={settings.duration.toString()}
+                onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
+              >
                 <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
@@ -468,9 +341,11 @@ export default function PlayWithAI() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            {/* House Rules */}
-            <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30">
+          {/* Column 3 - House Rules */}
+          <div className="space-y-6">
+            <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30 h-full">
               <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
               <div className="space-y-4">
                 {[
@@ -487,7 +362,7 @@ export default function PlayWithAI() {
                     </div>
                     <Switch
                       checked={settings[item.key as keyof typeof settings] as boolean}
-                      onCheckedChange={(v) => setSettings(p => ({ ...p, [item.key]: v }))}
+                      onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
                     />
                   </div>
                 ))}
@@ -500,20 +375,16 @@ export default function PlayWithAI() {
         <div className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
-            disabled={isCreatePending || approvePending || approveConfirming}
+            disabled={isCreatePending}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
-                       bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
-                       hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
-                       rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
-                       transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                       border-4 border-white/20"
+                     bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
+                     hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
+                     rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
+                     transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
+                     border-4 border-white/20"
           >
             <span className="relative z-10 text-white drop-shadow-2xl">
-              {approvePending || approveConfirming
-                ? "APPROVING..."
-                : isCreatePending
-                ? "SUMMONING..."
-                : "START BATTLE"}
+              {isCreatePending ? "SUMMONING..." : "START BATTLE"}
             </span>
           </button>
         </div>

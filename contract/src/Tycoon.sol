@@ -433,7 +433,8 @@ contract Tycoon is ReentrancyGuard, Ownable {
             totalStaked: 0,
             totalEarned: 0,
             totalWithdrawn: 0,
-            propertiesOwned: 0
+            propertiesOwned: 0,
+            propertiesSold: 0
         });
 
         registered[msg.sender] = true;
@@ -861,7 +862,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         if (bytes(sellerUsername).length > 0) {
             TycoonLib.User storage seller = users[sellerUsername];
             if (seller.playerAddress != address(0) && seller.propertiesOwned > 0) {
-                seller.propertiesOwned--;
+                seller.propertiesSold++;
             }
         }
 

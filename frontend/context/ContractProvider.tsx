@@ -265,8 +265,6 @@ export function useCreateAIGame(
   numberOfAI: number,
   code: string,
   startingCash: bigint,
-  stake: bigint,
-  isUsdc: boolean,
 ) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
@@ -296,10 +294,7 @@ export function useCreateAIGame(
         numberOfAI,
         code,
         startingCash,
-        stake,
-        isUsdc,
       ],
-      value: isUsdc ? BigInt(0) : stake,
     });
   }, [
     writeContractAsync,
@@ -310,8 +305,6 @@ export function useCreateAIGame(
     numberOfAI,
     code,
     startingCash,
-    stake,
-    isUsdc,
   ]);
 
   return {

@@ -60,6 +60,7 @@ library TycoonLib {
         uint256 totalEarned;
         uint256 totalWithdrawn;
         uint256 propertiesOwned;
+        uint256 propertiesSold;
     }
 
     struct GamePosition {
