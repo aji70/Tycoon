@@ -59,6 +59,7 @@ library TycoonLib {
         uint256 totalStaked;
         uint256 totalEarned;
         uint256 totalWithdrawn;
+        uint256 propertiesOwned;
     }
 
     struct GamePosition {
@@ -99,10 +100,8 @@ library TycoonLib {
         bool rentInPrison;
         bool mortgage;
         bool evenBuild;
-        bool useUSDC;
         uint256 startingCash;
         string privateRoomCode; // Optional if private
-        
     }
 
     struct Property {
@@ -166,7 +165,6 @@ library TycoonLib {
         return joinedPlayers == 2;
     }
 
-
     function uintToString(uint256 value) internal pure returns (string memory) {
         if (value == 0) return "0";
         uint256 temp = value;
@@ -183,9 +181,4 @@ library TycoonLib {
         }
         return string(buffer);
     }
-
-    
-    
 }
-
-

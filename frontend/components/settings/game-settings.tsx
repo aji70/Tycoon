@@ -35,7 +35,7 @@ import {
   useApprove,
 } from "@/context/ContractProvider";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
-import { Address, parseUnits, parseEther } from "viem";
+import { Address, parseUnits } from "viem";
 
 interface GameCreateResponse {
   data?: {
@@ -59,7 +59,6 @@ export default function GameSettings() {
 
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
-  const nativeSymbol = caipNetwork?.nativeCurrency?.symbol || "NATIVE";
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -72,7 +71,6 @@ export default function GameSettings() {
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    useUSDC: true,
     duration: 60,
   });
 
@@ -86,7 +84,7 @@ export default function GameSettings() {
     abi: Erc20Abi,
     functionName: 'allowance',
     args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress && settings.useUSDC },
+    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
   });
 
   const gameCode = generateGameCode();
@@ -105,10 +103,8 @@ export default function GameSettings() {
     settings.maxPlayers,
     gameCode,
     BigInt(settings.startingCash),
-    settings.useUSDC
-      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
-      : parseEther(settings.stake.toString()),
-    settings.useUSDC
+    parseUnits(settings.stake.toString(), USDC_DECIMALS),
+    true
   );
 
   const handleStakeSelect = (value: number) => {
@@ -119,7 +115,7 @@ export default function GameSettings() {
   const handleCustomStake = (value: string) => {
     setCustomStake(value);
     const num = Number(value);
-    const min = settings.useUSDC ? 0.01 : 0.001;
+    const min = 0.01;
     if (!isNaN(num) && num >= min) {
       setSettings((prev) => ({ ...prev, stake: num }));
     }
@@ -136,24 +132,20 @@ export default function GameSettings() {
       return;
     }
 
-    if (settings.useUSDC && !usdcTokenAddress) {
+    if (!usdcTokenAddress) {
       toast.error("USDC not available on this network.");
       return;
     }
 
-    const stakeAmount = settings.useUSDC
-      ? parseUnits(settings.stake.toString(), USDC_DECIMALS)
-      : parseEther(settings.stake.toString());
+    const stakeAmount = parseUnits(settings.stake.toString(), USDC_DECIMALS);
 
     const toastId = toast.loading("Creating your game room...");
 
     try {
       let needsApproval = false;
-      if (settings.useUSDC) {
-        await refetchAllowance();
-        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
-        if (currentAllowance < stakeAmount) needsApproval = true;
-      }
+      await refetchAllowance();
+      const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
+      if (currentAllowance < stakeAmount) needsApproval = true;
 
       if (needsApproval) {
         toast.update(toastId, { render: "Approving USDC spend..." });
@@ -182,7 +174,7 @@ export default function GameSettings() {
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
-          use_usdc: settings.useUSDC,
+          use_usdc: true,
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -322,21 +314,6 @@ export default function GameSettings() {
               <h3 className="text-2xl font-bold text-green-300">Entry Stake</h3>
             </div>
 
-            {/* Currency Toggle */}
-            <div className="flex items-center justify-center gap-6 mb-6">
-              <span className={`text-lg font-bold ${!settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>
-                {nativeSymbol}
-              </span>
-              <Switch
-                checked={settings.useUSDC}
-                onCheckedChange={(v) => {
-                  setSettings(p => ({ ...p, useUSDC: v }));
-                  setCustomStake("");
-                }}
-              />
-              <span className={`text-lg font-bold ${settings.useUSDC ? 'text-green-400' : 'text-gray-500'}`}>USDC</span>
-            </div>
-
             <div className="grid grid-cols-2 gap-4 mb-6">
               {stakePresets.map((amount) => (
                 <button
@@ -348,16 +325,16 @@ export default function GameSettings() {
                       : "bg-black/60 border border-gray-600 text-gray-300"
                   }`}
                 >
-                  {amount} {settings.useUSDC ? "USDC" : nativeSymbol}
+                  {amount} USDC
                 </button>
               ))}
             </div>
 
             <input
               type="number"
-              min={settings.useUSDC ? "0.01" : "0.001"}
-              step={settings.useUSDC ? "0.01" : "0.001"}
-              placeholder={`Custom ≥ ${settings.useUSDC ? "0.01 USDC" : `0.001 ${nativeSymbol}`}`}
+              min="0.01"
+              step="0.01"
+              placeholder="Custom ≥ 0.01 USDC"
               value={customStake}
               onChange={(e) => handleCustomStake(e.target.value)}
               className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400"
@@ -366,7 +343,7 @@ export default function GameSettings() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-400">Current Stake</p>
               <p className="text-3xl font-bold text-green-400">
-                {settings.stake} {settings.useUSDC ? "USDC" : nativeSymbol}
+                {settings.stake} USDC
               </p>
               <p className="text-sm text-gray-400 mt-2">80% refunded if you lose</p>
             </div>
