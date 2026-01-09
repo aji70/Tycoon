@@ -13,19 +13,25 @@ import { FaXTwitter, FaCoins } from "react-icons/fa6";
 import { SiFarcaster } from "react-icons/si";
 import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
 import { House } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId, useReadContract } from "wagmi";
 import {
   useGetUsername,
   useJoinGame,
   useGetGameByCode,
+  useApprove,
 } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { Game } from "@/lib/types/games";
 import { getPlayerSymbolData, PlayerSymbol, symbols } from "@/lib/types/symbol";
 import { ApiResponse } from "@/types/api";
+import Erc20Abi from '@/context/abi/ERC20abi.json';
+import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { Address } from "viem";
+import { toast } from "react-toastify";
 
 const POLL_INTERVAL = 5000; // ms
 const COPY_FEEDBACK_MS = 2000;
+const USDC_DECIMALS = 6;
 
 export default function GameWaitingMobile(): JSX.Element {
   const router = useRouter();
@@ -34,6 +40,7 @@ export default function GameWaitingMobile(): JSX.Element {
   const gameCode = rawGameCode.trim().toUpperCase();
 
   const { address } = useAccount();
+  const chainId = useChainId();
 
   // Local UI state
   const [game, setGame] = useState<Game | null>(null);
@@ -57,6 +64,25 @@ export default function GameWaitingMobile(): JSX.Element {
   const contractId = contractGame?.id ?? null;
   const { data: username } = useGetUsername(address);
 
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
+  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+
+  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
+    address: usdcTokenAddress,
+    abi: Erc20Abi,
+    functionName: 'allowance',
+    args: address && contractAddress ? [address, contractAddress] : undefined,
+    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
+  });
+
+  const {
+    approve: approveUSDC,
+    isPending: approvePending,
+    isConfirming: approveConfirming,
+  } = useApprove();
+
+  const stakePerPlayer = contractGame?.stakePerPlayer ? BigInt(contractGame.stakePerPlayer) : BigInt(0);
+
   const {
     write: joinGame,
     isPending: isJoining,
@@ -66,7 +92,7 @@ export default function GameWaitingMobile(): JSX.Element {
     username ?? "",
     playerSymbol?.value ?? "",
     gameCode,
-    contractGame?.stakePerPlayer ? BigInt(contractGame.stakePerPlayer) : BigInt(0)
+    stakePerPlayer
   );
 
   const mountedRef = useRef(true);
@@ -296,7 +322,6 @@ export default function GameWaitingMobile(): JSX.Element {
     contractGame?.joinedPlayers ? Number(contractGame.joinedPlayers) : (game?.players.length ?? 0);
   const maxPlayers =
     contractGame?.numberOfPlayers ? Number(contractGame.numberOfPlayers) : (game?.number_of_players ?? 0);
-  const stakePerPlayer = contractGame?.stakePerPlayer ? Number(contractGame.stakePerPlayer) : 0; 
 
   const handleJoinGame = useCallback(async () => {
     if (!game) {
@@ -317,14 +342,39 @@ export default function GameWaitingMobile(): JSX.Element {
       return;
     }
 
+    if (!contractAddress) {
+      setError("Contract not deployed on this network.");
+      return;
+    }
+
+    if (!usdcTokenAddress && stakePerPlayer > 0) {
+      setError("USDC not available on this network.");
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
 
+    const toastId = toast.loading("Joining the game...");
+
     try {
-      if (joinGame) {
-        await joinGame();
+      // Only need approval if stake > 0
+      if (stakePerPlayer > 0) {
+        toast.update(toastId, { render: "Checking USDC approval..." });
+        await refetchAllowance();
+        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
+
+        if (currentAllowance < stakePerPlayer) {
+          toast.update(toastId, { render: "Approving USDC spend..." });
+          await approveUSDC(usdcTokenAddress!, contractAddress, stakePerPlayer);
+          await new Promise(r => setTimeout(r, 3000));
+        }
       }
 
+      toast.update(toastId, { render: "Joining game on-chain..." });
+      await joinGame();
+
+      toast.update(toastId, { render: "Saving join to server..." });
       const res = await apiClient.post<ApiResponse>("/game-players/join", {
         address,
         symbol: playerSymbol.value,
@@ -339,14 +389,34 @@ export default function GameWaitingMobile(): JSX.Element {
         setIsJoined(true);
         setError(null);
       }
+
+      toast.update(toastId, {
+        render: "Successfully joined the game!",
+        type: "success",
+        isLoading: false,
+        autoClose: 5000,
+      });
     } catch (err: any) {
       console.error("join error", err);
-      if (mountedRef.current)
-        setError(err?.message ?? "Failed to join game. Please try again.");
+      let message = "Failed to join game. Please try again.";
+      if (err.message?.includes("user rejected") || err.code === 4001) {
+        message = "Transaction cancelled.";
+      } else if (err.message?.includes("insufficient")) {
+        message = "Insufficient balance or gas.";
+      } else if (err.message) {
+        message = err.message;
+      }
+      setError(message);
+      toast.update(toastId, {
+        render: message,
+        type: "error",
+        isLoading: false,
+        autoClose: 8000,
+      });
     } finally {
       if (mountedRef.current) setActionLoading(false);
     }
-  }, [game, playerSymbol, availableSymbols, address, joinGame]);
+  }, [game, playerSymbol, availableSymbols, address, joinGame, stakePerPlayer, contractAddress, usdcTokenAddress, refetchAllowance, usdcAllowance, approveUSDC]);
 
   const handleLeaveGame = useCallback(async () => {
     if (!game)
@@ -465,8 +535,8 @@ export default function GameWaitingMobile(): JSX.Element {
               {stakePerPlayer > 0 ? (
                 <p className="text-yellow-400 text-lg font-bold flex items-center justify-center gap-2 animate-pulse">
                   <FaCoins className="w-6 h-6" />
-                  Entry Stake: {stakePerPlayer}
-                  WEI
+                  Entry Stake: {Number(stakePerPlayer) / 10 ** USDC_DECIMALS}
+                  USDC
                 </p>
               ) : (
                 <p className="text-green-400 text-base font-bold">
@@ -621,9 +691,9 @@ export default function GameWaitingMobile(): JSX.Element {
                   type="button"
                   onClick={handleJoinGame}
                   className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!playerSymbol || actionLoading || isJoining}
+                  disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming}
                 >
-                  {actionLoading || isJoining ? "Entering..." : "Join the Battle"}
+                  {actionLoading || isJoining || approvePending || approveConfirming ? "Entering..." : "Join the Battle"}
                 </button>
               </div>
             )}
