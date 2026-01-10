@@ -103,48 +103,6 @@ const NavBarMobile = () => {
             <div className="p-6 pb-10">
               {/* Drag Handle */}
               <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
-
-              Wallet Section
-              {!isConnected ? (
-                <button
-                  onClick={() => {
-                    setIsConnectModalOpen(true);
-                    closeMobileMenu();
-                  }}
-                  className="w-full py-5 rounded-2xl bg-gradient-to-r from-[#00F0FF]/20 to-[#0FF0FC]/20 border border-[#00F0FF]/60 text-[#00F0FF] font-orbitron text-xl font-bold tracking-wide mb-8 hover:from-[#00F0FF]/30 hover:to-[#0FF0FC]/30 transition"
-                >
-                  Connect Wallet
-                </button>
-              ) : (
-                <div className="mb-8 space-y-5">
-                  {/* Connected Address */}
-                  <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full border-3 border-[#0FF0FC] overflow-hidden shadow-lg">
-                        <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover" />
-                      </div>
-                      <span className="text-[#00F0FF] font-orbitron text-lg">
-                        {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Network Switcher – Shows the proper network name from caipNetwork.name */}
-                  <button
-                    onClick={() => {
-                      setIsNetworkModalOpen(true);
-                      closeMobileMenu();
-                    }}
-                    className="w-full py-5 rounded-2xl bg-[#003B3E]/70 hover:bg-[#003B3E] border border-[#00F0FF]/40 text-[#00F0FF] font-orbitron text-lg flex items-center justify-center gap-4 transition"
-                  >
-                    <Globe size={24} />
-                    <span className="truncate max-w-[200px]">
-                      {networkDisplay}
-                    </span>
-                  </button>
-                </div>
-              )}
-
               {/* Navigation Links */}
               <nav className="space-y-4 mb-10">
                 <Link
@@ -178,21 +136,6 @@ const NavBarMobile = () => {
                   </>
                 )}
               </nav>
-
-              {/* Disconnect Button */}
-              {/* {isConnected && (
-                <button
-                  onClick={() => {
-                    setIsDisconnectModalOpen(true);
-                    closeMobileMenu();
-                  }}
-                  className="w-full py-5 rounded-2xl bg-red-900/40 hover:bg-red-900/60 border border-red-600/50 text-red-400 font-orbitron text-lg font-medium transition"
-                >
-                  Disconnect Wallet
-                </button>
-              )} */}
-
-              {/* Close Button */}
               <button
                 onClick={closeMobileMenu}
                 className="absolute top-5 right-5 w-10 h-10 rounded-full bg-[#011112]/70 flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
