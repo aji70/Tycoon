@@ -15,6 +15,8 @@ import avatar from '@/public/avatar.jpg';
 import WalletConnectModal from './wallet-connect-modal';
 import WalletDisconnectModal from './wallet-disconnect-modal';
 import NetworkSwitcherModal from './network-switcher-modal';
+import { useGetUsername } from '@/context/ContractProvider';
+import { isAddress } from 'viem';
 
 const NavBarMobile = () => {
   const { scrollYProgress } = useScroll();
@@ -42,6 +44,12 @@ const NavBarMobile = () => {
     loop: true,
   });
 
+const safeAddress = address && isAddress(address) 
+  ? address as `0x${string}` 
+  : undefined;
+
+const { data: fetchedUsername } = useGetUsername(safeAddress);
+  
   // MiniPay detection + auto-connect attempt
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
@@ -152,7 +160,7 @@ const NavBarMobile = () => {
                       className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
                     >
                       <User size={24} />
-                      Profile
+                      {fetchedUsername || 'Profile'}
                     </Link>
 
                     <Link
