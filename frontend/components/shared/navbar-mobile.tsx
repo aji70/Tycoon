@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { useConnect } from 'wagmi';
+import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
 import WalletConnectModal from './wallet-connect-modal';
@@ -24,21 +26,31 @@ const NavBarMobile = () => {
 
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
+  const { connect } = useConnect();
 
-  // Use caipNetwork?.name for the full/pretty name (e.g., "Ethereum", "Base", "Polygon")
-  // Falls back to "Chain ${chainId}" for testnets/unknown, then "Change Network"
   const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Change Network');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
+  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  const [isMiniPay, setIsMiniPay] = useState(false);
+
   const [play, { pause }] = useSound('/sound/monopoly-theme.mp3', {
     volume: 0.5,
     loop: true,
   });
 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isNetworkModalOpen, setIsNetworkModalOpen] = useState(false);
-  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-  const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  // MiniPay detection + auto-connect attempt
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
+      setIsMiniPay(true);
+      if (!isConnected) {
+        connect({ connector: injected() });
+      }
+    }
+  }, [connect, isConnected]);
 
   const toggleSound = () => {
     if (isSoundPlaying) {
@@ -65,7 +77,6 @@ const NavBarMobile = () => {
         <Logo className="w-[42px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-4">
-          {/* Sound Toggle */}
           <button
             onClick={toggleSound}
             className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
@@ -73,7 +84,6 @@ const NavBarMobile = () => {
             {isSoundPlaying ? <Volume2 size={22} /> : <VolumeOff size={22} />}
           </button>
 
-          {/* Hamburger Menu */}
           <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 transition"
@@ -86,13 +96,8 @@ const NavBarMobile = () => {
       {/* Mobile Bottom Sheet Menu */}
       {isMobileMenuOpen && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/70 z-[55]"
-            onClick={closeMobileMenu}
-          />
+          <div className="fixed inset-0 bg-black/70 z-[55]" onClick={closeMobileMenu} />
 
-          {/* Bottom Sheet */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -103,6 +108,76 @@ const NavBarMobile = () => {
             <div className="p-6 pb-10">
               {/* Drag Handle */}
               <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
+
+              {/* Wallet Section */}
+              <div className="mb-8 space-y-5">
+                {/* Connected wallet info - only when connected */}
+                {isConnected && (
+                  <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-full border-3 border-[#0FF0FC] overflow-hidden shadow-lg">
+                        <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover" />
+                      </div>
+                      <span className="text-[#00F0FF] font-orbitron text-lg">
+                        {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Network Switcher - ONLY visible when NOT in MiniPay */}
+                {!isMiniPay && (
+                  <button
+                    onClick={() => {
+                      setIsNetworkModalOpen(true);
+                      closeMobileMenu();
+                    }}
+                    className={`w-full py-5 rounded-2xl flex items-center justify-center gap-4 font-orbitron text-lg transition ${
+                      isConnected
+                        ? 'bg-[#003B3E]/70 hover:bg-[#003B3E] border border-[#00F0FF]/40 text-[#00F0FF]'
+                        : 'bg-[#011112]/80 hover:bg-[#011112]/90 border border-[#003B3E]/60 text-[#00F0FF]/90'
+                    }`}
+                  >
+                    <Globe size={24} />
+                    <span className="truncate max-w-[220px]">{networkDisplay}</span>
+                  </button>
+                )}
+
+                {/* Connect / Disconnect buttons - ONLY outside MiniPay */}
+                {!isMiniPay && (
+                  <div className="mt-6">
+                    {!isConnected ? (
+                      <button
+                        onClick={() => {
+                          setIsConnectModalOpen(true);
+                          closeMobileMenu();
+                        }}
+                        className="w-full py-5 rounded-2xl bg-gradient-to-r from-[#00F0FF]/20 to-[#0FF0FC]/20 border border-[#00F0FF]/60 text-[#00F0FF] font-orbitron text-xl font-bold tracking-wide hover:from-[#00F0FF]/30 hover:to-[#0FF0FC]/30 transition"
+                      >
+                        Connect Wallet
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setIsDisconnectModalOpen(true);
+                          closeMobileMenu();
+                        }}
+                        className="w-full py-5 rounded-2xl bg-red-900/40 hover:bg-red-900/60 border border-red-600/50 text-red-400 font-orbitron text-lg font-medium transition"
+                      >
+                        Disconnect Wallet
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* MiniPay connection feedback */}
+                {isMiniPay && !isConnected && (
+                  <p className="text-center text-xs text-[#00F0FF]/50 mt-4">
+                    Connecting via MiniPay...
+                  </p>
+                )}
+              </div>
+
               {/* Navigation Links */}
               <nav className="space-y-4 mb-10">
                 <Link
@@ -136,6 +211,8 @@ const NavBarMobile = () => {
                   </>
                 )}
               </nav>
+
+              {/* Close Button */}
               <button
                 onClick={closeMobileMenu}
                 className="absolute top-5 right-5 w-10 h-10 rounded-full bg-[#011112]/70 flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
@@ -148,18 +225,18 @@ const NavBarMobile = () => {
       )}
 
       {/* Modals */}
-      {/* <NetworkSwitcherModal
+      <NetworkSwitcherModal
         isOpen={isNetworkModalOpen}
         onClose={() => setIsNetworkModalOpen(false)}
-      /> */}
-      {/* <WalletConnectModal
+      />
+      <WalletConnectModal
         isOpen={isConnectModalOpen}
         onClose={() => setIsConnectModalOpen(false)}
       />
       <WalletDisconnectModal
         isOpen={isDisconnectModalOpen}
         onClose={() => setIsDisconnectModalOpen(false)}
-      /> */}
+      />
     </>
   );
 };
