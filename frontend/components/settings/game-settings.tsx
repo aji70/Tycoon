@@ -61,6 +61,7 @@ export default function GameSettings() {
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
 
   const [isFreeGame, setIsFreeGame] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
   const [settings, setSettings] = useState({
     symbol: "hat",
@@ -98,9 +99,6 @@ export default function GameSettings() {
     isConfirming: approveConfirming,
   } = useApprove();
 
-  const finalStake = isFreeGame ? 0 : settings.stake;
-  const stakeAmount = parseUnits(finalStake.toString(), USDC_DECIMALS);
-
   const { write: createGame, isPending: isCreatePending } = useCreateGame(
     username || "",
     gameType,
@@ -108,8 +106,11 @@ export default function GameSettings() {
     settings.maxPlayers,
     gameCode,
     BigInt(settings.startingCash),
-    stakeAmount
+    isFreeGame ? BigInt(0) : parseUnits(settings.stake.toString(), USDC_DECIMALS)
   );
+
+  const finalStake = isFreeGame ? BigInt(0) : settings.stake;
+  const stakeAmount = isFreeGame ? BigInt(0) : parseUnits(finalStake.toString(), USDC_DECIMALS);
 
   const handleStakeSelect = (value: number) => {
     if (isFreeGame) return;
@@ -121,110 +122,152 @@ export default function GameSettings() {
     if (isFreeGame) return;
     setCustomStake(value);
     const num = Number(value);
-    const min = 0.01;
-    if (!isNaN(num) && num >= min) {
+    if (!isNaN(num) && num >= 0.01) {
       setSettings((prev) => ({ ...prev, stake: num }));
     }
   };
 
+  const getErrorMessage = (error: any): string => {
+    // User rejection (most common)
+    if (error?.shortMessage?.includes("User rejected") || error?.code === 4001) {
+      return "Transaction was cancelled by user.";
+    }
+    if (error?.shortMessage?.includes("insufficient funds")) {
+      return "Insufficient funds for gas fees. Please top up your wallet.";
+    }
+    if (error?.cause?.name === "ExecutionRevertedError") {
+      return "Smart contract rejected the transaction (check balance/stake limits).";
+    }
+
+    // Backend/API errors
+    if (error?.response?.status === 400) {
+      const msg = error.response?.data?.message;
+      if (msg?.toLowerCase().includes("already exists") || msg?.includes("duplicate")) {
+        return "Game code already taken. Please try again in a moment.";
+      }
+      if (msg?.toLowerCase().includes("invalid stake") || msg?.includes("minimum")) {
+        return "Stake amount is invalid or below minimum.";
+      }
+      if (msg) return msg;
+    }
+    if (error?.response?.status === 429) {
+      return "Too many requests. Please wait a moment and try again.";
+    }
+
+    // Network / connection issues
+    if (error?.message?.includes("network changed") || error?.message?.includes("wrong network")) {
+      return "Network changed. Please reconnect and switch to the correct chain.";
+    }
+
+    // Fallback
+    return error?.message?.slice(0, 140) || "Failed to create game. Please try again.";
+  };
+
   const handlePlay = async () => {
+    if (isStarting) return;
     if (!address || !username || !isUserRegistered) {
-      toast.error("Please connect wallet and register first!", { autoClose: 5000 });
+      toast.error("Please connect your wallet and register first!", { autoClose: 6000 });
       return;
     }
 
     if (!contractAddress) {
-      toast.error("Contract not deployed on this network.");
+      toast.error("Game contract is not deployed on current network.");
       return;
     }
 
-    if (!usdcTokenAddress && !isFreeGame) {
-      toast.error("USDC not available on this network.");
+    if (!isFreeGame && !usdcTokenAddress) {
+      toast.error("USDC token not available on this network for staked games.");
       return;
     }
 
-    const toastId = toast.loading("Creating your game room...");
+    setIsStarting(true);
+    const toastId = toast.loading("Preparing your game room...");
 
     try {
-      // Only need approval if NOT free game
+      // Step 1: USDC Approval (only for paid games)
       if (!isFreeGame) {
-        let needsApproval = false;
+        toast.update(toastId, { render: "Checking USDC allowance..." });
         await refetchAllowance();
-        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : BigInt(0);
-        if (currentAllowance < stakeAmount) needsApproval = true;
 
-        if (needsApproval) {
-          toast.update(toastId, { render: "Approving USDC spend..." });
+        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
+
+        if (currentAllowance < stakeAmount) {
+          toast.update(toastId, { render: "Requesting USDC approval (one-time)..." });
           await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
-          await new Promise(r => setTimeout(r, 3000));
+          
+          // Give some time for indexer + chain confirmation
+          await new Promise(resolve => setTimeout(resolve, 4500));
+          await refetchAllowance();
+
+          const newAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
+          if (newAllowance < stakeAmount) {
+            throw new Error("USDC approval did not register properly. Please try again.");
+          }
         }
       }
 
-      toast.update(toastId, { render: "Creating game on-chain..." });
+      // Step 2: Create game on-chain
+      toast.update(toastId, { render: "Creating game on blockchain..." });
       const onChainGameId = await createGame();
-      if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
-      toast.update(toastId, { render: "Saving game to server..." });
+      if (!onChainGameId) {
+        throw new Error("Failed to get game ID from blockchain transaction");
+      }
 
-      let dbGameId: string | number | undefined;
-      try {
-        const saveRes: GameCreateResponse = await apiClient.post<any>("/games", {
-          id: onChainGameId.toString(),
-          code: gameCode,
-          mode: gameType,
-          address,
-          symbol: settings.symbol,
-          number_of_players: settings.maxPlayers,
-          stake: finalStake,           // ← important: send 0 when free
-          starting_cash: settings.startingCash,
-          is_ai: false,
-          is_minipay: isMiniPay,
-          chain: chainName,
-          duration: settings.duration,
-          use_usdc: !isFreeGame,       // no USDC if free
-          settings: {
-            auction: settings.auction,
-            rent_in_prison: settings.rentInPrison,
-            mortgage: settings.mortgage,
-            even_build: settings.evenBuild,
-            randomize_play_order: settings.randomPlayOrder,
-          },
-        });
+      // Step 3: Save to backend
+      toast.update(toastId, { render: "Registering game on server..." });
 
-        dbGameId =
-          typeof saveRes === 'string' || typeof saveRes === 'number'
-            ? saveRes
-            : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
+      const saveRes: GameCreateResponse = await apiClient.post("/games", {
+        id: onChainGameId.toString(),
+        code: gameCode,
+        mode: gameType,
+        address,
+        symbol: settings.symbol,
+        number_of_players: settings.maxPlayers,
+        stake: finalStake,
+        starting_cash: settings.startingCash,
+        is_ai: false,
+        is_minipay: isMiniPay,
+        chain: chainName,
+        duration: settings.duration,
+        use_usdc: !isFreeGame,
+        settings: {
+          auction: settings.auction,
+          rent_in_prison: settings.rentInPrison,
+          mortgage: settings.mortgage,
+          even_build: settings.evenBuild,
+          randomize_play_order: settings.randomPlayOrder,
+        },
+      });
 
-        if (!dbGameId) throw new Error("Backend did not return game ID");
-      } catch (err: any) {
-        throw new Error(err.response?.data?.message || "Failed to save game");
+      const dbGameId =
+        typeof saveRes === "string" || typeof saveRes === "number"
+          ? saveRes
+          : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
+
+      if (!dbGameId) {
+        throw new Error("Backend did not return a valid game ID");
       }
 
       toast.update(toastId, {
-        render: `Game created! Share code: ${gameCode}`,
+        render: `Game created successfully! Code: ${gameCode}`,
         type: "success",
         isLoading: false,
-        autoClose: 5000,
+        autoClose: 5500,
         onClose: () => router.push(`/game-waiting?gameCode=${gameCode}`),
       });
     } catch (err: any) {
-      console.error("Create game error:", err);
-      let message = "Failed to create game. Please try again.";
-      if (err.message?.includes("user rejected") || err.code === 4001) {
-        message = "Transaction cancelled.";
-      } else if (err.message?.includes("insufficient")) {
-        message = "Insufficient balance or gas.";
-      } else if (err.message) {
-        message = err.message;
-      }
+      console.error("Game creation failed:", err);
+      const message = getErrorMessage(err);
 
       toast.update(toastId, {
         render: message,
         type: "error",
         isLoading: false,
-        autoClose: 8000,
+        autoClose: 10000,
       });
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -464,7 +507,12 @@ export default function GameSettings() {
         <div className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
-            disabled={isCreatePending || (approvePending || approveConfirming) && !isFreeGame}
+            disabled={
+              isStarting ||
+              isCreatePending ||
+              (approvePending || approveConfirming) ||
+              isRegisteredLoading
+            }
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
                        bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
                        hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
@@ -473,13 +521,13 @@ export default function GameSettings() {
                        border-4 border-white/20"
           >
             <span className="relative z-10 text-white drop-shadow-2xl">
-              {approvePending || approveConfirming
-                ? "APPROVING..."
+              {isStarting || approvePending || approveConfirming
+                ? "PROCESSING..."
                 : isCreatePending
                 ? "CREATING..."
                 : isFreeGame
                 ? "CREATE FREE GAME"
-                : "CREATE GAME"}
+                : "CREATE PAID GAME"}
             </span>
           </button>
         </div>

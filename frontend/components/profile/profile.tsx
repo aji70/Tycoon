@@ -37,7 +37,7 @@ const getPerkMetadata = (perk: number) => {
   return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-16 h-16 bg-gray-500/20 rounded-2xl flex items-center justify-center text-3xl">?</div> };
 };
 
-export default function ProfilePage() {
+export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
