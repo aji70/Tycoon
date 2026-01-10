@@ -125,6 +125,49 @@ const NavBarMobile = () => {
                   </div>
                 )}
 
+                {/* MiniPay connection feedback */}
+                {isMiniPay && !isConnected && (
+                  <p className="text-center text-xs text-[#00F0FF]/50 mt-4">
+                    Connecting via MiniPay...
+                  </p>
+                )}
+              </div>
+
+              {/* Navigation Links */}
+              <nav className="space-y-4 mb-10">
+                <Link
+                  href="/"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition"
+                >
+                  <House size={24} />
+                  Home
+                </Link>
+
+                {isConnected && (
+                  <>
+                    <Link
+                      href="/profile"
+                      onClick={closeMobileMenu}
+                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
+                    >
+                      <User size={24} />
+                      Profile
+                    </Link>
+
+                    <Link
+                      href="/game-shop"
+                      onClick={closeMobileMenu}
+                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition"
+                    >
+                      <ShoppingBag size={24} />
+                      Shop
+                    </Link>
+                  </>
+                )}
+              </nav>
+
+
                 {/* Network Switcher - ONLY visible when NOT in MiniPay */}
                 {!isMiniPay && (
                   <button
@@ -169,48 +212,6 @@ const NavBarMobile = () => {
                     )}
                   </div>
                 )}
-
-                {/* MiniPay connection feedback */}
-                {isMiniPay && !isConnected && (
-                  <p className="text-center text-xs text-[#00F0FF]/50 mt-4">
-                    Connecting via MiniPay...
-                  </p>
-                )}
-              </div>
-
-              {/* Navigation Links */}
-              <nav className="space-y-4 mb-10">
-                <Link
-                  href="/"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition"
-                >
-                  <House size={24} />
-                  Home
-                </Link>
-
-                {isConnected && (
-                  <>
-                    <Link
-                      href="/profile"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
-                    >
-                      <User size={24} />
-                      Profile
-                    </Link>
-
-                    <Link
-                      href="/game-shop"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition"
-                    >
-                      <ShoppingBag size={24} />
-                      Shop
-                    </Link>
-                  </>
-                )}
-              </nav>
 
               {/* Close Button */}
               <button
