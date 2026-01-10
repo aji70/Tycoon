@@ -180,7 +180,7 @@ const NavBarMobile = () => {
               </nav>
 
               {/* Disconnect Button */}
-              {/* {isConnected && (
+              {isConnected && (
                 <button
                   onClick={() => {
                     setIsDisconnectModalOpen(true);
@@ -190,7 +190,7 @@ const NavBarMobile = () => {
                 >
                   Disconnect Wallet
                 </button>
-              )} */}
+              )}
 
               {/* Close Button */}
               <button
@@ -205,18 +205,18 @@ const NavBarMobile = () => {
       )}
 
       {/* Modals */}
-      {/* <NetworkSwitcherModal
+      <NetworkSwitcherModal
         isOpen={isNetworkModalOpen}
         onClose={() => setIsNetworkModalOpen(false)}
-      /> */}
-      {/* <WalletConnectModal
+      />
+      <WalletConnectModal
         isOpen={isConnectModalOpen}
         onClose={() => setIsConnectModalOpen(false)}
       />
       <WalletDisconnectModal
         isOpen={isDisconnectModalOpen}
         onClose={() => setIsDisconnectModalOpen(false)}
-      /> */}
+      />
     </>
   );
 };
