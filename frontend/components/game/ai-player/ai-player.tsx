@@ -94,6 +94,8 @@ export default function GamePlayers({
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const isNext = !!me && game.next_player_id === me.user_id;
 
+  console.log("GAME", game)
+
   const {
     openTrades,
     tradeRequests,
