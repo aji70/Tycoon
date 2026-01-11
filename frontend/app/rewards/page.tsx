@@ -684,9 +684,9 @@ export default function RewardAdminPanel() {
 
                         {item.type === 'collectible' && item.tycPrice > 0 && (
                           <div className="mt-4 pt-4 border-t border-white/20">
-                            <p className="text-xs">
+                            {/* <p className="text-xs">
                               <span className="text-emerald-300">{formatUnits(item.tycPrice, 18)}</span> TYC
-                            </p>
+                            </p> */}
                             <p className="text-xs">
                               <span className="text-cyan-300">{formatUnits(item.usdcPrice, 6)}</span> USDC
                             </p>
