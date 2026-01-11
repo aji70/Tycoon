@@ -736,7 +736,7 @@ export default function CollectibleInventoryBar({
                 overflow-y-auto
               "
             >
-              <div className="p-6 text-center">
+              <div className="p-6 text-center mb-15">
                 <Flame className="w-20 h-20 text-red-500 mx-auto mb-6 animate-pulse" />
                 <h2 className="text-3xl font-bold text-white mb-4">Burn Collectible?</h2>
                 <p className="text-2xl text-cyan-300 font-semibold mb-6">{pendingPerk.name}</p>
