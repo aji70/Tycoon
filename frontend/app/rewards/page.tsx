@@ -114,6 +114,31 @@ const INITIAL_COLLECTIBLES = [
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 5", strength: 5, tycPrice: "2.0", usdcPrice: "0.90", icon: <Gem className="w-8 h-8" /> },
 ] as const;
 
+const AnimatedCounter = ({ to, duration = 2 }: { to: number; duration?: number }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTime: number | null = null;
+    const from = 0;
+    const animateCount = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = (timestamp - startTime) / (duration * 1000);
+      if (progress < 1) {
+        setCount(Math.round(from + progress * (to - from)));
+        requestAnimationFrame(animateCount);
+      } else {
+        setCount(to);
+      }
+    };
+    requestAnimationFrame(animateCount);
+    return () => {
+      startTime = null;
+    };
+  }, [to, duration]);
+
+  return <span>{count}</span>;
+};
+
 export default function RewardAdminPanel() {
   const { address: userAddress, isConnected } = useAccount();
   const chainId = useChainId();
@@ -611,10 +636,10 @@ export default function RewardAdminPanel() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
                 <div>
-                  Total Games Created: <span className="text-green-400">{totalGames}</span>
+                  Total Games Created: <motion.span className="text-green-400 font-bold" initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ duration: 0.5 }}><AnimatedCounter to={totalGames} /></motion.span>
                 </div>
                 <div>
-                  Total Users Registered: <span className="text-green-400">{totalUsers}</span>
+                  Total Users Registered: <motion.span className="text-green-400 font-bold" initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ duration: 0.5 }}><AnimatedCounter to={totalUsers} /></motion.span>
                 </div>
               </div>
             </div>
@@ -966,7 +991,7 @@ export default function RewardAdminPanel() {
           >
             <p className="text-xl font-bold text-green-300 text-center">Transaction Sent!</p>
             <a
-              href={`https://basescan.org/tx/${currentTxHash}`}
+              href={`https://celoscan.io/tx/${currentTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block mt-3 text-cyan-300 underline text-center"
