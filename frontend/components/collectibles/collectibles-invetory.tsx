@@ -581,6 +581,12 @@ export default function CollectibleInventoryBar({
                     <span>USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
+                {/* <button
+                  onClick={() => setUseUsdc(!useUsdc)}
+                  className="px-4 py-2 bg-cyan-900/50 rounded-lg border border-cyan-500 text-sm font-medium"
+                >
+                  Pay with {useUsdc ? "USDC" : "TYC"}
+                </button> */}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6 px-6 pb-8 overflow-y-auto max-h-full">
