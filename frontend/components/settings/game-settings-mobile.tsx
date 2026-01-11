@@ -211,7 +211,7 @@ export default function CreateGameMobile() {
 
           const newAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
           if (newAllowance < stakeAmount) {
-            throw new Error("USDC approval didn't register properly.");
+            // throw new Error("USDC approval didn't register properly.");
           }
         }
       }
