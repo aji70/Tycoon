@@ -529,8 +529,8 @@ export default function CollectibleInventoryBar({
 
   return (
     <>
-      {/* PERKS LIST */}
-      <div className="space-y-4 pb-40 md:pb-32 px-2 sm:px-4">
+      {/* PERKS LIST - Improved with better spacing and card styles for friendliness */}
+      <div className="space-y-6 pb-40 md:pb-32 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h3 className="text-2xl md:text-3xl font-bold text-cyan-300">
             Your Perks ({totalOwned})
@@ -538,43 +538,43 @@ export default function CollectibleInventoryBar({
 
           <button
             onClick={() => setShowMiniShop(true)}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/40 transition active:scale-97"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/50 transition active:scale-95"
           >
             <ShoppingBag className="w-5 h-5" />
-            Shop
+            Open Shop
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {ownedCollectibles.map((item) => (
             <motion.button
               key={item.tokenId.toString()}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
               disabled={!isMyTurn || !item.canBeActivated}
-              className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 text-left transition-all
+              className={`relative overflow-hidden rounded-2xl p-5 text-left transition-all shadow-md
+                bg-gradient-to-br ${item.gradient} opacity-90
                 ${!isMyTurn || !item.canBeActivated
-                  ? "opacity-55 cursor-not-allowed"
-                  : "hover:shadow-xl hover:shadow-cyan-500/30 active:scale-[0.98]"}
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:shadow-xl hover:shadow-cyan-500/40 hover:opacity-100 active:scale-98"}
               `}
             >
-              <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-85`} />
-              <div className="relative flex items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-4">
                 <div className="text-white shrink-0">
-                  {React.cloneElement(item.icon as React.ReactElement, { className: "w-8 h-8 sm:w-10 sm:h-10" })}
+                  {React.cloneElement(item.icon as React.ReactElement, { className: "w-12 h-12" })}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-white text-base sm:text-lg md:text-xl leading-tight">{item.name}</p>
+                  <p className="font-bold text-white text-lg md:text-xl leading-tight">{item.name}</p>
                   {!item.canBeActivated && (
-                    <p className="text-xs sm:text-sm text-gray-200 mt-1">
+                    <p className="text-sm text-gray-100 mt-1">
                       {item.fakeDescription || "Coming Soon"}
                     </p>
                   )}
                 </div>
 
                 {!isMyTurn && (
-                  <div className="text-xs text-gray-300 whitespace-nowrap">Your turn</div>
+                  <div className="text-sm text-gray-100 whitespace-nowrap">Wait for Turn</div>
                 )}
               </div>
             </motion.button>
@@ -582,7 +582,7 @@ export default function CollectibleInventoryBar({
         </div>
       </div>
 
-      {/* SHOP BOTTOM SHEET */}
+      {/* MINI SHOP BOTTOM SHEET - Made more mobile-friendly with rounded corners, smoother animations, grid layout option, and better touch handling */}
       <AnimatePresence>
         {showMiniShop && (
           <>
@@ -591,108 +591,112 @@ export default function CollectibleInventoryBar({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMiniShop(false)}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9998]"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
             />
 
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              transition={{ type: "spring", damping: 25, stiffness: 280 }}
               className="
                 fixed inset-x-0 bottom-0
                 z-[9999]
-                max-h-[92vh]
+                max-h-[85vh] sm:max-h-[90vh]
                 bg-gradient-to-b from-[#0A1418] to-[#061015]
                 rounded-t-3xl
-                border-t border-cyan-600/40
+                border-t border-cyan-600/30
                 flex flex-col
-                shadow-2xl shadow-black/60
+                shadow-2xl shadow-black/50
+                overflow-hidden
               "
             >
-              <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/40 px-4 py-3.5 flex items-center justify-between">
-                <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2.5 text-cyan-300">
-                  <ShoppingBag className="w-7 h-7" />
+              <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/30 px-5 py-4 flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
+                  <ShoppingBag className="w-6 h-6" />
                   Perk Shop
                 </h2>
-                <button onClick={() => setShowMiniShop(false)} className="p-2 rounded-full hover:bg-white/10">
+                <button onClick={() => setShowMiniShop(false)} className="p-2 rounded-full hover:bg-white/5 transition">
                   <X className="w-6 h-6 text-gray-300" />
                 </button>
               </div>
 
-              <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
-                <div className="flex flex-wrap justify-between gap-4 text-sm sm:text-base">
-                  <div className="flex items-center gap-2">
+              <div className="p-5 space-y-5">
+                <div className="flex justify-around gap-4 text-base">
+                  <div className="flex items-center gap-2 bg-gray-800/50 px-4 py-2 rounded-full">
                     <Wallet className="w-5 h-5 text-cyan-400" />
-                    <span>TYC: {tycBal ? Number(tycBal.formatted).toFixed(2) : "0.00"}</span>
+                    <span className="text-white">TYC: {tycBal ? Number(tycBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 bg-gray-800/50 px-4 py-2 rounded-full">
                     <Wallet className="w-5 h-5 text-cyan-400" />
-                    <span>USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
+                    <span className="text-white">USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
 
                 {/* <button
                   onClick={() => setUseUsdc(!useUsdc)}
-                  className="w-full py-3.5 sm:py-4 bg-cyan-950/60 rounded-2xl border border-cyan-700/50 text-base sm:text-lg font-medium hover:bg-cyan-900/60 transition"
+                  className="w-full py-4 bg-cyan-950/50 rounded-2xl border border-cyan-700/40 text-lg font-medium hover:bg-cyan-900/50 transition text-white"
                 >
-                  Pay with {useUsdc ? "USDC" : "TYC"}
+                  Pay with {useUsdc ? "TYC" : "USDC"}
                 </button> */}
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 pb-6 sm:pb-8 space-y-5 sm:space-y-6">
+              <div className="flex-1 overflow-y-auto px-5 pb-8">
                 {shopItems.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-gray-400 text-base sm:text-lg">
+                  <div className="flex flex-col items-center justify-center h-64 text-gray-400 text-lg">
+                    <ShoppingBag className="w-16 h-16 mb-4 opacity-50" />
                     No items in stock right now...
                   </div>
                 ) : (
-                  shopItems.map((item) => (
-                    <div
-                      key={item.tokenId.toString()}
-                      className="bg-gradient-to-br from-[#0F1A1F] to-[#0A1418] rounded-2xl border border-cyan-900/40 overflow-hidden shadow-xl"
-                    >
-                      <div className="relative h-48 sm:h-56 md:h-64">
-                        <Image
-                          src={item.image || "/game/shop/placeholder.jpg"}
-                          alt={item.name}
-                          fill
-                          className="object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent" />
-
-                        <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 flex items-end justify-between">
-                          <div className="flex items-center gap-2.5 sm:gap-3">
-                            <div className="text-white text-4xl sm:text-5xl">{item.icon}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {shopItems.map((item) => (
+                      <motion.div
+                        key={item.tokenId.toString()}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="bg-gradient-to-br from-[#0F1A1F] to-[#0A1418] rounded-2xl border border-cyan-900/30 overflow-hidden shadow-lg hover:shadow-cyan-500/20 transition-shadow"
+                      >
+                        <div className="relative h-48">
+                          <Image
+                            src={item.image || "/game/shop/placeholder.jpg"}
+                            alt={item.name}
+                            fill
+                            className="object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                          <div className="absolute bottom-4 left-4 flex items-center gap-3">
+                            <div className="text-white text-4xl">{item.icon}</div>
                             <div>
-                              <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white">{item.name}</h3>
-                              <p className="text-xs sm:text-sm text-gray-300">Stock: {item.stock}</p>
+                              <h3 className="text-xl font-bold text-white">{item.name}</h3>
+                              <p className="text-sm text-gray-300">Stock: {item.stock}</p>
                             </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="p-4 sm:p-5">
-                        <p className="text-xl sm:text-2xl md:text-3xl font-bold text-cyan-300 mb-4 sm:mb-5">
-                          {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `${Number(item.tycPrice).toFixed(1)} TYC`}
-                        </p>
+                        <div className="p-5">
+                          <p className="text-2xl font-bold text-cyan-300 mb-4">
+                            {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `${Number(item.tycPrice).toFixed(1)} TYC`}
+                          </p>
 
-                        <button
-                          onClick={() => handleBuy(item)}
-                          disabled={buyingId === item.tokenId || approvingId === item.tokenId}
-                          className="w-full py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold text-base sm:text-lg disabled:opacity-60 flex items-center justify-center gap-2 sm:gap-3"
-                        >
-                          {buyingId === item.tokenId || approvingId === item.tokenId ? (
-                            <>
-                              <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            "Buy Now"
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                          <button
+                            onClick={() => handleBuy(item)}
+                            disabled={buyingId === item.tokenId || approvingId === item.tokenId}
+                            className="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-cyan-400 text-black font-bold text-lg disabled:opacity-60 flex items-center justify-center gap-3 transition active:scale-95"
+                          >
+                            {buyingId === item.tokenId || approvingId === item.tokenId ? (
+                              <>
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              "Buy Now"
+                            )}
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -700,7 +704,7 @@ export default function CollectibleInventoryBar({
         )}
       </AnimatePresence>
 
-      {/* BURN CONFIRMATION SHEET */}
+      {/* BURN CONFIRMATION SHEET - Improved with softer colors and better mobile layout */}
       <AnimatePresence>
         {pendingPerk && (
           <>
@@ -708,7 +712,7 @@ export default function CollectibleInventoryBar({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 z-[9998]"
+              className="fixed inset-0 bg-black/70 z-[9998]"
               onClick={() => {
                 setPendingPerk(null);
                 setSelectedPositionIndex(null);
@@ -720,44 +724,44 @@ export default function CollectibleInventoryBar({
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 280 }}
               className="
-                fixed inset-x-0 bottom-20
+                fixed inset-x-0 bottom-0
                 z-[100000]
-                max-h-[90vh]
-                overflow-y-auto
+                max-h-[85vh]
                 bg-[#0A1418]
                 rounded-t-3xl
-                border-t border-red-600/50
-                shadow-2xl shadow-black/60
-
+                border-t border-red-600/40
+                shadow-2xl shadow-black/50
+                overflow-y-auto
               "
             >
-              <div className="p-5 sm:p-6 text-center">
-                <Flame className="w-16 h-16 sm:w-20 sm:h-20 text-red-500 mx-auto mb-5 sm:mb-6 animate-pulse" />
-                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 sm:mb-4">Burn Collectible?</h2>
-                <p className="text-xl sm:text-2xl text-cyan-300 font-semibold mb-5 sm:mb-6">{pendingPerk.name}</p>
+              <div className="p-6 text-center">
+                <Flame className="w-20 h-20 text-red-500 mx-auto mb-6 animate-pulse" />
+                <h2 className="text-3xl font-bold text-white mb-4">Burn Collectible?</h2>
+                <p className="text-2xl text-cyan-300 font-semibold mb-6">{pendingPerk.name}</p>
 
-                <p className="text-red-300 text-base sm:text-lg leading-relaxed mb-6 sm:mb-8">
+                <p className="text-red-300 text-lg leading-relaxed mb-8">
                   This action is <strong>permanent</strong>.<br />
                   The collectible will be <strong>burned forever</strong>.
                 </p>
 
                 {(pendingPerk.perkId === 6 || pendingPerk.perkId === 10) && (
-                  <div className="mb-8 sm:mb-10">
-                    <p className="text-lg sm:text-xl text-white mb-4 sm:mb-6">
+                  <div className="mb-10">
+                    <p className="text-xl text-white mb-6">
                       {pendingPerk.perkId === 6 ? "Choose destination:" : "Choose exact roll:"}
                     </p>
 
                     {pendingPerk.perkId === 6 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3 max-h-64 sm:max-h-80 overflow-y-auto">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
                         {BOARD_POSITIONS.map((name, i) => (
                           <button
                             key={i}
                             type="button"
                             onClick={() => setSelectedPositionIndex(i)}
-                            className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
+                            className={`py-3 px-4 rounded-xl text-sm font-medium transition-colors ${
                               selectedPositionIndex === i
-                                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/40"
+                                ? "bg-cyan-600 text-white shadow-md"
                                 : "bg-gray-800 hover:bg-gray-700 text-gray-200"
                             }`}
                           >
@@ -768,15 +772,15 @@ export default function CollectibleInventoryBar({
                     )}
 
                     {pendingPerk.perkId === 10 && (
-                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5 sm:gap-3">
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
                         {[2,3,4,5,6,7,8,9,10,11,12].map((n) => (
                           <button
                             key={n}
                             type="button"
                             onClick={() => setSelectedRollTotal(n)}
-                            className={`py-4 sm:py-6 rounded-xl text-xl sm:text-2xl font-bold transition-all ${
+                            className={`py-6 rounded-xl text-2xl font-bold transition-all ${
                               selectedRollTotal === n
-                                ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/50 scale-105"
+                                ? "bg-cyan-600 text-white shadow-md scale-105"
                                 : "bg-gray-800 hover:bg-gray-700 text-gray-200"
                             }`}
                           >
@@ -788,14 +792,14 @@ export default function CollectibleInventoryBar({
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-6 sm:mt-8">
+                <div className="grid grid-cols-2 gap-4 mt-8">
                   <button
                     onClick={() => {
                       setPendingPerk(null);
                       setSelectedPositionIndex(null);
                       setSelectedRollTotal(null);
                     }}
-                    className="py-4 sm:py-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-base sm:text-lg transition"
+                    className="py-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-lg transition"
                   >
                     Cancel
                   </button>
@@ -807,16 +811,16 @@ export default function CollectibleInventoryBar({
                       (pendingPerk.perkId === 6 && selectedPositionIndex === null) ||
                       (pendingPerk.perkId === 10 && selectedRollTotal === null)
                     }
-                    className="py-4 sm:py-5 rounded-2xl bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-60 text-white font-bold text-base sm:text-lg flex items-center justify-center gap-2 sm:gap-3 transition shadow-lg"
+                    className="py-5 rounded-2xl bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-60 text-white font-bold text-lg flex items-center justify-center gap-3 transition shadow-md"
                   >
                     {isBurning ? (
                       <>
-                        <Loader2 className="w-6 h-6 sm:w-7 sm:h-7 animate-spin" />
+                        <Loader2 className="w-7 h-7 animate-spin" />
                         Burning...
                       </>
                     ) : (
                       <>
-                        <Flame className="w-6 h-6 sm:w-7 sm:h-7" />
+                        <Flame className="w-7 h-7" />
                         Burn & Use
                       </>
                     )}
