@@ -98,7 +98,7 @@ export default function CollectibleInventoryBar({
   const tycToken = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
   const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
-  const [showMiniShop, setShowMiniShop] = useState(false);
+  const [showMiniShop, setShowMiniShop] = useState(true);
   const [useUsdc, setUseUsdc] = useState(false);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);

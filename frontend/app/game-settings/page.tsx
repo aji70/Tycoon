@@ -19,7 +19,7 @@ export default function GameSettingsPage() {
     isLoading: isRegisteredLoading,
   } = useIsRegistered(address);
 
-  // Loading while checking registration status
+  // Loading while checking registration stapatus
   if (isRegisteredLoading) {
     return (
       <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
