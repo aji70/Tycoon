@@ -328,8 +328,8 @@ export default function RewardAdminPanel() {
       try {
         const gamesRes = await apiClient.get<ApiResponse>('/games');
         setTotalGames(gamesRes.data?.data.length);
-        const usersRes = await apiClient.get<ApiResponse>('/users');
-        setTotalUsers(usersRes.data?.length);
+        const usersRes = await apiClient.get<any[]>('/users');
+        setTotalUsers(usersRes.data?.length ?? 0);
         
       } catch (error) {
         console.error('Failed to fetch platform stats:', error);
