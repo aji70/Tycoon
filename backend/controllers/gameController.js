@@ -107,7 +107,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findAll({
-        limit: Number.parseInt(limit) || 100,
+        limit: Number.parseInt(limit) || 1000,
         offset: Number.parseInt(offset) || 0,
       });
 
@@ -174,7 +174,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findByWinner(req.params.userId, {
-        limit: Number.parseInt(limit) || 50,
+        limit: Number.parseInt(limit) || 500,
         offset: Number.parseInt(offset) || 0,
       });
       res.json({
@@ -191,7 +191,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findByCreator(req.params.userId, {
-        limit: Number.parseInt(limit) || 50,
+        limit: Number.parseInt(limit) || 500,
         offset: Number.parseInt(offset) || 0,
       });
       res.json({

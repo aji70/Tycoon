@@ -51,6 +51,10 @@ import {
   useRewardWithdrawFunds,
 } from '@/context/ContractProvider'; 
 
+// Assuming apiClient is imported from your API utilities
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from '@/types/api';
+
 enum CollectiblePerk {
   NONE = 0,
   EXTRA_TURN = 1,
@@ -123,6 +127,8 @@ export default function RewardAdminPanel() {
   const [isPaused, setIsPaused] = useState(false);
   const [backendMinter, setBackendMinter] = useState<Address | null>(null);
   const [owner, setOwner] = useState<Address | null>(null);
+  const [totalGames, setTotalGames] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
 
   // Form states
   const [newMinter, setNewMinter] = useState('');
@@ -315,6 +321,24 @@ export default function RewardAdminPanel() {
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null) ?? [];
+
+  // Fetch total games and users
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const gamesRes = await apiClient.get<ApiResponse>('/games');
+        setTotalGames(gamesRes.data?.data.length);
+        const usersRes = await apiClient.get<ApiResponse>('/users');
+        setTotalUsers(usersRes.data?.length);
+        
+      } catch (error) {
+        console.error('Failed to fetch platform stats:', error);
+        // Optionally set status to show error
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   // Update local state from contract reads
   useEffect(() => {
@@ -577,6 +601,20 @@ export default function RewardAdminPanel() {
                 </div>
                 <div>
                   Backend Minter: <span className="font-mono text-sm">{backendMinter ? `${backendMinter.slice(0, 8)}...${backendMinter.slice(-6)}` : 'Not set'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Crown className="w-6 h-6 text-purple-400" /> Platform Statistics
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
+                <div>
+                  Total Games Created: <span className="text-green-400">{totalGames}</span>
+                </div>
+                <div>
+                  Total Users Registered: <span className="text-green-400">{totalUsers}</span>
                 </div>
               </div>
             </div>
@@ -933,7 +971,7 @@ export default function RewardAdminPanel() {
               rel="noopener noreferrer"
               className="block mt-3 text-cyan-300 underline text-center"
             >
-              View on Basescan
+              View on Block Explorer
             </a>
           </motion.div>
         )}

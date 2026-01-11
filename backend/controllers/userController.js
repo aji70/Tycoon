@@ -56,7 +56,7 @@ const userController = {
     try {
       const { limit, offset } = req.query;
       const users = await User.findAll({
-        limit: Number.parseInt(limit) || 100,
+        limit: Number.parseInt(limit) || 1000,
         offset: Number.parseInt(offset) || 0,
       });
       res.json(users);
