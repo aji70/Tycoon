@@ -491,7 +491,7 @@ export default function CollectibleInventoryBar({
     }
   };
 
-  if (!isConnected || totalOwned === 0) return null;
+  if (!isConnected) return null;
 
   return (
     <>
