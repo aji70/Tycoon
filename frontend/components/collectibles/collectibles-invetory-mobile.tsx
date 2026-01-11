@@ -99,7 +99,7 @@ export default function CollectibleInventoryBar({
   const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
   const [showMiniShop, setShowMiniShop] = useState(false);
-  const [useUsdc, setUseUsdc] = useState(false);
+  const [useUsdc, setUseUsdc] = useState(true);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
 
@@ -631,13 +631,6 @@ export default function CollectibleInventoryBar({
                     <span>USDC: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setUseUsdc(!useUsdc)}
-                  className="w-full py-3.5 sm:py-4 bg-cyan-950/60 rounded-2xl border border-cyan-700/50 text-base sm:text-lg font-medium hover:bg-cyan-900/60 transition"
-                >
-                  Pay with {useUsdc ? "USDC" : "TYC"}
-                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 pb-6 sm:pb-8 space-y-5 sm:space-y-6">
