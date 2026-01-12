@@ -564,7 +564,7 @@ export default function RewardAdminPanel() {
           className="text-center mb-12"
         >
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Tycoon Reward Admin Panel
+            Tycoon Admin Panel
           </h1>
           <p className="text-xl text-gray-400">
             Manage minter • Mint items • Stock shop • Update prices • Control contract
