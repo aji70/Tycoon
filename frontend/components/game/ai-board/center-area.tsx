@@ -5,6 +5,8 @@ import ActionLog from "./action-log";
 
 import { Property, Player, Game } from "@/types/game";
 
+const bgUrl = "./bb.jpg";
+
 type CenterAreaProps = {
   isMyTurn: boolean;
   isAITurn: boolean;
@@ -43,7 +45,13 @@ export default function CenterArea({
   isPending,
 }: CenterAreaProps) {
   return (
-    <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden">
+    <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
+       style={{
+    backgroundImage: `url(/bb.jpg)`,
+    backgroundSize: 'cover',    // ← usually good to add
+    backgroundPosition: 'center',
+  }}
+     >
       {/* Dice Animation */}
       <DiceAnimation isRolling={isRolling} roll={roll} />
 

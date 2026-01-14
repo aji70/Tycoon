@@ -69,7 +69,13 @@ const Board: React.FC<BoardProps> = ({
     <div ref={boardRef} className="w-full max-w-[95vw] max-h-[60vh] overflow-auto touch-pinch-zoom touch-pan-x touch-pan-y aspect-square relative shadow-2xl shadow-cyan-500/10 mt-4">
       <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100">
         {/* Center Area */}
-        <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden rounded-lg">
+        <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden rounded-lg"
+         style={{
+    backgroundImage: `url(/bb.jpg)`,
+    backgroundSize: 'cover',    // ← usually good to add
+    backgroundPosition: 'center',
+     }}
+        >
           <h1 className="text-2xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4 z-10">
             Tycoon
           </h1>

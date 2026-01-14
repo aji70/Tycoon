@@ -77,10 +77,18 @@ const Board: React.FC<BoardProps> = ({
   };
 
   return (
-    <div ref={boardRef} className="w-full max-w-[95vw] max-h-[60vh] overflow-auto touch-pinch-zoom touch-pan-x touch-pan-y aspect-square relative shadow-2xl shadow-cyan-500/10 mt-4">
+    <div ref={boardRef} className="w-full max-w-[95vw] max-h-[60vh] overflow-auto touch-pinch-zoom touch-pan-x touch-pan-y aspect-square relative shadow-2xl shadow-cyan-500/10 mt-4"
+  
+    >
       <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100">
         {/* Center Area */}
-        <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden rounded-lg">
+        <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden rounded-lg"
+          style={{
+    backgroundImage: `url(/bb.jpg)`,
+    backgroundSize: 'cover',    // ← usually good to add
+    backgroundPosition: 'center',
+     }}
+        >
           <h1 className="text-2xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4 z-10">
             Tycoon
           </h1>
@@ -113,6 +121,7 @@ const Board: React.FC<BoardProps> = ({
               whileHover={{ scale: isClickable ? 1.5 : 1, zIndex: 50 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
               onClick={() => isClickable && onPropertyClick?.(square.id)}
+              
             >
               <div className={`w-full h-full transform group-hover:scale-150 ${isTopRow(square) ? 'origin-top group-hover:origin-bottom group-hover:translate-y-[50px]' : ''} group-hover:shadow-lg group-hover:shadow-cyan-500/50 transition-transform duration-200 rounded-sm overflow-hidden bg-black/20 p-0.5 relative ${isClickable ? 'cursor-pointer' : ''}`}>
                 {square.type === "property" && <PropertyCard square={square} owner={propertyOwner(square.id)} />}
