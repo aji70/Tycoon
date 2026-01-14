@@ -74,7 +74,6 @@ const WaitlistForm = () => {
 
         <div className="relative z-10">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-10 text-center flex items-center justify-center gap-4">
-            <Sparkles className="w-10 h-10 md:w-12 md:h-12 text-cyan-400 animate-pulse" />
             Join Tycoon Waitlist
           </h2>
 
