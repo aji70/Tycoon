@@ -1022,13 +1022,24 @@ const MobileGameLayout = ({
               Declare Bankruptcy
             </button>
           ) : (
-            <button
-              onClick={() => ROLL_DICE(false)}
-              disabled={isRolling}
-              className="w-full py-3 px-8 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-emerald-500/30 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/40 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Roll Dice
-            </button>
+      <div className="flex justify-center items-center w-full mb-8">
+  <button
+    onClick={() => ROLL_DICE(false)}
+    className="
+      py-2.5 px-10
+      bg-gradient-to-r from-cyan-500 to-cyan-600 
+      hover:from-cyan-400 hover:to-cyan-500 
+      active:from-cyan-600 active:to-cyan-700 
+      text-white font-bold text-base tracking-wide rounded-full 
+      shadow-lg shadow-cyan-500/40 border border-cyan-300/30 
+      transition-all duration-300 
+      hover:scale-105 hover:shadow-xl hover:shadow-cyan-400/60 
+      active:scale-95
+    "
+  >
+    Roll Dice
+  </button>
+</div>
           )}
         </div>
       )}

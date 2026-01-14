@@ -89,9 +89,6 @@ const Board: React.FC<BoardProps> = ({
     backgroundPosition: 'center',
      }}
         >
-          <h1 className="text-2xl font-bold text-[#F0F7F7] font-orbitron text-center mb-4 z-10">
-            Tycoon
-          </h1>
         </div>
 
         {/* All Squares */}
