@@ -70,19 +70,18 @@ export default function PlayWithAI() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    duration: 60, // minutes
+    duration: 60,
   });
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
 
   const gameCode = generateGameCode();
-  const totalPlayers = settings.aiCount + 1;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
-    settings.aiCount,           // ← number of AI opponents
+    settings.aiCount,
     gameCode,
     BigInt(settings.startingCash)
   );
@@ -115,7 +114,7 @@ export default function PlayWithAI() {
           mode: "PRIVATE",
           address: address,
           symbol: settings.symbol,
-          number_of_players: totalPlayers,
+          number_of_players: settings.aiCount + 1,
           ai_opponents: settings.aiCount,
           ai_difficulty: settings.aiDifficulty,
           starting_cash: settings.startingCash,
@@ -199,8 +198,8 @@ export default function PlayWithAI() {
 
   if (isRegisteredLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
-        <p className="text-[#00F0FF] text-4xl font-orbitron animate-pulse tracking-wider">
+      <div className="w-full h-screen flex items-center justify-center bg-[#010F10]">
+        <p className="font-orbitron text-[#00F0FF] text-4xl animate-pulse tracking-wider">
           LOADING ARENA...
         </p>
       </div>
@@ -208,182 +207,194 @@ export default function PlayWithAI() {
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-6">
-      <div className="w-full max-w-5xl bg-black/80 backdrop-blur-3xl rounded-3xl border border-cyan-500/30 shadow-2xl p-8 md:p-12">
+    <div className="min-h-screen bg-[#010F10] py-12 px-5 md:px-8">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-12">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-12 gap-6">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-3 text-cyan-400 hover:text-cyan-300 transition group"
+            className="flex items-center gap-3 text-[#00F0FF] hover:text-[#17ffff] transition group text-lg"
           >
-            <House className="w-6 h-6 group-hover:-translate-x-1 transition" />
-            <span className="font-bold text-lg">BACK</span>
+            <House className="w-7 h-7 group-hover:-translate-x-1 transition" />
+            <span className="font-orbitron font-bold tracking-wide">BACK</span>
           </button>
-          <h1 className="text-5xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-orbitron font-black text-[#00F0FF] tracking-[-0.02em]">
             AI DUEL
           </h1>
-          <div className="w-24" />
+
+          <div className="w-32 hidden sm:block" />
         </div>
 
-        {/* Main Grid - Adjusted layout after stake removal */}
-        <div className="grid lg:grid-cols-3 gap-8 mb-10">
+        <div className="grid lg:grid-cols-3 gap-7">
           {/* Column 1 */}
-          <div className="space-y-6">
-            {/* Your Piece */}
-            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
-              <div className="flex items-center gap-3 mb-4">
-                <FaUser className="w-7 h-7 text-cyan-400" />
-                <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
-              </div>
-              <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
-                <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GamePieces.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* AI Opponents */}
-            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-purple-500/30">
-              <div className="flex items-center gap-3 mb-4">
-                <FaRobot className="w-7 h-7 text-purple-400" />
-                <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
-              </div>
-              <Select
-                value={settings.aiCount.toString()}
-                onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
+          <div className="space-y-7">
+            {[
+              {
+                icon: FaUser,
+                title: "YOUR PIECE",
+                value: settings.symbol,
+                onChange: (v: string) => setSettings((p) => ({ ...p, symbol: v })),
+                options: GamePieces.map((p) => ({ value: p.id, label: p.name })),
+              },
+              {
+                icon: FaRobot,
+                title: "AI OPPONENTS",
+                value: settings.aiCount.toString(),
+                onChange: (v: string) => setSettings((p) => ({ ...p, aiCount: +v })),
+                options: [1, 2, 3, 4, 5, 6].map((n) => ({ value: n.toString(), label: `${n} AI` })),
+              },
+              {
+                icon: FaBrain,
+                title: "AI DIFFICULTY",
+                value: settings.aiDifficulty,
+                onChange: (v: string) => setSettings((p) => ({ ...p, aiDifficulty: v as any })),
+                options: [
+                  { value: "easy", label: "Easy" },
+                  { value: "medium", label: "Medium" },
+                  { value: "hard", label: "Hard" },
+                  { value: "boss", label: "BOSS MODE" },
+                ],
+              },
+            ].map((section, i) => (
+              <div
+                key={i}
+                className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-7 border border-[#004B4F]"
               >
-                <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <SelectItem key={n} value={n.toString()}>
-                      {n} AI
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="flex items-center gap-4 mb-5">
+                  <section.icon className="w-8 h-8 text-[#00F0FF]" />
+                  <h3 className="text-2xl font-orbitron font-bold text-[#00F0FF] tracking-wide">
+                    {section.title}
+                  </h3>
+                </div>
 
-            {/* Difficulty */}
-            <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-2xl p-6 border border-red-500/30">
-              <div className="flex items-center gap-3 mb-4">
-                <FaBrain className="w-7 h-7 text-red-400" />
-                <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
+                <Select value={section.value} onValueChange={section.onChange}>
+                  <SelectTrigger className="h-14 bg-[#0E1415]/80 border-[#004B4F] text-[#17ffff] font-orbitron focus:ring-0 focus:ring-offset-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0E1415] border-[#004B4F] text-[#DDEEEE]">
+                    {section.options.map((opt) => (
+                      <SelectItem
+                        key={opt.value}
+                        value={opt.value}
+                        className="focus:bg-[#004B4F]/40 text-[#17ffff] font-orbitron py-3"
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={settings.aiDifficulty}
-                onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
-              >
-                <SelectTrigger className="h-14 bg-black/60 border-red-500/40 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="easy">Easy</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="boss" className="text-pink-400 font-bold">
-                    BOSS MODE
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            ))}
           </div>
 
-          {/* Column 2 - Starting Cash (moved here to fill space) */}
-          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
-            <div className="flex items-center gap-3 mb-4">
-              <FaCoins className="w-7 h-7 text-amber-400" />
-              <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
-            </div>
-            <Select
-              value={settings.startingCash.toString()}
-              onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
-            >
-              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="500">$500</SelectItem>
-                <SelectItem value="1000">$1,000</SelectItem>
-                <SelectItem value="1500">$1,500</SelectItem>
-                <SelectItem value="2000">$2,000</SelectItem>
-                <SelectItem value="5000">$5,000</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Game Duration - placed here as secondary option */}
-            <div className="mt-8">
-              <div className="flex items-center gap-3 mb-4">
-                <FaBrain className="w-7 h-7 text-indigo-400" />
-                <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
-              </div>
-              <Select
-                value={settings.duration.toString()}
-                onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
+          {/* Column 2 */}
+          <div className="space-y-7">
+            {[
+              {
+                icon: FaCoins,
+                title: "STARTING CASH",
+                value: settings.startingCash.toString(),
+                onChange: (v: string) => setSettings((p) => ({ ...p, startingCash: +v })),
+                options: [500, 1000, 1500, 2000, 5000].map((v) => ({
+                  value: v.toString(),
+                  label: `$${v.toLocaleString()}`,
+                })),
+              },
+              {
+                icon: FaBrain,
+                title: "GAME DURATION",
+                value: settings.duration.toString(),
+                onChange: (v: string) => setSettings((p) => ({ ...p, duration: +v })),
+                options: [
+                  { value: "30", label: "30 minutes" },
+                  { value: "45", label: "45 minutes" },
+                  { value: "60", label: "60 minutes" },
+                  { value: "90", label: "90 minutes" },
+                  { value: "0", label: "No limit" },
+                ],
+              },
+            ].map((section, i) => (
+              <div
+                key={i}
+                className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-7 border border-[#004B4F]"
               >
-                <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="45">45 minutes</SelectItem>
-                  <SelectItem value="60">60 minutes</SelectItem>
-                  <SelectItem value="90">90 minutes</SelectItem>
-                  <SelectItem value="0">No limit</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="flex items-center gap-4 mb-5">
+                  <section.icon className="w-8 h-8 text-[#00F0FF]" />
+                  <h3 className="text-2xl font-orbitron font-bold text-[#00F0FF] tracking-wide">
+                    {section.title}
+                  </h3>
+                </div>
+
+                <Select value={section.value} onValueChange={section.onChange}>
+                  <SelectTrigger className="h-14 bg-[#0E1415]/80 border-[#004B4F] text-[#17ffff] font-orbitron focus:ring-0 focus:ring-offset-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0E1415] border-[#004B4F] text-[#DDEEEE]">
+                    {section.options.map((opt) => (
+                      <SelectItem
+                        key={opt.value}
+                        value={opt.value}
+                        className="focus:bg-[#004B4F]/40 text-[#17ffff] font-orbitron py-3"
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
           </div>
 
           {/* Column 3 - House Rules */}
-          <div className="space-y-6">
-            <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30 h-full">
-              <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
-              <div className="space-y-4">
-                {[
-                  { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
-                  { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
-                  { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
-                  { icon: IoBuild, label: "Even Building Rule", key: "evenBuild" },
-                  { icon: FaRandom, label: "Random Play Order", key: "randomPlayOrder" },
-                ].map((item) => (
-                  <div key={item.key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <item.icon className="w-5 h-5 text-cyan-400" />
-                      <span className="text-gray-300 text-sm">{item.label}</span>
-                    </div>
-                    <Switch
-                      checked={settings[item.key as keyof typeof settings] as boolean}
-                      onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
-                    />
+          <div className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-7 border border-[#004B4F] h-full">
+            <h3 className="text-2xl font-orbitron font-bold text-[#00F0FF] mb-8 text-center tracking-wide">
+              HOUSE RULES
+            </h3>
+            <div className="space-y-6">
+              {[
+                { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
+                { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
+                { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
+                { icon: IoBuild, label: "Even Building Rule", key: "evenBuild" },
+                { icon: FaRandom, label: "Random Play Order", key: "randomPlayOrder" },
+              ].map((item) => (
+                <div key={item.key} className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <item.icon className="w-7 h-7 text-[#00F0FF]" />
+                    <span className="text-[#DDEEEE] font-dmSans text-lg">{item.label}</span>
                   </div>
-                ))}
-              </div>
+                  <Switch
+                    checked={settings[item.key as keyof typeof settings] as boolean}
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Start Button */}
-        <div className="flex justify-center mt-12">
+        {/* START BATTLE Button */}
+        <div className="flex justify-center mt-16 mb-10">
           <button
             onClick={handlePlay}
             disabled={isCreatePending}
-            className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
-                     bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
-                     hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
-                     rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
-                     transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                     border-4 border-white/20"
+            className="relative w-full max-w-xl h-20 transition-transform active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="relative z-10 text-white drop-shadow-2xl">
+            <svg
+              className="absolute inset-0 w-full h-full"
+              viewBox="0 0 360 80"
+              fill="none"
+              preserveAspectRatio="none"
+            >
+              <path
+                d="M20 4H340C346.627 4 349.5 11.0728 346.824 16.16L332.176 63.84C329.824 68.9272 325.373 72 320.824 72H20C13.373 72 10 64.9272 10 59.84V20.16C10 15.0728 13.373 8 20 8Z"
+                fill="#00F0FF"
+                stroke="#0E282A"
+                strokeWidth="4"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-3xl md:text-4xl font-orbitron font-black tracking-wider">
               {isCreatePending ? "SUMMONING..." : "START BATTLE"}
             </span>
           </button>

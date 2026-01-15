@@ -76,12 +76,13 @@ export default function PlayWithAIMobile() {
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
 
   const gameCode = generateGameCode();
+  const totalPlayers = settings.aiCount + 1;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
     settings.symbol,
-    settings.aiCount,
+    settings.aiCount, // number of AI opponents
     gameCode,
     BigInt(settings.startingCash)
   );
@@ -114,7 +115,7 @@ export default function PlayWithAIMobile() {
           mode: "PRIVATE",
           address: address,
           symbol: settings.symbol,
-          number_of_players: settings.aiCount + 1,
+          number_of_players: totalPlayers,
           ai_opponents: settings.aiCount,
           ai_difficulty: settings.aiDifficulty,
           starting_cash: settings.startingCash,
@@ -198,8 +199,8 @@ export default function PlayWithAIMobile() {
 
   if (isRegisteredLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#010F10]">
-        <p className="font-orbitron text-[#00F0FF] text-3xl animate-pulse text-center px-6">
+      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover bg-center">
+        <p className="text-[#00F0FF] text-3xl font-orbitron animate-pulse text-center px-6">
           LOADING ARENA...
         </p>
       </div>
@@ -207,114 +208,144 @@ export default function PlayWithAIMobile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#010F10] flex flex-col mt-10">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col">
       {/* Header */}
       <div className="px-6 pt-8 pb-6">
         <div className="max-w-md mx-auto flex justify-between items-center">
-          <h1 className="text-5xl sm:text-6xl font-orbitron font-black text-[#00F0FF] tracking-[-0.02em] justify-center flex">
+          <button
+            onClick={() => router.push("/")}
+            className="flex items-center gap-3 text-cyan-400 hover:text-cyan-300 transition group"
+          >
+            <House className="w-7 h-7 group-hover:-translate-x-1 transition" />
+            <span className="font-bold text-lg">BACK</span>
+          </button>
+          <h1 className="text-4xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             AI DUEL
           </h1>
-
           <div className="w-20" />
         </div>
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-5 pb-12">
-        <div className="max-w-md mx-auto space-y-7">
-          {/* Selection Cards */}
-          {[
-            {
-              icon: FaUser,
-              title: "YOUR PIECE",
-              color: "#00F0FF",
-              value: settings.symbol,
-              onChange: (v: string) => setSettings((p) => ({ ...p, symbol: v })),
-              options: GamePieces.map((p) => ({ value: p.id, label: p.name })),
-            },
-            {
-              icon: FaRobot,
-              title: "AI OPPONENTS",
-              color: "#00F0FF",
-              value: settings.aiCount.toString(),
-              onChange: (v: string) => setSettings((p) => ({ ...p, aiCount: +v })),
-              options: [1, 2, 3, 4, 5, 6].map((n) => ({ value: n.toString(), label: `${n} AI` })),
-            },
-            {
-              icon: FaBrain,
-              title: "AI DIFFICULTY",
-              color: "#00F0FF",
-              value: settings.aiDifficulty,
-              onChange: (v: string) => setSettings((p) => ({ ...p, aiDifficulty: v as any })),
-              options: [
-                { value: "easy", label: "Easy" },
-                { value: "medium", label: "Medium" },
-                { value: "hard", label: "Hard" },
-                { value: "boss", label: "BOSS MODE" },
-              ],
-            },
-            {
-              icon: FaCoins,
-              title: "STARTING CASH",
-              color: "#00F0FF",
-              value: settings.startingCash.toString(),
-              onChange: (v: string) => setSettings((p) => ({ ...p, startingCash: +v })),
-              options: [500, 1000, 1500, 2000, 5000].map((v) => ({
-                value: v.toString(),
-                label: `$${v.toLocaleString()}`,
-              })),
-            },
-            {
-              icon: FaBrain,
-              title: "GAME DURATION",
-              color: "#00F0FF",
-              value: settings.duration.toString(),
-              onChange: (v: string) => setSettings((p) => ({ ...p, duration: +v })),
-              options: [
-                { value: "30", label: "30 minutes" },
-                { value: "45", label: "45 minutes" },
-                { value: "60", label: "60 minutes" },
-                { value: "90", label: "90 minutes" },
-                { value: "0", label: "No limit" },
-              ],
-            },
-          ].map((section, i) => (
-            <div
-              key={i}
-              className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-6 border border-[#004B4F]"
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <section.icon className="w-7 h-7 text-[#00F0FF]" />
-                <h3 className="text-xl font-orbitron font-bold text-[#00F0FF] tracking-wide">
-                  {section.title}
-                </h3>
-              </div>
-
-              <Select value={section.value} onValueChange={section.onChange}>
-                <SelectTrigger className="h-14 bg-[#0E1415]/80 border-[#004B4F] text-[#17ffff] font-orbitron focus:ring-0 focus:ring-offset-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0E1415] border-[#004B4F] text-[#DDEEEE]">
-                  {section.options.map((opt) => (
-                    <SelectItem
-                      key={opt.value}
-                      value={opt.value}
-                      className="focus:bg-[#004B4F]/40 text-[#17ffff] font-orbitron"
-                    >
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      <div className="flex-1 overflow-y-auto px-6 pb-12">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Your Piece */}
+          <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaUser className="w-7 h-7 text-cyan-400" />
+              <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
             </div>
-          ))}
+            <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
+              <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
+                <SelectValue placeholder="Choose your piece" />
+              </SelectTrigger>
+              <SelectContent>
+                {GamePieces.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* AI Opponents */}
+          <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-purple-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaRobot className="w-7 h-7 text-purple-400" />
+              <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
+            </div>
+            <Select
+              value={settings.aiCount.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <SelectItem key={n} value={n.toString()}>
+                    {n} AI
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Difficulty */}
+          <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-2xl p-6 border border-red-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaBrain className="w-7 h-7 text-red-400" />
+              <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
+            </div>
+            <Select
+              value={settings.aiDifficulty}
+              onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-red-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="easy">Easy</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="hard">Hard</SelectItem>
+                <SelectItem value="boss" className="text-pink-400 font-bold">
+                  BOSS MODE
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Starting Cash */}
+          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaCoins className="w-7 h-7 text-amber-400" />
+              <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
+            </div>
+            <Select
+              value={settings.startingCash.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="500">$500</SelectItem>
+                <SelectItem value="1000">$1,000</SelectItem>
+                <SelectItem value="1500">$1,500</SelectItem>
+                <SelectItem value="2000">$2,000</SelectItem>
+                <SelectItem value="5000">$5,000</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Game Duration */}
+          <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaBrain className="w-7 h-7 text-indigo-400" />
+              <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
+            </div>
+            <Select
+              value={settings.duration.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">30 minutes</SelectItem>
+                <SelectItem value="45">45 minutes</SelectItem>
+                <SelectItem value="60">60 minutes</SelectItem>
+                <SelectItem value="90">90 minutes</SelectItem>
+                <SelectItem value="0">No limit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* House Rules */}
-          <div className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-6 border border-[#004B4F]">
-            <h3 className="text-xl font-orbitron font-bold text-[#00F0FF] mb-6 text-center tracking-wide">
-              HOUSE RULES
-            </h3>
-            <div className="space-y-5">
+          <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30">
+            <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
+            <div className="space-y-4">
               {[
                 { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
                 { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
@@ -324,8 +355,8 @@ export default function PlayWithAIMobile() {
               ].map((item) => (
                 <div key={item.key} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <item.icon className="w-6 h-6 text-[#00F0FF]" />
-                    <span className="text-[#DDEEEE] font-dmSans text-base">{item.label}</span>
+                    <item.icon className="w-5 h-5 text-cyan-400" />
+                    <span className="text-gray-300 text-sm">{item.label}</span>
                   </div>
                   <Switch
                     checked={settings[item.key as keyof typeof settings] as boolean}
@@ -336,27 +367,19 @@ export default function PlayWithAIMobile() {
             </div>
           </div>
 
-          {/* START BATTLE Button */}
-          <div className="pt-10 pb-8">
+          {/* START BATTLE Button - now in normal flow under House Rules */}
+          <div className="pt-8 pb-6">
             <button
               onClick={handlePlay}
               disabled={isCreatePending}
-              className="relative w-full h-16 transition-transform active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full relative py-6 text-3xl font-orbitron font-black tracking-widest
+                       bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
+                       hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
+                       rounded-2xl shadow-2xl transform hover:scale-105 active:scale-95
+                       transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
+                       border-4 border-white/20"
             >
-              <svg
-                className="absolute inset-0 w-full h-full"
-                viewBox="0 0 320 64"
-                fill="none"
-                preserveAspectRatio="none"
-              >
-                <path
-                  d="M18 2H302C307.523 2 310 8.05888 307.512 12.928L290.488 51.072C288.512 55.9411 285.035 59 281.512 59H18C13.0294 59 10 55.9706 10 51V11C10 6.02944 13.0294 2 18 2Z"
-                  fill="#00F0FF"
-                  stroke="#0E282A"
-                  strokeWidth="3"
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-2xl sm:text-3xl font-orbitron font-black tracking-wider">
+              <span className="relative z-10 text-white drop-shadow-2xl">
                 {isCreatePending ? "SUMMONING..." : "START BATTLE"}
               </span>
             </button>
