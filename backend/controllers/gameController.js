@@ -17,8 +17,18 @@ const gameController = {
 
   async create(req, res) {
     try {
-      const { code, mode, address, symbol, number_of_players, settings } =
-        req.body;
+      const {
+        code,
+        mode,
+        address,
+        symbol,
+        number_of_players,
+        settings,
+        is_minipay,
+        is_ai,
+        duration,
+        chain,
+      } = req.body;
       const user = await User.findByAddress(address);
       if (!user) {
         return res
@@ -34,11 +44,15 @@ const gameController = {
         next_player_id: user.id,
         number_of_players,
         status: "PENDING",
+        is_minipay,
+        is_ai,
+        duration,
+        chain,
       });
 
       const chat = await Chat.create({
         game_id: game.id,
-        status: "open"
+        status: "open",
       });
 
       const gameSettingsPayload = {
@@ -49,6 +63,7 @@ const gameController = {
         even_build: settings.even_build,
         randomize_play_order: settings.randomize_play_order,
         starting_cash: settings.starting_cash,
+        // duration_per_player: settings.duration_per_player,
       };
 
       const game_settings = await GameSetting.create(gameSettingsPayload);
@@ -107,7 +122,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findAll({
-        limit: Number.parseInt(limit) || 10000,
+        limit: Number.parseInt(limit) || 100,
         offset: Number.parseInt(offset) || 0,
       });
 
@@ -174,7 +189,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findByWinner(req.params.userId, {
-        limit: Number.parseInt(limit) || 500,
+        limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
       res.json({
@@ -191,7 +206,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findByCreator(req.params.userId, {
-        limit: Number.parseInt(limit) || 500,
+        limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
       res.json({
@@ -263,8 +278,18 @@ const gameController = {
 
 export const create = async (req, res) => {
   try {
-    const { code, mode, address, symbol, number_of_players, settings } =
-      req.body;
+    const {
+      code,
+      mode,
+      address,
+      symbol,
+      number_of_players,
+      settings,
+      is_minipay,
+      is_ai,
+      duration,
+      chain,
+    } = req.body;
     const user = await User.findByAddress(address);
     if (!user) {
       return res
@@ -287,6 +312,10 @@ export const create = async (req, res) => {
       next_player_id: user.id,
       number_of_players,
       status: "PENDING",
+      is_minipay,
+      is_ai,
+      duration,
+      chain,
     });
 
     const gameSettingsPayload = {
