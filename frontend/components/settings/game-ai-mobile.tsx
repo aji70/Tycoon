@@ -383,7 +383,7 @@ export default function PlayWithAIMobile() {
                 {isCreatePending ? "SUMMONING..." : "START BATTLE"}
               </span>
             </button>
-          </div>
+          </div> 
         </div>
       </div>
     </div>
