@@ -122,7 +122,7 @@ const gameController = {
     try {
       const { limit, offset } = req.query;
       const games = await Game.findAll({
-        limit: Number.parseInt(limit) || 100,
+        limit: Number.parseInt(limit) || 10000,
         offset: Number.parseInt(offset) || 0,
       });
 

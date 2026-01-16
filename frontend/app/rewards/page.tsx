@@ -30,6 +30,10 @@ import {
   Edit2,
   Ticket,
   Star,
+  Building,
+  Save,
+  X,
+  Loader2,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -39,7 +43,6 @@ import {
   TYC_TOKEN_ADDRESS,
 } from '@/constants/contracts';
 
-// Import ALL admin reward hooks from your context
 import {
   useRewardSetBackendMinter,
   useRewardMintVoucher,
@@ -49,9 +52,8 @@ import {
   useRewardUpdateCollectiblePrices,
   useRewardPause,
   useRewardWithdrawFunds,
-} from '@/context/ContractProvider'; 
+} from '@/context/ContractProvider';
 
-// Assuming apiClient is imported from your API utilities
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from '@/types/api';
 
@@ -114,6 +116,23 @@ const INITIAL_COLLECTIBLES = [
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 5", strength: 5, tycPrice: "2.0", usdcPrice: "0.90", icon: <Gem className="w-8 h-8" /> },
 ] as const;
 
+// ──────────────────────────────────────────────────────────────
+//                   PROPERTY INTERFACE (adjust to your model)
+// ──────────────────────────────────────────────────────────────
+interface Property {
+  _id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  location?: string;
+  imageUrl?: string;
+  status?: 'available' | 'reserved' | 'sold';
+  createdAt?: string;
+  // Add any other fields your Property model actually has
+}
+
+type AdminSection = 'overview' | 'mint' | 'stock' | 'manage' | 'funds' | 'properties';
+
 const AnimatedCounter = ({ to, duration = 2 }: { to: number; duration?: number }) => {
   const [count, setCount] = useState(0);
 
@@ -131,9 +150,7 @@ const AnimatedCounter = ({ to, duration = 2 }: { to: number; duration?: number }
       }
     };
     requestAnimationFrame(animateCount);
-    return () => {
-      startTime = null;
-    };
+    return () => { startTime = null; };
   }, [to, duration]);
 
   return <span>{count}</span>;
@@ -147,7 +164,7 @@ export default function RewardAdminPanel() {
   const usdcAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
   const tycAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
 
-  const [activeSection, setActiveSection] = useState<'overview' | 'mint' | 'stock' | 'manage' | 'funds'>('overview');
+  const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [backendMinter, setBackendMinter] = useState<Address | null>(null);
@@ -155,7 +172,14 @@ export default function RewardAdminPanel() {
   const [totalGames, setTotalGames] = useState(0);
   const [totalUsers, setTotalUsers] = useState(0);
 
-  // Form states
+  // ── Properties Management States ──
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
+  const [editedProperty, setEditedProperty] = useState<Partial<Property>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  // Form states (existing reward features)
   const [newMinter, setNewMinter] = useState('');
   const [voucherRecipient, setVoucherRecipient] = useState('');
   const [voucherValue, setVoucherValue] = useState('');
@@ -171,127 +195,24 @@ export default function RewardAdminPanel() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawTo, setWithdrawTo] = useState('');
 
-  // Admin hooks from context
-  const {
-    setMinter: setBackendMinterFn,
-    isPending: pendingMinter,
-    isSuccess: successMinter,
-    error: errorMinter,
-    txHash: txMinter,
-    reset: resetMinter,
-  } = useRewardSetBackendMinter();
+  // Admin hooks
+  const { setMinter: setBackendMinterFn, isPending: pendingMinter, isSuccess: successMinter, error: errorMinter, txHash: txMinter, reset: resetMinter } = useRewardSetBackendMinter();
+  const { mint: mintVoucher, isPending: pendingVoucher, isSuccess: successVoucher, error: errorVoucher, txHash: txVoucher, reset: resetVoucher } = useRewardMintVoucher();
+  const { mint: mintCollectible, isPending: pendingCollectible, isSuccess: successCollectible, error: errorCollectible, txHash: txCollectible, reset: resetCollectible } = useRewardMintCollectible();
+  const { stock: stockShop, isPending: pendingStock, isSuccess: successStock, error: errorStock, txHash: txStock, reset: resetStock } = useRewardStockShop();
+  const { restock, isPending: pendingRestock, isSuccess: successRestock, error: errorRestock, txHash: txRestock, reset: resetRestock } = useRewardRestockCollectible();
+  const { update, isPending: pendingUpdate, isSuccess: successUpdate, error: errorUpdate, txHash: txUpdate, reset: resetUpdate } = useRewardUpdateCollectiblePrices();
+  const { pause, unpause, isPending: pendingPause, isSuccess: successPause, error: errorPause, txHash: txPause, reset: resetPause } = useRewardPause();
+  const { withdraw, isPending: pendingWithdraw, isSuccess: successWithdraw, error: errorWithdraw, txHash: txWithdraw, reset: resetWithdraw } = useRewardWithdrawFunds();
 
-  const {
-    mint: mintVoucher,
-    isPending: pendingVoucher,
-    isSuccess: successVoucher,
-    error: errorVoucher,
-    txHash: txVoucher,
-    reset: resetVoucher,
-  } = useRewardMintVoucher();
+  // Contract reads
+  const pausedResult = useReadContract({ address: contractAddress, abi: RewardABI, functionName: 'paused', query: { enabled: !!contractAddress } });
+  const backendMinterResult = useReadContract({ address: contractAddress, abi: RewardABI, functionName: 'backendMinter', query: { enabled: !!contractAddress } });
+  const ownerResult = useReadContract({ address: contractAddress, abi: RewardABI, functionName: 'owner', query: { enabled: !!contractAddress } });
+  const tycBalance = useReadContract({ address: tycAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: contractAddress ? [contractAddress] : undefined, query: { enabled: !!contractAddress && !!tycAddress } });
+  const usdcBalance = useReadContract({ address: usdcAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: contractAddress ? [contractAddress] : undefined, query: { enabled: !!contractAddress && !!usdcAddress } });
 
-  const {
-    mint: mintCollectible,
-    isPending: pendingCollectible,
-    isSuccess: successCollectible,
-    error: errorCollectible,
-    txHash: txCollectible,
-    reset: resetCollectible,
-  } = useRewardMintCollectible();
-
-  const {
-    stock: stockShop,
-    isPending: pendingStock,
-    isSuccess: successStock,
-    error: errorStock,
-    txHash: txStock,
-    reset: resetStock,
-  } = useRewardStockShop();
-
-  const {
-    restock,
-    isPending: pendingRestock,
-    isSuccess: successRestock,
-    error: errorRestock,
-    txHash: txRestock,
-    reset: resetRestock,
-  } = useRewardRestockCollectible();
-
-  const {
-    update,
-    isPending: pendingUpdate,
-    isSuccess: successUpdate,
-    error: errorUpdate,
-    txHash: txUpdate,
-    reset: resetUpdate,
-  } = useRewardUpdateCollectiblePrices();
-
-  const {
-    pause,
-    unpause,
-    isPending: pendingPause,
-    isSuccess: successPause,
-    error: errorPause,
-    txHash: txPause,
-    reset: resetPause,
-  } = useRewardPause();
-
-  const {
-    withdraw,
-    isPending: pendingWithdraw,
-    isSuccess: successWithdraw,
-    error: errorWithdraw,
-    txHash: txWithdraw,
-    reset: resetWithdraw,
-  } = useRewardWithdrawFunds();
-
-  // Contract state reads
-  const pausedResult = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'paused',
-    query: { enabled: !!contractAddress },
-  });
-
-  const backendMinterResult = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'backendMinter',
-    query: { enabled: !!contractAddress },
-  });
-
-  const ownerResult = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'owner',
-    query: { enabled: !!contractAddress },
-  });
-
-  const tycBalance = useReadContract({
-    address: tycAddress,
-    abi: ERC20_ABI,
-    functionName: 'balanceOf',
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress && !!tycAddress },
-  });
-
-  const usdcBalance = useReadContract({
-    address: usdcAddress,
-    abi: ERC20_ABI,
-    functionName: 'balanceOf',
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress && !!usdcAddress },
-  });
-
-  // Token holdings for overview
-  const contractTokenCount = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'ownedTokenCount',
-    args: contractAddress ? [contractAddress] : undefined,
-    query: { enabled: !!contractAddress },
-  });
-
+  const contractTokenCount = useReadContract({ address: contractAddress, abi: RewardABI, functionName: 'ownedTokenCount', args: contractAddress ? [contractAddress] : undefined, query: { enabled: !!contractAddress } });
   const tokenCount = Number(contractTokenCount.data ?? 0);
 
   const tokenOfOwnerCalls = Array.from({ length: tokenCount }, (_, i) => ({
@@ -301,71 +222,52 @@ export default function RewardAdminPanel() {
     args: [contractAddress!, BigInt(i)],
   } as const));
 
-  const tokenIdResults = useReadContracts({
-    contracts: tokenOfOwnerCalls,
-    allowFailure: true,
-    query: { enabled: !!contractAddress && tokenCount > 0 },
-  });
+  const tokenIdResults = useReadContracts({ contracts: tokenOfOwnerCalls, allowFailure: true, query: { enabled: !!contractAddress && tokenCount > 0 } });
 
-  const allTokenIds = tokenIdResults.data
-    ?.map((res) => (res.status === 'success' ? res.result : undefined))
-    .filter((id): id is bigint => id !== undefined) ?? [];
+  const allTokenIds = tokenIdResults.data?.map(res => (res.status === 'success' ? res.result : undefined)).filter((id): id is bigint => id !== undefined) ?? [];
 
-  const collectibleInfoCalls = allTokenIds.map((tokenId) => ({
+  const collectibleInfoCalls = allTokenIds.map(tokenId => ({
     address: contractAddress!,
     abi: RewardABI as Abi,
     functionName: 'getCollectibleInfo',
     args: [tokenId],
   } as const));
 
-  const tokenInfoResults = useReadContracts({
-    contracts: collectibleInfoCalls,
-    allowFailure: true,
-    query: { enabled: !!contractAddress && allTokenIds.length > 0 },
-  });
+  const tokenInfoResults = useReadContracts({ contracts: collectibleInfoCalls, allowFailure: true, query: { enabled: !!contractAddress && allTokenIds.length > 0 } });
 
-  const allTokens = tokenInfoResults.data
-    ?.map((result, index) => {
-      if (result?.status !== 'success') return null;
-      const [perk, , tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
-      const tokenId = allTokenIds[index];
-      const isVoucher = tokenId < 2_000_000_000;
-      const isCollectible = tokenId >= 2_000_000_000;
+  const allTokens = tokenInfoResults.data?.map((result, index) => {
+    if (result?.status !== 'success') return null;
+    const [perk, , tycPrice, usdcPrice, stock] = result.result as [number, bigint, bigint, bigint, bigint];
+    const tokenId = allTokenIds[index];
+    const isVoucher = tokenId < 2_000_000_000;
+    return {
+      tokenId,
+      perk: isVoucher ? undefined : (perk as CollectiblePerk),
+      name: isVoucher ? `Voucher #${tokenId.toString()}` : PERK_NAMES[perk as CollectiblePerk] || `Collectible #${perk}`,
+      type: isVoucher ? 'voucher' : 'collectible',
+      tycPrice,
+      usdcPrice,
+      stock,
+      icon: isVoucher ? <Ticket className="w-12 h-12" /> : <Star className="w-12 h-12" />,
+    };
+  }).filter((item): item is NonNullable<typeof item> => item !== null) ?? [];
 
-      return {
-        tokenId,
-        perk: isCollectible ? (perk as CollectiblePerk) : undefined,
-        name: isVoucher
-          ? `Voucher #${tokenId.toString()}`
-          : PERK_NAMES[perk as CollectiblePerk] || `Collectible #${perk}`,
-        type: isVoucher ? 'voucher' : 'collectible',
-        tycPrice,
-        usdcPrice,
-        stock,
-        icon: isVoucher ? <Ticket className="w-12 h-12" /> : <Star className="w-12 h-12" />,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null) ?? [];
-
-  // Fetch total games and users
+  // Fetch platform stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const gamesRes = await apiClient.get<ApiResponse>('/games');
-        setTotalGames(gamesRes.data?.data.length);
+        setTotalGames(gamesRes.data?.data?.length || 0);
         const usersRes = await apiClient.get<any[]>('/users');
         setTotalUsers(usersRes.data?.length ?? 0);
-        
       } catch (error) {
         console.error('Failed to fetch platform stats:', error);
-        // Optionally set status to show error
       }
     };
-
     fetchStats();
   }, []);
 
-  // Update local state from contract reads
+  // Sync contract state
   useEffect(() => {
     setIsPaused(!!pausedResult.data);
     setBackendMinter((backendMinterResult.data as Address) ?? null);
@@ -373,66 +275,84 @@ export default function RewardAdminPanel() {
     setWithdrawTo((ownerResult.data as string) ?? '');
   }, [pausedResult.data, backendMinterResult.data, ownerResult.data]);
 
-  // Global success/error feedback
+  // Handle success feedback
   useEffect(() => {
-    const successes = [
-      successMinter,
-      successVoucher,
-      successCollectible,
-      successStock,
-      successRestock,
-      successUpdate,
-      successPause,
-      successWithdraw,
-    ];
-    if (successes.some(Boolean)) {
+    if ([successMinter, successVoucher, successCollectible, successStock, successRestock, successUpdate, successPause, successWithdraw].some(Boolean)) {
       setStatus({ type: 'success', message: 'Transaction successful!' });
-      resetMinter?.();
-      resetVoucher?.();
-      resetCollectible?.();
-      resetStock?.();
-      resetRestock?.();
-      resetUpdate?.();
-      resetPause?.();
-      resetWithdraw?.();
+      [resetMinter, resetVoucher, resetCollectible, resetStock, resetRestock, resetUpdate, resetPause, resetWithdraw].forEach(r => r?.());
     }
-  }, [
-    successMinter,
-    successVoucher,
-    successCollectible,
-    successStock,
-    successRestock,
-    successUpdate,
-    successPause,
-    successWithdraw,
-  ]);
+  }, [successMinter, successVoucher, successCollectible, successStock, successRestock, successUpdate, successPause, successWithdraw]);
 
+  // Handle error feedback
   useEffect(() => {
-    const errors = [
-      errorMinter,
-      errorVoucher,
-      errorCollectible,
-      errorStock,
-      errorRestock,
-      errorUpdate,
-      errorPause,
-      errorWithdraw,
-    ].filter(Boolean);
+    const errors = [errorMinter, errorVoucher, errorCollectible, errorStock, errorRestock, errorUpdate, errorPause, errorWithdraw].filter(Boolean);
     if (errors.length > 0) {
       setStatus({ type: 'error', message: errors[0]?.message || 'Transaction failed' });
     }
-  }, [
-    errorMinter,
-    errorVoucher,
-    errorCollectible,
-    errorStock,
-    errorRestock,
-    errorUpdate,
-    errorPause,
-    errorWithdraw,
-  ]);
+  }, [errorMinter, errorVoucher, errorCollectible, errorStock, errorRestock, errorUpdate, errorPause, errorWithdraw]);
 
-  // Handlers using context hooks
+  // ── PROPERTIES ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeSection === 'properties') {
+      const fetchProperties = async () => {
+        setLoadingProperties(true);
+        try {
+          const res = await apiClient.get<ApiResponse<Property[]>>('/properties');
+          if (res.data?.success) {
+            setProperties(res.data.data || []);
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus({ type: 'error', message: 'Failed to load properties' });
+        } finally {
+          setLoadingProperties(false);
+        }
+      };
+      fetchProperties();
+    }
+  }, [activeSection]);
+
+  const handleStartEdit = (property: Property) => {
+    setEditingPropertyId(property._id);
+    setEditedProperty({ ...property });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPropertyId(null);
+    setEditedProperty({});
+  };
+
+  const handleEditChange = (field: keyof Property, value: string | number) => {
+    setEditedProperty(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveEdit = async (propertyId: string) => {
+    if (!editedProperty) return;
+    setSavingId(propertyId);
+
+    try {
+      const updateData = { ...editedProperty };
+      delete updateData._id;
+      delete updateData.createdAt;
+
+      const response = await apiClient.put<ApiResponse<Property>>(`/properties/${propertyId}`, updateData);
+
+      if (response.data?.success) {
+        setProperties(prev =>
+          prev.map(p => p._id === propertyId ? { ...p, ...response.data?.data } : p)
+        );
+        setStatus({ type: 'success', message: 'Property updated successfully' });
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: 'Failed to update property' });
+    } finally {
+      setSavingId(null);
+      setEditingPropertyId(null);
+      setEditedProperty({});
+    }
+  };
+
+  // ── Existing handler functions (rewards) ──
   const handleSetBackendMinter = async () => {
     if (!newMinter) return;
     await setBackendMinterFn(newMinter as Address);
@@ -455,16 +375,9 @@ export default function RewardAdminPanel() {
   };
 
   const handleStockShop = async (perk: CollectiblePerk, strength: number) => {
-    const selectedItem = INITIAL_COLLECTIBLES.find(
-      (item) => item.perk === perk && item.strength === strength
-    );
-    const tycPrice = selectedItem
-      ? parseUnits(selectedItem.tycPrice, 18)
-      : parseUnits("1.0", 18);
-    const usdcPrice = selectedItem
-      ? parseUnits(selectedItem.usdcPrice, 6)
-      : parseUnits("0.20", 6);
-
+    const item = INITIAL_COLLECTIBLES.find(i => i.perk === perk && i.strength === strength);
+    const tycPrice = item ? parseUnits(item.tycPrice, 18) : parseUnits("1.0", 18);
+    const usdcPrice = item ? parseUnits(item.usdcPrice, 6) : parseUnits("0.20", 6);
     await stockShop(50, perk, strength, Number(tycPrice), Number(usdcPrice));
   };
 
@@ -494,35 +407,14 @@ export default function RewardAdminPanel() {
     setWithdrawAmount('');
   };
 
-  const anyPending =
-    pendingMinter ||
-    pendingVoucher ||
-    pendingCollectible ||
-    pendingStock ||
-    pendingRestock ||
-    pendingUpdate ||
-    pendingPause ||
-    pendingWithdraw;
+  const anyPending = pendingMinter || pendingVoucher || pendingCollectible || pendingStock || pendingRestock || pendingUpdate || pendingPause || pendingWithdraw;
+  const currentTxHash = txMinter || txVoucher || txCollectible || txStock || txRestock || txUpdate || txPause || txWithdraw;
 
-  const currentTxHash =
-    txMinter ||
-    txVoucher ||
-    txCollectible ||
-    txStock ||
-    txRestock ||
-    txUpdate ||
-    txPause ||
-    txWithdraw;
-
-  // Early returns
+  // ── Early returns ─────────────────────────────────────────────────────
   if (!isConnected || !userAddress) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27]">
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50 text-center"
-        >
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50 text-center">
           <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-red-400" />
           <h2 className="text-3xl font-bold">Wallet Not Connected</h2>
           <p className="text-gray-400 mt-2">Connect your wallet to access admin features</p>
@@ -542,11 +434,7 @@ export default function RewardAdminPanel() {
   if (owner && owner.toLowerCase() !== userAddress.toLowerCase()) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] to-[#0f1a27]">
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50 text-center"
-        >
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="p-10 bg-red-950/60 rounded-3xl border border-red-700/50 text-center">
           <AlertTriangle className="w-16 h-16 mx-auto mb-6 text-red-400" />
           <h2 className="text-3xl font-bold">Access Denied</h2>
           <p className="text-gray-400 mt-2">Only the contract owner can access this panel</p>
@@ -555,24 +443,19 @@ export default function RewardAdminPanel() {
     );
   }
 
+  // ── MAIN RENDER ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] text-white py-12 px-4">
       <div className="max-w-7xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Tycoon Admin Panel
           </h1>
-          <p className="text-xl text-gray-400">
-            Manage minter • Mint items • Stock shop • Update prices • Control contract
-          </p>
+          <p className="text-xl text-gray-400">Manage rewards • properties • funds • contract</p>
         </motion.div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-10">
-          {(['overview', 'mint', 'stock', 'manage', 'funds'] as const).map((section) => (
+          {(['overview', 'mint', 'stock', 'manage', 'funds', 'properties'] as const).map((section) => (
             <button
               key={section}
               onClick={() => setActiveSection(section)}
@@ -587,6 +470,7 @@ export default function RewardAdminPanel() {
               {section === 'stock' && <Package className="w-5 h-5" />}
               {section === 'manage' && <Edit2 className="w-5 h-5" />}
               {section === 'funds' && <Wallet className="w-5 h-5" />}
+              {section === 'properties' && <Building className="w-5 h-5" />}
               {section.charAt(0).toUpperCase() + section.slice(1)}
             </button>
           ))}
@@ -599,11 +483,9 @@ export default function RewardAdminPanel() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className={`mb-8 p-6 rounded-2xl border text-center max-w-2xl mx-auto ${
-                status.type === 'success'
-                  ? 'bg-green-900/40 border-green-600'
-                  : status.type === 'error'
-                  ? 'bg-red-900/40 border-red-600'
-                  : 'bg-blue-900/40 border-blue-600'
+                status.type === 'success' ? 'bg-green-900/40 border-green-600' :
+                status.type === 'error' ? 'bg-red-900/40 border-red-600' :
+                'bg-blue-900/40 border-blue-600'
               }`}
             >
               <p className="font-medium">{status.message}</p>
@@ -611,39 +493,192 @@ export default function RewardAdminPanel() {
           )}
         </AnimatePresence>
 
+        {/* PROPERTIES SECTION */}
+        {activeSection === 'properties' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gray-900/60 rounded-2xl p-6 md:p-8 border border-gray-700/50 shadow-xl"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
+                <Building className="w-8 h-8 text-indigo-400" />
+                Properties Management
+              </h3>
+            </div>
+
+            {loadingProperties ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="w-12 h-12 animate-spin text-indigo-400" />
+                <p className="mt-4 text-gray-400">Loading properties...</p>
+              </div>
+            ) : properties.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <Building className="w-20 h-20 mx-auto mb-4 opacity-40" />
+                <p className="text-lg">No properties found in the database</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1000px] text-left">
+                  <thead>
+                    <tr className="border-b border-gray-700 bg-gray-800/40">
+                      <th className="py-4 px-4 font-semibold">Name</th>
+                      <th className="py-4 px-4 font-semibold">Price</th>
+                      <th className="py-4 px-4 font-semibold">Location</th>
+                      <th className="py-4 px-4 font-semibold">Description</th>
+                      <th className="py-4 px-4 font-semibold">Status</th>
+                      <th className="py-4 px-4 text-right font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {properties.map(prop => {
+                      const isEditing = editingPropertyId === prop._id;
+                      const isSaving = savingId === prop._id;
+
+                      return (
+                        <tr key={prop._id} className="border-b border-gray-800 hover:bg-gray-800/40 transition-colors">
+                          <td className="py-4 px-4">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editedProperty.name ?? ''}
+                                onChange={e => handleEditChange('name', e.target.value)}
+                                className="bg-gray-800 border border-indigo-600 rounded px-3 py-1.5 w-full"
+                                autoFocus
+                              />
+                            ) : (
+                              <div className="font-medium">{prop.name}</div>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-4">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editedProperty.price ?? ''}
+                                onChange={e => handleEditChange('price', Number(e.target.value))}
+                                className="bg-gray-800 border border-indigo-600 rounded px-3 py-1.5 w-full"
+                              />
+                            ) : (
+                              prop.price != null ? `$${prop.price.toLocaleString()}` : '—'
+                            )}
+                          </td>
+
+                          <td className="py-4 px-4">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editedProperty.location ?? ''}
+                                onChange={e => handleEditChange('location', e.target.value)}
+                                className="bg-gray-800 border border-indigo-600 rounded px-3 py-1.5 w-full"
+                              />
+                            ) : (
+                              prop.location || '—'
+                            )}
+                          </td>
+
+                          <td className="py-4 px-4">
+                            {isEditing ? (
+                              <textarea
+                                value={editedProperty.description ?? ''}
+                                onChange={e => handleEditChange('description', e.target.value)}
+                                className="bg-gray-800 border border-indigo-600 rounded px-3 py-1.5 w-full min-h-[60px]"
+                                rows={2}
+                              />
+                            ) : (
+                              <div className="max-w-xs truncate">{prop.description || '—'}</div>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-4">
+                            {isEditing ? (
+                              <select
+                                value={editedProperty.status ?? 'available'}
+                                onChange={e => handleEditChange('status', e.target.value)}
+                                className="bg-gray-800 border border-indigo-600 rounded px-3 py-1.5 w-full"
+                              >
+                                <option value="available">Available</option>
+                                <option value="reserved">Reserved</option>
+                                <option value="sold">Sold</option>
+                              </select>
+                            ) : (
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                prop.status === 'available' ? 'bg-green-900/60 text-green-300' :
+                                prop.status === 'reserved' ? 'bg-yellow-900/60 text-yellow-300' :
+                                'bg-red-900/60 text-red-300'
+                              }`}>
+                                {prop.status || 'unknown'}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-4 text-right">
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-3">
+                                <button
+                                  onClick={() => handleSaveEdit(prop._id)}
+                                  disabled={isSaving}
+                                  className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-medium transition disabled:opacity-60"
+                                >
+                                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                  {isSaving ? 'Saving...' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="flex items-center gap-1.5 px-4 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition"
+                                >
+                                  <X className="w-4 h-4" />
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleStartEdit(prop)}
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 rounded-lg text-sm font-medium transition"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                Edit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ── Overview Section ─────────────────────────────────────────────── */}
         {activeSection === 'overview' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
+            {/* Contract Status */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Settings className="w-6 h-6 text-cyan-400" /> Contract Status
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-lg">
-                <div>
-                  Paused: <span className={isPaused ? 'text-red-400' : 'text-green-400'}>{isPaused ? 'Yes' : 'No'}</span>
-                </div>
-                <div>
-                  Owner: <span className="font-mono text-sm">{owner ? `${owner.slice(0, 8)}...${owner.slice(-6)}` : '—'}</span>
-                </div>
-                <div>
-                  Backend Minter: <span className="font-mono text-sm">{backendMinter ? `${backendMinter.slice(0, 8)}...${backendMinter.slice(-6)}` : 'Not set'}</span>
-                </div>
+                <div>Paused: <span className={isPaused ? 'text-red-400' : 'text-green-400'}>{isPaused ? 'Yes' : 'No'}</span></div>
+                <div>Owner: <span className="font-mono text-sm">{owner ? `${owner.slice(0,8)}...${owner.slice(-6)}` : '—'}</span></div>
+                <div>Backend Minter: <span className="font-mono text-sm">{backendMinter ? `${backendMinter.slice(0,8)}...${backendMinter.slice(-6)}` : 'Not set'}</span></div>
               </div>
             </div>
 
+            {/* Platform Stats */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Crown className="w-6 h-6 text-purple-400" /> Platform Statistics
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
-                <div>
-                  Total Games Created: <motion.span className="text-green-400 font-bold" initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ duration: 0.5 }}><AnimatedCounter to={totalGames} /></motion.span>
-                </div>
-                <div>
-                  Total Users Registered: <motion.span className="text-green-400 font-bold" initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ duration: 0.5 }}><AnimatedCounter to={totalUsers} /></motion.span>
-                </div>
+                <div>Total Games Created: <motion.span className="text-green-400 font-bold"><AnimatedCounter to={totalGames} /></motion.span></div>
+                <div>Total Users Registered: <motion.span className="text-green-400 font-bold"><AnimatedCounter to={totalUsers} /></motion.span></div>
               </div>
             </div>
 
+            {/* Token Holdings */}
             <div>
               <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
                 <Package className="w-8 h-8 text-purple-400" /> Contract Token Holdings
@@ -660,7 +695,7 @@ export default function RewardAdminPanel() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                  {allTokens.map((item) => (
+                  {allTokens.map(item => (
                     <motion.div
                       key={item.tokenId.toString()}
                       initial={{ opacity: 0, y: 20 }}
@@ -681,17 +716,6 @@ export default function RewardAdminPanel() {
                         <p className="text-xs opacity-80 mb-4">ID: {item.tokenId.toString()}</p>
                         <div className="text-2xl font-bold text-emerald-400">{item.stock.toString()}</div>
                         <p className="text-xs opacity-75">In Stock</p>
-
-                        {item.type === 'collectible' && item.tycPrice > 0 && (
-                          <div className="mt-4 pt-4 border-t border-white/20">
-                            {/* <p className="text-xs">
-                              <span className="text-emerald-300">{formatUnits(item.tycPrice, 18)}</span> TYC
-                            </p> */}
-                            <p className="text-xs">
-                              <span className="text-cyan-300">{formatUnits(item.usdcPrice, 6)}</span> USDC
-                            </p>
-                          </div>
-                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -701,72 +725,37 @@ export default function RewardAdminPanel() {
           </motion.div>
         )}
 
+        {/* ── Mint Section ────────────────────────────────────────────────── */}
         {activeSection === 'mint' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {/* Mint Voucher */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Gift className="w-6 h-6 text-blue-400" /> Mint Voucher
               </h3>
               <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Recipient Address"
-                  value={voucherRecipient}
-                  onChange={(e) => setVoucherRecipient(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="number"
-                  placeholder="TYC Value (e.g. 10)"
-                  value={voucherValue}
-                  onChange={(e) => setVoucherValue(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleMintVoucher}
-                  disabled={anyPending || !voucherRecipient || !voucherValue}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <input type="text" placeholder="Recipient Address" value={voucherRecipient} onChange={e => setVoucherRecipient(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" placeholder="TYC Value (e.g. 10)" value={voucherValue} onChange={e => setVoucherValue(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <button onClick={handleMintVoucher} disabled={anyPending || !voucherRecipient || !voucherValue} className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingVoucher ? 'Minting...' : 'Mint Voucher'}
                 </button>
               </div>
             </div>
 
+            {/* Mint Collectible */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Gem className="w-6 h-6 text-purple-400" /> Mint Collectible
               </h3>
               <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Recipient Address"
-                  value={collectibleRecipient}
-                  onChange={(e) => setCollectibleRecipient(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-                <select
-                  value={selectedPerk}
-                  onChange={(e) => setSelectedPerk(Number(e.target.value) as CollectiblePerk)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
-                >
+                <input type="text" placeholder="Recipient Address" value={collectibleRecipient} onChange={e => setCollectibleRecipient(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                <select value={selectedPerk} onChange={e => setSelectedPerk(Number(e.target.value) as CollectiblePerk)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-white">
                   {Object.entries(PERK_NAMES).map(([value, name]) => (
-                    <option key={value} value={value}>
-                      {name}
-                    </option>
+                    <option key={value} value={value}>{name}</option>
                   ))}
                 </select>
-                <input
-                  type="number"
-                  placeholder="Strength (for tiered perks)"
-                  value={collectibleStrength}
-                  onChange={(e) => setCollectibleStrength(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-                <button
-                  onClick={handleMintCollectible}
-                  disabled={anyPending || !collectibleRecipient}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <input type="number" placeholder="Strength (for tiered perks)" value={collectibleStrength} onChange={e => setCollectibleStrength(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                <button onClick={handleMintCollectible} disabled={anyPending || !collectibleRecipient} className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingCollectible ? 'Minting...' : 'Mint Collectible'}
                 </button>
               </div>
@@ -774,17 +763,16 @@ export default function RewardAdminPanel() {
           </motion.div>
         )}
 
+        {/* ── Stock Section ───────────────────────────────────────────────── */}
         {activeSection === 'stock' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2 justify-center">
               <Package className="w-8 h-8 text-green-400" /> Stock Shop (50 Units Each)
             </h3>
-            <p className="text-center text-gray-400 mb-8">
-              Click any item to stock 50 units with pre-set prices
-            </p>
+            <p className="text-center text-gray-400 mb-8">Click any item to stock 50 units with pre-set prices</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {INITIAL_COLLECTIBLES.map((item) => (
+              {INITIAL_COLLECTIBLES.map(item => (
                 <motion.div
                   key={`${item.perk}-${item.strength}`}
                   whileHover={{ scale: 1.05 }}
@@ -796,24 +784,18 @@ export default function RewardAdminPanel() {
                   }}
                 >
                   <div className="flex flex-col items-center mb-4">
-                    <div className="p-4 rounded-full mb-3 bg-gray-700/50">
-                      {item.icon}
-                    </div>
+                    <div className="p-4 rounded-full mb-3 bg-gray-700/50">{item.icon}</div>
                     <h4 className="font-bold text-lg">{item.name}</h4>
                     {item.strength > 1 && <p className="text-sm text-gray-400">Tier {item.strength}</p>}
                   </div>
 
                   <div className="space-y-2 mb-4">
-                    <p className="text-sm text-emerald-300">
-                      <span className="font-semibold">{item.tycPrice} TYC</span>
-                    </p>
-                    <p className="text-sm text-cyan-300 font-semibold">
-                      {item.usdcPrice} USDC
-                    </p>
+                    <p className="text-sm text-emerald-300"><span className="font-semibold">{item.tycPrice} TYC</span></p>
+                    <p className="text-sm text-cyan-300 font-semibold">{item.usdcPrice} USDC</p>
                   </div>
 
                   <button
-                    onClick={(e) => {
+                    onClick={e => {
                       e.stopPropagation();
                       handleStockShop(item.perk, item.strength);
                     }}
@@ -828,114 +810,61 @@ export default function RewardAdminPanel() {
           </motion.div>
         )}
 
+        {/* ── Manage Section ──────────────────────────────────────────────── */}
         {activeSection === 'manage' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {/* Set Backend Minter */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Settings className="w-6 h-6 text-yellow-400" /> Set Backend Minter
               </h3>
               <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="New Minter Address"
-                  value={newMinter}
-                  onChange={(e) => setNewMinter(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                />
-                <button
-                  onClick={handleSetBackendMinter}
-                  disabled={anyPending || !newMinter}
-                  className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <input type="text" placeholder="New Minter Address" value={newMinter} onChange={e => setNewMinter(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                <button onClick={handleSetBackendMinter} disabled={anyPending || !newMinter} className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingMinter ? 'Setting...' : 'Set Minter'}
                 </button>
               </div>
             </div>
 
+            {/* Pause / Unpause */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <PauseCircle className="w-6 h-6 text-red-400" /> Contract Control
               </h3>
               <div className="flex gap-4">
-                <button
-                  onClick={() => pause()}
-                  disabled={anyPending || isPaused}
-                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <button onClick={() => pause()} disabled={anyPending || isPaused} className="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingPause ? 'Pausing...' : 'Pause'}
                 </button>
-                <button
-                  onClick={() => unpause()}
-                  disabled={anyPending || !isPaused}
-                  className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <button onClick={() => unpause()} disabled={anyPending || !isPaused} className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingPause ? 'Unpausing...' : 'Unpause'}
                 </button>
               </div>
             </div>
 
+            {/* Restock */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <RefreshCw className="w-6 h-6 text-blue-400" /> Restock Collectible
               </h3>
               <div className="space-y-4">
-                <input
-                  type="number"
-                  placeholder="Token ID"
-                  value={restockTokenId}
-                  onChange={(e) => setRestockTokenId(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="number"
-                  placeholder="Amount to Add"
-                  value={restockAmount}
-                  onChange={(e) => setRestockAmount(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleRestock}
-                  disabled={anyPending || !restockTokenId || !restockAmount}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <input type="number" placeholder="Token ID" value={restockTokenId} onChange={e => setRestockTokenId(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" placeholder="Amount to Add" value={restockAmount} onChange={e => setRestockAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <button onClick={handleRestock} disabled={anyPending || !restockTokenId || !restockAmount} className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingRestock ? 'Restocking...' : 'Restock'}
                 </button>
               </div>
             </div>
 
+            {/* Update Prices */}
             <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <DollarSign className="w-6 h-6 text-green-400" /> Update Prices
               </h3>
               <div className="space-y-4">
-                <input
-                  type="number"
-                  placeholder="Token ID"
-                  value={updateTokenId}
-                  onChange={(e) => setUpdateTokenId(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="New TYC Price"
-                  value={updateTycPrice}
-                  onChange={(e) => setUpdateTycPrice(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="New USDC Price"
-                  value={updateUsdcPrice}
-                  onChange={(e) => setUpdateUsdcPrice(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button
-                  onClick={handleUpdatePrices}
-                  disabled={anyPending || !updateTokenId}
-                  className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50"
-                >
+                <input type="number" placeholder="Token ID" value={updateTokenId} onChange={e => setUpdateTokenId(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <input type="number" step="0.01" placeholder="New TYC Price" value={updateTycPrice} onChange={e => setUpdateTycPrice(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <input type="number" step="0.01" placeholder="New USDC Price" value={updateUsdcPrice} onChange={e => setUpdateUsdcPrice(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <button onClick={handleUpdatePrices} disabled={anyPending || !updateTokenId} className="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold transition disabled:opacity-50">
                   {pendingUpdate ? 'Updating...' : 'Update Prices'}
                 </button>
               </div>
@@ -943,46 +872,27 @@ export default function RewardAdminPanel() {
           </motion.div>
         )}
 
+        {/* ── Funds Section ───────────────────────────────────────────────── */}
         {activeSection === 'funds' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
               <Banknote className="w-6 h-6 text-yellow-400" /> Withdraw Funds
             </h3>
             <div className="space-y-4">
-              <select
-                value={withdrawToken}
-                onChange={(e) => setWithdrawToken(e.target.value as 'TYC' | 'USDC')}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white"
-              >
+              <select value={withdrawToken} onChange={e => setWithdrawToken(e.target.value as 'TYC' | 'USDC')} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
                 <option value="TYC">TYC</option>
                 <option value="USDC">USDC</option>
               </select>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              />
-              <input
-                type="text"
-                placeholder="Recipient Address"
-                value={withdrawTo}
-                onChange={(e) => setWithdrawTo(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              />
-              <button
-                onClick={handleWithdraw}
-                disabled={anyPending || !withdrawAmount || !withdrawTo}
-                className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50"
-              >
+              <input type="number" step="0.01" placeholder="Amount" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+              <input type="text" placeholder="Recipient Address" value={withdrawTo} onChange={e => setWithdrawTo(e.target.value)} className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+              <button onClick={handleWithdraw} disabled={anyPending || !withdrawAmount || !withdrawTo} className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-xl font-bold transition disabled:opacity-50">
                 {pendingWithdraw ? 'Withdrawing...' : 'Withdraw'}
               </button>
             </div>
           </motion.div>
         )}
 
+        {/* Transaction Hash Notification */}
         {currentTxHash && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -990,12 +900,7 @@ export default function RewardAdminPanel() {
             className="fixed bottom-8 left-1/2 -translate-x-1/2 p-6 bg-green-900/90 rounded-2xl border border-green-600 shadow-2xl z-50"
           >
             <p className="text-xl font-bold text-green-300 text-center">Transaction Sent!</p>
-            <a
-              href={`https://celoscan.io/tx/${currentTxHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block mt-3 text-cyan-300 underline text-center"
-            >
+            <a href={`https://celoscan.io/tx/${currentTxHash}`} target="_blank" rel="noopener noreferrer" className="block mt-3 text-cyan-300 underline text-center">
               View on Block Explorer
             </a>
           </motion.div>
