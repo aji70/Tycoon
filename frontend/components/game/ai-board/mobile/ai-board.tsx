@@ -135,6 +135,8 @@ const MobileGameLayout = ({
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
+  
+  const [time, setTime] = useState(0);
 
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
@@ -143,6 +145,10 @@ const MobileGameLayout = ({
     position: number;
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
+
+  const endTime =
+  new Date(game.created_at).getTime() + (game.duration ?? 0) * 60 * 1000;
+
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -182,6 +188,22 @@ const MobileGameLayout = ({
       (t) => t.target_player_id === me.user_id && t.status === "pending"
     );
   }, [tradeRequests, me]);
+
+
+useEffect(() => {
+  if (!endTime) return;
+
+  const update = () => {
+    const now = Date.now();
+    const remainingMs = Math.max(endTime - now, 0);
+    setTime(Math.floor(remainingMs / 1000));
+  };
+
+  update();
+  const interval = setInterval(update, 1000);
+
+  return () => clearInterval(interval);
+}, [endTime]);
 
   useEffect(() => {
     const currentCount = myIncomingTrades.length;
@@ -1399,27 +1421,75 @@ const handleMortgageToggle = async () => {
           )}
         </>
       )}
-     {me && (
-          <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20">
-            <span className="text-sm opacity-80">Bal:</span>
-            {(() => {
-              const balance = me.balance ?? 0;
-              const getBalanceColor = (bal: number): string => {
-                if (bal >= 1300) return "text-cyan-300";
-                if (bal >= 1000) return "text-emerald-400";
-                if (bal >= 750) return "text-yellow-400";
-                if (bal >= 150) return "text-orange-400";
-                return "text-red-500 animate-pulse";
-              };
+{me && (
+  <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20 flex-wrap gap-y-2">
 
-              return (
-                <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
-                  ${Number(balance).toLocaleString()}
-                </span>
-              );
-            })()}
-          </div>
-        )}
+    {/* Balance */}
+    <div className="flex items-center gap-3">
+      <span className="text-sm opacity-80">Bal:</span>
+
+      {(() => {
+        // Define the function here
+        const getBalanceColor = (bal: number): string => {
+          if (bal >= 1300) return "text-cyan-300";
+          if (bal >= 1000) return "text-emerald-400";
+          if (bal >= 750) return "text-yellow-400";
+          if (bal >= 150) return "text-orange-400";
+          return "text-red-500 animate-pulse";
+        };
+
+        const balance = me?.balance ?? 0;
+        return (
+          <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
+            ${Number(balance).toLocaleString()}
+          </span>
+        );
+      })()}
+    </div>
+
+    {/* Time left + your Time – same logic as before */}
+    <div className="flex items-center gap-3">
+      <span className="text-sm opacity-80">Time left:</span>
+      {(() => {
+        const totalSeconds = time ?? 60;
+
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        const timeColor =
+          totalSeconds <= 60 ? "text-red-500 animate-pulse" :
+          totalSeconds <= 300 ? "text-yellow-400" :
+          "text-green-400";
+
+        return (
+          <span className={`text-xl font-bold ${timeColor} drop-shadow-md`}>
+            {minutes}:{seconds.toString().padStart(2, "0")}
+          </span>
+        );
+      })()}
+    </div>
+
+    {/* your Time (same value for now) */}
+    <div className="flex items-center gap-3">
+      {(() => {
+        const totalSeconds = time ?? 60;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        const timeColor =
+          totalSeconds <= 60 ? "text-red-500 animate-pulse" :
+          totalSeconds <= 300 ? "text-yellow-400" :
+          "text-green-400";
+
+        return (
+          <span className={`text-xl font-bold ${timeColor} drop-shadow-md`}>
+            {minutes}:{seconds.toString().padStart(2, "0")}
+          </span>
+        );
+      })()}
+    </div>
+  </div>
+)}
       </div>
       {/* Buy Prompt Modal */}
       <AnimatePresence>
