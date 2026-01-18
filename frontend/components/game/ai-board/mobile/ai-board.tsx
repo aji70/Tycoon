@@ -1470,25 +1470,25 @@ const handleMortgageToggle = async () => {
     </div> */}
 
     {/* your Time (same value for now) */}
-  //   <div className="flex items-center gap-3">
-  //     {(() => {
-  //       const totalSeconds = time ?? 60;
-  //       const minutes = Math.floor(totalSeconds / 60);
-  //       const seconds = totalSeconds % 60;
+    {/* <div className="flex items-center gap-3">
+      {(() => {
+        const totalSeconds = time ?? 60;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
 
-  //       const timeColor =
-  //         totalSeconds <= 60 ? "text-red-500 animate-pulse" :
-  //         totalSeconds <= 300 ? "text-yellow-400" :
-  //         "text-green-400";
+        const timeColor =
+          totalSeconds <= 60 ? "text-red-500 animate-pulse" :
+          totalSeconds <= 300 ? "text-yellow-400" :
+          "text-green-400";
 
-  //       return (
-  //         <span className={`text-xl font-bold ${timeColor} drop-shadow-md`}>
-  //           {minutes}:{seconds.toString().padStart(2, "0")}
-  //         </span>
-  //       );
-  //     })()}
-  //   </div>
-  // </div>
+        return (
+          <span className={`text-xl font-bold ${timeColor} drop-shadow-md`}>
+            {minutes}:{seconds.toString().padStart(2, "0")}
+          </span>
+        );
+      })()}
+    </div> */}
+  </div>
 )}
       </div>
       {/* Buy Prompt Modal */}
