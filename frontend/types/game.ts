@@ -44,7 +44,7 @@ export interface Game {
   winner_id: number | null;
   number_of_players: number;
   next_player_id: number | null;
-  duration: number | null;
+  duration: number | string | null;
   created_at: string;
   updated_at: string;
   settings: GameSettings;

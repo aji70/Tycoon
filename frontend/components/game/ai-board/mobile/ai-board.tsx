@@ -146,8 +146,11 @@ const MobileGameLayout = ({
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
 
-  const endTime =
-  new Date(game.created_at).getTime() + (game.duration ?? 0) * 60 * 1000;
+  const durationMinutes = Number(game.duration ?? 0); // converts string → number, null/undefined → 0
+
+const endTime =
+  new Date(game.created_at).getTime() +
+  durationMinutes * 60 * 1000;
 
 
   const [showCardModal, setShowCardModal] = useState(false);
@@ -204,6 +207,8 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [endTime]);
+
+const timed = game.duration !== '0'
 
   useEffect(() => {
     const currentCount = myIncomingTrades.length;
@@ -1447,12 +1452,13 @@ const handleMortgageToggle = async () => {
       })()}
     </div>
 
-    {/* Time left + your Time – same logic as before */}
-    {/* <div className="flex items-center gap-3">
+   {timed && (
+  <>
+    {/* Time left */}
+    <div className="flex items-center gap-3">
       <span className="text-sm opacity-80">Time left:</span>
       {(() => {
         const totalSeconds = time ?? 60;
-
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
 
@@ -1467,10 +1473,10 @@ const handleMortgageToggle = async () => {
           </span>
         );
       })()}
-    </div> */}
+    </div>
 
-    {/* your Time (same value for now) */}
-    {/* <div className="flex items-center gap-3">
+    {/* Your Time (currently same value) */}
+    <div className="flex items-center gap-3">
       {(() => {
         const totalSeconds = time ?? 60;
         const minutes = Math.floor(totalSeconds / 60);
@@ -1487,7 +1493,9 @@ const handleMortgageToggle = async () => {
           </span>
         );
       })()}
-    </div> */}
+    </div>
+  </>
+)}
   </div>
 )}
       </div>
