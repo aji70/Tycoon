@@ -135,6 +135,8 @@ const MobileGameLayout = ({
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
+  const [gameTimeLeft, setGameTimeLeft] = useState(0);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(60);
 
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
@@ -176,6 +178,11 @@ const MobileGameLayout = ({
     players: game?.players ?? [],
   });
 
+ const durationMinutes = Number(game.duration ?? 0); // converts string → number, null/undefined → 0
+const endTime =
+  new Date(game.created_at).getTime() +
+  durationMinutes * 60 * 1000;
+
   const myIncomingTrades = useMemo(() => {
     if (!me) return [];
     return tradeRequests.filter(
@@ -209,6 +216,13 @@ const MobileGameLayout = ({
     prevIncomingTradeCount.current = currentCount;
   }, [myIncomingTrades]);
 
+
+
+  console.log("END TIMEs",endTime)
+
+  
+  
+
   useEffect(() => {
     const calculateScale = () => {
       const width = window.innerWidth;
@@ -239,6 +253,22 @@ const MobileGameLayout = ({
 
   const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
+
+  //   useEffect(() => {
+  //   if (!endTime) return;
+  
+  //   const update = () => {
+  //     const now = Date.now();
+  //     const remainingMs = Math.max(endTime - now);
+  //     console.log("REMAINING MS",remainingMs)
+  //     setGameTimeLeft(Math.floor(remainingMs / 1000));
+  //   };
+  
+  //   update();
+  //   const interval = setInterval(update, 1000);
+  
+  //   return () => clearInterval(interval);
+  // }, [endTime, isMyTurn]);
 
   const {
     write: endGame,
@@ -1304,6 +1334,49 @@ const handleMortgageToggle = async () => {
     showToast,
   ]);
 
+    // useEffect(() => {
+    // if (!isMyTurn) {
+    //   setTurnTimeLeft(60);
+    //   return;
+    // }
+
+  //   const fetchMyGamePlayer = async () => {
+  //     const m = getGamePlayerId(me?.address);
+  //     if (!m) {
+  //       console.warn("No game player ID for me");
+  //       return;
+  //     }
+
+  //     try {
+  //       const res = await apiClient.get<ApiResponse>(`/game-players/${m}`);
+  //       console.log("Fetched my game player:", res.data);
+        
+  //       const startTime = res.data?.data?.duration_per_player 
+  //         ? new Date(res.data.data.duration_per_player).getTime() 
+  //         : Date.now();
+
+  //       const update = () => {
+  //         const now = Date.now();
+  //         const elapsed = Math.floor((now - startTime) / 1000);
+  //         const remaining = Math.max(60 - elapsed, 0);
+  //         setTurnTimeLeft(remaining);
+  //         if (remaining <= 0) {
+  //           // Optional: Auto-end turn if time expires
+  //           // END_TURN();
+  //         }
+  //       };
+
+  //       update();
+  //       const interval = setInterval(update, 1000);
+  //       return () => clearInterval(interval);
+  //     } catch (err) {
+  //       console.error("Failed to fetch my game player:", err);
+  //     }
+  //   };
+
+  //   fetchMyGamePlayer();
+  // }, [isMyTurn, END_TURN, me?.address, getGamePlayerId]);
+
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
 
@@ -1399,27 +1472,75 @@ const handleMortgageToggle = async () => {
           )}
         </>
       )}
-     {me && (
-          <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20">
-            <span className="text-sm opacity-80">Bal:</span>
-            {(() => {
-              const balance = me.balance ?? 0;
-              const getBalanceColor = (bal: number): string => {
-                if (bal >= 1300) return "text-cyan-300";
-                if (bal >= 1000) return "text-emerald-400";
-                if (bal >= 750) return "text-yellow-400";
-                if (bal >= 150) return "text-orange-400";
-                return "text-red-500 animate-pulse";
-              };
+    {me && (
+  <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20 flex-wrap gap-y-2">
 
-              return (
-                <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
-                  ${Number(balance).toLocaleString()}
-                </span>
-              );
-            })()}
-          </div>
-        )}
+    {/* Balance */}
+    <div className="flex items-center gap-3">
+      <span className="text-sm opacity-80">Bal:</span>
+
+      {(() => {
+        // Define the function here
+        const getBalanceColor = (bal: number): string => {
+          if (bal >= 1300) return "text-cyan-300";
+          if (bal >= 1000) return "text-emerald-400";
+          if (bal >= 750) return "text-yellow-400";
+          if (bal >= 150) return "text-orange-400";
+          return "text-red-500 animate-pulse";
+        };
+
+        const balance = me?.balance ?? 0;
+        return (
+          <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
+            ${Number(balance).toLocaleString()}
+          </span>
+        );
+      })()}
+    </div>
+
+    {/* Time left */}
+    <div className="flex items-center gap-3">
+      <span className="text-sm opacity-80">Time left:</span>
+      {(() => {
+        const totalSeconds = gameTimeLeft ?? 0;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        const timeColor =
+          totalSeconds <= 60 ? "text-red-500 animate-pulse" :
+          totalSeconds <= 300 ? "text-yellow-400" :
+          "text-green-400";
+
+        return (
+          <span className={`text-xl font-bold ${timeColor} drop-shadow-md`}>
+            {minutes}:{seconds.toString().padStart(2, "0")}
+          </span>
+        );
+      })()}
+    </div>
+
+    {/* Turn Time */}
+    <div className="flex items-center gap-3">
+      <span className="text-sm opacity-80">Turn Time:</span>
+      {(() => {
+        const totalSeconds = turnTimeLeft;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+
+        const timeColor =
+          totalSeconds <= 10 ? "text-red-500 animate-pulse" :
+          totalSeconds <= 30 ? "text-yellow-400" :
+          "text-green-400";
+
+        return (
+          <span className={`text-xl font-bold ${timeColor} drop-shadow-md`}>
+            {minutes}:{seconds.toString().padStart(2, "0")}
+          </span>
+        );
+      })()}
+    </div>
+  </div>
+)}
       </div>
       {/* Buy Prompt Modal */}
       <AnimatePresence>
