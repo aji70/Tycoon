@@ -1164,8 +1164,8 @@ const handleAiStrategy = async () => {
   //       const res = await apiClient.get<ApiResponse>(`/game-players/${m}`);
   //       console.log("Fetched my game player:", res.data);
         
-  //       const startTime = res.data?.data?.duration_per_player 
-  //         ? new Date(res.data.data.duration_per_player).getTime() 
+  //       const startTime = res.data?.data?.turn_start 
+  //         ? new Date(res.data.data.turn_start).getTime() 
   //         : Date.now();
 
   //       const update = () => {

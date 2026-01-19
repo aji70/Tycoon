@@ -63,7 +63,7 @@ const gameController = {
         even_build: settings.even_build,
         randomize_play_order: settings.randomize_play_order,
         starting_cash: settings.starting_cash,
-        // duration_per_player: settings.duration_per_player,
+        // turn_start: settings.turn_start,
       };
 
       const game_settings = await GameSetting.create(gameSettingsPayload);
