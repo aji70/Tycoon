@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Tycoon** is an exciting blockchain-\ tycoon game inspired by the classic **Monopoly** board game, built on the **Base and Celo Network**.  
+**Tycoon** is an exciting blockchain-\ tycoon game inspired by the classic **Monopoly** board game, built on the **Base Stacks and Celo Network**.  
 Players can **buy, sell, and trade virtual properties as NFTs**, collect rent, build monopolies, and compete in a **decentralized on-chain economy**. 
 Now Available on Base and Stacks
 
@@ -33,7 +33,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 - 💰 **Rent & Tycoon Mechanics** — Earn passive income; upgrade for higher yields  
 - 🧾 **On-Chain Events** — Dice rolls, Chance, Community Chest, Tax, Jail  
 - 📊 **Interactive Dashboard** — Real-time board with rotatable cards (e.g., Income Tax $200, Luxury Tax $100)  
-- ⛽ **Gas Efficient** — Leverages Base and Celo’s low fees  
+- ⛽ **Gas Efficient** — Leverages Base, Stacks and Celo’s low fees  
 - 👛 **Wallet Integration** — MetaMask, WalletConnect ready  
 
 ---
@@ -52,7 +52,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 | Layer      | Tools |
 |------------|------|
 | **Frontend** | React, Next.js, Tailwind CSS |
-| **Blockchain** | Solidity on Base and Celo |
+| **Blockchain** | Solidity on Base, Stacks and Celo |
 | **Interactions** | ethers.js, Basescan celoscan|
 | **UI Components** | Custom Monopoly board renderer |
 
