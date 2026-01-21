@@ -1499,7 +1499,7 @@ const handleMortgageToggle = async () => {
     </div>
 
     {/* Time left */}
-    {/* <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3">
       <span className="text-sm opacity-80">Time left:</span>
       {(() => {
         const totalSeconds = gameTimeLeft ?? 0;
@@ -1517,10 +1517,10 @@ const handleMortgageToggle = async () => {
           </span>
         );
       })()}
-    </div> */}
+    </div>
 
     {/* Turn Time */}
-    {/* <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3">
       <span className="text-sm opacity-80">Turn Time:</span>
       {(() => {
         const totalSeconds = turnTimeLeft;
@@ -1538,7 +1538,7 @@ const handleMortgageToggle = async () => {
           </span>
         );
       })()}
-    </div> */}
+    </div>
   </div>
 )}
       </div>
