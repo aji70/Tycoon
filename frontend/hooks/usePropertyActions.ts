@@ -63,5 +63,5 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
     }
   }, [gameId, userId, isMyTurn]);
 
-  
+  return { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage };
 };
