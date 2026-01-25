@@ -86,6 +86,29 @@ export const useMobilePropertyActions = (
     }
   }, [gameId, userId, isMyTurn, fetchUpdatedGame, showToast]);
 
- 
+  const handleSellToBank = useCallback(async (propertyId: number) => {
+    if (!isMyTurn || !userId) {
+      showToast("Not your turn or invalid property", "error");
+      return;
+    }
+
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/sell", {
+        game_id: gameId,
+        user_id: userId,
+        property_id: propertyId,
+      });
+
+      if (res.data?.success) {
+        showToast("Property sold back to bank!", "success");
+        await fetchUpdatedGame();
+      } else {
+        showToast(res.data?.message || "Sell failed", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || "Failed to sell property", "error");
+    }
+  }, [gameId, userId, isMyTurn, fetchUpdatedGame, showToast]);
+
   
 };
