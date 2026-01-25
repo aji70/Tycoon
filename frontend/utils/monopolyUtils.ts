@@ -1,10 +1,11 @@
 // Keep your existing constants and calculation logic here
-export const MONOPOLY_STATS = {
-landingRank: {
+const MONOPOLY_STATS = {
+  landingRank: {
     5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 11: 6, 13: 7, 14: 8, 16: 9, 18: 10,
     19: 11, 21: 12, 23: 13, 24: 14, 26: 15, 27: 16, 29: 17, 31: 18, 32: 19, 34: 20, 37: 21, 39: 22,
     1: 30, 2: 25, 3: 29, 4: 35, 12: 32, 17: 28, 22: 26, 28: 33, 33: 27, 36: 24, 38: 23,
-  },
+  } as { [key: number]: number },
+
   colorGroups: {
     brown: [1, 3],
     lightblue: [6, 8, 9],
@@ -79,3 +80,4 @@ export function calculateBuyScore(
   return Math.max(5, Math.min(98, score));
 }
 
+export const BUILD_PRIORITY = ["orange", "red", "yellow", "pink", "lightblue", "green", "brown", "darkblue"];
