@@ -16,7 +16,6 @@ import PlayerStatus from "./player-status";
 import { Sparkles, X, Bell } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { ApiResponse } from "@/types/api";
-import { usePropertyActions } from "@/hooks/usePropertyActions";
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
@@ -1188,12 +1187,35 @@ const handleAiStrategy = async () => {
       setSelectedGameProperty(gp);
     }
   };
-  const { handleDevelopment} = usePropertyActions(
-    game.id,
-    me?.user_id,
-    isMyTurn
-  );
 
+  const handleDevelopment = async () => {
+    if (!selectedGameProperty || !me || !isMyTurn) {
+      showToast("Not your turn or invalid property", "error");
+      return;
+    }
+
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
+        game_id: currentGame.id,
+        user_id: me.user_id,
+        property_id: selectedGameProperty.property_id,
+      });
+
+      if (res.data?.success) {
+        const currentDev = selectedGameProperty.development ?? 0;
+        const isBuilding = currentDev < 5;
+        const item = currentDev === 4 && isBuilding ? "hotel" : "house";
+        const action = isBuilding ? "built" : "sold";
+        showToast(`Successfully ${action} ${item}!`, "success");
+        await fetchUpdatedGame();
+        setSelectedProperty(null);
+      } else {
+        showToast(res.data?.message || "Action failed", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || "Development failed", "error");
+    }
+  };
 
 const handleMortgageToggle = async () => {
   if (!selectedGameProperty || !me || !isMyTurn) {
