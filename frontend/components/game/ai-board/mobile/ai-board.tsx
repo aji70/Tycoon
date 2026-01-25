@@ -1189,35 +1189,6 @@ const handleAiStrategy = async () => {
     }
   };
 
-  const handleDevelopment = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
-
-      if (res.data?.success) {
-        const currentDev = selectedGameProperty.development ?? 0;
-        const isBuilding = currentDev < 5;
-        const item = currentDev === 4 && isBuilding ? "hotel" : "house";
-        const action = isBuilding ? "built" : "sold";
-        showToast(`Successfully ${action} ${item}!`, "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
-      } else {
-        showToast(res.data?.message || "Action failed", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Development failed", "error");
-    }
-  };
-
   const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     currentGame.id,
@@ -1582,7 +1553,7 @@ const handleAiStrategy = async () => {
                 {isOwnedByMe && isMyTurn && selectedGameProperty && (
                   <div className="grid grid-cols-2 gap-4 mt-8">
                     <button
-                      onClick={handleDevelopment}
+                      onClick={() => handleBuild(selectedGameProperty.property_id)}
                       disabled={selectedGameProperty.development === 5}
                       className="py-3 bg-green-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 transition"
                     >
