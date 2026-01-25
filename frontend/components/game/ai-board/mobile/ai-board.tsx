@@ -1218,36 +1218,6 @@ const handleAiStrategy = async () => {
     }
   };
 
-const handleMortgageToggle = async () => {
-  if (!selectedGameProperty || !me || !isMyTurn) {
-    showToast("Not your turn or invalid property", "error");
-    return;
-  }
-
-  const isUnmortgaging = selectedGameProperty.mortgaged;
-  const endpoint = isUnmortgaging ? "/game-properties/unmortgage" : "/game-properties/mortgage";
-  const actionVerb = isUnmortgaging ? "redeemed" : "mortgaged";
-
-  try {
-    const res = await apiClient.post<ApiResponse>(endpoint, {
-      game_id: currentGame.id,
-      user_id: me.user_id,
-      property_id: selectedGameProperty.property_id,
-    });
-
-    if (res.data?.success) {
-      showToast(`Property ${actionVerb}!`, "success");
-      await fetchUpdatedGame();
-      setSelectedProperty(null); // Assuming it's setSelectedProperty, or setSelectedGameProperty
-    } else {
-      showToast(res.data?.message || `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} failed`, "error");
-    }
-  } catch (err: any) {
-    const message = err?.response?.data?.message || `Failed to ${actionVerb} property`;
-    showToast(message, "error");
-  }
-};
-
   const handleSellProperty = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
       showToast("Not your turn or invalid property", "error");
@@ -1279,6 +1249,13 @@ const handleMortgageToggle = async () => {
   };
 
   const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
+  const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
+    currentGame.id,
+    me?.user_id,
+    isMyTurn,
+    fetchUpdatedGame,
+    showToast
+  );
 
   const declareBankruptcy = async () => {
     showToast("Declaring bankruptcy...", "default");
@@ -1649,7 +1626,7 @@ const handleMortgageToggle = async () => {
                       Sell House/Hotel
                     </button>
                     <button
-                      onClick={handleMortgageToggle}
+                      onClick={() => handleMortgageToggle(selectedGameProperty.property_id, !!selectedGameProperty.mortgaged)}
                       className="py-3 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition"
                     >
                       {selectedGameProperty.mortgaged ? "Redeem" : "Mortgage"}
