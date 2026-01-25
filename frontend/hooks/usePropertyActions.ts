@@ -18,6 +18,22 @@ export const usePropertyActions = (gameId: number, userId: number | undefined, i
     }
   }, [gameId, userId, isMyTurn]);
 
+  const handleDowngrade = useCallback(async (id: number) => {
+    if (!isMyTurn || !userId) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
+        game_id: gameId,
+        user_id: userId,
+        property_id: id,
+      });
+      if (res?.data?.success) toast.success("Property downgraded successfully");
+      else toast.error(res.data?.message ?? "Failed to downgrade property");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to downgrade property");
+    }
+  }, [gameId, userId, isMyTurn]);
+
+ 
 
  
 
