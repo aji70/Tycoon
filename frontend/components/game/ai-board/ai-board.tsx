@@ -29,7 +29,7 @@ import { PropertyActionModal } from "../modals/property-action";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
-import { usePropertyActions } from "@/hooks/usePropertyActions";
+import { usePropertyActions } from "@/hooks/usePropertyActions"; // Adjust the import path as needed
 
 const MONOPOLY_STATS = {
   landingRank: {
@@ -986,13 +986,12 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   };
 
-
-const { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage } = usePropertyActions(
+  const { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage } = usePropertyActions(
     game.id,
     me?.user_id,
     isMyTurn
   );
-  
+
   const handlePropertyClick = (square: Property) => {
     const gp = game_properties.find(gp => gp.property_id === square.id);
     if (gp?.address === me?.address) {
@@ -1155,16 +1154,6 @@ const { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage } =
           error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
-
-     {/* <CollectibleInventoryBar
-  game={game}
-  game_properties={game_properties}
-  isMyTurn={isMyTurn}
-  ROLL_DICE={ROLL_DICE}
-  END_TURN={END_TURN}
-  triggerSpecialLanding={triggerLandingLogic}
-  endTurnAfterSpecial={endTurnAfterSpecialMove}
-/> */}
     </div>
   );
 };
