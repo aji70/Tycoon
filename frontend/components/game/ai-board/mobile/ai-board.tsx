@@ -16,6 +16,7 @@ import PlayerStatus from "./player-status";
 import { Sparkles, X, Bell } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { ApiResponse } from "@/types/api";
+import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
