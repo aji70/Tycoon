@@ -1589,7 +1589,7 @@ const handleAiStrategy = async () => {
                       {selectedGameProperty.development === 4 ? "Build Hotel" : "Build House"}
                     </button>
                     <button
-                      onClick={handleDevelopment}
+                      onClick={() => handleSellBuilding(selectedGameProperty.property_id)}
                       disabled={!selectedGameProperty.development || selectedGameProperty.development === 0}
                       className="py-3 bg-orange-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-500 transition"
                     >
