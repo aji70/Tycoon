@@ -986,21 +986,6 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   };
 
-  const handleDowngrade = async (id: number) => {
-    if (!isMyTurn || !me) return;
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/downgrade", {
-        game_id: game.id,
-        user_id: me.user_id,
-        property_id: id,
-      });
-      if (res?.data?.success) toast.success("Property downgraded successfully");
-      else toast.error(res.data?.message ?? "Failed to downgrade property");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to downgrade property");
-    }
-  };
-
   const handleMortgage = async (id: number) => {
     if (!isMyTurn || !me) return;
     try {
@@ -1030,7 +1015,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       toast.error(error?.message || "Failed to unmortgage property");
     }
   };
-const { handleDevelopment } = usePropertyActions(
+const { handleDevelopment, handleDowngrade } = usePropertyActions(
     game.id,
     me?.user_id,
     isMyTurn
