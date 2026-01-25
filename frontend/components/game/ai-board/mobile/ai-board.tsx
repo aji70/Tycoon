@@ -1189,6 +1189,7 @@ const handleAiStrategy = async () => {
     }
   };
 
+  const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     currentGame.id,
     me?.user_id,
@@ -1460,7 +1461,7 @@ const handleAiStrategy = async () => {
   </div>
 )}
       </div>
-      {/* Buy prompt Modal */}
+      {/* Buy Prompt Modal */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
           <motion.div
@@ -1549,7 +1550,7 @@ const handleAiStrategy = async () => {
                   )}
                 </div>
 
-                {selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase() && isMyTurn && selectedGameProperty && (
+                {isOwnedByMe && isMyTurn && selectedGameProperty && (
                   <div className="grid grid-cols-2 gap-4 mt-8">
                     <button
                       onClick={() => handleBuild(selectedGameProperty.property_id)}
