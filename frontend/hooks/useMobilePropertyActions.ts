@@ -110,5 +110,5 @@ export const useMobilePropertyActions = (
     }
   }, [gameId, userId, isMyTurn, fetchUpdatedGame, showToast]);
 
-  
+  return { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank };
 };
