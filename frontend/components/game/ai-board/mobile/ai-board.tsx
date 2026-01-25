@@ -1218,36 +1218,6 @@ const handleAiStrategy = async () => {
     }
   };
 
-  const handleSellProperty = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
-
-    if ((selectedGameProperty.development ?? 0) > 0) {
-      showToast("Cannot sell property with buildings!", "error");
-      return;
-    }
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/sell", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
-
-      if (res.data?.success) {
-        showToast("Property sold back to bank!", "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
-      } else {
-        showToast(res.data?.message || "Sell failed", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Failed to sell property", "error");
-    }
-  };
-
   const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     currentGame.id,
@@ -1632,7 +1602,7 @@ const handleAiStrategy = async () => {
                       {selectedGameProperty.mortgaged ? "Redeem" : "Mortgage"}
                     </button>
                     <button
-                      onClick={handleSellProperty}
+                      onClick={() => handleSellToBank(selectedGameProperty.property_id)}
                       disabled={(selectedGameProperty.development ?? 0) > 0}
                       className="py-3 bg-purple-600 rounded-xl font-bold disabled:opacity-50 hover:bg-purple-500 transition"
                     >
