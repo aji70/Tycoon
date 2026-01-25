@@ -986,20 +986,6 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   };
 
-  const handleDevelopment = async (id: number) => {
-    if (!isMyTurn || !me) return;
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
-        game_id: game.id,
-        user_id: me.user_id,
-        property_id: id,
-      });
-      if (res?.data?.success) toast.success("Property developed successfully");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to develop property");
-    }
-  };
-
   const handleDowngrade = async (id: number) => {
     if (!isMyTurn || !me) return;
     try {
@@ -1044,7 +1030,11 @@ const endTurnAfterSpecialMove = useCallback(() => {
       toast.error(error?.message || "Failed to unmortgage property");
     }
   };
-
+const { handleDevelopment } = usePropertyActions(
+    game.id,
+    me?.user_id,
+    isMyTurn
+  );
   const handlePropertyClick = (square: Property) => {
     const gp = game_properties.find(gp => gp.property_id === square.id);
     if (gp?.address === me?.address) {
