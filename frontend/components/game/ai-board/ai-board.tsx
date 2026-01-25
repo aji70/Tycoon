@@ -29,6 +29,7 @@ import { PropertyActionModal } from "../modals/property-action";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
+import { usePropertyActions } from "@/hooks/usePropertyActions";
 
 const MONOPOLY_STATS = {
   landingRank: {
