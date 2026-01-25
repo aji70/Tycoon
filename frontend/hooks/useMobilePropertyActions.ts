@@ -58,7 +58,34 @@ export const useMobilePropertyActions = (
     }
   }, [gameId, userId, isMyTurn, fetchUpdatedGame, showToast]);
 
-  
+  const handleMortgageToggle = useCallback(async (propertyId: number, isUnmortgaging: boolean) => {
+    if (!isMyTurn || !userId) {
+      showToast("Not your turn or invalid property", "error");
+      return;
+    }
+
+    const endpoint = isUnmortgaging ? "/game-properties/unmortgage" : "/game-properties/mortgage";
+    const actionVerb = isUnmortgaging ? "redeemed" : "mortgaged";
+
+    try {
+      const res = await apiClient.post<ApiResponse>(endpoint, {
+        game_id: gameId,
+        user_id: userId,
+        property_id: propertyId,
+      });
+
+      if (res.data?.success) {
+        showToast(`Property ${actionVerb}!`, "success");
+        await fetchUpdatedGame();
+      } else {
+        showToast(res.data?.message || `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} failed`, "error");
+      }
+    } catch (err: any) {
+      const message = err?.response?.data?.message || `Failed to ${actionVerb} property`;
+      showToast(message, "error");
+    }
+  }, [gameId, userId, isMyTurn, fetchUpdatedGame, showToast]);
+
  
   
 };
