@@ -992,6 +992,7 @@ const { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage } =
     me?.user_id,
     isMyTurn
   );
+  
   const handlePropertyClick = (square: Property) => {
     const gp = game_properties.find(gp => gp.property_id === square.id);
     if (gp?.address === me?.address) {
