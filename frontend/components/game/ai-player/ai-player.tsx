@@ -780,6 +780,7 @@ useEffect(() => {
           onUnmortgage={handleUnmortgage}
         />
 
+
         <AiResponsePopup
           popup={aiResponsePopup}
           properties={properties}
