@@ -780,15 +780,6 @@ useEffect(() => {
           onUnmortgage={handleUnmortgage}
         />
 
-        {/* <AiTradePopup
-          trade={aiTradePopup}
-          properties={properties}
-          onClose={closeAiTradePopup}
-          onAccept={() => handleTradeAction(aiTradePopup!.id, "accepted")}
-          onDecline={() => handleTradeAction(aiTradePopup!.id, "declined")}
-          onCounter={() => handleTradeAction(aiTradePopup!.id, "counter")}
-        /> */}
-
         <AiResponsePopup
           popup={aiResponsePopup}
           properties={properties}
