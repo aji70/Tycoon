@@ -1011,7 +1011,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
-            <CenterArea
+            {/* <CenterArea
               isMyTurn={isMyTurn}
               isAITurn={isAITurn}
               currentPlayer={currentPlayer}
@@ -1028,7 +1028,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
               isPending={false}
-            />
+            /> */}
 
             {properties.map((square) => {
               const allPlayersHere = playersByPosition.get(square.id) ?? [];
