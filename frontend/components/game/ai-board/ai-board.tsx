@@ -986,7 +986,11 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   };
 
-
+  const { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage } = usePropertyActions(
+    game.id,
+    me?.user_id,
+    isMyTurn
+  );
 
   const handlePropertyClick = (square: Property) => {
     const gp = game_properties.find(gp => gp.property_id === square.id);
