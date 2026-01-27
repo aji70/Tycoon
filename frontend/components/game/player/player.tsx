@@ -572,7 +572,7 @@ export default function GamePlayers({
     </section>
 
     {/* Dev Mode Button */}
-    {isDevMode && (
+    {/* {isDevMode && (
       <motion.button
         whileHover={{ scale: 1.05, boxShadow: "0 0 25px rgba(168, 85, 247, 0.6)" }}
         whileTap={{ scale: 0.98 }}
@@ -581,7 +581,7 @@ export default function GamePlayers({
       >
         ⚙️ DEV: Claim Property
       </motion.button>
-    )}
+    )} */}
   </div>
 </div>
       {/* Custom Scrollbar Styles */}
