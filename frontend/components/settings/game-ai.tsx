@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { FaUser, FaRobot, FaBrain, FaCoins } from "react-icons/fa6";
+import { FaRandom } from "react-icons/fa";
 import { House } from "lucide-react";
 import {
   Select,
@@ -14,7 +15,6 @@ import { Switch } from "@/components/ui/game-switch";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
-import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useAppKitNetwork } from "@reown/appkit/react";
@@ -27,16 +27,8 @@ import {
   useGetUsername,
   useCreateAIGame,
 } from "@/context/ContractProvider";
-import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
+import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { Address } from "viem";
-
-interface GameCreateResponse {
-  data?: {
-    data?: { id: string | number };
-    id?: string | number;
-  };
-  id?: string | number;
-}
 
 const ai_address = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
@@ -49,6 +41,14 @@ const ai_address = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
 ];
 
+interface GameCreateResponse {
+  data?: {
+    data?: { id: string | number };
+    id?: string | number;
+  };
+  id?: string | number;
+}
+
 export default function PlayWithAI() {
   const router = useRouter();
   const { address } = useAccount();
@@ -57,34 +57,34 @@ export default function PlayWithAI() {
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
-  const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
-  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
-
-  const [settings, setSettings] = useState({
-    symbol: "hat",
-    aiCount: 1,
-    startingCash: 1500,
-    aiDifficulty: "boss" as "easy" | "medium" | "hard" | "boss",
-    auction: true,
-    rentInPrison: false,
-    mortgage: true,
-    evenBuild: true,
-    randomPlayOrder: true,
-    duration: 60,
-  });
-
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
 
   const gameCode = generateGameCode();
+  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
-    settings.symbol,
-    settings.aiCount,
+    "hat", // will be overridden anyway
+    1,     // will be overridden
     gameCode,
-    BigInt(settings.startingCash)
+    BigInt(1500) // placeholder
   );
+
+    const [settings, setSettings] = useState({
+      symbol: "hat",
+      aiCount: 1,
+      startingCash: 1500,
+      aiDifficulty: "boss" as "easy" | "medium" | "hard" | "boss",
+      auction: true,
+      rentInPrison: false,
+      mortgage: true,
+      evenBuild: true,
+      randomPlayOrder: true,
+      duration: 60, // minutes
+    });
+
+    const totalPlayers = settings.aiCount + 1;
 
   const handlePlay = async () => {
     if (!address || !username || !isUserRegistered) {
@@ -114,12 +114,12 @@ export default function PlayWithAI() {
           mode: "PRIVATE",
           address: address,
           symbol: settings.symbol,
-          number_of_players: settings.aiCount + 1,
+          number_of_players: totalPlayers,
           ai_opponents: settings.aiCount,
           ai_difficulty: settings.aiDifficulty,
           starting_cash: settings.startingCash,
           is_ai: true,
-          is_minipay: isMiniPay,
+          is_minipay: false,
           chain: chainName,
           duration: settings.duration,
           settings: {
@@ -195,178 +195,158 @@ export default function PlayWithAI() {
       });
     }
   };
-
   if (isRegisteredLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#010F10]">
-        <p className="font-orbitron text-[#00F0FF] text-4xl animate-pulse tracking-wider">
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-4xl font-orbitron text-cyan-400 animate-pulse tracking-widest">
           LOADING ARENA...
-        </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#010F10] py-12 px-5 md:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-4 md:p-6">
+      <div className="w-full max-w-5xl bg-black/65 backdrop-blur-xl rounded-2xl border border-cyan-500/40 shadow-2xl p-6 md:p-10">
+
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-12 gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-6 mb-10">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-3 text-[#00F0FF] hover:text-[#17ffff] transition group text-lg"
+            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors"
           >
-            <House className="w-7 h-7 group-hover:-translate-x-1 transition" />
-            <span className="font-orbitron font-bold tracking-wide">BACK</span>
+            <House className="w-6 h-6" />
+            <span className="font-medium tracking-wide">BACK</span>
           </button>
 
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-orbitron font-black text-[#00F0FF] tracking-[-0.02em]">
+          <h1 className="text-5xl md:text-6xl font-orbitron font-black bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-500 bg-clip-text text-transparent">
             AI DUEL
           </h1>
 
-          <div className="w-32 hidden sm:block" />
+          <div className="w-24 hidden sm:block" />
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-7">
-          {/* Column 1 */}
-          <div className="space-y-7">
-            {[
-              {
-                icon: FaUser,
-                title: "YOUR PIECE",
-                value: settings.symbol,
-                onChange: (v: string) => setSettings((p) => ({ ...p, symbol: v })),
-                options: GamePieces.map((p) => ({ value: p.id, label: p.name })),
-              },
-              {
-                icon: FaRobot,
-                title: "AI OPPONENTS",
-                value: settings.aiCount.toString(),
-                onChange: (v: string) => setSettings((p) => ({ ...p, aiCount: +v })),
-                options: [1, 2, 3, 4, 5, 6].map((n) => ({ value: n.toString(), label: `${n} AI` })),
-              },
-              {
-                icon: FaBrain,
-                title: "AI DIFFICULTY",
-                value: settings.aiDifficulty,
-                onChange: (v: string) => setSettings((p) => ({ ...p, aiDifficulty: v as any })),
-                options: [
-                  { value: "easy", label: "Easy" },
-                  { value: "medium", label: "Medium" },
-                  { value: "hard", label: "Hard" },
-                  { value: "boss", label: "BOSS MODE" },
-                ],
-              },
-            ].map((section, i) => (
-              <div
-                key={i}
-                className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-7 border border-[#004B4F]"
-              >
-                <div className="flex items-center gap-4 mb-5">
-                  <section.icon className="w-8 h-8 text-[#00F0FF]" />
-                  <h3 className="text-2xl font-orbitron font-bold text-[#00F0FF] tracking-wide">
-                    {section.title}
-                  </h3>
-                </div>
+        <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
 
-                <Select value={section.value} onValueChange={section.onChange}>
-                  <SelectTrigger className="h-14 bg-[#0E1415]/80 border-[#004B4F] text-[#17ffff] font-orbitron focus:ring-0 focus:ring-offset-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#0E1415] border-[#004B4F] text-[#DDEEEE]">
-                    {section.options.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        className="focus:bg-[#004B4F]/40 text-[#17ffff] font-orbitron py-3"
-                      >
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Left – Settings */}
+          <div className="space-y-5">
+
+            {/* Your Piece */}
+            <div className="p-6 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/60 to-blue-950/40">
+              <div className="flex items-center gap-3 mb-4">
+                <FaUser className="w-7 h-7 text-cyan-400" />
+                <h3 className="text-xl md:text-2xl text-cyan-300 font-bold">Your Piece</h3>
               </div>
-            ))}
+              <Select
+                value={settings.symbol}
+                onValueChange={(v) => setSettings((s) => ({ ...s, symbol: v }))}
+              >
+                <SelectTrigger className="h-12 bg-black/50 border-cyan-600/60 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-cyan-800">
+                  {GamePieces.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* AI Count */}
+            <div className="p-6 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/60 to-pink-950/40">
+              <div className="flex items-center gap-3 mb-4">
+                <FaRobot className="w-7 h-7 text-purple-400" />
+                <h3 className="text-xl md:text-2xl text-purple-300 font-bold">AI Opponents</h3>
+              </div>
+              <Select
+                value={String(settings.aiCount)}
+                onValueChange={(v) => setSettings((s) => ({ ...s, aiCount: Number(v) }))}
+              >
+                <SelectTrigger className="h-12 bg-black/50 border-purple-600/60 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-purple-800">
+                  {[1, 2, 3].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} AI
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Difficulty */}
+            <div className="p-6 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-950/60 to-orange-950/40">
+              <div className="flex items-center gap-3 mb-4">
+                <FaBrain className="w-7 h-7 text-red-400" />
+                <h3 className="text-xl md:text-2xl text-red-300 font-bold">Difficulty</h3>
+              </div>
+              <Select
+                value={settings.aiDifficulty}
+                onValueChange={(v) =>
+                  setSettings((s) => ({ ...s, aiDifficulty: v as typeof settings.aiDifficulty }))
+                }
+              >
+                <SelectTrigger className="h-12 bg-black/50 border-red-600/60 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-red-800">
+                  <SelectItem value="easy">Easy</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="hard">Hard</SelectItem>
+                  <SelectItem value="boss">BOSS MODE</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Starting Cash */}
+            <div className="p-6 rounded-xl border border-yellow-500/30 bg-gradient-to-br from-yellow-950/60 to-amber-950/40">
+              <div className="flex items-center gap-3 mb-4">
+                <FaCoins className="w-7 h-7 text-yellow-400" />
+                <h3 className="text-xl md:text-2xl text-yellow-300 font-bold">Starting Cash</h3>
+              </div>
+              <Select
+                value={String(settings.startingCash)}
+                onValueChange={(v) => setSettings((s) => ({ ...s, startingCash: Number(v) }))}
+              >
+                <SelectTrigger className="h-12 bg-black/50 border-yellow-600/60 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-yellow-800">
+                  {[500, 1000, 1500, 2000, 5000].map((v) => (
+                    <SelectItem key={v} value={String(v)}>
+                      ${v.toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Column 2 */}
-          <div className="space-y-7">
-            {[
-              {
-                icon: FaCoins,
-                title: "STARTING CASH",
-                value: settings.startingCash.toString(),
-                onChange: (v: string) => setSettings((p) => ({ ...p, startingCash: +v })),
-                options: [500, 1000, 1500, 2000, 5000].map((v) => ({
-                  value: v.toString(),
-                  label: `$${v.toLocaleString()}`,
-                })),
-              },
-              {
-                icon: FaBrain,
-                title: "GAME DURATION",
-                value: settings.duration.toString(),
-                onChange: (v: string) => setSettings((p) => ({ ...p, duration: +v })),
-                options: [
-                  { value: "30", label: "30 minutes" },
-                  { value: "45", label: "45 minutes" },
-                  { value: "60", label: "60 minutes" },
-                  { value: "90", label: "90 minutes" },
-                  { value: "0", label: "No limit" },
-                ],
-              },
-            ].map((section, i) => (
-              <div
-                key={i}
-                className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-7 border border-[#004B4F]"
-              >
-                <div className="flex items-center gap-4 mb-5">
-                  <section.icon className="w-8 h-8 text-[#00F0FF]" />
-                  <h3 className="text-2xl font-orbitron font-bold text-[#00F0FF] tracking-wide">
-                    {section.title}
-                  </h3>
-                </div>
-
-                <Select value={section.value} onValueChange={section.onChange}>
-                  <SelectTrigger className="h-14 bg-[#0E1415]/80 border-[#004B4F] text-[#17ffff] font-orbitron focus:ring-0 focus:ring-offset-0">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#0E1415] border-[#004B4F] text-[#DDEEEE]">
-                    {section.options.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        className="focus:bg-[#004B4F]/40 text-[#17ffff] font-orbitron py-3"
-                      >
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-          </div>
-
-          {/* Column 3 - House Rules */}
-          <div className="bg-[#0E1415]/70 backdrop-blur-sm rounded-2xl p-7 border border-[#004B4F] h-full">
-            <h3 className="text-2xl font-orbitron font-bold text-[#00F0FF] mb-8 text-center tracking-wide">
+          {/* Right – House Rules */}
+          <div className="p-6 md:p-8 rounded-xl border border-cyan-500/40 bg-black/70">
+            <h3 className="text-2xl md:text-3xl font-orbitron font-bold text-cyan-300 mb-6 text-center tracking-wide">
               HOUSE RULES
             </h3>
-            <div className="space-y-6">
+
+            <div className="space-y-5">
               {[
                 { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
                 { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
                 { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
                 { icon: IoBuild, label: "Even Building Rule", key: "evenBuild" },
                 { icon: FaRandom, label: "Random Play Order", key: "randomPlayOrder" },
-              ].map((item) => (
-                <div key={item.key} className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <item.icon className="w-7 h-7 text-[#00F0FF]" />
-                    <span className="text-[#DDEEEE] font-dmSans text-lg">{item.label}</span>
+              ].map((rule) => (
+                <div key={rule.key} className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <rule.icon className="w-6 h-6 text-cyan-400" />
+                    <span className="text-gray-100 text-lg">{rule.label}</span>
                   </div>
                   <Switch
-                    checked={settings[item.key as keyof typeof settings] as boolean}
-                    onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
+                    checked={settings[rule.key as keyof typeof settings] as boolean}
+                    onCheckedChange={(v) => setSettings((s) => ({ ...s, [rule.key]: v }))}
                   />
                 </div>
               ))}
@@ -374,29 +354,20 @@ export default function PlayWithAI() {
           </div>
         </div>
 
-        {/* START BATTLE Button */}
-        <div className="flex justify-center mt-16 mb-10">
+        {/* START BUTTON */}
+        <div className="flex justify-center mt-10 md:mt-12">
           <button
             onClick={handlePlay}
             disabled={isCreatePending}
-            className="relative w-full max-w-xl h-20 transition-transform active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`
+              px-16 md:px-24 py-6 text-2xl md:text-3xl font-orbitron font-black tracking-wider
+              bg-gradient-to-r from-cyan-600 to-purple-700 hover:from-purple-600 hover:to-pink-600
+              rounded-xl shadow-2xl transform hover:scale-105 transition-all duration-300
+              border-4 border-cyan-400/70 relative overflow-hidden
+              disabled:opacity-60 disabled:hover:scale-100 disabled:cursor-not-allowed
+            `}
           >
-            <svg
-              className="absolute inset-0 w-full h-full"
-              viewBox="0 0 360 80"
-              fill="none"
-              preserveAspectRatio="none"
-            >
-              <path
-                d="M20 4H340C346.627 4 349.5 11.0728 346.824 16.16L332.176 63.84C329.824 68.9272 325.373 72 320.824 72H20C13.373 72 10 64.9272 10 59.84V20.16C10 15.0728 13.373 8 20 8Z"
-                fill="#00F0FF"
-                stroke="#0E282A"
-                strokeWidth="4"
-              />
-            </svg>
-            <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-3xl md:text-4xl font-orbitron font-black tracking-wider">
-              {isCreatePending ? "SUMMONING..." : "START BATTLE"}
-            </span>
+            {isCreatePending ? "SUMMONING..." : "START BATTLE"}
           </button>
         </div>
       </div>
