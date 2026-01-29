@@ -63,7 +63,7 @@ export default function PlayWithAI() {
   const [settings, setSettings] = useState({
     symbol: "hat",
     aiCount: 1,
-    startingCash: 1500,
+    startingCash: 5000,
     aiDifficulty: "boss" as "easy" | "medium" | "hard" | "boss",
     auction: true,
     rentInPrison: false,
