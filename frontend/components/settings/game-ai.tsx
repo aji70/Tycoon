@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { FaUser, FaRobot, FaBrain, FaCoins } from "react-icons/fa6";
-import { FaRandom } from "react-icons/fa";
 import { House } from "lucide-react";
 import {
   Select,
@@ -15,6 +14,7 @@ import { Switch } from "@/components/ui/game-switch";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
+import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useAppKitNetwork } from "@reown/appkit/react";
@@ -27,8 +27,16 @@ import {
   useGetUsername,
   useCreateAIGame,
 } from "@/context/ContractProvider";
-import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address } from "viem";
+
+interface GameCreateResponse {
+  data?: {
+    data?: { id: string | number };
+    id?: string | number;
+  };
+  id?: string | number;
+}
 
 const ai_address = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
@@ -41,14 +49,6 @@ const ai_address = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
 ];
 
-interface GameCreateResponse {
-  data?: {
-    data?: { id: string | number };
-    id?: string | number;
-  };
-  id?: string | number;
-}
-
 export default function PlayWithAI() {
   const router = useRouter();
   const { address } = useAccount();
@@ -57,34 +57,35 @@ export default function PlayWithAI() {
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
+  const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
+  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
+
+  const [settings, setSettings] = useState({
+    symbol: "hat",
+    aiCount: 1,
+    startingCash: 1500,
+    aiDifficulty: "boss" as "easy" | "medium" | "hard" | "boss",
+    auction: true,
+    rentInPrison: false,
+    mortgage: true,
+    evenBuild: true,
+    randomPlayOrder: true,
+    duration: 60, // minutes
+  });
+
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
 
   const gameCode = generateGameCode();
-  const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
+  const totalPlayers = settings.aiCount + 1;
 
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
-    "hat", // will be overridden anyway
-    1,     // will be overridden
+    settings.symbol,
+    settings.aiCount,           // ← number of AI opponents
     gameCode,
-    BigInt(1500) // placeholder
+    BigInt(settings.startingCash)
   );
-
-    const [settings, setSettings] = useState({
-      symbol: "hat",
-      aiCount: 1,
-      startingCash: 1500,
-      aiDifficulty: "boss" as "easy" | "medium" | "hard" | "boss",
-      auction: true,
-      rentInPrison: false,
-      mortgage: true,
-      evenBuild: true,
-      randomPlayOrder: true,
-      duration: 60, // minutes
-    });
-
-    const totalPlayers = settings.aiCount + 1;
 
   const handlePlay = async () => {
     if (!address || !username || !isUserRegistered) {
@@ -119,7 +120,7 @@ export default function PlayWithAI() {
           ai_difficulty: settings.aiDifficulty,
           starting_cash: settings.startingCash,
           is_ai: true,
-          is_minipay: false,
+          is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
           settings: {
@@ -195,56 +196,50 @@ export default function PlayWithAI() {
       });
     }
   };
+
   if (isRegisteredLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-4xl font-orbitron text-cyan-400 animate-pulse tracking-widest">
+      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
+        <p className="text-[#00F0FF] text-4xl font-orbitron animate-pulse tracking-wider">
           LOADING ARENA...
-        </div>
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-4 md:p-6">
-      <div className="w-full max-w-5xl bg-black/65 backdrop-blur-xl rounded-2xl border border-cyan-500/40 shadow-2xl p-6 md:p-10">
-
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-6">
+      <div className="w-full max-w-5xl bg-black/80 backdrop-blur-3xl rounded-3xl border border-cyan-500/30 shadow-2xl p-8 md:p-12">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-6 mb-10">
+        <div className="flex justify-between items-center mb-12">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors"
+            className="flex items-center gap-3 text-cyan-400 hover:text-cyan-300 transition group"
           >
-            <House className="w-6 h-6" />
-            <span className="font-medium tracking-wide">BACK</span>
+            <House className="w-6 h-6 group-hover:-translate-x-1 transition" />
+            <span className="font-bold text-lg">BACK</span>
           </button>
-
-          <h1 className="text-5xl md:text-6xl font-orbitron font-black bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-5xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             AI DUEL
           </h1>
-
-          <div className="w-24 hidden sm:block" />
+          <div className="w-24" />
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
-
-          {/* Left – Settings */}
-          <div className="space-y-5">
-
+        {/* Main Grid - Adjusted layout after stake removal */}
+        <div className="grid lg:grid-cols-3 gap-8 mb-10">
+          {/* Column 1 */}
+          <div className="space-y-6">
             {/* Your Piece */}
-            <div className="p-6 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/60 to-blue-950/40">
+            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
               <div className="flex items-center gap-3 mb-4">
                 <FaUser className="w-7 h-7 text-cyan-400" />
-                <h3 className="text-xl md:text-2xl text-cyan-300 font-bold">Your Piece</h3>
+                <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
               </div>
-              <Select
-                value={settings.symbol}
-                onValueChange={(v) => setSettings((s) => ({ ...s, symbol: v }))}
-              >
-                <SelectTrigger className="h-12 bg-black/50 border-cyan-600/60 text-white">
+              <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
+                <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-950 border-cyan-800">
+                <SelectContent>
                   {GamePieces.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
@@ -254,22 +249,22 @@ export default function PlayWithAI() {
               </Select>
             </div>
 
-            {/* AI Count */}
-            <div className="p-6 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/60 to-pink-950/40">
+            {/* AI Opponents */}
+            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-purple-500/30">
               <div className="flex items-center gap-3 mb-4">
                 <FaRobot className="w-7 h-7 text-purple-400" />
-                <h3 className="text-xl md:text-2xl text-purple-300 font-bold">AI Opponents</h3>
+                <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
               </div>
               <Select
-                value={String(settings.aiCount)}
-                onValueChange={(v) => setSettings((s) => ({ ...s, aiCount: Number(v) }))}
+                value={settings.aiCount.toString()}
+                onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
               >
-                <SelectTrigger className="h-12 bg-black/50 border-purple-600/60 text-white">
+                <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-950 border-purple-800">
-                  {[1, 2, 3].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <SelectItem key={n} value={n.toString()}>
                       {n} AI
                     </SelectItem>
                   ))}
@@ -278,96 +273,119 @@ export default function PlayWithAI() {
             </div>
 
             {/* Difficulty */}
-            <div className="p-6 rounded-xl border border-red-500/30 bg-gradient-to-br from-red-950/60 to-orange-950/40">
+            <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-2xl p-6 border border-red-500/30">
               <div className="flex items-center gap-3 mb-4">
                 <FaBrain className="w-7 h-7 text-red-400" />
-                <h3 className="text-xl md:text-2xl text-red-300 font-bold">Difficulty</h3>
+                <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
               </div>
               <Select
                 value={settings.aiDifficulty}
-                onValueChange={(v) =>
-                  setSettings((s) => ({ ...s, aiDifficulty: v as typeof settings.aiDifficulty }))
-                }
+                onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
               >
-                <SelectTrigger className="h-12 bg-black/50 border-red-600/60 text-white">
+                <SelectTrigger className="h-14 bg-black/60 border-red-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-950 border-red-800">
+                <SelectContent>
                   <SelectItem value="easy">Easy</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="boss">BOSS MODE</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Starting Cash */}
-            <div className="p-6 rounded-xl border border-yellow-500/30 bg-gradient-to-br from-yellow-950/60 to-amber-950/40">
-              <div className="flex items-center gap-3 mb-4">
-                <FaCoins className="w-7 h-7 text-yellow-400" />
-                <h3 className="text-xl md:text-2xl text-yellow-300 font-bold">Starting Cash</h3>
-              </div>
-              <Select
-                value={String(settings.startingCash)}
-                onValueChange={(v) => setSettings((s) => ({ ...s, startingCash: Number(v) }))}
-              >
-                <SelectTrigger className="h-12 bg-black/50 border-yellow-600/60 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-950 border-yellow-800">
-                  {[500, 1000, 1500, 2000, 5000].map((v) => (
-                    <SelectItem key={v} value={String(v)}>
-                      ${v.toLocaleString()}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="boss" className="text-pink-400 font-bold">
+                    BOSS MODE
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Right – House Rules */}
-          <div className="p-6 md:p-8 rounded-xl border border-cyan-500/40 bg-black/70">
-            <h3 className="text-2xl md:text-3xl font-orbitron font-bold text-cyan-300 mb-6 text-center tracking-wide">
-              HOUSE RULES
-            </h3>
+          {/* Column 2 - Starting Cash (moved here to fill space) */}
+          <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
+            <div className="flex items-center gap-3 mb-4">
+              <FaCoins className="w-7 h-7 text-amber-400" />
+              <h3 className="text-xl font-bold text-amber-300">Starting Cash</h3>
+            </div>
+            <Select
+              value={settings.startingCash.toString()}
+              onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
+            >
+              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="500">$500</SelectItem>
+                <SelectItem value="1000">$1,000</SelectItem>
+                <SelectItem value="1500">$1,500</SelectItem>
+                <SelectItem value="2000">$2,000</SelectItem>
+                <SelectItem value="5000">$5,000</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <div className="space-y-5">
-              {[
-                { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
-                { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
-                { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
-                { icon: IoBuild, label: "Even Building Rule", key: "evenBuild" },
-                { icon: FaRandom, label: "Random Play Order", key: "randomPlayOrder" },
-              ].map((rule) => (
-                <div key={rule.key} className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <rule.icon className="w-6 h-6 text-cyan-400" />
-                    <span className="text-gray-100 text-lg">{rule.label}</span>
+            {/* Game Duration - placed here as secondary option */}
+            <div className="mt-8">
+              <div className="flex items-center gap-3 mb-4">
+                <FaBrain className="w-7 h-7 text-indigo-400" />
+                <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
+              </div>
+              <Select
+                value={settings.duration.toString()}
+                onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
+              >
+                <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="45">45 minutes</SelectItem>
+                  <SelectItem value="60">60 minutes</SelectItem>
+                  <SelectItem value="90">90 minutes</SelectItem>
+                  <SelectItem value="0">No limit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Column 3 - House Rules */}
+          <div className="space-y-6">
+            <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30 h-full">
+              <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
+              <div className="space-y-4">
+                {[
+                  { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
+                  { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
+                  { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
+                  { icon: IoBuild, label: "Even Building Rule", key: "evenBuild" },
+                  { icon: FaRandom, label: "Random Play Order", key: "randomPlayOrder" },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <item.icon className="w-5 h-5 text-cyan-400" />
+                      <span className="text-gray-300 text-sm">{item.label}</span>
+                    </div>
+                    <Switch
+                      checked={settings[item.key as keyof typeof settings] as boolean}
+                      onCheckedChange={(v) => setSettings((p) => ({ ...p, [item.key]: v }))}
+                    />
                   </div>
-                  <Switch
-                    checked={settings[rule.key as keyof typeof settings] as boolean}
-                    onCheckedChange={(v) => setSettings((s) => ({ ...s, [rule.key]: v }))}
-                  />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* START BUTTON */}
-        <div className="flex justify-center mt-10 md:mt-12">
+        {/* Start Button */}
+        <div className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
             disabled={isCreatePending}
-            className={`
-              px-16 md:px-24 py-6 text-2xl md:text-3xl font-orbitron font-black tracking-wider
-              bg-gradient-to-r from-cyan-600 to-purple-700 hover:from-purple-600 hover:to-pink-600
-              rounded-xl shadow-2xl transform hover:scale-105 transition-all duration-300
-              border-4 border-cyan-400/70 relative overflow-hidden
-              disabled:opacity-60 disabled:hover:scale-100 disabled:cursor-not-allowed
-            `}
+            className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
+                     bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
+                     hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
+                     rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
+                     transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
+                     border-4 border-white/20"
           >
-            {isCreatePending ? "SUMMONING..." : "START BATTLE"}
+            <span className="relative z-10 text-white drop-shadow-2xl">
+              {isCreatePending ? "SUMMONING..." : "START BATTLE"}
+            </span>
           </button>
         </div>
       </div>
