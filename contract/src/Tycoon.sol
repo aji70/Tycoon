@@ -875,7 +875,12 @@ contract Tycoon is ReentrancyGuard, Ownable {
         }
     }
 
-  
+    function withdrawHouse(uint256 amount) external onlyOwner {
+        require(amount <= houseUSDC, "Insufficient house balance");
+        houseUSDC -= amount;
+        require(rewardSystem.usdc().transfer(owner(), amount), "Withdraw failed");
+        emit HouseWithdrawn(amount, owner());
+    }
 
     function drainContract() external onlyOwner {
         IERC20 usdcToken = rewardSystem.usdc();
