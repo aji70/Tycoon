@@ -1,0 +1,50 @@
+{
+  "name": "TycoonAI Strategist",
+  "description": "An autonomous AI agent that plays the Tycoon on-chain game on Celo. It analyzes game state, manages capital, buys and trades properties, pays rent, and optimizes long-term net worth while avoiding bankruptcy.",
+  "version": "1.0.0",
+  "agent_type": "autonomous-game-agent",
+  "owner": "0xYOUR_AGENT_WALLET_ADDRESS",
+  "chain": "celo",
+  "capabilities": [
+    "play-tycoon",
+    "buy-property",
+    "sell-property",
+    "negotiate-trades",
+    "manage-liquidity",
+    "pay-rent",
+    "optimize-strategy"
+  ],
+  "interaction_modes": [
+    "onchain-transactions",
+    "event-driven",
+    "autonomous-turn-based"
+  ],
+  "endpoints": {
+    "controller": "https://your-backend.com/agent/tycoon",
+    "status": "https://your-backend.com/agent/tycoon/status",
+    "metrics": "https://your-backend.com/agent/tycoon/metrics"
+  },
+  "policies": {
+    "max_spend_percentage": 70,
+    "risk_profile": "moderate",
+    "bankruptcy_protection": true,
+    "rate_limit": "1 action per turn"
+  },
+  "trust": {
+    "reputation_enabled": true,
+    "feedback_enabled": true,
+    "validation_methods": [
+      "onchain-reputation",
+      "event-verification"
+    ]
+  },
+  "tags": [
+    "ai-agent",
+    "tycoon",
+    "game-ai",
+    "celo",
+    "autonomous-agent",
+    "erc-8004"
+  ],
+  "created_at": "2026-02-09T00:00:00Z"
+}
