@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@chaoschain/sdk": "^0.1.3",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-switch": "^1.2.5",
