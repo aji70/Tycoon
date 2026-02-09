@@ -82,7 +82,7 @@ export default function PlayWithAI() {
     username || "",
     "PRIVATE",
     settings.symbol,
-    settings.aiCount,          
+    settings.aiCount,           // ← number of AI opponents
     gameCode,
     BigInt(settings.startingCash)
   );
