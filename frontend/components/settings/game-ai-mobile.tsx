@@ -109,33 +109,51 @@ export default function PlayWithAIMobile() {
 
       let dbGameId: string | number | undefined;
       try {
-        const saveRes: GameCreateResponse = await apiClient.post("/games", {
-          id: onChainGameId.toString(),
-          code: gameCode,
-          mode: "PRIVATE",
-          address: address,
-          symbol: settings.symbol,
-          number_of_players: totalPlayers,
-          ai_opponents: settings.aiCount,
-          ai_difficulty: settings.aiDifficulty,
-          starting_cash: settings.startingCash,
-          is_ai: true,
-          is_minipay: isMiniPay,
-          chain: chainName,
-          duration: settings.duration,
-          settings: {
-            auction: settings.auction,
-            rent_in_prison: settings.rentInPrison,
-            mortgage: settings.mortgage,
-            even_build: settings.evenBuild,
-            randomize_play_order: settings.randomPlayOrder,
-          },
-        });
+        // const saveRes: GameCreateResponse = await apiClient.post("/games", {
+        //   id: onChainGameId.toString(),
+        //   code: gameCode,
+        //   mode: "PRIVATE",
+        //   address: address,
+        //   symbol: settings.symbol,
+        //   number_of_players: totalPlayers,
+        //   ai_opponents: settings.aiCount,
+        //   ai_difficulty: settings.aiDifficulty,
+        //   starting_cash: settings.startingCash,
+        //   is_ai: true,
+        //   is_minipay: isMiniPay,
+        //   chain: chainName,
+        //   duration: settings.duration,
+        //   settings: {
+        //     auction: settings.auction,
+        //     rent_in_prison: settings.rentInPrison,
+        //     mortgage: settings.mortgage,
+        //     even_build: settings.evenBuild,
+        //     randomize_play_order: settings.randomPlayOrder,
+        //   },
+        // });
 
-        dbGameId =
-          typeof saveRes === "string" || typeof saveRes === "number"
-            ? saveRes
-            : saveRes?.data?.data?.id ?? saveRes?.data?.id ?? saveRes?.id;
+          const saveRes = await apiClient.post<any>("/games", {
+        id: onChainGameId,
+        code: gameCode,
+        mode: "PRIVATE",
+        address,
+        symbol: settings.symbol,
+        number_of_players: totalPlayers,
+        ai_opponents: settings.aiCount,
+        ai_difficulty: settings.aiDifficulty,
+        settings: {
+          auction: settings.auction,
+          rent_in_prison: settings.rentInPrison,
+          mortgage: settings.mortgage,
+          even_build: settings.evenBuild,
+          starting_cash: settings.startingCash,
+          randomize_play_order: settings.randomPlayOrder,
+        },
+      });
+
+
+      const dbGameId = saveRes.data?.data?.id ?? saveRes.data?.id ?? saveRes.data;
+      if (!dbGameId) throw new Error("Failed to save game");
 
         if (!dbGameId) throw new Error("Backend did not return game ID");
       } catch (backendError: any) {
