@@ -10,12 +10,7 @@ import {
 import { parseUnits, formatUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Zap,
   Crown,
-  Coins,
-  Sparkles,
-  Gem,
-  Shield,
   DollarSign,
   Wallet,
   Package,
@@ -23,6 +18,7 @@ import {
   Settings,
   PlusCircle,
   Gift,
+  Gem,
   Banknote,
   PauseCircle,
   PlayCircle,
@@ -39,7 +35,6 @@ import {
   TYC_TOKEN_ADDRESS,
 } from '@/constants/contracts';
 
-// Import ALL admin reward hooks from your context
 import {
   useRewardSetBackendMinter,
   useRewardMintVoucher,
@@ -49,95 +44,18 @@ import {
   useRewardUpdateCollectiblePrices,
   useRewardPause,
   useRewardWithdrawFunds,
-} from '@/context/ContractProvider'; 
+} from '@/context/ContractProvider';
 
-// Assuming apiClient is imported from your API utilities
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from '@/types/api';
 
-enum CollectiblePerk {
-  NONE = 0,
-  EXTRA_TURN = 1,
-  JAIL_FREE = 2,
-  DOUBLE_RENT = 3,
-  ROLL_BOOST = 4,
-  CASH_TIERED = 5,
-  TELEPORT = 6,
-  SHIELD = 7,
-  PROPERTY_DISCOUNT = 8,
-  TAX_REFUND = 9,
-  ROLL_EXACT = 10,
-}
-
-const PERK_NAMES: Record<CollectiblePerk, string> = {
-  [CollectiblePerk.NONE]: 'None',
-  [CollectiblePerk.EXTRA_TURN]: 'Extra Turn',
-  [CollectiblePerk.JAIL_FREE]: 'Get Out of Jail Free',
-  [CollectiblePerk.DOUBLE_RENT]: 'Double Rent',
-  [CollectiblePerk.ROLL_BOOST]: 'Roll Boost',
-  [CollectiblePerk.CASH_TIERED]: 'Instant Cash (Tiered)',
-  [CollectiblePerk.TELEPORT]: 'Teleport',
-  [CollectiblePerk.SHIELD]: 'Shield',
-  [CollectiblePerk.PROPERTY_DISCOUNT]: 'Property Discount',
-  [CollectiblePerk.TAX_REFUND]: 'Tax Refund (Tiered)',
-  [CollectiblePerk.ROLL_EXACT]: 'Exact Roll',
-};
-
-const ERC20_ABI = [
-  {
-    constant: true,
-    inputs: [{ name: '_owner', type: 'address' }],
-    name: 'balanceOf',
-    outputs: [{ name: 'balance', type: 'uint256' }],
-    type: 'function',
-  },
-  {
-    constant: true,
-    inputs: [],
-    name: 'decimals',
-    outputs: [{ name: '', type: 'uint8' }],
-    type: 'function',
-  },
-] as const;
-
-const INITIAL_COLLECTIBLES = [
-  { perk: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", strength: 1, tycPrice: "0.75", usdcPrice: "0.08", icon: <Zap className="w-8 h-8" /> },
-  { perk: CollectiblePerk.ROLL_BOOST, name: "Roll Boost", strength: 1, tycPrice: "1.0", usdcPrice: "0.10", icon: <Sparkles className="w-8 h-8" /> },
-  { perk: CollectiblePerk.PROPERTY_DISCOUNT, name: "Property Discount", strength: 1, tycPrice: "1.25", usdcPrice: "0.25", icon: <Coins className="w-8 h-8" /> },
-  { perk: CollectiblePerk.SHIELD, name: "Shield", strength: 1, tycPrice: "1.5", usdcPrice: "0.40", icon: <Shield className="w-8 h-8" /> },
-  { perk: CollectiblePerk.TELEPORT, name: "Teleport", strength: 1, tycPrice: "1.8", usdcPrice: "0.60", icon: <Zap className="w-8 h-8" /> },
-  { perk: CollectiblePerk.ROLL_EXACT, name: "Exact Roll (Legendary)", strength: 1, tycPrice: "2.5", usdcPrice: "1.00", icon: <Sparkles className="w-8 h-8" /> },
-  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 1", strength: 1, tycPrice: "0.5", usdcPrice: "0.05", icon: <Gem className="w-8 h-8" /> },
-  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 2", strength: 2, tycPrice: "0.8", usdcPrice: "0.15", icon: <Gem className="w-8 h-8" /> },
-  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 3", strength: 3, tycPrice: "1.2", usdcPrice: "0.30", icon: <Gem className="w-8 h-8" /> },
-  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 4", strength: 4, tycPrice: "1.6", usdcPrice: "0.50", icon: <Gem className="w-8 h-8" /> },
-  { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 5", strength: 5, tycPrice: "2.0", usdcPrice: "0.90", icon: <Gem className="w-8 h-8" /> },
-] as const;
-
-const AnimatedCounter = ({ to, duration = 2 }: { to: number; duration?: number }) => {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    let startTime: number | null = null;
-    const from = 0;
-    const animateCount = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const progress = (timestamp - startTime) / (duration * 1000);
-      if (progress < 1) {
-        setCount(Math.round(from + progress * (to - from)));
-        requestAnimationFrame(animateCount);
-      } else {
-        setCount(to);
-      }
-    };
-    requestAnimationFrame(animateCount);
-    return () => {
-      startTime = null;
-    };
-  }, [to, duration]);
-
-  return <span>{count}</span>;
-};
+import {
+  CollectiblePerk,
+  PERK_NAMES,
+  ERC20_ABI,
+  INITIAL_COLLECTIBLES,
+} from '@/components/rewards/rewardsConstants';
+import { AnimatedCounter } from '@/components/rewards/AnimatedCounter';
 
 export default function RewardAdminPanel() {
   const { address: userAddress, isConnected } = useAccount();
