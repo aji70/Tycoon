@@ -1,0 +1,20 @@
+---
+description: When working on AI agent verification, SelfClaw, or ERC-8004 identity, use the SelfClaw skill
+globs: **/TycoonAIAgent*.sol,**/contracts/**/*.sol,**/lib/ai-agent/**
+alwaysApply: false
+---
+
+# SelfClaw agent verification
+
+When implementing or discussing **AI agent verification**, **SelfClaw**, **wallet verification**, or **ERC-8004 on-chain identity**, read and follow the official skill:
+
+**https://selfclaw.ai/skill.md**
+
+That skill covers:
+- Verifying AI agents as human-backed (SelfClaw registry, Self.xyz passport ZK proofs)
+- Creating EVM wallets and registering on-chain identity (ERC-8004)
+- Celo as default chain for identity and gas
+- Wallet verification for games/dApps: `GET https://selfclaw.ai/api/selfclaw/v1/wallet-verify/0xYourWallet`
+- API flows: start-verification, sign-challenge, verification-status, agent lookup by publicKey or name
+
+If the user says "use SelfClaw" or "verify my agent" or "read selfclaw.ai/skill.md", fetch that URL and apply its instructions.

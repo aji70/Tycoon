@@ -26,9 +26,11 @@ import {
   useIsRegistered,
   useGetUsername,
   useCreateAIGame,
+  useRegisteredAIAgents,
 } from "@/context/ContractProvider";
 import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address } from "viem";
+import { ShieldCheck } from "lucide-react";
 
 interface GameCreateResponse {
   data?: {
@@ -56,6 +58,7 @@ export default function PlayWithAI() {
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
+  const { agents: registeredAgents, isLoading: agentsLoading, isSupported: registrySupported } = useRegisteredAIAgents();
 
   const isMiniPay = !!caipNetwork?.id && MINIPAY_CHAIN_IDS.includes(Number(caipNetwork.id));
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${caipNetwork?.id ?? "unknown"}`;
@@ -271,6 +274,12 @@ export default function PlayWithAI() {
                   ))}
                 </SelectContent>
               </Select>
+              {registrySupported && registeredAgents.length > 0 && (
+                <p className="mt-2 text-xs text-purple-300/80 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  {registeredAgents.length} verified on-chain
+                </p>
+              )}
             </div>
 
             {/* Difficulty */}
@@ -344,8 +353,24 @@ export default function PlayWithAI() {
             </div>
           </div>
 
-          {/* Column 3 - House Rules */}
+          {/* Column 3 - House Rules + Registered agents */}
           <div className="space-y-6">
+            {registrySupported && registeredAgents.length > 0 && !agentsLoading && (
+              <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-2xl p-6 border border-emerald-500/30">
+                <div className="flex items-center gap-3 mb-3">
+                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                  <h3 className="text-lg font-bold text-emerald-300">Registered AI Agents</h3>
+                </div>
+                <ul className="space-y-2 max-h-32 overflow-y-auto">
+                  {registeredAgents.map((a) => (
+                    <li key={a.tokenId} className="text-sm text-gray-300 flex justify-between items-center gap-2">
+                      <span className="font-medium text-white truncate">{a.name}</span>
+                      <span className="text-emerald-400/90 shrink-0">{a.playStyle}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30 h-full">
               <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
               <div className="space-y-4">
