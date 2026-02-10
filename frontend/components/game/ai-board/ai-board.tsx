@@ -30,7 +30,7 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
-import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues } from "../constants";
+import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { isAIPlayer } from "@/utils/gameUtils";
 
 const calculateBuyScore = (
