@@ -16,6 +16,7 @@ import PlayerStatus from "./player-status";
 import { Sparkles, X, Bell } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { ApiResponse } from "@/types/api";
+import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 
 const BOARD_SQUARES = 40;
 const ROLL_ANIMATION_MS = 1200;
@@ -135,7 +136,6 @@ const MobileGameLayout = ({
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
-  
   const [gameTimeLeft, setGameTimeLeft] = useState(0);
   const [turnTimeLeft, setTurnTimeLeft] = useState(60);
 
@@ -146,12 +146,6 @@ const MobileGameLayout = ({
     position: number;
     balance: bigint;
   }>({ winner: null, position: 0, balance: BigInt(0) });
-
-const durationMinutes = Number(game.duration ?? 0); // converts string → number, null/undefined → 0
-const endTime =
-  new Date(game.created_at).getTime() +
-  durationMinutes * 60 * 1000;
-
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -185,28 +179,17 @@ const endTime =
     players: game?.players ?? [],
   });
 
+ const durationMinutes = Number(game.duration ?? 0); // converts string → number, null/undefined → 0
+const endTime =
+  new Date(game.created_at).getTime() +
+  durationMinutes * 60 * 1000;
+
   const myIncomingTrades = useMemo(() => {
     if (!me) return [];
     return tradeRequests.filter(
       (t) => t.target_player_id === me.user_id && t.status === "pending"
     );
   }, [tradeRequests, me]);
-
-
-useEffect(() => {
-  if (!endTime) return;
-
-  const update = () => {
-    const now = Date.now();
-    const remainingMs = Math.max(endTime - now, 0);
-    setGameTimeLeft(Math.floor(remainingMs / 1000));
-  };
-
-  update();
-  const interval = setInterval(update, 1000);
-
-  return () => clearInterval(interval);
-}, [endTime]);
 
   useEffect(() => {
     const currentCount = myIncomingTrades.length;
@@ -233,6 +216,13 @@ useEffect(() => {
 
     prevIncomingTradeCount.current = currentCount;
   }, [myIncomingTrades]);
+
+
+
+  console.log("END TIMEs",endTime)
+
+  
+  
 
   useEffect(() => {
     const calculateScale = () => {
@@ -264,6 +254,22 @@ useEffect(() => {
 
   const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
+
+  //   useEffect(() => {
+  //   if (!endTime) return;
+  
+  //   const update = () => {
+  //     const now = Date.now();
+  //     const remainingMs = Math.max(endTime - now);
+  //     console.log("REMAINING MS",remainingMs)
+  //     setGameTimeLeft(Math.floor(remainingMs / 1000));
+  //   };
+  
+  //   update();
+  //   const interval = setInterval(update, 1000);
+  
+  //   return () => clearInterval(interval);
+  // }, [endTime, isMyTurn]);
 
   const {
     write: endGame,
@@ -1147,49 +1153,6 @@ const handleAiStrategy = async () => {
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
-  //   useEffect(() => {
-  //   if (!isMyTurn) {
-  //     setTurnTimeLeft(60);
-  //     return;
-  //   }
-
-  //   const fetchMyGamePlayer = async () => {
-  //     const m = getGamePlayerId(me?.address);
-  //     if (!m) {
-  //       console.warn("No game player ID for me");
-  //       return;
-  //     }
-
-  //     try {
-  //       const res = await apiClient.get<ApiResponse>(`/game-players/${m}`);
-  //       console.log("Fetched my game player:", res.data);
-        
-  //       const startTime = res.data?.data?.turn_start 
-  //         ? new Date(res.data.data.turn_start).getTime() 
-  //         : Date.now();
-
-  //       const update = () => {
-  //         const now = Date.now();
-  //         const elapsed = Math.floor((now - startTime) / 1000);
-  //         const remaining = Math.max(60 - elapsed, 0);
-  //         setTurnTimeLeft(remaining);
-  //         if (remaining <= 0) {
-  //           // Optional: Auto-end turn if time expires
-  //           // END_TURN();
-  //         }
-  //       };
-
-  //       update();
-  //       const interval = setInterval(update, 1000);
-  //       return () => clearInterval(interval);
-  //     } catch (err) {
-  //       console.error("Failed to fetch my game player:", err);
-  //     }
-  //   };
-
-  //   fetchMyGamePlayer();
-  // }, [isMyTurn, END_TURN, me?.address, getGamePlayerId]);
-
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
     if (gp.mortgaged) return 0;
@@ -1226,96 +1189,13 @@ const handleAiStrategy = async () => {
     }
   };
 
-  const handleDevelopment = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
-
-      if (res.data?.success) {
-        const currentDev = selectedGameProperty.development ?? 0;
-        const isBuilding = currentDev < 5;
-        const item = currentDev === 4 && isBuilding ? "hotel" : "house";
-        const action = isBuilding ? "built" : "sold";
-        showToast(`Successfully ${action} ${item}!`, "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
-      } else {
-        showToast(res.data?.message || "Action failed", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Development failed", "error");
-    }
-  };
-
-const handleMortgageToggle = async () => {
-  if (!selectedGameProperty || !me || !isMyTurn) {
-    showToast("Not your turn or invalid property", "error");
-    return;
-  }
-
-  const isUnmortgaging = selectedGameProperty.mortgaged;
-  const endpoint = isUnmortgaging ? "/game-properties/unmortgage" : "/game-properties/mortgage";
-  const actionVerb = isUnmortgaging ? "redeemed" : "mortgaged";
-
-  try {
-    const res = await apiClient.post<ApiResponse>(endpoint, {
-      game_id: currentGame.id,
-      user_id: me.user_id,
-      property_id: selectedGameProperty.property_id,
-    });
-
-    if (res.data?.success) {
-      showToast(`Property ${actionVerb}!`, "success");
-      await fetchUpdatedGame();
-      setSelectedProperty(null); // Assuming it's setSelectedProperty, or setSelectedGameProperty
-    } else {
-      showToast(res.data?.message || `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} failed`, "error");
-    }
-  } catch (err: any) {
-    const message = err?.response?.data?.message || `Failed to ${actionVerb} property`;
-    showToast(message, "error");
-  }
-};
-
-  const handleSellProperty = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
-
-    if ((selectedGameProperty.development ?? 0) > 0) {
-      showToast("Cannot sell property with buildings!", "error");
-      return;
-    }
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/sell", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
-
-      if (res.data?.success) {
-        showToast("Property sold back to bank!", "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
-      } else {
-        showToast(res.data?.message || "Sell failed", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Failed to sell property", "error");
-    }
-  };
-
-  const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
+  const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
+    currentGame.id,
+    me?.user_id,
+    isMyTurn,
+    fetchUpdatedGame,
+    showToast
+  );
 
   const declareBankruptcy = async () => {
     showToast("Declaring bankruptcy...", "default");
@@ -1371,6 +1251,49 @@ const handleMortgageToggle = async () => {
     currentPlayer,
     showToast,
   ]);
+
+    // useEffect(() => {
+    // if (!isMyTurn) {
+    //   setTurnTimeLeft(60);
+    //   return;
+    // }
+
+  //   const fetchMyGamePlayer = async () => {
+  //     const m = getGamePlayerId(me?.address);
+  //     if (!m) {
+  //       console.warn("No game player ID for me");
+  //       return;
+  //     }
+
+  //     try {
+  //       const res = await apiClient.get<ApiResponse>(`/game-players/${m}`);
+  //       console.log("Fetched my game player:", res.data);
+        
+  //       const startTime = res.data?.data?.duration_per_player 
+  //         ? new Date(res.data.data.duration_per_player).getTime() 
+  //         : Date.now();
+
+  //       const update = () => {
+  //         const now = Date.now();
+  //         const elapsed = Math.floor((now - startTime) / 1000);
+  //         const remaining = Math.max(60 - elapsed, 0);
+  //         setTurnTimeLeft(remaining);
+  //         if (remaining <= 0) {
+  //           // Optional: Auto-end turn if time expires
+  //           // END_TURN();
+  //         }
+  //       };
+
+  //       update();
+  //       const interval = setInterval(update, 1000);
+  //       return () => clearInterval(interval);
+  //     } catch (err) {
+  //       console.error("Failed to fetch my game player:", err);
+  //     }
+  //   };
+
+  //   fetchMyGamePlayer();
+  // }, [isMyTurn, END_TURN, me?.address, getGamePlayerId]);
 
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
@@ -1467,7 +1390,7 @@ const handleMortgageToggle = async () => {
           )}
         </>
       )}
-{me && (
+    {me && (
   <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20 flex-wrap gap-y-2">
 
     {/* Balance */}
@@ -1494,7 +1417,7 @@ const handleMortgageToggle = async () => {
     </div>
 
     {/* Time left */}
-    <div className="flex items-center gap-3">
+    {/* <div className="flex items-center gap-3">
       <span className="text-sm opacity-80">Time left:</span>
       {(() => {
         const totalSeconds = gameTimeLeft ?? 0;
@@ -1512,10 +1435,10 @@ const handleMortgageToggle = async () => {
           </span>
         );
       })()}
-    </div>
+    </div> */}
 
     {/* Turn Time */}
-    <div className="flex items-center gap-3">
+    {/* <div className="flex items-center gap-3">
       <span className="text-sm opacity-80">Turn Time:</span>
       {(() => {
         const totalSeconds = turnTimeLeft;
@@ -1533,11 +1456,11 @@ const handleMortgageToggle = async () => {
           </span>
         );
       })()}
-    </div>
+    </div> */}
   </div>
 )}
       </div>
-      {/* Buy Prompt Modal */}
+      {/* Buy prompt Modal */}
       <AnimatePresence>
         {isMyTurn && buyPrompted && justLandedProperty && (
           <motion.div
@@ -1626,30 +1549,30 @@ const handleMortgageToggle = async () => {
                   )}
                 </div>
 
-                {isOwnedByMe && isMyTurn && selectedGameProperty && (
+                {selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase() && isMyTurn && selectedGameProperty && (
                   <div className="grid grid-cols-2 gap-4 mt-8">
                     <button
-                      onClick={handleDevelopment}
+                      onClick={() => handleBuild(selectedGameProperty.property_id)}
                       disabled={selectedGameProperty.development === 5}
                       className="py-3 bg-green-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 transition"
                     >
                       {selectedGameProperty.development === 4 ? "Build Hotel" : "Build House"}
                     </button>
                     <button
-                      onClick={handleDevelopment}
+                      onClick={() => handleSellBuilding(selectedGameProperty.property_id)}
                       disabled={!selectedGameProperty.development || selectedGameProperty.development === 0}
                       className="py-3 bg-orange-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-500 transition"
                     >
                       Sell House/Hotel
                     </button>
                     <button
-                      onClick={handleMortgageToggle}
+                      onClick={() => handleMortgageToggle(selectedGameProperty.property_id, !!selectedGameProperty.mortgaged)}
                       className="py-3 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition"
                     >
                       {selectedGameProperty.mortgaged ? "Redeem" : "Mortgage"}
                     </button>
                     <button
-                      onClick={handleSellProperty}
+                      onClick={() => handleSellToBank(selectedGameProperty.property_id)}
                       disabled={(selectedGameProperty.development ?? 0) > 0}
                       className="py-3 bg-purple-600 rounded-xl font-bold disabled:opacity-50 hover:bg-purple-500 transition"
                     >
