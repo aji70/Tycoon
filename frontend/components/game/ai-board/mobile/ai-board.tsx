@@ -703,49 +703,6 @@ const endTime =
     showToast,
   ]);
 
-    // useEffect(() => {
-    // if (!isMyTurn) {
-    //   setTurnTimeLeft(60);
-    //   return;
-    // }
-
-  //   const fetchMyGamePlayer = async () => {
-  //     const m = getGamePlayerId(me?.address);
-  //     if (!m) {
-  //       console.warn("No game player ID for me");
-  //       return;
-  //     }
-
-  //     try {
-  //       const res = await apiClient.get<ApiResponse>(`/game-players/${m}`);
-  //       console.log("Fetched my game player:", res.data);
-        
-  //       const startTime = res.data?.data?.duration_per_player 
-  //         ? new Date(res.data.data.duration_per_player).getTime() 
-  //         : Date.now();
-
-  //       const update = () => {
-  //         const now = Date.now();
-  //         const elapsed = Math.floor((now - startTime) / 1000);
-  //         const remaining = Math.max(60 - elapsed, 0);
-  //         setTurnTimeLeft(remaining);
-  //         if (remaining <= 0) {
-  //           // Optional: Auto-end turn if time expires
-  //           // END_TURN();
-  //         }
-  //       };
-
-  //       update();
-  //       const interval = setInterval(update, 1000);
-  //       return () => clearInterval(interval);
-  //     } catch (err) {
-  //       console.error("Failed to fetch my game player:", err);
-  //     }
-  //   };
-
-  //   fetchMyGamePlayer();
-  // }, [isMyTurn, END_TURN, me?.address, getGamePlayerId]);
-
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
 
