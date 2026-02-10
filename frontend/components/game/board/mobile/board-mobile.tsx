@@ -26,12 +26,16 @@ import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import PlayerStatus from "./player-status";
 import BellNotification from "./BellNotification";
-import { Sparkles, X } from "lucide-react";
+import RollDiceSection from "./RollDiceSection";
+import BoardPropertyDetailModal from "./BoardPropertyDetailModal";
+import BoardPerksModal from "./BoardPerksModal";
+import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
+import BuyPromptModal from "../../ai-board/mobile/BuyPromptModal";
+import { Sparkles } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { ApiResponse } from "@/types/api";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
-import { PropertyActionModal } from "../../modals/property-action";
 import { VictoryModal } from "../../player/victory";
 
 const MobileGameLayout = ({
@@ -818,8 +822,6 @@ const MobileGameLayout = ({
     }
   };
 
-  const isOwnedByMe = selectedGameProperty?.address?.toLowerCase() === me?.address?.toLowerCase();
-
   const computedTokenPositions = useMemo(() => {
     const playerPositions: Record<number, { x: number; y: number }> = {};
 
@@ -877,26 +879,7 @@ const MobileGameLayout = ({
 
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
-        {me && (
-          <div className="mt-4 flex items-center justify-start gap-4 rounded-xl px-5 py-3 border border-white/20">
-            <span className="text-sm opacity-80">Bal:</span>
-            {(() => {
-              const balance = me.balance ?? 0;
-              const getBalanceColor = (bal: number): string => {
-                if (bal >= 1300) return "text-cyan-300";
-                if (bal >= 1000) return "text-emerald-400";
-                if (bal >= 750) return "text-yellow-400";
-                if (bal >= 150) return "text-orange-400";
-                return "text-red-500 animate-pulse";
-              };
-              return (
-                <span className={`text-xl font-bold ${getBalanceColor(balance)} drop-shadow-md`}>
-                  ${Number(balance).toLocaleString()}
-                </span>
-              );
-            })()}
-          </div>
-        )}
+        <MyBalanceBar me={me} />
       </div>
 
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
@@ -922,167 +905,41 @@ const MobileGameLayout = ({
         roll={roll}
       />
 
-      {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
-        <div className="w-full max-w-xs mx-auto mb-8 flex flex-col gap-4 items-center">
-          {hasNegativeBalance ? (
-            <button
-              onClick={handleBankruptcy}
-              className="w-full py-4 px-8 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 active:from-red-800 active:to-rose-900 text-white font-bold text-lg tracking-wide rounded-full shadow-md shadow-red-500/40 border border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/40 active:scale-95"
-            >
-              Declare Bankruptcy
-            </button>
-          ) : (
-      <div className="flex justify-center items-center w-full mb-8">
-  <button
-    onClick={() => ROLL_DICE(false)}
-    className="
-      py-2.5 px-10
-      bg-gradient-to-r from-cyan-500 to-cyan-600 
-      hover:from-cyan-400 hover:to-cyan-500 
-      active:from-cyan-600 active:to-cyan-700 
-      text-white font-bold text-base tracking-wide rounded-full 
-      shadow-lg shadow-cyan-500/40 border border-cyan-300/30 
-      transition-all duration-300 
-      hover:scale-105 hover:shadow-xl hover:shadow-cyan-400/60 
-      active:scale-95
-    "
-  >
-    Roll Dice
-  </button>
-</div>
-          )}
-        </div>
-      )}
+      <RollDiceSection
+        isMyTurn={isMyTurn}
+        isRolling={isRolling}
+        isRaisingFunds={isRaisingFunds}
+        showInsolvencyModal={showInsolvencyModal}
+        hasNegativeBalance={hasNegativeBalance}
+        onRollDice={() => ROLL_DICE(false)}
+        onDeclareBankruptcy={handleBankruptcy}
+      />
 
-      <AnimatePresence>
-        {isMyTurn && buyPrompted && justLandedProperty && (
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 bg-gray-900/95 backdrop-blur-lg p-6 rounded-t-3xl shadow-2xl z-[60] border-t border-cyan-500/30"
-          >
-            <div className="max-w-md mx-auto text-center">
-              <h3 className="text-2xl font-bold text-white mb-2">
-                Buy {justLandedProperty.name}?
-              </h3>
-              <p className="text-lg text-gray-300 mb-6">
-                Price: ${justLandedProperty.price?.toLocaleString()}
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={BUY_PROPERTY}
-                  className="py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-2xl shadow-lg hover:scale-105 transition"
-                >
-                  Buy
-                </button>
-                <button
-                  onClick={() => {
-                    showToast("Skipped purchase", "default");
-                    setBuyPrompted(false);
-                    landedPositionThisTurn.current = null;
-                    setTimeout(END_TURN, 800);
-                  }}
-                  className="py-4 bg-gray-700 text-white font-bold text-xl rounded-2xl shadow-lg hover:scale-105 transition"
-                >
-                  Skip
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <BuyPromptModal
+        visible={!!(isMyTurn && buyPrompted && justLandedProperty)}
+        property={justLandedProperty ?? null}
+        onBuy={BUY_PROPERTY}
+        onSkip={() => {
+          showToast("Skipped purchase", "default");
+          setBuyPrompted(false);
+          landedPositionThisTurn.current = null;
+          setTimeout(END_TURN, 800);
+        }}
+      />
 
-      <AnimatePresence>
-        {selectedProperty && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedProperty(null)}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gray-900 rounded-2xl shadow-2xl border border-cyan-500/50 max-w-sm w-full overflow-hidden"
-            >
-              <div className={`h-20 bg-${selectedProperty.color || 'gray'}-600`} />
-              <div className="p-6">
-                <h2 className="text-2xl font-bold text-center mb-4">{selectedProperty.name}</h2>
-                <p className="text-center text-gray-300 mb-6">Price: ${selectedProperty.price}</p>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span>Current Rent:</span>
-                    <span className="font-bold text-yellow-400">
-                      ${getCurrentRent(selectedProperty, selectedGameProperty)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Owner:</span>
-                    <span className="font-medium">
-                      {selectedGameProperty?.address
-                        ? players.find(p => p.address?.toLowerCase() === selectedGameProperty.address?.toLowerCase())?.username || "Player"
-                        : "Bank"}
-                    </span>
-                  </div>
-                  {selectedGameProperty?.development != null && selectedGameProperty.development > 0 && (
-                    <div className="flex justify-between">
-                      <span>Buildings:</span>
-                      <span>{selectedGameProperty.development === 5 ? "Hotel" : `${selectedGameProperty.development} House(s)`}</span>
-                    </div>
-                  )}
-                  {selectedGameProperty?.mortgaged && (
-                    <div className="text-red-400 font-bold text-center mt-3">MORTGAGED</div>
-                  )}
-                </div>
-
-                {isOwnedByMe && isMyTurn && selectedGameProperty && (
-                  <div className="grid grid-cols-2 gap-4 mt-8">
-                    <button
-                      onClick={handleDevelopment}
-                      disabled={selectedGameProperty.development === 5}
-                      className="py-3 bg-green-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-500 transition"
-                    >
-                      {selectedGameProperty.development === 4 ? "Build Hotel" : "Build House"}
-                    </button>
-                    <button
-                      onClick={handleDevelopment}
-                      disabled={!selectedGameProperty.development || selectedGameProperty.development === 0}
-                      className="py-3 bg-orange-600 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-500 transition"
-                    >
-                      Sell House/Hotel
-                    </button>
-                    <button
-                      onClick={handleMortgageToggle}
-                      className="py-3 bg-red-600 rounded-xl font-bold hover:bg-red-500 transition"
-                    >
-                      {selectedGameProperty.mortgaged ? "Redeem" : "Mortgage"}
-                    </button>
-                    <button
-                      onClick={handleSellProperty}
-                      disabled={(selectedGameProperty.development ?? 0) > 0}
-                      className="py-3 bg-purple-600 rounded-xl font-bold disabled:opacity-50 hover:bg-purple-500 transition"
-                    >
-                      Sell Property
-                    </button>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setSelectedProperty(null)}
-                  className="w-full mt-6 py-3 bg-gray-700 rounded-xl font-bold hover:bg-gray-600 transition"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <BoardPropertyDetailModal
+        property={selectedProperty}
+        gameProperty={selectedGameProperty}
+        players={players}
+        me={me}
+        isMyTurn={isMyTurn}
+        getCurrentRent={getCurrentRent}
+        onClose={() => setSelectedProperty(null)}
+        onDevelop={handleDevelopment}
+        onDowngrade={handleDevelopment}
+        onMortgageToggle={handleMortgageToggle}
+        onSellProperty={handleSellProperty}
+      />
 
       <button
         onClick={() => setShowPerksModal(true)}
@@ -1091,50 +948,17 @@ const MobileGameLayout = ({
         <Sparkles className="w-8 h-8 text-black" />
       </button>
 
-      <AnimatePresence>
-        {showPerksModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowPerksModal(false)}
-              className="fixed inset-0 bg-black/80 z-50"
-            />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
-            >
-              <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
-                <h2 className="text-3xl font-bold flex items-center gap-4">
-                  <Sparkles className="w-10 h-10 text-[#00F0FF]" />
-                  My Perks
-                </h2>
-                <button
-                  onClick={() => setShowPerksModal(false)}
-                  className="text-gray-400 hover:text-white p-2"
-                >
-                  <X className="w-8 h-8" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 pb-8">
-                <CollectibleInventoryBar
-                  game={game}
-                  game_properties={game_properties}
-                  isMyTurn={isMyTurn}
-                  ROLL_DICE={ROLL_DICE}
-                  END_TURN={END_TURN}
-                  triggerSpecialLanding={triggerLandingLogic}
-                  endTurnAfterSpecial={endTurnAfterSpecialMove}
-                />
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <BoardPerksModal
+        open={showPerksModal}
+        onClose={() => setShowPerksModal(false)}
+        game={game}
+        game_properties={game_properties}
+        isMyTurn={isMyTurn}
+        onRollDice={ROLL_DICE}
+        onEndTurn={END_TURN}
+        onTriggerSpecialLanding={triggerLandingLogic}
+        onEndTurnAfterSpecial={endTurnAfterSpecialMove}
+      />
 
       <GameLog history={currentGame.history} />
 
@@ -1173,15 +997,6 @@ const MobileGameLayout = ({
         tokensAwarded={0.5}
         onConfirmBankruptcy={handleBankruptcy}
         onReturnHome={() => window.location.href = "/"}
-      />
-
-      <PropertyActionModal
-        property={selectedProperty}
-        onClose={() => setSelectedProperty(null)}
-        onDevelop={handleDevelopment}
-        onDowngrade={handleSellProperty}
-        onMortgage={handleMortgageToggle}
-        onUnmortgage={handleMortgageToggle}
       />
 
       <VictoryModal
