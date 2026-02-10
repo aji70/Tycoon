@@ -94,7 +94,7 @@ const Board = ({
               onRollDice={handleRollDice}
               onBuyProperty={handleBuyProperty}
               onSkipBuy={handleSkipBuy}
-              onDeclareBankruptcy={handleBankruptcy}
+              onDeclareBankruptcy={() => setShowBankruptcyModal(true)}
               isPending={false}
             />
 
