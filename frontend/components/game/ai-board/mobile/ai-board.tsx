@@ -184,28 +184,9 @@ const endTime =
   const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
 
-  //   useEffect(() => {
-  //   if (!endTime) return;
-  
-  //   const update = () => {
-  //     const now = Date.now();
-  //     const remainingMs = Math.max(endTime - now);
-  //     console.log("REMAINING MS",remainingMs)
-  //     setGameTimeLeft(Math.floor(remainingMs / 1000));
-  //   };
-  
-  //   update();
-  //   const interval = setInterval(update, 1000);
-  
-  //   return () => clearInterval(interval);
-  // }, [endTime, isMyTurn]);
-
   const {
     write: endGame,
     isPending: endGamePending,
-    isSuccess: endGameSuccess,
-    error: endGameError,
-    txHash: endGameTxHash,
     reset: endGameReset,
   } = useEndAIGameAndClaim(
     onChainGameId ?? BigInt(0),
