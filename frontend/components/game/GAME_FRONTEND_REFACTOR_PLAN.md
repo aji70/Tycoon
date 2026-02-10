@@ -117,3 +117,5 @@ Break large components/pages into smaller hooks, components, and pages without c
 ## 6. Already done
 
 - **ai-board/mobile/ai-board.tsx**: Refactored with constants, `useMobileAiLogic`, `useMobileAiBankruptcy`, and extracted components (BellNotification, RollDiceSection, MyBalanceBar, BuyPromptModal, PropertyDetailModal, PerksModal).
+- **Shared constants**: `components/game/constants.ts` – BOARD_SQUARES, TOKEN_POSITIONS, MONOPOLY_STATS, getDiceValues, etc. Used by ai-board/mobile (re-export) and board/mobile.
+- **board/mobile/board-mobile.tsx**: Now uses shared constants and `board/mobile/BellNotification.tsx` (~90 lines removed). Further reduction: extract `useBoardMobileLogic` and more UI components (RollDiceSection, BuyPromptModal, etc.) as in ai-board mobile.

@@ -107,7 +107,7 @@ const MobileGameLayout = ({
       const senderName = latestTrade?.player?.username || "Someone";
       toast.custom(
         <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 rounded-xl shadow-2xl">
-          <Bell className="w-6 h-6 animate-bell-ring" />
+          <span className="text-2xl">🔔</span>
           <div>
             <div className="font-bold">New Trade Offer!</div>
             <div className="text-sm opacity-90">{senderName} sent you a trade</div>
@@ -873,23 +873,7 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      <div className="fixed top-4 right-20 z-50 flex items-center">
-        <motion.button
-          animate={bellFlash ? { rotate: [0, -20, 20, -20, 20, 0] } : { rotate: 0 }}
-          transition={{ duration: 0.6 }}
-          onClick={() => {
-            toast("Check the Trades section in the sidebar →", { duration: 4000 });
-          }}
-          className="relative p-3 bg-purple-700/80 backdrop-blur-md rounded-full shadow-lg hover:bg-purple-600 transition"
-        >
-          <Bell className="w-7 h-7 text-white" />
-          {myIncomingTrades.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">
-              {myIncomingTrades.length}
-            </span>
-          )}
-        </motion.button>
-      </div>
+      <BellNotification bellFlash={bellFlash} incomingCount={myIncomingTrades.length} />
 
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
