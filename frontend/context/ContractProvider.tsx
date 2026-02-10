@@ -3,6 +3,7 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import {
   useReadContract,
+  useReadContracts,
   useWriteContract,
   useAccount,
   useWaitForTransactionReceipt,
@@ -12,7 +13,8 @@ import { Address } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES } from '@/constants/contracts';
+import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -399,6 +401,117 @@ export function useEndAIGameAndClaim(gameId: bigint, finalPosition: number, fina
   }, [writeContractAsync, contractAddress, gameId, finalPosition, finalBalance, isWin]);
 
   return { write, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+/** Params for one AI agent stats update (from frontend/backend after game end). */
+export type AIAgentStatsUpdate = {
+  agentAddress: Address;
+  won: boolean;
+  finalBalance: bigint;
+  propertiesBought?: number;
+  tradesProposed?: number;
+  tradesAccepted?: number;
+  housesBuilt?: number;
+  hotelsBuilt?: number;
+  wentBankrupt?: boolean;
+};
+
+/**
+ * Update AI agent stats on the registry. Only works if connected wallet is the registry's statsUpdater.
+ * Call after endAIGame succeeds. Alternatively have your backend (with updater key) call the registry.
+ */
+export function useUpdateAIAgentStats() {
+  const chainId = useChainId();
+  const registryAddress = AI_AGENT_REGISTRY_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const updateOne = useCallback(async (update: AIAgentStatsUpdate) => {
+    if (!registryAddress) throw new Error('AI registry not configured');
+    await writeContractAsync({
+      address: registryAddress,
+      abi: RegistryABI as never,
+      functionName: 'updateAgentStats',
+      args: [
+        update.agentAddress,
+        update.won,
+        update.finalBalance,
+        BigInt(update.propertiesBought ?? 0),
+        BigInt(update.tradesProposed ?? 0),
+        BigInt(update.tradesAccepted ?? 0),
+        BigInt(update.housesBuilt ?? 0),
+        BigInt(update.hotelsBuilt ?? 0),
+        update.wentBankrupt ?? false,
+      ],
+    });
+  }, [writeContractAsync, registryAddress]);
+
+  const updateAll = useCallback(async (updates: AIAgentStatsUpdate[]) => {
+    for (const u of updates) await updateOne(u);
+  }, [updateOne]);
+
+  return { updateOne, updateAll, isPending: isPending || isConfirming, isSuccess, error: writeError, txHash, reset };
+}
+
+/** One registered AI agent from the on-chain registry */
+export type RegisteredAIAgent = {
+  tokenId: number;
+  name: string;
+  playStyle: string;
+  difficultyLevel: number;
+  agentAddress: Address;
+};
+
+/**
+ * Fetch all registered AI agents from the registry (for game settings / agent picker).
+ */
+export function useRegisteredAIAgents() {
+  const chainId = useChainId();
+  const registryAddress = AI_AGENT_REGISTRY_ADDRESSES[chainId];
+
+  const { data: tokenIds, isLoading: isLoadingIds } = useReadContract({
+    address: registryAddress as Address,
+    abi: RegistryABI as never,
+    functionName: 'getAllAgents',
+    query: { enabled: !!registryAddress },
+  });
+
+  const ids = useMemo(() => {
+    if (!tokenIds || !Array.isArray(tokenIds)) return [];
+    return (tokenIds as bigint[]).map((id) => Number(id));
+  }, [tokenIds]);
+
+  const contracts = useMemo(
+    () =>
+      ids.map((id) => ({
+        address: registryAddress as Address,
+        abi: RegistryABI as never,
+        functionName: 'getAgent' as const,
+        args: [id] as [number],
+      })),
+    [registryAddress, ids]
+  );
+
+  const { data: agentsResults, isLoading: isLoadingAgents } = useReadContracts({
+    contracts,
+    query: { enabled: !!registryAddress && ids.length > 0 },
+  });
+
+  const agents = useMemo((): RegisteredAIAgent[] => {
+    if (!agentsResults || agentsResults.length !== ids.length) return [];
+    return ids.map((id, i) => {
+      const r = agentsResults[i] as { result?: unknown } | undefined;
+      if (!r?.result || !Array.isArray(r.result)) return null;
+      const [name, playStyle, difficultyLevel, agentAddress] = r.result as [string, string, number, Address, unknown, unknown];
+      return { tokenId: id, name, playStyle, difficultyLevel, agentAddress };
+    }).filter((a): a is RegisteredAIAgent => a != null);
+  }, [agentsResults, ids]);
+
+  return {
+    agents,
+    isLoading: isLoadingIds || isLoadingAgents,
+    isSupported: !!registryAddress,
+  };
 }
 
 export function useExitGame(gameId: bigint) {
