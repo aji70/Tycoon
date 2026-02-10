@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAIGameAndClaim, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
@@ -19,6 +19,7 @@ import {
   BASE_WIDTH_REFERENCE,
   TOKEN_POSITIONS,
   MONOPOLY_STATS,
+  BUILD_PRIORITY,
   getDiceValues,
 } from "./constants";
 
@@ -33,7 +34,7 @@ import MyBalanceBar from "./MyBalanceBar";
 import BuyPromptModal from "./BuyPromptModal";
 import PropertyDetailModal from "./PropertyDetailModal";
 import PerksModal from "./PerksModal";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Bell } from "lucide-react";
 import { ApiResponse } from "@/types/api";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 
@@ -170,7 +171,7 @@ const endTime =
   const currentPlayerId = currentGame.next_player_id;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
   const isMyTurn = me?.user_id === currentPlayerId;
-  const isAITurn = isAIPlayer(currentPlayer);
+  const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
