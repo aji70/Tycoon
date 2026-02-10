@@ -97,24 +97,6 @@ const calculateBuyScore = (
   return Math.max(0, Math.min(95, score));
 };
 
-const BOARD_SQUARES = 40;
-const ROLL_ANIMATION_MS = 1200;
-const MOVE_ANIMATION_MS_PER_SQUARE = 250;
-
-const getDiceValues = (): { die1: number; die2: number; total: number } | null => {
-  const die1 = Math.floor(Math.random() * 6) + 1;
-  const die2 = Math.floor(Math.random() * 6) + 1;
-  const total = die1 + die2;
-  return total === 12 ? null : { die1, die2, total };
-};
-
-const JAIL_POSITION = 10;
-
-const isAIPlayer = (player: Player | undefined): boolean =>
-  player?.username?.toLowerCase().includes("ai_") ||
-  player?.username?.toLowerCase().includes("bot") ||
-  false;
-
 const AiBoard = ({
   game,
   properties,
@@ -159,7 +141,7 @@ const AiBoard = ({
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
 
   const isMyTurn = me?.user_id === currentPlayerId;
-  const isAITurn = isAIPlayer(currentPlayer);
+  const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
