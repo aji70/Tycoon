@@ -1,449 +1,49 @@
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React from "react";
 import { PiTelegramLogoLight } from "react-icons/pi";
 import { FaXTwitter, FaCoins } from "react-icons/fa6";
 import { SiFarcaster } from "react-icons/si";
 import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
 import { House } from "lucide-react";
-import { useAccount, useChainId, useReadContract } from "wagmi";
-import {
-  useGetUsername,
-  useJoinGame,
-  useGetGameByCode,
-  useApprove,
-} from "@/context/ContractProvider";
-import { apiClient } from "@/lib/api";
-import { Game } from "@/lib/types/games";
-import { getPlayerSymbolData, PlayerSymbol, symbols } from "@/lib/types/symbol";
-import { ApiResponse } from "@/types/api";
-import Erc20Abi from '@/context/abi/ERC20abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
-import { Address } from "viem";
-import { toast } from "react-toastify";
-
-const POLL_INTERVAL = 5000; // ms
-const COPY_FEEDBACK_MS = 2000;
-const USDC_DECIMALS = 6;
+import { useWaitingRoom, USDC_DECIMALS } from "./useWaitingRoom";
+import { getPlayerSymbolData, symbols } from "@/lib/types/symbol";
 
 export default function GameWaitingMobile(): JSX.Element {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const rawGameCode = searchParams.get("gameCode") ?? "";
-  const gameCode = rawGameCode.trim().toUpperCase();
-
-  const { address } = useAccount();
-  const chainId = useChainId();
-
-  // Local UI state
-  const [game, setGame] = useState<Game | null>(null);
-  const [playerSymbol, setPlayerSymbol] = useState<PlayerSymbol | null>(null);
-  const [availableSymbols, setAvailableSymbols] =
-    useState<PlayerSymbol[]>(symbols);
-  const [isJoined, setIsJoined] = useState<boolean>(false);
-  const [copySuccess, setCopySuccess] = useState<string | null>(null);
-  const [copySuccessFarcaster, setCopySuccessFarcaster] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [actionLoading, setActionLoading] = useState<boolean>(false);
-
-  // Contract hooks
   const {
-    data: contractGame,
-    isLoading: contractGameLoading,
-    error: contractGameError,
-  } = useGetGameByCode(gameCode, { enabled: !!gameCode });
-
-  const contractId = contractGame?.id ?? null;
-  const { data: username } = useGetUsername(address);
-
-  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
-
-  const { data: usdcAllowance, refetch: refetchAllowance } = useReadContract({
-    address: usdcTokenAddress,
-    abi: Erc20Abi,
-    functionName: 'allowance',
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
-  });
-
-  const {
-    approve: approveUSDC,
-    isPending: approvePending,
-    isConfirming: approveConfirming,
-  } = useApprove();
-
-  const stakePerPlayer = contractGame?.stakePerPlayer ? BigInt(contractGame.stakePerPlayer) : BigInt(0);
-
-  const {
-    write: joinGame,
-    isPending: isJoining,
-    error: joinError,
-  } = useJoinGame(
-    contractId ? BigInt(contractId) : BigInt(0),
-    username ?? "",
-    playerSymbol?.value ?? "",
+    router,
     gameCode,
-    stakePerPlayer
-  );
-
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  // Safe origin for SSR
-  const origin = useMemo(() => {
-    try {
-      if (typeof window === "undefined") return "";
-      return window.location?.origin ?? "";
-    } catch {
-      return "";
-    }
-  }, []);
-
-  const gameUrl = useMemo(
-    () => `${origin}/game-waiting?gameCode=${encodeURIComponent(gameCode)}`,
-    [origin, gameCode]
-  );
-
-  const farcasterMiniappUrl = useMemo(
-    () =>
-      `https://farcaster.xyz/miniapps/bylqDd2BdAR5/tycoon/game-waiting?gameCode=${encodeURIComponent(gameCode)}`,
-    [gameCode]
-  );
-
-  const shareText = useMemo(
-    () =>
-      `Join my Tycoon game! Code: ${gameCode}. Waiting room: ${gameUrl}`,
-    [gameCode, gameUrl]
-  );
-
-  const farcasterShareText = useMemo(
-    () => `Join my Tycoon game! Code: ${gameCode}.`,
-    [gameCode]
-  );
-
-  const telegramShareUrl = useMemo(
-    () =>
-      `https://t.me/share/url?url=${encodeURIComponent(
-        gameUrl
-      )}&text=${encodeURIComponent(shareText)}`,
-    [gameUrl, shareText]
-  );
-
-  const twitterShareUrl = useMemo(
-    () => `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}`,
-    [shareText]
-  );
-
-  const farcasterShareUrl = useMemo(
-    () =>
-      `https://warpcast.com/~/compose?text=${encodeURIComponent(farcasterShareText)}&embeds[]=${encodeURIComponent(farcasterMiniappUrl)}`,
-    [farcasterShareText, farcasterMiniappUrl]
-  );
-
-  // Helpers
-  const computeAvailableSymbols = useCallback((g: Game | null) => {
-    if (!g) return symbols;
-    const taken = new Set(g.players.map((p) => p.symbol));
-    return symbols.filter((s) => !taken.has(s.value));
-  }, []);
-
-  const checkPlayerJoined = useCallback(
-    (g: Game | null) => {
-      if (!g || !address) return false;
-      return g.players.some(
-        (p) => p.address.toLowerCase() === address.toLowerCase()
-      );
-    },
-    [address]
-  );
-
-  // Determine if current user is the creator
-  const isCreator = useMemo(() => {
-    if (!game || !address) return false;
-    return address.toLowerCase() === String(contractGame?.creator).toLowerCase();
-  }, [game, address, contractGame]);
-
-  // Show share section if there are open slots OR if user is the creator
-  const showShare = useMemo(() => {
-    if (!game) return false;
-    return game.players.length < game.number_of_players || isCreator;
-  }, [game, isCreator]);
-
-  // Copy handlers with fallback
-  const handleCopyLink = useCallback(async () => {
-    if (!gameUrl) {
-      setError("No shareable URL available.");
-      return;
-    }
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(gameUrl);
-      } else {
-        // fallback
-        const el = document.createElement("textarea");
-        el.value = gameUrl;
-        el.setAttribute("readonly", "");
-        el.style.position = "absolute";
-        el.style.left = "-9999px";
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand("copy");
-        document.body.removeChild(el);
-      }
-      setCopySuccess("Copied!");
-      setTimeout(() => setCopySuccess(null), COPY_FEEDBACK_MS);
-    } catch (err) {
-      console.error("copy failed", err);
-      setError("Failed to copy link. Try manually selecting the text.");
-    }
-  }, [gameUrl]);
-
-  const handleCopyFarcasterLink = useCallback(async () => {
-    if (!farcasterMiniappUrl) {
-      setError("No shareable Farcaster URL available.");
-      return;
-    }
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(farcasterMiniappUrl);
-      } else {
-        // fallback
-        const el = document.createElement("textarea");
-        el.value = farcasterMiniappUrl;
-        el.setAttribute("readonly", "");
-        el.style.position = "absolute";
-        el.style.left = "-9999px";
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand("copy");
-        document.body.removeChild(el);
-      }
-      setCopySuccessFarcaster("Farcaster link copied!");
-      setTimeout(() => setCopySuccessFarcaster(null), COPY_FEEDBACK_MS);
-    } catch (err) {
-      console.error("copy farcaster failed", err);
-      setError("Failed to copy Farcaster link. Try manually selecting the text.");
-    }
-  }, [farcasterMiniappUrl]);
-
-  // Polling effect
-  useEffect(() => {
-    if (!gameCode) {
-      setError("No game code provided. Please enter a valid game code.");
-      setLoading(false);
-      return;
-    }
-
-    let abort = new AbortController();
-    let pollTimer: number | null = null;
-
-    const fetchOnce = async () => {
-      setError(null);
-      try {
-        const res = await apiClient.get<ApiResponse>(
-          `/games/code/${encodeURIComponent(gameCode)}`
-        );
-
-        if (!mountedRef.current) return;
-
-        if (!res?.data?.success || !res?.data?.data) {
-          throw new Error(`Game ${gameCode} not found`);
-        }
-
-        const gameData = res.data.data;
-
-        if (gameData.status === "RUNNING") {
-          router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
-          return;
-        }
-
-        if (gameData.status !== "PENDING") {
-          throw new Error(`Game ${gameCode} is not open for joining.`);
-        }
-
-        setGame(gameData);
-        setAvailableSymbols(computeAvailableSymbols(gameData));
-        setIsJoined(checkPlayerJoined(gameData));
-
-        if (gameData.players.length === gameData.number_of_players) {
-          const updateRes = await apiClient.put<ApiResponse>(
-            `/games/${gameData.id}`,
-            { status: "RUNNING" }
-          );
-          if (updateRes?.data?.success)
-            router.push(`/game-play?gameCode=${gameCode}`);
-        }
-      } catch (err: any) {
-        if (!mountedRef.current) return;
-        if (err?.name === "AbortError") return;
-        console.error("fetchGame error:", err);
-        setError(err?.message ?? "Failed to fetch game data. Please try again.");
-      } finally {
-        if (mountedRef.current) setLoading(false);
-      }
-    };
-
-    const startPolling = async () => {
-      await fetchOnce();
-      const tick = async () => {
-        if (typeof document !== "undefined" && document.hidden) {
-          pollTimer = window.setTimeout(tick, POLL_INTERVAL);
-          return;
-        }
-        await fetchOnce();
-        pollTimer = window.setTimeout(tick, POLL_INTERVAL);
-      };
-      pollTimer = window.setTimeout(tick, POLL_INTERVAL);
-    };
-
-    startPolling();
-
-    return () => {
-      abort.abort();
-      if (pollTimer) clearTimeout(pollTimer);
-    };
-  }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
-
-  const playersJoined =
-    contractGame?.joinedPlayers ? Number(contractGame.joinedPlayers) : (game?.players.length ?? 0);
-  const maxPlayers =
-    contractGame?.numberOfPlayers ? Number(contractGame.numberOfPlayers) : (game?.number_of_players ?? 0);
-
-  const handleJoinGame = useCallback(async () => {
-    if (!game) {
-      setError("No game data found. Please enter a valid game code.");
-      return;
-    }
-
-    if (
-      !playerSymbol?.value ||
-      !availableSymbols.some((s) => s.value === playerSymbol.value)
-    ) {
-      setError("Please select a valid symbol.");
-      return;
-    }
-
-    if (game.players.length >= game.number_of_players) {
-      setError("Game is full!");
-      return;
-    }
-
-    if (!contractAddress) {
-      setError("Contract not deployed on this network.");
-      return;
-    }
-
-    if (!usdcTokenAddress && stakePerPlayer > 0) {
-      setError("USDC not available on this network.");
-      return;
-    }
-
-    setActionLoading(true);
-    setError(null);
-
-    const toastId = toast.loading("Joining the game...");
-
-    try {
-      // Only need approval if stake > 0
-      if (stakePerPlayer > 0) {
-        toast.update(toastId, { render: "Checking USDC approval..." });
-        await refetchAllowance();
-        const currentAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
-
-        if (currentAllowance < stakePerPlayer) {
-          toast.update(toastId, { render: "Approving USDC spend..." });
-          await approveUSDC(usdcTokenAddress!, contractAddress, stakePerPlayer);
-          await new Promise(r => setTimeout(r, 3000));
-        }
-      }
-
-      toast.update(toastId, { render: "Joining game on-chain..." });
-      await joinGame();
-
-      toast.update(toastId, { render: "Saving join to server..." });
-      const res = await apiClient.post<ApiResponse>("/game-players/join", {
-        address,
-        symbol: playerSymbol.value,
-        code: game.code,
-      });
-
-      if (res?.data?.success === false) {
-        throw new Error(res?.data?.message ?? "Failed to join game");
-      }
-
-      if (mountedRef.current) {
-        setIsJoined(true);
-        setError(null);
-      }
-
-      toast.update(toastId, {
-        render: "Successfully joined the game!",
-        type: "success",
-        isLoading: false,
-        autoClose: 5000,
-      });
-    } catch (err: any) {
-      console.error("join error", err);
-      let message = "Failed to join game. Please try again.";
-      if (err.message?.includes("user rejected") || err.code === 4001) {
-        message = "Transaction cancelled.";
-      } else if (err.message?.includes("insufficient")) {
-        message = "Insufficient balance or gas.";
-      } else if (err.message) {
-        message = err.message;
-      }
-      setError(message);
-      toast.update(toastId, {
-        render: message,
-        type: "error",
-        isLoading: false,
-        autoClose: 8000,
-      });
-    } finally {
-      if (mountedRef.current) setActionLoading(false);
-    }
-  }, [game, playerSymbol, availableSymbols, address, joinGame, stakePerPlayer, contractAddress, usdcTokenAddress, refetchAllowance, usdcAllowance, approveUSDC]);
-
-  const handleLeaveGame = useCallback(async () => {
-    if (!game)
-      return setError("No game data found. Please enter a valid game code.");
-    setActionLoading(true);
-    setError(null);
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-players/leave", {
-        address,
-        code: game.code,
-      });
-      if (res?.data?.success === false)
-        throw new Error(res?.data?.message ?? "Failed to leave game");
-      if (mountedRef.current) {
-        setIsJoined(false);
-        setPlayerSymbol(null);
-      }
-    } catch (err: any) {
-      console.error("leave error", err);
-      if (mountedRef.current)
-        setError(err?.message ?? "Failed to leave game. Please try again.");
-    } finally {
-      if (mountedRef.current) setActionLoading(false);
-    }
-  }, [game, address]);
-
-  const handleGoHome = useCallback(() => router.push("/"), [router]);
+    game,
+    playerSymbol,
+    setPlayerSymbol,
+    availableSymbols,
+    isJoined,
+    copySuccess,
+    copySuccessFarcaster,
+    error,
+    loading,
+    actionLoading,
+    contractGameLoading,
+    contractGameError,
+    stakePerPlayer,
+    approvePending,
+    approveConfirming,
+    isJoining,
+    joinError,
+    gameUrl,
+    farcasterMiniappUrl,
+    telegramShareUrl,
+    twitterShareUrl,
+    farcasterShareUrl,
+    showShare,
+    handleCopyLink,
+    handleCopyFarcasterLink,
+    playersJoined,
+    maxPlayers,
+    handleJoinGame,
+    handleLeaveGame,
+    handleGoHome,
+  } = useWaitingRoom();
 
   // Loading / Error guards
   if (loading || contractGameLoading) {
