@@ -84,8 +84,8 @@ const Board: React.FC<BoardProps> = ({
   
     >
       <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[1px] box-border scale-90 sm:scale-100">
-        {/* Center Area */}
-        <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden rounded-lg"
+        {/* Center Area - z-20 so timers + roll dice show above surrounding squares */}
+        <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-3 relative overflow-hidden rounded-lg z-20"
           style={{
     backgroundImage: `url(/bb.jpg)`,
     backgroundSize: 'cover',

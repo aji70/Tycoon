@@ -951,7 +951,7 @@ const MobileGameLayout = ({
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
             centerContent={
-              <div className="flex flex-col items-center justify-center gap-2 text-center z-10">
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 rounded-xl bg-black/70 backdrop-blur-sm">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}

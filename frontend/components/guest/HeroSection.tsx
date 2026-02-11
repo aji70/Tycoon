@@ -64,20 +64,21 @@ const HeroSection: React.FC = () => {
 
     const fetchUser = async () => {
       try {
-        const res = await apiClient.get<ApiResponse>(
+        const res = await apiClient.get<UserType>(
           `/users/by-address/${address}?chain=Base`
         );
 
         if (!isActive) return;
 
         if (res.success && res.data) {
-          setUser(res.data as UserType);
+          setUser(res.data);
         } else {
           setUser(null);
         }
       } catch (error: any) {
         if (!isActive) return;
-        if (error?.response?.status === 404) {
+        // ApiError has status directly, not error.response.status
+        if (error?.status === 404 || error?.status === 0) {
           setUser(null);
         } else {
           console.error("Error fetching user:", error);
@@ -97,12 +98,14 @@ const HeroSection: React.FC = () => {
     if (!address) return "disconnected";
 
     const hasBackend = !!user;
-    const hasOnChain = !!isUserRegistered || localRegistered;
+    // Only check on-chain if loading is complete, otherwise assume false
+    const hasOnChain = isRegisteredLoading ? false : (!!isUserRegistered || localRegistered);
 
-    if (hasBackend && hasOnChain) return "fully-registered";
+    // If registered on-chain, treat as fully-registered (backend user is optional)
+    if (hasOnChain) return "fully-registered";
     if (hasBackend && !hasOnChain) return "backend-only";
     return "none";
-  }, [address, user, isUserRegistered, localRegistered]);
+  }, [address, user, isUserRegistered, localRegistered, isRegisteredLoading]);
 
   // Best available username to display
   const displayUsername = useMemo(() => {
@@ -239,7 +242,8 @@ const handleContinuePrevious = () => {
 
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
         {/* Welcome Message */}
-        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") && !loading && (
+        
+          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
               Welcome back, {displayUsername}!
@@ -315,8 +319,8 @@ const handleContinuePrevious = () => {
         </div>
 
         <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
-          {/* Show input ONLY for completely new users */}
-          {address && registrationStatus === "none" && !loading && (
+          {/* Show input ONLY for completely new users (not loading, not registered) */}
+          {address && registrationStatus === "none" && !loading && !isRegisteredLoading && (
             <>
               <input
                 type="text"
@@ -328,8 +332,8 @@ const handleContinuePrevious = () => {
             </>
           )}
 
-          {/* "Let's Go!" button for backend-only or none */}
-          {address && registrationStatus !== "fully-registered" && !loading && (
+          {/* "Let's Go!" button for backend-only or none (not loading) */}
+          {address && registrationStatus !== "fully-registered" && !loading && !isRegisteredLoading && (
             <button
               onClick={handleRegister}
               disabled={
