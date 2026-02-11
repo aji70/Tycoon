@@ -23,6 +23,9 @@ type CenterAreaProps = {
   timerSlot?: React.ReactNode;
   /** Seconds left to roll (90s turn timer); null when not applicable */
   turnTimeLeft?: number | null;
+  /** Players with 3+ consecutive timeouts that opponents can remove (multiplayer) */
+  removablePlayers?: Player[];
+  onRemoveInactive?: (targetUserId: number) => void;
 };
 
 export default function CenterArea({
@@ -42,6 +45,8 @@ export default function CenterArea({
   isPending,
   timerSlot,
   turnTimeLeft,
+  removablePlayers,
+  onRemoveInactive,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -69,6 +74,21 @@ export default function CenterArea({
       {isMyTurn && turnTimeLeft != null && turnTimeLeft > 0 && (
         <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
           Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
+        </div>
+      )}
+
+      {/* Remove inactive player (3 consecutive 90s timeouts) - multiplayer only */}
+      {removablePlayers && removablePlayers.length > 0 && onRemoveInactive && (
+        <div className="flex flex-wrap justify-center gap-2 mb-3 z-10">
+          {removablePlayers.map((p) => (
+            <button
+              key={p.user_id}
+              onClick={() => onRemoveInactive(p.user_id)}
+              className="text-sm font-medium rounded-lg px-3 py-1.5 bg-amber-900/80 text-amber-200 border border-amber-500/50 hover:bg-amber-800/80"
+            >
+              Remove {p.username} (3 timeouts)
+            </button>
+          ))}
         </div>
       )}
 

@@ -19,13 +19,15 @@ const Board = ({
   properties,
   game_properties,
   me,
+  onGameUpdated,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  onGameUpdated?: () => void;
 }) => {
-  const logic = useGameBoardLogic({ game, properties, game_properties, me });
+  const logic = useGameBoardLogic({ game, properties, game_properties, me, onGameUpdated });
 
   const {
     roll,
@@ -48,6 +50,7 @@ const Board = ({
     playerCanRoll,
     currentProperty,
     justLandedProperty,
+    players,
     playersByPosition,
     propertyOwner,
     developmentStage,
@@ -66,6 +69,7 @@ const Board = ({
     triggerLandingLogic,
     endTurnAfterSpecialMove,
     turnTimeLeft,
+    removeInactive,
   } = logic;
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
@@ -100,6 +104,8 @@ const Board = ({
               isPending={false}
               timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
               turnTimeLeft={turnTimeLeft}
+              removablePlayers={players.filter((p: Player) => p.user_id !== me?.user_id && (p.consecutive_timeouts ?? 0) >= 3)}
+              onRemoveInactive={removeInactive}
             />
 
             {properties.map((square) => {

@@ -86,6 +86,7 @@ const GamePlayer = {
         "gp.rolls",
         "gp.circle",
         "gp.turn_start",
+        "gp.consecutive_timeouts",
         "gp.created_at as joined_date",
         "u.username"
       )

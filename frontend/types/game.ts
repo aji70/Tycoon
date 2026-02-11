@@ -77,6 +77,8 @@ export interface Player {
   in_jail_rolls: number;
   /** Unix timestamp (seconds) when current turn started; used for 90s roll timer */
   turn_start?: string | null;
+  /** Consecutive 90s turn timeouts; after 3, opponents can remove this player (multiplayer) */
+  consecutive_timeouts?: number;
 }
 
 export interface GamePlayExtra {

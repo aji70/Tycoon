@@ -277,7 +277,7 @@ const MobileGameLayout = ({
     }
   }, [isMyTurn, defaultScale]);
 
-  const END_TURN = useCallback(async () => {
+  const END_TURN = useCallback(async (timedOut?: boolean) => {
     if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
     turnEndInProgress.current = true;
 
@@ -285,8 +285,9 @@ const MobileGameLayout = ({
       await apiClient.post("/game-players/end-turn", {
         user_id: currentPlayerId,
         game_id: currentGame.id,
+        ...(timedOut === true && { timed_out: true }),
       });
-      showToast("Turn ended", "success");
+      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
       await fetchUpdatedGame();
     } catch {
       showToast("Failed to end turn", "error");
@@ -313,8 +314,7 @@ const MobileGameLayout = ({
       const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
       setTurnTimeLeft(remaining);
       if (remaining <= 0) {
-        showToast("Time's up! Turn ended.", "default");
-        END_TURN();
+        END_TURN(true);
       }
     };
     tick();
@@ -336,6 +336,30 @@ const MobileGameLayout = ({
     setIsSpecialMove(false);
     setTimeout(END_TURN, 800);
   }, [END_TURN]);
+
+  const removeInactive = useCallback(
+    async (targetUserId: number) => {
+      if (!me?.user_id || !currentGame?.id) return;
+      try {
+        await apiClient.post("/game-players/remove-inactive", {
+          game_id: currentGame.id,
+          user_id: me.user_id,
+          target_user_id: targetUserId,
+        });
+        await fetchUpdatedGame();
+        showToast("Player removed due to inactivity.", "default");
+      } catch (err: unknown) {
+        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to remove player";
+        showToast(msg, "error");
+      }
+    },
+    [currentGame?.id, me?.user_id, fetchUpdatedGame, showToast]
+  );
+
+  const removablePlayers = useMemo(
+    () => players.filter((p) => p.user_id !== me?.user_id && (p.consecutive_timeouts ?? 0) >= 3),
+    [players, me?.user_id]
+  );
 
   const BUY_PROPERTY = useCallback(async () => {
     if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
@@ -938,6 +962,20 @@ const MobileGameLayout = ({
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
         roll={roll}
       />
+
+      {removablePlayers.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2 px-2 py-1.5 bg-amber-900/30 border-b border-amber-500/30">
+          {removablePlayers.map((p) => (
+            <button
+              key={p.user_id}
+              onClick={() => removeInactive(p.user_id)}
+              className="text-sm font-medium rounded-lg px-3 py-1.5 bg-amber-900/80 text-amber-200 border border-amber-500/50"
+            >
+              Remove {p.username} (3 timeouts)
+            </button>
+          ))}
+        </div>
+      )}
 
       <RollDiceSection
         isMyTurn={isMyTurn}
