@@ -71,8 +71,6 @@ const MobileGameLayout = ({
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
   const [isSpecialMove, setIsSpecialMove] = useState(false);
-  const [gameTimeLeft, setGameTimeLeft] = useState(0);
-  const [turnTimeLeft, setTurnTimeLeft] = useState(60);
 
   const [winner, setWinner] = useState<Player | null>(null);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
@@ -92,6 +90,7 @@ const MobileGameLayout = ({
   const [cardPlayerName, setCardPlayerName] = useState("");
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
@@ -264,6 +263,7 @@ const endTime =
     setHasMovementFinished(false);
     setStrategyRanThisTurn(false);
     setIsRaisingFunds(false);
+    setTurnTimeLeft(null);
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -307,6 +307,32 @@ const endTime =
       turnEndInProgress.current = false;
     }
   }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
+
+  const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0);
+  useEffect(() => {
+    if (!isMyTurn || !playerCanRoll || !currentPlayer?.turn_start || isRolling || roll) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    const turnStartSec = parseInt(currentPlayer.turn_start, 10);
+    if (Number.isNaN(turnStartSec)) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    const TURN_ROLL_SECONDS = 90;
+    const tick = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
+      setTurnTimeLeft(remaining);
+      if (remaining <= 0) {
+        showToast("Time's up! Turn ended.", "default");
+        END_TURN();
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, isRolling, roll, showToast, END_TURN]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -747,6 +773,7 @@ const endTime =
         showInsolvencyModal={showInsolvencyModal}
         me={me}
         roll={roll}
+        turnTimeLeft={turnTimeLeft}
         onRollDice={() => ROLL_DICE(false)}
         onDeclareBankruptcy={declareBankruptcy}
       />

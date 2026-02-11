@@ -54,6 +54,7 @@ export function useGameBoardLogic({
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
@@ -119,7 +120,37 @@ export function useGameBoardLogic({
     lastToastMessage.current = null;
     setAnimatedPositions({});
     setHasMovementFinished(false);
+    setTurnTimeLeft(null);
   }, [currentPlayerId]);
+
+  // 90s roll timer: when it's my turn and I can roll, count down from turn_start; auto end turn at 0
+  useEffect(() => {
+    if (!isMyTurn || !playerCanRoll || !currentPlayer?.turn_start) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    const turnStartSec = parseInt(currentPlayer.turn_start, 10);
+    if (Number.isNaN(turnStartSec)) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    const TURN_ROLL_SECONDS = 90;
+
+    const tick = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const elapsed = nowSec - turnStartSec;
+      const remaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
+      setTurnTimeLeft(remaining);
+      if (remaining <= 0) {
+        showToast("Time's up! Turn ended.", "default");
+        END_TURN();
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, END_TURN, showToast]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -596,5 +627,6 @@ export function useGameBoardLogic({
     transferOwnership,
     isCreatePending,
     exitHook,
+    turnTimeLeft,
   };
 }

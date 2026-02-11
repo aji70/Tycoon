@@ -25,6 +25,7 @@ type CenterAreaProps = {
   onDeclareBankruptcy: () => void;
   isPending: boolean;
   timerSlot?: React.ReactNode;
+  turnTimeLeft?: number | null;
 };
 
 export default function CenterArea({
@@ -45,6 +46,7 @@ export default function CenterArea({
   onDeclareBankruptcy,
   isPending,
   timerSlot,
+  turnTimeLeft,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -67,6 +69,13 @@ export default function CenterArea({
 
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
+
+      {/* 90s roll countdown */}
+      {isMyTurn && turnTimeLeft != null && turnTimeLeft > 0 && (
+        <div className={`text-center mb-2 z-10 font-mono font-bold ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}>
+          Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
+        </div>
+      )}
 
       {/* Player's Turn: Roll or Bankruptcy */}
       {isMyTurn && !roll && !isRolling && (

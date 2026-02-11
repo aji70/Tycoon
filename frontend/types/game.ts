@@ -75,6 +75,8 @@ export interface Player {
   circle: number;
   in_jail: boolean;
   in_jail_rolls: number;
+  /** Unix timestamp (seconds) when current turn started; used for 90s roll timer */
+  turn_start?: string | null;
 }
 
 export interface GamePlayExtra {
