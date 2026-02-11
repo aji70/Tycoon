@@ -158,7 +158,7 @@ export function useGameBoardLogic({
     }
     // Start countdown immediately: use server turn_start if present, otherwise "now" so timer doesn't wait for next poll
     const raw = currentPlayer?.turn_start;
-    const turnStartSec = raw ? parseInt(currentPlayer.turn_start, 10) : Math.floor(Date.now() / 1000);
+    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
     if (Number.isNaN(turnStartSec)) {
       setTurnTimeLeft(null);
       return;
