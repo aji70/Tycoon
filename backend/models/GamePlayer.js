@@ -85,6 +85,8 @@ const GamePlayer = {
         "gp.symbol",
         "gp.rolls",
         "gp.circle",
+        "gp.turn_start",
+        "gp.consecutive_timeouts",
         "gp.created_at as joined_date",
         "u.username"
       )
@@ -132,6 +134,13 @@ const GamePlayer = {
 
   async leave(game_id, user_id) {
     return db("game_players").where({ game_id, user_id }).del();
+  },
+
+  async setTurnStart(game_id, user_id) {
+    const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+    await db("game_players")
+      .where({ game_id, user_id })
+      .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
   },
 };
 
