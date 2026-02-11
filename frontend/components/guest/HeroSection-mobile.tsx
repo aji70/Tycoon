@@ -218,6 +218,13 @@ const handleContinuePrevious = () => {
 
       {/* Content Container */}
       <div className="w-full relative -z-0 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
+        {/* Railway downtime notice */}
+        <div className="w-full max-w-md mx-auto mt-4 px-4 py-3 rounded-xl bg-amber-500/20 border-2 border-amber-400 text-center">
+          <p className="font-orbitron font-bold text-amber-200 text-sm">
+            Railway is currently down. We will be back up as soon as possible. Thank you for your patience.
+          </p>
+        </div>
+
         {/* Title */}
         <h1 className="font-orbitron font-black text-6xl sm:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center mt-10">
           TYCOON
