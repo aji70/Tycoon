@@ -76,7 +76,7 @@ const Board = ({
     );
   }
 
-  const togglePerksModal = () => setShowPerksModal((prev) => !prev);
+  const togglePerksModal = () => setShowPerksModal((prev: boolean) => !prev);
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
