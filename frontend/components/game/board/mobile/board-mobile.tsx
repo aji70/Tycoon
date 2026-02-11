@@ -955,9 +955,9 @@ const MobileGameLayout = ({
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
-                {isMyTurn && turnTimeLeft != null && turnTimeLeft > 0 && (
-                  <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-                    Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
+                {isMyTurn && (
+                  <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
+                    Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
                   </div>
                 )}
                 {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (

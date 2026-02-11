@@ -29,11 +29,9 @@ export default function RollDiceSection({
 
   return (
     <>
-      {turnTimeLeft != null && turnTimeLeft > 0 && (
-        <div className={`text-center mb-2 font-mono font-bold ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}>
-          Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
-        </div>
-      )}
+      <div className={`text-center mb-2 font-mono font-bold ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}>
+        Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
+      </div>
       {me && me.balance >= 0 && !roll && (
         <div className="flex justify-center items-center w-full mb-8">
           <button

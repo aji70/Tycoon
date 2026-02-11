@@ -70,10 +70,10 @@ export default function CenterArea({
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
 
-      {/* 90s roll countdown when it's my turn and I must roll */}
-      {isMyTurn && turnTimeLeft != null && turnTimeLeft > 0 && (
-        <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-          Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
+      {/* 90s roll countdown — always show when it's my turn so users know they have 90 seconds */}
+      {isMyTurn && (
+        <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
+          Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
         </div>
       )}
 
