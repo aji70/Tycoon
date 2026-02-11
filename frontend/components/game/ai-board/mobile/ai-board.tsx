@@ -32,7 +32,6 @@ import MyBalanceBar from "./MyBalanceBar";
 import BuyPromptModal from "./BuyPromptModal";
 import PropertyDetailModal from "./PropertyDetailModal";
 import PerksModal from "./PerksModal";
-import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { Sparkles, Bell } from "lucide-react";
 import { ApiResponse } from "@/types/api";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
@@ -740,7 +739,6 @@ const endTime =
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
-          <GameDurationCountdown game={currentGame} compact />
         </div>
 
       {/* Board */}
@@ -759,10 +757,7 @@ const endTime =
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
             centerContent={
-              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 rounded-xl bg-black/70 backdrop-blur-sm z-30 relative">
-                {currentGame?.duration && Number(currentGame.duration) > 0 && (
-                  <GameDurationCountdown game={currentGame} compact />
-                )}
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative">
                 {isMyTurn && !roll && !isRolling && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
                     Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
