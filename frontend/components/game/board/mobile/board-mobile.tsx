@@ -408,7 +408,7 @@ const MobileGameLayout = ({
       return;
     }
 
-    const isInJail = player.in_jail === true && player.position === JAIL_POSITION;
+    const isInJail = Boolean(player.in_jail) && Number(player.position) === JAIL_POSITION;
 
     if (isInJail) {
       setIsRolling(true);
