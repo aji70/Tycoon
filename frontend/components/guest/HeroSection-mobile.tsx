@@ -62,19 +62,21 @@ const HeroSectionMobile: React.FC = () => {
 
     const fetchUser = async () => {
       try {
-        const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Base`);
+        const res = await apiClient.get<UserType>(`/users/by-address/${address}?chain=Base`);
 
         if (!isActive) return;
 
         if (res.success && res.data) {
-          setUser(res.data as UserType);
+          setUser(res.data);
         } else {
           setUser(null);
         }
       } catch (error: any) {
         if (!isActive) return;
-        if (error?.response?.status === 404) {
-          setUser(null);
+        // On any error (404, 500, etc.) clear backend user so we fall back to chain username (fetchedUsername)
+        setUser(null);
+        if (error?.status !== 404 && error?.status !== 0) {
+          console.error("Error fetching user:", error);
         }
       }
     };
@@ -90,12 +92,14 @@ const HeroSectionMobile: React.FC = () => {
     if (!address) return "disconnected";
 
     const hasBackend = !!user;
-    const hasOnChain = !!isUserRegistered || localRegistered;
+    // Only check on-chain if loading is complete, otherwise assume false
+    const hasOnChain = isRegisteredLoading ? false : (!!isUserRegistered || localRegistered);
 
-    if (hasBackend && hasOnChain) return "fully-registered";
+    // If registered on-chain, treat as fully-registered (backend user is optional)
+    if (hasOnChain) return "fully-registered";
     if (hasBackend && !hasOnChain) return "backend-only";
     return "none";
-  }, [address, user, isUserRegistered, localRegistered]);
+  }, [address, user, isUserRegistered, localRegistered, isRegisteredLoading]);
 
   const displayUsername = useMemo(() => {
     return (
@@ -265,8 +269,8 @@ const handleContinuePrevious = () => {
 
         {/* Main action area */}
         <div className="mt-10 w-full max-w-[380px] flex flex-col items-center gap-6">
-          {/* Username input - only for new users */}
-          {address && registrationStatus === "none" && !loading && (
+          {/* Username input - only for new users (not loading, not registered) */}
+          {address && registrationStatus === "none" && !loading && !isRegisteredLoading && (
             <input
               type="text"
               value={inputUsername}
@@ -276,8 +280,8 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Register button */}
-          {address && registrationStatus !== "fully-registered" && !loading && (
+          {/* Register button (not loading) */}
+          {address && registrationStatus !== "fully-registered" && !loading && !isRegisteredLoading && (
             <button
               onClick={handleRegister}
               disabled={loading || registerPending || (registrationStatus === "none" && !inputUsername.trim())}
