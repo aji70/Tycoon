@@ -24,6 +24,7 @@ type CenterAreaProps = {
   onSkipBuy: () => void;
   onDeclareBankruptcy: () => void;
   isPending: boolean;
+  timerSlot?: React.ReactNode;
 };
 
 export default function CenterArea({
@@ -43,6 +44,7 @@ export default function CenterArea({
   onSkipBuy,
   onDeclareBankruptcy,
   isPending,
+  timerSlot,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -62,6 +64,9 @@ export default function CenterArea({
       <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-6 z-10">
         Tycoon
       </h1>
+
+      {/* Game timer (countdown) in center */}
+      {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
 
       {/* Player's Turn: Roll or Bankruptcy */}
       {isMyTurn && !roll && !isRolling && (
