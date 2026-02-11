@@ -218,10 +218,10 @@ const handleContinuePrevious = () => {
 
       {/* Content Container */}
       <div className="w-full relative -z-0 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
-        {/* Railway downtime notice */}
-        <div className="w-full max-w-md mx-auto mt-4 px-4 py-3 rounded-xl bg-amber-500/20 border-2 border-amber-400 text-center">
-          <p className="font-orbitron font-bold text-amber-200 text-sm">
-            Railway is currently down. We will be back up as soon as possible. Thank you for your patience.
+        {/* Downtime notice */}
+        <div className="w-full max-w-md mx-auto mt-2 mb-8 px-4 text-center">
+          <p className="font-orbitron font-extrabold text-white text-sm drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
+            We're experiencing technical difficulties. We'll be back up as soon as possible. Thank you for your patience.
           </p>
         </div>
 
