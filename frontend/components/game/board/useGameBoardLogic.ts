@@ -142,7 +142,7 @@ export function useGameBoardLogic({
         game_id: game.id,
         ...(timedOut === true && { timed_out: true }),
       });
-      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
+      // Turn state visible on board — no toast
     } catch {
       showToast("Failed to end turn", "error");
     } finally {
@@ -223,7 +223,7 @@ export function useGameBoardLogic({
         const isOwned = game_properties.some((gp) => gp.property_id === newPosition);
         if (!isOwned && ["land", "railway", "utility"].includes(PROPERTY_ACTION(newPosition) || "")) {
           setBuyPrompted(true);
-          toast(`Landed on ${square.name}! ${isSpecial ? "(Special Move)" : ""}`, { icon: "✨" });
+          // Landed position visible on board — no toast
         }
       }
     }, 100);
@@ -346,7 +346,7 @@ export function useGameBoardLogic({
         setPendingRoll(0);
         landedPositionThisTurn.current = newPos;
         await fetchUpdatedGame();
-        showToast(`You rolled ${value.die1} + ${value.die2} = ${value.total}!`, "success");
+        // Roll visible on board — no toast
       } catch (err) {
         console.error("Move failed:", err);
         showToast("Move failed", "error");
@@ -392,7 +392,7 @@ export function useGameBoardLogic({
   }, []);
 
   const handleSkipBuy = useCallback(() => {
-    showToast("Skipped purchase");
+    // Skipped — no toast
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 900);
@@ -486,7 +486,7 @@ export function useGameBoardLogic({
         });
         await fetchUpdatedGame();
         onGameUpdated?.();
-        showToast("Player removed due to inactivity.", "default");
+        // Player removed — state visible
       } catch (err: unknown) {
         const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to remove player";
         showToast(msg, "error");

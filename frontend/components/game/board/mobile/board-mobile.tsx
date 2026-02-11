@@ -32,6 +32,7 @@ import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
 import BuyPromptModal from "../../ai-board/mobile/BuyPromptModal";
 import { Sparkles } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
+import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
@@ -953,6 +954,9 @@ const MobileGameLayout = ({
             onPropertyClick={handlePropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative">
+                {currentGame?.duration && Number(currentGame.duration) > 0 && (
+                  <GameDurationCountdown game={currentGame} compact />
+                )}
                 {isMyTurn && !roll && !isRolling && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
                     Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
