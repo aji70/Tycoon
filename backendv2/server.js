@@ -1,0 +1,135 @@
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
+import { Server } from "socket.io";
+import http, { createServer } from "node:http";
+
+// Import routes
+import usersRoutes from "./routes/users.js";
+import gamesRoutes from "./routes/games.js";
+import gameSettingsRoutes from "./routes/game-settings.js";
+import gamePlayersRoutes from "./routes/game-players.js";
+import gamePlayHistoryRoutes from "./routes/game-play-history.js";
+import gameTradesRoutes from "./routes/game-trades.js";
+import gamePropertiesRoutes from "./routes/game-properties.js";
+import chancesRoutes from "./routes/chances.js";
+import communityChestsRoutes from "./routes/community-chests.js";
+import propertiesRoutes from "./routes/properties.js";
+import gameTradeRequestRoutes from "./routes/game-trade-requests.js";
+import waitlistsRoutes from "./routes/waitlists.js";
+import chatsRoutes from "./routes/chats.js";
+import messagesRoutes from "./routes/messages.js";
+
+// Import perk controller (make sure this file exists!)
+import gamePerkController from "./controllers/gamePerkController.js";
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("join-game-room", (gameCode) => {
+    socket.join(gameCode);
+    console.log(`User ${socket.id} joined room: ${gameCode}`);
+  });
+
+  socket.on("leave-game-room", (gameCode) => {
+    socket.leave(gameCode);
+    console.log(`User ${socket.id} left room: ${gameCode}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 300,
+  message: "Too many requests from this IP, please try again later.",
+});
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(limiter);
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+  });
+});
+
+// API routes
+app.use("/api/users", usersRoutes);
+app.use("/api/games", gamesRoutes);
+app.use("/api/game-settings", gameSettingsRoutes);
+app.use("/api/game-players", gamePlayersRoutes);
+app.use("/api/game-play-history", gamePlayHistoryRoutes);
+app.use("/api/game-trades", gameTradesRoutes);
+app.use("/api/game-trade-requests", gameTradeRequestRoutes);
+app.use("/api/game-properties", gamePropertiesRoutes);
+app.use("/api/chances", chancesRoutes);
+app.use("/api/community-chests", communityChestsRoutes);
+app.use("/api/properties", propertiesRoutes);
+app.use("/api/waitlist", waitlistsRoutes);
+app.use("/api/chats", chatsRoutes);
+app.use("/api/messages", waitlistsRoutes);
+
+// 🔥 NEW: Perk Routes (this was missing!)
+app.post("/api/perks/activate", gamePerkController.activatePerk);
+app.post("/api/perks/teleport", gamePerkController.teleport);
+app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
+app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
+
+// 404 handler (must come after all routes)
+app.use("*", (req, res) => {
+  res.status(404).json({ success: false, error: "Endpoint not found" });
+});
+
+// Global error handler
+app.use((error, req, res, next) => {
+  console.error(error.stack);
+
+  if (error.type === "entity.parse.failed") {
+    return res.status(400).json({ success: false, error: "Invalid JSON" });
+  }
+
+  res.status(500).json({
+    success: false,
+    error:
+      process.env.NODE_ENV === "production"
+        ? "Internal server error"
+        : error.message,
+  });
+});
+
+// Start server
+server.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+});
+
+export { app, server, io };
