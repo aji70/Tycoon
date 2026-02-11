@@ -157,14 +157,8 @@ const MobileGameLayout = ({
   const onChainGameId = contractGame?.id;
   const { exit: endGame, isPending: endGamePending, reset: endGameReset } = useExitGame(onChainGameId ?? BigInt(0));
 
-  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    if (message === lastToastMessage.current) return;
-    lastToastMessage.current = message;
-    toast.dismiss();
-    if (type === "success") toast.success(message);
-    else if (type === "error") toast.error(message);
-    else toast(message, { icon: "➤" });
-  }, []);
+  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
+  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
 
   const isFetching = useRef(false);
 
@@ -286,7 +280,7 @@ const MobileGameLayout = ({
         game_id: currentGame.id,
         ...(timedOut === true && { timed_out: true }),
       });
-      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
+      // Turn state visible on board — no toast
       await fetchUpdatedGame();
     } catch {
       showToast("Failed to end turn", "error");
@@ -348,7 +342,7 @@ const MobileGameLayout = ({
           target_user_id: targetUserId,
         });
         await fetchUpdatedGame();
-        showToast("Player removed due to inactivity.", "default");
+        // Player removed — state visible
       } catch (err: unknown) {
         const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to remove player";
         showToast(msg, "error");
@@ -381,15 +375,13 @@ const MobileGameLayout = ({
     }
 
     try {
-      showToast("Sending transaction...", "default");
       await transferOwnership('', buyerUsername);
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: currentGame.id,
         property_id: justLandedProperty.id,
       });
-
-      showToast(`You bought ${justLandedProperty.name}!`, "success");
+      // Purchase visible on board — no toast
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
       await fetchUpdatedGame();
@@ -413,7 +405,7 @@ const MobileGameLayout = ({
 
     if (isInJail) {
       setIsRolling(true);
-      showToast(`${player.username} is in jail — attempting to roll out...`, "default");
+      // Jail roll — result visible
 
       const value = getDiceValues();
       if (!value || value.die1 !== value.die2) {
@@ -455,7 +447,7 @@ const MobileGameLayout = ({
           });
           landedPositionThisTurn.current = newPos;
           await fetchUpdatedGame();
-          showToast(`${player.username} rolled doubles and escaped jail!`, "success");
+          // Escaped jail — state visible
         } catch {
           showToast("Escape failed", "error");
         } finally {
@@ -474,7 +466,7 @@ const MobileGameLayout = ({
     setTimeout(async () => {
       const value = getDiceValues();
       if (!value) {
-        showToast("DOUBLES! Roll again!", "success");
+        // Doubles visible — no toast
         setIsRolling(false);
         unlockAction();
         return;
@@ -513,10 +505,7 @@ const MobileGameLayout = ({
         setPendingRoll(0);
         landedPositionThisTurn.current = newPos;
         await fetchUpdatedGame();
-        showToast(
-          `${player.username} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
-          "success"
-        );
+        // Roll visible on board — no toast
       } catch (err) {
         console.error("Move failed:", err);
         showToast("Move failed", "error");
@@ -1009,7 +998,6 @@ const MobileGameLayout = ({
         property={justLandedProperty ?? null}
         onBuy={BUY_PROPERTY}
         onSkip={() => {
-          showToast("Skipped purchase", "default");
           setBuyPrompted(false);
           landedPositionThisTurn.current = null;
           setTimeout(END_TURN, 800);

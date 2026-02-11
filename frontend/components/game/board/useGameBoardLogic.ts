@@ -85,14 +85,8 @@ export function useGameBoardLogic({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    if (message === lastToastMessage.current) return;
-    lastToastMessage.current = message;
-    toast.dismiss();
-    if (type === "success") toast.success(message);
-    else if (type === "error") toast.error(message);
-    else toast(message, { icon: "➤" });
-  }, []);
+  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
+  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
 
   useEffect(() => {
     if (game?.players) setPlayers(game.players);
@@ -296,7 +290,7 @@ export function useGameBoardLogic({
           });
           landedPositionThisTurn.current = newPos;
           await fetchUpdatedGame();
-          showToast("Rolled doubles and escaped jail!", "success");
+          // Escaped jail — state visible
         } catch {
           showToast("Escape failed", "error");
         } finally {
@@ -313,7 +307,7 @@ export function useGameBoardLogic({
     setTimeout(async () => {
       const value = getDiceValues();
       if (!value) {
-        showToast("DOUBLES! Roll again!", "success");
+        // Doubles visible — no toast
         setIsRolling(false);
         unlockAction();
         return;
@@ -396,7 +390,7 @@ export function useGameBoardLogic({
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 900);
-  }, [showToast, END_TURN]);
+  }, [END_TURN]);
 
   const handleBankruptcy = useCallback(async () => {
     if (!me || !game?.id || !game?.code) {
