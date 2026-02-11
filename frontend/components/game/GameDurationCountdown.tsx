@@ -66,12 +66,8 @@ export function GameDurationCountdown({ game, className = "", compact }: GameDur
     <div
       className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border ${
         isLow
-          ? compact
-            ? "border-red-500/60 bg-red-950/40 text-red-300"
-            : "border-red-500/60 bg-red-950/40 text-red-600"
-          : compact
-            ? "border-cyan-500/40 bg-cyan-950/30 text-cyan-200"
-            : "border-gray-400/40 bg-white/80 text-black"
+          ? "border-red-500/60 bg-red-950/40 text-red-300"
+          : "border-cyan-500/40 bg-cyan-950/30 text-cyan-200"
       } ${className}`}
       title={compact ? `Time left: ${value}` : undefined}
     >

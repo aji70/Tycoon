@@ -72,7 +72,7 @@ export default function CenterArea({
 
       {/* 90s roll countdown */}
       {isMyTurn && turnTimeLeft != null && turnTimeLeft > 0 && (
-        <div className={`text-center mb-2 z-10 font-mono font-bold ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}>
+        <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
           Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
         </div>
       )}
