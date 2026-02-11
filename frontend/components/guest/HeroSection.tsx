@@ -241,6 +241,13 @@ const handleContinuePrevious = () => {
       </div>
 
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
+        {/* Railway downtime notice */}
+        <div className="w-full max-w-2xl mx-4 mt-6 md:mt-8 px-4 py-3 rounded-xl bg-amber-500/20 border-2 border-amber-400 text-center shadow-lg">
+          <p className="font-orbitron font-bold text-amber-200 text-sm md:text-base">
+            Railway is currently down. We will be back up as soon as possible. Thank you for your patience.
+          </p>
+        </div>
+
         {/* Welcome Message */}
         
           {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") && !loading && (
