@@ -304,7 +304,7 @@ const MobileGameLayout = ({
     }
     // Start countdown immediately: use server turn_start if present, otherwise "now"
     const raw = currentPlayer?.turn_start;
-    const turnStartSec = raw ? parseInt(currentPlayer.turn_start, 10) : Math.floor(Date.now() / 1000);
+    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
     if (Number.isNaN(turnStartSec)) {
       setTurnTimeLeft(null);
       return;
@@ -953,7 +953,7 @@ const MobileGameLayout = ({
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
             centerContent={
-              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 rounded-xl bg-black/70 backdrop-blur-sm">
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 rounded-xl bg-black/70 backdrop-blur-sm z-30 relative">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
