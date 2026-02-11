@@ -65,6 +65,7 @@ const Board = ({
     END_TURN,
     triggerLandingLogic,
     endTurnAfterSpecialMove,
+    turnTimeLeft,
   } = logic;
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
@@ -97,7 +98,8 @@ const Board = ({
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={() => setShowBankruptcyModal(true)}
               isPending={false}
-              timerSlot={<GameDurationCountdown game={game} />}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
+              turnTimeLeft={turnTimeLeft}
             />
 
             {properties.map((square) => {

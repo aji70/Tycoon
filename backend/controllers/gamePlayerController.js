@@ -879,6 +879,12 @@ const gamePlayerController = {
         updated_at: new Date(),
       });
 
+      // 4b️⃣ Set turn_start for the next player (90s roll timer)
+      const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+      await trx("game_players")
+        .where({ game_id: game.id, user_id: next_player.user_id })
+        .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+
       // 5️⃣ Check if all players have rolled once (end of round)
       const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
 

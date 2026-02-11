@@ -137,6 +137,7 @@ const AiBoard = ({
   const lastToastMessage = useRef<string | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -277,7 +278,34 @@ const {
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
+  useEffect(() => {
+    if (!isMyTurn || !playerCanRoll || !currentPlayer?.turn_start || roll) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    const turnStartSec = parseInt(currentPlayer.turn_start, 10);
+    if (Number.isNaN(turnStartSec)) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    const TURN_ROLL_SECONDS = 90;
+    const tick = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
+      setTurnTimeLeft(remaining);
+      if (remaining <= 0) {
+        showToast("Time's up! Turn ended.", "default");
+        END_TURN();
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, roll, showToast, END_TURN]);
 
+  useEffect(() => {
+    setTurnTimeLeft(null);
+  }, [currentPlayerId]);
 
 // ── Then your BUY_PROPERTY becomes: ──
 const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
@@ -991,7 +1019,8 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
               isPending={false}
-              timerSlot={<GameDurationCountdown game={game} />}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
+              turnTimeLeft={turnTimeLeft}
             />
 
             {properties.map((square) => {

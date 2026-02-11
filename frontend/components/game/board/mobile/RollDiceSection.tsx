@@ -8,6 +8,8 @@ interface RollDiceSectionProps {
   isRaisingFunds: boolean;
   showInsolvencyModal: boolean;
   hasNegativeBalance: boolean;
+  /** Seconds left to roll (90s timer); null when not applicable */
+  turnTimeLeft?: number | null;
   onRollDice: () => void;
   onDeclareBankruptcy: () => void;
 }
@@ -18,6 +20,7 @@ export default function RollDiceSection({
   isRaisingFunds,
   showInsolvencyModal,
   hasNegativeBalance,
+  turnTimeLeft,
   onRollDice,
   onDeclareBankruptcy,
 }: RollDiceSectionProps) {
@@ -25,6 +28,11 @@ export default function RollDiceSection({
 
   return (
     <div className="w-full max-w-xs mx-auto mb-8 flex flex-col gap-4 items-center">
+      {turnTimeLeft != null && turnTimeLeft > 0 && (
+        <div className={`font-mono font-bold ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}>
+          Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
+        </div>
+      )}
       {hasNegativeBalance ? (
         <button
           onClick={onDeclareBankruptcy}
