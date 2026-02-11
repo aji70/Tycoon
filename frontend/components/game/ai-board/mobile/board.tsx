@@ -14,6 +14,8 @@ interface BoardProps {
   animatedPositions: Record<number, number>;
   currentPlayerId: number | null | undefined;
   onPropertyClick?: (propertyId: number) => void;
+  /** Renders in the center of the board (e.g. timers + roll dice) */
+  centerContent?: React.ReactNode;
 }
 
 const isTopRow = (square: Property) => square.grid_row === 1;
@@ -28,6 +30,7 @@ const Board: React.FC<BoardProps> = ({
   animatedPositions,
   currentPlayerId,
   onPropertyClick,
+  centerContent,
 }) => {
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -85,10 +88,11 @@ const Board: React.FC<BoardProps> = ({
         <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-2 relative overflow-hidden rounded-lg"
           style={{
     backgroundImage: `url(/bb.jpg)`,
-    backgroundSize: 'cover',    // ← usually good to add
+    backgroundSize: 'cover',
     backgroundPosition: 'center',
      }}
         >
+          {centerContent}
         </div>
 
         {/* All Squares */}
