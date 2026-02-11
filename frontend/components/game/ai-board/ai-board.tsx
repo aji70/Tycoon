@@ -149,7 +149,7 @@ const AiBoard = ({
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
   );
 
-  const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && currentPlayer?.in_jail === true;
+  const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && Boolean(currentPlayer?.in_jail);
 
   
 
@@ -750,7 +750,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       if (!player) return;
 
       const currentPos = player.position ?? 0;
-      const isInJail = player.in_jail === true && currentPos === JAIL_POSITION;
+      const isInJail = Boolean(player.in_jail) && currentPos === JAIL_POSITION;
 
       let newPos = currentPos;
       let shouldAnimate = false;
