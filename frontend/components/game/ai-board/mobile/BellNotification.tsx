@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { toast } from "react-hot-toast";
 import { Bell } from "lucide-react";
 
 interface BellNotificationProps {
@@ -16,7 +15,7 @@ export default function BellNotification({ bellFlash, incomingCount }: BellNotif
         animate={bellFlash ? { rotate: [0, -20, 20, -20, 20, 0] } : { rotate: 0 }}
         transition={{ duration: 0.6 }}
         onClick={() => {
-          toast("Check the Trades section in the sidebar →", { duration: 4000 });
+          // Only purple trade notification is shown; no toast on bell click
         }}
         className="relative p-3 bg-purple-700/80 backdrop-blur-md rounded-full shadow-lg hover:bg-purple-600 transition"
       >

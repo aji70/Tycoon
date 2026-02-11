@@ -196,18 +196,8 @@ const endTime =
 
   const activeToasts = useRef<Set<string>>(new Set());
 
-  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    if (activeToasts.current.has(message)) return;
-    activeToasts.current.add(message);
-
-    const t = type === "success"
-      ? toast.success(message)
-      : type === "error"
-      ? toast.error(message)
-      : toast(message, { icon: "➤" });
-
-    setTimeout(() => activeToasts.current.delete(message), 4000);
-  }, []);
+  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
+  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
 
   const fetchUpdatedGame = useCallback(async (retryDelay = 1000) => {
     try {

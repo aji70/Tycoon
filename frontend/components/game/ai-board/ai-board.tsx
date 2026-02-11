@@ -207,15 +207,8 @@ const {
     );
   }
 
-  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    if (message === lastToastMessage.current) return;
-    lastToastMessage.current = message;
-
-    toast.dismiss();
-    if (type === "success") toast.success(message);
-    else if (type === "error") toast.error(message);
-    else toast(message, { icon: "➤" });
-  }, []);
+  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
+  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
 
   // Sync players
   useEffect(() => {
@@ -270,7 +263,7 @@ const {
         game_id: game.id,
         ...(timedOut === true && { timed_out: true }),
       });
-      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
+      // Turn state visible on board — no toast
     } catch {
       showToast("Failed to end turn", "error");
     } finally {
@@ -396,7 +389,7 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
       const isOwned = game_properties.some(gp => gp.property_id === newPosition);
       if (!isOwned && ["land", "railway", "utility"].includes(PROPERTY_ACTION(newPosition) || "")) {
         setBuyPrompted(true);
-        toast(`Landed on ${square.name}! ${isSpecial ? "(Special Move)" : ""}`, { icon: "✨" });
+        // Landed position visible — no toast
       }
     }
   }, 300);
@@ -954,7 +947,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const handleRollDice = () => ROLL_DICE(false);
   const handleBuyProperty = () => BUY_PROPERTY(false);
   const handleSkipBuy = () => {
-    showToast("Skipped purchase");
+    // Skipped — no toast
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 900);
