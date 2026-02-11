@@ -28,10 +28,6 @@ import gamePerkController from "./controllers/gamePerkController.js";
 dotenv.config();
 
 const app = express();
-
-// Trust first proxy (Railway, etc.) so rate limiter gets real client IP from X-Forwarded-For
-app.set("trust proxy", 1);
-
 const PORT = process.env.PORT || 3000;
 
 const server = createServer(app);
