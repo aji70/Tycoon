@@ -31,6 +31,7 @@ export default function GamePlayPage() {
     data: game,
     isLoading: gameLoading,
     isError: gameError,
+    refetch: refetchGame,
   } = useQuery<Game>({
     queryKey: ["game", gameCode],
     queryFn: async () => {
@@ -175,6 +176,7 @@ export default function GamePlayPage() {
           properties={properties}
           game_properties={game_properties}
           me={me}
+          onGameUpdated={() => refetchGame()}
         />
       </div>
       <GameRoom gameId={game?.code?.toString() ?? ""} />

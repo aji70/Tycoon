@@ -693,6 +693,7 @@ const gamePlayerController = {
             in_jail_rolls: 0,
             position: 10, // Jail is at position 10
             rolls: Number(game_player.rolls || 0) + 1,
+            consecutive_timeouts: 0,
             updated_at: now,
           });
 
@@ -720,6 +721,7 @@ const gamePlayerController = {
         const updatedFields = {
           position: new_position,
           rolls: Number(game_player.rolls || 0) + 1,
+          consecutive_timeouts: 0,
           updated_at: now,
         };
 
@@ -786,6 +788,7 @@ const gamePlayerController = {
           .update({
             in_jail_rolls: Number(game_player.in_jail_rolls || 0) + 1,
             rolls: Number(game_player.rolls || 0) + 1,
+            consecutive_timeouts: 0,
             updated_at: now,
           });
 
@@ -821,7 +824,7 @@ const gamePlayerController = {
     const trx = await db.transaction();
 
     try {
-      const { user_id, game_id } = req.body;
+      const { user_id, game_id, timed_out } = req.body;
 
       // 1️⃣ Lock game row
       const game = await trx("games")
@@ -860,6 +863,24 @@ const gamePlayerController = {
       const currentIdx = players.findIndex((p) => p.user_id === user_id);
       const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
       const next_player = players[nextIdx];
+
+      // 2b️⃣ Consecutive timeouts: if turn ended by 90s timeout, increment; else reset
+      const currentStrikes = Number(players[currentIdx].consecutive_timeouts || 0);
+      if (timed_out) {
+        await trx("game_players")
+          .where({ game_id, user_id })
+          .update({
+            consecutive_timeouts: currentStrikes + 1,
+            updated_at: db.fn.now(),
+          });
+      } else {
+        await trx("game_players")
+          .where({ game_id, user_id })
+          .update({
+            consecutive_timeouts: 0,
+            updated_at: db.fn.now(),
+          });
+      }
 
       // 3️⃣ Mark last history as inactive
       const last_active = await trx("game_play_history")
@@ -1004,6 +1025,120 @@ const gamePlayerController = {
       res.json({ message: "Game player removed" });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });
+    }
+  },
+
+  /**
+   * Remove an inactive player from a multiplayer game after 3 consecutive 90s timeouts.
+   * Body: { game_id, user_id (requester), target_user_id }.
+   */
+  async removeInactive(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, user_id: requester_user_id, target_user_id } = req.body;
+      if (!game_id || !requester_user_id || !target_user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id, user_id (requester), or target_user_id",
+        });
+      }
+      if (requester_user_id === target_user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "You cannot remove yourself",
+        });
+      }
+
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Game is not in progress",
+        });
+      }
+
+      const players = await trx("game_players")
+        .where({ game_id })
+        .forUpdate()
+        .orderBy("turn_order", "asc");
+      if (players.length < 2) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Not a multiplayer game",
+        });
+      }
+
+      const requester = players.find((p) => p.user_id === requester_user_id);
+      const target = players.find((p) => p.user_id === target_user_id);
+      if (!requester) {
+        await trx.rollback();
+        return res.status(403).json({ success: false, message: "You are not in this game" });
+      }
+      if (!target) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Target player not in game" });
+      }
+
+      const strikes = Number(target.consecutive_timeouts || 0);
+      if (strikes < 3) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Player has not reached 3 consecutive timeouts and cannot be removed",
+        });
+      }
+
+      // Return target's properties to bank
+      await trx("game_properties")
+        .where({ game_id, player_id: target.id })
+        .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
+
+      // Delete target player
+      await trx("game_players").where({ id: target.id }).del();
+
+      const remaining = players.filter((p) => p.user_id !== target_user_id);
+      let next_player_id = game.next_player_id;
+      let winner_id = game.winner_id;
+      let status = game.status;
+
+      if (game.next_player_id === target_user_id) {
+        next_player_id = remaining[0].user_id;
+      }
+      if (remaining.length === 1) {
+        status = "FINISHED";
+        winner_id = remaining[0].user_id;
+      }
+
+      await trx("games")
+        .where({ id: game_id })
+        .update({
+          next_player_id,
+          status,
+          winner_id,
+          updated_at: db.fn.now(),
+        });
+
+      await trx.commit();
+      return res.status(200).json({
+        success: true,
+        message: "Player removed due to inactivity. Game continues.",
+        data: { removed_user_id: target_user_id },
+      });
+    } catch (error) {
+      await trx.rollback();
+      console.error("removeInactive error:", error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to remove inactive player",
+      });
     }
   },
 

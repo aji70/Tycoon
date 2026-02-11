@@ -26,6 +26,8 @@ export interface UseGameBoardLogicProps {
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  /** Called after successfully removing an inactive player so parent can refetch game */
+  onGameUpdated?: () => void;
 }
 
 export function useGameBoardLogic({
@@ -33,6 +35,7 @@ export function useGameBoardLogic({
   properties,
   game_properties,
   me,
+  onGameUpdated,
 }: UseGameBoardLogicProps) {
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
@@ -130,15 +133,16 @@ export function useGameBoardLogic({
 
   const unlockAction = useCallback(() => setActionLock(null), []);
 
-  const END_TURN = useCallback(async () => {
+  const END_TURN = useCallback(async (timedOut?: boolean) => {
     if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
     turnEndInProgress.current = true;
     try {
       await apiClient.post("/game-players/end-turn", {
         user_id: currentPlayerId,
         game_id: game.id,
+        ...(timedOut === true && { timed_out: true }),
       });
-      showToast("Turn ended", "success");
+      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
     } catch {
       showToast("Failed to end turn", "error");
     } finally {
@@ -164,8 +168,7 @@ export function useGameBoardLogic({
       const remaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
       setTurnTimeLeft(remaining);
       if (remaining <= 0) {
-        showToast("Time's up! Turn ended.", "default");
-        END_TURN();
+        END_TURN(true);
       }
     };
     tick();
@@ -470,6 +473,26 @@ export function useGameBoardLogic({
     isNext
   );
 
+  const removeInactive = useCallback(
+    async (targetUserId: number) => {
+      if (!me?.user_id || !game?.id) return;
+      try {
+        await apiClient.post("/game-players/remove-inactive", {
+          game_id: game.id,
+          user_id: me.user_id,
+          target_user_id: targetUserId,
+        });
+        await fetchUpdatedGame();
+        onGameUpdated?.();
+        showToast("Player removed due to inactivity.", "default");
+      } catch (err: unknown) {
+        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to remove player";
+        showToast(msg, "error");
+      }
+    },
+    [game?.id, me?.user_id, fetchUpdatedGame, onGameUpdated, showToast]
+  );
+
   return {
     players,
     roll,
@@ -518,5 +541,6 @@ export function useGameBoardLogic({
     isCreatePending,
     exitHook,
     turnTimeLeft,
+    removeInactive,
   };
 }
