@@ -218,13 +218,6 @@ const handleContinuePrevious = () => {
 
       {/* Content Container */}
       <div className="w-full relative -z-0 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
-        {/* Downtime notice */}
-        <div className="w-full max-w-md mx-auto mt-2 mb-8 px-4 text-center">
-          <p className="font-orbitron font-extrabold text-white text-sm drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
-            We're experiencing technical difficulties. We'll be back up as soon as possible. Thank you for your patience.
-          </p>
-        </div>
-
         {/* Title */}
         <h1 className="font-orbitron font-black text-6xl sm:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center mt-10">
           TYCOON
