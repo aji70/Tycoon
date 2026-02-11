@@ -758,6 +758,35 @@ const endTime =
             animatedPositions={animatedPositions}
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
+            centerContent={
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 rounded-xl bg-black/70 backdrop-blur-sm z-30 relative">
+                {currentGame?.duration && Number(currentGame.duration) > 0 && (
+                  <GameDurationCountdown game={currentGame} compact />
+                )}
+                {isMyTurn && !roll && !isRolling && (
+                  <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
+                    Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
+                  </div>
+                )}
+                {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                  (currentPlayer?.balance ?? 0) < 0 ? (
+                    <button
+                      onClick={declareBankruptcy}
+                      className="py-2 px-6 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-800 text-white font-bold text-sm rounded-full shadow-md border border-white/20"
+                    >
+                      Declare Bankruptcy
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => ROLL_DICE(false)}
+                      className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
+                    >
+                      Roll Dice
+                    </button>
+                  )
+                )}
+              </div>
+            }
           />
         </motion.div>
       </div>
