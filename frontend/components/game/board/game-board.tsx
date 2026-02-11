@@ -8,6 +8,7 @@ import CenterArea from "./center-area";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
+import { GameDurationCountdown } from "../GameDurationCountdown";
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PropertyActionModal } from "../modals/property-action";
@@ -78,7 +79,10 @@ const Board = ({
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
-      <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
+      <div className="flex flex-col items-center w-full lg:w-2/3 max-w-[800px] mt-[-1rem] gap-2">
+        <div className="w-full flex justify-end">
+          {/* <GameDurationCountdown game={game} /> */}
+        </div>
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
             <CenterArea
