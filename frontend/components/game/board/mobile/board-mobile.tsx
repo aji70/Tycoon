@@ -33,6 +33,7 @@ import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
 import BuyPromptModal from "../../ai-board/mobile/BuyPromptModal";
 import { Sparkles } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
+import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
@@ -878,7 +879,10 @@ const MobileGameLayout = ({
       <BellNotification bellFlash={bellFlash} incomingCount={myIncomingTrades.length} />
 
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
-        <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
+          <GameDurationCountdown game={currentGame} compact />
+        </div>
         <MyBalanceBar me={me} />
       </div>
 

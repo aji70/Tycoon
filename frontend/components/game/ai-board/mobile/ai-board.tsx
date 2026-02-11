@@ -33,6 +33,7 @@ import MyBalanceBar from "./MyBalanceBar";
 import BuyPromptModal from "./BuyPromptModal";
 import PropertyDetailModal from "./PropertyDetailModal";
 import PerksModal from "./PerksModal";
+import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { Sparkles, Bell } from "lucide-react";
 import { ApiResponse } from "@/types/api";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
@@ -710,9 +711,10 @@ const endTime =
 
       {/* Player Status + My Balance */}
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
-        <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
-
-   
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
+          <GameDurationCountdown game={currentGame} compact />
+        </div>
 
       {/* Board */}
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
