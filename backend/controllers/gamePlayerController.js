@@ -882,6 +882,31 @@ const gamePlayerController = {
           });
       }
 
+      // 2c️⃣ AI game: if human hits 3 consecutive timeouts, eliminate them and end game (AI wins)
+      const newStrikes = timed_out ? currentStrikes + 1 : 0;
+      if (game.is_ai && timed_out && newStrikes >= 3) {
+        const currentPlayerRow = players[currentIdx];
+        await trx("game_properties")
+          .where({ game_id, player_id: currentPlayerRow.id })
+          .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
+        await trx("game_players").where({ id: currentPlayerRow.id }).del();
+        const winner = players.find((p) => p.user_id !== user_id);
+        await trx("games")
+          .where({ id: game_id })
+          .update({
+            status: "FINISHED",
+            winner_id: winner ? winner.user_id : null,
+            next_player_id: winner ? winner.user_id : null,
+            updated_at: new Date(),
+          });
+        await trx.commit();
+        return res.status(200).json({
+          success: true,
+          message: "Eliminated due to inactivity. AI wins.",
+          eliminated: true,
+        });
+      }
+
       // 3️⃣ Mark last history as inactive
       const last_active = await trx("game_play_history")
         .where({ game_id, active: 1 })

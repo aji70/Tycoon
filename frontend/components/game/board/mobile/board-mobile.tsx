@@ -298,11 +298,13 @@ const MobileGameLayout = ({
 
   const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0);
   useEffect(() => {
-    if (!isMyTurn || !playerCanRoll || !currentPlayer?.turn_start || isRolling || roll) {
+    if (!isMyTurn || !playerCanRoll || isRolling || roll) {
       setTurnTimeLeft(null);
       return;
     }
-    const turnStartSec = parseInt(currentPlayer.turn_start, 10);
+    // Start countdown immediately: use server turn_start if present, otherwise "now"
+    const raw = currentPlayer?.turn_start;
+    const turnStartSec = raw ? parseInt(currentPlayer.turn_start, 10) : Math.floor(Date.now() / 1000);
     if (Number.isNaN(turnStartSec)) {
       setTurnTimeLeft(null);
       return;
@@ -955,7 +957,7 @@ const MobileGameLayout = ({
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
-                {isMyTurn && (
+                {isMyTurn && !roll && !isRolling && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
                     Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
                   </div>

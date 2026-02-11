@@ -259,7 +259,7 @@ const {
 
   const unlockAction = useCallback(() => setActionLock(null), []);
 
-  const END_TURN = useCallback(async () => {
+  const END_TURN = useCallback(async (timedOut?: boolean) => {
     if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
 
     turnEndInProgress.current = true;
@@ -268,8 +268,9 @@ const {
       await apiClient.post("/game-players/end-turn", {
         user_id: currentPlayerId,
         game_id: game.id,
+        ...(timedOut === true && { timed_out: true }),
       });
-      showToast("Turn ended", "success");
+      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
     } catch {
       showToast("Failed to end turn", "error");
     } finally {
@@ -279,11 +280,13 @@ const {
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
   useEffect(() => {
-    if (!isMyTurn || !playerCanRoll || !currentPlayer?.turn_start || roll) {
+    if (!isMyTurn || !playerCanRoll || roll) {
       setTurnTimeLeft(null);
       return;
     }
-    const turnStartSec = parseInt(currentPlayer.turn_start, 10);
+    // Start countdown immediately: use server turn_start if present, otherwise "now"
+    const raw = currentPlayer?.turn_start;
+    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
     if (Number.isNaN(turnStartSec)) {
       setTurnTimeLeft(null);
       return;
@@ -294,8 +297,7 @@ const {
       const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
       setTurnTimeLeft(remaining);
       if (remaining <= 0) {
-        showToast("Time's up! Turn ended.", "default");
-        END_TURN();
+        END_TURN(true);
       }
     };
     tick();
