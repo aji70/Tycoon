@@ -26,7 +26,6 @@ import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import PlayerStatus from "./player-status";
 import BellNotification from "./BellNotification";
-import RollDiceSection from "./RollDiceSection";
 import BoardPropertyDetailModal from "./BoardPropertyDetailModal";
 import BoardPerksModal from "./BoardPerksModal";
 import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
@@ -933,9 +932,6 @@ const MobileGameLayout = ({
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
-          {currentGame?.duration && Number(currentGame.duration) > 0 && (
-            <GameDurationCountdown game={currentGame} compact />
-          )}
         </div>
         <MyBalanceBar me={me} />
       </div>
@@ -954,6 +950,35 @@ const MobileGameLayout = ({
             animatedPositions={animatedPositions}
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
+            centerContent={
+              <div className="flex flex-col items-center justify-center gap-2 text-center z-10">
+                {currentGame?.duration && Number(currentGame.duration) > 0 && (
+                  <GameDurationCountdown game={currentGame} compact />
+                )}
+                {isMyTurn && turnTimeLeft != null && turnTimeLeft > 0 && (
+                  <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${turnTimeLeft <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
+                    Roll in {Math.floor(turnTimeLeft / 60)}:{(turnTimeLeft % 60).toString().padStart(2, "0")}
+                  </div>
+                )}
+                {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                  hasNegativeBalance ? (
+                    <button
+                      onClick={handleBankruptcy}
+                      className="py-2 px-6 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-bold text-sm rounded-full shadow-md border border-white/20"
+                    >
+                      Declare Bankruptcy
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => ROLL_DICE(false)}
+                      className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
+                    >
+                      Roll Dice
+                    </button>
+                  )
+                )}
+              </div>
+            }
           />
         </motion.div>
       </div>
@@ -976,17 +1001,6 @@ const MobileGameLayout = ({
           ))}
         </div>
       )}
-
-      <RollDiceSection
-        isMyTurn={isMyTurn}
-        isRolling={isRolling}
-        isRaisingFunds={isRaisingFunds}
-        showInsolvencyModal={showInsolvencyModal}
-        hasNegativeBalance={hasNegativeBalance}
-        turnTimeLeft={turnTimeLeft}
-        onRollDice={() => ROLL_DICE(false)}
-        onDeclareBankruptcy={handleBankruptcy}
-      />
 
       <BuyPromptModal
         visible={!!(isMyTurn && buyPrompted && justLandedProperty)}

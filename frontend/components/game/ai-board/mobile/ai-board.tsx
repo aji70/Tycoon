@@ -28,7 +28,6 @@ import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import PlayerStatus from "./player-status";
 import BellNotification from "./BellNotification";
-import RollDiceSection from "./RollDiceSection";
 import MyBalanceBar from "./MyBalanceBar";
 import BuyPromptModal from "./BuyPromptModal";
 import PropertyDetailModal from "./PropertyDetailModal";
@@ -764,18 +763,6 @@ const endTime =
       <DiceAnimation
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
         roll={roll}
-      />
-
-      <RollDiceSection
-        isMyTurn={isMyTurn}
-        isRolling={isRolling}
-        isRaisingFunds={isRaisingFunds}
-        showInsolvencyModal={showInsolvencyModal}
-        me={me}
-        roll={roll}
-        turnTimeLeft={turnTimeLeft}
-        onRollDice={() => ROLL_DICE(false)}
-        onDeclareBankruptcy={declareBankruptcy}
       />
       <MyBalanceBar me={me} />
       </div>
