@@ -134,7 +134,7 @@ export default function CenterArea({
       {isAITurn && (
         <div className="mt-5 text-center z-10">
           <motion.h2
-            className="text-2xl font-bold text-pink-300 mb-3"
+            className="text-2xl font-bold text-cyan-300 mb-3"
             animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
           >
@@ -143,7 +143,7 @@ export default function CenterArea({
           <div className="flex justify-center mt-4">
             <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
           </div>
-          <p className="text-pink-200 text-sm italic mt-3">
+          <p className="text-cyan-200 text-sm italic mt-3">
             Smart AI • Decides automatically
           </p>
         </div>
