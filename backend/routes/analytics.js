@@ -1,5 +1,6 @@
 import express from "express";
 import { getDashboard } from "../services/analytics.js";
+import logger from "../config/logger.js";
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.get("/dashboard", async (req, res) => {
     const data = await getDashboard();
     res.json({ success: true, data });
   } catch (err) {
-    console.error("Analytics dashboard error:", err);
+    logger.error({ err }, "Analytics dashboard error");
     res.status(500).json({ success: false, error: "Failed to load dashboard" });
   }
 });

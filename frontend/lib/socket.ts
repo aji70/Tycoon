@@ -101,6 +101,13 @@ class SocketService {
     }
   }
 
+  /** Emitted by backend when game state changes; client should refetch game data. */
+  onGameUpdate(callback: (data: { gameCode: string }) => void): void {
+    if (this.socket) {
+      this.socket.on("game-update", callback);
+    }
+  }
+
   // Remove event listeners
   removeListener(event: string, callback: (...args: any[]) => void): void {
     if (this.socket) {
