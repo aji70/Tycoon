@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { PiTelegramLogoLight } from "react-icons/pi";
 import { FaXTwitter, FaCoins } from "react-icons/fa6";
 import { SiFarcaster } from "react-icons/si";
@@ -90,11 +91,8 @@ export default function GameWaiting(): JSX.Element {
     <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
       <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
         <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-5 sm:p-6 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
-          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-6 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent animate-pulse">
+          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-2 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent">
             Tycoon Lobby
-            <span className="block text-base text-[#00F0FF] mt-1 font-extrabold shadow-text">
-              Code: {gameCode}
-            </span>
           </h2>
 
           <div className="text-center space-y-3 mb-6">
@@ -147,71 +145,97 @@ export default function GameWaiting(): JSX.Element {
 
           {showShare && (
             <div className="mt-6 space-y-5 bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
-              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-3">
+              <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-4 tracking-widest">
                 Summon Allies!
               </h3>
 
-              {/* Web Link */}
-              <div className="space-y-2">
-                <p className="text-[#869298] text-xs text-center">Web Link</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    aria-label="game url"
-                    value={gameUrl}
-                    readOnly
-                    className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    disabled={actionLoading}
-                    className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
-                  >
-                    <IoCopyOutline className="w-5 h-5" />
-                  </button>
+              {/* QR + Code block - gamy focal point */}
+              <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8 p-5 rounded-xl bg-[#010F10]/80 border border-[#00F0FF]/40 shadow-[inset_0_0_30px_rgba(0,240,255,0.05)]">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-orbitron font-bold text-[#00F0FF] tracking-[0.3em] mb-2 opacity-90">SCAN TO JOIN</span>
+                  <div className="p-3 rounded-xl bg-white border-2 border-[#00F0FF]/60 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
+                    <QRCodeSVG
+                      value={gameUrl}
+                      size={160}
+                      level="M"
+                      bgColor="#ffffff"
+                      fgColor="#0E282A"
+                      marginSize={1}
+                    />
+                  </div>
                 </div>
-                {copySuccess && (
-                  <p className="text-green-400 text-xs text-center animate-fade-in">
-                    {copySuccess}
+                <div className="flex flex-col items-center sm:items-start gap-2">
+                  <span className="text-[10px] font-orbitron font-bold text-[#869298] tracking-[0.2em]">GAME CODE</span>
+                  <p className="font-orbitron font-black text-4xl sm:text-5xl text-[#00F0FF] tracking-widest tabular-nums text-center sm:text-left" style={{ textShadow: "0 0 20px rgba(0,240,255,0.4)" }}>
+                    {gameCode}
                   </p>
-                )}
+                  <p className="text-[#869298] text-xs font-dmSans max-w-[200px] text-center sm:text-left">
+                    Share this code or scan the QR to join the lobby.
+                  </p>
+                </div>
               </div>
 
-              {/* Farcaster Miniapp Link */}
-              <div className="space-y-2">
-                <p className="text-[#869298] text-xs text-center">Farcaster Miniapp Link</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    aria-label="farcaster miniapp url"
-                    value={farcasterMiniappUrl}
-                    readOnly
-                    className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopyFarcasterLink}
-                    disabled={actionLoading}
-                    className="flex items-center justify-center bg-gradient-to-r from-[#A100FF] to-[#00F0FF] text-white p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
-                  >
-                    <IoCopyOutline className="w-5 h-5" />
-                  </button>
+              {/* Links row */}
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <p className="text-[#869298] text-xs text-center font-orbitron">Web Link</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      aria-label="game url"
+                      value={gameUrl}
+                      readOnly
+                      className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      disabled={actionLoading}
+                      className="flex items-center justify-center bg-gradient-to-r from-[#00F0FF] to-[#00FFAA] text-black p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-[0_0_12px_rgba(0,240,255,0.4)] shrink-0"
+                    >
+                      <IoCopyOutline className="w-5 h-5" />
+                    </button>
+                  </div>
+                  {copySuccess && (
+                    <p className="text-green-400 text-xs text-center animate-fade-in">
+                      {copySuccess}
+                    </p>
+                  )}
                 </div>
-                {copySuccessFarcaster && (
-                  <p className="text-green-400 text-xs text-center animate-fade-in">
-                    {copySuccessFarcaster}
-                  </p>
-                )}
+                <div className="space-y-2">
+                  <p className="text-[#869298] text-xs text-center font-orbitron">Farcaster Miniapp</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      aria-label="farcaster miniapp url"
+                      value={farcasterMiniappUrl}
+                      readOnly
+                      className="w-full bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-xs shadow-inner"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyFarcasterLink}
+                      disabled={actionLoading}
+                      className="flex items-center justify-center bg-gradient-to-r from-[#A100FF] to-[#00F0FF] text-white p-2 rounded-lg hover:opacity-90 transition-all duration-300 shadow-md hover:shadow-lg shrink-0"
+                    >
+                      <IoCopyOutline className="w-5 h-5" />
+                    </button>
+                  </div>
+                  {copySuccessFarcaster && (
+                    <p className="text-green-400 text-xs text-center animate-fade-in">
+                      {copySuccessFarcaster}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {/* Social share buttons */}
-              <div className="flex justify-center gap-5 pt-3">
+              {/* Social share */}
+              <div className="flex justify-center gap-5 pt-2">
                 <a
                   href={telegramShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[0_0_16px_rgba(0,240,255,0.3)] transform hover:scale-110"
                 >
                   <PiTelegramLogoLight className="w-6 h-6" />
                 </a>
@@ -219,7 +243,7 @@ export default function GameWaiting(): JSX.Element {
                   href={twitterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[0_0_16px_rgba(0,240,255,0.3)] transform hover:scale-110"
                 >
                   <FaXTwitter className="w-6 h-6" />
                 </a>
@@ -227,7 +251,7 @@ export default function GameWaiting(): JSX.Element {
                   href={farcasterShareUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[#00F0FF]/50 transform hover:scale-110"
+                  className="flex items-center justify-center bg-[#0A1A1B] text-[#0FF0FC] p-3 rounded-full border border-[#00F0FF]/50 hover:bg-[#00F0FF]/20 transition-all duration-300 shadow-md hover:shadow-[0_0_16px_rgba(0,240,255,0.3)] transform hover:scale-110"
                 >
                   <SiFarcaster className="w-6 h-6" />
                 </a>
