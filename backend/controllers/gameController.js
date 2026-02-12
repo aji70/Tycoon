@@ -281,6 +281,14 @@ const gameController = {
       const game = await Game.findById(req.params.id);
       if (!game) return res.status(404).json({ success: false, error: "Game not found" });
       if (!game.is_ai) return res.status(400).json({ success: false, error: "Not an AI game" });
+      // Idempotent: if already finished (e.g. other player already claimed), return success so both winner and loser can "finish" after claiming on-chain
+      if (game.status === "FINISHED" || game.status === "CANCELLED") {
+        return res.status(200).json({
+          success: true,
+          message: "Game already concluded",
+          data: { game, winner_id: game.winner_id },
+        });
+      }
       if (game.status !== "RUNNING") return res.status(400).json({ success: false, error: "Game is not running" });
 
       const durationMinutes = Number(game.duration) || 0;
