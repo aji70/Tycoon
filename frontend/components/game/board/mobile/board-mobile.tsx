@@ -986,11 +986,11 @@ const MobileGameLayout = ({
         roll={roll}
       />
 
-      {/* Balance bar above action log */}
-      <div className="w-full max-w-2xl mx-auto px-4 mt-6">
+      {/* Balance bar above action log — extra pb so log is fully visible above bottom nav */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-6 mb-4">
         <MyBalanceBar me={me} bottomBar />
       </div>
-      <div className="w-full max-w-2xl mx-auto px-4 pb-24">
+      <div className="w-full max-w-2xl mx-auto px-4 pb-40">
         <GameLog history={currentGame.history} />
       </div>
 

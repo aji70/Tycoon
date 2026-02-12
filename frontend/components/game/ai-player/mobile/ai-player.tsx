@@ -23,6 +23,9 @@ interface GamePlayersProps {
   currentPlayer: Player | null;
   roll: { die1: number; die2: number; total: number } | null;
   isAITurn: boolean;
+  /** When true, open the trades section (e.g. after tapping "View trades" on the board). */
+  focusTrades?: boolean;
+  onViewedTrades?: () => void;
 }
 
 export default function MobileGamePlayers({
@@ -33,6 +36,8 @@ export default function MobileGamePlayers({
   me,
   currentPlayer,
   isAITurn,
+  focusTrades = false,
+  onViewedTrades,
 }: GamePlayersProps) {
   const [sectionOpen, setSectionOpen] = useState({
     players: false,
@@ -155,6 +160,16 @@ export default function MobileGamePlayers({
       trades: totalActiveTrades > 0,
     });
   }, [my_properties.length, showEmpire, totalActiveTrades]);
+
+  // When parent asks to focus trades (e.g. "View trades" pill), open trades section after mount
+  useEffect(() => {
+    if (!focusTrades) return;
+    const t = setTimeout(() => {
+      setSectionOpen((prev) => ({ ...prev, trades: true }));
+      onViewedTrades?.();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [focusTrades, onViewedTrades]);
 
   return (
     <div className="w-full h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white flex flex-col overflow-hidden">

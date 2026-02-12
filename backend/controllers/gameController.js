@@ -15,7 +15,8 @@ const UTILITY_MULTIPLIER = { 1: 4, 2: 10 };
 const AVERAGE_DICE_ROLL = 7;
 
 /**
- * Compute winner by net worth (cash + property values + one-turn rent). Does not modify DB.
+ * Compute winner by net worth: cash + property values (incl. mortgage) + building resale value + one-turn rent potential.
+ * Does not modify DB.
  * @returns { winner_id, net_worths: [{ user_id, net_worth }] } or null if game invalid
  */
 async function computeWinnerByNetWorth(game) {
@@ -33,6 +34,7 @@ async function computeWinnerByNetWorth(game) {
       "gp.development",
       "gp.mortgaged",
       "p.price",
+      "p.cost_of_house",
       "p.rent_site_only",
       "p.rent_one_house",
       "p.rent_two_houses",
@@ -72,13 +74,18 @@ async function computeWinnerByNetWorth(game) {
     const cash = Number(player.balance) || 0;
     const owned = byPlayerId.get(player.id) || [];
     let propertyValue = 0;
+    let buildingValue = 0;
     let rentTotal = 0;
     for (const gp of owned) {
       const price = Number(gp.price) || 0;
       propertyValue += Number(gp.mortgaged) ? Math.floor(price / 2) : price;
+      // Building resale value (half cost when sold back to bank); development 0–5 = 0–4 houses or hotel
+      const dev = Math.min(5, Math.max(0, Number(gp.development || 0)));
+      const costOfHouse = Number(gp.cost_of_house) || 0;
+      buildingValue += Math.floor(dev * costOfHouse / 2);
       rentTotal += oneTurnRent(gp, owned);
     }
-    const net_worth = cash + propertyValue + rentTotal;
+    const net_worth = cash + propertyValue + buildingValue + rentTotal;
     net_worths.push({ user_id: player.user_id, net_worth });
     if (net_worth > best.net_worth) best = { user_id: player.user_id, net_worth };
   }
