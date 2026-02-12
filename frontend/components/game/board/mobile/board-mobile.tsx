@@ -348,10 +348,11 @@ const MobileGameLayout = ({
           game_id: currentGame.id,
           target_user_id: targetUserId,
         });
-        if (res?.data?.success && res.data.data) {
+        const data = res?.data?.data;
+        if (res?.data?.success && data) {
           setVoteStatuses((prev) => ({
             ...prev,
-            [targetUserId]: res.data.data,
+            [targetUserId]: data,
           }));
         }
       } catch (err) {
@@ -994,7 +995,7 @@ const MobileGameLayout = ({
   const isSoloPlayer = players.length === 1 && players[0].user_id === me?.user_id;
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white flex flex-col items-center justify-start relative overflow-hidden">
+    <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
       <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
