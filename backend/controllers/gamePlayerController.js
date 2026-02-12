@@ -1119,6 +1119,98 @@ const gamePlayerController = {
 
 
   /**
+   * Record a "soft" timeout for the current player (multiplayer 3+ players).
+   * Does NOT end the turn - just increments consecutive_timeouts so others can vote.
+   * Body: { game_id, user_id (caller), target_user_id }.
+   * Only increments once per turn (uses last_timeout_turn_start).
+   */
+  async recordTimeout(req, res) {
+    try {
+      const { game_id, user_id: caller_user_id, target_user_id } = req.body;
+      if (!game_id || !caller_user_id || !target_user_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id, user_id, or target_user_id",
+        });
+      }
+
+      const game = await db("games").where({ id: game_id }).first();
+      if (!game) {
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        return res.status(400).json({
+          success: false,
+          message: "Game is not in progress",
+        });
+      }
+
+      if (game.next_player_id !== target_user_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Target is not the current player",
+        });
+      }
+
+      const players = await db("game_players").where({ game_id });
+      const caller = players.find((p) => p.user_id === caller_user_id);
+      const target = players.find((p) => p.user_id === target_user_id);
+      if (!caller) {
+        return res.status(403).json({ success: false, message: "You are not in this game" });
+      }
+      if (!target) {
+        return res.status(404).json({ success: false, message: "Target not in game" });
+      }
+
+      const TURN_ROLL_SECONDS = 90;
+      const turnStartSec = Number(target.turn_start) || 0;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const elapsed = nowSec - turnStartSec;
+
+      if (elapsed < TURN_ROLL_SECONDS) {
+        return res.status(400).json({
+          success: false,
+          message: "Player has not timed out yet",
+        });
+      }
+
+      const lastRecorded = Number(target.last_timeout_turn_start) || 0;
+      if (lastRecorded === turnStartSec) {
+        return res.status(200).json({
+          success: true,
+          message: "Timeout already recorded for this turn",
+          data: { recorded: false },
+        });
+      }
+
+      const strikes = Number(target.consecutive_timeouts || 0);
+      await db("game_players")
+        .where({ game_id, user_id: target_user_id })
+        .update({
+          consecutive_timeouts: strikes + 1,
+          last_timeout_turn_start: turnStartSec,
+          updated_at: db.fn.now(),
+        });
+
+      await invalidateGameById(game_id);
+      const io = req.app.get("io");
+      if (io) await emitGameUpdateByGameId(io, game_id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Timeout recorded",
+        data: { recorded: true, strikes: strikes + 1 },
+      });
+    } catch (error) {
+      logger.error({ err: error }, "recordTimeout error");
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to record timeout",
+      });
+    }
+  },
+
+  /**
    * Vote to remove an inactive/timed-out player.
    * Body: { game_id, user_id (voter), target_user_id }.
    * Player can be voted out if:
@@ -1184,12 +1276,20 @@ const gamePlayerController = {
       // Check if target is eligible for removal
       const strikes = Number(target.consecutive_timeouts || 0);
       const otherPlayersCount = players.filter((p) => p.user_id !== target_user_id).length;
+
+      // Soft timeout: if target is current player and 90s has elapsed, allow vote (3+ players only)
+      const TURN_ROLL_SECONDS = 90;
+      const turnStartSec = Number(target.turn_start) || 0;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const timeElapsed = nowSec - turnStartSec;
+      const isCurrentPlayer = game.next_player_id === target_user_id;
+      const softTimeout = otherPlayersCount > 1 && isCurrentPlayer && timeElapsed >= TURN_ROLL_SECONDS;
       
-      // With 2 players: need 3+ consecutive timeouts
-      // With more players: can vote immediately when they timeout (strikes > 0) OR after 3+ consecutive timeouts
+      // With 2 players: need 3+ consecutive timeouts (from end-turn timed_out)
+      // With more players: strikes > 0 OR soft timeout (current player's 90s elapsed)
       const canBeVotedOut = otherPlayersCount === 1 
         ? strikes >= 3  // 2-player game: need 3 timeouts
-        : strikes > 0;   // Multiplayer: can vote after any timeout
+        : (strikes > 0 || softTimeout);
 
       if (!canBeVotedOut) {
         await trx.rollback();

@@ -151,6 +151,7 @@ const MobileGameLayout = ({
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
+  const recordTimeoutCalledForTurn = useRef<number | null>(null);
 
   const justLandedProperty = useMemo(() => {
     if (landedPositionThisTurn.current === null) return null;
@@ -249,6 +250,7 @@ const MobileGameLayout = ({
     landedPositionThisTurn.current = null;
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
+    recordTimeoutCalledForTurn.current = null;
     setAnimatedPositions({});
     setHasMovementFinished(false);
     setIsRaisingFunds(false);
@@ -299,14 +301,15 @@ const MobileGameLayout = ({
   }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
 
   const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0);
+  // Timer for current player — show to ALL players so they can track when someone times out (for vote)
+  const isTwoPlayer = players.length === 2;
   useEffect(() => {
-    if (!isMyTurn || !playerCanRoll || isRolling || roll) {
+    if (!currentPlayer?.turn_start) {
       setTurnTimeLeft(null);
       return;
     }
-    // Start countdown immediately: use server turn_start if present, otherwise "now"
-    const raw = currentPlayer?.turn_start;
-    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
+    const raw = currentPlayer.turn_start;
+    const turnStartSec = typeof raw === "number" ? raw : parseInt(String(raw), 10);
     if (Number.isNaN(turnStartSec)) {
       setTurnTimeLeft(null);
       return;
@@ -314,16 +317,35 @@ const MobileGameLayout = ({
     const TURN_ROLL_SECONDS = 90;
     const tick = () => {
       const nowSec = Math.floor(Date.now() / 1000);
-      const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
+      const elapsed = nowSec - turnStartSec;
+      const remaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
       setTurnTimeLeft(remaining);
+
       if (remaining <= 0) {
-        END_TURN(true);
+        if (isTwoPlayer) {
+          END_TURN(true);
+        } else {
+          if (
+            me?.user_id &&
+            recordTimeoutCalledForTurn.current !== turnStartSec
+          ) {
+            recordTimeoutCalledForTurn.current = turnStartSec;
+            apiClient
+              .post<ApiResponse>("/game-players/record-timeout", {
+                game_id: currentGame.id,
+                user_id: me.user_id,
+                target_user_id: currentPlayer.user_id,
+              })
+              .then(() => fetchUpdatedGame())
+              .catch((err) => console.warn("record-timeout failed:", err));
+          }
+        }
       }
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, isRolling, roll, showToast, END_TURN]);
+  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, currentGame.id, END_TURN, fetchUpdatedGame]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -416,15 +438,15 @@ const MobileGameLayout = ({
       return players.filter((p) => {
         if (p.user_id === me?.user_id) return false;
         const strikes = p.consecutive_timeouts ?? 0;
-        // With 2 players: need 3+ consecutive timeouts
-        // With more players: can vote after any timeout
+        const isCurrentPlayer = p.user_id === currentPlayerId;
+        const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
         if (otherPlayers.length === 1) {
           return strikes >= 3;
         }
-        return strikes > 0;
+        return strikes > 0 || (isCurrentPlayer && timeElapsed);
       });
     },
-    [players, me?.user_id]
+    [players, me?.user_id, currentPlayerId, turnTimeLeft]
   );
 
   // Legacy: removablePlayers for backward compatibility
@@ -1031,9 +1053,11 @@ const MobileGameLayout = ({
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
-                {isMyTurn && !roll && !isRolling && (
+                {turnTimeLeft != null && !roll && !isRolling && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-                    Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
+                    {isMyTurn
+                      ? `Roll in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
+                      : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to roll`}
                   </div>
                 )}
                 {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
