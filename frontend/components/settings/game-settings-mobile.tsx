@@ -288,7 +288,7 @@ export default function CreateGameMobile() {
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pb-10">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pb-10 pt-[70px]">
       {/* Header */}
       <div className="px-5 pt-6 pb-4">
         <div className="flex justify-between items-center">

@@ -199,6 +199,7 @@ export default function GamePlayPage() {
               game_properties={game_properties}
               me={me}
               onFinishGameByTime={finishGameByTime}
+              onViewTrades={() => setActiveTab("players")}
             />
           ) : (
             <GamePlayersMobile
