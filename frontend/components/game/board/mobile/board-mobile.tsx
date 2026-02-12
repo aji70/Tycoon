@@ -923,15 +923,13 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      <div className="w-full max-w-2xl mx-auto px-4 mt-4">
+      <div className="w-full max-w-2xl mx-auto px-4 mt-4 flex items-center justify-between gap-3 flex-wrap">
+        <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
         <TradeAlertPill
           incomingCount={myIncomingTrades.length}
           onViewTrades={onViewTrades}
           newTradePulse={bellFlash}
         />
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
-        </div>
       </div>
 
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">

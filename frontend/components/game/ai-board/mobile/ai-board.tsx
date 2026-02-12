@@ -761,16 +761,15 @@ const endTime =
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
 
-      {/* Player Status + My Balance */}
-      <div className="w-full max-w-2xl mx-auto px-4 mt-4">
+      {/* Player Status + Trade notification bell */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-4 flex items-center justify-between gap-3 flex-wrap">
+        <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
         <TradeAlertPill
           incomingCount={myIncomingTrades.length}
           onViewTrades={onViewTrades}
           newTradePulse={bellFlash}
         />
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
-        </div>
+      </div>
 
       {/* Board */}
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
@@ -829,8 +828,6 @@ const endTime =
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
         roll={roll}
       />
-
-      </div>
 
       {/* Balance bar above action log — extra pb so log is fully visible above bottom nav */}
       <div className="w-full max-w-2xl mx-auto px-4 mt-6 mb-4">
