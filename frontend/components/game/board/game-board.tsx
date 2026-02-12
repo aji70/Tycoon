@@ -13,6 +13,7 @@ import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PropertyActionModal } from "../modals/property-action";
 import { useGameBoardLogic } from "./useGameBoardLogic";
+import PropertyDetailModal from "./PropertyDetailModal";
 
 const Board = ({
   game,
@@ -64,6 +65,7 @@ const Board = ({
     handleMortgage,
     handleUnmortgage,
     handlePropertyClick,
+    getCurrentRent,
     ROLL_DICE,
     END_TURN,
     triggerLandingLogic,
@@ -213,14 +215,21 @@ const Board = ({
         onReturnHome={() => window.location.href = "/"}
       />
 
-      <PropertyActionModal
-        property={selectedProperty}
-        onClose={() => setSelectedProperty(null)}
-        onDevelop={handleDevelopment}
-        onDowngrade={handleDowngrade}
-        onMortgage={handleMortgage}
-        onUnmortgage={handleUnmortgage}
-      />
+      {selectedProperty && (
+        <PropertyDetailModal
+          property={selectedProperty}
+          gameProperty={game_properties.find(gp => gp.property_id === selectedProperty.id)}
+          players={players}
+          me={me}
+          isMyTurn={isMyTurn}
+          getCurrentRent={getCurrentRent}
+          onClose={() => setSelectedProperty(null)}
+          onDevelop={handleDevelopment}
+          onDowngrade={handleDowngrade}
+          onMortgage={handleMortgage}
+          onUnmortgage={handleUnmortgage}
+        />
+      )}
 
       <Toaster
         position="top-center"
