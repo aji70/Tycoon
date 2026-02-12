@@ -30,7 +30,7 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
       <div className="flex flex-col h-full min-h-0 max-h-full bg-[#0a0f10] overflow-hidden">
         <div className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-white/5">
           <h3 className="font-bold text-sm text-white font-dmSans tracking-tight">
-            Game Chat
+            Game Chat{gameId ? ` · ${gameId}` : ""}
           </h3>
         </div>
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -57,7 +57,7 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
 
       <aside
         className={`
-          h-[calc(100vh-200px)] mb-[200px] bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
+          h-[calc(100vh-50px)] mb-[50px] bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
           transition-all duration-300 ease-in-out
           fixed top-0 right-0 z-20 lg:static lg:z-auto lg:self-start
           ${isSidebarOpen
@@ -89,7 +89,7 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
                 <ChevronRight className="w-6 h-6" />
               </button>
               <h4 className="font-bold text-lg text-white font-dmSans tracking-tight">
-                Game Chat
+                Game Chat{gameId ? ` · ${gameId}` : ""}
               </h4>
             </div>
 
