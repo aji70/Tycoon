@@ -6,7 +6,6 @@ import { PiTelegramLogoLight } from "react-icons/pi";
 import { FaXTwitter, FaCoins } from "react-icons/fa6";
 import { SiFarcaster } from "react-icons/si";
 import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
-import { House } from "lucide-react";
 import { useWaitingRoom, USDC_DECIMALS } from "./useWaitingRoom";
 import { getPlayerSymbolData, symbols } from "@/lib/types/symbol";
 
@@ -92,12 +91,11 @@ export default function GameWaitingMobile(): JSX.Element {
   return (
     <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pt-[70px]">
       {/* Header */}
-      <div className="px-6 pt-8 pb-6">
-        <div className="max-w-md mx-auto flex justify-between items-center">
-          <h1 className="text-4xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            WAITING ROOM
+      <div className="px-4 sm:px-6 pt-6 pb-4">
+        <div className="max-w-md mx-auto flex justify-center">
+          <h1 className="text-xl sm:text-2xl font-orbitron font-extrabold tracking-widest text-[#F0F7F7]">
+            Tycoon Lobby
           </h1>
-          <div className="w-20" />
         </div>
       </div>
 

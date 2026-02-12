@@ -89,10 +89,18 @@ export default function GameWaiting(): JSX.Element {
   }
 
   return (
-    <section className="w-full h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
-      <main className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
+    <section className="w-full min-h-[calc(100dvh-87px)] bg-settings bg-cover bg-fixed bg-center">
+      <main className="w-full min-h-full flex flex-col bg-gradient-to-b from-[#010F10]/90 to-[#010F10]/50 px-4 sm:px-6">
+        {/* Top bar */}
+        <div className="w-full max-w-xl mx-auto py-4 flex justify-center">
+          <h1 className="text-lg sm:text-xl font-orbitron font-extrabold tracking-widest text-[#F0F7F7]">
+            Tycoon Lobby
+          </h1>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center pb-8">
         <div className="w-full max-w-xl bg-[#0A1A1B]/80 p-5 sm:p-6 rounded-2xl shadow-2xl border border-[#00F0FF]/50 backdrop-blur-md">
-          <h2 className="text-2xl sm:text-3xl font-bold font-orbitron mb-2 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent">
+          <h2 className="text-xl sm:text-2xl font-bold font-orbitron mb-2 text-[#F0F7F7] text-center tracking-widest bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] bg-clip-text text-transparent">
             Tycoon Lobby
           </h2>
 
@@ -387,6 +395,7 @@ export default function GameWaiting(): JSX.Element {
                 "System Glitch Detected"}
             </p>
           )}
+        </div>
         </div>
       </main>
     </section>
