@@ -75,6 +75,7 @@ const Board = ({
     voteToRemove,
     voteStatuses,
     votingLoading,
+    touchActivity,
   } = logic;
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
@@ -245,10 +246,10 @@ const Board = ({
           isMyTurn={isMyTurn}
           getCurrentRent={getCurrentRent}
           onClose={() => setSelectedProperty(null)}
-          onDevelop={handleDevelopment}
-          onDowngrade={handleDowngrade}
-          onMortgage={handleMortgage}
-          onUnmortgage={handleUnmortgage}
+          onDevelop={(id) => { touchActivity(); handleDevelopment(id); }}
+          onDowngrade={(id) => { touchActivity(); handleDowngrade(id); }}
+          onMortgage={(id) => { touchActivity(); handleMortgage(id); }}
+          onUnmortgage={(id) => { touchActivity(); handleUnmortgage(id); }}
         />
       )}
 

@@ -68,6 +68,11 @@ export function useGameBoardLogic({
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
   const recordTimeoutCalledForTurn = useRef<number | null>(null);
+  const timeLeftFrozenAtRollRef = useRef<number | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const INACTIVITY_SECONDS = 30;
+  const TURN_TOTAL_SECONDS = 90;
 
   const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
   const { data: contractGame } = useGetGameByCode(game.code);
@@ -113,7 +118,7 @@ export function useGameBoardLogic({
       } catch (err) {
         console.error("Sync failed:", err);
       }
-    }, 8000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [game.code]);
 
@@ -128,7 +133,13 @@ export function useGameBoardLogic({
     setAnimatedPositions({});
     setHasMovementFinished(false);
     setTurnTimeLeft(null);
+    timeLeftFrozenAtRollRef.current = null;
+    lastActivityRef.current = Date.now();
   }, [currentPlayerId]);
+
+  const touchActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -167,8 +178,9 @@ export function useGameBoardLogic({
     }
   }, [game.code]);
 
-  // Timer for current player — show to ALL players so they can track when someone times out
+  // Timer for current player — show to ALL players. Stops counting when they roll (90s total, wrap up trades in remaining time).
   const isTwoPlayer = players.length === 2;
+  const hasRolled = isMyTurn && roll != null && hasMovementFinished;
   useEffect(() => {
     if (!currentPlayer?.turn_start) {
       setTurnTimeLeft(null);
@@ -180,19 +192,25 @@ export function useGameBoardLogic({
       setTurnTimeLeft(null);
       return;
     }
-    const TURN_ROLL_SECONDS = 90;
     const tick = () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const elapsed = nowSec - turnStartSec;
-      const remaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
-      setTurnTimeLeft(remaining);
+      const liveRemaining = Math.max(0, TURN_TOTAL_SECONDS - elapsed);
 
-      if (remaining <= 0) {
+      // Freeze displayed time when player rolls — stops counting immediately
+      if (hasRolled) {
+        if (timeLeftFrozenAtRollRef.current === null) {
+          timeLeftFrozenAtRollRef.current = liveRemaining;
+        }
+        setTurnTimeLeft(timeLeftFrozenAtRollRef.current);
+      } else {
+        setTurnTimeLeft(liveRemaining);
+      }
+
+      if (liveRemaining <= 0) {
         if (isTwoPlayer) {
-          // 2-player: auto-end turn to accumulate strikes (need 3 for vote)
           END_TURN(true);
         } else {
-          // 3+ players: record soft timeout so others can vote — do not end turn
           if (
             me?.user_id &&
             recordTimeoutCalledForTurn.current !== turnStartSec
@@ -213,9 +231,22 @@ export function useGameBoardLogic({
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, game.id, END_TURN, fetchUpdatedGame]);
+  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, game.id, END_TURN, fetchUpdatedGame, hasRolled]);
+
+  // 30s inactivity after roll → auto-end turn
+  useEffect(() => {
+    if (!isMyTurn || !hasRolled || actionLock || isRolling) return;
+    const check = () => {
+      const idleMs = Date.now() - lastActivityRef.current;
+      if (idleMs >= INACTIVITY_SECONDS * 1000) END_TURN();
+    };
+    check();
+    const interval = setInterval(check, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, hasRolled, actionLock, isRolling, END_TURN]);
 
   const BUY_PROPERTY = useCallback(async () => {
+    touchActivity();
     if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
       showToast("Cannot buy right now", "error");
       return;
@@ -248,7 +279,7 @@ export function useGameBoardLogic({
       const message = getContractErrorMessage(err, "Purchase failed");
       toast.error(message);
     }
-  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll, me?.username, transferOwnership]);
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll, me?.username, transferOwnership, touchActivity]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -294,6 +325,7 @@ export function useGameBoardLogic({
 
   const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
+    touchActivity();
     const playerId = me!.user_id;
     const player = players.find((p) => p.user_id === playerId);
     if (!player) {
@@ -402,7 +434,7 @@ export function useGameBoardLogic({
         unlockAction();
       }
     }, ROLL_ANIMATION_MS);
-  }, [isRolling, actionLock, lockAction, unlockAction, me, players, pendingRoll, game.id, fetchUpdatedGame, showToast, END_TURN]);
+  }, [isRolling, actionLock, lockAction, unlockAction, me, players, pendingRoll, game.id, fetchUpdatedGame, showToast, END_TURN, touchActivity]);
 
   useEffect(() => {
     if (!roll || !hasMovementFinished || buyPrompted || actionLock || isRolling) return;
@@ -434,15 +466,17 @@ export function useGameBoardLogic({
   }, [game_properties]);
 
   const handlePropertyClick = useCallback((square: Property) => {
+    touchActivity();
     setSelectedProperty(square);
-  }, []);
+  }, [touchActivity]);
 
   const handleSkipBuy = useCallback(() => {
+    touchActivity();
     // Skipped — no toast
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 900);
-  }, [END_TURN]);
+  }, [END_TURN, touchActivity]);
 
   const handleBankruptcy = useCallback(async () => {
     if (!me || !game?.id || !game?.code) {
@@ -580,6 +614,7 @@ export function useGameBoardLogic({
   // Vote to remove a player
   const voteToRemove = useCallback(
     async (targetUserId: number) => {
+      touchActivity();
       if (!me?.user_id || !game?.id) return;
       setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
       try {
@@ -614,7 +649,7 @@ export function useGameBoardLogic({
         setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
     },
-    [game?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, onGameUpdated, showToast]
+    [game?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, onGameUpdated, showToast, touchActivity]
   );
 
   // Legacy removeInactive (kept for backward compatibility, but now uses voting)
@@ -727,5 +762,6 @@ export function useGameBoardLogic({
     voteStatuses,
     votingLoading,
     fetchVoteStatus,
+    touchActivity,
   };
 }
