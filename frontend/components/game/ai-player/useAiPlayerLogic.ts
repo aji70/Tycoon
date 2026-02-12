@@ -43,7 +43,8 @@ export function useAiPlayerLogic({
     winner: Player | null;
     position: number;
     balance: bigint;
-  }>({ winner: null, position: 0, balance: BigInt(0) });
+    validWin?: boolean; // true if winner has >= 20 turns, false otherwise
+  }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
 
   const [offerProperties, setOfferProperties] = useState<number[]>([]);
   const [requestProperties, setRequestProperties] = useState<number[]>([]);
@@ -57,7 +58,8 @@ export function useAiPlayerLogic({
     onChainGameId ?? BigInt(0),
     endGameCandidate.position,
     BigInt(endGameCandidate.balance),
-    !!endGameCandidate.winner
+    // Use validWin: if winner has < 20 turns, pass false to prevent spam, but still show them as winner
+    endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
   );
 
   const {

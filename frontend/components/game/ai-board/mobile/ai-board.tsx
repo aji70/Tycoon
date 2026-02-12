@@ -81,7 +81,8 @@ const MobileGameLayout = ({
     winner: Player | null;
     position: number;
     balance: bigint;
-  }>({ winner: null, position: 0, balance: BigInt(0) });
+    validWin?: boolean; // true if winner has >= 20 turns, false otherwise
+  }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
 
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
@@ -194,7 +195,8 @@ const endTime =
     onChainGameId ?? BigInt(0),
     endGameCandidate.position,
     BigInt(endGameCandidate.balance),
-    !!endGameCandidate.winner
+    // Use validWin: if winner has < 20 turns, pass false to prevent spam, but still show them as winner
+    endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
   );
 
   const activeToasts = useRef<Set<string>>(new Set());
@@ -310,7 +312,7 @@ const endTime =
     timeUpHandledRef.current = true;
     setGameTimeUp(true);
     try {
-      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number } }>(
+      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number; valid_win?: boolean; winner_turn_count?: number } }>(
         `/games/${currentGame.id}/winner-by-net-worth`
       );
       const winnerId = res?.data?.data?.winner_id;
@@ -318,15 +320,16 @@ const endTime =
 
       const myPosition = me?.position ?? 0;
       const myBalance = BigInt(me?.balance ?? 0);
+      const validWin = res?.data?.data?.valid_win !== false; // Default to true if not provided
 
       if (winnerId === me?.user_id) {
         setWinner(me!);
-        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance });
+        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
       } else {
         await onFinishGameByTime?.();
         const winnerPlayer = players.find((p) => p.user_id === winnerId) ?? null;
         setWinner(winnerPlayer);
-        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance });
+        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
       }
     } catch (e) {
       console.error("Time up / winner-by-net-worth failed:", e);
@@ -644,11 +647,14 @@ const endTime =
       (players.length === 1 && players[0].user_id === me.user_id);
 
     if (shouldDeclareVictory) {
+      const turnCount = humanPlayer.turn_count ?? 0;
+      const validWin = turnCount >= 20;
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,
         position: humanPlayer.position ?? 0,
         balance: BigInt(humanPlayer.balance),
+        validWin,
       });
     }
   }, [players, me]);

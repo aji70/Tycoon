@@ -113,11 +113,14 @@ export default function MobileGamePlayers({
     const humanPlayer = me;
 
     if ((!aiPlayer) && humanPlayer.balance > 0) {
+      const turnCount = humanPlayer.turn_count ?? 0;
+      const validWin = turnCount >= 20;
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,
         position: humanPlayer.position ?? 0,
         balance: BigInt(humanPlayer.balance),
+        validWin,
       });
     }
   }, [game.players, me]);

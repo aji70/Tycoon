@@ -80,6 +80,8 @@ export interface Player {
   turn_start?: string | null;
   /** Consecutive 90s turn timeouts; after 3, opponents can remove this player (multiplayer) */
   consecutive_timeouts?: number;
+  /** Number of turns this player has completed (for anti-spam: valid wins require >= 20 turns) */
+  turn_count?: number;
 }
 
 export interface GamePlayExtra {

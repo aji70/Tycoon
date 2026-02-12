@@ -21,7 +21,7 @@ const AVERAGE_DICE_ROLL = 7;
  */
 async function computeWinnerByNetWorth(game) {
   if (!game?.is_ai || game?.status !== "RUNNING") return null;
-  const players = await db("game_players").where({ game_id: game.id }).select("id", "user_id", "balance");
+  const players = await db("game_players").where({ game_id: game.id }).select("id", "user_id", "balance", "turn_count");
   if (players.length === 0) return null;
 
   const rows = await db("game_properties as gp")
@@ -87,9 +87,22 @@ async function computeWinnerByNetWorth(game) {
     }
     const net_worth = cash + propertyValue + buildingValue + rentTotal;
     net_worths.push({ user_id: player.user_id, net_worth });
-    if (net_worth > best.net_worth) best = { user_id: player.user_id, net_worth };
+    if (net_worth > best.net_worth) {
+      const winnerTurnCount = Number(player.turn_count || 0);
+      best = { 
+        user_id: player.user_id, 
+        net_worth,
+        turn_count: winnerTurnCount,
+        valid_win: winnerTurnCount >= 20 // Valid win requires >= 20 turns
+      };
+    }
   }
-  return { winner_id: best.user_id, net_worths };
+  return { 
+    winner_id: best.user_id, 
+    net_worths,
+    winner_turn_count: best.turn_count || 0,
+    valid_win: best.valid_win !== false // Default to true if not set
+  };
 }
 
 /**
@@ -272,7 +285,12 @@ const gameController = {
 
       return res.status(200).json({
         success: true,
-        data: { winner_id: result.winner_id, net_worths: result.net_worths },
+        data: { 
+          winner_id: result.winner_id, 
+          net_worths: result.net_worths,
+          winner_turn_count: result.winner_turn_count || 0,
+          valid_win: result.valid_win !== false // Valid if >= 20 turns
+        },
       });
     } catch (error) {
       console.error("getWinnerByNetWorth error:", error);
@@ -312,7 +330,12 @@ const gameController = {
       return res.status(200).json({
         success: true,
         message: "Game finished by time; winner by net worth",
-        data: { game: updated, winner_id: result.winner_id },
+        data: { 
+          game: updated, 
+          winner_id: result.winner_id,
+          winner_turn_count: result.winner_turn_count || 0,
+          valid_win: result.valid_win !== false // Valid if >= 20 turns
+        },
       });
     } catch (error) {
       console.error("finishByTime error:", error);
