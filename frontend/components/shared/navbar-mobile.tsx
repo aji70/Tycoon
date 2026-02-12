@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
@@ -18,13 +18,42 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
 import { isAddress } from 'viem';
 
+const SCROLL_TOP_THRESHOLD = 40;
+const SCROLL_SENSITIVITY = 8;
+
 const NavBarMobile = () => {
-  const { scrollYProgress } = useScroll();
+  const { scrollY, scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
     restDelta: 0.001,
   });
+
+  const [navVisible, setNavVisible] = useState(false);
+  const lastScrollY = useRef(0);
+  const hasScrolled = useRef(false);
+
+  useEffect(() => {
+    const y = typeof window !== 'undefined' ? window.scrollY ?? 0 : 0;
+    lastScrollY.current = y;
+    setNavVisible(y < SCROLL_TOP_THRESHOLD);
+    hasScrolled.current = y > 0;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = scrollY.on('change', (latest) => {
+      const diff = latest - lastScrollY.current;
+      if (latest < SCROLL_TOP_THRESHOLD) {
+        setNavVisible(true);
+        hasScrolled.current = true;
+      } else if (hasScrolled.current) {
+        if (diff < -SCROLL_SENSITIVITY) setNavVisible(true);
+        else if (diff > SCROLL_SENSITIVITY) setNavVisible(false);
+      }
+      lastScrollY.current = latest;
+    });
+    return () => unsubscribe();
+  }, [scrollY]);
 
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
@@ -74,14 +103,19 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
   return (
     <>
-      {/* Scroll Progress Bar */}
-      <motion.div
-        className="fixed top-0 left-0 right-0 bg-[#0FF0FC] h-[3px] origin-left z-[70]"
-        style={{ scaleX }}
-      />
-
-      {/* Mobile Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl z-[1000] border-b border-[#003B3E]/50">
+      {/* Mobile Fixed Header - slides up off-screen when scrolling down */}
+      <motion.header
+        initial={false}
+        animate={{ y: navVisible ? 0 : -100 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex flex-col z-[1000]"
+      >
+        {/* Scroll Progress Bar */}
+        <motion.div
+          className="w-full bg-[#0FF0FC] h-[3px] origin-left shrink-0"
+          style={{ scaleX }}
+        />
+        <div className="flex-1 flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl border-b border-[#003B3E]/50">
         <Logo className="w-[42px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-4">
@@ -99,7 +133,24 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
             <Menu size={24} />
           </button>
         </div>
-      </header>
+      </div>
+      </motion.header>
+
+      {/* Floating Menu Button - visible when navbar is hidden */}
+      <motion.button
+        initial={false}
+        animate={{
+          opacity: navVisible ? 0 : 1,
+          pointerEvents: navVisible ? 'none' : 'auto',
+          scale: navVisible ? 0.9 : 1,
+        }}
+        transition={{ duration: 0.2 }}
+        onClick={() => setIsMobileMenuOpen(true)}
+        className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-2xl bg-[#011112]/95 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 shadow-lg backdrop-blur-sm transition"
+        aria-label="Open menu"
+      >
+        <Menu size={24} />
+      </motion.button>
 
       {/* Mobile Bottom Sheet Menu */}
       {isMobileMenuOpen && (
