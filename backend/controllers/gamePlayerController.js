@@ -6,6 +6,17 @@ import User from "../models/User.js";
 import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
 import db from "../config/database.js";
+import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
+import { invalidateGameById } from "../utils/gameCache.js";
+import logger from "../config/logger.js";
+
+async function notifyGameUpdate(req, gameId) {
+  try {
+    const io = req.app.get("io");
+    if (io && gameId) await emitGameUpdateByGameId(io, gameId);
+    await invalidateGameById(gameId);
+  } catch (_) {}
+}
 
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
@@ -378,7 +389,7 @@ const payRent = async (
       message: comment,
     };
   } catch (err) {
-    console.error("Error in payRent:", err);
+    logger.error({ err }, "Error in payRent");
     return {
       success: false,
       message: err.message || "Failed to process rent payment",
@@ -423,7 +434,7 @@ const gamePlayerController = {
         .status(201)
         .json({ success: true, message: "Player added to game successfully" });
     } catch (error) {
-      console.error("Error creating game player:", error);
+      logger.error({ err: error }, "Error creating game player");
       res.status(200).json({ success: false, message: error.message });
     }
   },
@@ -491,7 +502,7 @@ const gamePlayerController = {
         data: player,
       });
     } catch (error) {
-      console.error("Error creating game player:", error);
+      logger.error({ err: error }, "Error creating game player");
       return res.status(200).json({ success: false, message: error.message });
     }
   },
@@ -512,7 +523,7 @@ const gamePlayerController = {
         message: "Player removed to game successfully",
       });
     } catch (error) {
-      console.error("Error creating game player:", error);
+      logger.error({ err: error }, "Error creating game player");
       res.status(200).json({ success: false, message: error.message });
     }
   },
@@ -699,7 +710,7 @@ const gamePlayerController = {
 
         await insertPlayHistory({ jail: true });
         await trx.commit();
-
+        await notifyGameUpdate(req, game_id);
         return res.json({
           success: true,
           message: "You've been sent to jail!",
@@ -769,9 +780,8 @@ const gamePlayerController = {
           final_position: pay_rent.position || new_position,
         });
 
-        // Commit transaction
         await trx.commit();
-
+        await notifyGameUpdate(req, game_id);
         return res.json({
           success: true,
           message: "Position updated successfully.",
@@ -797,7 +807,7 @@ const gamePlayerController = {
           "You are still in jail"
         );
         await trx.commit();
-
+        await notifyGameUpdate(req, game_id);
         return res.json({
           success: true,
           message: "Still in jail. Try again next turn.",
@@ -813,7 +823,7 @@ const gamePlayerController = {
       } catch (e) {
         /* ignore rollback errors */
       }
-      console.error("changePosition error:", error);
+      logger.error({ err: error }, "changePosition error");
       return res.status(500).json({
         success: false,
         message: error?.message || "Internal server error",
@@ -942,14 +952,14 @@ const gamePlayerController = {
       }
 
       await trx.commit();
-
+      await notifyGameUpdate(req, game_id);
       res.json({
         success: true,
         message: "Turn ended. Next player set.",
       });
     } catch (error) {
       await trx.rollback();
-      console.error("endTurn error:", error);
+      logger.error({ err: error }, "endTurn error");
       res.status(200).json({ success: false, message: error.message });
     }
   },
@@ -1039,7 +1049,7 @@ const gamePlayerController = {
       });
     } catch (error) {
       await trx.rollback();
-      console.error("canRoll error:", error);
+      logger.error({ err: error }, "canRoll error");
       return res.status(200).json({
         success: false,
         data: { canRoll: false },
@@ -1162,7 +1172,7 @@ const gamePlayerController = {
       });
     } catch (error) {
       await trx.rollback();
-      console.error("removeInactive error:", error);
+      logger.error({ err: error }, "removeInactive error");
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to remove inactive player",
@@ -1226,7 +1236,7 @@ const gamePlayerController = {
 
   } catch (error) {
     await trx.rollback();
-    console.error("remove player error:", error);
+    logger.error({ err: error }, "remove player error");
 
     return res.status(500).json({
       success: false,

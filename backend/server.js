@@ -4,7 +4,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { Server } from "socket.io";
-import http, { createServer } from "node:http";
+import { createServer } from "node:http";
 
 // Import routes
 import usersRoutes from "./routes/users.js";
@@ -24,14 +24,15 @@ import chatsRoutes from "./routes/chats.js";
 import messagesRoutes from "./routes/messages.js";
 import analyticsRoutes from "./routes/analytics.js";
 
-// Import perk controller (make sure this file exists!)
 import gamePerkController from "./controllers/gamePerkController.js";
+import { connectSocketRedis } from "./config/socketRedis.js";
+import logger from "./config/logger.js";
+import db from "./config/database.js";
+import redis from "./config/redis.js";
 
 dotenv.config();
 
 const app = express();
-
-// Trust first proxy (Railway, etc.) so rate limiter gets real client IP from X-Forwarded-For
 app.set("trust proxy", 1);
 
 const PORT = process.env.PORT || 3000;
@@ -46,45 +47,117 @@ const io = new Server(server, {
 
 app.set("io", io);
 
+// Step 7: Connection limits (per-IP) and socket event rate limiting
+const CONNECTIONS_PER_IP = 5;
+const EVENTS_PER_SOCKET_PER_MINUTE = 60;
+const connectionCountByIp = new Map();
+const socketEventCounts = new Map(); // socketId -> { count, resetAt }
+
+function getClientIp(socket) {
+  const forwarded = socket.handshake.headers["x-forwarded-for"];
+  if (forwarded) {
+    const first = forwarded.split(",")[0].trim();
+    if (first) return first;
+  }
+  return socket.handshake.address || socket.conn?.remoteAddress || "unknown";
+}
+
+function checkSocketEventRate(socket) {
+  const now = Date.now();
+  const oneMin = 60 * 1000;
+  let entry = socketEventCounts.get(socket.id);
+  if (!entry) {
+    entry = { count: 0, resetAt: now + oneMin };
+    socketEventCounts.set(socket.id, entry);
+  }
+  if (now >= entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + oneMin;
+  }
+  entry.count += 1;
+  if (entry.count > EVENTS_PER_SOCKET_PER_MINUTE) {
+    return false;
+  }
+  return true;
+}
+
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  const ip = getClientIp(socket);
+  const current = connectionCountByIp.get(ip) || 0;
+  if (current >= CONNECTIONS_PER_IP) {
+    logger.warn({ ip, socketId: socket.id }, "Connection rejected: per-IP limit");
+    socket.disconnect(true);
+    return;
+  }
+  connectionCountByIp.set(ip, current + 1);
+  logger.info({ socketId: socket.id, ip }, "User connected");
 
   socket.on("join-game-room", (gameCode) => {
+    if (!checkSocketEventRate(socket)) {
+      socket.emit("error", { message: "Too many actions; slow down." });
+      return;
+    }
     socket.join(gameCode);
-    console.log(`User ${socket.id} joined room: ${gameCode}`);
+    logger.debug({ socketId: socket.id, gameCode }, "User joined room");
   });
 
   socket.on("leave-game-room", (gameCode) => {
+    if (!checkSocketEventRate(socket)) {
+      socket.emit("error", { message: "Too many actions; slow down." });
+      return;
+    }
     socket.leave(gameCode);
-    console.log(`User ${socket.id} left room: ${gameCode}`);
+    logger.debug({ socketId: socket.id, gameCode }, "User left room");
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    connectionCountByIp.set(ip, Math.max(0, (connectionCountByIp.get(ip) || 0) - 1));
+    socketEventCounts.delete(socket.id);
+    logger.info({ socketId: socket.id }, "User disconnected");
   });
 });
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
+  windowMs: 1 * 60 * 1000,
   max: 300,
   message: "Too many requests from this IP, please try again later.",
 });
 
-// Middleware
 app.use(helmet());
 app.use(cors());
 app.use(limiter);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
+// Step 10: Health check (DB + Redis)
+app.get("/health", async (req, res) => {
+  const health = {
     status: "OK",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-  });
+    db: "unknown",
+    redis: "unknown",
+  };
+
+  try {
+    await db.raw("SELECT 1");
+    health.db = "up";
+  } catch (err) {
+    health.db = "down";
+    health.status = "DEGRADED";
+  }
+
+  try {
+    await redis.get("health");
+    health.redis = "up";
+  } catch {
+    health.redis = "down";
+    if (health.db === "up") health.status = "DEGRADED";
+  }
+
+  const statusCode = health.status === "OK" ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // API routes
@@ -105,20 +178,17 @@ app.use("/api/chats", chatsRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/analytics", analyticsRoutes);
 
-// 🔥 NEW: Perk Routes (this was missing!)
 app.post("/api/perks/activate", gamePerkController.activatePerk);
 app.post("/api/perks/teleport", gamePerkController.teleport);
 app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
 app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
 
-// 404 handler (must come after all routes)
 app.use("*", (req, res) => {
   res.status(404).json({ success: false, error: "Endpoint not found" });
 });
 
-// Global error handler
 app.use((error, req, res, next) => {
-  console.error(error.stack);
+  logger.error({ err: error, stack: error.stack }, "Unhandled error");
 
   if (error.type === "entity.parse.failed") {
     return res.status(400).json({ success: false, error: "Invalid JSON" });
@@ -133,11 +203,30 @@ app.use((error, req, res, next) => {
   });
 });
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+async function start() {
+  // Step 5: Socket.io Redis adapter (when Redis is available)
+  try {
+    const adapter = await connectSocketRedis();
+    if (adapter) {
+      io.adapter(adapter);
+      logger.info("Socket.io Redis adapter attached");
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, "Socket.io Redis adapter skipped");
+  }
+
+  server.listen(PORT, () => {
+    logger.info({
+      port: PORT,
+      env: process.env.NODE_ENV,
+      health: `http://localhost:${PORT}/health`,
+    }, "Server running");
+  });
+}
+
+start().catch((err) => {
+  logger.error({ err }, "Server failed to start");
+  process.exit(1);
 });
 
 export { app, server, io };

@@ -6,6 +6,14 @@ import GamePlayHistory from "../models/GamePlayHistory.js";
 import Chat from "../models/Chat.js";
 import db from "../config/database.js";
 import { recordEvent } from "../services/analytics.js";
+import {
+  getCachedGameByCode,
+  setCachedGameByCode,
+  invalidateGameById,
+  invalidateGameByCode,
+} from "../utils/gameCache.js";
+import { emitGameUpdate } from "../utils/socketHelpers.js";
+import logger from "../config/logger.js";
 
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
@@ -201,7 +209,7 @@ const gameController = {
         },
       });
     } catch (error) {
-      console.error("Error creating game with settings:", error);
+      logger.error({ err: error }, "Error creating game with settings");
       res.status(200).json({ success: false, message: error.message });
     }
   },
@@ -255,6 +263,10 @@ const gameController = {
   async update(req, res) {
     try {
       await Game.update(req.params.id, req.body);
+      await invalidateGameById(req.params.id);
+      const io = req.app.get("io");
+      const game = await Game.findById(req.params.id);
+      if (game?.code) emitGameUpdate(io, game.code);
       res.json({ success: true, message: "Game updated" });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });
@@ -300,7 +312,7 @@ const gameController = {
         },
       });
     } catch (error) {
-      console.error("getWinnerByNetWorth error:", error);
+      logger.error({ err: error }, "getWinnerByNetWorth error");
       return res.status(500).json({ success: false, message: error?.message || "Failed to get winner" });
     }
   },
@@ -333,19 +345,22 @@ const gameController = {
       if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
 
       await Game.update(game.id, { status: "FINISHED", winner_id: result.winner_id });
+      await invalidateGameById(game.id);
+      const io = req.app.get("io");
+      emitGameUpdate(io, game.code);
       const updated = await Game.findById(game.id);
       return res.status(200).json({
         success: true,
         message: "Game finished by time; winner by net worth",
-        data: { 
-          game: updated, 
+        data: {
+          game: updated,
           winner_id: result.winner_id,
           winner_turn_count: result.winner_turn_count || 0,
           valid_win: result.valid_win !== false // Valid if >= 20 turns
         },
       });
     } catch (error) {
-      console.error("finishByTime error:", error);
+      logger.error({ err: error }, "finishByTime error");
       return res.status(500).json({ success: false, message: error?.message || "Failed to finish game by time" });
     }
   },
@@ -356,7 +371,17 @@ const gameController = {
 
   async findByCode(req, res) {
     try {
-      const game = await Game.findByCode(req.params.code);
+      const code = req.params.code;
+      const cached = await getCachedGameByCode(code);
+      if (cached) {
+        return res.json({
+          success: true,
+          message: "successful",
+          data: cached,
+        });
+      }
+
+      const game = await Game.findByCode(code);
       if (!game) return res.status(404).json({ error: "Game not found" });
       if (game.status === "FINISHED" || game.status === "CANCELLED") {
         return res.status(200).json({ success: false, error: "Game ended" });
@@ -364,11 +389,13 @@ const gameController = {
       const settings = await GameSetting.findByGameId(game.id);
       const players = await GamePlayer.findByGameId(game.id);
       const history = await GamePlayHistory.findByGameId(game.id);
+      const data = { ...game, settings, players, history };
+      await setCachedGameByCode(code, data);
 
       res.json({
         success: true,
         message: "successful",
-        data: { ...game, settings, players, history },
+        data,
       });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });
@@ -558,7 +585,7 @@ export const create = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error creating game with settings:", error);
+    logger.error({ err: error }, "Error creating game with settings");
     res.status(200).json({ success: false, message: error.message });
   }
 };
@@ -634,17 +661,18 @@ export const join = async (req, res) => {
     // Get updated players list
     const updatedPlayers = await GamePlayer.findByGameId(game.id);
 
-    // Emit player joined event
     const io = req.app.get("io");
+    await invalidateGameByCode(code);
+    emitGameUpdate(io, game.code);
     io.to(game.code).emit("player-joined", {
       player: player,
       players: updatedPlayers,
       game: game,
     });
 
-    // If game is now full, update status and emit
     if (updatedPlayers.length === game.number_of_players) {
       await Game.update(game.id, { status: "RUNNING" });
+      await invalidateGameById(game.id);
       const updatedGame = await Game.findByCode(code);
       // Set turn_start for the first player (90s roll timer)
       if (updatedGame.next_player_id) {
@@ -652,6 +680,7 @@ export const join = async (req, res) => {
       }
       const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
 
+      emitGameUpdate(io, game.code);
       io.to(game.code).emit("game-ready", {
         game: updatedGame,
         players: playersWithTurnStart,
@@ -664,7 +693,7 @@ export const join = async (req, res) => {
       data: player,
     });
   } catch (error) {
-    console.error("Error creating game player:", error);
+    logger.error({ err: error }, "Error creating game player");
     return res.status(200).json({ success: false, message: error.message });
   }
 };
@@ -691,15 +720,15 @@ export const leave = async (req, res) => {
     // Get updated players list
     const updatedPlayers = await GamePlayer.findByGameId(game.id);
 
-    // Emit player left event
     const io = req.app.get("io");
+    await invalidateGameByCode(code);
+    emitGameUpdate(io, game.code);
     io.to(game.code).emit("player-left", {
       player: player,
       players: updatedPlayers,
       game: game,
     });
 
-    // If no players left, delete the game
     if (updatedPlayers.length === 0) {
       await Game.delete(game.id);
       io.to(game.code).emit("game-ended", { gameCode: code });
@@ -710,7 +739,7 @@ export const leave = async (req, res) => {
       message: "Player removed from game successfully",
     });
   } catch (error) {
-    console.error("Error removing game player:", error);
+    logger.error({ err: error }, "Error removing game player");
     res.status(200).json({ success: false, message: error.message });
   }
 };

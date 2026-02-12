@@ -5,17 +5,25 @@ import GameRoom from "@/components/game/game-room";
 import GamePlayers from "@/components/game/player/player";
 import MobileGamePlayers from "@/components/game/player/mobile/player";
 import { apiClient } from "@/lib/api";
+import { socketService } from "@/lib/socket";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import MobileGameLayout from "@/components/game/board/mobile/board-mobile";
 
+const SOCKET_URL =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_SOCKET_URL ||
+        (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, ""))
+    : "";
+
 export default function GamePlayPage() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const [gameCode, setGameCode] = useState<string>("");
 
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -26,6 +34,23 @@ export default function GamePlayPage() {
     const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
     if (code && code.length === 6) setGameCode(code);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!gameCode || !SOCKET_URL) return;
+    const socket = socketService.connect(SOCKET_URL);
+    socketService.joinGameRoom(gameCode);
+    const onGameUpdate = (data: { gameCode: string }) => {
+      if (data.gameCode === gameCode) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
+        queryClient.invalidateQueries({ queryKey: ["game_properties"] });
+      }
+    };
+    socketService.onGameUpdate(onGameUpdate);
+    return () => {
+      socketService.removeListener("game-update", onGameUpdate);
+      socketService.leaveGameRoom(gameCode);
+    };
+  }, [gameCode, queryClient]);
 
   const {
     data: game,
@@ -48,7 +73,7 @@ export default function GamePlayPage() {
       return res.data.data;
     },
     enabled: !!gameCode,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   const me = useMemo(() => {
@@ -84,7 +109,7 @@ export default function GamePlayPage() {
       return res.data?.success ? res.data.data : [];
     },
     enabled: !!game?.id,
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   });
 
   const my_properties: Property[] = useMemo(() => {
