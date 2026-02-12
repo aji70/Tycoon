@@ -69,3 +69,12 @@ export const isAIPlayer = (player: Player) => {
   const username = (player.username || "").toLowerCase();
   return username.includes("ai_") || username.includes("bot") || username.includes("computer");
 };
+
+/** Derive AI slot (2–8) from player username (e.g. AI_2 -> 2) for Celo agent registry. */
+export function getAiSlotFromPlayer(player: Player): number | null {
+  const username = player.username || "";
+  const match = username.match(/ai_(\d+)/i);
+  if (match) return Math.min(8, Math.max(2, parseInt(match[1], 10)));
+  if (isAIPlayer(player) && player.turn_order != null) return Math.min(8, Math.max(2, player.turn_order));
+  return null;
+}

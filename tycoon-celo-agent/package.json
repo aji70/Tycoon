@@ -1,0 +1,14 @@
+{
+  "name": "tycoon-celo-agent",
+  "version": "1.0.0",
+  "description": "Celo-backed AI agent for Tycoon (ERC-8004). Uses built-in logic by default; replace with your own or Tycoon's decision engine.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/register.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
