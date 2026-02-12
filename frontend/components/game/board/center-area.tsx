@@ -8,6 +8,8 @@ import { Property, Player, Game } from "@/types/game";
 type CenterAreaProps = {
   isMyTurn: boolean;
   currentPlayer?: Player;
+  me?: Player | null;
+  game?: Game;
   playerCanRoll: boolean;
   isRolling: boolean;
   roll: { die1: number; die2: number; total: number } | null;
@@ -23,7 +25,14 @@ type CenterAreaProps = {
   timerSlot?: React.ReactNode;
   /** Seconds left to roll (90s turn timer); null when not applicable */
   turnTimeLeft?: number | null;
-  /** Players with 3+ consecutive timeouts that opponents can remove (multiplayer) */
+  /** Players that can be voted out (timed out OR 3+ consecutive timeouts) */
+  voteablePlayers?: Player[];
+  /** Vote status for each voteable player */
+  voteStatuses?: Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>;
+  /** Loading state for voting */
+  votingLoading?: Record<number, boolean>;
+  onVoteToRemove?: (targetUserId: number) => void;
+  /** Legacy: kept for backward compatibility */
   removablePlayers?: Player[];
   onRemoveInactive?: (targetUserId: number) => void;
 };
@@ -31,6 +40,8 @@ type CenterAreaProps = {
 export default function CenterArea({
   isMyTurn,
   currentPlayer,
+  me,
+  game,
   playerCanRoll,
   isRolling,
   roll,
@@ -45,6 +56,10 @@ export default function CenterArea({
   isPending,
   timerSlot,
   turnTimeLeft,
+  voteablePlayers,
+  voteStatuses = {},
+  votingLoading = {},
+  onVoteToRemove,
   removablePlayers,
   onRemoveInactive,
 }: CenterAreaProps) {
@@ -77,8 +92,60 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Remove inactive player (3 consecutive 90s timeouts) - multiplayer only */}
-      {removablePlayers && removablePlayers.length > 0 && onRemoveInactive && (
+      {/* Vote to remove inactive/timed-out players - multiplayer only */}
+      {voteablePlayers && voteablePlayers.length > 0 && onVoteToRemove && (
+        <div className="flex flex-col items-center gap-3 mb-3 z-10 max-w-md">
+          {voteablePlayers.map((p) => {
+            const strikes = p.consecutive_timeouts ?? 0;
+            const hasThreeStrikes = strikes >= 3;
+            const status = voteStatuses[p.user_id];
+            const isLoading = votingLoading[p.user_id];
+            const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
+            
+            return (
+              <div
+                key={p.user_id}
+                className="w-full bg-red-950/60 border border-red-500/50 rounded-lg p-3 flex flex-col gap-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-red-300">
+                      {p.username}
+                      {strikes > 0 && ` (${strikes} timeout${strikes > 1 ? 's' : ''})`}
+                    </span>
+                    {status && (
+                      <span className="text-xs text-red-200/70">
+                        Votes: {status.vote_count}/{status.required_votes}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onVoteToRemove(p.user_id)}
+                    disabled={isLoading || hasVoted}
+                    className={`text-xs font-medium rounded-lg px-4 py-2 border transition-all ${
+                      hasVoted
+                        ? "bg-green-900/60 text-green-200 border-green-500/50 cursor-not-allowed"
+                        : isLoading
+                        ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
+                        : "bg-red-900/80 text-red-200 border-red-500/50 hover:bg-red-800/80 hover:scale-105"
+                    }`}
+                  >
+                    {hasVoted ? "✓ Voted" : isLoading ? "Voting..." : `Vote ${p.username} Out`}
+                  </button>
+                </div>
+                {status && status.voters && status.voters.length > 0 && (
+                  <div className="text-xs text-red-200/50">
+                    Voted by: {status.voters.map((v) => v.username).join(", ")}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      
+      {/* Legacy: Remove inactive player (3 consecutive 90s timeouts) - fallback if voteablePlayers not provided */}
+      {!voteablePlayers && removablePlayers && removablePlayers.length > 0 && onRemoveInactive && (
         <div className="flex flex-wrap justify-center gap-2 mb-3 z-10">
           {removablePlayers.map((p) => (
             <button

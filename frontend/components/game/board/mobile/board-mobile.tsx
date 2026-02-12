@@ -79,6 +79,8 @@ const MobileGameLayout = ({
   const [cardPlayerName, setCardPlayerName] = useState("");
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
+  const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
+  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
 
   const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
@@ -337,29 +339,106 @@ const MobileGameLayout = ({
     setTimeout(END_TURN, 800);
   }, [END_TURN]);
 
-  const removeInactive = useCallback(
+  // Get vote status for a target player
+  const fetchVoteStatus = useCallback(
+    async (targetUserId: number) => {
+      if (!currentGame?.id) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-status", {
+          game_id: currentGame.id,
+          target_user_id: targetUserId,
+        });
+        if (res?.data?.success && res.data.data) {
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: res.data.data,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch vote status:", err);
+      }
+    },
+    [currentGame?.id]
+  );
+
+  // Vote to remove a player
+  const voteToRemove = useCallback(
     async (targetUserId: number) => {
       if (!me?.user_id || !currentGame?.id) return;
+      setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
       try {
-        await apiClient.post("/game-players/remove-inactive", {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-to-remove", {
           game_id: currentGame.id,
           user_id: me.user_id,
           target_user_id: targetUserId,
         });
-        await fetchUpdatedGame();
-        // Player removed — state visible
+        if (res?.data?.success) {
+          const data = res.data.data;
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: {
+              vote_count: data.vote_count,
+              required_votes: data.required_votes,
+              voters: [],
+            },
+          }));
+          if (data.removed) {
+            showToast(`${players.find((p) => p.user_id === targetUserId)?.username || "Player"} has been removed`, "success");
+            await fetchUpdatedGame();
+          } else {
+            showToast(`Vote recorded. ${data.vote_count}/${data.required_votes} votes.`, "default");
+            await fetchVoteStatus(targetUserId);
+          }
+        }
       } catch (err: unknown) {
-        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to remove player";
+        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to vote";
         showToast(msg, "error");
+      } finally {
+        setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
     },
-    [currentGame?.id, me?.user_id, fetchUpdatedGame, showToast]
+    [currentGame?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, showToast]
   );
 
+  const removeInactive = useCallback(
+    async (targetUserId: number) => {
+      // Redirect to voting system
+      await voteToRemove(targetUserId);
+    },
+    [voteToRemove]
+  );
+
+  // Voteable players: timed out OR 3+ consecutive timeouts
+  const voteablePlayers = useMemo(
+    () => {
+      const otherPlayers = players.filter((p) => p.user_id !== me?.user_id);
+      return players.filter((p) => {
+        if (p.user_id === me?.user_id) return false;
+        const strikes = p.consecutive_timeouts ?? 0;
+        // With 2 players: need 3+ consecutive timeouts
+        // With more players: can vote after any timeout
+        if (otherPlayers.length === 1) {
+          return strikes >= 3;
+        }
+        return strikes > 0;
+      });
+    },
+    [players, me?.user_id]
+  );
+
+  // Legacy: removablePlayers for backward compatibility
   const removablePlayers = useMemo(
     () => players.filter((p) => p.user_id !== me?.user_id && (p.consecutive_timeouts ?? 0) >= 3),
     [players, me?.user_id]
   );
+
+  // Fetch vote statuses for voteable players
+  useEffect(() => {
+    if (!currentGame?.id || !me?.user_id) return;
+    voteablePlayers.forEach((p) => {
+      fetchVoteStatus(p.user_id);
+    });
+  }, [currentGame?.id, me?.user_id, voteablePlayers, fetchVoteStatus]);
 
   const BUY_PROPERTY = useCallback(async () => {
     if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
@@ -992,17 +1071,54 @@ const MobileGameLayout = ({
         <GameLog history={currentGame.history} />
       </div>
 
-      {removablePlayers.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 px-2 py-1.5 bg-amber-900/30 border-b border-amber-500/30">
-          {removablePlayers.map((p) => (
-            <button
-              key={p.user_id}
-              onClick={() => removeInactive(p.user_id)}
-              className="text-sm font-medium rounded-lg px-3 py-1.5 bg-amber-900/80 text-amber-200 border border-amber-500/50"
-            >
-              Remove {p.username} (3 timeouts)
-            </button>
-          ))}
+      {/* Vote to remove inactive/timed-out players */}
+      {voteablePlayers.length > 0 && (
+        <div className="flex flex-col gap-2 px-2 py-2 bg-red-950/40 border-b border-red-500/30">
+          {voteablePlayers.map((p) => {
+            const strikes = p.consecutive_timeouts ?? 0;
+            const status = voteStatuses[p.user_id];
+            const isLoading = votingLoading[p.user_id];
+            const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
+            
+            return (
+              <div
+                key={p.user_id}
+                className="bg-red-950/60 border border-red-500/50 rounded-lg p-2 flex flex-col gap-1.5"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-xs font-bold text-red-300 truncate">
+                      {p.username}
+                      {strikes > 0 && ` (${strikes} timeout${strikes > 1 ? 's' : ''})`}
+                    </span>
+                    {status && (
+                      <span className="text-xs text-red-200/70">
+                        Votes: {status.vote_count}/{status.required_votes}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => voteToRemove(p.user_id)}
+                    disabled={isLoading || hasVoted}
+                    className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-all shrink-0 ${
+                      hasVoted
+                        ? "bg-green-900/60 text-green-200 border-green-500/50"
+                        : isLoading
+                        ? "bg-amber-900/60 text-amber-200 border-amber-500/50"
+                        : "bg-red-900/80 text-red-200 border-red-500/50 active:scale-95"
+                    }`}
+                  >
+                    {hasVoted ? "✓ Voted" : isLoading ? "..." : "Vote Out"}
+                  </button>
+                </div>
+                {status && status.voters && status.voters.length > 0 && (
+                  <div className="text-xs text-red-200/50 truncate">
+                    Voted: {status.voters.map((v) => v.username).join(", ")}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

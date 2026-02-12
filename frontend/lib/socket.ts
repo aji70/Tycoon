@@ -108,6 +108,12 @@ class SocketService {
     }
   }
 
+  onVoteCast(callback: (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => void): void {
+    if (this.socket) {
+      this.socket.on("vote-cast", callback);
+    }
+  }
+
   // Remove event listeners
   removeListener(event: string, callback: (...args: any[]) => void): void {
     if (this.socket) {

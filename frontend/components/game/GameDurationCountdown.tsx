@@ -7,8 +7,12 @@ const STORAGE_KEY_PREFIX = "tycoon_game_end_";
 
 function getEndTimeMs(game: Game): number | null {
   const durationMinutes = Number(game?.duration ?? 0);
-  if (!game?.created_at || durationMinutes <= 0) return null;
-  const startMs = new Date(game.created_at).getTime();
+  if (durationMinutes <= 0) return null;
+  // Multiplayer: timing starts when all players join and game is RUNNING (started_at).
+  // Fall back to created_at for older games or AI.
+  const startAt = game?.started_at || game?.created_at;
+  if (!startAt) return null;
+  const startMs = new Date(startAt).getTime();
   return startMs + durationMinutes * 60 * 1000;
 }
 
@@ -62,7 +66,7 @@ export function GameDurationCountdown({ game, className = "", compact, onTimeUp 
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [game?.id, game?.status, game?.created_at, game?.duration, onTimeUp]);
+  }, [game?.id, game?.status, game?.started_at, game?.created_at, game?.duration, onTimeUp]);
 
   if (remainingSeconds === null) return null;
 

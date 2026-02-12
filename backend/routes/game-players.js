@@ -25,4 +25,6 @@ router.post("/change-position", gamePlayerController.changePosition);
 router.post("/end-turn", gamePlayerController.endTurn);
 router.post("/can-roll", gamePlayerController.canRoll);
 router.post("/remove-inactive", gamePlayerController.removeInactive);
+router.post("/vote-to-remove", gamePlayerController.voteToRemove);
+router.post("/vote-status", gamePlayerController.getVoteStatus);
 export default router;

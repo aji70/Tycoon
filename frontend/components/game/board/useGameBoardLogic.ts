@@ -11,6 +11,7 @@ import {
 } from "@/types/game";
 import { ApiResponse } from "@/types/api";
 import { apiClient } from "@/lib/api";
+import { socketService } from "@/lib/socket";
 import { useExitGame, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
 import {
   BOARD_SQUARES,
@@ -59,6 +60,8 @@ export function useGameBoardLogic({
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
+  const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
+  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
@@ -507,25 +510,123 @@ export function useGameBoardLogic({
     return prop.rent_site_only || 0;
   }, [game_properties]);
 
-  const removeInactive = useCallback(
+  // Get vote status for a target player
+  const fetchVoteStatus = useCallback(
+    async (targetUserId: number) => {
+      if (!game?.id) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-status", {
+          game_id: game.id,
+          target_user_id: targetUserId,
+        });
+        if (res?.data?.success && res.data.data) {
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: res.data.data,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch vote status:", err);
+      }
+    },
+    [game?.id]
+  );
+
+  // Vote to remove a player
+  const voteToRemove = useCallback(
     async (targetUserId: number) => {
       if (!me?.user_id || !game?.id) return;
+      setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
       try {
-        await apiClient.post("/game-players/remove-inactive", {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-to-remove", {
           game_id: game.id,
           user_id: me.user_id,
           target_user_id: targetUserId,
         });
-        await fetchUpdatedGame();
-        onGameUpdated?.();
-        // Player removed — state visible
+        if (res?.data?.success) {
+          const data = res.data.data;
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: {
+              vote_count: data.vote_count,
+              required_votes: data.required_votes,
+              voters: [], // Will be updated by fetchVoteStatus
+            },
+          }));
+          if (data.removed) {
+            showToast(`${players.find((p) => p.user_id === targetUserId)?.username || "Player"} has been removed`, "success");
+            await fetchUpdatedGame();
+            onGameUpdated?.();
+          } else {
+            showToast(`Vote recorded. ${data.vote_count}/${data.required_votes} votes.`, "default");
+            await fetchVoteStatus(targetUserId);
+          }
+        }
       } catch (err: unknown) {
-        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to remove player";
+        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to vote";
         showToast(msg, "error");
+      } finally {
+        setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
     },
-    [game?.id, me?.user_id, fetchUpdatedGame, onGameUpdated, showToast]
+    [game?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, onGameUpdated, showToast]
   );
+
+  // Legacy removeInactive (kept for backward compatibility, but now uses voting)
+  const removeInactive = useCallback(
+    async (targetUserId: number) => {
+      // Redirect to voting system
+      await voteToRemove(targetUserId);
+    },
+    [voteToRemove]
+  );
+
+  // Fetch vote statuses for voteable players
+  useEffect(() => {
+    if (!game?.id || !me?.user_id) return;
+    const otherPlayers = players.filter((p) => p.user_id !== me.user_id);
+    const voteablePlayers = players.filter((p) => {
+      if (p.user_id === me.user_id) return false;
+      const strikes = p.consecutive_timeouts ?? 0;
+      // With 2 players: need 3+ consecutive timeouts
+      // With more players: can vote after any timeout (strikes > 0)
+      if (otherPlayers.length === 1) {
+        return strikes >= 3;
+      }
+      return strikes > 0;
+    });
+    voteablePlayers.forEach((p) => {
+      fetchVoteStatus(p.user_id);
+    });
+  }, [game?.id, me?.user_id, players, fetchVoteStatus]);
+
+  // Listen for vote-cast socket events to update vote statuses in real-time
+  useEffect(() => {
+    if (!game?.id || !game?.code) return;
+    const handleVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
+      if (data.removed) {
+        // Player was removed, refetch game
+        fetchUpdatedGame();
+        onGameUpdated?.();
+      } else {
+        // Update vote status for this target
+        setVoteStatuses((prev) => ({
+          ...prev,
+          [data.target_user_id]: {
+            vote_count: data.vote_count,
+            required_votes: data.required_votes,
+            voters: [], // Will be refreshed by fetchVoteStatus
+          },
+        }));
+        // Refresh vote status to get voter list
+        fetchVoteStatus(data.target_user_id);
+      }
+    };
+    socketService.onVoteCast(handleVoteCast);
+    return () => {
+      socketService.removeListener("vote-cast", handleVoteCast);
+    };
+  }, [game?.id, game?.code, fetchUpdatedGame, fetchVoteStatus, onGameUpdated]);
 
   return {
     players,
@@ -577,5 +678,9 @@ export function useGameBoardLogic({
     exitHook,
     turnTimeLeft,
     removeInactive,
+    voteToRemove,
+    voteStatuses,
+    votingLoading,
+    fetchVoteStatus,
   };
 }
