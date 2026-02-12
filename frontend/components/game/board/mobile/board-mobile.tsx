@@ -90,6 +90,8 @@ const MobileGameLayout = ({
   const [bellFlash, setBellFlash] = useState(false);
 
   const prevIncomingTradeCount = useRef(0);
+  const tradeToastShownThisTurn = useRef(false);
+  const lastTurnForTradeToast = useRef<number | null>(null);
   const { tradeRequests = [], refreshTrades } = useGameTrades({
     gameId: game?.id,
     myUserId: me?.user_id,
@@ -107,7 +109,8 @@ const MobileGameLayout = ({
     const currentCount = myIncomingTrades.length;
     const previousCount = prevIncomingTradeCount.current;
 
-    if (currentCount > previousCount && previousCount > 0) {
+    if (currentCount > previousCount && previousCount >= 0 && !tradeToastShownThisTurn.current) {
+      tradeToastShownThisTurn.current = true;
       const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
       const senderName = latestTrade?.player?.username || "Someone";
       toast.custom(
@@ -144,6 +147,14 @@ const MobileGameLayout = ({
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
   const isMyTurn = me?.user_id === currentPlayerId;
 
+  // Reset "shown this turn" when turn changes so we show at most one purple toast per turn
+  useEffect(() => {
+    if (lastTurnForTradeToast.current !== currentPlayerId) {
+      lastTurnForTradeToast.current = currentPlayerId ?? null;
+      tradeToastShownThisTurn.current = false;
+    }
+  }, [currentPlayerId]);
+
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
@@ -157,8 +168,12 @@ const MobileGameLayout = ({
   const onChainGameId = contractGame?.id;
   const { exit: endGame, isPending: endGamePending, reset: endGameReset } = useExitGame(onChainGameId ?? BigInt(0));
 
-  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
-  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
+  // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    if (type === "success" && (message.startsWith("You bought") || (message.includes("bought") && message.endsWith("!")))) {
+      toast.success(message);
+    }
+  }, []);
 
   const isFetching = useRef(false);
 
@@ -381,7 +396,7 @@ const MobileGameLayout = ({
         game_id: currentGame.id,
         property_id: justLandedProperty.id,
       });
-      // Purchase visible on board — no toast
+      showToast(`You bought ${justLandedProperty.name}!`, "success");
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
       await fetchUpdatedGame();

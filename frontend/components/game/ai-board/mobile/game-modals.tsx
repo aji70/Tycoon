@@ -27,6 +27,7 @@ interface GameModalsProps {
   isPending: boolean;
   endGame: () => Promise<any>;
   reset: () => void;
+  onFinishGameByTime?: () => Promise<void>;
   setShowInsolvencyModal: (value: boolean) => void;
   setIsRaisingFunds: (value: boolean) => void;
   setShowBankruptcyModal: (value: boolean) => void;
@@ -52,6 +53,7 @@ const GameModals: React.FC<GameModalsProps> = ({
   isPending,
   endGame,
   reset,
+  onFinishGameByTime,
   setShowInsolvencyModal,
   setIsRaisingFunds,
   setShowBankruptcyModal,
@@ -99,18 +101,16 @@ const GameModals: React.FC<GameModalsProps> = ({
 
   const handleFinalizeAndLeave = async () => {
     setShowExitPrompt(false);
+    const isHumanWinner = winner?.user_id === me?.user_id;
     const toastId = toast.loading(
-      winner?.user_id === me?.user_id
-        ? "Claiming your prize..."
-        : "Finalizing game results..."
+      isHumanWinner ? "Claiming your prize..." : "Claiming consolation prize..."
     );
 
     try {
+      if (isHumanWinner) await onFinishGameByTime?.();
       await endGame();
       toast.success(
-        winner?.user_id === me?.user_id
-          ? "Prize claimed! 🎉"
-          : "Game completed — thanks for playing!",
+        isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
       setTimeout(() => window.location.href = "/", 1500);
@@ -126,51 +126,65 @@ const GameModals: React.FC<GameModalsProps> = ({
 
   return (
     <>
-      {/* Winner Screen */}
+      {/* Winner / Loser Screen (time's up by net worth) */}
       <AnimatePresence>
         {winner && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
           >
-            <motion.div
-              initial={{ scale: 0.8, rotate: -5 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className={`p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full border-8 ${
-                winner.user_id === me?.user_id
-                  ? "bg-gradient-to-br from-yellow-600 to-orange-600 border-yellow-400"
-                  : "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-600"
-              }`}
-            >
-              {winner.user_id === me?.user_id ? (
-                <>
-                  <h1 className="text-5xl font-bold mb-6 drop-shadow-2xl">🏆 YOU WIN! 🏆</h1>
-                  <p className="text-3xl font-bold text-white mb-6">Congratulations, Champion!</p>
-                  <p className="text-xl text-yellow-200 mb-10">You're the Tycoon of this game!</p>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-4xl font-bold mb-6 text-gray-300">Game Over</h1>
-                  <p className="text-2xl font-bold text-white mb-6">{winner.username} is the winner!</p>
-                  <p className="text-lg text-gray-300 mb-10">Better luck next time — you played well!</p>
-                </>
-              )}
-              <button
-                onClick={() => setShowExitPrompt(true)}
-                className="px-12 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-xl md:text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
+            {winner.user_id === me?.user_id ? (
+              <motion.div
+                initial={{ scale: 0.85, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                className="relative p-10 md:p-12 rounded-3xl shadow-2xl text-center max-w-lg w-full overflow-hidden border-4 border-amber-400/80 bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600"
               >
-                {winner.user_id === me?.user_id ? "Claim Rewards" : "Finish Game"}
-              </button>
-              <p className="text-base text-yellow-200/80 mt-8 opacity-90">Thanks for playing Tycoon!</p>
-            </motion.div>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-yellow-300/20 to-transparent" />
+                <div className="relative z-10">
+                  <motion.span className="text-6xl md:text-7xl block mb-4" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 0.6 }}>🏆</motion.span>
+                  <h1 className="text-4xl md:text-5xl font-black text-white mb-3 drop-shadow-lg tracking-tight">YOU WIN!</h1>
+                  <p className="text-xl md:text-2xl font-bold text-amber-100 mb-2">Congratulations, Champion</p>
+                  <p className="text-lg text-amber-200/90 mb-8">Highest net worth when time ran out.</p>
+                  <button
+                    onClick={() => setShowExitPrompt(true)}
+                    className="px-10 py-4 bg-white text-amber-800 font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-100 transition-all border-2 border-amber-700/50"
+                  >
+                    End game on blockchain & claim rewards
+                  </button>
+                  <p className="text-sm text-amber-200/80 mt-6">Thanks for playing Tycoon!</p>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ scale: 0.85, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                className="relative p-10 md:p-12 rounded-3xl shadow-2xl text-center max-w-lg w-full overflow-hidden border-4 border-slate-500/60 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800"
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-500/10 to-transparent" />
+                <div className="relative z-10">
+                  <span className="text-5xl md:text-6xl block mb-4">⏱️</span>
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-200 mb-3">Time&apos;s up</h1>
+                  <p className="text-xl font-semibold text-white mb-1">{winner.username} wins by net worth</p>
+                  <p className="text-slate-400 mb-8">You still get a consolation prize for playing.</p>
+                  <button
+                    onClick={() => setShowExitPrompt(true)}
+                    className="px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-100 transition-all border border-cyan-400/40"
+                  >
+                    End game & collect consolation prize
+                  </button>
+                  <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Exit Prompt */}
+      {/* Exit / Claim confirmation */}
       <AnimatePresence>
         {showExitPrompt && (
           <motion.div
@@ -185,11 +199,11 @@ const GameModals: React.FC<GameModalsProps> = ({
               exit={{ scale: 0.8 }}
               className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
             >
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-5">One last thing!</h2>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-5">One last step</h2>
               {winner?.user_id === me?.user_id ? (
-                <p className="text-lg md:text-xl text-cyan-300 mb-6">Finalize the game to claim your rewards.</p>
+                <p className="text-lg md:text-xl text-cyan-300 mb-6">End the game on the blockchain to claim your rewards.</p>
               ) : (
-                <p className="text-lg md:text-xl text-gray-300 mb-6">Finalize the game to wrap things up.</p>
+                <p className="text-lg md:text-xl text-gray-300 mb-6">End the game on the blockchain to collect your consolation prize.</p>
               )}
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
@@ -197,7 +211,7 @@ const GameModals: React.FC<GameModalsProps> = ({
                   disabled={isPending}
                   className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
                 >
-                  {isPending ? "Processing..." : "Yes, Finish Game"}
+                  {isPending ? "Processing..." : "Yes, end game"}
                 </button>
                 <button
                   onClick={() => {
@@ -206,7 +220,7 @@ const GameModals: React.FC<GameModalsProps> = ({
                   }}
                   className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
                 >
-                  Skip & Leave
+                  Skip & leave
                 </button>
               </div>
             </motion.div>

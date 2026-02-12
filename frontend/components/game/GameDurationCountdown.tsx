@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Game } from "@/types/game";
 
 const STORAGE_KEY_PREFIX = "tycoon_game_end_";
@@ -24,18 +24,22 @@ export interface GameDurationCountdownProps {
   className?: string;
   /** Compact style (e.g. for mobile bar) */
   compact?: boolean;
+  /** Called once when countdown reaches 0 (e.g. to end AI game by net worth) */
+  onTimeUp?: () => void | Promise<void>;
 }
 
 /**
  * Shows game duration as a countdown (time left). Uses game.created_at + game.duration (minutes).
  * Only visible when game is RUNNING and duration > 0.
  */
-export function GameDurationCountdown({ game, className = "", compact }: GameDurationCountdownProps) {
+export function GameDurationCountdown({ game, className = "", compact, onTimeUp }: GameDurationCountdownProps) {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const timeUpFiredRef = useRef(false);
 
   useEffect(() => {
     if (!game || game.status !== "RUNNING") {
       setRemainingSeconds(null);
+      timeUpFiredRef.current = false;
       return;
     }
 
@@ -49,12 +53,16 @@ export function GameDurationCountdown({ game, className = "", compact }: GameDur
       const now = Date.now();
       const remaining = Math.max(0, Math.floor((endMs - now) / 1000));
       setRemainingSeconds(remaining);
+      if (remaining === 0 && onTimeUp && !timeUpFiredRef.current) {
+        timeUpFiredRef.current = true;
+        void Promise.resolve(onTimeUp()).catch(() => {});
+      }
     };
 
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [game?.id, game?.status, game?.created_at, game?.duration]);
+  }, [game?.id, game?.status, game?.created_at, game?.duration, onTimeUp]);
 
   if (remainingSeconds === null) return null;
 
