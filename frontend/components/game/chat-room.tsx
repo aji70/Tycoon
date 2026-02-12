@@ -172,8 +172,8 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
         )}
       </div>
 
-      {/* Input - always visible at bottom */}
-      <div className="flex-shrink-0 p-3 bg-[#060a0b]/90 border-t border-white/5 backdrop-blur-sm">
+      {/* Input - always visible at bottom (extra pb on mobile to clear nav bar) */}
+      <div className={`flex-shrink-0 bg-[#060a0b]/90 border-t border-white/5 backdrop-blur-sm ${isMobile ? "p-3 pb-20" : "p-3"}`}>
         {!canSend ? (
           <div className="text-center py-3 text-sm text-white/40 font-medium">
             Join the game to send messages
