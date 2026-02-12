@@ -474,11 +474,11 @@ export default function CreateGameMobile() {
         </div>
 
         {/* House Rules */}
-        <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/25">
-          <h3 className="text-sm font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
+        <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/30">
+          <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
           <div className="space-y-2">
             {[
-              { icon: RiAuctionFill, label: "Auction", key: "auction" },
+              { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
               { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
               { icon: GiBank, label: "Mortgages", key: "mortgage" },
               { icon: IoBuild, label: "Even Build", key: "evenBuild" },
