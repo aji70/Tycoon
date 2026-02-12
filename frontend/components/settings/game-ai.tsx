@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useAppKitNetwork } from "@reown/appkit/react";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
@@ -186,11 +187,7 @@ export default function PlayWithAI() {
     } catch (err: any) {
       console.error("handlePlay error:", err);
 
-      let message = "Something went wrong. Please try again.";
-
-      if (err.message?.includes("user rejected")) {
-        message = "Transaction rejected by user.";
-      }
+      const message = getContractErrorMessage(err, "Something went wrong. Please try again.");
 
       toast.update(toastId, {
         render: message,

@@ -36,6 +36,7 @@ import {
 } from "@/context/ContractProvider";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address, parseUnits } from "viem";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 interface GameCreateResponse {
   data?: {
@@ -210,14 +211,7 @@ export default function GameSettings() {
       });
     } catch (err: any) {
       console.error("Create game error:", err);
-      let message = "Failed to create game. Please try again.";
-      if (err.message?.includes("user rejected") || err.code === 4001) {
-        message = "Transaction cancelled.";
-      } else if (err.message?.includes("insufficient")) {
-        message = "Insufficient balance or gas.";
-      } else if (err.message) {
-        message = err.message;
-      }
+      const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
 
       toast.update(toastId, {
         render: message,

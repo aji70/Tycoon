@@ -31,6 +31,7 @@ import {
 import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address } from "viem";
 import { ShieldCheck } from "lucide-react";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 interface GameCreateResponse {
   data?: {
@@ -185,11 +186,7 @@ export default function PlayWithAIMobile() {
     } catch (err: any) {
       console.error("handlePlay error:", err);
 
-      let message = "Something went wrong. Please try again.";
-
-      if (err.message?.includes("user rejected")) {
-        message = "Transaction rejected by user.";
-      }
+      const message = getContractErrorMessage(err, "Something went wrong. Please try again.");
 
       toast.update(toastId, {
         render: message,

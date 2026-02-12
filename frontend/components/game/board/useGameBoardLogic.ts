@@ -22,6 +22,7 @@ import {
   MONOPOLY_STATS,
 } from "../constants";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 export interface UseGameBoardLogicProps {
   game: Game;
@@ -146,8 +147,8 @@ export function useGameBoardLogic({
         ...(timedOut === true && { timed_out: true }),
       });
       // Turn state visible on board — no toast
-    } catch {
-      showToast("Failed to end turn", "error");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end turn"));
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -210,8 +211,9 @@ export function useGameBoardLogic({
       if (!(roll?.die1 === roll?.die2)) {
         setTimeout(END_TURN, 800);
       }
-    } catch {
-      showToast("Purchase failed", "error");
+    } catch (err) {
+      const message = getContractErrorMessage(err, "Purchase failed");
+      toast.error(message);
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll, me?.username, transferOwnership]);
 
@@ -237,6 +239,25 @@ export function useGameBoardLogic({
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 800);
   }, [END_TURN]);
+
+  // Show buy prompt when player lands on a buyable property (mirrors mobile board logic)
+  useEffect(() => {
+    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+      setBuyPrompted(false);
+      return;
+    }
+    const pos = landedPositionThisTurn.current;
+    const square = properties.find((p) => p.id === pos);
+    if (!square || square.price == null) {
+      setBuyPrompted(false);
+      return;
+    }
+    const isOwned = game_properties.some((gp) => gp.property_id === pos);
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+    const canBuy = !isOwned && isBuyableType;
+    setBuyPrompted(canBuy);
+  }, [roll, hasMovementFinished, properties, game_properties]);
 
   const fetchUpdatedGame = useCallback(async () => {
     try {
@@ -275,8 +296,8 @@ export function useGameBoardLogic({
             await fetchUpdatedGame();
             showToast("No doubles — still in jail", "error");
             setTimeout(END_TURN, 1000);
-          } catch {
-            showToast("Jail roll failed", "error");
+          } catch (err) {
+            toast.error(getContractErrorMessage(err, "Jail roll failed"));
             END_TURN();
           } finally {
             setIsRolling(false);
@@ -300,8 +321,8 @@ export function useGameBoardLogic({
           landedPositionThisTurn.current = newPos;
           await fetchUpdatedGame();
           // Escaped jail — state visible
-        } catch {
-          showToast("Escape failed", "error");
+        } catch (err) {
+          toast.error(getContractErrorMessage(err, "Escape failed"));
         } finally {
           setIsRolling(false);
           unlockAction();
@@ -352,7 +373,7 @@ export function useGameBoardLogic({
         // Roll visible on board — no toast
       } catch (err) {
         console.error("Move failed:", err);
-        showToast("Move failed", "error");
+        toast.error(getContractErrorMessage(err, "Move failed"));
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -456,7 +477,8 @@ export function useGameBoardLogic({
       setShowExitPrompt(true);
     } catch (err: unknown) {
       console.error("Bankruptcy process failed:", err);
-      showToast("Bankruptcy failed — but you are eliminated.", "error");
+      const message = getContractErrorMessage(err, "Bankruptcy failed — but you are eliminated.");
+      toast.error(message);
       try {
         await END_TURN();
       } catch {
@@ -564,8 +586,8 @@ export function useGameBoardLogic({
           }
         }
       } catch (err: unknown) {
-        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to vote";
-        showToast(msg, "error");
+        const msg = getContractErrorMessage(err, "Failed to vote");
+        toast.error(msg);
       } finally {
         setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }

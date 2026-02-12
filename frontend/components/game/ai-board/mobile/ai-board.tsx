@@ -35,6 +35,7 @@ import PerksModal from "./PerksModal";
 import { Sparkles } from "lucide-react";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import {
   useMobileAiLogic,
@@ -299,8 +300,8 @@ const endTime =
       });
       showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
       await fetchUpdatedGame();
-    } catch {
-      showToast("Failed to end turn", "error");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end turn"));
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -420,8 +421,8 @@ const endTime =
       landedPositionThisTurn.current = null;
       await fetchUpdatedGame();
       setTimeout(END_TURN, 800);
-    } catch {
-      showToast("Purchase failed", "error");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Purchase failed"));
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame]);
 
@@ -455,8 +456,8 @@ const endTime =
             await fetchUpdatedGame();
             showToast("No doubles — still in jail", "error");
             setTimeout(END_TURN, 1000);
-          } catch {
-            showToast("Jail roll failed", "error");
+          } catch (err) {
+            toast.error(getContractErrorMessage(err, "Jail roll failed"));
             END_TURN();
           } finally {
             setIsRolling(false);
@@ -502,8 +503,8 @@ const endTime =
           landedPositionThisTurn.current = newPos;
           await fetchUpdatedGame();
           showToast(`${player.username} rolled doubles and escaped jail!`, "success");
-        } catch {
-          showToast("Escape failed", "error");
+        } catch (err) {
+          toast.error(getContractErrorMessage(err, "Escape failed"));
         } finally {
           setIsRolling(false);
           unlockAction();
@@ -571,7 +572,7 @@ const endTime =
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch (err) {
         console.error("Move failed:", err);
-        showToast("Move failed", "error");
+        toast.error(getContractErrorMessage(err, "Move failed"));
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -724,7 +725,7 @@ const endTime =
       showToast("Game over! You have declared bankruptcy.", "error");
       setShowBankruptcyModal(true);
     } catch (err) {
-      showToast("Failed to end game", "error");
+      toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
   };
 
