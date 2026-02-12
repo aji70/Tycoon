@@ -955,7 +955,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
     setCardPlayerName(playerName.trim());
     setShowCardModal(true);
 
-    const timer = setTimeout(() => setShowCardModal(false), 7000);
+    // Extended timer to account for two-stage animation:
+    // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
+    const timer = setTimeout(() => setShowCardModal(false), 15000);
     return () => clearTimeout(timer);
   }, [game.history]);
 
