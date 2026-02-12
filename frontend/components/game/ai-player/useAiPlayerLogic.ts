@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api";
 import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import { useGameTrades } from "@/hooks/useGameTrades";
-import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
+import { isAIPlayer, calculateAiFavorability, getAiSlotFromPlayer } from "@/utils/gameUtils";
 
 export interface UseAiPlayerLogicProps {
   game: Game;
@@ -146,21 +146,61 @@ export function useAiPlayerLogic({
           };
 
           const favorability = calculateAiFavorability(sentTrade, properties);
-
           let decision: "accepted" | "declined" = "declined";
           let remark = "";
 
-          if (favorability >= 30) {
-            decision = "accepted";
-            remark = "This is a fantastic deal! 🤖";
-          } else if (favorability >= 10) {
-            decision = Math.random() < 0.7 ? "accepted" : "declined";
-            remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
-          } else if (favorability >= 0) {
-            decision = Math.random() < 0.3 ? "accepted" : "declined";
-            remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
-          } else {
-            remark = "This deal is terrible for me! 😤";
+          // Optional Celo agent: try agent-registry first; fallback to built-in logic (no functions discarded)
+          const slot = getAiSlotFromPlayer(targetPlayer);
+          if (slot != null) {
+            try {
+              const agentRes = await apiClient.post<{
+                success: boolean;
+                data?: { action: string };
+                useBuiltIn?: boolean;
+              }>("/agent-registry/decision", {
+                gameId: game.id,
+                slot,
+                decisionType: "trade",
+                context: {
+                  tradeOffer: sentTrade,
+                  myBalance: targetPlayer.balance ?? 0,
+                  myProperties: game_properties
+                    .filter((gp) => gp.address?.toLowerCase() === targetPlayer.address?.toLowerCase())
+                    .map((gp) => ({
+                      ...properties.find((p) => p.id === gp.property_id),
+                      ...gp,
+                    })),
+                  opponents: (game.players ?? []).filter((p) => p.user_id !== targetPlayer.user_id),
+                },
+              });
+              if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
+                const action = agentRes.data.data.action.toLowerCase();
+                if (action === "accept") {
+                  decision = "accepted";
+                  remark = "Celo agent accepted. 🤖";
+                } else if (action === "decline") {
+                  decision = "declined";
+                  remark = "Celo agent declined.";
+                }
+              }
+            } catch {
+              // Agent unreachable or error: use built-in logic below
+            }
+          }
+
+          if (remark === "") {
+            if (favorability >= 30) {
+              decision = "accepted";
+              remark = "This is a fantastic deal! 🤖";
+            } else if (favorability >= 10) {
+              decision = Math.random() < 0.7 ? "accepted" : "declined";
+              remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
+            } else if (favorability >= 0) {
+              decision = Math.random() < 0.3 ? "accepted" : "declined";
+              remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
+            } else {
+              remark = "This deal is terrible for me! 😤";
+            }
           }
 
           if (decision === "accepted") {
@@ -184,6 +224,8 @@ export function useAiPlayerLogic({
     me,
     tradeModal.target,
     game.id,
+    game.players,
+    game_properties,
     offerProperties,
     offerCash,
     requestProperties,
