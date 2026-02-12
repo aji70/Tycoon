@@ -173,7 +173,7 @@ export default function GamePlayPage() {
 
     return (
       <main className="w-full h-[calc(100vh-80px)] flex flex-col overflow-hidden bg-[#010F10] mt-[80px]" >
-        <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
+        <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : activeTab === 'board' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
           {activeTab === 'board' && (
             <MobileGameLayout
               game={game}
