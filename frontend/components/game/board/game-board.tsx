@@ -115,12 +115,14 @@ const Board = ({
                 if (p.user_id === me?.user_id) return false;
                 const strikes = p.consecutive_timeouts ?? 0;
                 const otherPlayers = players.filter((pl) => pl.user_id !== me?.user_id);
+                const isCurrentPlayer = p.user_id === currentPlayerId;
+                const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
                 // With 2 players: need 3+ consecutive timeouts
-                // With more players: can vote after any timeout
+                // With 3+ players: strikes > 0 OR (current player and time elapsed — soft timeout)
                 if (otherPlayers.length === 1) {
                   return strikes >= 3;
                 }
-                return strikes > 0;
+                return strikes > 0 || (isCurrentPlayer && timeElapsed);
               })}
               voteStatuses={logic.voteStatuses}
               votingLoading={logic.votingLoading}

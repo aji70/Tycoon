@@ -67,6 +67,7 @@ export function useGameBoardLogic({
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
+  const recordTimeoutCalledForTurn = useRef<number | null>(null);
 
   const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
   const { data: contractGame } = useGetGameByCode(game.code);
@@ -155,14 +156,26 @@ export function useGameBoardLogic({
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
+  const fetchUpdatedGame = useCallback(async () => {
+    try {
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      if (res?.data?.success && res.data.data?.players) {
+        setPlayers(res.data.data.players);
+      }
+    } catch (err) {
+      console.error("Sync failed:", err);
+    }
+  }, [game.code]);
+
+  // Timer for current player — show to ALL players so they can track when someone times out
+  const isTwoPlayer = players.length === 2;
   useEffect(() => {
-    if (!isMyTurn || !playerCanRoll) {
+    if (!currentPlayer?.turn_start) {
       setTurnTimeLeft(null);
       return;
     }
-    // Start countdown immediately: use server turn_start if present, otherwise "now" so timer doesn't wait for next poll
-    const raw = currentPlayer?.turn_start;
-    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
+    const raw = currentPlayer.turn_start;
+    const turnStartSec = typeof raw === "number" ? raw : parseInt(String(raw), 10);
     if (Number.isNaN(turnStartSec)) {
       setTurnTimeLeft(null);
       return;
@@ -173,14 +186,34 @@ export function useGameBoardLogic({
       const elapsed = nowSec - turnStartSec;
       const remaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
       setTurnTimeLeft(remaining);
+
       if (remaining <= 0) {
-        END_TURN(true);
+        if (isTwoPlayer) {
+          // 2-player: auto-end turn to accumulate strikes (need 3 for vote)
+          END_TURN(true);
+        } else {
+          // 3+ players: record soft timeout so others can vote — do not end turn
+          if (
+            me?.user_id &&
+            recordTimeoutCalledForTurn.current !== turnStartSec
+          ) {
+            recordTimeoutCalledForTurn.current = turnStartSec;
+            apiClient
+              .post<ApiResponse>("/game-players/record-timeout", {
+                game_id: game.id,
+                user_id: me.user_id,
+                target_user_id: currentPlayer.user_id,
+              })
+              .then(() => fetchUpdatedGame())
+              .catch((err) => console.warn("record-timeout failed:", err));
+          }
+        }
       }
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, END_TURN, showToast]);
+  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, game.id, END_TURN, fetchUpdatedGame]);
 
   const BUY_PROPERTY = useCallback(async () => {
     if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
@@ -258,17 +291,6 @@ export function useGameBoardLogic({
     const canBuy = !isOwned && isBuyableType;
     setBuyPrompted(canBuy);
   }, [roll, hasMovementFinished, properties, game_properties]);
-
-  const fetchUpdatedGame = useCallback(async () => {
-    try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
-      if (res?.data?.success && res.data.data?.players) {
-        setPlayers(res.data.data.players);
-      }
-    } catch (err) {
-      console.error("Sync failed:", err);
-    }
-  }, [game.code]);
 
   const ROLL_DICE = useCallback(async () => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
@@ -357,6 +379,7 @@ export function useGameBoardLogic({
           setAnimatedPositions((prev) => ({ ...prev, [playerId]: movePath[i] }));
         }
       }
+      landedPositionThisTurn.current = newPos;
       setHasMovementFinished(true);
 
       try {
@@ -368,7 +391,6 @@ export function useGameBoardLogic({
           is_double: value.die1 === value.die2,
         });
         setPendingRoll(0);
-        landedPositionThisTurn.current = newPos;
         await fetchUpdatedGame();
         // Roll visible on board — no toast
       } catch (err) {

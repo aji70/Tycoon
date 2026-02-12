@@ -85,10 +85,12 @@ export default function CenterArea({
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
 
-      {/* 90s roll countdown — show only while waiting to roll; hide as soon as they click Roll Dice */}
-      {isMyTurn && !roll && !isRolling && (
+      {/* 90s roll countdown — show to ALL players so they can track when someone times out (for vote) */}
+      {turnTimeLeft != null && !roll && !isRolling && (
         <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-          Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
+          {isMyTurn
+            ? `Roll in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
+            : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to roll`}
         </div>
       )}
 
