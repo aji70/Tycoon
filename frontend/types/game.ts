@@ -64,6 +64,7 @@ export interface GameSettings {
 }
 
 export interface Player {
+  id?: number; // game_player id (for chat)
   user_id: number;
   address: string;
   chance_jail_card: number;

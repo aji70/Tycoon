@@ -75,6 +75,7 @@ const GamePlayer = {
       .leftJoin("users as u", "gp.user_id", "u.id")
       .leftJoin("games as g", "gp.game_id", "g.id")
       .select(
+        "gp.id",
         "gp.user_id",
         "gp.address",
         "gp.chance_jail_card",

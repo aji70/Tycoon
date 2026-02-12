@@ -173,7 +173,7 @@ export default function GamePlayPage() {
             />
           )}
           {activeTab === 'chat' && (
-            <GameRoom gameId={game?.code?.toString() ?? ""} />
+            <GameRoom game={game} me={me} isMobile />
           )}
         </div>
         <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-cyan-500 flex justify-around items-center h-16 z-50">
@@ -219,7 +219,7 @@ export default function GamePlayPage() {
           onGameUpdated={() => refetchGame()}
         />
       </div>
-      <GameRoom gameId={game?.code?.toString() ?? ""} />
+      <GameRoom game={game} me={me} />
     </main>
   ) : (
     <></>

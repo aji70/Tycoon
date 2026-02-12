@@ -12,10 +12,13 @@ const messageController = {
 
   async create(req, res) {
     try {
-      const message = await Message.create(req.body);
+      const result = await Message.create(req.body);
+      if (result.error) {
+        return res.status(400).json({ success: false, message: result.message });
+      }
       res
         .status(201)
-        .json({ success: true, message: "successful", data: message });
+        .json({ success: true, message: "successful", data: result.data });
     } catch (error) {
       console.error("Error creating message:", error);
       res.status(400).json({ success: false, message: error.message });
@@ -36,9 +39,8 @@ const messageController = {
   async findByGameId(req, res) {
     try {
       const { id } = req.params;
-      const message = await Message.findAllByMessagesByGameId(req.params.id);
-      if (!message) return res.status(404).json({ error: "Message not found" });
-      res.json({ success: true, message: "successful", data: message });
+      const messages = await Message.findAllByMessagesByGameId(id);
+      res.json({ success: true, message: "successful", data: Array.isArray(messages) ? messages : [] });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }
