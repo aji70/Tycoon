@@ -43,6 +43,7 @@ export default function GameWaiting(): JSX.Element {
     handleJoinGame,
     handleLeaveGame,
     handleGoHome,
+    isCreator,
   } = useWaitingRoom();
 
   // Loading / Error guards
@@ -95,6 +96,53 @@ export default function GameWaiting(): JSX.Element {
             Tycoon Lobby
           </h2>
 
+          {!isCreator && (
+            <p className="text-center text-[#00F0FF] font-orbitron font-bold text-sm mb-4">Code: {gameCode}</p>
+          )}
+
+          {/* Non-creator: show Join first so they prioritise picking symbol + joining */}
+          {!isCreator && game.players.length < game.number_of_players && !isJoined && (
+            <div className="mb-6 space-y-5">
+              <div className="flex flex-col bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
+                <label
+                  htmlFor="symbol-joiner"
+                  className="text-sm text-[#00F0FF] mb-1 font-orbitron font-bold"
+                >
+                  Pick Your Token
+                </label>
+                <select
+                  id="symbol-joiner"
+                  value={playerSymbol?.value ?? ""}
+                  onChange={(e) =>
+                    setPlayerSymbol(getPlayerSymbolData(e.target.value) ?? null)
+                  }
+                  className="bg-[#0A1A1B] text-[#F0F7F7] p-2 rounded-lg border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-sm shadow-inner"
+                >
+                  <option value="" disabled>
+                    Select Token
+                  </option>
+                  {availableSymbols.length > 0 ? (
+                    availableSymbols.map((symbol) => (
+                      <option key={symbol.value} value={symbol.value}>
+                        {symbol.emoji} {symbol.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>No Tokens Left</option>
+                  )}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleJoinGame}
+                className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming}
+              >
+                {actionLoading || isJoining || approvePending || approveConfirming ? "Entering..." : "Join the Battle"}
+              </button>
+            </div>
+          )}
+
           <div className="text-center space-y-3 mb-6">
             <p className="text-[#869298] text-sm font-semibold">
               {playersJoined === maxPlayers
@@ -143,7 +191,7 @@ export default function GameWaiting(): JSX.Element {
             </div>
           </div>
 
-          {showShare && (
+          {showShare && isCreator && (
             <div className="mt-6 space-y-5 bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
               <h3 className="text-lg font-bold text-[#00F0FF] text-center mb-4 tracking-widest">
                 Summon Allies!
@@ -259,7 +307,7 @@ export default function GameWaiting(): JSX.Element {
             </div>
           )}
 
-          {game.players.length < game.number_of_players && !isJoined && (
+          {game.players.length < game.number_of_players && !isJoined && isCreator && (
             <div className="mt-6 space-y-5">
               <div className="flex flex-col bg-[#010F10]/50 p-5 rounded-xl border border-[#00F0FF]/30 shadow-lg">
                 <label
