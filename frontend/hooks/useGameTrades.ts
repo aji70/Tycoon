@@ -52,7 +52,6 @@ export function useGameTrades({ gameId, myUserId, players }: UseGameTradesProps)
       }
     } catch (err) {
       console.error("Error loading trades:", err);
-      toast.error("Failed to load trades");
     } finally {
       setIsLoading(false);
     }

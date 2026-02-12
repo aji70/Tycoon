@@ -40,13 +40,15 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
     right: "rotate-90",
   };
 
+  const smallTextStyle = { fontSize: "clamp(4px, 1.1vw, 6px)", textSizeAdjust: "none" as const };
+
   return (
     <div
       className={`relative w-full h-full bg-[#F0F7F7] text-[#0B191A] p-1 flex flex-col justify-between rounded-[2.5px] ${orientationClasses[position]}`}
-      style={{ borderColor: color }}
+      style={{ borderColor: color, textSizeAdjust: "none" }}
     >
       <div className="flex flex-col items-center pt-1.5">
-        <p className="text-[5px] md:text-[5px] font-bold uppercase text-center max-w-full truncate">
+        <p className="font-bold uppercase text-center max-w-full truncate" style={{ ...smallTextStyle, fontSize: "clamp(4px, 1.2vw, 6px)" }}>
           {name}
         </p>
         {icon && (
@@ -61,25 +63,27 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
       </div>
 
       <p
-        className={`text-[5px] md:text-[6px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${priceOrientationClasses[position]}`}
+        className={`absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${priceOrientationClasses[position]}`}
+        style={smallTextStyle}
       >
         ${price}
       </p>
 
       {rent_site_only && (
         <p
-          className={`text-[5px] md:text-[6px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${rent_site_onlyOrientationClasses[position]}`}
+          className={`absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${rent_site_onlyOrientationClasses[position]}`}
+          style={smallTextStyle}
         >
           ${rent_site_only}
         </p>
       )}
 
       {owner ? (
-        <p className="text-[4px] md:text-[5px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-amber-600">
+        <p className="absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-amber-600" style={smallTextStyle}>
           {owner}
         </p>
       ) : (
-        <p className="text-[4px] md:text-[5px] absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-green-600">
+        <p className="absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] bottom-0.5 right-0.5 text-green-600" style={smallTextStyle}>
           Available
         </p>
       )}
