@@ -94,13 +94,6 @@ export default function GameWaitingMobile(): JSX.Element {
       {/* Header */}
       <div className="px-6 pt-8 pb-6">
         <div className="max-w-md mx-auto flex justify-between items-center">
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-3 text-cyan-400 hover:text-cyan-300 transition group"
-          >
-            <House className="w-7 h-7 group-hover:-translate-x-1 transition" />
-            <span className="font-bold text-lg">BACK</span>
-          </button>
           <h1 className="text-4xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             WAITING ROOM
           </h1>
