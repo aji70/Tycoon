@@ -150,7 +150,7 @@ export default function GameWaiting(): JSX.Element {
               </h3>
 
               {/* QR + Code block - gamy focal point */}
-              <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8 p-5 rounded-xl bg-[#010F10]/80 border border-[#00F0FF]/40 shadow-[inset_0_0_30px_rgba(0,240,255,0.05)]">
+              <div className="flex flex-col items-center gap-6 p-5 rounded-xl bg-[#010F10]/80 border border-[#00F0FF]/40 shadow-[inset_0_0_30px_rgba(0,240,255,0.05)]">
                 <div className="flex flex-col items-center">
                   <span className="text-[10px] font-orbitron font-bold text-[#00F0FF] tracking-[0.3em] mb-2 opacity-90">SCAN TO JOIN</span>
                   <div className="p-3 rounded-xl bg-white border-2 border-[#00F0FF]/60 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
@@ -164,12 +164,12 @@ export default function GameWaiting(): JSX.Element {
                     />
                   </div>
                 </div>
-                <div className="flex flex-col items-center sm:items-start gap-2">
+                <div className="flex flex-col items-center gap-2">
                   <span className="text-[10px] font-orbitron font-bold text-[#869298] tracking-[0.2em]">GAME CODE</span>
-                  <p className="font-orbitron font-black text-4xl sm:text-5xl text-[#00F0FF] tracking-widest tabular-nums text-center sm:text-left" style={{ textShadow: "0 0 20px rgba(0,240,255,0.4)" }}>
+                  <p className="font-orbitron font-black text-4xl sm:text-5xl text-[#00F0FF] tracking-widest tabular-nums text-center" style={{ textShadow: "0 0 20px rgba(0,240,255,0.4)" }}>
                     {gameCode}
                   </p>
-                  <p className="text-[#869298] text-xs font-dmSans max-w-[200px] text-center sm:text-left">
+                  <p className="text-[#869298] text-xs font-dmSans max-w-[240px] text-center">
                     Share this code or scan the QR to join the lobby.
                   </p>
                 </div>
