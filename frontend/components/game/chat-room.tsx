@@ -16,7 +16,7 @@ interface Message {
 }
 
 interface ChatRoomProps {
-  gameId: string | number; // game code or id - backend supports both
+  gameId: string | number;
   me: Player | null;
   isMobile?: boolean;
 }
@@ -44,9 +44,10 @@ function formatTime(created_at?: string) {
   }
 }
 
-function getInitial(name?: string | null) {
-  if (!name?.trim()) return "?";
-  return name.charAt(0).toUpperCase();
+function getDisplayName(msg: Message, me: Player | null, playerId: string) {
+  const isMe = String(msg.player_id) === playerId;
+  if (isMe && me?.username) return me.username;
+  return msg.username ?? "Player";
 }
 
 const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
@@ -78,7 +79,6 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
     const trimmed = newMessage.trim();
     setNewMessage("");
 
-    // Optimistic update
     queryClient.setQueryData<Message[]>(["messages", gameId], (old = []) => [
       ...old,
       {
@@ -97,7 +97,6 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
       });
       queryClient.invalidateQueries({ queryKey: ["messages", gameId] });
     } catch (err: unknown) {
-      // Revert optimistic update
       queryClient.setQueryData<Message[]>(["messages", gameId], (old = []) =>
         old.filter((m) => !String(m.id).startsWith("temp-"))
       );
@@ -112,71 +111,58 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Messages area */}
+      {/* Messages */}
       <div
         className={`flex-1 overflow-y-auto scrollbar-hide ${
-          isMobile ? "p-3 min-h-[200px]" : "p-4"
+          isMobile ? "px-4 py-4 min-h-[200px]" : "px-5 py-5"
         }`}
-        style={{ background: "linear-gradient(180deg, #020F11 0%, #0A1617 100%)" }}
       >
         {isLoading && messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[120px] gap-2">
-            <div className="w-8 h-8 border-2 border-cyan-500/50 border-t-cyan-400 rounded-full animate-spin" />
-            <span className="text-sm text-[#869298]">Loading messages...</span>
+          <div className="flex flex-col items-center justify-center h-full min-h-[140px] gap-3">
+            <div className="w-10 h-10 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+            <span className="text-sm text-cyan-400/70 font-medium">Loading chat...</span>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[160px] text-center px-4">
-            <div className="w-14 h-14 rounded-full bg-cyan-900/20 flex items-center justify-center mb-3">
-              <MessageCircle className="w-7 h-7 text-cyan-500/60" />
+          <div className="flex flex-col items-center justify-center h-full min-h-[180px] text-center px-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 flex items-center justify-center mb-4 ring-1 ring-cyan-400/20">
+              <MessageCircle className="w-8 h-8 text-cyan-400/70" />
             </div>
-            <p className="text-[#869298] font-medium">No messages yet</p>
-            <p className="text-[#5a6b70] text-sm mt-1">
-              Be the first to say hi! 👋
+            <p className="text-white/90 font-semibold text-lg">No messages yet</p>
+            <p className="text-cyan-400/60 text-sm mt-1.5">
+              Start the conversation — say hi! 👋
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-5">
             {messages.map((msg) => {
               const isMe = String(msg.player_id) === playerId;
+              const displayName = getDisplayName(msg, me, playerId);
               return (
-                <div
-                  key={msg.id}
-                  className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}
-                >
-                  <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                      isMe
-                        ? "bg-cyan-500/80 text-white"
-                        : "bg-[#1A3A3C] text-cyan-300"
-                    }`}
-                  >
-                    {isMe ? getInitial(me?.username) : getInitial(msg.username)}
-                  </div>
-                  <div
-                    className={`flex flex-col max-w-[75%] sm:max-w-[80%] ${
-                      isMe ? "items-end" : "items-start"
-                    }`}
-                  >
-                    <div
-                      className={`px-4 py-2.5 rounded-2xl shadow-sm ${
-                        isMe
-                          ? "bg-cyan-600/90 text-white rounded-br-md"
-                          : "bg-[#0B191A] text-[#E2E8F0] border border-white/5 rounded-bl-md"
-                      }`}
-                    >
-                      <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-                        {msg.body}
-                      </p>
-                    </div>
+                <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                  {/* Username above message */}
+                  <div className={`flex items-center gap-2 mb-1.5 ${isMe ? "flex-row-reverse" : ""}`}>
+                    <span className={`text-xs font-semibold tracking-wide ${
+                      isMe ? "text-cyan-400" : "text-cyan-400/80"
+                    }`}>
+                      {displayName}
+                    </span>
                     {msg.created_at && !String(msg.id).startsWith("temp-") && (
-                      <span
-                        className={`text-[10px] text-[#5a6b70] mt-1 ${
-                          isMe ? "mr-1" : "ml-1"
-                        }`}
-                      >
+                      <span className="text-[10px] text-white/40 tabular-nums">
                         {formatTime(msg.created_at)}
                       </span>
                     )}
+                  </div>
+                  {/* Message bubble */}
+                  <div
+                    className={`max-w-[85%] px-4 py-2.5 rounded-2xl ${
+                      isMe
+                        ? "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-br-md"
+                        : "bg-white/5 text-white/95 border border-white/10 rounded-bl-md backdrop-blur-sm"
+                    }`}
+                  >
+                    <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                      {msg.body}
+                    </p>
                   </div>
                 </div>
               );
@@ -186,14 +172,14 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
         )}
       </div>
 
-      {/* Input area */}
-      <div className="flex-shrink-0 p-3 border-t border-[#1A3A3C]/80 bg-[#0A1617]">
+      {/* Input */}
+      <div className="flex-shrink-0 p-4 bg-[#060a0b]/80 border-t border-white/5 backdrop-blur-sm">
         {!canSend ? (
-          <div className="text-center py-2 text-sm text-[#5a6b70]">
+          <div className="text-center py-3 text-sm text-white/40 font-medium">
             Join the game to send messages
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <input
               ref={inputRef}
               type="text"
@@ -207,18 +193,20 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
               }}
               placeholder="Type a message..."
               maxLength={500}
-              className="flex-1 bg-[#020F11] text-white placeholder-[#5a6b70] px-4 py-3 rounded-xl border border-[#1A3A3C] 
-                outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all text-[15px]"
+              className="flex-1 bg-white/5 text-white placeholder-white/30 px-5 py-3.5 rounded-xl 
+                border border-white/10 outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 
+                transition-all text-[15px] font-medium"
             />
             <button
               onClick={sendMessage}
               disabled={!newMessage.trim() || sending}
-              className="flex-shrink-0 w-12 h-12 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 
-                disabled:cursor-not-allowed flex items-center justify-center text-white transition-all 
-                active:scale-95"
+              className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 
+                hover:from-cyan-400 hover:to-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed 
+                flex items-center justify-center text-white shadow-lg shadow-cyan-500/25 
+                transition-all active:scale-95"
               aria-label="Send message"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-5 h-5" strokeWidth={2.5} />
             </button>
           </div>
         )}
