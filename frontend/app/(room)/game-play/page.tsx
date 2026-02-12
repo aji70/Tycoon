@@ -35,23 +35,6 @@ export default function GamePlayPage() {
     if (code && code.length === 6) setGameCode(code);
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!gameCode || !SOCKET_URL) return;
-    const socket = socketService.connect(SOCKET_URL);
-    socketService.joinGameRoom(gameCode);
-    const onGameUpdate = (data: { gameCode: string }) => {
-      if (data.gameCode === gameCode) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
-        queryClient.invalidateQueries({ queryKey: ["game_properties"] });
-      }
-    };
-    socketService.onGameUpdate(onGameUpdate);
-    return () => {
-      socketService.removeListener("game-update", onGameUpdate);
-      socketService.leaveGameRoom(gameCode);
-    };
-  }, [gameCode, queryClient]);
-
   const {
     data: game,
     isLoading: gameLoading,
@@ -73,8 +56,25 @@ export default function GamePlayPage() {
       return res.data.data;
     },
     enabled: !!gameCode,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
+
+  useEffect(() => {
+    if (!gameCode || !SOCKET_URL) return;
+    const socket = socketService.connect(SOCKET_URL);
+    socketService.joinGameRoom(gameCode);
+    const onGameUpdate = (data: { gameCode: string }) => {
+      if (data.gameCode === gameCode) {
+        refetchGame();
+        queryClient.invalidateQueries({ queryKey: ["game_properties"] });
+      }
+    };
+    socketService.onGameUpdate(onGameUpdate);
+    return () => {
+      socketService.removeListener("game-update", onGameUpdate);
+      socketService.leaveGameRoom(gameCode);
+    };
+  }, [gameCode, queryClient, refetchGame]);
 
   const me = useMemo(() => {
     if (!game?.players || !address) return null;
@@ -109,7 +109,7 @@ export default function GamePlayPage() {
       return res.data?.success ? res.data.data : [];
     },
     enabled: !!game?.id,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const my_properties: Property[] = useMemo(() => {

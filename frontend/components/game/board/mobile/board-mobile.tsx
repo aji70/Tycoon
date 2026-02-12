@@ -55,6 +55,15 @@ const MobileGameLayout = ({
   const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [currentGameProperties, setCurrentGameProperties] = useState<GameProperty[]>(game_properties);
+
+  // Sync from parent when game/properties update (e.g. from socket-triggered refetch)
+  useEffect(() => {
+    setCurrentGame(game);
+    setPlayers(game?.players ?? []);
+  }, [game]);
+  useEffect(() => {
+    setCurrentGameProperties(game_properties);
+  }, [game_properties]);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
   const [pendingRoll, setPendingRoll] = useState(0);
@@ -152,6 +161,11 @@ const MobileGameLayout = ({
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
   const recordTimeoutCalledForTurn = useRef<number | null>(null);
+  const timeLeftFrozenAtRollRef = useRef<number | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const INACTIVITY_SECONDS = 30;
+  const TURN_TOTAL_SECONDS = 90;
 
   const justLandedProperty = useMemo(() => {
     if (landedPositionThisTurn.current === null) return null;
@@ -201,7 +215,7 @@ const MobileGameLayout = ({
       if (!isRolling) {
         fetchUpdatedGame();
       }
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [fetchUpdatedGame, isRolling, actionLock]);
@@ -255,7 +269,13 @@ const MobileGameLayout = ({
     setHasMovementFinished(false);
     setIsRaisingFunds(false);
     setTurnTimeLeft(null);
+    timeLeftFrozenAtRollRef.current = null;
+    lastActivityRef.current = Date.now();
   }, [currentPlayerId]);
+
+  const touchActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     if (!isMyTurn || !roll || !hasMovementFinished) {
@@ -301,7 +321,8 @@ const MobileGameLayout = ({
   }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
 
   const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0);
-  // Timer for current player — show to ALL players so they can track when someone times out (for vote)
+  const hasRolled = isMyTurn && roll != null && hasMovementFinished;
+  // Timer for current player — stops counting when they roll; 90s total to wrap up
   const isTwoPlayer = players.length === 2;
   useEffect(() => {
     if (!currentPlayer?.turn_start) {
@@ -314,14 +335,21 @@ const MobileGameLayout = ({
       setTurnTimeLeft(null);
       return;
     }
-    const TURN_ROLL_SECONDS = 90;
     const tick = () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const elapsed = nowSec - turnStartSec;
-      const remaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
-      setTurnTimeLeft(remaining);
+      const liveRemaining = Math.max(0, TURN_TOTAL_SECONDS - elapsed);
 
-      if (remaining <= 0) {
+      if (hasRolled) {
+        if (timeLeftFrozenAtRollRef.current === null) {
+          timeLeftFrozenAtRollRef.current = liveRemaining;
+        }
+        setTurnTimeLeft(timeLeftFrozenAtRollRef.current);
+      } else {
+        setTurnTimeLeft(liveRemaining);
+      }
+
+      if (liveRemaining <= 0) {
         if (isTwoPlayer) {
           END_TURN(true);
         } else {
@@ -345,7 +373,19 @@ const MobileGameLayout = ({
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, currentGame.id, END_TURN, fetchUpdatedGame]);
+  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, currentGame.id, END_TURN, fetchUpdatedGame, hasRolled]);
+
+  // 30s inactivity after roll → auto-end turn
+  useEffect(() => {
+    if (!isMyTurn || !hasRolled || actionLock || isRolling) return;
+    const check = () => {
+      const idleMs = Date.now() - lastActivityRef.current;
+      if (idleMs >= INACTIVITY_SECONDS * 1000) END_TURN();
+    };
+    check();
+    const interval = setInterval(check, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, hasRolled, actionLock, isRolling, END_TURN]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -388,6 +428,7 @@ const MobileGameLayout = ({
   // Vote to remove a player
   const voteToRemove = useCallback(
     async (targetUserId: number) => {
+      touchActivity();
       if (!me?.user_id || !currentGame?.id) return;
       setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
       try {
@@ -420,7 +461,7 @@ const MobileGameLayout = ({
         setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
     },
-    [currentGame?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, showToast]
+    [currentGame?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, showToast, touchActivity]
   );
 
   const removeInactive = useCallback(
@@ -464,6 +505,7 @@ const MobileGameLayout = ({
   }, [currentGame?.id, me?.user_id, voteablePlayers, fetchVoteStatus]);
 
   const BUY_PROPERTY = useCallback(async () => {
+    touchActivity();
     if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
       showToast("Cannot buy right now", "error");
       return;
@@ -496,10 +538,11 @@ const MobileGameLayout = ({
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Purchase failed"));
     }
-  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame]);
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame, touchActivity]);
 
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
+    touchActivity();
 
     const playerId = forAI ? currentPlayerId! : me!.user_id;
     const player = players.find((p) => p.user_id === playerId);
@@ -635,6 +678,7 @@ const MobileGameLayout = ({
     fetchUpdatedGame,
     showToast,
     END_TURN,
+    touchActivity,
   ]);
 
   const getPlayerOwnedProperties = useCallback((playerAddress: string | undefined) => {
@@ -877,14 +921,15 @@ const MobileGameLayout = ({
     return prop.rent_site_only || 0;
   };
 
-  const handlePropertyClick = (propertyId: number) => {
+  const handlePropertyClick = useCallback((propertyId: number) => {
+    touchActivity();
     const prop = properties.find(p => p.id === propertyId);
     const gp = currentGameProperties.find(g => g.property_id === propertyId);
     if (prop) {
       setSelectedProperty(prop);
       setSelectedGameProperty(gp);
     }
-  };
+  }, [properties, currentGameProperties, touchActivity]);
 
   const handleDevelopment = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
@@ -1053,11 +1098,15 @@ const MobileGameLayout = ({
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
-                {turnTimeLeft != null && !roll && !isRolling && (
+                {turnTimeLeft != null && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-                    {isMyTurn
-                      ? `Roll in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
-                      : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to roll`}
+                    {roll
+                      ? isMyTurn
+                        ? `Complete in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
+                        : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to wrap up`
+                      : isMyTurn
+                        ? `Roll in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
+                        : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to roll`}
                   </div>
                 )}
                 {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
@@ -1152,6 +1201,7 @@ const MobileGameLayout = ({
         property={justLandedProperty ?? null}
         onBuy={BUY_PROPERTY}
         onSkip={() => {
+          touchActivity();
           setBuyPrompted(false);
           landedPositionThisTurn.current = null;
           setTimeout(END_TURN, 800);
@@ -1166,10 +1216,10 @@ const MobileGameLayout = ({
         isMyTurn={isMyTurn}
         getCurrentRent={getCurrentRent}
         onClose={() => setSelectedProperty(null)}
-        onDevelop={handleDevelopment}
-        onDowngrade={handleDevelopment}
-        onMortgageToggle={handleMortgageToggle}
-        onSellProperty={handleSellProperty}
+        onDevelop={() => { touchActivity(); handleDevelopment(); }}
+        onDowngrade={() => { touchActivity(); handleDevelopment(); }}
+        onMortgageToggle={() => { touchActivity(); handleMortgageToggle(); }}
+        onSellProperty={() => { touchActivity(); handleSellProperty(); }}
       />
 
       <button
