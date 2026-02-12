@@ -80,6 +80,9 @@ export default function AnalyticsDashboard() {
   }
 
   const d = data!;
+  const statusEntries = Object.entries(d.games.byStatus).filter(
+    ([status]) => status !== "PENDING" && status !== "FINISHED"
+  );
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -119,7 +122,7 @@ export default function AnalyticsDashboard() {
             By status
           </p>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(d.games.byStatus).map(([status, count]) => (
+            {statusEntries.map(([status, count]) => (
               <span
                 key={status}
                 className="rounded-lg bg-[#0E1415] px-3 py-1.5 text-sm text-[#F0F7F7]"
@@ -127,7 +130,7 @@ export default function AnalyticsDashboard() {
                 {status}: {count}
               </span>
             ))}
-            {Object.keys(d.games.byStatus).length === 0 && (
+            {statusEntries.length === 0 && (
               <span className="text-sm text-[#B0BFC0]">No data</span>
             )}
           </div>
