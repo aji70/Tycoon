@@ -18,6 +18,7 @@ import {
   MOVE_ANIMATION_MS_PER_SQUARE,
   JAIL_POSITION,
   getDiceValues,
+  MONOPOLY_STATS,
 } from "../constants";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
 
@@ -474,6 +475,38 @@ export function useGameBoardLogic({
     isNext
   );
 
+  const getCurrentRent = useCallback((prop: Property, gp: GameProperty | undefined): number => {
+    if (!gp || !gp.address) return prop.rent_site_only || 0;
+    if (gp.mortgaged) return 0;
+    if (gp.development === 5) return prop.rent_hotel || 0;
+    if (gp.development && gp.development > 0) {
+      switch (gp.development) {
+        case 1: return prop.rent_one_house || 0;
+        case 2: return prop.rent_two_houses || 0;
+        case 3: return prop.rent_three_houses || 0;
+        case 4: return prop.rent_four_houses || 0;
+        default: return prop.rent_site_only || 0;
+      }
+    }
+
+    const groupEntry = Object.entries(MONOPOLY_STATS.colorGroups).find(([_, ids]) =>
+      ids.includes(prop.id)
+    );
+
+    if (groupEntry) {
+      const [groupName] = groupEntry;
+      if (groupName !== "railroad" && groupName !== "utility") {
+        const groupIds = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
+        const ownedInGroup = game_properties.filter(
+          g => groupIds.includes(g.property_id) && g.address === gp.address
+        ).length;
+        if (ownedInGroup === groupIds.length) return (prop.rent_site_only || 0) * 2;
+      }
+    }
+
+    return prop.rent_site_only || 0;
+  }, [game_properties]);
+
   const removeInactive = useCallback(
     async (targetUserId: number) => {
       if (!me?.user_id || !game?.id) return;
@@ -534,6 +567,7 @@ export function useGameBoardLogic({
     handleMortgage,
     handleUnmortgage,
     handlePropertyClick,
+    getCurrentRent,
     ROLL_DICE,
     END_TURN,
     triggerLandingLogic,
