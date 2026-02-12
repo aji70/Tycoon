@@ -243,13 +243,15 @@ export default function GamePlayPage() {
               activeTab === 'chat' ? 'text-cyan-400 scale-110' : 'text-gray-500'
             }`}
           >
-            <span className="text-2xl leading-none" aria-hidden>💬</span>
+            <span className="relative inline-block">
+              <span className="text-2xl leading-none" aria-hidden>💬</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 left-6 min-w-[18px] h-[18px] rounded-full bg-cyan-400 text-[#010F10] text-xs font-bold flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </span>
             <span className="text-xs mt-1 font-semibold tracking-wide">Chat</span>
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-2 min-w-[18px] h-[18px] rounded-full bg-cyan-400 text-[#010F10] text-xs font-bold flex items-center justify-center">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
           </button>
         </nav>
       </main>

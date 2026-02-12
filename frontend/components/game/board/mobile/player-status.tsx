@@ -7,31 +7,38 @@ interface PlayerStatusProps {
   currentPlayer: Player | undefined;
   isAITurn: boolean; // Strictly boolean
   buyPrompted: boolean;
+  /** When true, show compact one-liner instead of full "username is playing" (used when center shows it) */
+  compact?: boolean;
 }
 
-const PlayerStatus: React.FC<PlayerStatusProps> = ({ currentPlayer, isAITurn, buyPrompted }) => {
+const PlayerStatus: React.FC<PlayerStatusProps> = ({ currentPlayer, isAITurn, buyPrompted, compact = false }) => {
   if (!currentPlayer) return null;
 
   return (
-    <div className="w-full text-center mt-4 px-4">
+    <div className={`text-center px-2 ${compact ? "min-w-0" : "w-full mt-4 px-4"}`}>
       {isAITurn && (
-        <div className="mt-2">
-          <motion.h2
-            className="text-lg font-bold text-pink-300 mb-2"
-            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          >
-            {currentPlayer.username} is playing…
-          </motion.h2>      
-          <div className="flex justify-center mt-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div>
+        compact ? (
+          <span className="text-sm font-medium text-cyan-300/90 truncate block">
+            {currentPlayer.username}&apos;s turn
+          </span>
+        ) : (
+          <div className="mt-2">
+            <motion.h2
+              className="text-lg font-bold text-pink-300 mb-2"
+              animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              {currentPlayer.username} is playing…
+            </motion.h2>
+            <div className="flex justify-center mt-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div>
+            </div>
           </div>
-     
-        </div>
+        )
       )}
 
       {!isAITurn && (
-        <h2 className="text-xl font-bold text-cyan-300">
+        <h2 className={`font-bold text-cyan-300 ${compact ? "text-base" : "text-xl"}`}>
           Your Turn!
         </h2>
       )}
