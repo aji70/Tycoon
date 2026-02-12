@@ -1079,7 +1079,7 @@ const MobileGameLayout = ({
         />
       </div>
 
-      <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
+      <div className="flex-1 w-full flex items-start justify-center overflow-y-auto overflow-x-hidden mt-2 min-h-0">
         <motion.div
           animate={{ scale: boardScale }}
           style={{ transformOrigin: boardTransformOrigin }}
