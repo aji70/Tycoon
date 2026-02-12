@@ -29,7 +29,7 @@ export default function TradeAlertPill({
         scale: { duration: 0.25 },
       }}
       onClick={onViewTrades}
-      className="relative mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-violet-500/50 bg-gradient-to-br from-violet-800/95 to-fuchsia-800/95 shadow-lg shadow-violet-900/40 backdrop-blur-sm transition hover:border-violet-400/60 active:scale-95"
+      className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-violet-500/50 bg-gradient-to-br from-violet-800/95 to-fuchsia-800/95 shadow-lg shadow-violet-900/40 backdrop-blur-sm transition hover:border-violet-400/60 active:scale-95"
       aria-label={`${incomingCount} trade offer${incomingCount === 1 ? "" : "s"}`}
     >
       <Bell className="h-5 w-5 text-violet-200" />
