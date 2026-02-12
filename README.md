@@ -9,6 +9,8 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 > 🚧 Currently in active development — Frontend (React + Next.js) and smart contracts are being actively improved. Join the journey!
 
+📖 **For a complete technical reference** of all game rules, formulas, and calculations, see [GAME_MECHANICS.md](./GAME_MECHANICS.md).
+
 ---
 
 ## How the game works
