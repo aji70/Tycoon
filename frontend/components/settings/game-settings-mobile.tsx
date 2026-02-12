@@ -290,32 +290,32 @@ export default function CreateGameMobile() {
   return (
     <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pb-10">
       {/* Header */}
-      <div className="px-5 pt-8 pb-6">
+      <div className="px-5 pt-6 pb-4">
         <div className="flex justify-between items-center">
           <button
             onClick={() => router.push("/")}
             className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition"
           >
-            <House className="w-6 h-6" />
-            <span className="font-bold">BACK</span>
+            <House className="w-5 h-5" />
+            <span className="font-bold text-sm">BACK</span>
           </button>
-          <h1 className="text-3xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             CREATE
           </h1>
-          <div className="w-16" />
+          <div className="w-14" />
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 px-5 space-y-5 pb-8">
+      <div className="flex-1 px-5 space-y-4 pb-6 overflow-y-auto">
         {/* Free Game Toggle */}
-        <div className="bg-black/65 rounded-2xl p-5 border border-yellow-600/40">
+        <div className="bg-black/65 rounded-xl p-4 border border-yellow-600/40">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FaCoins className="w-6 h-6 text-yellow-400" />
+            <div className="flex items-center gap-2">
+              <FaCoins className="w-5 h-5 text-yellow-400" />
               <div>
-                <h3 className="text-lg font-bold text-yellow-300">Free Game</h3>
-                <p className="text-gray-400 text-xs">No entry fee • Pure fun</p>
+                <h3 className="text-sm font-bold text-yellow-300">Free Game</h3>
+                <p className="text-gray-400 text-[10px]">No entry fee • Pure fun</p>
               </div>
             </div>
             <Switch
@@ -331,50 +331,51 @@ export default function CreateGameMobile() {
           </div>
         </div>
 
-        {/* Your Piece */}
-        <div className="bg-gradient-to-br from-cyan-900/35 to-blue-900/35 rounded-2xl p-5 border border-cyan-500/25">
-          <div className="flex items-center gap-3 mb-3">
-            <FaUser className="w-6 h-6 text-cyan-400" />
-            <h3 className="text-lg font-bold text-cyan-300">Your Piece</h3>
+        {/* Your Piece & Max Players - compact row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gradient-to-br from-cyan-900/35 to-blue-900/35 rounded-xl p-4 border border-cyan-500/25">
+            <div className="flex items-center gap-2 mb-2">
+              <FaUser className="w-4 h-4 text-cyan-400" />
+              <h3 className="text-sm font-bold text-cyan-300">Your Piece</h3>
+            </div>
+            <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
+              <SelectTrigger className="h-10 bg-black/60 border-cyan-500/30 text-white text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {GamePieces.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={settings.symbol} onValueChange={(v) => setSettings(p => ({ ...p, symbol: v }))}>
-            <SelectTrigger className="h-12 bg-black/60 border-cyan-500/30 text-white text-base">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {GamePieces.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
-        {/* Max Players */}
-        <div className="bg-gradient-to-br from-purple-900/35 to-pink-900/35 rounded-2xl p-5 border border-purple-500/25">
-          <div className="flex items-center gap-3 mb-3">
-            <FaUsers className="w-6 h-6 text-purple-400" />
-            <h3 className="text-lg font-bold text-purple-300">Players</h3>
+          <div className="bg-gradient-to-br from-purple-900/35 to-pink-900/35 rounded-xl p-4 border border-purple-500/25">
+            <div className="flex items-center gap-2 mb-2">
+              <FaUsers className="w-4 h-4 text-purple-400" />
+              <h3 className="text-sm font-bold text-purple-300">Players</h3>
+            </div>
+            <Select value={settings.maxPlayers.toString()} onValueChange={(v) => setSettings(p => ({ ...p, maxPlayers: +v }))}>
+              <SelectTrigger className="h-10 bg-black/60 border-purple-500/30 text-white text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[2,3,4,5,6,7,8].map(n => (
+                  <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={settings.maxPlayers.toString()} onValueChange={(v) => setSettings(p => ({ ...p, maxPlayers: +v }))}>
-            <SelectTrigger className="h-12 bg-black/60 border-purple-500/30 text-white text-base">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[2,3,4,5,6,7,8].map(n => (
-                <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Private Room */}
-        <div className="bg-black/60 rounded-2xl p-5 border border-gray-600/60">
+        <div className="bg-black/60 rounded-xl p-4 border border-gray-600/60">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MdPrivateConnectivity className="w-6 h-6 text-emerald-400" />
+            <div className="flex items-center gap-2">
+              <MdPrivateConnectivity className="w-5 h-5 text-emerald-400" />
               <div>
-                <h3 className="text-lg font-bold text-white">Private</h3>
-                <p className="text-gray-400 text-xs">Code only</p>
+                <h3 className="text-sm font-bold text-white">Private</h3>
+                <p className="text-gray-400 text-[10px]">Code only</p>
               </div>
             </div>
             <Switch
@@ -385,28 +386,27 @@ export default function CreateGameMobile() {
         </div>
 
         {/* Stake */}
-        <div className={`bg-gradient-to-b from-green-900/55 to-emerald-900/55 rounded-2xl p-6 border ${isFreeGame ? 'border-yellow-600/40 opacity-75' : 'border-green-500/40'}`}>
-          <div className="flex items-center gap-3 mb-5">
-            <FaCoins className="w-7 h-7 text-green-400" />
-            <h3 className="text-xl font-bold text-green-300">Entry Stake</h3>
+        <div className={`bg-gradient-to-b from-green-900/55 to-emerald-900/55 rounded-xl p-4 border ${isFreeGame ? 'border-yellow-600/40 opacity-75' : 'border-green-500/40'}`}>
+          <div className="flex items-center gap-2 mb-3">
+            <FaCoins className="w-5 h-5 text-green-400" />
+            <h3 className="text-sm font-bold text-green-300">Entry Stake</h3>
           </div>
 
           {isFreeGame ? (
-            <div className="py-10 text-center">
-              <p className="text-5xl font-black text-yellow-400 mb-3">FREE</p>
-              <p className="text-green-300 text-lg">No crypto needed</p>
-              <p className="text-gray-400 text-sm mt-2">Just for fun!</p>
+            <div className="py-6 text-center">
+              <p className="text-3xl font-black text-yellow-400 mb-1">FREE</p>
+              <p className="text-green-300 text-sm">No crypto needed</p>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="grid grid-cols-3 gap-2 mb-3">
                 {stakePresets.map((amt) => (
                   <button
                     key={amt}
                     onClick={() => handleStakeSelect(amt)}
-                    className={`py-3 rounded-xl font-bold text-sm transition-all active:scale-95 ${
+                    className={`py-2 rounded-lg font-bold text-xs transition-all active:scale-95 ${
                       settings.stake === amt
-                        ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow-lg"
+                        ? "bg-gradient-to-br from-yellow-400 to-amber-500 text-black shadow"
                         : "bg-black/65 border border-gray-600 text-gray-300"
                     }`}
                   >
@@ -422,12 +422,12 @@ export default function CreateGameMobile() {
                 placeholder="Custom ≥ 0.01"
                 value={customStake}
                 onChange={(e) => handleCustomStake(e.target.value)}
-                className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400 mb-5"
+                className="w-full px-3 py-2.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-center text-sm focus:outline-none focus:border-green-400 mb-3"
               />
 
               <div className="text-center">
-                <p className="text-sm text-gray-400">Current Stake</p>
-                <p className="text-3xl font-bold text-green-400">
+                <p className="text-xs text-gray-400">Current Stake</p>
+                <p className="text-xl font-bold text-green-400">
                   {settings.stake} USDC
                 </p>
               </div>
@@ -436,14 +436,14 @@ export default function CreateGameMobile() {
         </div>
 
         {/* Starting Cash & Duration */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gradient-to-br from-amber-900/35 to-orange-900/35 rounded-2xl p-5 border border-amber-500/25">
-            <div className="flex items-center gap-2 mb-3">
-              <FaCoins className="w-5 h-5 text-amber-400" />
-              <h3 className="text-base font-bold text-amber-300">Cash</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gradient-to-br from-amber-900/35 to-orange-900/35 rounded-xl p-4 border border-amber-500/25">
+            <div className="flex items-center gap-2 mb-2">
+              <FaCoins className="w-4 h-4 text-amber-400" />
+              <h3 className="text-sm font-bold text-amber-300">Cash</h3>
             </div>
             <Select value={settings.startingCash.toString()} onValueChange={(v) => setSettings(p => ({ ...p, startingCash: +v }))}>
-              <SelectTrigger className="h-11 bg-black/60 border-amber-500/30 text-white text-sm">
+              <SelectTrigger className="h-10 bg-black/60 border-amber-500/30 text-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -454,13 +454,13 @@ export default function CreateGameMobile() {
             </Select>
           </div>
 
-          <div className="bg-gradient-to-br from-indigo-900/35 to-purple-900/35 rounded-2xl p-5 border border-indigo-500/25">
-            <div className="flex items-center gap-2 mb-3">
-              <FaBrain className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-indigo-300">Time</h3>
+          <div className="bg-gradient-to-br from-indigo-900/35 to-purple-900/35 rounded-xl p-4 border border-indigo-500/25">
+            <div className="flex items-center gap-2 mb-2">
+              <FaBrain className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-sm font-bold text-indigo-300">Time</h3>
             </div>
             <Select value={settings.duration.toString()} onValueChange={(v) => setSettings(p => ({ ...p, duration: +v }))}>
-              <SelectTrigger className="h-11 bg-black/60 border-indigo-500/30 text-white text-sm">
+              <SelectTrigger className="h-10 bg-black/60 border-indigo-500/30 text-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -474,9 +474,9 @@ export default function CreateGameMobile() {
         </div>
 
         {/* House Rules */}
-        <div className="bg-black/60 rounded-2xl p-5 border border-cyan-500/25">
-          <h3 className="text-lg font-bold text-cyan-400 mb-4 text-center">House Rules</h3>
-          <div className="space-y-4">
+        <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/25">
+          <h3 className="text-sm font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
+          <div className="space-y-2">
             {[
               { icon: RiAuctionFill, label: "Auction", key: "auction" },
               { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
@@ -485,8 +485,8 @@ export default function CreateGameMobile() {
               { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
             ].map((item) => (
               <div key={item.key} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <item.icon className="w-5 h-5 text-cyan-400" />
+                <div className="flex items-center gap-2">
+                  <item.icon className="w-4 h-4 text-cyan-400" />
                   <span className="text-gray-300 text-sm">{item.label}</span>
                 </div>
                 <Switch
@@ -498,16 +498,16 @@ export default function CreateGameMobile() {
           </div>
         </div>
 
-        {/* CREATE BUTTON - now at the bottom of content */}
-        <div className="pt-6 pb-10">
+        {/* CREATE BUTTON */}
+        <div className="pt-4 pb-6">
           <button
             onClick={handlePlay}
             disabled={isStarting || isCreatePending || (approvePending || approveConfirming)}
-            className="w-full py-6 text-2xl font-orbitron font-black tracking-wider
+            className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
                        bg-gradient-to-r from-cyan-600 via-purple-700 to-pink-600
                        hover:brightness-110 active:scale-[0.98]
-                       rounded-2xl shadow-2xl transition-all duration-300
-                       disabled:opacity-60 disabled:cursor-not-allowed border-2 border-white/10"
+                       rounded-xl shadow-lg transition-all duration-300
+                       disabled:opacity-60 disabled:cursor-not-allowed border-2 border-white/10 text-white"
           >
             {isStarting || approvePending || approveConfirming
               ? "PROCESSING..."
