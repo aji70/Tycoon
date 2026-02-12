@@ -86,7 +86,12 @@ export function useGameBoardLogic({
   }, [landedPositionThisTurn.current, properties]);
 
   // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
-  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
+  // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    if (type === "success" && (message.startsWith("You bought") || (message.includes("bought") && message.endsWith("!")))) {
+      toast.success(message);
+    }
+  }, []);
 
   useEffect(() => {
     if (game?.players) setPlayers(game.players);

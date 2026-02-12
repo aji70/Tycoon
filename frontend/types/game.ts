@@ -47,6 +47,7 @@ export interface Game {
   duration: number | string | null;
   created_at: string;
   updated_at: string;
+  is_ai?: boolean;
   settings: GameSettings;
   players: Player[];
   history: History[];

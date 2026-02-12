@@ -7,10 +7,10 @@ import GamePlayersMobile from "@/components/game/ai-player/mobile/ai-player";
 
 import { apiClient } from "@/lib/api";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 
@@ -59,10 +59,12 @@ export default function GamePlayPage() {
     );
   }
 
+  const queryClient = useQueryClient();
   const {
     data: game,
     isLoading: gameLoading,
     isError: gameError,
+    refetch: refetchGame,
   } = useQuery<Game>({
     queryKey: ["game", gameCode],
     queryFn: async () => {
@@ -134,6 +136,18 @@ export default function GamePlayPage() {
 
   const roll = null;
 
+  /** Call when backend must be set to FINISHED + winner (e.g. when AI wins by time, or when human claims win). */
+  const finishGameByTime = useCallback(async () => {
+    if (!game?.id || !game?.is_ai || game?.status !== "RUNNING") return;
+    try {
+      await apiClient.post(`/games/${game.id}/finish-by-time`);
+      await queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
+      await refetchGame();
+    } catch (e) {
+      console.error("Finish by time failed:", e);
+    }
+  }, [game?.id, game?.is_ai, game?.status, gameCode, queryClient, refetchGame]);
+
   const [activeTab, setActiveTab] = useState<"board" | "players">("board");
 
   if (isRegisteredLoading || gameLoading || propertiesLoading) {
@@ -173,6 +187,7 @@ export default function GamePlayPage() {
               properties={properties}
               game_properties={game_properties}
               me={me}
+              onFinishGameByTime={finishGameByTime}
             />
           ) : (
             <GamePlayersMobile
@@ -239,6 +254,7 @@ export default function GamePlayPage() {
           properties={properties}
           game_properties={game_properties}
           me={me}
+          onFinishGameByTime={finishGameByTime}
         />
       </div>
 

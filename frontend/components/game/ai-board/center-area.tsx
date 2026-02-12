@@ -26,6 +26,8 @@ type CenterAreaProps = {
   isPending: boolean;
   timerSlot?: React.ReactNode;
   turnTimeLeft?: number | null;
+  /** When true, show "Time's Up" and hide Roll Dice (time-up by net worth). */
+  gameTimeUp?: boolean;
 };
 
 export default function CenterArea({
@@ -47,6 +49,7 @@ export default function CenterArea({
   isPending,
   timerSlot,
   turnTimeLeft,
+  gameTimeUp = false,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -70,15 +73,22 @@ export default function CenterArea({
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
 
-      {/* 90s roll countdown — show only while waiting to roll; hide as soon as they click Roll Dice */}
-      {isMyTurn && !roll && !isRolling && (
+      {/* Time's Up (net worth) — hide roll dice */}
+      {gameTimeUp && (
+        <div className="text-center mb-4 z-10 font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
+          Time&apos;s Up!
+        </div>
+      )}
+
+      {/* 90s roll countdown — show only while waiting to roll; hide when time's up */}
+      {!gameTimeUp && isMyTurn && !roll && !isRolling && (
         <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
           Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
         </div>
       )}
 
-      {/* Player's Turn: Roll or Bankruptcy */}
-      {isMyTurn && !roll && !isRolling && (
+      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp) */}
+      {!gameTimeUp && isMyTurn && !roll && !isRolling && (
         playerCanRoll ? (
           <button
             onClick={onRollDice}

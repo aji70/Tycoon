@@ -103,13 +103,19 @@ const AiBoard = ({
   properties,
   game_properties,
   me,
+  onFinishGameByTime,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  onFinishGameByTime?: () => Promise<void>;
 }) => {
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
+  const [gameTimeUp, setGameTimeUp] = useState(false);
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const timeUpHandledRef = useRef(false);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
   const [pendingRoll, setPendingRoll] = useState(0);
@@ -146,7 +152,7 @@ const AiBoard = ({
   const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
 
   const playerCanRoll = Boolean(
-    isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0
+    isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp
   );
 
   const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && Boolean(currentPlayer?.in_jail);
@@ -207,8 +213,55 @@ const {
     );
   }
 
-  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
-  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
+  // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    if (type === "success" && (message.startsWith("You bought") || message.startsWith("AI bought") || (message.includes("bought") && message.endsWith("!")))) {
+      toast.success(message);
+    }
+  }, []);
+
+  const handleGameTimeUp = useCallback(async () => {
+    if (timeUpHandledRef.current || game.status !== "RUNNING") return;
+    timeUpHandledRef.current = true;
+    setGameTimeUp(true);
+    try {
+      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number } }>(
+        `/games/${game.id}/winner-by-net-worth`
+      );
+      const winnerId = res?.data?.data?.winner_id;
+      if (winnerId == null) return;
+      const myPosition = me?.position ?? 0;
+      const myBalance = BigInt(me?.balance ?? 0);
+      if (winnerId === me?.user_id) {
+        setWinner(me!);
+        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance });
+      } else {
+        await onFinishGameByTime?.();
+        const winnerPlayer = players.find((p) => p.user_id === winnerId) ?? null;
+        setWinner(winnerPlayer);
+        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance });
+      }
+    } catch (e) {
+      console.error("Time up / winner-by-net-worth failed:", e);
+      timeUpHandledRef.current = false;
+      setGameTimeUp(false);
+    }
+  }, [game.id, game.status, me, players, onFinishGameByTime]);
+
+  const handleFinalizeTimeUpAndLeave = useCallback(async () => {
+    setShowExitPrompt(false);
+    const isHumanWinner = winner?.user_id === me?.user_id;
+    try {
+      if (isHumanWinner) await onFinishGameByTime?.();
+      await endGame();
+      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      setTimeout(() => { window.location.href = "/"; }, 1500);
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong — try again later");
+    } finally {
+      endGameReset();
+    }
+  }, [winner?.user_id, me?.user_id, onFinishGameByTime, endGame, endGameReset]);
 
   // Sync players
   useEffect(() => {
@@ -1014,8 +1067,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
               isPending={false}
-              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} /> : null}
               turnTimeLeft={turnTimeLeft}
+              gameTimeUp={gameTimeUp}
             />
 
             {properties.map((square) => {
@@ -1119,6 +1173,98 @@ const endTurnAfterSpecialMove = useCallback(() => {
         onMortgage={handleMortgage}
         onUnmortgage={handleUnmortgage}
       />
+
+      {/* Time's up: Winner / Loser modal */}
+      <AnimatePresence>
+        {winner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
+          >
+            {winner.user_id === me?.user_id ? (
+              <motion.div
+                initial={{ scale: 0.85, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                className="relative p-10 md:p-12 rounded-3xl shadow-2xl text-center max-w-lg w-full overflow-hidden border-4 border-amber-400/80 bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600"
+              >
+                <div className="relative z-10">
+                  <motion.span className="text-6xl md:text-7xl block mb-4" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 0.6 }}>🏆</motion.span>
+                  <h1 className="text-4xl md:text-5xl font-black text-white mb-3 drop-shadow-lg tracking-tight">YOU WIN!</h1>
+                  <p className="text-xl md:text-2xl font-bold text-amber-100 mb-2">Congratulations, Champion</p>
+                  <p className="text-lg text-amber-200/90 mb-8">Highest net worth when time ran out.</p>
+                  <button
+                    onClick={() => setShowExitPrompt(true)}
+                    className="px-10 py-4 bg-white text-amber-800 font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-100 transition-all border-2 border-amber-700/50"
+                  >
+                    End game on blockchain & claim rewards
+                  </button>
+                  <p className="text-sm text-amber-200/80 mt-6">Thanks for playing Tycoon!</p>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ scale: 0.85, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                className="relative p-10 md:p-12 rounded-3xl shadow-2xl text-center max-w-lg w-full overflow-hidden border-4 border-slate-500/60 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800"
+              >
+                <div className="relative z-10">
+                  <span className="text-5xl md:text-6xl block mb-4">⏱️</span>
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-200 mb-3">Time&apos;s up</h1>
+                  <p className="text-xl font-semibold text-white mb-1">{winner.username} wins by net worth</p>
+                  <p className="text-slate-400 mb-8">You still get a consolation prize for playing.</p>
+                  <button
+                    onClick={() => setShowExitPrompt(true)}
+                    className="px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-100 transition-all border border-cyan-400/40"
+                  >
+                    End game & collect consolation prize
+                  </button>
+                  <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {showExitPrompt && winner && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
+          >
+            <h2 className="text-2xl font-bold text-white mb-5">One last step</h2>
+            <p className="text-lg text-gray-300 mb-6">
+              {winner.user_id === me?.user_id
+                ? "End the game on the blockchain to claim your rewards."
+                : "End the game on the blockchain to collect your consolation prize."}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={handleFinalizeTimeUpAndLeave}
+                disabled={endGamePending}
+                className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
+              >
+                {endGamePending ? "Processing..." : "Yes, end game"}
+              </button>
+              <button
+                onClick={() => { setShowExitPrompt(false); setTimeout(() => { window.location.href = "/"; }, 300); }}
+                className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
+              >
+                Skip & leave
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       <Toaster
         position="top-center"

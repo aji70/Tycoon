@@ -4,6 +4,86 @@ import GamePlayer from "../models/GamePlayer.js";
 import User from "../models/User.js";
 import GamePlayHistory from "../models/GamePlayHistory.js";
 import Chat from "../models/Chat.js";
+import db from "../config/database.js";
+
+const PROPERTY_TYPES = {
+  RAILWAY: [5, 15, 25, 35],
+  UTILITY: [12, 28],
+};
+const RAILWAY_RENT = { 1: 25, 2: 50, 3: 100, 4: 200 };
+const UTILITY_MULTIPLIER = { 1: 4, 2: 10 };
+const AVERAGE_DICE_ROLL = 7;
+
+/**
+ * Compute winner by net worth (cash + property values + one-turn rent). Does not modify DB.
+ * @returns { winner_id, net_worths: [{ user_id, net_worth }] } or null if game invalid
+ */
+async function computeWinnerByNetWorth(game) {
+  if (!game?.is_ai || game?.status !== "RUNNING") return null;
+  const players = await db("game_players").where({ game_id: game.id }).select("id", "user_id", "balance");
+  if (players.length === 0) return null;
+
+  const rows = await db("game_properties as gp")
+    .join("properties as p", "gp.property_id", "p.id")
+    .where("gp.game_id", game.id)
+    .whereNotNull("gp.player_id")
+    .select(
+      "gp.player_id",
+      "gp.property_id",
+      "gp.development",
+      "gp.mortgaged",
+      "p.price",
+      "p.rent_site_only",
+      "p.rent_one_house",
+      "p.rent_two_houses",
+      "p.rent_three_houses",
+      "p.rent_four_houses",
+      "p.rent_hotel"
+    );
+
+  const byPlayerId = new Map();
+  for (const row of rows) byPlayerId.set(row.player_id, [...(byPlayerId.get(row.player_id) || []), row]);
+
+  function oneTurnRent(gp, ownedByThisPlayer) {
+    if (Number(gp.mortgaged)) return 0;
+    if (PROPERTY_TYPES.RAILWAY.includes(gp.property_id)) {
+      const count = ownedByThisPlayer.filter((o) => PROPERTY_TYPES.RAILWAY.includes(o.property_id)).length;
+      return RAILWAY_RENT[count] || 0;
+    }
+    if (PROPERTY_TYPES.UTILITY.includes(gp.property_id)) {
+      const count = ownedByThisPlayer.filter((o) => PROPERTY_TYPES.UTILITY.includes(o.property_id)).length;
+      return AVERAGE_DICE_ROLL * (UTILITY_MULTIPLIER[count] || 0);
+    }
+    const dev = Math.min(5, Math.max(0, Number(gp.development || 0)));
+    const rents = [
+      gp.rent_site_only,
+      gp.rent_one_house,
+      gp.rent_two_houses,
+      gp.rent_three_houses,
+      gp.rent_four_houses,
+      gp.rent_hotel,
+    ];
+    return Number(rents[dev] || 0);
+  }
+
+  const net_worths = [];
+  let best = { user_id: null, net_worth: -1 };
+  for (const player of players) {
+    const cash = Number(player.balance) || 0;
+    const owned = byPlayerId.get(player.id) || [];
+    let propertyValue = 0;
+    let rentTotal = 0;
+    for (const gp of owned) {
+      const price = Number(gp.price) || 0;
+      propertyValue += Number(gp.mortgaged) ? Math.floor(price / 2) : price;
+      rentTotal += oneTurnRent(gp, owned);
+    }
+    const net_worth = cash + propertyValue + rentTotal;
+    net_worths.push({ user_id: player.user_id, net_worth });
+    if (net_worth > best.net_worth) best = { user_id: player.user_id, net_worth };
+  }
+  return { winner_id: best.user_id, net_worths };
+}
 
 /**
  * Game Controller
@@ -160,6 +240,68 @@ const gameController = {
       res.json({ success: true, message: "Game deleted" });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });
+    }
+  },
+
+  /**
+   * GET: Return winner by net worth without modifying the game (for time-up UI).
+   * Only valid when game is RUNNING and time has elapsed.
+   */
+  async getWinnerByNetWorth(req, res) {
+    try {
+      const game = await Game.findById(req.params.id);
+      if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+      if (!game.is_ai) return res.status(400).json({ success: false, error: "Not an AI game" });
+      if (game.status !== "RUNNING") return res.status(400).json({ success: false, error: "Game is not running" });
+
+      const durationMinutes = Number(game.duration) || 0;
+      if (durationMinutes <= 0) return res.status(400).json({ success: false, error: "Game has no duration" });
+
+      const endMs = new Date(game.created_at).getTime() + durationMinutes * 60 * 1000;
+      if (Date.now() < endMs) return res.status(400).json({ success: false, error: "Game time has not ended yet" });
+
+      const result = await computeWinnerByNetWorth(game);
+      if (!result) return res.status(400).json({ success: false, error: "Could not compute winner" });
+
+      return res.status(200).json({
+        success: true,
+        data: { winner_id: result.winner_id, net_worths: result.net_worths },
+      });
+    } catch (error) {
+      console.error("getWinnerByNetWorth error:", error);
+      return res.status(500).json({ success: false, message: error?.message || "Failed to get winner" });
+    }
+  },
+
+  /**
+   * POST: End AI game by time; set winner by net worth (called when AI wins and we need backend updated).
+   */
+  async finishByTime(req, res) {
+    try {
+      const game = await Game.findById(req.params.id);
+      if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+      if (!game.is_ai) return res.status(400).json({ success: false, error: "Not an AI game" });
+      if (game.status !== "RUNNING") return res.status(400).json({ success: false, error: "Game is not running" });
+
+      const durationMinutes = Number(game.duration) || 0;
+      if (durationMinutes <= 0) return res.status(400).json({ success: false, error: "Game has no duration" });
+
+      const endMs = new Date(game.created_at).getTime() + durationMinutes * 60 * 1000;
+      if (Date.now() < endMs) return res.status(400).json({ success: false, error: "Game time has not ended yet" });
+
+      const result = await computeWinnerByNetWorth(game);
+      if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
+
+      await Game.update(game.id, { status: "FINISHED", winner_id: result.winner_id });
+      const updated = await Game.findById(game.id);
+      return res.status(200).json({
+        success: true,
+        message: "Game finished by time; winner by net worth",
+        data: { game: updated, winner_id: result.winner_id },
+      });
+    } catch (error) {
+      console.error("finishByTime error:", error);
+      return res.status(500).json({ success: false, message: error?.message || "Failed to finish game by time" });
     }
   },
 

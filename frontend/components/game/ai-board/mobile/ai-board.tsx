@@ -46,11 +46,13 @@ const MobileGameLayout = ({
   properties,
   game_properties,
   me,
+  onFinishGameByTime,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  onFinishGameByTime?: () => Promise<void>;
 }) => {
   const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
@@ -90,6 +92,8 @@ const MobileGameLayout = ({
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
+  const [gameTimeUp, setGameTimeUp] = useState(false);
+  const timeUpHandledRef = useRef(false);
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
@@ -101,6 +105,8 @@ const MobileGameLayout = ({
 
   const [bellFlash, setBellFlash] = useState(false);
   const prevIncomingTradeCount = useRef(0);
+  const tradeToastShownThisTurn = useRef(false);
+  const lastTurnForTradeToast = useRef<number | null>(null);
    const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
   const {
@@ -128,7 +134,8 @@ const endTime =
     const currentCount = myIncomingTrades.length;
     const previousCount = prevIncomingTradeCount.current;
 
-    if (currentCount > previousCount && previousCount > 0) {
+    if (currentCount > previousCount && previousCount >= 0 && !tradeToastShownThisTurn.current) {
+      tradeToastShownThisTurn.current = true;
       const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
       const senderName = latestTrade?.player?.username || "Someone";
 
@@ -170,6 +177,14 @@ const endTime =
   const isMyTurn = me?.user_id === currentPlayerId;
   const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
 
+  // Reset "shown this turn" when turn changes so we show at most one purple toast per turn
+  useEffect(() => {
+    if (lastTurnForTradeToast.current !== currentPlayerId) {
+      lastTurnForTradeToast.current = currentPlayerId ?? null;
+      tradeToastShownThisTurn.current = false;
+    }
+  }, [currentPlayerId]);
+
   const landedPositionThisTurn = useRef<number | null>(null);
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
@@ -196,8 +211,12 @@ const endTime =
 
   const activeToasts = useRef<Set<string>>(new Set());
 
-  // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
-  const showToast = useCallback((_message: string, _type?: "success" | "error" | "default") => {}, []);
+  // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    if (type === "success" && (message.startsWith("You bought") || message.startsWith("AI bought") || (message.includes("bought") && message.endsWith("!")))) {
+      toast.success(message);
+    }
+  }, []);
 
   const fetchUpdatedGame = useCallback(async (retryDelay = 1000) => {
     try {
@@ -298,7 +317,37 @@ const endTime =
     }
   }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
 
-  const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0);
+  const handleGameTimeUp = useCallback(async () => {
+    if (timeUpHandledRef.current || currentGame.status !== "RUNNING") return;
+    timeUpHandledRef.current = true;
+    setGameTimeUp(true);
+    try {
+      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number } }>(
+        `/games/${currentGame.id}/winner-by-net-worth`
+      );
+      const winnerId = res?.data?.data?.winner_id;
+      if (winnerId == null) return;
+
+      const myPosition = me?.position ?? 0;
+      const myBalance = BigInt(me?.balance ?? 0);
+
+      if (winnerId === me?.user_id) {
+        setWinner(me!);
+        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance });
+      } else {
+        await onFinishGameByTime?.();
+        const winnerPlayer = players.find((p) => p.user_id === winnerId) ?? null;
+        setWinner(winnerPlayer);
+        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance });
+      }
+    } catch (e) {
+      console.error("Time up / winner-by-net-worth failed:", e);
+      timeUpHandledRef.current = false;
+      setGameTimeUp(false);
+    }
+  }, [currentGame.id, currentGame.status, me, players, onFinishGameByTime]);
+
+  const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp);
   useEffect(() => {
     if (!isMyTurn || !playerCanRoll || isRolling || roll) {
       setTurnTimeLeft(null);
@@ -750,14 +799,19 @@ const endTime =
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
-                  <GameDurationCountdown game={currentGame} compact />
+                  <GameDurationCountdown game={currentGame} compact onTimeUp={handleGameTimeUp} />
                 )}
-                {isMyTurn && !roll && !isRolling && (
+                {gameTimeUp && (
+                  <div className="font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
+                    Time&apos;s Up!
+                  </div>
+                )}
+                {!gameTimeUp && isMyTurn && !roll && !isRolling && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
                     Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
                   </div>
                 )}
-                {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   (currentPlayer?.balance ?? 0) < 0 ? (
                     <button
                       onClick={declareBankruptcy}
@@ -851,6 +905,7 @@ const endTime =
         isPending={endGamePending}
         endGame={endGame}
         reset={endGameReset}
+        onFinishGameByTime={onFinishGameByTime}
         setShowInsolvencyModal={setShowInsolvencyModal}
         setIsRaisingFunds={setIsRaisingFunds}
         setShowBankruptcyModal={setShowBankruptcyModal}
