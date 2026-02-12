@@ -25,12 +25,12 @@ import DiceAnimation from "./dice-animation";
 import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import PlayerStatus from "./player-status";
-import BellNotification from "./BellNotification";
+import TradeAlertPill from "../../TradeAlertPill";
 import BoardPropertyDetailModal from "./BoardPropertyDetailModal";
 import BoardPerksModal from "./BoardPerksModal";
 import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
 import BuyPromptModal from "../../ai-board/mobile/BuyPromptModal";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ArrowLeftRight } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
@@ -43,11 +43,13 @@ const MobileGameLayout = ({
   properties,
   game_properties,
   me,
+  onViewTrades,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  onViewTrades?: () => void;
 }) => {
   const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
@@ -114,10 +116,10 @@ const MobileGameLayout = ({
       const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
       const senderName = latestTrade?.player?.username || "Someone";
       toast.custom(
-        <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 rounded-xl shadow-2xl">
-          <span className="text-2xl">🔔</span>
+        <div className="flex items-center gap-3 bg-gradient-to-r from-violet-700 to-fuchsia-700 text-white px-5 py-3 rounded-xl shadow-2xl border border-violet-500/30">
+          <ArrowLeftRight className="w-6 h-6 shrink-0" />
           <div>
-            <div className="font-bold">New Trade Offer!</div>
+            <div className="font-bold">New Trade Offer</div>
             <div className="text-sm opacity-90">{senderName} sent you a trade</div>
           </div>
         </div>,
@@ -933,9 +935,12 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      <BellNotification bellFlash={bellFlash} incomingCount={myIncomingTrades.length} />
-
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
+        <TradeAlertPill
+          incomingCount={myIncomingTrades.length}
+          onViewTrades={onViewTrades}
+          newTradePulse={bellFlash}
+        />
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
         </div>
@@ -1098,17 +1103,6 @@ const MobileGameLayout = ({
         claiming={endGamePending}
       />
 
-
-      <style jsx>{`
-        @keyframes bell-ring {
-          0%, 100% { transform: rotate(0deg); }
-          10%, 30%, 50%, 70%, 90% { transform: rotate(-15deg); }
-          20%, 40%, 60%, 80% { transform: rotate(15deg); }
-        }
-        .animate-bell-ring {
-          animation: bell-ring 0.8s ease-in-out;
-        }
-      `}</style>
 
       <Toaster
         position="top-center"

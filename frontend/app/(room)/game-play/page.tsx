@@ -129,6 +129,7 @@ export default function GamePlayPage() {
               properties={properties}
               game_properties={game_properties}
               me={me}
+              onViewTrades={() => setActiveTab('players')}
             />
           )}
           {activeTab === 'players' && (

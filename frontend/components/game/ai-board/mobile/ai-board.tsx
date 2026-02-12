@@ -27,12 +27,12 @@ import DiceAnimation from "./dice-animation";
 import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import PlayerStatus from "./player-status";
-import BellNotification from "./BellNotification";
+import TradeAlertPill from "../../TradeAlertPill";
 import MyBalanceBar from "./MyBalanceBar";
 import BuyPromptModal from "./BuyPromptModal";
 import PropertyDetailModal from "./PropertyDetailModal";
 import PerksModal from "./PerksModal";
-import { Sparkles, Bell } from "lucide-react";
+import { Sparkles, ArrowLeftRight } from "lucide-react";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
@@ -47,12 +47,14 @@ const MobileGameLayout = ({
   game_properties,
   me,
   onFinishGameByTime,
+  onViewTrades,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
   onFinishGameByTime?: () => Promise<void>;
+  onViewTrades?: () => void;
 }) => {
   const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
@@ -140,10 +142,10 @@ const endTime =
       const senderName = latestTrade?.player?.username || "Someone";
 
       toast.custom(
-        <div className="flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-3 rounded-xl shadow-2xl">
-          <Bell className="w-6 h-6 animate-bell-ring" />
+        <div className="flex items-center gap-3 bg-gradient-to-r from-violet-700 to-fuchsia-700 text-white px-5 py-3 rounded-xl shadow-2xl border border-violet-500/30">
+          <ArrowLeftRight className="w-6 h-6 shrink-0" />
           <div>
-            <div className="font-bold">New Trade Offer!</div>
+            <div className="font-bold">New Trade Offer</div>
             <div className="text-sm opacity-90">{senderName} sent you a trade</div>
           </div>
         </div>,
@@ -773,10 +775,13 @@ const endTime =
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
 
-      <BellNotification bellFlash={bellFlash} incomingCount={myIncomingTrades.length} />
-
       {/* Player Status + My Balance */}
       <div className="w-full max-w-2xl mx-auto px-4 mt-4">
+        <TradeAlertPill
+          incomingCount={myIncomingTrades.length}
+          onViewTrades={onViewTrades}
+          newTradePulse={bellFlash}
+        />
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <PlayerStatus currentPlayer={currentPlayer} isAITurn={isAITurn} buyPrompted={buyPrompted} />
         </div>
@@ -935,17 +940,6 @@ const endTime =
           error: { icon: "✖", style: { borderColor: "#ef4444" } },
         }}
       />
-
-      <style jsx>{`
-        @keyframes bell-ring {
-          0%, 100% { transform: rotate(0deg); }
-          10%, 30%, 50%, 70%, 90% { transform: rotate(-15deg); }
-          20%, 40%, 60%, 80% { transform: rotate(15deg); }
-        }
-        .animate-bell-ring {
-          animation: bell-ring 0.8s ease-in-out;
-        }
-      `}</style>
     </div>
   );
 };

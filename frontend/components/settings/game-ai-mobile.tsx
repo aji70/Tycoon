@@ -211,7 +211,7 @@ export default function PlayWithAIMobile() {
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pt-[70px]">
       {/* Header */}
       <div className="px-5 pt-6 pb-4">
         <div className="max-w-md mx-auto flex justify-between items-center">
