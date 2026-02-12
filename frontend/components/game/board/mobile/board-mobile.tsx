@@ -1143,8 +1143,8 @@ const MobileGameLayout = ({
           <MyBalanceBar me={me} bottomBar />
         </div>
       </div>
-      {/* Game log: compact strip at bottom, scrollable if needed */}
-      <div className="w-full max-w-2xl mx-auto px-4 py-2 flex-shrink-0 max-h-[120px] min-h-0 overflow-y-auto">
+      {/* Game log: compact strip above balance bar, scrollable if needed */}
+      <div className="w-full max-w-2xl mx-auto px-4 py-2 pb-24 flex-shrink-0 max-h-[100px] min-h-0 overflow-y-auto">
         <GameLog history={currentGame.history} />
       </div>
 
