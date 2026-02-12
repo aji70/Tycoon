@@ -1,6 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
+import { Crown, Trophy, Sparkles, Coins, Wallet, HeartHandshake } from "lucide-react";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
 
@@ -103,17 +104,27 @@ const GameModals: React.FC<GameModalsProps> = ({
     setShowExitPrompt(false);
     const isHumanWinner = winner?.user_id === me?.user_id;
     const toastId = toast.loading(
-      isHumanWinner ? "Claiming your prize..." : "Claiming consolation prize..."
+      isHumanWinner ? "Claiming your prize on-chain…" : "Claiming consolation on-chain…"
     );
 
     try {
-      if (isHumanWinner) await onFinishGameByTime?.();
+      // 1) Claim on-chain first (winners and losers both call exit AI game to get rewards)
       await endGame();
+      // 2) Then sync backend (mark game FINISHED, set winner). Both can call; backend is idempotent if already finished.
+      try {
+        await onFinishGameByTime?.();
+      } catch (backendErr: any) {
+        if (backendErr?.message?.includes("not running") || backendErr?.response?.data?.error === "Game is not running") {
+          // Game already finished (e.g. other player already called). On-chain claim succeeded; ignore.
+        } else {
+          throw backendErr;
+        }
+      }
       toast.success(
         isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      setTimeout(() => window.location.href = "/", 1500);
+      setTimeout(() => (window.location.href = "/"), 1500);
     } catch (err: any) {
       toast.error(
         err?.message || "Something went wrong — you can try again later",
@@ -133,49 +144,142 @@ const GameModals: React.FC<GameModalsProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-50 p-4 overflow-y-auto"
           >
+            {/* Ambient background — deep indigo/cyan, no gold */}
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
+
             {winner.user_id === me?.user_id ? (
               <motion.div
-                initial={{ scale: 0.85, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                className="relative p-10 md:p-12 rounded-3xl shadow-2xl text-center max-w-lg w-full overflow-hidden border-4 border-amber-400/80 bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600"
+                initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-cyan-400/50 bg-gradient-to-b from-indigo-900/95 via-violet-900/90 to-slate-950/95 shadow-2xl shadow-cyan-900/30 text-center"
               >
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-yellow-300/20 to-transparent" />
-                <div className="relative z-10">
-                  <motion.span className="text-6xl md:text-7xl block mb-4" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 0.6 }}>🏆</motion.span>
-                  <h1 className="text-4xl md:text-5xl font-black text-white mb-3 drop-shadow-lg tracking-tight">YOU WIN!</h1>
-                  <p className="text-xl md:text-2xl font-bold text-amber-100 mb-2">Congratulations, Champion</p>
-                  <p className="text-lg text-amber-200/90 mb-8">Highest net worth when time ran out.</p>
-                  <button
-                    onClick={() => setShowExitPrompt(true)}
-                    className="px-10 py-4 bg-white text-amber-800 font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-100 transition-all border-2 border-amber-700/50"
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,211,238,0.18),transparent)]" />
+                <div className="relative z-10 p-8 sm:p-10">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -20 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                    className="mb-6 relative"
                   >
-                    End game on blockchain & claim rewards
-                  </button>
-                  <p className="text-sm text-amber-200/80 mt-6">Thanks for playing Tycoon!</p>
+                    <Crown className="w-20 h-20 sm:w-24 sm:h-24 mx-auto text-cyan-300 drop-shadow-[0_0_40px_rgba(34,211,238,0.7)]" />
+                    <motion.div
+                      className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2"
+                      animate={{ opacity: [0.4, 0.8, 0.4] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      <Sparkles className="w-6 h-6 text-cyan-400/80" />
+                    </motion.div>
+                  </motion.div>
+                  <motion.h1
+                    initial={{ y: 12, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-4xl sm:text-5xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-200 to-cyan-300 mb-2"
+                  >
+                    YOU WIN
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.35 }}
+                    className="text-lg text-slate-200 mb-2"
+                  >
+                    You had the highest net worth when time ran out.
+                  </motion.p>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-cyan-200/90 text-base mb-6"
+                  >
+                    Well played — you earned this one.
+                  </motion.p>
+                  <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="mb-8 p-5 rounded-2xl bg-black/40 border border-cyan-500/30 flex items-center justify-center gap-4"
+                  >
+                    <Coins className="w-10 h-10 text-cyan-400" />
+                    <div className="text-left">
+                      <p className="text-white font-bold">Your rewards</p>
+                      <p className="text-sm text-slate-300">Bonus tokens • check your wallet after claiming</p>
+                    </div>
+                  </motion.div>
+                  <motion.button
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowExitPrompt(true)}
+                    className="w-full py-4 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-300/40 transition-all"
+                  >
+                    Claim rewards
+                  </motion.button>
+                  <p className="text-xs text-slate-400 mt-4">Finalizes on blockchain</p>
+                  <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
               </motion.div>
             ) : (
               <motion.div
-                initial={{ scale: 0.85, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                className="relative p-10 md:p-12 rounded-3xl shadow-2xl text-center max-w-lg w-full overflow-hidden border-4 border-slate-500/60 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800"
+                initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-slate-500/50 bg-gradient-to-b from-slate-900/95 via-slate-800/90 to-black/95 shadow-2xl shadow-slate-900/50 text-center"
               >
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-500/10 to-transparent" />
-                <div className="relative z-10">
-                  <span className="text-5xl md:text-6xl block mb-4">⏱️</span>
-                  <h1 className="text-3xl md:text-4xl font-bold text-slate-200 mb-3">Time&apos;s up</h1>
-                  <p className="text-xl font-semibold text-white mb-1">{winner.username} wins by net worth</p>
-                  <p className="text-slate-400 mb-8">You still get a consolation prize for playing.</p>
-                  <button
-                    onClick={() => setShowExitPrompt(true)}
-                    className="px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-100 transition-all border border-cyan-400/40"
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,211,238,0.12),transparent)]" />
+                <div className="relative z-10 p-8 sm:p-10">
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.15 }}
+                    className="mb-5"
                   >
-                    End game & collect consolation prize
-                  </button>
+                    <Trophy className="w-16 h-16 sm:w-20 sm:h-20 mx-auto text-amber-400/90" />
+                  </motion.div>
+                  <motion.h1
+                    initial={{ y: 8, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.25 }}
+                    className="text-2xl sm:text-3xl font-bold text-slate-200 mb-1"
+                  >
+                    Time&apos;s up
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.35 }}
+                    className="text-xl font-semibold text-white mb-6"
+                  >
+                    {winner.username} <span className="text-amber-400">wins</span>
+                  </motion.p>
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.45 }}
+                    className="mb-8 flex flex-col items-center gap-3"
+                  >
+                    <HeartHandshake className="w-12 h-12 text-cyan-400/80" />
+                    <p className="text-slate-300">You still get a consolation prize.</p>
+                  </motion.div>
+                  <motion.button
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.55 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowExitPrompt(true)}
+                    className="w-full py-4 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-400/30 transition-all"
+                  >
+                    Collect consolation
+                  </motion.button>
+                  <p className="text-xs text-slate-500 mt-4">Finalizes on blockchain</p>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
               </motion.div>
@@ -184,44 +288,59 @@ const GameModals: React.FC<GameModalsProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Exit / Claim confirmation */}
+      {/* Exit / Claim confirmation — sleek confirm dialog */}
       <AnimatePresence>
         {showExitPrompt && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+            className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
           >
             <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 24 }}
+              className="relative w-full max-w-sm rounded-3xl overflow-hidden border border-cyan-500/40 bg-gradient-to-b from-slate-900 to-slate-800 shadow-2xl shadow-cyan-900/20 text-center"
             >
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-5">One last step</h2>
-              {winner?.user_id === me?.user_id ? (
-                <p className="text-lg md:text-xl text-cyan-300 mb-6">End the game on the blockchain to claim your rewards.</p>
-              ) : (
-                <p className="text-lg md:text-xl text-gray-300 mb-6">End the game on the blockchain to collect your consolation prize.</p>
-              )}
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={handleFinalizeAndLeave}
-                  disabled={isPending}
-                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
+              <div className="p-8">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 260, delay: 0.05 }}
+                  className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-400/40"
                 >
-                  {isPending ? "Processing..." : "Yes, end game"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowExitPrompt(false);
-                    setTimeout(() => window.location.href = "/", 300);
-                  }}
-                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
-                >
-                  Skip & leave
-                </button>
+                  <Wallet className="w-7 h-7 text-cyan-400" />
+                </motion.div>
+                <h2 className="text-xl font-bold text-white mb-2">
+                  {winner?.user_id === me?.user_id ? "Confirm & claim" : "Confirm & collect"}
+                </h2>
+                <p className="text-slate-400 text-sm mb-8">
+                  {winner?.user_id === me?.user_id
+                    ? "This will finalize the game on-chain and send your rewards to your wallet."
+                    : "This will finalize the game and send your consolation prize."}
+                </p>
+                <div className="flex flex-col gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleFinalizeAndLeave}
+                    disabled={isPending}
+                    className="w-full py-3.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-600 text-white font-semibold transition disabled:cursor-wait"
+                  >
+                    {isPending ? "Processing…" : "Confirm"}
+                  </motion.button>
+                  <button
+                    onClick={() => {
+                      setShowExitPrompt(false);
+                      setTimeout(() => (window.location.href = "/"), 300);
+                    }}
+                    className="w-full py-3 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-300 font-medium transition"
+                  >
+                    Leave without claiming
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

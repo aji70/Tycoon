@@ -30,7 +30,7 @@ import BoardPropertyDetailModal from "./BoardPropertyDetailModal";
 import BoardPerksModal from "./BoardPerksModal";
 import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
 import BuyPromptModal from "../../ai-board/mobile/BuyPromptModal";
-import { Sparkles, ArrowLeftRight } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
@@ -113,18 +113,6 @@ const MobileGameLayout = ({
 
     if (currentCount > previousCount && previousCount >= 0 && !tradeToastShownThisTurn.current) {
       tradeToastShownThisTurn.current = true;
-      const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
-      const senderName = latestTrade?.player?.username || "Someone";
-      toast.custom(
-        <div className="flex items-center gap-3 bg-gradient-to-r from-violet-700 to-fuchsia-700 text-white px-5 py-3 rounded-xl shadow-2xl border border-violet-500/30">
-          <ArrowLeftRight className="w-6 h-6 shrink-0" />
-          <div>
-            <div className="font-bold">New Trade Offer</div>
-            <div className="text-sm opacity-90">{senderName} sent you a trade</div>
-          </div>
-        </div>,
-        { duration: 5000, position: "top-center" }
-      );
       setBellFlash(true);
       setTimeout(() => setBellFlash(false), 800);
     }
@@ -944,7 +932,6 @@ const MobileGameLayout = ({
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
         </div>
-        <MyBalanceBar me={me} />
       </div>
 
       <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
@@ -962,7 +949,7 @@ const MobileGameLayout = ({
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
             centerContent={
-              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative">
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
@@ -998,6 +985,11 @@ const MobileGameLayout = ({
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
         roll={roll}
       />
+
+      {/* Balance bar - fixed above nav */}
+      <div className="fixed bottom-16 left-0 right-0 z-40 bg-[#010F10]/95 backdrop-blur-xl border-t border-cyan-500/30">
+        <MyBalanceBar me={me} bottomBar />
+      </div>
 
       {removablePlayers.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2 px-2 py-1.5 bg-amber-900/30 border-b border-amber-500/30">

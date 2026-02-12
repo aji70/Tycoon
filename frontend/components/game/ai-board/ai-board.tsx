@@ -252,8 +252,18 @@ const {
     setShowExitPrompt(false);
     const isHumanWinner = winner?.user_id === me?.user_id;
     try {
-      if (isHumanWinner) await onFinishGameByTime?.();
+      // 1) Claim on-chain first (winners and losers both call exit AI game to get rewards)
       await endGame();
+      // 2) Then sync backend (mark game FINISHED). Both can call; backend is idempotent if already finished.
+      try {
+        await onFinishGameByTime?.();
+      } catch (backendErr: any) {
+        if (backendErr?.message?.includes("not running") || backendErr?.response?.data?.error === "Game is not running") {
+          // Game already finished. On-chain claim succeeded; ignore.
+        } else {
+          throw backendErr;
+        }
+      }
       toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
       setTimeout(() => { window.location.href = "/"; }, 1500);
     } catch (err: any) {

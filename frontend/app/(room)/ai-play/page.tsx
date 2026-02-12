@@ -17,6 +17,28 @@ import { useMediaQuery } from "@/components/useMediaQuery";
 import { LayoutGrid, Users, Loader2, AlertCircle } from "lucide-react";
 import { useIsRegistered } from "@/context/ContractProvider";
 
+/** Shown when the game has ended (e.g. after claiming). Redirects home so user doesn't see "already concluded" error. */
+function GameEndedRedirect({ onGoHome }: { onGoHome: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onGoHome, 2500);
+    return () => clearTimeout(t);
+  }, [onGoHome]);
+
+  return (
+    <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
+      <h2 className="text-2xl font-bold text-cyan-400 mb-2">Game over</h2>
+      <p className="text-gray-400 mb-6">This game has ended. Taking you home...</p>
+      <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mb-6" />
+      <button
+        onClick={onGoHome}
+        className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all"
+      >
+        Go home now
+      </button>
+    </div>
+  );
+}
+
 export default function GamePlayPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -166,6 +188,12 @@ export default function GamePlayPage() {
     );
   }
 
+  // Game ended (e.g. after claiming) — show friendly message and redirect, not an error
+  const gameEnded = gameError && gameQueryError?.message === "Game ended";
+  if (gameEnded) {
+    return <GameEndedRedirect onGoHome={() => router.push("/")} />;
+  }
+
   if (gameError || !game) {
     return (
       <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
@@ -173,9 +201,7 @@ export default function GamePlayPage() {
           {gameQueryError?.message ?? "Game Not Found"}
         </h2>
         <p className="text-gray-300">
-          {gameQueryError?.message === "Game ended"
-            ? "This game has already concluded."
-            : "Invalid or expired game code. Please check and try again."}
+          Invalid or expired game code. Please check and try again.
         </p>
         <button
           onClick={() => router.push("/")}

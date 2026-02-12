@@ -32,7 +32,7 @@ import MyBalanceBar from "./MyBalanceBar";
 import BuyPromptModal from "./BuyPromptModal";
 import PropertyDetailModal from "./PropertyDetailModal";
 import PerksModal from "./PerksModal";
-import { Sparkles, ArrowLeftRight } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
@@ -138,20 +138,6 @@ const endTime =
 
     if (currentCount > previousCount && previousCount >= 0 && !tradeToastShownThisTurn.current) {
       tradeToastShownThisTurn.current = true;
-      const latestTrade = myIncomingTrades[myIncomingTrades.length - 1];
-      const senderName = latestTrade?.player?.username || "Someone";
-
-      toast.custom(
-        <div className="flex items-center gap-3 bg-gradient-to-r from-violet-700 to-fuchsia-700 text-white px-5 py-3 rounded-xl shadow-2xl border border-violet-500/30">
-          <ArrowLeftRight className="w-6 h-6 shrink-0" />
-          <div>
-            <div className="font-bold">New Trade Offer</div>
-            <div className="text-sm opacity-90">{senderName} sent you a trade</div>
-          </div>
-        </div>,
-        { duration: 5000, position: "top-center" }
-      );
-
       setBellFlash(true);
       setTimeout(() => setBellFlash(false), 800);
     }
@@ -802,7 +788,7 @@ const endTime =
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
             centerContent={
-              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative">
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact onTimeUp={handleGameTimeUp} />
                 )}
@@ -843,7 +829,11 @@ const endTime =
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
         roll={roll}
       />
-      <MyBalanceBar me={me} />
+
+      {/* Balance bar - fixed above nav */}
+      <div className="fixed bottom-20 left-0 right-0 z-40 bg-[#010F10]/95 backdrop-blur-xl border-t border-[#003B3E]">
+        <MyBalanceBar me={me} bottomBar />
+      </div>
       </div>
       <BuyPromptModal
         visible={!!(isMyTurn && buyPrompted && justLandedProperty)}
