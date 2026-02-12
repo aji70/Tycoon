@@ -18,6 +18,57 @@ async function notifyGameUpdate(req, gameId) {
   } catch (_) {}
 }
 
+/**
+ * Helper: Actually remove a player from the game (used by voting system and direct removal)
+ */
+async function executePlayerRemoval(trx, game_id, target_user_id) {
+  const game = await trx("games").where({ id: game_id }).forUpdate().first();
+  if (!game || game.status !== "RUNNING") return null;
+
+  const players = await trx("game_players")
+    .where({ game_id })
+    .forUpdate()
+    .orderBy("turn_order", "asc");
+  
+  const target = players.find((p) => p.user_id === target_user_id);
+  if (!target) return null;
+
+  // Return target's properties to bank
+  await trx("game_properties")
+    .where({ game_id, player_id: target.id })
+    .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
+
+  // Delete target player
+  await trx("game_players").where({ id: target.id }).del();
+
+  // Clear votes for this target
+  await trx("player_votes").where({ game_id, target_user_id }).del();
+
+  const remaining = players.filter((p) => p.user_id !== target_user_id);
+  let next_player_id = game.next_player_id;
+  let winner_id = game.winner_id;
+  let status = game.status;
+
+  if (game.next_player_id === target_user_id && remaining.length > 0) {
+    next_player_id = remaining[0].user_id;
+  }
+  if (remaining.length === 1) {
+    status = "FINISHED";
+    winner_id = remaining[0].user_id;
+  }
+
+  await trx("games")
+    .where({ id: game_id })
+    .update({
+      next_player_id,
+      status,
+      winner_id,
+      updated_at: db.fn.now(),
+    });
+
+  return { removed_user_id: target_user_id, remaining_count: remaining.length };
+}
+
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
   UTILITY: [12, 28],
@@ -1066,8 +1117,225 @@ const gamePlayerController = {
     }
   },
 
+
+  /**
+   * Vote to remove an inactive/timed-out player.
+   * Body: { game_id, user_id (voter), target_user_id }.
+   * Player can be voted out if:
+   * - They just timed out (90s) OR
+   * - They have 3+ consecutive timeouts
+   * Removal happens when all other players vote (or 1 vote if only 2 players).
+   */
+  async voteToRemove(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, user_id: voter_user_id, target_user_id } = req.body;
+      if (!game_id || !voter_user_id || !target_user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id, user_id (voter), or target_user_id",
+        });
+      }
+      if (voter_user_id === target_user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "You cannot vote to remove yourself",
+        });
+      }
+
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Game is not in progress",
+        });
+      }
+
+      const players = await trx("game_players")
+        .where({ game_id })
+        .forUpdate()
+        .orderBy("turn_order", "asc");
+      if (players.length < 2) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Not a multiplayer game",
+        });
+      }
+
+      const voter = players.find((p) => p.user_id === voter_user_id);
+      const target = players.find((p) => p.user_id === target_user_id);
+      if (!voter) {
+        await trx.rollback();
+        return res.status(403).json({ success: false, message: "You are not in this game" });
+      }
+      if (!target) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Target player not in game" });
+      }
+
+      // Check if target is eligible for removal
+      const strikes = Number(target.consecutive_timeouts || 0);
+      const otherPlayersCount = players.filter((p) => p.user_id !== target_user_id).length;
+      
+      // With 2 players: need 3+ consecutive timeouts
+      // With more players: can vote immediately when they timeout (strikes > 0) OR after 3+ consecutive timeouts
+      const canBeVotedOut = otherPlayersCount === 1 
+        ? strikes >= 3  // 2-player game: need 3 timeouts
+        : strikes > 0;   // Multiplayer: can vote after any timeout
+
+      if (!canBeVotedOut) {
+        await trx.rollback();
+        const requiredMsg = otherPlayersCount === 1 
+          ? "Player needs 3+ consecutive timeouts to be voted out (2-player game)"
+          : "Player must have timed out to be voted out";
+        return res.status(400).json({
+          success: false,
+          message: requiredMsg,
+        });
+      }
+
+      // Check if already voted
+      const existingVote = await trx("player_votes")
+        .where({ game_id, target_user_id, voter_user_id })
+        .first();
+      if (existingVote) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "You have already voted to remove this player",
+        });
+      }
+
+      // Record vote
+      await trx("player_votes").insert({
+        game_id,
+        target_user_id,
+        voter_user_id,
+        created_at: db.fn.now(),
+      });
+
+      // Count votes (excluding target)
+      const otherPlayers = players.filter((p) => p.user_id !== target_user_id);
+      const votes = await trx("player_votes")
+        .where({ game_id, target_user_id })
+        .count("* as count")
+        .first();
+      const voteCount = Number(votes?.count || 0);
+
+      // Check if enough votes: all other players (or 1 if only 2 players)
+      const requiredVotes = otherPlayers.length === 1 ? 1 : otherPlayers.length;
+      let removed = false;
+
+      if (voteCount >= requiredVotes) {
+        // Execute removal
+        const result = await executePlayerRemoval(trx, game_id, target_user_id);
+        if (result) {
+          removed = true;
+          await notifyGameUpdate(req, game_id);
+        }
+      }
+
+      await trx.commit();
+
+      const io = req.app.get("io");
+      if (io) {
+        // Emit vote event for real-time updates
+        io.to(game.code).emit("vote-cast", {
+          target_user_id,
+          voter_user_id,
+          vote_count: voteCount,
+          required_votes: requiredVotes,
+          removed,
+        });
+        // Also emit game update so clients refresh vote statuses
+        if (!removed) {
+          await notifyGameUpdate(req, game_id);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: removed
+          ? "Player removed. Game continues."
+          : `Vote recorded. ${voteCount}/${requiredVotes} votes.`,
+        data: {
+          vote_count: voteCount,
+          required_votes: requiredVotes,
+          removed,
+        },
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error({ err: error }, "voteToRemove error");
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to vote",
+      });
+    }
+  },
+
+  /**
+   * Get vote status for a target player (how many votes they have).
+   * Body: { game_id, target_user_id }.
+   */
+  async getVoteStatus(req, res) {
+    try {
+      const { game_id, target_user_id } = req.body;
+      if (!game_id || !target_user_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id or target_user_id",
+        });
+      }
+
+      const game = await db("games").where({ id: game_id }).first();
+      if (!game) {
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+
+      const players = await db("game_players").where({ game_id });
+      const otherPlayers = players.filter((p) => p.user_id !== target_user_id);
+      const requiredVotes = otherPlayers.length === 1 ? 1 : otherPlayers.length;
+
+      const votes = await db("player_votes")
+        .where({ game_id, target_user_id })
+        .select("voter_user_id", "created_at");
+
+      const voters = await db("users")
+        .whereIn("id", votes.map((v) => v.voter_user_id))
+        .select("id", "username");
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          vote_count: votes.length,
+          required_votes: requiredVotes,
+          voters: voters.map((v) => ({
+            user_id: v.id,
+            username: v.username,
+          })),
+        },
+      });
+    } catch (error) {
+      logger.error({ err: error }, "getVoteStatus error");
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to get vote status",
+      });
+    }
+  },
+
   /**
    * Remove an inactive player from a multiplayer game after 3 consecutive 90s timeouts.
+   * DEPRECATED: Use voteToRemove instead. Kept for backward compatibility.
    * Body: { game_id, user_id (requester), target_user_id }.
    */
   async removeInactive(req, res) {
@@ -1134,36 +1402,17 @@ const gamePlayerController = {
         });
       }
 
-      // Return target's properties to bank
-      await trx("game_properties")
-        .where({ game_id, player_id: target.id })
-        .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
-
-      // Delete target player
-      await trx("game_players").where({ id: target.id }).del();
-
-      const remaining = players.filter((p) => p.user_id !== target_user_id);
-      let next_player_id = game.next_player_id;
-      let winner_id = game.winner_id;
-      let status = game.status;
-
-      if (game.next_player_id === target_user_id) {
-        next_player_id = remaining[0].user_id;
-      }
-      if (remaining.length === 1) {
-        status = "FINISHED";
-        winner_id = remaining[0].user_id;
-      }
-
-      await trx("games")
-        .where({ id: game_id })
-        .update({
-          next_player_id,
-          status,
-          winner_id,
-          updated_at: db.fn.now(),
+      // Use helper function to execute removal
+      const result = await executePlayerRemoval(trx, game_id, target_user_id);
+      if (!result) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Failed to remove player",
         });
+      }
 
+      await notifyGameUpdate(req, game_id);
       await trx.commit();
       return res.status(200).json({
         success: true,

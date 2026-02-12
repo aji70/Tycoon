@@ -72,6 +72,9 @@ const Board = ({
     endTurnAfterSpecialMove,
     turnTimeLeft,
     removeInactive,
+    voteToRemove,
+    voteStatuses,
+    votingLoading,
   } = logic;
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
@@ -91,6 +94,8 @@ const Board = ({
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
             <CenterArea
               isMyTurn={isMyTurn}
+              me={me}
+              game={game}
               playerCanRoll={playerCanRoll}
               isRolling={isRolling}
               roll={roll}
@@ -106,6 +111,20 @@ const Board = ({
               isPending={false}
               timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
               turnTimeLeft={turnTimeLeft}
+              voteablePlayers={players.filter((p: Player) => {
+                if (p.user_id === me?.user_id) return false;
+                const strikes = p.consecutive_timeouts ?? 0;
+                const otherPlayers = players.filter((pl) => pl.user_id !== me?.user_id);
+                // With 2 players: need 3+ consecutive timeouts
+                // With more players: can vote after any timeout
+                if (otherPlayers.length === 1) {
+                  return strikes >= 3;
+                }
+                return strikes > 0;
+              })}
+              voteStatuses={logic.voteStatuses}
+              votingLoading={logic.votingLoading}
+              onVoteToRemove={logic.voteToRemove}
               removablePlayers={players.filter((p: Player) => p.user_id !== me?.user_id && (p.consecutive_timeouts ?? 0) >= 3)}
               onRemoveInactive={removeInactive}
             />

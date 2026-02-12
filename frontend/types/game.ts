@@ -47,6 +47,8 @@ export interface Game {
   duration: number | string | null;
   created_at: string;
   updated_at: string;
+  /** Set when status becomes RUNNING (e.g. all players joined). Game timing starts from this. */
+  started_at?: string | null;
   is_ai?: boolean;
   settings: GameSettings;
   players: Player[];

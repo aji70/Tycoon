@@ -671,7 +671,7 @@ export const join = async (req, res) => {
     });
 
     if (updatedPlayers.length === game.number_of_players) {
-      await Game.update(game.id, { status: "RUNNING" });
+      await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
       await invalidateGameById(game.id);
       const updatedGame = await Game.findByCode(code);
       // Set turn_start for the first player (90s roll timer)
