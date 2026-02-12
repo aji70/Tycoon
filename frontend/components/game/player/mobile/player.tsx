@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerList from "./player-list";
@@ -16,6 +16,9 @@ interface GamePlayersProps {
   game_properties: GameProperty[];
   my_properties: Property[];
   me: Player | null;
+  /** When true, open the trades section (e.g. after tapping "View trades" on the board). */
+  focusTrades?: boolean;
+  onViewedTrades?: () => void;
 }
 
 export default function MobileGamePlayers({
@@ -24,6 +27,8 @@ export default function MobileGamePlayers({
   game_properties,
   my_properties,
   me,
+  focusTrades = false,
+  onViewedTrades,
 }: GamePlayersProps) {
   const {
     showEmpire,
@@ -67,6 +72,16 @@ export default function MobileGamePlayers({
     my_properties,
     me,
   });
+
+  // When parent asks to focus trades (e.g. "View trades" pill), open trades section
+  useEffect(() => {
+    if (!focusTrades) return;
+    const t = setTimeout(() => {
+      setSectionOpen((prev) => ({ ...prev, trades: true }));
+      onViewedTrades?.();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [focusTrades, onViewedTrades, setSectionOpen]);
 
   return (
     <div className="w-full h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white flex flex-col overflow-hidden">

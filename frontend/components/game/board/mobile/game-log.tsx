@@ -19,7 +19,7 @@ export default function GameLog({ history }: ActionLogProps) {
   return (
     <div
       ref={logRef}
-      className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48"
+      className="mt-6 mb-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48"
     >
       <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
         <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>

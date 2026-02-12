@@ -100,6 +100,7 @@ export default function GamePlayPage() {
   }, [game_properties, properties, address]);
 
   const [activeTab, setActiveTab] = useState<'board' | 'players' | 'chat'>('board');
+  const [focusTrades, setFocusTrades] = useState(false);
 
   if (gameLoading) {
     return (
@@ -122,23 +123,28 @@ export default function GamePlayPage() {
 
     return (
       <main className="w-full h-screen flex flex-col overflow-hidden bg-[#010F10] mt-[100px]" >
-        <div className="flex-1 w-full overflow-hidden">
+        <div className="flex-1 w-full min-h-0 overflow-y-auto overflow-x-hidden">
           {activeTab === 'board' && (
             <MobileGameLayout
               game={game}
               properties={properties}
               game_properties={game_properties}
               me={me}
-              onViewTrades={() => setActiveTab('players')}
+              onViewTrades={() => {
+                setActiveTab('players');
+                setFocusTrades(true);
+              }}
             />
           )}
           {activeTab === 'players' && (
             <MobileGamePlayers
               game={game}
-        properties={properties}
-        game_properties={game_properties}
-        my_properties={my_properties}
-        me={me}
+              properties={properties}
+              game_properties={game_properties}
+              my_properties={my_properties}
+              me={me}
+              focusTrades={focusTrades}
+              onViewedTrades={() => setFocusTrades(false)}
             />
           )}
           {activeTab === 'chat' && (

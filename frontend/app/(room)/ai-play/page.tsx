@@ -178,6 +178,7 @@ export default function GamePlayPage() {
   }, [game?.id, game?.is_ai, game?.status, gameCode, queryClient, refetchGame]);
 
   const [activeTab, setActiveTab] = useState<"board" | "players">("board");
+  const [focusTrades, setFocusTrades] = useState(false);
 
   if (isRegisteredLoading || gameLoading || propertiesLoading) {
     return (
@@ -217,7 +218,7 @@ export default function GamePlayPage() {
   if (isMobile) {
     return (
       <main className="w-full h-screen flex flex-col overflow-hidden bg-[#010F10] mt-[100px]">
-        <div className="flex-1 w-full overflow-hidden">
+        <div className="flex-1 w-full min-h-0 overflow-y-auto overflow-x-hidden">
           {activeTab === "board" ? (
             <MobileAiBoard
               game={game}
@@ -225,7 +226,10 @@ export default function GamePlayPage() {
               game_properties={game_properties}
               me={me}
               onFinishGameByTime={finishGameByTime}
-              onViewTrades={() => setActiveTab("players")}
+              onViewTrades={() => {
+                setActiveTab("players");
+                setFocusTrades(true);
+              }}
             />
           ) : (
             <GamePlayersMobile
@@ -237,6 +241,8 @@ export default function GamePlayPage() {
               currentPlayer={currentPlayer}
               roll={roll}
               isAITurn={isAITurn}
+              focusTrades={focusTrades}
+              onViewedTrades={() => setFocusTrades(false)}
             />
           )}
         </div>
