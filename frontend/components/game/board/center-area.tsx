@@ -208,21 +208,24 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* AI Turn Indicator */}
+      {/* Multiplayer: "Player is playing" overlay — on top of board center, does not cover layout */}
       {!isMyTurn && (
-        <div className="mt-5 text-center z-10">
-          <motion.h2
-            className="text-2xl font-bold text-pink-300 mb-3"
-            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          >
-            {currentPlayer?.username} is playing…
-          </motion.h2>
-     
-          <div className="flex justify-center mt-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
+        <div
+          className="absolute inset-0 z-20 flex flex-col justify-center items-center p-4 pointer-events-none"
+          aria-live="polite"
+        >
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-black/50 backdrop-blur-sm px-6 py-5 border border-white/10 shadow-xl">
+            <motion.h2
+              className="text-xl lg:text-2xl font-bold text-cyan-300 mb-3 text-center"
+              animate={{ opacity: [0.6, 1, 0.6], scale: [1, 1.03, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              {currentPlayer?.username ?? "Player"} is playing…
+            </motion.h2>
+            <div className="flex justify-center mt-2">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-cyan-400/50 border-t-cyan-400" />
+            </div>
           </div>
-         
         </div>
       )}
 
