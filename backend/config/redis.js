@@ -63,6 +63,23 @@ const redis = {
       useStub = true;
     }
   },
+  /** Set key with TTL (seconds). Use for cache entries. */
+  async setex(key, seconds, value) {
+    if (useStub) return;
+    try {
+      await realClient.setEx(key, seconds, value);
+    } catch {
+      useStub = true;
+    }
+  },
+  async del(key) {
+    if (useStub) return;
+    try {
+      await realClient.del(key);
+    } catch {
+      useStub = true;
+    }
+  },
 };
 
 export default redis;

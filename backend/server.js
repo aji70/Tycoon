@@ -22,6 +22,7 @@ import agentRegistryRoutes from "./routes/agent-registry.js";
 import waitlistsRoutes from "./routes/waitlists.js";
 import chatsRoutes from "./routes/chats.js";
 import messagesRoutes from "./routes/messages.js";
+import analyticsRoutes from "./routes/analytics.js";
 
 // Import perk controller (make sure this file exists!)
 import gamePerkController from "./controllers/gamePerkController.js";
@@ -101,7 +102,8 @@ app.use("/api/properties", propertiesRoutes);
 app.use("/api/agent-registry", agentRegistryRoutes);
 app.use("/api/waitlist", waitlistsRoutes);
 app.use("/api/chats", chatsRoutes);
-app.use("/api/messages", waitlistsRoutes);
+app.use("/api/messages", messagesRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // 🔥 NEW: Perk Routes (this was missing!)
 app.post("/api/perks/activate", gamePerkController.activatePerk);

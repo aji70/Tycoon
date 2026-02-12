@@ -39,8 +39,11 @@ const config = {
       directory: "./seeds",
     },
     pool: {
-      min: 2,
-      max: 10,
+      min: 5,
+      max: 50,
+      acquireTimeoutMillis: 30000,
+      idleTimeoutMillis: 30000,
+      reapIntervalMillis: 1000,
     },
   },
 };
