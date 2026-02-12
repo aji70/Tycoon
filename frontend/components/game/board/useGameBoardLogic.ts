@@ -519,10 +519,11 @@ export function useGameBoardLogic({
           game_id: game.id,
           target_user_id: targetUserId,
         });
-        if (res?.data?.success && res.data.data) {
+        const data = res?.data?.data;
+        if (res?.data?.success && data) {
           setVoteStatuses((prev) => ({
             ...prev,
-            [targetUserId]: res.data.data,
+            [targetUserId]: data,
           }));
         }
       } catch (err) {
