@@ -313,6 +313,9 @@ const gameController = {
     try {
       const game = await Game.findByCode(req.params.code);
       if (!game) return res.status(404).json({ error: "Game not found" });
+      if (game.status === "FINISHED" || game.status === "CANCELLED") {
+        return res.status(200).json({ success: false, error: "Game ended" });
+      }
       const settings = await GameSetting.findByGameId(game.id);
       const players = await GamePlayer.findByGameId(game.id);
       const history = await GamePlayHistory.findByGameId(game.id);

@@ -31,13 +31,21 @@ export default function GamePlayPage() {
     data: game,
     isLoading: gameLoading,
     isError: gameError,
+    error: gameQueryError,
     refetch: refetchGame,
   } = useQuery<Game>({
     queryKey: ["game", gameCode],
     queryFn: async () => {
       if (!gameCode) throw new Error("No game code found");
       const res = await apiClient.get<ApiResponse>(`/games/code/${gameCode}`);
-      return res.data?.success ? res.data.data : null;
+      if (!res.data?.success) {
+        throw new Error(
+          (res.data as { error?: string; message?: string })?.error ||
+            (res.data as { error?: string; message?: string })?.message ||
+            "Failed to load game"
+        );
+      }
+      return res.data.data;
     },
     enabled: !!gameCode,
     refetchInterval: 5000,
@@ -104,7 +112,7 @@ export default function GamePlayPage() {
   if (gameError) {
     return (
       <div className="w-full min-h-screen flex items-center justify-center text-lg font-medium text-white">
-        Failed to load game
+        {gameQueryError?.message ?? "Failed to load game"}
       </div>
     );
   }
