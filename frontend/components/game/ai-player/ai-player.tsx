@@ -224,11 +224,14 @@ useEffect(() => {
     const humanPlayer = me;
 
     if (game.players.length <= 2 && (!aiPlayer) && humanPlayer.balance > 0) {
+      const turnCount = humanPlayer.turn_count ?? 0;
+      const validWin = turnCount >= 20;
       setWinner(humanPlayer);
       setEndGameCandidate({
         winner: humanPlayer,
         position: humanPlayer.position ?? 0,
         balance: BigInt(humanPlayer.balance),
+        validWin,
       });
     }
   }, [game.players, me]);

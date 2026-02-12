@@ -394,7 +394,7 @@ export function useEndAIGameAndClaim(gameId: bigint, finalPosition: number, fina
     const hash = await writeContractAsync({
       address: contractAddress,
       abi: TycoonABI,
-      functionName: 'endAIGameAndClaim',
+      functionName: 'endAIGame',
       args: [gameId, finalPosition, finalBalance, isWin],
     });
     return hash;

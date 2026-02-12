@@ -163,7 +163,8 @@ const AiBoard = ({
     winner: Player | null;
     position: number;
     balance: bigint;
-  }>({ winner: null, position: 0, balance: BigInt(0) });
+    validWin?: boolean; // true if winner has >= 20 turns, false otherwise
+  }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
 
     // ── At the top of AiBoard component, with other hooks ──
 
@@ -196,7 +197,8 @@ const {
   onChainGameId ?? BigInt(0),                    // gameId: bigint (use 0n as fallback if undefined)
   endGameCandidate.position,              // finalPosition: number (uint8, 0-39)
   BigInt(endGameCandidate.balance),       // finalBalance: bigint
-  !!endGameCandidate.winner               // isWin: boolean
+  // Use validWin: if winner has < 20 turns, pass false to prevent spam, but still show them as winner
+  endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
 );
   
 
@@ -225,21 +227,22 @@ const {
     timeUpHandledRef.current = true;
     setGameTimeUp(true);
     try {
-      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number } }>(
+      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number; valid_win?: boolean; winner_turn_count?: number } }>(
         `/games/${game.id}/winner-by-net-worth`
       );
       const winnerId = res?.data?.data?.winner_id;
       if (winnerId == null) return;
       const myPosition = me?.position ?? 0;
       const myBalance = BigInt(me?.balance ?? 0);
+      const validWin = res?.data?.data?.valid_win !== false; // Default to true if not provided
       if (winnerId === me?.user_id) {
         setWinner(me!);
-        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance });
+        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
       } else {
         await onFinishGameByTime?.();
         const winnerPlayer = players.find((p) => p.user_id === winnerId) ?? null;
         setWinner(winnerPlayer);
-        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance });
+        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
       }
     } catch (e) {
       console.error("Time up / winner-by-net-worth failed:", e);

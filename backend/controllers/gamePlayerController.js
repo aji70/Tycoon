@@ -866,6 +866,7 @@ const gamePlayerController = {
 
       // 2b️⃣ Consecutive timeouts: if turn ended by 90s timeout, increment; else reset
       const currentStrikes = Number(players[currentIdx].consecutive_timeouts || 0);
+      const currentTurnCount = Number(players[currentIdx].turn_count || 0);
       if (timed_out) {
         await trx("game_players")
           .where({ game_id, user_id })
@@ -874,10 +875,12 @@ const gamePlayerController = {
             updated_at: db.fn.now(),
           });
       } else {
+        // Increment turn_count when turn ends normally (not timeout)
         await trx("game_players")
           .where({ game_id, user_id })
           .update({
             consecutive_timeouts: 0,
+            turn_count: currentTurnCount + 1,
             updated_at: db.fn.now(),
           });
       }
