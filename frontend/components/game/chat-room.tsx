@@ -110,11 +110,11 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Messages */}
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      {/* Messages - only this area scrolls */}
       <div
-        className={`flex-1 overflow-y-auto scrollbar-hide ${
-          isMobile ? "px-4 py-4 min-h-[200px]" : "px-5 py-5"
+        className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide ${
+          isMobile ? "px-4 py-3" : "px-5 py-4"
         }`}
       >
         {isLoading && messages.length === 0 ? (
@@ -172,8 +172,8 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
         )}
       </div>
 
-      {/* Input */}
-      <div className="flex-shrink-0 p-4 bg-[#060a0b]/80 border-t border-white/5 backdrop-blur-sm">
+      {/* Input - always visible at bottom */}
+      <div className="flex-shrink-0 p-3 bg-[#060a0b]/90 border-t border-white/5 backdrop-blur-sm">
         {!canSend ? (
           <div className="text-center py-3 text-sm text-white/40 font-medium">
             Join the game to send messages

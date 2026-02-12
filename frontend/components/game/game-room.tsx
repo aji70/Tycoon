@@ -23,16 +23,16 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
   const gameId = game?.code ?? game?.id ?? "";
   if (!gameId) return null;
 
-  // Mobile tab layout: full-width chat
+  // Mobile tab layout: full-width chat, constrained to viewport
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full min-h-0 bg-[#0a0f10]">
-        <div className="flex-shrink-0 flex items-center px-4 py-3">
-          <h3 className="font-bold text-base text-white font-dmSans tracking-tight">
+      <div className="flex flex-col h-full min-h-0 max-h-full bg-[#0a0f10] overflow-hidden">
+        <div className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-white/5">
+          <h3 className="font-bold text-sm text-white font-dmSans tracking-tight">
             Game Chat
           </h3>
         </div>
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <ChatRoom gameId={gameId} me={me} isMobile />
         </div>
       </div>
@@ -56,7 +56,7 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
 
       <aside
         className={`
-          h-full bg-[#0a0f10] border-l border-white/5 overflow-hidden
+          h-full max-h-screen bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
           transition-all duration-300 ease-in-out
           fixed top-0 right-0 z-20 lg:static lg:z-auto
           ${isSidebarOpen
@@ -78,8 +78,8 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
         )}
 
         {isSidebarOpen && (
-          <div className="h-full flex flex-col">
-            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/5">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-white/5">
               <button
                 onClick={toggleSidebar}
                 className="lg:hidden text-[#869298] hover:text-white transition-colors p-1 rounded"

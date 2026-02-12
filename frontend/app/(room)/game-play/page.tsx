@@ -147,8 +147,8 @@ export default function GamePlayPage() {
     if (!game) return null;
 
     return (
-      <main className="w-full h-screen flex flex-col overflow-hidden bg-[#010F10] mt-[100px]" >
-        <div className="flex-1 w-full min-h-0 overflow-y-auto overflow-x-hidden">
+      <main className="w-full h-[calc(100vh-100px)] flex flex-col overflow-hidden bg-[#010F10] mt-[100px]" >
+        <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
           {activeTab === 'board' && (
             <MobileGameLayout
               game={game}
@@ -201,7 +201,7 @@ export default function GamePlayPage() {
   }
 
   return game && !propertiesLoading && !gamePropertiesLoading ? (
-    <main className="w-full h-screen overflow-x-hidden relative flex flex-row lg:gap-2">
+    <main className="w-full h-screen max-h-screen overflow-hidden relative flex flex-row lg:gap-2">
       <GamePlayers
         game={game}
         properties={properties}
