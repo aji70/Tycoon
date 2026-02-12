@@ -90,7 +90,7 @@ export default function GameWaitingMobile(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pt-[70px">
+    <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col pt-[70px]">
       {/* Header */}
       <div className="px-6 pt-8 pb-6">
         <div className="max-w-md mx-auto flex justify-between items-center">
