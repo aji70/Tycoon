@@ -44,8 +44,18 @@ export function useWaitingRoom() {
   const {
     data: contractGame,
     isLoading: contractGameLoading,
-    error: contractGameError,
+    error: contractGameErrorRaw,
   } = useGetGameByCode(gameCode, { enabled: !!gameCode });
+
+  // Filter out "Not found" errors - these are expected when game doesn't exist on-chain yet
+  const contractGameError = useMemo(() => {
+    if (!contractGameErrorRaw) return null;
+    const errorMessage = contractGameErrorRaw?.message || String(contractGameErrorRaw);
+    if (errorMessage.includes("Not found") || errorMessage.includes("not found")) {
+      return null; // Don't show "Not found" errors - game might not be on-chain yet
+    }
+    return contractGameErrorRaw;
+  }, [contractGameErrorRaw]);
 
   const contractId = contractGame?.id ?? null;
   const { data: username } = useGetUsername(address);

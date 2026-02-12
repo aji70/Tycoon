@@ -20,9 +20,9 @@ export default function JoinRoom(): JSX.Element {
   const [pendingGames, setPendingGames] = useState<Game[]>([]);
   const [fetchingRecent, setFetchingRecent] = useState<boolean>(true);
   const [fetchingPending, setFetchingPending] = useState<boolean>(true);
-  const [timeFilter, setTimeFilter] = useState<number>(60 * 60 * 1000); // Default: last hour in ms
+  const [timeFilter, setTimeFilter] = useState<number>(5 * 60 * 1000); // Default: last 5 minutes in ms
 
-  // Time filter options
+  // Time filter options - prioritize recent games
   const timeOptions = [
     { label: "Last 5 minutes", value: 5 * 60 * 1000 },
     { label: "Last 10 minutes", value: 10 * 60 * 1000 },
