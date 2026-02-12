@@ -1062,7 +1062,7 @@ const MobileGameLayout = ({
   const isSoloPlayer = players.length === 1 && players[0].user_id === me?.user_id;
 
   return (
-    <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
+    <div className="w-full h-full min-h-0 bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
       <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
@@ -1070,7 +1070,7 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      <div className="w-full max-w-2xl mx-auto px-4 mt-4 flex items-center justify-between gap-3 flex-wrap">
+      <div className="w-full max-w-2xl mx-auto px-4 py-2 flex-shrink-0 flex items-center justify-between gap-3 flex-wrap">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} />
         <TradeAlertPill
           incomingCount={myIncomingTrades.length}
@@ -1079,7 +1079,7 @@ const MobileGameLayout = ({
         />
       </div>
 
-      <div className="flex-1 w-full flex items-start justify-center overflow-y-auto overflow-x-hidden mt-2 min-h-0">
+      <div className="flex-1 w-full min-h-0 flex items-center justify-center overflow-hidden">
         <motion.div
           animate={{ scale: boardScale }}
           style={{ transformOrigin: boardTransformOrigin }}
@@ -1137,11 +1137,14 @@ const MobileGameLayout = ({
         roll={roll}
       />
 
-      {/* Balance bar above action log — extra pb so log is fully visible above bottom nav */}
-      <div className="w-full max-w-2xl mx-auto px-4 mt-6 mb-4">
-        <MyBalanceBar me={me} bottomBar />
+      {/* Balance bar: fixed above bottom nav so board gets full height */}
+      <div className="fixed left-0 right-0 bottom-20 z-30 px-4 pointer-events-none">
+        <div className="w-full max-w-2xl mx-auto pointer-events-auto">
+          <MyBalanceBar me={me} bottomBar />
+        </div>
       </div>
-      <div className="w-full max-w-2xl mx-auto px-4 pb-40">
+      {/* Game log: compact strip at bottom, scrollable if needed */}
+      <div className="w-full max-w-2xl mx-auto px-4 py-2 flex-shrink-0 max-h-[120px] min-h-0 overflow-y-auto">
         <GameLog history={currentGame.history} />
       </div>
 

@@ -57,9 +57,9 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
 
       <aside
         className={`
-          h-[30%] max-h-[30vh] bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
+          h-[calc(100vh-200px)] mb-[200px] bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
           transition-all duration-300 ease-in-out
-          fixed top-0 right-0 z-20 lg:static lg:z-auto lg:self-center
+          fixed top-0 right-0 z-20 lg:static lg:z-auto lg:self-start
           ${isSidebarOpen
             ? "translate-x-0 w-[85vw] sm:w-[75vw] md:w-[400px] lg:w-[340px] xl:w-[380px]"
             : "translate-x-full lg:translate-x-0 lg:w-[72px]"
