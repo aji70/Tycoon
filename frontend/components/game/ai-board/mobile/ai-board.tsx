@@ -830,10 +830,14 @@ const endTime =
         roll={roll}
       />
 
-      {/* Balance bar - fixed above nav */}
-      <div className="fixed bottom-20 left-0 right-0 z-40 bg-[#010F10]/95 backdrop-blur-xl border-t border-[#003B3E]">
+      </div>
+
+      {/* Balance bar above action log */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-6">
         <MyBalanceBar me={me} bottomBar />
       </div>
+      <div className="w-full max-w-2xl mx-auto px-4 pb-24">
+        <GameLog history={currentGame.history} />
       </div>
       <BuyPromptModal
         visible={!!(isMyTurn && buyPrompted && justLandedProperty)}
@@ -879,8 +883,6 @@ const endTime =
         onTriggerSpecialLanding={triggerLandingLogic}
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
       />
-
-      <GameLog history={currentGame.history} />
 
       <GameModals
         winner={winner}
