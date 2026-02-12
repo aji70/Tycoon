@@ -23,6 +23,12 @@ const server = http.createServer(async (req, res) => {
   let payload;
   try {
     payload = JSON.parse(body);
+    console.log("[Agent] Received decision request:", {
+      requestId: payload.requestId,
+      gameId: payload.gameId,
+      slot: payload.slot,
+      decisionType: payload.decisionType,
+    });
   } catch {
     res.writeHead(400, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Invalid JSON" }));
@@ -38,6 +44,7 @@ const server = http.createServer(async (req, res) => {
     reasoning: result.reasoning,
     confidence: result.confidence,
   };
+  console.log("[Agent] Sending decision response:", response);
 
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(response));

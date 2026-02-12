@@ -151,8 +151,14 @@ export function useAiPlayerLogic({
 
           // Optional Celo agent: try agent-registry first; fallback to built-in logic (no functions discarded)
           const slot = getAiSlotFromPlayer(targetPlayer);
+          console.log("[useAiPlayerLogic] Trade to AI:", { 
+            targetPlayer: targetPlayer.username, 
+            slot, 
+            turnOrder: targetPlayer.turn_order 
+          });
           if (slot != null) {
             try {
+              console.log("[useAiPlayerLogic] Calling agent-registry for slot", slot);
               const agentRes = await apiClient.post<{
                 success: boolean;
                 data?: { action: string };
@@ -173,6 +179,7 @@ export function useAiPlayerLogic({
                   opponents: (game.players ?? []).filter((p) => p.user_id !== targetPlayer.user_id),
                 },
               });
+              console.log("[useAiPlayerLogic] Agent response:", agentRes?.data);
               if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
                 const action = agentRes.data.data.action.toLowerCase();
                 if (action === "accept") {
@@ -182,8 +189,11 @@ export function useAiPlayerLogic({
                   decision = "declined";
                   remark = "Celo agent declined.";
                 }
+              } else {
+                console.log("[useAiPlayerLogic] Using built-in logic (agent returned useBuiltIn=true or no action)");
               }
-            } catch {
+            } catch (err) {
+              console.error("[useAiPlayerLogic] Agent call failed:", err);
               // Agent unreachable or error: use built-in logic below
             }
           }

@@ -70,6 +70,7 @@ function getAgentForSlot(gameId, slot) {
  */
 async function getAIDecision(gameId, slot, decisionType, context) {
   const agent = getAgentForSlot(gameId, slot);
+  console.log("[agentRegistry] getAIDecision:", { gameId, slot, hasAgent: !!agent, agentUrl: agent?.callbackUrl });
   if (!agent) return null;
 
   const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -87,6 +88,7 @@ async function getAIDecision(gameId, slot, decisionType, context) {
   const timeout = setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
 
   try {
+    console.log("[agentRegistry] POSTing to agent:", `${agent.callbackUrl}/decision`);
     const res = await fetch(`${agent.callbackUrl}/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,9 +96,17 @@ async function getAIDecision(gameId, slot, decisionType, context) {
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!res.ok) return null;
+    console.log("[agentRegistry] Agent response status:", res.status);
+    if (!res.ok) {
+      console.warn("[agentRegistry] Agent returned non-OK status:", res.status);
+      return null;
+    }
     const data = await res.json().catch(() => null);
-    if (!data || data.requestId !== requestId) return null;
+    console.log("[agentRegistry] Agent response data:", data);
+    if (!data || data.requestId !== requestId) {
+      console.warn("[agentRegistry] Invalid agent response (missing requestId or data)");
+      return null;
+    }
     return {
       action: data.action,
       propertyId: data.propertyId,
@@ -105,9 +115,7 @@ async function getAIDecision(gameId, slot, decisionType, context) {
     };
   } catch (err) {
     clearTimeout(timeout);
-    if (process.env.NODE_ENV !== "test") {
-      console.warn("[agentRegistry] Agent decision request failed:", err.message);
-    }
+    console.error("[agentRegistry] Agent decision request failed:", err.message);
     return null;
   }
 }

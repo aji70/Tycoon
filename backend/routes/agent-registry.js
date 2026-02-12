@@ -47,6 +47,7 @@ router.post("/unregister", (req, res) => {
 router.post("/decision", async (req, res) => {
   try {
     const { gameId, slot, decisionType, context } = req.body || {};
+    console.log("[agent-registry] Decision request:", { gameId, slot, decisionType });
     if (!gameId || !slot || !decisionType) {
       return res.status(400).json({
         success: false,
@@ -59,6 +60,7 @@ router.post("/decision", async (req, res) => {
       decisionType,
       context
     );
+    console.log("[agent-registry] Decision result:", decision ? "from agent" : "useBuiltIn");
     if (decision) {
       return res.json({ success: true, data: decision, useBuiltIn: false });
     }

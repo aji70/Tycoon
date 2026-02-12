@@ -12,6 +12,19 @@ npm install
 npm start
 ```
 
+**Next after the agent is running:**
+
+1. **Start the Tycoon backend** (in another terminal), e.g. from repo root:
+   ```bash
+   cd backend && npm run dev
+   ```
+2. **Register this agent** with the backend (in a third terminal, from `tycoon-celo-agent/`):
+   ```bash
+   TYCOON_API_URL=http://localhost:3000 AGENT_SLOT=2 AGENT_CALLBACK_URL=http://localhost:4077 AGENT_ID=1 npm run register
+   ```
+   If the backend runs on another host/port, set `TYCOON_API_URL` and ensure `AGENT_CALLBACK_URL` is a URL the backend can reach (for local dev, `http://localhost:4077` is fine).
+3. **Start the frontend** and create an AI game. When you send a **trade to AI_2**, the backend will call this agent for the decision; you should see the POST in the terminal where the agent is running.
+
 Server listens on `PORT` (default 4077). Exposes `POST /decision` with body:
 
 ```json
