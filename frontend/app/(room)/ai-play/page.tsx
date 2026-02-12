@@ -64,13 +64,20 @@ export default function GamePlayPage() {
     data: game,
     isLoading: gameLoading,
     isError: gameError,
+    error: gameQueryError,
     refetch: refetchGame,
   } = useQuery<Game>({
     queryKey: ["game", gameCode],
     queryFn: async () => {
       if (!gameCode) throw new Error("No game code found");
       const res = await apiClient.get<ApiResponse>(`/games/code/${gameCode}`);
-      if (!res.data?.success) throw new Error("Game not found");
+      if (!res.data?.success) {
+        throw new Error(
+          (res.data as { error?: string; message?: string })?.error ||
+            (res.data as { error?: string; message?: string })?.message ||
+            "Game not found"
+        );
+      }
       return res.data.data;
     },
     enabled: !!gameCode && isUserRegistered === true,
@@ -162,9 +169,13 @@ export default function GamePlayPage() {
   if (gameError || !game) {
     return (
       <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
-        <h2 className="text-2xl font-bold text-red-400 mb-4">Game Not Found</h2>
+        <h2 className="text-2xl font-bold text-red-400 mb-4">
+          {gameQueryError?.message ?? "Game Not Found"}
+        </h2>
         <p className="text-gray-300">
-          Invalid or expired game code. Please check and try again.
+          {gameQueryError?.message === "Game ended"
+            ? "This game has already concluded."
+            : "Invalid or expired game code. Please check and try again."}
         </p>
         <button
           onClick={() => router.push("/")}
