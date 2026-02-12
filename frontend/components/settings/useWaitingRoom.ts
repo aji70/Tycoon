@@ -17,6 +17,7 @@ import { ApiResponse } from "@/types/api";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { toast } from "react-toastify";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 const POLL_INTERVAL = 5000;
 const COPY_FEEDBACK_MS = 2000;
@@ -393,15 +394,7 @@ export function useWaitingRoom() {
       });
     } catch (err: unknown) {
       console.error("join error", err);
-      let message = "Failed to join game. Please try again.";
-      const e = err as { message?: string; code?: number };
-      if (e.message?.includes("user rejected") || e.code === 4001) {
-        message = "Transaction cancelled.";
-      } else if (e.message?.includes("insufficient")) {
-        message = "Insufficient balance or gas.";
-      } else if (e.message) {
-        message = e.message;
-      }
+      const message = getContractErrorMessage(err, "Failed to join game. Please try again.");
       setError(message);
       toast.update(toastId, {
         render: message,

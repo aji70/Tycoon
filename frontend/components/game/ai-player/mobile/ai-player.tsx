@@ -13,6 +13,7 @@ import { VictoryModal } from "../../modals/victory";
 import { TradeModal } from "../../modals/trade-mobile";
 import { useAiPlayerLogic } from "../useAiPlayerLogic";
 import { isAIPlayer } from "@/utils/gameUtils";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 interface GamePlayersProps {
   game: Game;
@@ -147,7 +148,7 @@ export default function MobileGamePlayers({
       }, 1500);
     } catch (err: any) {
       toast.error(
-        err?.message || "Something went wrong — try again later",
+        getContractErrorMessage(err, "Something went wrong — try again later"),
         { id: toastId, duration: 8000 }
       );
     } finally {

@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { isAIPlayer, calculateAiFavorability, getAiSlotFromPlayer } from "@/utils/gameUtils";
 
@@ -463,12 +464,8 @@ export function useAiPlayerLogic({
           throw new Error(res.data?.message || "Claim unsuccessful");
         }
       } catch (err: any) {
-        const errorMessage =
-          err.response?.data?.message ||
-          err.message ||
-          "Failed to claim property";
         console.error("Claim failed:", err);
-        toast.error(errorMessage, { id: toastId });
+        toast.error(getContractErrorMessage(err, "Failed to claim property"), { id: toastId });
       }
     },
     [game.id, getGamePlayerId]

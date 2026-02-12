@@ -32,6 +32,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAIPlayer } from "@/utils/gameUtils";
 
 const calculateBuyScore = (
@@ -270,7 +271,7 @@ const {
       toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
       setTimeout(() => { window.location.href = "/"; }, 1500);
     } catch (err: any) {
-      toast.error(err?.message || "Something went wrong — try again later");
+      toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
     } finally {
       endGameReset();
     }
@@ -330,8 +331,8 @@ const {
         ...(timedOut === true && { timed_out: true }),
       });
       // Turn state visible on board — no toast
-    } catch {
-      showToast("Failed to end turn", "error");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end turn"));
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -418,13 +419,7 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
 
   } catch (err: any) {
     console.error("Buy failed:", err);
-    
-    const message = 
-      err.message?.includes("user rejected") 
-        ? "Transaction cancelled" 
-        : err.shortMessage || err.message || "Purchase failed";
-
-    showToast(message, "error");
+    toast.error(getContractErrorMessage(err, "Purchase failed"));
   }
 }, [
   currentPlayer, 
@@ -510,12 +505,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         throw new Error(response.data?.message || "Transfer failed");
       }
     } catch (error: any) {
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to transfer property";
-
-      toast.error(message);
+      toast.error(getContractErrorMessage(error, "Failed to transfer property"));
       console.error("Property transfer failed:", error);
     }
   };
@@ -866,7 +856,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         if (forAI) rolledForPlayerId.current = currentPlayerId;
       } catch (err) {
         console.error("Move failed:", err);
-        showToast("Move failed", "error");
+        toast.error(getContractErrorMessage(err, "Move failed"));
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -1036,7 +1026,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       showToast("Game over! You have declared bankruptcy.", "error");
       setShowBankruptcyModal(true);
     } catch (err) {
-      showToast("Failed to end game", "error");
+      toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
   };
 

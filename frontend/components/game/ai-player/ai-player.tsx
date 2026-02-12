@@ -15,6 +15,7 @@ import { TradeModal } from "../modals/trade";
 import ClaimPropertyModal from "../dev";
 import { useAiPlayerLogic } from "./useAiPlayerLogic";
 import { isAIPlayer } from "@/utils/gameUtils";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 interface GamePlayersProps {
   game: Game;
@@ -209,7 +210,7 @@ useEffect(() => {
       toast.success(`${currentPlayer.username} has been eliminated.`, { duration: 6000 });
     } catch (err: any) {
       console.error("Bankruptcy handling failed:", err);
-      toast.error("AI bankruptcy process failed");
+      toast.error(getContractErrorMessage(err, "AI bankruptcy process failed"));
     }
   };
 
@@ -258,7 +259,7 @@ useEffect(() => {
       }, 1500);
     } catch (err: any) {
       toast.error(
-        err?.message || "Something went wrong — try again later",
+        getContractErrorMessage(err, "Something went wrong — try again later"),
         { id: toastId, duration: 8000 }
       );
     } finally {

@@ -34,6 +34,7 @@ import { Sparkles } from "lucide-react";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
 import { VictoryModal } from "../../player/victory";
@@ -289,8 +290,8 @@ const MobileGameLayout = ({
       });
       // Turn state visible on board — no toast
       await fetchUpdatedGame();
-    } catch {
-      showToast("Failed to end turn", "error");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end turn"));
     } finally {
       unlockAction();
       turnEndInProgress.current = false;
@@ -392,8 +393,7 @@ const MobileGameLayout = ({
           }
         }
       } catch (err: unknown) {
-        const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "Failed to vote";
-        showToast(msg, "error");
+        toast.error(getContractErrorMessage(err, "Failed to vote"));
       } finally {
         setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
       }
@@ -471,8 +471,8 @@ const MobileGameLayout = ({
       landedPositionThisTurn.current = null;
       await fetchUpdatedGame();
       setTimeout(END_TURN, 800);
-    } catch {
-      showToast("Purchase failed", "error");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Purchase failed"));
     }
   }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame]);
 
@@ -506,8 +506,8 @@ const MobileGameLayout = ({
             await fetchUpdatedGame();
             showToast("No doubles — still in jail", "error");
             setTimeout(END_TURN, 1000);
-          } catch {
-            showToast("Jail roll failed", "error");
+          } catch (err) {
+            toast.error(getContractErrorMessage(err, "Jail roll failed"));
             END_TURN();
           } finally {
             setIsRolling(false);
@@ -533,8 +533,8 @@ const MobileGameLayout = ({
           landedPositionThisTurn.current = newPos;
           await fetchUpdatedGame();
           // Escaped jail — state visible
-        } catch {
-          showToast("Escape failed", "error");
+        } catch (err) {
+          toast.error(getContractErrorMessage(err, "Escape failed"));
         } finally {
           setIsRolling(false);
           unlockAction();
@@ -593,7 +593,7 @@ const MobileGameLayout = ({
         // Roll visible on board — no toast
       } catch (err) {
         console.error("Move failed:", err);
-        showToast("Move failed", "error");
+        toast.error(getContractErrorMessage(err, "Move failed"));
         END_TURN();
       } finally {
         setIsRolling(false);
@@ -747,7 +747,7 @@ const MobileGameLayout = ({
       setShowExitPrompt(true);
     } catch (err: any) {
       console.error("Bankruptcy process failed:", err);
-      showToast("Bankruptcy failed — but you are eliminated.", "error");
+      toast.error(getContractErrorMessage(err, "Bankruptcy failed — but you are eliminated."));
       try { await END_TURN(); } catch {}
       setTimeout(() => { window.location.href = "/"; }, 3000);
     } finally {
@@ -779,7 +779,7 @@ const MobileGameLayout = ({
       }, 1500);
     } catch (err: any) {
       toast.error(
-        err?.message || "Something went wrong — try again later",
+        getContractErrorMessage(err, "Something went wrong — try again later"),
         { id: toastId, duration: 8000 }
       );
     } finally {

@@ -36,6 +36,7 @@ import {
 } from "@/context/ContractProvider";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address, parseUnits } from "viem";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 interface GameCreateResponse {
   data?: {
@@ -139,38 +140,6 @@ export default function CreateGameMobile() {
     );
   };
 
-  const getErrorMessage = (error: any): string => {
-    // Most common cases first
-    if (error?.shortMessage?.includes("User rejected") || error?.code === 4001) {
-      return "You cancelled the transaction.";
-    }
-    if (error?.shortMessage?.includes("insufficient funds")) {
-      return "Not enough funds for gas fees.";
-    }
-    if (error?.cause?.name === "ExecutionRevertedError") {
-      return "Smart contract rejected transaction (check balance/stake).";
-    }
-
-    // Backend related
-    if (error?.response?.status === 400) {
-      const msg = error.response?.data?.message?.toLowerCase() || "";
-      if (msg.includes("already exists") || msg.includes("duplicate")) {
-        return "Game code already taken. Try again in a moment.";
-      }
-      if (msg.includes("invalid stake") || msg.includes("minimum")) {
-        return "Invalid stake amount.";
-      }
-      if (msg) return error.response.data.message;
-    }
-
-    if (error?.response?.status === 429) {
-      return "Too many requests. Please wait a moment.";
-    }
-
-    // Fallback with limited message length
-    return error?.message?.slice(0, 140) || "Failed to create game. Try again.";
-  };
-
   const handlePlay = async () => {
     if (isStarting) return;
     setIsStarting(true);
@@ -264,7 +233,7 @@ export default function CreateGameMobile() {
     } catch (err: any) {
       console.error("Game creation failed:", err);
 
-      const message = getErrorMessage(err);
+      const message = getContractErrorMessage(err, "Failed to create game. Try again.");
 
       toast.update(toastId, {
         render: message,
