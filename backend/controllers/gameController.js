@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import GamePlayHistory from "../models/GamePlayHistory.js";
 import Chat from "../models/Chat.js";
 import db from "../config/database.js";
+import { recordEvent } from "../services/analytics.js";
 
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
@@ -183,6 +184,12 @@ const gameController = {
       const add_to_game_players = await GamePlayer.create(gamePlayersPayload);
 
       const game_players = await GamePlayer.findByGameId(game.id);
+
+      await recordEvent("game_created", {
+        entityType: "game",
+        entityId: game.id,
+        payload: { is_ai: game.is_ai },
+      });
 
       res.status(201).json({
         success: true,
@@ -528,6 +535,12 @@ export const create = async (req, res) => {
     const add_to_game_players = await GamePlayer.create(gamePlayersPayload);
 
     const game_players = await GamePlayer.findByGameId(game.id);
+
+    await recordEvent("game_created", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { is_ai: game.is_ai },
+    });
 
     // Emit game created event
     const io = req.app.get("io");
