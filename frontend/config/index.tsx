@@ -1,6 +1,6 @@
 import { cookieStorage, createStorage, http } from '@wagmi/core'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { mainnet, celo, base, sepolia, arbitrum, baseSepolia, mantle } from '@reown/appkit/networks'
+import { celo } from '@reown/appkit/networks'
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
 
@@ -8,7 +8,8 @@ if (!projectId) {
   throw new Error('Project ID is not defined')
 }
 
-export const networks = [celo, base, mantle]
+// Celo only (Base support paused)
+export const networks = [celo]
 
 //Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({

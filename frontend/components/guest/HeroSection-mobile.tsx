@@ -63,7 +63,7 @@ const HeroSectionMobile: React.FC = () => {
 
     const fetchUser = async () => {
       try {
-        const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Base`);
+        const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
 
         if (!isActive) return;
 
@@ -137,7 +137,7 @@ const HeroSectionMobile: React.FC = () => {
         const res = await apiClient.post<ApiResponse>("/users", {
           username: finalUsername,
           address,
-          chain: "Base",
+          chain: "Celo",
         });
 
         if (!res?.success) throw new Error("Failed to save user on backend");
