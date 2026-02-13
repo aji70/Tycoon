@@ -76,7 +76,20 @@ const Board = ({
     voteStatuses,
     votingLoading,
     touchActivity,
+    timeoutPopupPlayer,
+    dismissTimeoutPopup,
   } = logic;
+
+  const voteablePlayersList = players.filter((p: Player) => {
+    if (p.user_id === me?.user_id) return false;
+    const strikes = p.consecutive_timeouts ?? 0;
+    const otherPlayers = players.filter((pl) => pl.user_id !== me?.user_id);
+    const isCurrentPlayer = p.user_id === currentPlayerId;
+    const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
+    if (otherPlayers.length === 1) return strikes >= 3;
+    return strikes > 0 || (isCurrentPlayer && timeElapsed);
+  });
+  const canVoteOutTimeoutPlayer = timeoutPopupPlayer && voteablePlayersList.some((p) => p.user_id === timeoutPopupPlayer.user_id);
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
     return (
@@ -90,6 +103,55 @@ const Board = ({
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
+      {/* Timeout popup: "X timed out. Vote them out?" */}
+      <AnimatePresence>
+        {timeoutPopupPlayer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => dismissTimeoutPopup()}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <p className="text-lg font-semibold text-cyan-100 mb-1">
+                {timeoutPopupPlayer.username} timed out
+              </p>
+              <p className="text-sm text-slate-400 mb-4">
+                {canVoteOutTimeoutPlayer
+                  ? "Do you want to vote them out?"
+                  : "You can vote them out after 3 timeouts (2-player game)."}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => dismissTimeoutPopup()}
+                  className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
+                >
+                  Dismiss
+                </button>
+                {canVoteOutTimeoutPlayer && (
+                  <button
+                    onClick={() => {
+                      voteToRemove(timeoutPopupPlayer.user_id);
+                      dismissTimeoutPopup();
+                    }}
+                    disabled={votingLoading[timeoutPopupPlayer.user_id]}
+                    className="px-4 py-2 rounded-lg bg-cyan-700 text-cyan-100 hover:bg-cyan-600 transition disabled:opacity-60"
+                  >
+                    {votingLoading[timeoutPopupPlayer.user_id] ? "Voting..." : `Vote ${timeoutPopupPlayer.username} Out`}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">
@@ -112,19 +174,7 @@ const Board = ({
               isPending={false}
               timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
               turnTimeLeft={turnTimeLeft}
-              voteablePlayers={players.filter((p: Player) => {
-                if (p.user_id === me?.user_id) return false;
-                const strikes = p.consecutive_timeouts ?? 0;
-                const otherPlayers = players.filter((pl) => pl.user_id !== me?.user_id);
-                const isCurrentPlayer = p.user_id === currentPlayerId;
-                const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
-                // With 2 players: need 3+ consecutive timeouts
-                // With 3+ players: strikes > 0 OR (current player and time elapsed — soft timeout)
-                if (otherPlayers.length === 1) {
-                  return strikes >= 3;
-                }
-                return strikes > 0 || (isCurrentPlayer && timeElapsed);
-              })}
+              voteablePlayers={voteablePlayersList}
               voteStatuses={logic.voteStatuses}
               votingLoading={logic.votingLoading}
               onVoteToRemove={logic.voteToRemove}
