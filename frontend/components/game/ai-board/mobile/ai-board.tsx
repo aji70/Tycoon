@@ -208,7 +208,7 @@ const endTime =
     }
   }, []);
 
-  const fetchUpdatedGame = useCallback(async (retryDelay = 1000) => {
+  const fetchUpdatedGame = useCallback(async (retryDelay = 2000) => {
     try {
       const gameRes = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
       if (gameRes?.data?.success && gameRes.data.data) {
@@ -219,16 +219,16 @@ const endTime =
       if (propertiesRes?.data?.success && propertiesRes.data.data) {
         setCurrentGameProperties(propertiesRes.data.data);
       }
-      // Safe trade refresh
       try {
         await refreshTrades?.();
-      } catch (err) {
-        console.warn("Failed to refresh trades (non-critical):", err);
+      } catch {
+        // Non-critical
       }
     } catch (err: any) {
-      if (err.response?.status === 429) {
-        console.warn("Rate limited, retrying after delay...", retryDelay);
-        setTimeout(() => fetchUpdatedGame(retryDelay * 2), retryDelay); // exponential backoff
+      if (err?.response?.status === 429 || err?.message?.toLowerCase().includes("too many")) {
+        const msg = err?.response?.data?.message || err?.message || "Too many requests — wait a moment";
+        toast(msg, { duration: 2500, icon: "⏳" });
+        setTimeout(() => fetchUpdatedGame(retryDelay * 1.5), retryDelay);
         return;
       }
       console.error("Sync failed:", err);
@@ -236,7 +236,7 @@ const endTime =
   }, [game.code, game.id, refreshTrades]);
 
   useEffect(() => {
-    const interval = setInterval(fetchUpdatedGame, 8000);
+    const interval = setInterval(fetchUpdatedGame, 15000);
     return () => clearInterval(interval);
   }, [fetchUpdatedGame]);
 
@@ -909,23 +909,23 @@ const endTime =
       <Toaster
         position="top-center"
         reverseOrder={false}
-        gutter={12}
+        gutter={8}
         containerClassName="z-50"
         toastOptions={{
-          duration: 3000,
+          duration: 2000,
           style: {
-            background: "rgba(15, 23, 42, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(34, 211, 238, 0.3)",
-            borderRadius: "12px",
-            padding: "8px 16px",
-            fontSize: "14px",
-            fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
-            backdropFilter: "blur(10px)",
+            background: "#010F10",
+            color: "#e0f7fa",
+            border: "1px solid rgba(34, 211, 238, 0.25)",
+            borderRadius: "6px",
+            padding: "6px 12px",
+            fontSize: "12px",
+            fontWeight: "500",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
           },
-          success: { icon: "✔", style: { borderColor: "#10b981" } },
-          error: { icon: "✖", style: { borderColor: "#ef4444" } },
+          success: { icon: "✓", duration: 2000 },
+          error: { icon: "!", duration: 2500 },
+          loading: { duration: Infinity },
         }}
       />
     </div>
