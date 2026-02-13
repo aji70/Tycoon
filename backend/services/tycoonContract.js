@@ -41,6 +41,13 @@ const TYCOON_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "registerPlayer",
+    inputs: [{ name: "username", type: "string", internalType: "string" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
   // Read (view) functions for config-test
   { type: "function", name: "owner", inputs: [], outputs: [{ name: "", type: "address", internalType: "address" }], stateMutability: "view" },
   { type: "function", name: "backendGameController", inputs: [], outputs: [{ name: "", type: "address", internalType: "address" }], stateMutability: "view" },
@@ -220,6 +227,13 @@ const ALLOWED_READ_FNS = [
   "getLastGameCode",
 ];
 
+const ALLOWED_WRITE_FNS = [
+  "registerPlayer",
+  "transferPropertyOwnership",
+  "setTurnCount",
+  "removePlayerFromGame",
+];
+
 /**
  * Call a read-only contract function. Used by config-test for manual testing.
  * @param {string} fn - Function name (must be in ALLOWED_READ_FNS)
@@ -294,4 +308,49 @@ function serializeContractResult(val) {
     return out;
   }
   return val;
+}
+
+/**
+ * Call a state-changing contract function. Used by config-test for manual testing.
+ * Sends a transaction; returns receipt info or throws on revert.
+ * @param {string} fn - Function name (must be in ALLOWED_WRITE_FNS)
+ * @param {Array} params - Arguments array (strings/numbers converted where needed)
+ * @returns {Promise<{ hash: string; status?: number; blockNumber?: number }>}
+ */
+export async function callContractWrite(fn, params = []) {
+  if (!ALLOWED_WRITE_FNS.includes(fn)) {
+    throw new Error(`Unknown write function: ${fn}. Allowed: ${ALLOWED_WRITE_FNS.join(", ")}`);
+  }
+  const tycoon = getContract();
+
+  const normalized = params.map((p) => {
+    if (typeof p === "number" || (typeof p === "string" && /^\d+$/.test(String(p))))
+      return BigInt(p);
+    return p ?? "";
+  });
+
+  let tx;
+  switch (fn) {
+    case "registerPlayer":
+      tx = await tycoon.registerPlayer(normalized[0] ?? "");
+      break;
+    case "transferPropertyOwnership":
+      tx = await tycoon.transferPropertyOwnership(normalized[0] ?? "", normalized[1] ?? "");
+      break;
+    case "setTurnCount":
+      tx = await tycoon.setTurnCount(normalized[0] ?? 0n, normalized[1] ?? "0x0", normalized[2] ?? 0n);
+      break;
+    case "removePlayerFromGame":
+      tx = await tycoon.removePlayerFromGame(normalized[0] ?? 0n, normalized[1] ?? "0x0", normalized[2] ?? 0n);
+      break;
+    default:
+      throw new Error(`Unhandled write function: ${fn}`);
+  }
+
+  const receipt = await tx.wait();
+  return {
+    hash: receipt?.hash,
+    status: receipt?.status,
+    blockNumber: receipt?.blockNumber ? Number(receipt.blockNumber) : undefined,
+  };
 }

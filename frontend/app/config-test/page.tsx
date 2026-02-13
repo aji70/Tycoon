@@ -30,6 +30,13 @@ const READ_FUNCTIONS: ReadFnSpec[] = [
   { fn: "getLastGameCode", params: [{ name: "user", placeholder: "0x...", type: "address" }] },
 ];
 
+const WRITE_FUNCTIONS: ReadFnSpec[] = [
+  { fn: "registerPlayer", params: [{ name: "backend", placeholder: "e.g. testuser", type: "string" }] },
+  { fn: "transferPropertyOwnership", params: [{ name: "sellerUsername", placeholder: "seller", type: "string" }, { name: "buyerUsername", placeholder: "buyer", type: "string" }] },
+  { fn: "setTurnCount", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }, { name: "count", placeholder: "20", type: "number" }] },
+  { fn: "removePlayerFromGame", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }, { name: "turnCount", placeholder: "5", type: "number" }] },
+];
+
 export default function ConfigTestPage() {
   const [data, setData] = useState<ConfigTest | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,14 +69,14 @@ export default function ConfigTestPage() {
     };
   }, []);
 
-  async function handleCall(fn: string, params: ReadFnSpec["params"]) {
+  async function handleCall(fn: string, params: ReadFnSpec["params"], write = false) {
     setCallResult(null);
     const vals = params.map((p) => {
       const v = (paramValues[fn] ?? {})[p.name] ?? "";
       return p.type === "number" ? (v ? Number(v) : 0) : v;
     });
     try {
-      const res = await apiClient.post<{ success: boolean; result?: unknown; error?: string }>("config/call-contract", { fn, params: vals });
+      const res = await apiClient.post<{ success: boolean; result?: unknown; error?: string }>("config/call-contract", { fn, params: vals, write });
       const body = res.data as { success: boolean; result?: unknown; error?: string };
       if (body.success) {
         setCallResult({ fn, result: body.result });
@@ -163,10 +170,53 @@ export default function ConfigTestPage() {
                     />
                   ))}
                   <button
-                    onClick={() => handleCall(spec.fn, spec.params)}
+                    onClick={() => handleCall(spec.fn, spec.params, false)}
                     className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium"
                   >
                     Call
+                  </button>
+                </div>
+                {callResult?.fn === spec.fn && (
+                  <div className="mt-2 p-2 rounded bg-black/40 text-sm font-mono overflow-x-auto">
+                    {callResult.error ? (
+                      <span className="text-red-400">{callResult.error}</span>
+                    ) : (
+                      <pre className="text-green-400 whitespace-pre-wrap break-all">
+                        {JSON.stringify(callResult.result, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-gray-700 pt-6 mt-6">
+          <h2 className="text-lg font-medium text-amber-400/90 mb-2">Contract write functions</h2>
+          <p className="text-amber-200/70 text-sm mb-4">
+            Sends real transactions — uses gas. Errors will appear below on revert.
+          </p>
+          <div className="space-y-4">
+            {WRITE_FUNCTIONS.map((spec) => (
+              <div key={spec.fn} className="bg-black/20 border border-amber-900/50 rounded-lg p-3 space-y-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <span className="text-amber-400 font-mono text-sm">{spec.fn}</span>
+                  {spec.params.map((p) => (
+                    <input
+                      key={p.name}
+                      type="text"
+                      placeholder={p.placeholder}
+                      value={(paramValues[spec.fn] ?? {})[p.name] ?? ""}
+                      onChange={(e) => setParam(spec.fn, p.name, e.target.value)}
+                      className="bg-black/40 border border-gray-600 rounded px-2 py-1 text-sm min-w-[120px] focus:border-amber-500 focus:outline-none"
+                    />
+                  ))}
+                  <button
+                    onClick={() => handleCall(spec.fn, spec.params, true)}
+                    className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-medium"
+                  >
+                    Send
                   </button>
                 </div>
                 {callResult?.fn === spec.fn && (
