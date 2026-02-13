@@ -30,6 +30,7 @@ import logger from "./config/logger.js";
 import db from "./config/database.js";
 import redis from "./config/redis.js";
 import { getCeloConfig } from "./config/celo.js";
+import { testContractConnection } from "./services/tycoonContract.js";
 
 dotenv.config();
 
@@ -162,7 +163,7 @@ app.get("/health", async (req, res) => {
 });
 
 // Test endpoint: expose Celo env vars for frontend display (read from backend).
-app.get("/api/config/test", (req, res) => {
+app.get("/api/config/test", async (req, res) => {
   const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
   const fullPk = req.query.full === "1" && process.env.NODE_ENV === "development";
   let pkDisplay = null;
@@ -174,12 +175,11 @@ app.get("/api/config/test", (req, res) => {
       pkDisplay = len > 12 ? `${privateKey.slice(0, 6)}...${privateKey.slice(-4)}` : "***";
     }
   }
-  res.json({
-    CELO_RPC_URL: rpcUrl || null,
-    TYCOON_CELO_CONTRACT_ADDRESS: contractAddress || null,
-    BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay,
-    isConfigured: !!isConfigured,
-  });
+  const result = { CELO_RPC_URL: rpcUrl || null, TYCOON_CELO_CONTRACT_ADDRESS: contractAddress || null, BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay, isConfigured: !!isConfigured };
+  if (req.query.test_connection === "1") {
+    result.connectionTest = await testContractConnection();
+  }
+  res.json(result);
 });
 
 // API routes

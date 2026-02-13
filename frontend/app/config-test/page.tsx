@@ -7,6 +7,7 @@ type ConfigTest = {
   CELO_RPC_URL: string | null;
   TYCOON_CELO_CONTRACT_ADDRESS: string | null;
   BACKEND_GAME_CONTROLLER_PRIVATE_KEY: string | null;
+  connectionTest?: { ok: boolean; error?: string; blockNumber?: number; walletAddress?: string; balance?: string };
 };
 
 export default function ConfigTestPage() {
@@ -18,13 +19,14 @@ export default function ConfigTestPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiClient.get<ConfigTest & { isConfigured?: boolean }>("config/test");
+        const res = await apiClient.get<ConfigTest & { isConfigured?: boolean; connectionTest?: { ok: boolean; error?: string; blockNumber?: number; walletAddress?: string; balance?: string } }>("config/test", { params: { test_connection: "1" } });
         if (!cancelled && res.data) {
           const d = res.data as ConfigTest & { isConfigured?: boolean };
           setData({
             CELO_RPC_URL: d.CELO_RPC_URL ?? null,
             TYCOON_CELO_CONTRACT_ADDRESS: d.TYCOON_CELO_CONTRACT_ADDRESS ?? null,
             BACKEND_GAME_CONTROLLER_PRIVATE_KEY: d.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ?? null,
+            connectionTest: d.connectionTest,
           });
         }
       } catch (e: unknown) {
@@ -75,6 +77,19 @@ export default function ConfigTestPage() {
             {data?.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ?? "(not set)"}
           </code>
         </div>
+        {data?.connectionTest && (
+          <div className="border-t border-gray-700 pt-4 mt-4">
+            <span className="text-gray-400 block text-sm mb-2">Connection test</span>
+            {data.connectionTest.ok ? (
+              <div className="space-y-1 text-green-400 text-sm">
+                <p>OK — Block: {data.connectionTest.blockNumber}, Wallet: {data.connectionTest.walletAddress?.slice(0, 10)}...</p>
+                <p>Balance: {data.connectionTest.balance} wei</p>
+              </div>
+            ) : (
+              <p className="text-red-400 text-sm">{data.connectionTest.error}</p>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
