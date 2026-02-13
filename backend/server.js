@@ -30,7 +30,7 @@ import logger from "./config/logger.js";
 import db from "./config/database.js";
 import redis from "./config/redis.js";
 import { getCeloConfig } from "./config/celo.js";
-import { testContractConnection } from "./services/tycoonContract.js";
+import { testContractConnection, callContractRead } from "./services/tycoonContract.js";
 
 dotenv.config();
 
@@ -180,6 +180,20 @@ app.get("/api/config/test", async (req, res) => {
     result.connectionTest = await testContractConnection();
   }
   res.json(result);
+});
+
+// Call contract read function (for config-test)
+app.post("/api/config/call-contract", async (req, res) => {
+  try {
+    const { fn, params = [] } = req.body || {};
+    if (!fn || typeof fn !== "string") {
+      return res.status(400).json({ success: false, error: "fn (string) required" });
+    }
+    const result = await callContractRead(fn, Array.isArray(params) ? params : [params]);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // API routes
