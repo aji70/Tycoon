@@ -9,6 +9,7 @@ import db from "../config/database.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import logger from "../config/logger.js";
+import { removePlayerFromGame, isContractConfigured } from "../services/tycoonContract.js";
 
 async function notifyGameUpdate(req, gameId) {
   try {
@@ -32,6 +33,11 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
   
   const target = players.find((p) => p.user_id === target_user_id);
   if (!target) return null;
+
+  // Capture before deletion (for contract call)
+  const targetTurnCount = Number(target.turn_count ?? 0);
+  const targetUser = await trx("users").where({ id: target_user_id }).select("address").first();
+  const targetAddress = targetUser?.address ?? null;
 
   // Return target's properties to bank (delete ownership rows; player_id is NOT NULL so we delete instead of setting null)
   await trx("game_properties").where({ game_id, player_id: target.id }).del();
@@ -64,7 +70,13 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
       updated_at: db.fn.now(),
     });
 
-  return { removed_user_id: target_user_id, remaining_count: remaining.length };
+  return {
+    removed_user_id: target_user_id,
+    remaining_count: remaining.length,
+    contract_game_id: game.contract_game_id,
+    target_address: targetAddress,
+    target_turn_count: targetTurnCount,
+  };
 }
 
 const PROPERTY_TYPES = {
@@ -1331,17 +1343,29 @@ const gamePlayerController = {
       // Check if enough votes: all other players (or 1 if only 2 players)
       const requiredVotes = otherPlayers.length === 1 ? 1 : otherPlayers.length;
       let removed = false;
+      let removalResultForContract = null;
 
       if (voteCount >= requiredVotes) {
         // Execute removal
         const result = await executePlayerRemoval(trx, game_id, target_user_id);
         if (result) {
           removed = true;
+          removalResultForContract = result;
           await notifyGameUpdate(req, game_id);
         }
       }
 
       await trx.commit();
+
+      // On-chain: remove player from game (fire-and-forget)
+      if (removed && removalResultForContract && isContractConfigured()) {
+        const { contract_game_id, target_address, target_turn_count } = removalResultForContract;
+        if (contract_game_id && target_address) {
+          removePlayerFromGame(contract_game_id, target_address, target_turn_count).catch((err) => {
+            logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame failed");
+          });
+        }
+      }
 
       const io = req.app.get("io");
       if (io) {
@@ -1512,6 +1536,14 @@ const gamePlayerController = {
 
       await notifyGameUpdate(req, game_id);
       await trx.commit();
+
+      // On-chain: remove player from game (fire-and-forget)
+      if (isContractConfigured() && result.contract_game_id && result.target_address) {
+        removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count).catch((err) => {
+          logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame failed (inactive)");
+        });
+      }
+
       return res.status(200).json({
         success: true,
         message: "Player removed due to inactivity. Game continues.",

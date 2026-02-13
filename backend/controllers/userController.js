@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import { getUserPropertyStats } from "../utils/userPropertyStats.js";
 
 /**
  * User Controller
@@ -25,6 +26,18 @@ const userController = {
       const user = await User.findById(req.params.id);
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async getPropertyStats(req, res) {
+    try {
+      const userId = req.params.id;
+      const user = await User.findById(userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      const stats = await getUserPropertyStats(userId);
+      res.json(stats ?? { properties_bought: 0, properties_sold: 0, trades_initiated: 0, trades_accepted: 0, favourite_property: null });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
