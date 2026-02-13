@@ -78,6 +78,8 @@ const Board = ({
     touchActivity,
     timeoutPopupPlayer,
     dismissTimeoutPopup,
+    showVotedOutModal,
+    setShowVotedOutModal,
   } = logic;
 
   const voteablePlayersList = players.filter((p: Player) => {
@@ -152,6 +154,43 @@ const Board = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Voted out: Go home or Continue watching */}
+      <AnimatePresence>
+        {showVotedOutModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <p className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
+              <p className="text-sm text-slate-400 mb-6">You can go home or keep watching the game.</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowVotedOutModal(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
+                >
+                  Continue watching
+                </button>
+                <button
+                  onClick={() => { window.location.href = "/"; }}
+                  className="px-4 py-2 rounded-lg bg-cyan-700 text-cyan-100 hover:bg-cyan-600 transition"
+                >
+                  Go home
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">

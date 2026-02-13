@@ -35,6 +35,7 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { socketService } from "@/lib/socket";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
 import { VictoryModal } from "../../player/victory";
@@ -95,6 +96,7 @@ const MobileGameLayout = ({
   const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
+  const [showVotedOutModal, setShowVotedOutModal] = useState(false);
 
   const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
@@ -282,6 +284,30 @@ const MobileGameLayout = ({
     });
     voteable.forEach((p) => fetchVoteStatus(p.user_id));
   }, [currentGame?.id, me?.user_id, players, currentPlayerId, turnTimeLeft, fetchVoteStatus]);
+
+  useEffect(() => {
+    if (!currentGame?.code) return;
+    const handleVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
+      if (data.removed) {
+        if (data.target_user_id === me?.user_id) setShowVotedOutModal(true);
+        fetchUpdatedGame();
+      } else {
+        setVoteStatuses((prev) => ({
+          ...prev,
+          [data.target_user_id]: {
+            vote_count: data.vote_count,
+            required_votes: data.required_votes,
+            voters: [],
+          },
+        }));
+        fetchVoteStatus(data.target_user_id);
+      }
+    };
+    socketService.onVoteCast(handleVoteCast);
+    return () => {
+      socketService.removeListener("vote-cast", handleVoteCast);
+    };
+  }, [currentGame?.code, me?.user_id, fetchUpdatedGame, fetchVoteStatus]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1079,6 +1105,42 @@ const MobileGameLayout = ({
                     {votingLoading[timeoutPopupPlayer.user_id] ? "Voting..." : `Vote ${timeoutPopupPlayer.username} Out`}
                   </button>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Voted out: Go home or Continue watching */}
+      <AnimatePresence>
+        {showVotedOutModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <p className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
+              <p className="text-sm text-slate-400 mb-6">You can go home or keep watching the game.</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowVotedOutModal(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
+                >
+                  Continue watching
+                </button>
+                <button
+                  onClick={() => { window.location.href = "/"; }}
+                  className="px-4 py-2 rounded-lg bg-cyan-700 text-cyan-100 hover:bg-cyan-600 transition"
+                >
+                  Go home
+                </button>
               </div>
             </motion.div>
           </motion.div>
