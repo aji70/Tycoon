@@ -61,7 +61,7 @@ export function getContractErrorMessage(
   }
 
   if (e?.response?.status === 429) {
-    return "Too many requests. Please wait a moment.";
+    return "Too many requests — please wait a moment before trying again.";
   }
 
   // Prefer backend message so we don't show generic "API request failed" when we have context
