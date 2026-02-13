@@ -62,7 +62,7 @@ const gamePropertyController = {
       const { game_id, player_id: newPlayerId } = req.body;
       const idParam = req.params.id;
 
-      // Resolve the game_property row: frontend may send property_id (board 1–40) with game_id, or gp.id
+      // Resolve the game_property row: frontend may send game_properties.id (gp.id) or property_id (board 1–40) with game_id
       let current = null;
       if (game_id && idParam) {
         const byGameAndProperty = await db("game_properties as gp")
@@ -96,15 +96,33 @@ const gamePropertyController = {
         buyerUsername = buyer?.username ?? null;
       }
 
-      const property = await GameProperty.update(current ? current.id : idParam, req.body);
+      const updateId = current ? current.id : idParam;
+      const property = await GameProperty.update(updateId, req.body);
       res.json({ success: true, message: "successful", data: property });
 
       // On-chain: update stats when ownership transferred (P2P sale)
-      if (isTransfer && sellerUsername && buyerUsername && isContractConfigured()) {
+      const contractConfigured = isContractConfigured();
+      logger.info({
+        idParam,
+        game_id,
+        newPlayerId,
+        currentFound: !!current,
+        currentPlayerId: current?.player_id,
+        isTransfer,
+        sellerUsername,
+        buyerUsername,
+        contractConfigured,
+      }, "game_properties/update: transfer and contract check");
+
+      if (isTransfer && sellerUsername && buyerUsername && contractConfigured) {
         logger.info({ sellerUsername, buyerUsername }, "Calling transferPropertyOwnership(seller, buyer)");
         transferPropertyOwnership(sellerUsername, buyerUsername).catch((err) => {
           logger.warn({ err, sellerUsername, buyerUsername }, "Tycoon transferPropertyOwnership failed");
         });
+      } else if (isTransfer && !contractConfigured) {
+        logger.warn("Skipping transferPropertyOwnership: contract not configured (set CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_PRIVATE_KEY)");
+      } else if (isTransfer && (!sellerUsername || !buyerUsername)) {
+        logger.warn({ sellerUsername, buyerUsername }, "Skipping transferPropertyOwnership: missing seller or buyer username");
       }
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
