@@ -748,6 +748,79 @@ const gamePropertyController = {
       return res.status(400).json({ success: false, message: error.message });
     }
   },
+
+  async sell(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { game_id, property_id, user_id } = req.body;
+
+      const game = await trx("games").where({ id: game_id }).first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({ error: "Game is currently not running" });
+      }
+
+      const player = await trx("game_players")
+        .where({ user_id, game_id })
+        .first();
+      if (!player) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Player not in game" });
+      }
+
+      const property = await trx("properties").where({ id: property_id }).first();
+      if (!property) {
+        await trx.rollback();
+        return res.status(404).json({ error: "Property not found" });
+      }
+
+      const game_property = await trx("game_properties")
+        .where({ property_id, game_id, player_id: player.id })
+        .first();
+      if (!game_property) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Property not owned by you" });
+      }
+      if ((game_property.development ?? 0) > 0) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Cannot sell property with buildings" });
+      }
+      if (game_property.mortgaged) {
+        await trx.rollback();
+        return res.status(422).json({ error: "Cannot sell mortgaged property" });
+      }
+
+      const sellPrice = Math.floor(Number(property.price) / 2);
+      await trx("game_players")
+        .where({ id: player.id })
+        .increment("balance", sellPrice);
+      await trx("game_properties").where({ id: game_property.id }).del();
+
+      const sellerUser = await trx("users").where({ id: player.user_id }).select("username").first();
+      const sellerUsername = sellerUser?.username ?? null;
+
+      await trx.commit();
+
+      if (sellerUsername) {
+        incrementPropertiesSold(player.user_id).catch(() => {});
+      }
+
+      if (isContractConfigured() && sellerUsername) {
+        transferPropertyOwnership(sellerUsername, "Bank").catch((err) => {
+          logger.warn({ err, sellerUsername }, "Tycoon transferPropertyOwnership failed (sell to bank)");
+        });
+      }
+
+      return res.json({ success: true, message: "successful", data: null });
+    } catch (error) {
+      await trx.rollback();
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  },
 };
 
 export default gamePropertyController;
