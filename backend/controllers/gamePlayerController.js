@@ -33,10 +33,8 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
   const target = players.find((p) => p.user_id === target_user_id);
   if (!target) return null;
 
-  // Return target's properties to bank
-  await trx("game_properties")
-    .where({ game_id, player_id: target.id })
-    .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
+  // Return target's properties to bank (delete ownership rows; player_id is NOT NULL so we delete instead of setting null)
+  await trx("game_properties").where({ game_id, player_id: target.id }).del();
 
   // Delete target player
   await trx("game_players").where({ id: target.id }).del();
