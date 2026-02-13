@@ -24,10 +24,10 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
   const gameId = game?.code ?? game?.id ?? "";
   if (!gameId) return null;
 
-  // Mobile tab layout: full-width chat, constrained to viewport
+  // Mobile tab layout: full-width chat, fill viewport (parent gives height via h-dvh)
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full min-h-0 max-h-full bg-[#0a0f10] overflow-hidden">
+      <div className="flex flex-col h-full min-h-[50vh] overflow-hidden bg-[#0a0f10]">
         <div className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-white/5">
           <h3 className="font-bold text-sm text-white font-dmSans tracking-tight">
             Game Chat{gameId ? ` · ${gameId}` : ""}
