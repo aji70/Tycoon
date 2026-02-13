@@ -121,6 +121,50 @@ library TycoonLib {
     uint256 internal constant REWARD_DIVISOR = 100; // For percentage calculation (150 / 100 = 1.5)
     uint256 internal constant MIN_TURNS_FOR_BONUS = 40; // Minimum total turns for win bonus
 
+    // Input limits & payout splits (used by main contract via library helpers)
+    uint256 internal constant USERNAME_MAX_LENGTH = 32;
+    uint256 internal constant CODE_MAX_LENGTH = 16;
+    uint256 internal constant HOUSE_PERCENT = 5;
+    uint256 internal constant RANK1_PERCENT = 50;
+    uint256 internal constant RANK2_PERCENT = 30;
+    uint256 internal constant RANK3_PERCENT = 20;
+
+    // -------------------------
+    // 📌 Validation (internal so inlined into Tycoon — no library deploy/link needed)
+    // -------------------------
+
+    function validateUsername(string memory username) internal pure {
+        require(bytes(username).length > 0, "Username empty");
+        require(bytes(username).length <= USERNAME_MAX_LENGTH, "Username too long");
+    }
+
+    /// @param codeRequired If true, code must be non-empty (e.g. for private games).
+    function validateCode(string memory code, bool codeRequired) internal pure {
+        if (codeRequired) require(bytes(code).length > 0, "Code required for private game");
+        require(bytes(code).length <= CODE_MAX_LENGTH, "Code too long");
+    }
+
+    // -------------------------
+    // 📌 Payout helpers (internal so inlined)
+    // -------------------------
+
+    /// @return Amount to distribute to players after house cut (pot * (100 - HOUSE_PERCENT) / 100).
+    function getDistributablePot(uint256 pot) internal pure returns (uint256) {
+        return pot * (100 - HOUSE_PERCENT) / 100;
+    }
+
+    /// @return USDC reward for rank 1/2/3; 0 for rank > 3.
+    function getRankRewardAmount(uint256 distributable, uint256 rank) internal pure returns (uint256) {
+        if (rank == 1) return distributable * RANK1_PERCENT / 100;
+        if (rank == 2) return distributable * RANK2_PERCENT / 100;
+        if (rank == 3) return distributable * RANK3_PERCENT / 100;
+        return 0;
+    }
+
+    function getHousePercent() internal pure returns (uint256) {
+        return HOUSE_PERCENT;
+    }
+
     // -------------------------
     // 📌 String → Enum Helpers
     // -------------------------

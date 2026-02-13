@@ -661,7 +661,7 @@ export function useGetGamePlayerByAddress(gameId?: bigint, playerAddress?: Addre
   const result = useReadContract({
     address: contractAddress,
     abi: TycoonABI,
-    functionName: 'getGamePlayerByAddress',
+    functionName: 'getGamePlayer',
     args: gameId !== undefined && playerAddress ? [gameId, playerAddress] : undefined,
     query: { enabled: gameId !== undefined && !!playerAddress && !!contractAddress },
   });

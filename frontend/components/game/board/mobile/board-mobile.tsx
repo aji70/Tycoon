@@ -810,20 +810,25 @@ const MobileGameLayout = ({
   };
 
   useEffect(() => {
-    if (!currentGame || currentGame.status === "FINISHED" || !me) return;
+    if (!currentGame || currentGame.status !== "FINISHED" || !me) return;
 
-    const activePlayers = currentGame.players.filter((player) => {
-      if ((player.balance ?? 0) > 0) return true;
-      return currentGameProperties.some(
-        (gp) => gp.address?.toLowerCase() === player.address?.toLowerCase() &&
-                gp.mortgaged !== true
-      );
-    });
+    let theWinner: Player | null = null;
 
-    if (activePlayers.length === 1) {
-      const theWinner = activePlayers[0];
-      if (winner?.user_id === theWinner.user_id) return;
+    if (currentGame.winner_id != null) {
+      theWinner = currentGame.players.find((p) => p.user_id === currentGame.winner_id) ?? null;
+    }
+    if (!theWinner) {
+      const activePlayers = currentGame.players.filter((player) => {
+        if ((player.balance ?? 0) > 0) return true;
+        return currentGameProperties.some(
+          (gp) => gp.address?.toLowerCase() === player.address?.toLowerCase() &&
+                  gp.mortgaged !== true
+        );
+      });
+      if (activePlayers.length === 1) theWinner = activePlayers[0];
+    }
 
+    if (theWinner && winner?.user_id !== theWinner.user_id) {
       toast.success(`${theWinner.username} wins the game! `);
       setWinner(theWinner);
       setEndGameCandidate({
@@ -832,12 +837,11 @@ const MobileGameLayout = ({
         balance: BigInt(theWinner.balance ?? 0),
       });
       setShowVictoryModal(true);
-
       if (me?.user_id === theWinner.user_id) {
         toast.success("You are the Monopoly champion! ");
       }
     }
-  }, [currentGame.players, currentGameProperties, currentGame.status, me, winner]);
+  }, [currentGame?.players, currentGame?.winner_id, currentGameProperties, currentGame?.status, me, winner]);
 
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds) return;
