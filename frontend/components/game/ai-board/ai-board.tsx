@@ -22,7 +22,7 @@ import { apiClient } from "@/lib/api";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
-import { useEndAIGameAndClaim, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action";
@@ -169,7 +169,6 @@ const AiBoard = ({
 
     // ── At the top of AiBoard component, with other hooks ──
 
-  const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
   const currentProperty = useMemo(() => {
     return currentPlayer?.position
       ? properties.find((p) => p.id === currentPlayer.position) ?? null
@@ -391,15 +390,7 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
   }
 
   try {
-    // Show loading state
     showToast("Sending transaction...", "default");
-
-    // 1. On-chain minimal proof (counters update) - skip if AI is involved
-    if (!isAiAction) {
-      await transferOwnership('', buyerUsername);
-    }
-
-    // 2. Update backend
     await apiClient.post("/game-properties/buy", {
       user_id: currentPlayer.user_id,
       game_id: game.id,
@@ -422,14 +413,12 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
     toast.error(getContractErrorMessage(err, "Purchase failed"));
   }
 }, [
-  currentPlayer, 
-  justLandedProperty, 
-  actionLock, 
-  END_TURN, 
-  showToast, 
-  game.id, 
-  me?.username,
-  transferOwnership   // ← important dependency
+  currentPlayer,
+  justLandedProperty,
+  actionLock,
+  END_TURN,
+  showToast,
+  game.id,
 ]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
@@ -487,10 +476,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
     const buyerUsername = buyerPlayer.username;
 
     try {
-      // 1. On-chain update
-      await transferOwnership(sellerUsername, buyerUsername);
-
-      // 2. Update backend
+      // Backend owns the transfer; game controller calls contract transferPropertyOwnership when needed
       const response = await apiClient.put<ApiResponse>(
         `/game-properties/${propertyId}`,
         {
