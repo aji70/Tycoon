@@ -1062,7 +1062,7 @@ const MobileGameLayout = ({
   const isSoloPlayer = players.length === 1 && players[0].user_id === me?.user_id;
 
   return (
-    <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-x-hidden overflow-y-auto">
+    <div className="w-full min-h-screen bg-[#010F10] text-white flex flex-col items-center justify-start relative overflow-hidden">
       <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
@@ -1070,7 +1070,8 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      <div className="w-full max-w-2xl mx-auto px-4 mt-2 mb-6 flex items-center justify-between gap-3 flex-shrink-0 min-h-[44px]">
+      {/* Player Status + Trade notification bell — matches AI mobile layout */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-4 flex items-center justify-between gap-3 flex-wrap flex-shrink-0 min-h-[44px]">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} compact />
         <TradeAlertPill
           incomingCount={myIncomingTrades.length}
