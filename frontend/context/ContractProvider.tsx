@@ -1105,6 +1105,103 @@ export function useRewardWithdrawFunds() {
   return { withdraw, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+/* ----------------------- Tycoon (main game) admin – owner only ----------------------- */
+
+export function useTycoonAdminReads() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+
+  const minStake = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'minStake',
+    query: { enabled: !!contractAddress },
+  });
+  const minTurnsForPerks = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'minTurnsForPerks',
+    query: { enabled: !!contractAddress },
+  });
+  const backendGameController = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'backendGameController',
+    query: { enabled: !!contractAddress },
+  });
+  const tycoonOwner = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'owner',
+    query: { enabled: !!contractAddress },
+  });
+
+  return {
+    minStake: minStake.data as bigint | undefined,
+    minTurnsForPerks: minTurnsForPerks.data as bigint | undefined,
+    backendGameController: backendGameController.data as Address | undefined,
+    tycoonOwner: tycoonOwner.data as Address | undefined,
+    isLoading: minStake.isLoading || minTurnsForPerks.isLoading || backendGameController.isLoading || tycoonOwner.isLoading,
+  };
+}
+
+export function useTycoonSetMinStake() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setMinStake = useCallback(async (newMinStakeWei: bigint) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setMinStake',
+      args: [newMinStakeWei],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setMinStake, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonSetMinTurnsForPerks() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setMinTurnsForPerks = useCallback(async (newMin: bigint) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setMinTurnsForPerks',
+      args: [newMin],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setMinTurnsForPerks, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonSetBackendGameController() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setBackendGameController = useCallback(async (newController: Address) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setBackendGameController',
+      args: [newController],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setBackendGameController, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 /* ----------------------- Context Provider ----------------------- */
 
 type TycoonContextType = {

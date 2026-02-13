@@ -7,7 +7,7 @@ import {
   useReadContract,
   useReadContracts,
 } from "wagmi";
-import { parseUnits, type Address, type Abi } from "viem";
+import { parseUnits, formatUnits, type Address, type Abi } from "viem";
 import RewardABI from "@/context/abi/rewardabi.json";
 import {
   REWARD_CONTRACT_ADDRESSES,
@@ -23,6 +23,10 @@ import {
   useRewardUpdateCollectiblePrices,
   useRewardPause,
   useRewardWithdrawFunds,
+  useTycoonAdminReads,
+  useTycoonSetMinStake,
+  useTycoonSetMinTurnsForPerks,
+  useTycoonSetBackendGameController,
 } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -33,7 +37,7 @@ import {
   INITIAL_COLLECTIBLES,
 } from "@/components/rewards/rewardsConstants";
 
-export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds";
+export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon";
 
 export interface RewardsAdminState {
   activeSection: RewardsSection;
@@ -57,6 +61,9 @@ export interface RewardsAdminState {
   withdrawToken: "TYC" | "USDC";
   withdrawAmount: string;
   withdrawTo: string;
+  tycoonMinStake: string;
+  tycoonMinTurnsForPerks: string;
+  tycoonGameController: string;
 }
 
 export interface TokenDisplayItem {
@@ -110,8 +117,15 @@ export function useRewardsAdmin() {
   const [withdrawToken, setWithdrawToken] = useState<"TYC" | "USDC">("TYC");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawTo, setWithdrawTo] = useState("");
+  const [tycoonMinStake, setTycoonMinStake] = useState("");
+  const [tycoonMinTurnsForPerks, setTycoonMinTurnsForPerks] = useState("");
+  const [tycoonGameController, setTycoonGameController] = useState("");
 
   const setMinterHook = useRewardSetBackendMinter();
+  const tycoonReads = useTycoonAdminReads();
+  const tycoonSetMinStakeHook = useTycoonSetMinStake();
+  const tycoonSetMinTurnsHook = useTycoonSetMinTurnsForPerks();
+  const tycoonSetControllerHook = useTycoonSetBackendGameController();
   const mintVoucherHook = useRewardMintVoucher();
   const mintCollectibleHook = useRewardMintCollectible();
   const stockShopHook = useRewardStockShop();
@@ -250,6 +264,13 @@ export function useRewardsAdmin() {
   }, [pausedResult.data, backendMinterResult.data, ownerResult.data]);
 
   useEffect(() => {
+    if (tycoonReads.minStake != null) setTycoonMinStake(formatUnits(tycoonReads.minStake, 6));
+    if (tycoonReads.minTurnsForPerks != null) setTycoonMinTurnsForPerks(tycoonReads.minTurnsForPerks.toString());
+    if (tycoonReads.backendGameController != null)
+      setTycoonGameController(tycoonReads.backendGameController === "0x0000000000000000000000000000000000000000" ? "" : tycoonReads.backendGameController);
+  }, [tycoonReads.minStake, tycoonReads.minTurnsForPerks, tycoonReads.backendGameController]);
+
+  useEffect(() => {
     const successes = [
       setMinterHook.isSuccess,
       mintVoucherHook.isSuccess,
@@ -259,6 +280,9 @@ export function useRewardsAdmin() {
       updateHook.isSuccess,
       pauseHook.isSuccess,
       withdrawHook.isSuccess,
+      tycoonSetMinStakeHook.isSuccess,
+      tycoonSetMinTurnsHook.isSuccess,
+      tycoonSetControllerHook.isSuccess,
     ];
     if (successes.some(Boolean)) {
       setStatus({ type: "success", message: "Transaction successful!" });
@@ -270,6 +294,9 @@ export function useRewardsAdmin() {
       updateHook.reset?.();
       pauseHook.reset?.();
       withdrawHook.reset?.();
+      tycoonSetMinStakeHook.reset?.();
+      tycoonSetMinTurnsHook.reset?.();
+      tycoonSetControllerHook.reset?.();
     }
   }, [
     setMinterHook.isSuccess,
@@ -280,6 +307,9 @@ export function useRewardsAdmin() {
     updateHook.isSuccess,
     pauseHook.isSuccess,
     withdrawHook.isSuccess,
+    tycoonSetMinStakeHook.isSuccess,
+    tycoonSetMinTurnsHook.isSuccess,
+    tycoonSetControllerHook.isSuccess,
   ]);
 
   useEffect(() => {
@@ -292,6 +322,9 @@ export function useRewardsAdmin() {
       updateHook.error,
       pauseHook.error,
       withdrawHook.error,
+      tycoonSetMinStakeHook.error,
+      tycoonSetMinTurnsHook.error,
+      tycoonSetControllerHook.error,
     ].filter(Boolean);
     if (errors.length > 0) {
       setStatus({
@@ -308,6 +341,9 @@ export function useRewardsAdmin() {
     updateHook.error,
     pauseHook.error,
     withdrawHook.error,
+    tycoonSetMinStakeHook.error,
+    tycoonSetMinTurnsHook.error,
+    tycoonSetControllerHook.error,
   ]);
 
   const handleSetBackendMinter = async () => {
@@ -383,6 +419,23 @@ export function useRewardsAdmin() {
     setWithdrawAmount("");
   };
 
+  const handleSetTycoonMinStake = async () => {
+    if (!tycoonMinStake) return;
+    const wei = parseUnits(tycoonMinStake, 6);
+    await tycoonSetMinStakeHook.setMinStake(wei);
+  };
+
+  const handleSetTycoonMinTurnsForPerks = async () => {
+    if (tycoonMinTurnsForPerks === "") return;
+    await tycoonSetMinTurnsHook.setMinTurnsForPerks(BigInt(tycoonMinTurnsForPerks));
+  };
+
+  const handleSetTycoonGameController = async () => {
+    const addr = tycoonGameController.trim();
+    if (!addr) return;
+    await tycoonSetControllerHook.setBackendGameController(addr as Address);
+  };
+
   const anyPending =
     setMinterHook.isPending ||
     mintVoucherHook.isPending ||
@@ -391,7 +444,10 @@ export function useRewardsAdmin() {
     restockHook.isPending ||
     updateHook.isPending ||
     pauseHook.isPending ||
-    withdrawHook.isPending;
+    withdrawHook.isPending ||
+    tycoonSetMinStakeHook.isPending ||
+    tycoonSetMinTurnsHook.isPending ||
+    tycoonSetControllerHook.isPending;
 
   const currentTxHash =
     setMinterHook.txHash ||
@@ -401,7 +457,10 @@ export function useRewardsAdmin() {
     restockHook.txHash ||
     updateHook.txHash ||
     pauseHook.txHash ||
-    withdrawHook.txHash;
+    withdrawHook.txHash ||
+    tycoonSetMinStakeHook.txHash ||
+    tycoonSetMinTurnsHook.txHash ||
+    tycoonSetControllerHook.txHash;
 
   return {
     auth: {
@@ -449,6 +508,13 @@ export function useRewardsAdmin() {
       setWithdrawAmount,
       withdrawTo,
       setWithdrawTo,
+      tycoonMinStake,
+      setTycoonMinStake,
+      tycoonMinTurnsForPerks,
+      setTycoonMinTurnsForPerks,
+      tycoonGameController,
+      setTycoonGameController,
+      tycoonReads,
     },
     contract: {
       tycBalance: tycBalance.data,
@@ -464,6 +530,9 @@ export function useRewardsAdmin() {
       handleRestock,
       handleUpdatePrices,
       handleWithdraw,
+      handleSetTycoonMinStake,
+      handleSetTycoonMinTurnsForPerks,
+      handleSetTycoonGameController,
       pause: pauseHook.pause,
       unpause: pauseHook.unpause,
     },
@@ -478,6 +547,9 @@ export function useRewardsAdmin() {
       pendingUpdate: updateHook.isPending,
       pendingPause: pauseHook.isPending,
       pendingWithdraw: withdrawHook.isPending,
+      pendingTycoonMinStake: tycoonSetMinStakeHook.isPending,
+      pendingTycoonMinTurns: tycoonSetMinTurnsHook.isPending,
+      pendingTycoonController: tycoonSetControllerHook.isPending,
     },
   };
 }
