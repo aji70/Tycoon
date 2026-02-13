@@ -10,10 +10,32 @@ type ConfigTest = {
   connectionTest?: { ok: boolean; error?: string; blockNumber?: number; walletAddress?: string; balance?: string };
 };
 
+type ReadFnSpec = {
+  fn: string;
+  params: { name: string; placeholder: string; type: "string" | "number" | "address" }[];
+};
+
+const READ_FUNCTIONS: ReadFnSpec[] = [
+  { fn: "owner", params: [] },
+  { fn: "backendGameController", params: [] },
+  { fn: "minStake", params: [] },
+  { fn: "minTurnsForPerks", params: [] },
+  { fn: "totalGames", params: [] },
+  { fn: "totalUsers", params: [] },
+  { fn: "getUser", params: [{ name: "username", placeholder: "e.g. alice", type: "string" }] },
+  { fn: "getGame", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
+  { fn: "getGameByCode", params: [{ name: "code", placeholder: "e.g. ABC123", type: "string" }] },
+  { fn: "getGamePlayer", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }] },
+  { fn: "getPlayersInGame", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
+  { fn: "getLastGameCode", params: [{ name: "user", placeholder: "0x...", type: "address" }] },
+];
+
 export default function ConfigTestPage() {
   const [data, setData] = useState<ConfigTest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [callResult, setCallResult] = useState<{ fn: string; result?: unknown; error?: string } | null>(null);
+  const [paramValues, setParamValues] = useState<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +61,37 @@ export default function ConfigTestPage() {
       cancelled = true;
     };
   }, []);
+
+  async function handleCall(fn: string, params: ReadFnSpec["params"]) {
+    setCallResult(null);
+    const vals = params.map((p) => {
+      const v = (paramValues[fn] ?? {})[p.name] ?? "";
+      return p.type === "number" ? (v ? Number(v) : 0) : v;
+    });
+    try {
+      const res = await apiClient.post<{ success: boolean; result?: unknown; error?: string }>("config/call-contract", { fn, params: vals });
+      const body = res.data as { success: boolean; result?: unknown; error?: string };
+      if (body.success) {
+        setCallResult({ fn, result: body.result });
+      } else {
+        setCallResult({ fn, error: body.error });
+      }
+    } catch (e: unknown) {
+      let msg = "Request failed";
+      if (e && typeof e === "object" && "response" in e) {
+        const res = (e as { response?: { data?: { error?: string } } }).response;
+        if (res?.data?.error) msg = res.data.error;
+        else if (e instanceof Error) msg = e.message;
+      } else if (e instanceof Error) {
+        msg = e.message;
+      }
+      setCallResult({ fn, error: msg });
+    }
+  }
+
+  function setParam(fn: string, name: string, value: string) {
+    setParamValues((prev) => ({ ...prev, [fn]: { ...(prev[fn] ?? {}), [name]: value } }));
+  }
 
   if (loading) {
     return (
@@ -90,6 +143,47 @@ export default function ConfigTestPage() {
             )}
           </div>
         )}
+
+        <div className="border-t border-gray-700 pt-6 mt-6">
+          <h2 className="text-lg font-medium text-gray-200 mb-4">Contract read functions</h2>
+          <p className="text-gray-500 text-sm mb-4">Call read-only contract functions via the backend. Enter params where required.</p>
+          <div className="space-y-4">
+            {READ_FUNCTIONS.map((spec) => (
+              <div key={spec.fn} className="bg-black/20 rounded-lg p-3 space-y-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <span className="text-amber-400 font-mono text-sm">{spec.fn}</span>
+                  {spec.params.map((p) => (
+                    <input
+                      key={p.name}
+                      type="text"
+                      placeholder={p.placeholder}
+                      value={(paramValues[spec.fn] ?? {})[p.name] ?? ""}
+                      onChange={(e) => setParam(spec.fn, p.name, e.target.value)}
+                      className="bg-black/40 border border-gray-600 rounded px-2 py-1 text-sm min-w-[120px] focus:border-amber-500 focus:outline-none"
+                    />
+                  ))}
+                  <button
+                    onClick={() => handleCall(spec.fn, spec.params)}
+                    className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium"
+                  >
+                    Call
+                  </button>
+                </div>
+                {callResult?.fn === spec.fn && (
+                  <div className="mt-2 p-2 rounded bg-black/40 text-sm font-mono overflow-x-auto">
+                    {callResult.error ? (
+                      <span className="text-red-400">{callResult.error}</span>
+                    ) : (
+                      <pre className="text-green-400 whitespace-pre-wrap break-all">
+                        {JSON.stringify(callResult.result, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </main>
   );

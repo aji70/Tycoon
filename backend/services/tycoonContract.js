@@ -41,6 +41,37 @@ const TYCOON_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  // Read (view) functions for config-test
+  { type: "function", name: "owner", inputs: [], outputs: [{ name: "", type: "address", internalType: "address" }], stateMutability: "view" },
+  { type: "function", name: "backendGameController", inputs: [], outputs: [{ name: "", type: "address", internalType: "address" }], stateMutability: "view" },
+  { type: "function", name: "minStake", inputs: [], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "minTurnsForPerks", inputs: [], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "totalGames", inputs: [], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "totalUsers", inputs: [], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "getUser", inputs: [{ name: "username", type: "string", internalType: "string" }], outputs: [{ name: "", type: "tuple", internalType: "struct TycoonLib.User", components: [
+    { name: "id", type: "uint256" }, { name: "username", type: "string" }, { name: "playerAddress", type: "address" }, { name: "registeredAt", type: "uint64" },
+    { name: "gamesPlayed", type: "uint256" }, { name: "gamesWon", type: "uint256" }, { name: "gamesLost", type: "uint256" }, { name: "totalStaked", type: "uint256" },
+    { name: "totalEarned", type: "uint256" }, { name: "totalWithdrawn", type: "uint256" }, { name: "propertiesbought", type: "uint256" }, { name: "propertiesSold", type: "uint256" }
+  ]}], stateMutability: "view" },
+  { type: "function", name: "getGame", inputs: [{ name: "gameId", type: "uint256", internalType: "uint256" }], outputs: [{ name: "", type: "tuple", internalType: "struct TycoonLib.Game", components: [
+    { name: "id", type: "uint256" }, { name: "code", type: "string" }, { name: "creator", type: "address" }, { name: "status", type: "uint8" },
+    { name: "winner", type: "address" }, { name: "numberOfPlayers", type: "uint8" }, { name: "joinedPlayers", type: "uint8" }, { name: "mode", type: "uint8" },
+    { name: "ai", type: "bool" }, { name: "stakePerPlayer", type: "uint256" }, { name: "totalStaked", type: "uint256" }, { name: "createdAt", type: "uint64" }, { name: "endedAt", type: "uint64" }
+  ]}], stateMutability: "view" },
+  { type: "function", name: "getGameByCode", inputs: [{ name: "code", type: "string", internalType: "string" }], outputs: [{ name: "", type: "tuple", internalType: "struct TycoonLib.Game", components: [
+    { name: "id", type: "uint256" }, { name: "code", type: "string" }, { name: "creator", type: "address" }, { name: "status", type: "uint8" },
+    { name: "winner", type: "address" }, { name: "numberOfPlayers", type: "uint8" }, { name: "joinedPlayers", type: "uint8" }, { name: "mode", type: "uint8" },
+    { name: "ai", type: "bool" }, { name: "stakePerPlayer", type: "uint256" }, { name: "totalStaked", type: "uint256" }, { name: "createdAt", type: "uint64" }, { name: "endedAt", type: "uint64" }
+  ]}], stateMutability: "view" },
+  { type: "function", name: "getGamePlayer", inputs: [
+    { name: "gameId", type: "uint256", internalType: "uint256" },
+    { name: "player", type: "address", internalType: "address" }
+  ], outputs: [{ name: "", type: "tuple", internalType: "struct TycoonLib.GamePlayer", components: [
+    { name: "gameId", type: "uint256" }, { name: "playerAddress", type: "address" }, { name: "balance", type: "uint256" }, { name: "position", type: "uint8" },
+    { name: "order", type: "uint8" }, { name: "symbol", type: "uint8" }, { name: "username", type: "string" }
+  ]}], stateMutability: "view" },
+  { type: "function", name: "getPlayersInGame", inputs: [{ name: "gameId", type: "uint256", internalType: "uint256" }], outputs: [{ name: "", type: "address[]", internalType: "address[]" }], stateMutability: "view" },
+  { type: "function", name: "getLastGameCode", inputs: [{ name: "user", type: "address", internalType: "address" }], outputs: [{ name: "", type: "string", internalType: "string" }], stateMutability: "view" },
 ];
 
 // Celo chain IDs: 42220 mainnet, 44787 Alfajores testnet
@@ -172,4 +203,95 @@ export async function transferPropertyOwnership(
  */
 export function isContractConfigured() {
   return getCeloConfig().isConfigured;
+}
+
+const ALLOWED_READ_FNS = [
+  "owner",
+  "backendGameController",
+  "minStake",
+  "minTurnsForPerks",
+  "totalGames",
+  "totalUsers",
+  "getUser",
+  "getGame",
+  "getGameByCode",
+  "getGamePlayer",
+  "getPlayersInGame",
+  "getLastGameCode",
+];
+
+/**
+ * Call a read-only contract function. Used by config-test for manual testing.
+ * @param {string} fn - Function name (must be in ALLOWED_READ_FNS)
+ * @param {Array} params - Arguments array (strings converted where needed)
+ * @returns {Promise<unknown>} Raw result (may be object, array, bigint, string, etc.)
+ */
+export async function callContractRead(fn, params = []) {
+  if (!ALLOWED_READ_FNS.includes(fn)) {
+    throw new Error(`Unknown read function: ${fn}. Allowed: ${ALLOWED_READ_FNS.join(", ")}`);
+  }
+  const tycoon = getContract();
+
+  // Normalize params by type
+  const normalized = params.map((p, i) => {
+    if (typeof p === "number" || (typeof p === "string" && /^\d+$/.test(String(p))))
+      return BigInt(p);
+    return p;
+  });
+
+  let result;
+  switch (fn) {
+    case "owner":
+    case "backendGameController":
+    case "minStake":
+    case "minTurnsForPerks":
+    case "totalGames":
+    case "totalUsers":
+      result = await tycoon[fn]();
+      break;
+    case "getUser":
+      result = await tycoon.getUser(normalized[0] ?? "");
+      break;
+    case "getGame":
+      result = await tycoon.getGame(normalized[0] ?? 0n);
+      break;
+    case "getGameByCode":
+      result = await tycoon.getGameByCode(normalized[0] ?? "");
+      break;
+    case "getGamePlayer":
+      result = await tycoon.getGamePlayer(normalized[0] ?? 0n, normalized[1] ?? "0x0");
+      break;
+    case "getPlayersInGame":
+      result = await tycoon.getPlayersInGame(normalized[0] ?? 0n);
+      break;
+    case "getLastGameCode":
+      result = await tycoon.getLastGameCode(normalized[0] ?? "0x0");
+      break;
+    default:
+      throw new Error(`Unhandled read function: ${fn}`);
+  }
+
+  // Serialize bigints and structs for JSON
+  return serializeContractResult(result);
+}
+
+function serializeContractResult(val) {
+  if (val === null || val === undefined) return val;
+  if (typeof val === "bigint") return val.toString();
+  if (Array.isArray(val)) return val.map(serializeContractResult);
+  if (typeof val === "object" && val.constructor?.name === "Result") {
+    const arr = [...val];
+    const obj = {};
+    for (let i = 0; i < arr.length; i++) obj[i] = serializeContractResult(arr[i]);
+    if (Object.keys(val).filter((k) => !/^\d+$/.test(k)).length) {
+      for (const k of Object.keys(val)) if (!/^\d+$/.test(k)) obj[k] = serializeContractResult(val[k]);
+    }
+    return obj;
+  }
+  if (typeof val === "object") {
+    const out = {};
+    for (const k of Object.keys(val)) out[k] = serializeContractResult(val[k]);
+    return out;
+  }
+  return val;
 }
