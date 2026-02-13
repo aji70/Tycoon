@@ -16,13 +16,14 @@ contract TycoonTest is Test {
     address public bob = makeAddr("bob");
     address public charlie = makeAddr("charlie");
     address public owner = makeAddr("owner");
+    address public gameController = makeAddr("gameController");
 
     uint256 public constant STAKE_AMOUNT = 1 * 10 ** 14;
     uint256 public constant STARTING_BALANCE = 1500;
     string public constant GAME_CODE = "GAME123";
     uint256 public constant BOARD_SIZE = 40; // Assumed from TycoonLib
-    uint256 constant CONSOLATION_VOUCHER = TOKEN_REWARD / 10;
     uint256 public constant TOKEN_REWARD = 1 ether;
+    uint256 constant CONSOLATION_VOUCHER = TOKEN_REWARD / 10;
 
     function setUp() public {
         vm.prank(owner);
@@ -33,6 +34,8 @@ contract TycoonTest is Test {
 
         vm.prank(owner);
         tycoonRewards.setBackendMinter(address(tycoon));
+        vm.prank(owner);
+        tycoon.setBackendGameController(gameController);
         vm.prank(owner);
         usdc.mint(alice, 10000000000000000);
         vm.prank(owner);
@@ -247,7 +250,7 @@ contract TycoonTest is Test {
         TycoonLib.GamePlayer memory bobPlayer = tycoon.getGamePlayer(gameId, bob);
 
         // Check that Bob joined correctly
-        assertEq(order, 2);
+        assertEq(bobPlayer.order, 2);
         assertEq(game.joinedPlayers, 2);
         assertEq(uint8(game.status), uint8(TycoonLib.GameStatus.Ongoing));
         assertEq(bobPlayer.order, 2);
@@ -285,7 +288,7 @@ contract TycoonTest is Test {
         vm.prank(charlie);
         tycoon.registerPlayer("charlie");
         vm.prank(charlie);
-        uint8 order = tycoon.joinGame(gameId, "charlie", "boot", "");
+        tycoon.joinGame(gameId, "charlie", "boot", "");
 
         //   EXit Game
         vm.prank(charlie);
@@ -1465,4 +1468,284 @@ contract TycoonTest is Test {
     //         vm.expectRevert(bytes("Property not found"));
     //         tycoon.getProperty(gameId, uint8(BOARD_SIZE));
     //     }
+
+    // ============================================================================
+    // LEAVE PENDING GAME
+    // ============================================================================
+
+    function test_LeavePendingGame_RefundsStake() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        usdc.approve(address(tycoon), STAKE_AMOUNT);
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, STAKE_AMOUNT);
+
+        uint256 aliceBefore = usdc.balanceOf(alice);
+        vm.prank(alice);
+        tycoon.leavePendingGame(gameId);
+        assertEq(usdc.balanceOf(alice), aliceBefore + STAKE_AMOUNT);
+        assertEq(tycoon.getGame(gameId).joinedPlayers, 0);
+        assertEq(uint8(tycoon.getGame(gameId).status), uint8(TycoonLib.GameStatus.Ended));
+    }
+
+    function test_LeavePendingGame_LastPlayer_SetsGameEnded() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(alice);
+        tycoon.leavePendingGame(gameId);
+        assertEq(tycoon.getGame(gameId).joinedPlayers, 0);
+        assertEq(uint8(tycoon.getGame(gameId).status), uint8(TycoonLib.GameStatus.Ended));
+    }
+
+    function test_Revert_LeavePendingGame_GameAlreadyStarted() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, STAKE_AMOUNT);
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        vm.prank(alice);
+        vm.expectRevert(bytes("Game already started"));
+        tycoon.leavePendingGame(gameId);
+    }
+
+    // ============================================================================
+    // SET TURN COUNT & MIN TURNS FOR PERKS
+    // ============================================================================
+
+    function test_SetTurnCount_OnlyGameController() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, STAKE_AMOUNT);
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+
+        vm.prank(gameController);
+        tycoon.setTurnCount(gameId, alice, 20);
+        assertEq(tycoon.turnsPlayed(gameId, alice), 20);
+    }
+
+    function test_SetTurnCount_OnlyIncreases() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(owner);
+        tycoon.setTurnCount(gameId, alice, 5);
+        vm.prank(owner);
+        tycoon.setTurnCount(gameId, alice, 10);
+        assertEq(tycoon.turnsPlayed(gameId, alice), 10);
+        vm.prank(owner);
+        vm.expectRevert(bytes("Can only increase"));
+        tycoon.setTurnCount(gameId, alice, 3);
+    }
+
+    function test_MinTurnsForPerks_VoluntaryExit_BelowMin_ConsolationOnly() public {
+        vm.prank(owner);
+        tycoon.setMinTurnsForPerks(20);
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        // Bob exits first; 0 turns -> consolation voucher only (minted as next id after 1_000_000_001)
+        vm.prank(bob);
+        tycoon.exitGame(gameId);
+        uint256 consolationVoucherId = 1_000_000_002; // minted when Bob exited
+        assertEq(tycoonRewards.voucherRedeemValue(consolationVoucherId), CONSOLATION_VOUCHER);
+        assertEq(tycoonRewards.balanceOf(bob, consolationVoucherId), 1);
+        // Alice (winner) exits with 0 turns -> consolation only, no USDC payout
+        uint256 aliceUsdcBefore = usdc.balanceOf(alice);
+        vm.prank(alice);
+        tycoon.exitGame(gameId);
+        assertEq(usdc.balanceOf(alice), aliceUsdcBefore); // no USDC received
+    }
+
+    function test_MinTurnsForPerks_VoluntaryExit_AboveMin_FullPerks() public {
+        vm.prank(owner);
+        tycoon.setMinTurnsForPerks(5);
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        vm.prank(owner);
+        tycoon.setTurnCount(gameId, alice, 10);
+        vm.prank(owner);
+        tycoon.setTurnCount(gameId, bob, 10);
+        vm.prank(bob);
+        tycoon.exitGame(gameId);
+        vm.prank(alice);
+        tycoon.exitGame(gameId);
+        assertEq(uint8(tycoon.getGame(gameId).status), uint8(TycoonLib.GameStatus.Ended));
+        assertEq(tycoon.getGame(gameId).winner, alice);
+    }
+
+    // ============================================================================
+    // REMOVE PLAYER FROM GAME (BACKEND)
+    // ============================================================================
+
+    function test_RemovePlayerFromGame_OnlyGameController() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        vm.prank(gameController);
+        tycoon.removePlayerFromGame(gameId, bob, 15);
+        assertEq(tycoon.getGame(gameId).joinedPlayers, 1);
+        vm.prank(alice);
+        tycoon.exitGame(gameId);
+        assertEq(tycoon.getGame(gameId).winner, alice);
+    }
+
+    function test_RemovePlayerFromGame_BelowMinTurns_ConsolationOnly() public {
+        vm.prank(owner);
+        tycoon.setMinTurnsForPerks(20);
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        vm.prank(gameController);
+        tycoon.removePlayerFromGame(gameId, bob, 5); // 5 < 20
+        assertEq(tycoon.getGame(gameId).joinedPlayers, 1);
+        vm.prank(alice);
+        tycoon.exitGame(gameId);
+        assertEq(tycoon.getGame(gameId).winner, alice);
+    }
+
+    function test_Revert_RemovePlayerFromGame_NotGameController() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        vm.prank(alice);
+        vm.expectRevert(bytes("Not game controller"));
+        tycoon.removePlayerFromGame(gameId, bob, 10);
+    }
+
+    // ============================================================================
+    // BACKEND GAME CONTROLLER
+    // ============================================================================
+
+    function test_SetBackendGameController_OnlyOwner() public {
+        vm.prank(owner);
+        tycoon.setBackendGameController(gameController);
+        assertEq(tycoon.backendGameController(), gameController);
+        vm.prank(alice);
+        vm.expectRevert();
+        tycoon.setBackendGameController(alice);
+    }
+
+    function test_SetBackendGameController_CanClearWithZero() public {
+        vm.prank(owner);
+        tycoon.setBackendGameController(gameController);
+        vm.prank(owner);
+        tycoon.setBackendGameController(address(0));
+        assertEq(tycoon.backendGameController(), address(0));
+    }
+
+    // ============================================================================
+    // TRANSFER PROPERTY OWNERSHIP
+    // ============================================================================
+
+    function test_TransferPropertyOwnership_OnlyGameController() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(gameController);
+        tycoon.transferPropertyOwnership("Alice", "Bob");
+        assertEq(tycoon.getUser("Alice").propertiesSold, 1);
+        assertEq(tycoon.getUser("Bob").propertiesbought, 1);
+    }
+
+    function test_Revert_TransferPropertyOwnership_NotGameController() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        vm.expectRevert(bytes("Not game controller"));
+        tycoon.transferPropertyOwnership("Alice", "Bob");
+    }
+
+    function test_Revert_TransferPropertyOwnership_SameSellerBuyer() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(gameController);
+        vm.expectRevert(bytes("Seller and buyer must differ"));
+        tycoon.transferPropertyOwnership("Alice", "Alice");
+    }
+
+    // ============================================================================
+    // VIEWS & ADMIN
+    // ============================================================================
+
+    function test_GetPlayersInGame() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        address[] memory players = tycoon.getPlayersInGame(gameId);
+        assertEq(players.length, 2);
+        assertEq(players[0], alice);
+        assertEq(players[1], bob);
+    }
+
+    function test_SetMinStake_OnlyOwner() public {
+        vm.prank(owner);
+        tycoon.setMinStake(2000);
+        assertEq(tycoon.minStake(), 2000);
+        vm.prank(alice);
+        vm.expectRevert();
+        tycoon.setMinStake(500);
+    }
+
+    // ============================================================================
+    // VALIDATION (USERNAME / CODE LENGTH)
+    // ============================================================================
+
+    function test_Revert_UsernameTooLong() public {
+        vm.prank(alice);
+        vm.expectRevert(bytes("Username too long"));
+        tycoon.registerPlayer("ThisUsernameIsWayTooLongForTheContractLimit32");
+    }
+
+    function test_Revert_CodeTooLong() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        vm.expectRevert(bytes("Code too long"));
+        tycoon.createGame("Alice", "PUBLIC", "hat", 2, "THIS_CODE_IS_LONGER_THAN_16_CHARS", STARTING_BALANCE, 0);
+    }
 }

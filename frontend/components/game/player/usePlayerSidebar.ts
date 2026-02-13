@@ -88,21 +88,26 @@ export function usePlayerSidebar({
   const totalActiveTrades = openTrades.length + tradeRequests.length;
 
   useEffect(() => {
-    if (!game || game.status === "FINISHED" || !me) return;
+    if (!game || game.status !== "FINISHED" || !me) return;
 
-    const activePlayers = game.players.filter((player) => {
-      if ((player.balance ?? 0) > 0) return true;
-      return game_properties.some(
-        (gp) =>
-          gp.address?.toLowerCase() === player.address?.toLowerCase() &&
-          gp.mortgaged !== true
-      );
-    });
+    let theWinner: Player | null = null;
 
-    if (activePlayers.length === 1) {
-      const theWinner = activePlayers[0];
-      if (winner?.user_id === theWinner.user_id) return;
+    if (game.winner_id != null) {
+      theWinner = game.players.find((p) => p.user_id === game.winner_id) ?? null;
+    }
+    if (!theWinner) {
+      const activePlayers = game.players.filter((player) => {
+        if ((player.balance ?? 0) > 0) return true;
+        return game_properties.some(
+          (gp) =>
+            gp.address?.toLowerCase() === player.address?.toLowerCase() &&
+            gp.mortgaged !== true
+        );
+      });
+      if (activePlayers.length === 1) theWinner = activePlayers[0];
+    }
 
+    if (theWinner && winner?.user_id !== theWinner.user_id) {
       toast.success(`${theWinner.username} wins the game! 🎉🏆`);
       setWinner(theWinner);
       setEndGameCandidate({
@@ -115,7 +120,7 @@ export function usePlayerSidebar({
         toast.success("You are the Monopoly champion! 🏆");
       }
     }
-  }, [game.players, game_properties, game.status, me, winner]);
+  }, [game.players, game.winner_id, game_properties, game.status, me, winner]);
 
   useEffect(() => {
     setSectionOpen((prev) => ({
