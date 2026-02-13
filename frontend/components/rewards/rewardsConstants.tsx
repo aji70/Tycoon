@@ -6,6 +6,7 @@ import {
   Gem,
   Ticket,
   Star,
+  KeyRound,
 } from "lucide-react";
 export enum CollectiblePerk {
   NONE = 0,
@@ -61,6 +62,7 @@ export const INITIAL_COLLECTIBLES: readonly {
   icon: React.ReactNode;
 }[] = [
   { perk: CollectiblePerk.EXTRA_TURN, name: "Extra Turn", strength: 1, tycPrice: "0.75", usdcPrice: "0.08", icon: <Zap className="w-8 h-8" /> },
+  { perk: CollectiblePerk.JAIL_FREE, name: "Get Out of Jail Free", strength: 1, tycPrice: "1.0", usdcPrice: "0.12", icon: <KeyRound className="w-8 h-8" /> },
   { perk: CollectiblePerk.ROLL_BOOST, name: "Roll Boost", strength: 1, tycPrice: "1.0", usdcPrice: "0.10", icon: <Sparkles className="w-8 h-8" /> },
   { perk: CollectiblePerk.PROPERTY_DISCOUNT, name: "Property Discount", strength: 1, tycPrice: "1.25", usdcPrice: "0.25", icon: <Coins className="w-8 h-8" /> },
   { perk: CollectiblePerk.SHIELD, name: "Shield", strength: 1, tycPrice: "1.5", usdcPrice: "0.40", icon: <Shield className="w-8 h-8" /> },

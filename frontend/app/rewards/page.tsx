@@ -20,6 +20,7 @@ import {
   Edit2,
   Ticket,
   Star,
+  Gamepad2,
 } from 'lucide-react';
 
 import {
@@ -76,10 +77,17 @@ export default function RewardAdminPanel() {
     setWithdrawAmount,
     withdrawTo,
     setWithdrawTo,
+    tycoonMinStake,
+    setTycoonMinStake,
+    tycoonMinTurnsForPerks,
+    setTycoonMinTurnsForPerks,
+    tycoonGameController,
+    setTycoonGameController,
+    tycoonReads,
   } = state;
 
   const { tokenCount, allTokens, tycBalance, usdcBalance } = contract;
-  const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw } = pending;
+  const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController } = pending;
 
   if (!auth.isConnected || !auth.userAddress) {
     return (
@@ -138,7 +146,7 @@ export default function RewardAdminPanel() {
         </motion.div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-10">
-          {(['overview', 'mint', 'stock', 'manage', 'funds'] as const).map((section) => (
+          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'funds'] as const).map((section) => (
             <button
               key={section}
               onClick={() => setActiveSection(section)}
@@ -152,8 +160,9 @@ export default function RewardAdminPanel() {
               {section === 'mint' && <PlusCircle className="w-5 h-5" />}
               {section === 'stock' && <Package className="w-5 h-5" />}
               {section === 'manage' && <Edit2 className="w-5 h-5" />}
+              {section === 'tycoon' && <Gamepad2 className="w-5 h-5" />}
               {section === 'funds' && <Wallet className="w-5 h-5" />}
-              {section.charAt(0).toUpperCase() + section.slice(1)}
+              {section === 'tycoon' ? 'Game Contract' : section.charAt(0).toUpperCase() + section.slice(1)}
             </button>
           ))}
         </div>
@@ -505,6 +514,80 @@ export default function RewardAdminPanel() {
                   {pendingUpdate ? 'Updating...' : 'Update Prices'}
                 </button>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'tycoon' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto space-y-8">
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                <Gamepad2 className="w-8 h-8 text-cyan-400" /> Tycoon Game Contract
+              </h3>
+              <p className="text-gray-400 mb-6">
+                Owner-only settings. Min stake is in USDC (e.g. 1 = 1 USDC). Game controller can call removePlayerFromGame, setTurnCount, transferPropertyOwnership.
+              </p>
+              {tycoonReads.isLoading ? (
+                <div className="text-gray-400">Loading...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-600/50">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Min Stake (USDC)</label>
+                    <p className="text-xs text-gray-500 mb-2">Minimum USDC per player to join a staked game (6 decimals).</p>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1"
+                      value={tycoonMinStake}
+                      onChange={(e) => setTycoonMinStake(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-3"
+                    />
+                    <button
+                      onClick={handlers.handleSetTycoonMinStake}
+                      disabled={anyPending || !tycoonMinStake}
+                      className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-bold transition disabled:opacity-50"
+                    >
+                      {pendingTycoonMinStake ? 'Updating...' : 'Set Min Stake'}
+                    </button>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-600/50">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Min Turns for Perks</label>
+                    <p className="text-xs text-gray-500 mb-2">Minimum turns played to get full exit perks (0 = disabled).</p>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder={tycoonReads.minTurnsForPerks?.toString() ?? '0'}
+                      value={tycoonMinTurnsForPerks}
+                      onChange={(e) => setTycoonMinTurnsForPerks(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-3"
+                    />
+                    <button
+                      onClick={handlers.handleSetTycoonMinTurnsForPerks}
+                      disabled={anyPending || tycoonMinTurnsForPerks === ''}
+                      className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-bold transition disabled:opacity-50"
+                    >
+                      {pendingTycoonMinTurns ? 'Updating...' : 'Set Min Turns'}
+                    </button>
+                  </div>
+                  <div className="md:col-span-2 bg-gray-800/50 rounded-xl p-6 border border-gray-600/50">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Backend Game Controller</label>
+                    <p className="text-xs text-gray-500 mb-2">Address allowed to call removePlayerFromGame, setTurnCount, transferPropertyOwnership. Use 0x0 to clear.</p>
+                    <input
+                      type="text"
+                      placeholder="0x..."
+                      value={tycoonGameController}
+                      onChange={(e) => setTycoonGameController(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 mb-3 font-mono text-sm"
+                    />
+                    <button
+                      onClick={handlers.handleSetTycoonGameController}
+                      disabled={anyPending || !tycoonGameController.trim()}
+                      className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-bold transition disabled:opacity-50"
+                    >
+                      {pendingTycoonController ? 'Updating...' : 'Set Game Controller'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
