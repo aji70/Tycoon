@@ -14,7 +14,7 @@ export const up = async (knex) => {
   await knex.schema.createTable("user_property_purchases", (table) => {
     table.increments("id").primary();
     table.integer("user_id").unsigned().notNullable();
-    table.integer("property_id").unsigned().notNullable();
+    table.integer("property_id").notNullable(); // Match properties.id (signed)
     table.integer("game_id").unsigned().notNullable();
     table.enum("source", ["bank", "trade"]).notNullable();
     table.timestamp("created_at").defaultTo(knex.fn.now());
