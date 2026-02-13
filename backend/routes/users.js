@@ -8,6 +8,7 @@ const router = express.Router();
 // -------------------------
 router.post("/", userController.create);
 router.get("/", userController.findAll);
+router.get("/:id/property-stats", userController.getPropertyStats);
 router.get("/:id", userController.findById);
 router.get("/by-address/:address", userController.findByAddress);
 router.put("/:id", userController.update);

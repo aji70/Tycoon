@@ -1,6 +1,10 @@
 import db from "../config/database.js";
 import GameProperty from "../models/GameProperty.js";
 import { transferPropertyOwnership, isContractConfigured } from "../services/tycoonContract.js";
+import {
+  recordPropertyPurchase,
+  incrementPropertiesSold,
+} from "../utils/userPropertyStats.js";
 import logger from "../config/logger.js";
 
 const gamePropertyController = {
@@ -70,30 +74,32 @@ const gamePropertyController = {
           .join("users as u", "p.user_id", "u.id")
           .where("gp.game_id", game_id)
           .where("gp.property_id", idParam)
-          .select("gp.id", "gp.player_id", "u.username as seller_username")
+          .select("gp.id", "gp.player_id", "gp.property_id", "u.id as seller_user_id", "u.username as seller_username")
           .first();
-        if (byGameAndProperty) current = { id: byGameAndProperty.id, player_id: byGameAndProperty.player_id, seller_username: byGameAndProperty.seller_username };
+        if (byGameAndProperty) current = { id: byGameAndProperty.id, player_id: byGameAndProperty.player_id, property_id: byGameAndProperty.property_id, seller_user_id: byGameAndProperty.seller_user_id, seller_username: byGameAndProperty.seller_username };
       }
       if (!current) {
         const byId = await db("game_properties as gp")
           .join("game_players as p", "gp.player_id", "p.id")
           .join("users as u", "p.user_id", "u.id")
           .where("gp.id", idParam)
-          .select("gp.id", "gp.player_id", "u.username as seller_username")
+          .select("gp.id", "gp.player_id", "gp.property_id", "u.id as seller_user_id", "u.username as seller_username")
           .first();
-        if (byId) current = { id: byId.id, player_id: byId.player_id, seller_username: byId.seller_username };
+        if (byId) current = { id: byId.id, player_id: byId.player_id, property_id: byId.property_id, seller_user_id: byId.seller_user_id, seller_username: byId.seller_username };
       }
 
       const isTransfer = current && newPlayerId != null && Number(current.player_id) !== Number(newPlayerId);
       let sellerUsername = current?.seller_username ?? null;
       let buyerUsername = null;
+      let buyerUserId = null;
       if (isTransfer && newPlayerId) {
         const buyer = await db("game_players as p")
           .join("users as u", "p.user_id", "u.id")
           .where("p.id", newPlayerId)
-          .select("u.username")
+          .select("u.id as user_id", "u.username")
           .first();
         buyerUsername = buyer?.username ?? null;
+        buyerUserId = buyer?.user_id ?? null;
       }
 
       const updateId = current ? current.id : idParam;
@@ -119,10 +125,15 @@ const gamePropertyController = {
         transferPropertyOwnership(sellerUsername, buyerUsername).catch((err) => {
           logger.warn({ err, sellerUsername, buyerUsername }, "Tycoon transferPropertyOwnership failed");
         });
-      } else if (isTransfer && !contractConfigured) {
+      }
+      if (isTransfer && !contractConfigured) {
         logger.warn("Skipping transferPropertyOwnership: contract not configured (set CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_PRIVATE_KEY)");
       } else if (isTransfer && (!sellerUsername || !buyerUsername)) {
         logger.warn({ sellerUsername, buyerUsername }, "Skipping transferPropertyOwnership: missing seller or buyer username");
+      }
+      if (isTransfer && current?.seller_user_id && buyerUserId && current?.property_id && game_id) {
+        incrementPropertiesSold(current.seller_user_id).catch(() => {});
+        recordPropertyPurchase(buyerUserId, current.property_id, game_id, "trade").catch(() => {});
       }
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
@@ -207,6 +218,20 @@ const gamePropertyController = {
       });
 
       await trx.commit();
+
+      // Stats: record property purchase (bank)
+      recordPropertyPurchase(user_id, property_id, game.id, "bank").catch(() => {});
+
+      // On-chain: call transferPropertyOwnership using env (seller=Bank, buyer=player). Contract must have "Bank" registered for this to succeed.
+      if (isContractConfigured()) {
+        const buyerUsername = (await db("users").where({ id: player.user_id }).select("username").first())?.username ?? null;
+        if (buyerUsername) {
+          transferPropertyOwnership("Bank", buyerUsername).catch((err) => {
+            logger.warn({ err, buyerUsername }, "Tycoon transferPropertyOwnership failed (buy from bank)");
+          });
+        }
+      }
+
       return res.json({ success: true, message: "successful", data: null });
     } catch (error) {
       await trx.rollback();
