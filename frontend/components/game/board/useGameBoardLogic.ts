@@ -121,7 +121,7 @@ export function useGameBoardLogic({
       } catch (err) {
         console.error("Sync failed:", err);
       }
-    }, 2000);
+    }, 8000);
     return () => clearInterval(interval);
   }, [game.code]);
 
