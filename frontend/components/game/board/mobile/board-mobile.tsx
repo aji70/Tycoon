@@ -25,6 +25,7 @@ import DiceAnimation from "./dice-animation";
 import GameLog from "./game-log";
 import GameModals from "./game-modals";
 import TradeAlertPill from "../../TradeAlertPill";
+import PlayerStatus from "./player-status";
 import BoardPropertyDetailModal from "./BoardPropertyDetailModal";
 import BoardPerksModal from "./BoardPerksModal";
 import MyBalanceBar from "../../ai-board/mobile/MyBalanceBar";
@@ -1069,8 +1070,9 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      {/* Trade notification bell only — PlayerStatus removed to avoid blocking top of board */}
-      <div className="w-full max-w-2xl mx-auto px-4 mt-2 flex items-center justify-end gap-3 flex-shrink-0 min-h-[36px]">
+      {/* Player Status + Trade notification bell */}
+      <div className="w-full max-w-2xl mx-auto px-4 mt-4 flex items-center justify-between gap-3 flex-wrap flex-shrink-0 min-h-[44px]">
+        <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} compact />
         <TradeAlertPill
           incomingCount={myIncomingTrades.length}
           onViewTrades={onViewTrades}
@@ -1078,7 +1080,7 @@ const MobileGameLayout = ({
         />
       </div>
 
-      <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-2">
+      <div className="flex-1 w-full flex items-center justify-center overflow-hidden mt-4">
         <motion.div
           animate={{ scale: boardScale }}
           style={{ transformOrigin: boardTransformOrigin }}
