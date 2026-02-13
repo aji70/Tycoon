@@ -137,6 +137,7 @@ const gameController = {
         is_ai,
         duration,
         chain,
+        id: contractGameId,
       } = req.body;
       const user = await User.findByAddress(address);
       if (!user) {
@@ -144,8 +145,7 @@ const gameController = {
           .status(200)
           .json({ success: false, message: "User not found" });
       }
-      // check if code exist
-      // create game on contract : code, mode, address, no_of_players, status, players_joined
+      // create game (frontend sends on-chain game id as id for contract integration)
       const game = await Game.create({
         code,
         mode,
@@ -157,6 +157,7 @@ const gameController = {
         is_ai,
         duration,
         chain,
+        contract_game_id: contractGameId != null ? String(contractGameId) : null,
       });
 
       const chat = await Chat.create({
