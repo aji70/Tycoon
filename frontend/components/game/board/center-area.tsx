@@ -210,16 +210,16 @@ export default function CenterArea({
 
       {/* Multiplayer: "Player is playing" — inline like AI board, in place of Roll Dice when not my turn */}
       {!isMyTurn && (
-        <div className="mt-5 text-center z-10" aria-live="polite">
+        <div className="mt-5 text-center z-10 bg-transparent" aria-live="polite">
           <motion.h2
-            className="text-2xl font-bold text-cyan-300 mb-3"
+            className="text-2xl font-bold text-cyan-300 mb-3 bg-transparent"
             animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
           >
             {currentPlayer?.username ?? "Player"} is playing…
           </motion.h2>
-          <div className="flex justify-center mt-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400" />
+          <div className="flex justify-center mt-4 bg-transparent">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400 bg-transparent" />
           </div>
         </div>
       )}

@@ -65,6 +65,7 @@ export function useGameBoardLogic({
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
 
   const landedPositionThisTurn = useRef<number | null>(null);
+  const [landedPosition, setLandedPosition] = useState<number | null>(null);
   const turnEndInProgress = useRef(false);
   const lastToastMessage = useRef<string | null>(null);
   const recordTimeoutCalledForTurn = useRef<number | null>(null);
@@ -92,9 +93,9 @@ export function useGameBoardLogic({
   }, [currentPlayer?.position, properties]);
 
   const justLandedProperty = useMemo(() => {
-    if (landedPositionThisTurn.current === null) return null;
-    return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
-  }, [landedPositionThisTurn.current, properties]);
+    if (landedPosition == null) return null;
+    return properties.find((p) => p.id === landedPosition) ?? null;
+  }, [landedPosition, properties]);
 
   // Only the purple trade notification (toast.custom) is shown; all other toasts suppressed
   // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
@@ -128,6 +129,7 @@ export function useGameBoardLogic({
     setIsRolling(false);
     setPendingRoll(0);
     landedPositionThisTurn.current = null;
+    setLandedPosition(null);
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
     setAnimatedPositions({});
@@ -272,6 +274,7 @@ export function useGameBoardLogic({
       showToast(`You bought ${justLandedProperty.name}!`, "success");
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
+      setLandedPosition(null);
       if (!(roll?.die1 === roll?.die2)) {
         setTimeout(END_TURN, 800);
       }
@@ -284,6 +287,7 @@ export function useGameBoardLogic({
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
     landedPositionThisTurn.current = newPosition;
+    setLandedPosition(newPosition);
     setRoll({ die1: 0, die2: 0, total: 0 });
     setHasMovementFinished(true);
     setTimeout(() => {
@@ -301,6 +305,7 @@ export function useGameBoardLogic({
   const endTurnAfterSpecialMove = useCallback(() => {
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
+    setLandedPosition(null);
     setTimeout(END_TURN, 800);
   }, [END_TURN]);
 
@@ -373,6 +378,7 @@ export function useGameBoardLogic({
             is_double: true,
           });
           landedPositionThisTurn.current = newPos;
+          setLandedPosition(newPos);
           await fetchUpdatedGame();
           // Escaped jail — state visible
         } catch (err) {
@@ -412,6 +418,7 @@ export function useGameBoardLogic({
         }
       }
       landedPositionThisTurn.current = newPos;
+      setLandedPosition(newPos);
       setHasMovementFinished(true);
 
       try {
@@ -475,6 +482,7 @@ export function useGameBoardLogic({
     // Skipped — no toast
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
+    setLandedPosition(null);
     setTimeout(END_TURN, 900);
   }, [END_TURN, touchActivity]);
 
@@ -547,6 +555,7 @@ export function useGameBoardLogic({
       setShowBankruptcyModal(false);
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
+      setLandedPosition(null);
     }
   }, [me, game, justLandedProperty, game_properties, players, showToast, fetchUpdatedGame, END_TURN, exitHook.exit]);
 

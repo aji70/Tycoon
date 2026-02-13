@@ -1070,7 +1070,7 @@ const MobileGameLayout = ({
         Refresh
       </button>
 
-      <div className="w-full max-w-2xl mx-auto px-4 mt-2 mb-1 flex items-center justify-between gap-3 flex-shrink-0 min-h-[44px]">
+      <div className="w-full max-w-2xl mx-auto px-4 mt-2 mb-6 flex items-center justify-between gap-3 flex-shrink-0 min-h-[44px]">
         <PlayerStatus currentPlayer={currentPlayer} isAITurn={!isMyTurn} buyPrompted={buyPrompted} compact />
         <TradeAlertPill
           incomingCount={myIncomingTrades.length}
@@ -1094,7 +1094,7 @@ const MobileGameLayout = ({
             currentPlayerId={currentPlayerId}
             onPropertyClick={handlePropertyClick}
             centerContent={
-              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full">
+              <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact />
                 )}
@@ -1110,11 +1110,11 @@ const MobileGameLayout = ({
                   </div>
                 )}
                 {!isMyTurn && (
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-base font-bold text-cyan-300">
+                  <div className="flex flex-col items-center gap-2 bg-transparent">
+                    <span className="text-base font-bold text-cyan-300 bg-transparent">
                       {currentPlayer?.username ?? "Player"} is playing…
                     </span>
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400/50 border-t-cyan-400" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400/50 border-t-cyan-400 bg-transparent" />
                   </div>
                 )}
                 {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
