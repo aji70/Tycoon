@@ -14,8 +14,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import MobileGameLayout from "@/components/game/board/mobile/board-mobile";
-import { MessageCircle } from "lucide-react";
-
 const fetchMessageCount = async (gameId: string | number): Promise<unknown[]> => {
   const res = await apiClient.get<{ data?: unknown[] | { data?: unknown[] } }>(`/messages/game/${gameId}`);
   const payload = (res as { data?: { data?: unknown[] } })?.data;
@@ -172,8 +170,8 @@ export default function GamePlayPage() {
     if (!game) return null;
 
     return (
-      <main className="w-full h-[calc(100vh-180px)] flex flex-col overflow-hidden bg-[#010F10] mt-[180px]" >
-        <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`}>
+      <main className="w-full min-h-screen flex flex-col overflow-hidden bg-[#010F10]" >
+        <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} ${activeTab !== 'chat' ? 'pb-20' : ''}`}>
           {activeTab === 'board' && (
             <MobileGameLayout
               game={game}
@@ -201,22 +199,6 @@ export default function GamePlayPage() {
             <GameRoom game={game} me={me} isMobile />
           )}
         </div>
-
-        {/* Incoming messages notification bar — when not on Chat tab */}
-        {unreadCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setActiveTab("chat")}
-            className="fixed left-3 right-3 bottom-20 z-40 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl
-              bg-cyan-500/90 hover:bg-cyan-500 text-white font-semibold text-sm shadow-lg shadow-cyan-500/25
-              border border-cyan-400/40 backdrop-blur-sm active:scale-[0.98] transition-all"
-          >
-            <MessageCircle className="w-5 h-5 flex-shrink-0" />
-            <span>
-              {unreadCount === 1 ? "1 new message" : `${unreadCount} new messages`}
-            </span>
-          </button>
-        )}
 
         <nav className="fixed bottom-0 left-0 right-0 h-20 pb-safe bg-[#010F10]/95 backdrop-blur-xl border-t border-[#003B3E] flex items-center justify-around z-50 shadow-2xl">
           <button
