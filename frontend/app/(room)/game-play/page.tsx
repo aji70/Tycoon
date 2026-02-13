@@ -170,7 +170,7 @@ export default function GamePlayPage() {
     if (!game) return null;
 
     return (
-      <main className="w-full min-h-screen flex flex-col overflow-hidden bg-[#010F10]" >
+      <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10]" >
         <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} ${activeTab !== 'chat' ? 'pb-20' : ''}`}>
           {activeTab === 'board' && (
             <MobileGameLayout
