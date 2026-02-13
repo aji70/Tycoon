@@ -2,8 +2,9 @@
  * Tycoon contract interaction (Celo).
  * Requires BACKEND_GAME_CONTROLLER_PRIVATE_KEY to be set as game controller on the contract.
  * Used for: setTurnCount, removePlayerFromGame, transferPropertyOwnership.
+ * Creates fresh provider/wallet per call to avoid stale env and ensure Railway env is used.
  */
-import { JsonRpcProvider, Wallet, Contract } from "ethers";
+import { JsonRpcProvider, Wallet, Contract, Network } from "ethers";
 import { getCeloConfig } from "../config/celo.js";
 import logger from "../config/logger.js";
 
@@ -42,9 +43,9 @@ const TYCOON_ABI = [
   },
 ];
 
-let _provider = null;
-let _wallet = null;
-let _contract = null;
+// Celo chain IDs: 42220 mainnet, 44787 Alfajores testnet
+const CELO_MAINNET_CHAIN_ID = 42220;
+const CELO_ALFAJORES_CHAIN_ID = 44787;
 
 function getContract() {
   const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
@@ -53,12 +54,39 @@ function getContract() {
       "Tycoon contract not configured: set CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, and BACKEND_GAME_CONTROLLER_PRIVATE_KEY"
     );
   }
-  if (!_provider) {
-    _provider = new JsonRpcProvider(rpcUrl);
-    _wallet = new Wallet(privateKey, _provider);
-    _contract = new Contract(contractAddress, TYCOON_ABI, _wallet);
+  const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
+  const network = new Network("celo", Number(process.env.CELO_CHAIN_ID) || CELO_MAINNET_CHAIN_ID);
+  const provider = new JsonRpcProvider(rpcUrl, network);
+  const wallet = new Wallet(pk, provider);
+  const contract = new Contract(contractAddress, TYCOON_ABI, wallet);
+  return contract;
+}
+
+/** Test RPC connection and wallet; returns { ok, error } for debugging */
+export async function testContractConnection() {
+  try {
+    const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
+    if (!isConfigured) {
+      return { ok: false, error: "Env not configured (CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_PRIVATE_KEY)" };
+    }
+    const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
+    const network = new Network("celo", Number(process.env.CELO_CHAIN_ID) || CELO_MAINNET_CHAIN_ID);
+    const provider = new JsonRpcProvider(rpcUrl, network);
+    const blockNumber = await provider.getBlockNumber();
+    const wallet = new Wallet(pk, provider);
+    const address = await wallet.getAddress();
+    const balance = await provider.getBalance(address);
+    return {
+      ok: true,
+      blockNumber: Number(blockNumber),
+      walletAddress: address,
+      balance: balance.toString(),
+      contractAddress,
+    };
+  } catch (err) {
+    logger.warn({ err: err.message }, "testContractConnection failed");
+    return { ok: false, error: err.message };
   }
-  return _contract;
 }
 
 /**
