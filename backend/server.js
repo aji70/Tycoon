@@ -30,7 +30,6 @@ import logger from "./config/logger.js";
 import db from "./config/database.js";
 import redis from "./config/redis.js";
 import { getCeloConfig } from "./config/celo.js";
-import { authenticate } from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -162,22 +161,9 @@ app.get("/health", async (req, res) => {
   res.status(statusCode).json(health);
 });
 
-// Test endpoint: expose RPC URL and PK (redacted). Owner-only via CONFIG_TEST_OWNER_ADDRESS(ES) in Railway.
-app.get("/api/config/test", authenticate, (req, res) => {
-  const allowlist = (
-    process.env.CONFIG_TEST_OWNER_ADDRESSES || process.env.CONFIG_TEST_OWNER_ADDRESS || ""
-  )
-    .split(",")
-    .map((a) => a.trim().toLowerCase())
-    .filter(Boolean);
-  if (allowlist.length === 0) {
-    return res.status(503).json({ error: "Config test owner not configured (set CONFIG_TEST_OWNER_ADDRESS in Railway)" });
-  }
-  const userAddress = (req.user?.address || "").toLowerCase();
-  if (!userAddress || !allowlist.includes(userAddress)) {
-    return res.status(403).json({ error: "Only the configured owner can view config test" });
-  }
-  const { rpcUrl, privateKey, isConfigured } = getCeloConfig();
+// Test endpoint: expose Celo env vars for frontend display (read from backend).
+app.get("/api/config/test", (req, res) => {
+  const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
   const fullPk = req.query.full === "1" && process.env.NODE_ENV === "development";
   let pkDisplay = null;
   if (privateKey) {
@@ -189,8 +175,9 @@ app.get("/api/config/test", authenticate, (req, res) => {
     }
   }
   res.json({
-    rpcUrl: rpcUrl || null,
-    pk: pkDisplay,
+    CELO_RPC_URL: rpcUrl || null,
+    TYCOON_CELO_CONTRACT_ADDRESS: contractAddress || null,
+    BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay,
     isConfigured: !!isConfigured,
   });
 });
