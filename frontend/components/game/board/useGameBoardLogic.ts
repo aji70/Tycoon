@@ -63,6 +63,8 @@ export function useGameBoardLogic({
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
+  /** When set, show popup "X timed out. Vote them out?" (set after record-timeout succeeds) */
+  const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const [landedPosition, setLandedPosition] = useState<number | null>(null);
@@ -218,13 +220,17 @@ export function useGameBoardLogic({
             recordTimeoutCalledForTurn.current !== turnStartSec
           ) {
             recordTimeoutCalledForTurn.current = turnStartSec;
+            const timedOutPlayer = currentPlayer;
             apiClient
               .post<ApiResponse>("/game-players/record-timeout", {
                 game_id: game.id,
                 user_id: me.user_id,
                 target_user_id: currentPlayer.user_id,
               })
-              .then(() => fetchUpdatedGame())
+              .then(() => {
+                fetchUpdatedGame();
+                if (timedOutPlayer) setTimeoutPopupPlayer(timedOutPlayer);
+              })
               .catch((err) => console.warn("record-timeout failed:", err));
           }
         }
@@ -772,5 +778,7 @@ export function useGameBoardLogic({
     votingLoading,
     fetchVoteStatus,
     touchActivity,
+    timeoutPopupPlayer,
+    dismissTimeoutPopup: () => setTimeoutPopupPlayer(null),
   };
 }

@@ -93,6 +93,9 @@ const MobileGameLayout = ({
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
+  const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
+  const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
+  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
 
   const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
@@ -207,6 +210,80 @@ const MobileGameLayout = ({
     }
   }, [game.code, game.id, refreshTrades]);
 
+  const touchActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  const fetchVoteStatus = useCallback(
+    async (targetUserId: number) => {
+      if (!currentGame?.id) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-status", {
+          game_id: currentGame.id,
+          target_user_id: targetUserId,
+        });
+        const data = res?.data?.data;
+        if (res?.data?.success && data) {
+          setVoteStatuses((prev) => ({ ...prev, [targetUserId]: data }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch vote status:", err);
+      }
+    },
+    [currentGame?.id]
+  );
+
+  const voteToRemove = useCallback(
+    async (targetUserId: number) => {
+      touchActivity();
+      if (!me?.user_id || !currentGame?.id) return;
+      setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-to-remove", {
+          game_id: currentGame.id,
+          user_id: me.user_id,
+          target_user_id: targetUserId,
+        });
+        if (res?.data?.success) {
+          const data = res.data.data;
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: {
+              vote_count: data.vote_count,
+              required_votes: data.required_votes,
+              voters: [],
+            },
+          }));
+          if (data.removed) {
+            showToast(players.find((p) => p.user_id === targetUserId)?.username + " has been removed", "success");
+            await fetchUpdatedGame();
+          } else {
+            await fetchVoteStatus(targetUserId);
+          }
+        }
+      } catch (err: unknown) {
+        toast.error(getContractErrorMessage(err as Error, "Failed to vote"));
+      } finally {
+        setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
+      }
+    },
+    [currentGame?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, showToast, touchActivity]
+  );
+
+  useEffect(() => {
+    if (!currentGame?.id || !me?.user_id) return;
+    const otherPlayers = players.filter((p) => p.user_id !== me.user_id);
+    const voteable = players.filter((p) => {
+      if (p.user_id === me.user_id) return false;
+      const strikes = p.consecutive_timeouts ?? 0;
+      if (otherPlayers.length === 1) return strikes >= 3;
+      const isCurrentPlayer = p.user_id === currentPlayerId;
+      const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
+      return strikes > 0 || (isCurrentPlayer && timeElapsed);
+    });
+    voteable.forEach((p) => fetchVoteStatus(p.user_id));
+  }, [currentGame?.id, me?.user_id, players, currentPlayerId, turnTimeLeft, fetchVoteStatus]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isRolling) {
@@ -262,6 +339,7 @@ const MobileGameLayout = ({
     turnEndInProgress.current = false;
     lastToastMessage.current = null;
     recordTimeoutCalledForTurn.current = null;
+    setTimeoutPopupPlayer(null);
     setAnimatedPositions({});
     setHasMovementFinished(false);
     setIsRaisingFunds(false);
@@ -269,10 +347,6 @@ const MobileGameLayout = ({
     timeLeftFrozenAtRollRef.current = null;
     lastActivityRef.current = Date.now();
   }, [currentPlayerId]);
-
-  const touchActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-  }, []);
 
   // Keep board at scale 1 so full board always fits on screen (no zoom-in that cuts off half)
   useEffect(() => {
@@ -338,13 +412,17 @@ const MobileGameLayout = ({
             recordTimeoutCalledForTurn.current !== turnStartSec
           ) {
             recordTimeoutCalledForTurn.current = turnStartSec;
+            const timedOutPlayer = currentPlayer;
             apiClient
               .post<ApiResponse>("/game-players/record-timeout", {
                 game_id: currentGame.id,
                 user_id: me.user_id,
                 target_user_id: currentPlayer.user_id,
               })
-              .then(() => fetchUpdatedGame())
+              .then(() => {
+                fetchUpdatedGame();
+                if (timedOutPlayer) setTimeoutPopupPlayer(timedOutPlayer);
+              })
               .catch((err) => console.warn("record-timeout failed:", err));
           }
         }
@@ -939,8 +1017,72 @@ const MobileGameLayout = ({
   const hasNegativeBalance = (me?.balance ?? 0) <= 0;
   const isSoloPlayer = players.length === 1 && players[0].user_id === me?.user_id;
 
+  const voteablePlayersList = useMemo(() => {
+    const otherPlayers = players.filter((p) => p.user_id !== me?.user_id);
+    return players.filter((p) => {
+      if (p.user_id === me?.user_id) return false;
+      const strikes = p.consecutive_timeouts ?? 0;
+      if (otherPlayers.length === 1) return strikes >= 3;
+      const isCurrentPlayer = p.user_id === currentPlayerId;
+      const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
+      return strikes > 0 || (isCurrentPlayer && timeElapsed);
+    });
+  }, [players, me?.user_id, currentPlayerId, turnTimeLeft]);
+
+  const canVoteOutTimeoutPlayer = timeoutPopupPlayer && voteablePlayersList.some((p) => p.user_id === timeoutPopupPlayer.user_id);
+
   return (
     <div className="w-full min-h-screen bg-[#010F10] text-white flex flex-col items-center justify-start relative overflow-x-hidden overflow-y-auto">
+      {/* Timeout popup: "X timed out. Vote them out?" */}
+      <AnimatePresence>
+        {timeoutPopupPlayer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setTimeoutPopupPlayer(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <p className="text-lg font-semibold text-cyan-100 mb-1">
+                {timeoutPopupPlayer.username} timed out
+              </p>
+              <p className="text-sm text-slate-400 mb-4">
+                {canVoteOutTimeoutPlayer
+                  ? "Do you want to vote them out?"
+                  : "You can vote them out after 3 timeouts (2-player game)."}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setTimeoutPopupPlayer(null)}
+                  className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
+                >
+                  Dismiss
+                </button>
+                {canVoteOutTimeoutPlayer && (
+                  <button
+                    onClick={() => {
+                      voteToRemove(timeoutPopupPlayer.user_id);
+                      setTimeoutPopupPlayer(null);
+                    }}
+                    disabled={votingLoading[timeoutPopupPlayer.user_id]}
+                    className="px-4 py-2 rounded-lg bg-cyan-700 text-cyan-100 hover:bg-cyan-600 transition disabled:opacity-60"
+                  >
+                    {votingLoading[timeoutPopupPlayer.user_id] ? "Voting..." : `Vote ${timeoutPopupPlayer.username} Out`}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
@@ -994,6 +1136,30 @@ const MobileGameLayout = ({
                       : isMyTurn
                         ? `Roll in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
                         : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to roll`}
+                  </div>
+                )}
+                {/* Vote to remove timed-out players */}
+                {voteablePlayersList.length > 0 && (
+                  <div className="flex flex-col gap-2 w-full max-w-[260px]">
+                    {voteablePlayersList.map((p) => {
+                      const status = voteStatuses[p.user_id];
+                      const isLoading = votingLoading[p.user_id];
+                      const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
+                      const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
+                      return (
+                        <div key={p.user_id} className="bg-slate-800/80 border border-cyan-500/40 rounded-lg p-2 flex justify-center">
+                          <button
+                            onClick={() => voteToRemove(p.user_id)}
+                            disabled={isLoading || hasVoted}
+                            className={`text-xs font-medium rounded-lg px-3 py-1.5 border shrink-0 ${
+                              hasVoted ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50" : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80"
+                            }`}
+                          >
+                            {hasVoted ? `✓ Voted${voteRatio}` : isLoading ? "..." : `Vote ${p.username} Out${voteRatio}`}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {!isMyTurn && (

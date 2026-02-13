@@ -102,48 +102,29 @@ export default function CenterArea({
       {voteablePlayers && voteablePlayers.length > 0 && onVoteToRemove && (
         <div className="flex flex-col items-center gap-3 mb-3 z-10 max-w-md">
           {voteablePlayers.map((p) => {
-            const strikes = p.consecutive_timeouts ?? 0;
-            const hasThreeStrikes = strikes >= 3;
             const status = voteStatuses[p.user_id];
             const isLoading = votingLoading[p.user_id];
             const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
+            const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
             
             return (
               <div
                 key={p.user_id}
-                className="w-full bg-red-950/60 border border-red-500/50 rounded-lg p-3 flex flex-col gap-2"
+                className="w-full bg-slate-800/80 border border-cyan-500/40 rounded-lg p-3 flex justify-center"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-red-300">
-                      {p.username}
-                      {strikes > 0 && ` (${strikes} timeout${strikes > 1 ? 's' : ''})`}
-                    </span>
-                    {status && (
-                      <span className="text-xs text-red-200/70">
-                        Votes: {status.vote_count}/{status.required_votes}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => onVoteToRemove(p.user_id)}
-                    disabled={isLoading || hasVoted}
-                    className={`text-xs font-medium rounded-lg px-4 py-2 border transition-all ${
-                      hasVoted
-                        ? "bg-green-900/60 text-green-200 border-green-500/50 cursor-not-allowed"
-                        : isLoading
-                        ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
-                        : "bg-red-900/80 text-red-200 border-red-500/50 hover:bg-red-800/80 hover:scale-105"
-                    }`}
-                  >
-                    {hasVoted ? "✓ Voted" : isLoading ? "Voting..." : `Vote ${p.username} Out`}
-                  </button>
-                </div>
-                {status && status.voters && status.voters.length > 0 && (
-                  <div className="text-xs text-red-200/50">
-                    Voted by: {status.voters.map((v) => v.username).join(", ")}
-                  </div>
-                )}
+                <button
+                  onClick={() => onVoteToRemove(p.user_id)}
+                  disabled={isLoading || hasVoted}
+                  className={`text-xs font-medium rounded-lg px-4 py-2 border transition-all ${
+                    hasVoted
+                      ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50 cursor-not-allowed"
+                      : isLoading
+                      ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
+                      : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80 hover:scale-105"
+                  }`}
+                >
+                  {hasVoted ? `✓ Voted${voteRatio}` : isLoading ? "Voting..." : `Vote ${p.username} Out${voteRatio}`}
+                </button>
               </div>
             );
           })}
