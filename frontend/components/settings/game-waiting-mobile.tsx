@@ -80,7 +80,7 @@ export default function GameWaitingMobile(): JSX.Element {
               onClick={handleGoHome}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              Return to Base
+              Return to Celo
             </button>
           </div>
         </div>
