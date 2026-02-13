@@ -64,11 +64,24 @@ export function getContractErrorMessage(
     return "Too many requests. Please wait a moment.";
   }
 
+  // Prefer backend message so we don't show generic "API request failed" when we have context
+  const backendMsg = e?.response?.data?.message ?? e?.response?.data?.error;
+  if (backendMsg && typeof backendMsg === "string") {
+    return backendMsg.slice(0, 140);
+  }
+
   // Use explicit message if available (truncate long messages)
-  const msg =
-    e?.shortMessage ?? e?.message ?? e?.response?.data?.message ?? "";
+  const msg = e?.shortMessage ?? e?.message ?? "";
   if (msg && typeof msg === "string") {
-    return msg.slice(0, 140);
+    const trimmed = msg.slice(0, 140);
+    // Don't surface generic API messages; use the caller's default (e.g. "Failed to vote")
+    if (
+      trimmed === "API request failed" ||
+      trimmed === "No response from server"
+    ) {
+      return defaultMessage;
+    }
+    return trimmed;
   }
 
   return defaultMessage;

@@ -2,9 +2,12 @@ import { ApiResponse } from "@/types/api";
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public data?: any) {
+  /** Axios response so getContractErrorMessage can read response.data.message */
+  response?: { status?: number; data?: { message?: string; error?: string } };
+  constructor(public status: number, message: string, public data?: any, response?: { status?: number; data?: any }) {
     super(message);
     this.name = "ApiError";
+    this.response = response ?? (data && { status, data });
   }
 }
 
@@ -36,11 +39,8 @@ class ApiClient {
       (error) => {
         if (error.response) {
           const { status, data } = error.response;
-          const apiError = new ApiError(
-            status,
-            data?.message || data?.error || "API request failed",
-            data
-          );
+          const message = data?.message || data?.error || "API request failed";
+          const apiError = new ApiError(status, message, data, error.response);
           return Promise.reject(apiError);
         } else if (error.request) {
           return Promise.reject(new ApiError(0, "No response from server"));
