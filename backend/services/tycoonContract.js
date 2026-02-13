@@ -79,6 +79,38 @@ const TYCOON_ABI = [
   ]}], stateMutability: "view" },
   { type: "function", name: "getPlayersInGame", inputs: [{ name: "gameId", type: "uint256", internalType: "uint256" }], outputs: [{ name: "", type: "address[]", internalType: "address[]" }], stateMutability: "view" },
   { type: "function", name: "getLastGameCode", inputs: [{ name: "user", type: "address", internalType: "address" }], outputs: [{ name: "", type: "string", internalType: "string" }], stateMutability: "view" },
+  { type: "function", name: "getGameSettings", inputs: [{ name: "gameId", type: "uint256", internalType: "uint256" }], outputs: [{ name: "", type: "tuple", internalType: "struct TycoonLib.GameSettings", components: [
+    { name: "maxPlayers", type: "uint8" }, { name: "auction", type: "bool" }, { name: "rentInPrison", type: "bool" }, { name: "mortgage", type: "bool" },
+    { name: "evenBuild", type: "bool" }, { name: "startingCash", type: "uint256" }, { name: "privateRoomCode", type: "string" }
+  ]}], stateMutability: "view" },
+  { type: "function", name: "TOKEN_REWARD", inputs: [], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "rewardSystem", inputs: [], outputs: [{ name: "", type: "address", internalType: "contract TycoonRewardSystem" }], stateMutability: "view" },
+  { type: "function", name: "houseUSDC", inputs: [], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "registered", inputs: [{ name: "", type: "address", internalType: "address" }], outputs: [{ name: "", type: "bool", internalType: "bool" }], stateMutability: "view" },
+  { type: "function", name: "addressToUsername", inputs: [{ name: "", type: "address", internalType: "address" }], outputs: [{ name: "", type: "string", internalType: "string" }], stateMutability: "view" },
+  { type: "function", name: "turnsPlayed", inputs: [{ name: "", type: "uint256" }, { name: "", type: "address" }], outputs: [{ name: "", type: "uint256", internalType: "uint256" }], stateMutability: "view" },
+  // Write functions
+  { type: "function", name: "createGame", inputs: [
+    { name: "creatorUsername", type: "string" }, { name: "gameType", type: "string" }, { name: "playerSymbol", type: "string" },
+    { name: "numberOfPlayers", type: "uint8" }, { name: "code", type: "string" }, { name: "startingBalance", type: "uint256" }, { name: "stakeAmount", type: "uint256" }
+  ], outputs: [{ name: "gameId", type: "uint256" }], stateMutability: "nonpayable" },
+  { type: "function", name: "createAIGame", inputs: [
+    { name: "creatorUsername", type: "string" }, { name: "gameType", type: "string" }, { name: "playerSymbol", type: "string" },
+    { name: "numberOfAI", type: "uint8" }, { name: "code", type: "string" }, { name: "startingBalance", type: "uint256" }
+  ], outputs: [{ name: "gameId", type: "uint256" }], stateMutability: "nonpayable" },
+  { type: "function", name: "joinGame", inputs: [
+    { name: "gameId", type: "uint256" }, { name: "playerUsername", type: "string" }, { name: "playerSymbol", type: "string" }, { name: "joinCode", type: "string" }
+  ], outputs: [{ name: "order", type: "uint8" }], stateMutability: "nonpayable" },
+  { type: "function", name: "leavePendingGame", inputs: [{ name: "gameId", type: "uint256" }], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" },
+  { type: "function", name: "exitGame", inputs: [{ name: "gameId", type: "uint256" }], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" },
+  { type: "function", name: "endAIGame", inputs: [
+    { name: "gameId", type: "uint256" }, { name: "finalPosition", type: "uint8" }, { name: "finalBalance", type: "uint256" }, { name: "isWin", type: "bool" }
+  ], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" },
+  { type: "function", name: "setBackendGameController", inputs: [{ name: "newController", type: "address" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "setMinTurnsForPerks", inputs: [{ name: "newMin", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "setMinStake", inputs: [{ name: "newMinStake", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "withdrawHouse", inputs: [{ name: "amount", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "drainContract", inputs: [], outputs: [], stateMutability: "nonpayable" },
 ];
 
 // Celo chain IDs: 42220 mainnet, 44787 Alfajores testnet
@@ -219,12 +251,19 @@ const ALLOWED_READ_FNS = [
   "minTurnsForPerks",
   "totalGames",
   "totalUsers",
+  "TOKEN_REWARD",
+  "rewardSystem",
+  "houseUSDC",
   "getUser",
   "getGame",
   "getGameByCode",
   "getGamePlayer",
   "getPlayersInGame",
   "getLastGameCode",
+  "getGameSettings",
+  "registered",
+  "addressToUsername",
+  "turnsPlayed",
 ];
 
 const ALLOWED_WRITE_FNS = [
@@ -232,6 +271,17 @@ const ALLOWED_WRITE_FNS = [
   "transferPropertyOwnership",
   "setTurnCount",
   "removePlayerFromGame",
+  "createGame",
+  "createAIGame",
+  "joinGame",
+  "leavePendingGame",
+  "exitGame",
+  "endAIGame",
+  "setBackendGameController",
+  "setMinTurnsForPerks",
+  "setMinStake",
+  "withdrawHouse",
+  "drainContract",
 ];
 
 /**
@@ -261,6 +311,9 @@ export async function callContractRead(fn, params = []) {
     case "minTurnsForPerks":
     case "totalGames":
     case "totalUsers":
+    case "TOKEN_REWARD":
+    case "rewardSystem":
+    case "houseUSDC":
       result = await tycoon[fn]();
       break;
     case "getUser":
@@ -280,6 +333,18 @@ export async function callContractRead(fn, params = []) {
       break;
     case "getLastGameCode":
       result = await tycoon.getLastGameCode(normalized[0] ?? "0x0");
+      break;
+    case "getGameSettings":
+      result = await tycoon.getGameSettings(normalized[0] ?? 0n);
+      break;
+    case "registered":
+      result = await tycoon.registered(normalized[0] ?? "0x0");
+      break;
+    case "addressToUsername":
+      result = await tycoon.addressToUsername(normalized[0] ?? "0x0");
+      break;
+    case "turnsPlayed":
+      result = await tycoon.turnsPlayed(normalized[0] ?? 0n, normalized[1] ?? "0x0");
       break;
     default:
       throw new Error(`Unhandled read function: ${fn}`);
@@ -324,6 +389,8 @@ export async function callContractWrite(fn, params = []) {
   const tycoon = getContract();
 
   const normalized = params.map((p) => {
+    if (p === true || p === false) return p;
+    if (typeof p === "string" && (p === "true" || p === "false")) return p === "true";
     if (typeof p === "number" || (typeof p === "string" && /^\d+$/.test(String(p))))
       return BigInt(p);
     return p ?? "";
@@ -342,6 +409,64 @@ export async function callContractWrite(fn, params = []) {
       break;
     case "removePlayerFromGame":
       tx = await tycoon.removePlayerFromGame(normalized[0] ?? 0n, normalized[1] ?? "0x0", normalized[2] ?? 0n);
+      break;
+    case "createGame":
+      tx = await tycoon.createGame(
+        normalized[0] ?? "",
+        normalized[1] ?? "PUBLIC",
+        normalized[2] ?? "hat",
+        Number(normalized[3] ?? 2),
+        normalized[4] ?? "",
+        normalized[5] ?? 1500n,
+        normalized[6] ?? 0n
+      );
+      break;
+    case "createAIGame":
+      tx = await tycoon.createAIGame(
+        normalized[0] ?? "",
+        normalized[1] ?? "PUBLIC",
+        normalized[2] ?? "hat",
+        Number(normalized[3] ?? 1),
+        normalized[4] ?? "",
+        normalized[5] ?? 1500n
+      );
+      break;
+    case "joinGame":
+      tx = await tycoon.joinGame(
+        normalized[0] ?? 0n,
+        normalized[1] ?? "",
+        normalized[2] ?? "car",
+        normalized[3] ?? ""
+      );
+      break;
+    case "leavePendingGame":
+      tx = await tycoon.leavePendingGame(normalized[0] ?? 0n);
+      break;
+    case "exitGame":
+      tx = await tycoon.exitGame(normalized[0] ?? 0n);
+      break;
+    case "endAIGame":
+      tx = await tycoon.endAIGame(
+        normalized[0] ?? 0n,
+        Number(normalized[1] ?? 1),
+        normalized[2] ?? 0n,
+        Boolean(normalized[3])
+      );
+      break;
+    case "setBackendGameController":
+      tx = await tycoon.setBackendGameController(normalized[0] ?? "0x0");
+      break;
+    case "setMinTurnsForPerks":
+      tx = await tycoon.setMinTurnsForPerks(normalized[0] ?? 0n);
+      break;
+    case "setMinStake":
+      tx = await tycoon.setMinStake(normalized[0] ?? 0n);
+      break;
+    case "withdrawHouse":
+      tx = await tycoon.withdrawHouse(normalized[0] ?? 0n);
+      break;
+    case "drainContract":
+      tx = await tycoon.drainContract();
       break;
     default:
       throw new Error(`Unhandled write function: ${fn}`);

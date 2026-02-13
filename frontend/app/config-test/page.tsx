@@ -12,7 +12,7 @@ type ConfigTest = {
 
 type ReadFnSpec = {
   fn: string;
-  params: { name: string; placeholder: string; type: "string" | "number" | "address" }[];
+  params: { name: string; placeholder: string; type: "string" | "number" | "address" | "boolean" }[];
 };
 
 const READ_FUNCTIONS: ReadFnSpec[] = [
@@ -22,19 +22,62 @@ const READ_FUNCTIONS: ReadFnSpec[] = [
   { fn: "minTurnsForPerks", params: [] },
   { fn: "totalGames", params: [] },
   { fn: "totalUsers", params: [] },
+  { fn: "TOKEN_REWARD", params: [] },
+  { fn: "rewardSystem", params: [] },
+  { fn: "houseUSDC", params: [] },
   { fn: "getUser", params: [{ name: "username", placeholder: "e.g. alice", type: "string" }] },
   { fn: "getGame", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
   { fn: "getGameByCode", params: [{ name: "code", placeholder: "e.g. ABC123", type: "string" }] },
   { fn: "getGamePlayer", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }] },
   { fn: "getPlayersInGame", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
   { fn: "getLastGameCode", params: [{ name: "user", placeholder: "0x...", type: "address" }] },
+  { fn: "getGameSettings", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
+  { fn: "registered", params: [{ name: "address", placeholder: "0x...", type: "address" }] },
+  { fn: "addressToUsername", params: [{ name: "address", placeholder: "0x...", type: "address" }] },
+  { fn: "turnsPlayed", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }] },
 ];
 
 const WRITE_FUNCTIONS: ReadFnSpec[] = [
-  { fn: "registerPlayer", params: [{ name: "backend", placeholder: "e.g. testuser", type: "string" }] },
+  { fn: "registerPlayer", params: [{ name: "username", placeholder: "e.g. testuser", type: "string" }] },
   { fn: "transferPropertyOwnership", params: [{ name: "sellerUsername", placeholder: "seller", type: "string" }, { name: "buyerUsername", placeholder: "buyer", type: "string" }] },
   { fn: "setTurnCount", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }, { name: "count", placeholder: "20", type: "number" }] },
   { fn: "removePlayerFromGame", params: [{ name: "gameId", placeholder: "1", type: "number" }, { name: "player", placeholder: "0x...", type: "address" }, { name: "turnCount", placeholder: "5", type: "number" }] },
+  { fn: "createGame", params: [
+    { name: "creatorUsername", placeholder: "alice", type: "string" },
+    { name: "gameType", placeholder: "PUBLIC or PRIVATE", type: "string" },
+    { name: "playerSymbol", placeholder: "hat, car, dog...", type: "string" },
+    { name: "numberOfPlayers", placeholder: "2-8", type: "number" },
+    { name: "code", placeholder: "ABC123", type: "string" },
+    { name: "startingBalance", placeholder: "1500", type: "number" },
+    { name: "stakeAmount", placeholder: "0", type: "number" },
+  ]},
+  { fn: "createAIGame", params: [
+    { name: "creatorUsername", placeholder: "alice", type: "string" },
+    { name: "gameType", placeholder: "PUBLIC", type: "string" },
+    { name: "playerSymbol", placeholder: "hat", type: "string" },
+    { name: "numberOfAI", placeholder: "1-7", type: "number" },
+    { name: "code", placeholder: "AI1", type: "string" },
+    { name: "startingBalance", placeholder: "1500", type: "number" },
+  ]},
+  { fn: "joinGame", params: [
+    { name: "gameId", placeholder: "1", type: "number" },
+    { name: "playerUsername", placeholder: "bob", type: "string" },
+    { name: "playerSymbol", placeholder: "car", type: "string" },
+    { name: "joinCode", placeholder: "ABC123", type: "string" },
+  ]},
+  { fn: "leavePendingGame", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
+  { fn: "exitGame", params: [{ name: "gameId", placeholder: "1", type: "number" }] },
+  { fn: "endAIGame", params: [
+    { name: "gameId", placeholder: "1", type: "number" },
+    { name: "finalPosition", placeholder: "1=win", type: "number" },
+    { name: "finalBalance", placeholder: "1500", type: "number" },
+    { name: "isWin", placeholder: "true/false", type: "boolean" },
+  ]},
+  { fn: "setBackendGameController", params: [{ name: "newController", placeholder: "0x...", type: "address" }] },
+  { fn: "setMinTurnsForPerks", params: [{ name: "newMin", placeholder: "20", type: "number" }] },
+  { fn: "setMinStake", params: [{ name: "newMinStake", placeholder: "0", type: "number" }] },
+  { fn: "withdrawHouse", params: [{ name: "amount", placeholder: "0", type: "number" }] },
+  { fn: "drainContract", params: [] },
 ];
 
 export default function ConfigTestPage() {
@@ -73,7 +116,9 @@ export default function ConfigTestPage() {
     setCallResult(null);
     const vals = params.map((p) => {
       const v = (paramValues[fn] ?? {})[p.name] ?? "";
-      return p.type === "number" ? (v ? Number(v) : 0) : v;
+      if (p.type === "number") return v ? Number(v) : 0;
+      if (p.type === "boolean") return v === "true" || v === "1";
+      return v;
     });
     try {
       const res = await apiClient.post<{ success: boolean; result?: unknown; error?: string }>("config/call-contract", { fn, params: vals, write });
