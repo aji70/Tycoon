@@ -11,7 +11,7 @@ export function getContractErrorMessage(
     message?: string;
     shortMessage?: string;
     cause?: { name?: string };
-    response?: { status?: number; data?: { message?: string } };
+    response?: { status?: number; data?: { message?: string; error?: string } };
   };
 
   // User rejected / cancelled (wagmi/viem 4001)
