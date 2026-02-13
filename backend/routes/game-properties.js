@@ -6,6 +6,7 @@ const router = Router();
 // CRUD
 router.post("/", gamePropertyController.create);
 router.post("/buy", gamePropertyController.buy);
+router.post("/sell", gamePropertyController.sell);
 router.post("/development", gamePropertyController.development);
 router.post("/downgrade", gamePropertyController.downgrade);
 router.post("/mortgage", gamePropertyController.mortgage);
