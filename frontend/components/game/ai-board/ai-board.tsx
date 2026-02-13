@@ -554,7 +554,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
             const prop = properties.find(p => p.id === id)!;
             const ownerName = gp?.address
               ? players.find(p => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username || gp.address.slice(0, 8)
-              : "Bank";
+              : "GameController";
             return {
               id,
               name: prop.name,
@@ -979,7 +979,8 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
   const propertyOwner = (id: number) => {
     const gp = game_properties.find((gp) => gp.property_id === id);
-    return gp ? players.find((p) => p.address === gp.address)?.username || null : null;
+    if (!gp) return "GameController"; // Bank-owned (unowned) → display as GameController on AI board
+    return players.find((p) => p.address === gp.address)?.username || null;
   };
 
   const developmentStage = (id: number) =>

@@ -131,7 +131,7 @@ const PropertyCardMobile: React.FC<PropertyCardMobileProps> = ({
       >
         {mortgaged
           ? "MORTGAGED"
-          : owner || "BANK"}
+          : owner || "GameController"}
       </div>
 
       {/* Development indicator (houses/hotel) */}

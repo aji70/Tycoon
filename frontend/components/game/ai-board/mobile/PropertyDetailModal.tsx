@@ -89,7 +89,7 @@ export default function PropertyDetailModal({
                           p.address?.toLowerCase() ===
                           gameProperty.address?.toLowerCase()
                       )?.username || "Player"
-                    : "Bank"}
+                    : "GameController"}
                 </span>
               </div>
               {gameProperty?.development != null &&
