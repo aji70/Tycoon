@@ -259,7 +259,7 @@ export default function GamePlayPage() {
   }
 
   return game && !propertiesLoading && !gamePropertiesLoading ? (
-    <main className="w-full h-screen max-h-screen overflow-hidden relative flex flex-row lg:gap-2">
+    <main className="w-full h-screen max-h-screen overflow-hidden relative flex flex-row lg:gap-2 lg:[gap:28px]">
       <GamePlayers
         game={game}
         properties={properties}
