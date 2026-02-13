@@ -17,7 +17,6 @@ import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 const HeroSection: React.FC = () => {
   const router = useRouter();
@@ -66,7 +65,7 @@ const HeroSection: React.FC = () => {
     const fetchUser = async () => {
       try {
         const res = await apiClient.get<ApiResponse>(
-          `/users/by-address/${address}?chain=Celo`
+          `/users/by-address/${address}?chain=Base`
         );
 
         if (!isActive) return;
@@ -149,7 +148,7 @@ const HeroSection: React.FC = () => {
         const res = await apiClient.post<ApiResponse>("/users", {
           username: finalUsername,
           address,
-          chain: "Celo",
+          chain: "Base",
         });
 
         if (!res?.success) throw new Error("Failed to save user on backend");
@@ -169,13 +168,29 @@ const HeroSection: React.FC = () => {
 
       router.refresh();
     } catch (err: any) {
-      const message = getContractErrorMessage(err, "Registration failed. Try again.");
-      const isCancelled = message === "You cancelled the transaction.";
+      if (
+        err?.code === 4001 ||
+        err?.message?.includes("User rejected") ||
+        err?.message?.includes("User denied")
+      ) {
+        toast.update(toastId, {
+          render: "Transaction cancelled",
+          type: "info",
+          isLoading: false,
+          autoClose: 3500,
+        });
+        return;
+      }
+
+      let message = "Registration failed. Try again.";
+      if (err?.shortMessage) message = err.shortMessage;
+      if (err?.message?.includes("insufficient funds")) message = "Insufficient gas funds";
+
       toast.update(toastId, {
         render: message,
-        type: isCancelled ? "info" : "error",
+        type: "error",
         isLoading: false,
-        autoClose: isCancelled ? 3500 : 6000,
+        autoClose: 6000,
       });
     } finally {
       setLoading(false);
