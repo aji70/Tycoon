@@ -65,6 +65,8 @@ export function useGameBoardLogic({
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   /** When set, show popup "X timed out. Vote them out?" (set after record-timeout succeeds) */
   const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
+  /** When true, current user was voted out — show "Go home" / "Continue watching" */
+  const [showVotedOutModal, setShowVotedOutModal] = useState(false);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const [landedPosition, setLandedPosition] = useState<number | null>(null);
@@ -698,7 +700,7 @@ export function useGameBoardLogic({
     if (!game?.id || !game?.code) return;
     const handleVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
       if (data.removed) {
-        // Player was removed, refetch game
+        if (data.target_user_id === me?.user_id) setShowVotedOutModal(true);
         fetchUpdatedGame();
         onGameUpdated?.();
       } else {
@@ -719,7 +721,7 @@ export function useGameBoardLogic({
     return () => {
       socketService.removeListener("vote-cast", handleVoteCast);
     };
-  }, [game?.id, game?.code, fetchUpdatedGame, fetchVoteStatus, onGameUpdated]);
+  }, [game?.id, game?.code, me?.user_id, fetchUpdatedGame, fetchVoteStatus, onGameUpdated]);
 
   return {
     players,
@@ -776,5 +778,7 @@ export function useGameBoardLogic({
     touchActivity,
     timeoutPopupPlayer,
     dismissTimeoutPopup: () => setTimeoutPopupPlayer(null),
+    showVotedOutModal,
+    setShowVotedOutModal,
   };
 }

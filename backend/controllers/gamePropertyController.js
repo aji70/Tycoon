@@ -1,5 +1,7 @@
 import db from "../config/database.js";
 import GameProperty from "../models/GameProperty.js";
+import { transferPropertyOwnership, isContractConfigured } from "../services/tycoonContract.js";
+import logger from "../config/logger.js";
 
 const gamePropertyController = {
   async create(req, res) {
@@ -57,8 +59,53 @@ const gamePropertyController = {
 
   async update(req, res) {
     try {
-      const property = await GameProperty.update(req.params.id, req.body);
+      const { game_id, player_id: newPlayerId } = req.body;
+      const idParam = req.params.id;
+
+      // Resolve the game_property row: frontend may send property_id (board 1–40) with game_id, or gp.id
+      let current = null;
+      if (game_id && idParam) {
+        const byGameAndProperty = await db("game_properties as gp")
+          .join("game_players as p", "gp.player_id", "p.id")
+          .join("users as u", "p.user_id", "u.id")
+          .where("gp.game_id", game_id)
+          .where("gp.property_id", idParam)
+          .select("gp.id", "gp.player_id", "u.username as seller_username")
+          .first();
+        if (byGameAndProperty) current = { id: byGameAndProperty.id, player_id: byGameAndProperty.player_id, seller_username: byGameAndProperty.seller_username };
+      }
+      if (!current) {
+        const byId = await db("game_properties as gp")
+          .join("game_players as p", "gp.player_id", "p.id")
+          .join("users as u", "p.user_id", "u.id")
+          .where("gp.id", idParam)
+          .select("gp.id", "gp.player_id", "u.username as seller_username")
+          .first();
+        if (byId) current = { id: byId.id, player_id: byId.player_id, seller_username: byId.seller_username };
+      }
+
+      const isTransfer = current && newPlayerId != null && Number(current.player_id) !== Number(newPlayerId);
+      let sellerUsername = current?.seller_username ?? null;
+      let buyerUsername = null;
+      if (isTransfer && newPlayerId) {
+        const buyer = await db("game_players as p")
+          .join("users as u", "p.user_id", "u.id")
+          .where("p.id", newPlayerId)
+          .select("u.username")
+          .first();
+        buyerUsername = buyer?.username ?? null;
+      }
+
+      const property = await GameProperty.update(current ? current.id : idParam, req.body);
       res.json({ success: true, message: "successful", data: property });
+
+      // On-chain: update stats when ownership transferred (P2P sale)
+      if (isTransfer && sellerUsername && buyerUsername && isContractConfigured()) {
+        logger.info({ sellerUsername, buyerUsername }, "Calling transferPropertyOwnership(seller, buyer)");
+        transferPropertyOwnership(sellerUsername, buyerUsername).catch((err) => {
+          logger.warn({ err, sellerUsername, buyerUsername }, "Tycoon transferPropertyOwnership failed");
+        });
+      }
     } catch (error) {
       res.status(400).json({ success: false, message: error.message });
     }
