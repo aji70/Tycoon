@@ -110,7 +110,7 @@ export default function CenterArea({
             return (
               <div
                 key={p.user_id}
-                className="w-full bg-slate-800/80 border border-cyan-500/40 rounded-lg p-3 flex justify-center"
+                className="w-full flex justify-center"
               >
                 <button
                   onClick={() => onVoteToRemove(p.user_id)}

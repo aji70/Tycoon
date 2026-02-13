@@ -1147,7 +1147,7 @@ const MobileGameLayout = ({
                       const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
                       const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
                       return (
-                        <div key={p.user_id} className="bg-slate-800/80 border border-cyan-500/40 rounded-lg p-2 flex justify-center">
+                        <div key={p.user_id} className="flex justify-center">
                           <button
                             onClick={() => voteToRemove(p.user_id)}
                             disabled={isLoading || hasVoted}
