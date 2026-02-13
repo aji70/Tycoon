@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useGetGameByCode, useExitGame, useTransferPropertyOwnership } from "@/context/ContractProvider";
+import { useGetGameByCode, useExitGame } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import {
@@ -89,7 +89,6 @@ const MobileGameLayout = ({
   const [cardPlayerName, setCardPlayerName] = useState("");
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
-  const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
@@ -480,7 +479,6 @@ const MobileGameLayout = ({
     }
 
     try {
-      await transferOwnership('', buyerUsername);
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: currentGame.id,

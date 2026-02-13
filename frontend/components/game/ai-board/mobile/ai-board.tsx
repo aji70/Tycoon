@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useEndAIGameAndClaim, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { isAIPlayer } from "@/utils/gameUtils";
@@ -111,7 +111,6 @@ const MobileGameLayout = ({
   const prevIncomingTradeCount = useRef(0);
   const tradeToastShownThisTurn = useRef(false);
   const lastTurnForTradeToast = useRef<number | null>(null);
-   const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
 
   const {
     tradeRequests = [],
@@ -402,14 +401,7 @@ const endTime =
   }
 
     try {
-       // Show loading state
-    showToast("Sending transaction...", "default");
-
-    // 1. On-chain minimal proof (counters update) - skip if AI is involved
-    if (isMyTurn) {
-      await transferOwnership('', buyerUsername);
-    }
-
+      showToast("Sending transaction...", "default");
       await apiClient.post("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: currentGame.id,

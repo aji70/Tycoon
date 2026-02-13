@@ -12,7 +12,7 @@ import {
 import { ApiResponse } from "@/types/api";
 import { apiClient } from "@/lib/api";
 import { socketService } from "@/lib/socket";
-import { useExitGame, useGetGameByCode, useTransferPropertyOwnership } from "@/context/ContractProvider";
+import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
 import {
   BOARD_SQUARES,
   ROLL_ANIMATION_MS,
@@ -77,7 +77,6 @@ export function useGameBoardLogic({
   const INACTIVITY_SECONDS = 30;
   const TURN_TOTAL_SECONDS = 90;
 
-  const { write: transferOwnership, isPending: isCreatePending } = useTransferPropertyOwnership();
   const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
   const exitHook = useExitGame(onChainGameId ?? BigInt(0));
@@ -271,7 +270,6 @@ export function useGameBoardLogic({
     }
     try {
       showToast("Sending transaction...", "default");
-      await transferOwnership("", buyerUsername);
       await apiClient.post<ApiResponse>("/game-properties/buy", {
         user_id: currentPlayer.user_id,
         game_id: game.id,
@@ -288,7 +286,7 @@ export function useGameBoardLogic({
       const message = getContractErrorMessage(err, "Purchase failed");
       toast.error(message);
     }
-  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll, me?.username, transferOwnership, touchActivity]);
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, game.id, roll, touchActivity]);
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -768,8 +766,6 @@ export function useGameBoardLogic({
     END_TURN,
     triggerLandingLogic,
     endTurnAfterSpecialMove,
-    transferOwnership,
-    isCreatePending,
     exitHook,
     turnTimeLeft,
     removeInactive,
