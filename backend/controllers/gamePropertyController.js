@@ -222,11 +222,11 @@ const gamePropertyController = {
       // Stats: record property purchase (bank)
       recordPropertyPurchase(user_id, property_id, game.id, "bank").catch(() => {});
 
-      // On-chain: call transferPropertyOwnership (seller=GameController when buying from bank). Contract must have "GameController" registered.
+      // On-chain: call transferPropertyOwnership (seller=Bank when buying from bank). Contract must have "Bank" registered.
       if (isContractConfigured()) {
         const buyerUsername = (await db("users").where({ id: player.user_id }).select("username").first())?.username ?? null;
         if (buyerUsername) {
-          transferPropertyOwnership("GameController", buyerUsername).catch((err) => {
+          transferPropertyOwnership("Bank", buyerUsername).catch((err) => {
             logger.warn({ err, buyerUsername }, "Tycoon transferPropertyOwnership failed (buy from bank)");
           });
         }
@@ -810,7 +810,7 @@ const gamePropertyController = {
       }
 
       if (isContractConfigured() && sellerUsername) {
-        transferPropertyOwnership(sellerUsername, "GameController").catch((err) => {
+        transferPropertyOwnership(sellerUsername, "Bank").catch((err) => {
           logger.warn({ err, sellerUsername }, "Tycoon transferPropertyOwnership failed (sell to bank)");
         });
       }

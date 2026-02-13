@@ -231,7 +231,7 @@ export function useMobileAiLogic({
                     (p) =>
                       p.address?.toLowerCase() === gp.address?.toLowerCase()
                   )?.username || gp.address.slice(0, 8)
-                : "GameController";
+                : "Bank";
               return {
                 id,
                 name: prop.name,

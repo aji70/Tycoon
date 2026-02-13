@@ -48,8 +48,7 @@ const Board: React.FC<BoardProps> = ({
 
   const propertyOwner = (id: number) => {
     const gp = currentGameProperties.find((gp) => gp.property_id === id);
-    if (!gp) return "GameController"; // Bank-owned (unowned) → display as GameController on AI board
-    return players.find((p) => p.address === gp.address)?.username || null;
+    return gp ? players.find((p) => p.address === gp.address)?.username || null : null;
   };
 
   const developmentStage = (id: number) =>
