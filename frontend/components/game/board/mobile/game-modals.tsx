@@ -90,7 +90,7 @@ const GameModals: React.FC<GameModalsProps> = ({
           : "Game completed — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      setTimeout(() => window.location.href = "/", 1500);
+      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(
         err?.message || "Something went wrong — you can try again later",

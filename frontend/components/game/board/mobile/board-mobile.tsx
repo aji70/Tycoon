@@ -797,7 +797,7 @@ const MobileGameLayout = ({
       console.error("Bankruptcy process failed:", err);
       toast.error(getContractErrorMessage(err, "Bankruptcy failed — but you are eliminated."));
       try { await END_TURN(); } catch {}
-      setTimeout(() => { window.location.href = "/"; }, 3000);
+      // User can go home via exit prompt or modal when ready
     } finally {
       setShowBankruptcyModal(false);
       setBuyPrompted(false);
@@ -822,9 +822,7 @@ const MobileGameLayout = ({
           : "Game completed — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
+      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(
         getContractErrorMessage(err, "Something went wrong — try again later"),
