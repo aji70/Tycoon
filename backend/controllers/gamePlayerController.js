@@ -7,7 +7,8 @@ import Property from "../models/Property.js";
 import { PROPERTY_ACTION } from "../utils/properties.js";
 import db from "../config/database.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
-import { invalidateGameById } from "../utils/gameCache.js";
+import { invalidateGameById, invalidateGameByCode } from "../utils/gameCache.js";
+import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
@@ -505,20 +506,27 @@ const gamePlayerController = {
     try {
       const { address, code, symbol } = req.body;
 
-      // find user
-      const user = await User.findByAddress(address);
+      // find user (try default chain then "Base" — frontend creates users with chain "Base")
+      let user = await User.findByAddress(address);
+      if (!user) {
+        user = await User.findByAddress(address, "Base");
+      }
       if (!user) {
         return res
-          .status(200)
-          .json({ success: false, message: "User not found" });
+          .status(404)
+          .json({ success: false, message: "User not found. Register your wallet first (connect wallet and set a username), then try joining again." });
       }
 
       // find game
       const game = await Game.findByCode(code);
       if (!game) {
         return res
-          .status(200)
+          .status(404)
           .json({ success: false, message: "Game not found" });
+      }
+
+      if (game.status !== "PENDING") {
+        return res.status(400).json({ success: false, message: "Game is not open for join" });
       }
 
       // Wallet join: player must have joined on-chain first (frontend calls joinGame then this API).
@@ -559,8 +567,12 @@ const gamePlayerController = {
       const players = await GamePlayer.findByGameId(game.id);
       if (!players) {
         return res
-          .status(200)
+          .status(500)
           .json({ success: false, message: "Game players not found" });
+      }
+
+      if (players.length >= game.number_of_players) {
+        return res.status(400).json({ success: false, message: "Game is full" });
       }
 
       const alreadyInGame = players.some(
@@ -592,6 +604,29 @@ const gamePlayerController = {
         turn_order: nextTurnOrder,
       });
 
+      // Invalidate cache and notify waiting room (same as join-as-guest)
+      const updatedPlayers = await GamePlayer.findByGameId(game.id);
+      const io = req.app.get("io");
+      await invalidateGameByCode(game.code);
+      if (io) {
+        emitGameUpdate(io, game.code);
+        io.to(game.code).emit("player-joined", { player: updatedPlayers[updatedPlayers.length - 1], players: updatedPlayers, game });
+      }
+
+      if (updatedPlayers.length >= game.number_of_players) {
+        await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+        await invalidateGameById(game.id);
+        const updatedGame = await Game.findByCode(game.code);
+        if (updatedGame?.next_player_id) {
+          await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
+        }
+        const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
+        if (io) {
+          emitGameUpdate(io, game.code);
+          io.to(game.code).emit("game-ready", { game: updatedGame, players: playersWithTurnStart });
+        }
+      }
+
       return res.status(201).json({
         success: true,
         message: "Player added to game successfully",
@@ -599,28 +634,29 @@ const gamePlayerController = {
       });
     } catch (error) {
       logger.error({ err: error }, "Error creating game player");
-      return res.status(200).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: error?.message || "Failed to join game" });
     }
   },
   async leave(req, res) {
     try {
       const { address, code } = req.body;
-      const user = await User.findByAddress(address);
+      let user = await User.findByAddress(address);
+      if (!user) user = await User.findByAddress(address, "Base");
       if (!user) {
-        res.status(200).json({ success: false, message: "User not found" });
+        return res.status(404).json({ success: false, message: "User not found" });
       }
       const game = await Game.findByCode(code);
       if (!game) {
-        res.status(200).json({ success: false, message: "Game not found" });
+        return res.status(404).json({ success: false, message: "Game not found" });
       }
-      const player = await GamePlayer.leave(game.id, user.id);
-      res.status(200).json({
+      await GamePlayer.leave(game.id, user.id);
+      return res.status(200).json({
         success: true,
-        message: "Player removed to game successfully",
+        message: "Player removed from game successfully",
       });
     } catch (error) {
-      logger.error({ err: error }, "Error creating game player");
-      res.status(200).json({ success: false, message: error.message });
+      logger.error({ err: error }, "Error in leave");
+      return res.status(500).json({ success: false, message: error?.message || "Failed to leave game" });
     }
   },
   async findById(req, res) {
