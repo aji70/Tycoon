@@ -338,27 +338,29 @@ const endTime =
     timeUpHandledRef.current = true;
     setGameTimeUp(true);
     try {
-      const res = await apiClient.get<{ success?: boolean; data?: { winner_id: number; valid_win?: boolean; winner_turn_count?: number } }>(
-        `/games/${currentGame.id}/winner-by-net-worth`
-      );
+      // Backend finishes the game (assigns winner) before we show the modal.
+      const res = await apiClient.post<{
+        success?: boolean;
+        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean; winner_turn_count?: number };
+      }>(`/games/${currentGame.id}/finish-by-time`);
       const winnerId = res?.data?.data?.winner_id;
       if (winnerId == null) return;
 
+      const updatedPlayers = res?.data?.data?.game?.players ?? players;
+      const winnerPlayer = updatedPlayers.find((p) => p.user_id === winnerId) ?? null;
+      setWinner(winnerPlayer);
       const myPosition = me?.position ?? 0;
       const myBalance = BigInt(me?.balance ?? 0);
-      const validWin = res?.data?.data?.valid_win !== false; // Default to true if not provided
+      const validWin = res?.data?.data?.valid_win !== false;
 
       if (winnerId === me?.user_id) {
-        setWinner(me!);
         setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
       } else {
-        await onFinishGameByTime?.();
-        const winnerPlayer = players.find((p) => p.user_id === winnerId) ?? null;
-        setWinner(winnerPlayer);
         setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
       }
+      await onFinishGameByTime?.(); // invalidate & refetch so parent has updated game
     } catch (e) {
-      console.error("Time up / winner-by-net-worth failed:", e);
+      console.error("Time up / finish-by-time failed:", e);
       timeUpHandledRef.current = false;
       setGameTimeUp(false);
     }

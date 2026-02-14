@@ -35,7 +35,7 @@ const AVERAGE_DICE_ROLL = 7;
  * @returns { winner_id, net_worths: [{ user_id, net_worth }] } or null if game invalid
  */
 async function computeWinnerByNetWorth(game) {
-  if (!game?.is_ai || game?.status !== "RUNNING") return null;
+  if (!game || game?.status !== "RUNNING") return null;
   const players = await db("game_players").where({ game_id: game.id }).select("id", "user_id", "balance", "turn_count");
   if (players.length === 0) return null;
 
@@ -325,19 +325,20 @@ const gameController = {
   },
 
   /**
-   * POST: End AI game by time; set winner by net worth (called when AI wins and we need backend updated).
+   * POST: End game by time (AI or multiplayer); set winner by net worth.
+   * Backend assigns winner (DB FINISHED + winner_id) before the frontend shows winner/loser modals.
+   * Optionally end AI game on the contract (e.g. endAIGameByBackend) when integrated.
    */
   async finishByTime(req, res) {
     try {
       const game = await Game.findById(req.params.id);
       if (!game) return res.status(404).json({ success: false, error: "Game not found" });
-      if (!game.is_ai) return res.status(400).json({ success: false, error: "Not an AI game" });
-      // Idempotent: if already finished (e.g. other player already claimed), return success so both winner and loser can "finish" after claiming on-chain
+      // Idempotent: if already finished, return success so frontend can show modal with winner_id
       if (game.status === "FINISHED" || game.status === "CANCELLED") {
         return res.status(200).json({
           success: true,
           message: "Game already concluded",
-          data: { game, winner_id: game.winner_id },
+          data: { game, winner_id: game.winner_id, valid_win: true },
         });
       }
       if (game.status !== "RUNNING") return res.status(400).json({ success: false, error: "Game is not running" });
@@ -345,7 +346,8 @@ const gameController = {
       const durationMinutes = Number(game.duration) || 0;
       if (durationMinutes <= 0) return res.status(400).json({ success: false, error: "Game has no duration" });
 
-      const endMs = new Date(game.created_at).getTime() + durationMinutes * 60 * 1000;
+      const startAt = game.started_at || game.created_at;
+      const endMs = new Date(startAt).getTime() + durationMinutes * 60 * 1000;
       if (Date.now() < endMs) return res.status(400).json({ success: false, error: "Game time has not ended yet" });
 
       const result = await computeWinnerByNetWorth(game);

@@ -21,12 +21,14 @@ const Board = ({
   game_properties,
   me,
   onGameUpdated,
+  onFinishByTime,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
   onGameUpdated?: () => void;
+  onFinishByTime?: () => void | Promise<void>;
 }) => {
   const logic = useGameBoardLogic({ game, properties, game_properties, me, onGameUpdated });
 
@@ -211,7 +213,7 @@ const Board = ({
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={() => setShowBankruptcyModal(true)}
               isPending={false}
-              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} /> : null}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={onFinishByTime} /> : null}
               turnTimeLeft={turnTimeLeft}
               voteablePlayers={voteablePlayersList}
               voteStatuses={logic.voteStatuses}

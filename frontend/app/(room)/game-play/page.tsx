@@ -7,7 +7,7 @@ import MobileGamePlayers from "@/components/game/player/mobile/player";
 import { apiClient } from "@/lib/api";
 import { socketService } from "@/lib/socket";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -138,6 +138,17 @@ export default function GamePlayPage() {
   const [focusTrades, setFocusTrades] = useState(false);
   const [lastReadMessageCount, setLastReadMessageCount] = useState(0);
 
+  /** Backend finishes game (assigns winner) before modals show; then refetch so UI sees FINISHED. */
+  const finishGameByTime = useCallback(async () => {
+    if (!game?.id || game?.status !== "RUNNING") return;
+    try {
+      await apiClient.post(`/games/${game.id}/finish-by-time`);
+      await refetchGame();
+    } catch (e) {
+      console.error("Finish by time failed:", e);
+    }
+  }, [game?.id, game?.status, refetchGame]);
+
   const gameId = game?.code ?? game?.id ?? "";
   const { data: messages = [] } = useQuery({
     queryKey: ["messages", gameId],
@@ -182,6 +193,7 @@ export default function GamePlayPage() {
               properties={properties}
               game_properties={game_properties}
               me={me}
+              onFinishByTime={finishGameByTime}
               onViewTrades={() => {
                 setActiveTab('players');
                 setFocusTrades(true);
@@ -261,6 +273,7 @@ export default function GamePlayPage() {
           game_properties={game_properties}
           me={me}
           onGameUpdated={() => refetchGame()}
+          onFinishByTime={finishGameByTime}
         />
       </div>
       <GameRoom game={game} me={me} />

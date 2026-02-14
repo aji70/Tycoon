@@ -45,12 +45,14 @@ const MobileGameLayout = ({
   properties,
   game_properties,
   me,
+  onFinishByTime,
   onViewTrades,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  onFinishByTime?: () => void | Promise<void>;
   onViewTrades?: () => void;
 }) => {
   const [currentGame, setCurrentGame] = useState<Game>(game);
@@ -1189,7 +1191,7 @@ const MobileGameLayout = ({
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
-                  <GameDurationCountdown game={currentGame} compact />
+                  <GameDurationCountdown game={currentGame} compact onTimeUp={onFinishByTime} />
                 )}
                 {turnTimeLeft != null && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
