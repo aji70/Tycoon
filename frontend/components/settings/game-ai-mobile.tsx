@@ -77,7 +77,7 @@ export default function PlayWithAIMobile() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    duration: 30, // minutes
+    duration: 5, // minutes
   });
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
@@ -363,7 +363,7 @@ export default function PlayWithAIMobile() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">10m</SelectItem>
+                  <SelectItem value="5">5m</SelectItem>
                   <SelectItem value="30">30m</SelectItem>
                   <SelectItem value="45">45m</SelectItem>
                   <SelectItem value="60">60m</SelectItem>

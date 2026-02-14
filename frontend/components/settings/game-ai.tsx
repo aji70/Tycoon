@@ -77,7 +77,7 @@ export default function PlayWithAI() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    duration: 30, // minutes
+    duration: 5, // minutes
   });
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
@@ -391,7 +391,7 @@ export default function PlayWithAI() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">10 minutes</SelectItem>
+                  <SelectItem value="5">5 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
                   <SelectItem value="60">60 minutes</SelectItem>

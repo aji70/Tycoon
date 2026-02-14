@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
-import { Crown, Trophy, Sparkles, Coins, Wallet, HeartHandshake } from "lucide-react";
+import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
 
@@ -194,55 +194,21 @@ const GameModals: React.FC<GameModalsProps> = ({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
-                    className="text-cyan-200/90 text-base mb-4"
+                    className="text-cyan-200/90 text-base mb-6"
                   >
                     Well played — you earned this one.
                   </motion.p>
-                  <motion.div
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.45 }}
-                    className="mb-4 rounded-xl bg-black/40 border border-cyan-500/30 px-4 py-3 text-left"
-                  >
-                    <p className="text-cyan-200 font-semibold text-sm">Game details</p>
-                    <p className="text-slate-300 text-xs">Winner: {winner.username}</p>
-                    <p className="text-slate-300 text-xs">Players: {currentGame?.players?.length ?? currentGame?.number_of_players ?? "—"} in this game</p>
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 16 }}
+                  <motion.button
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
-                    className="mb-6 p-5 rounded-2xl bg-black/40 border border-cyan-500/30 flex items-center justify-center gap-4"
-                  >
-                    <Coins className="w-10 h-10 text-cyan-400" />
-                    <div className="text-left">
-                      <p className="text-white font-bold">Your rewards</p>
-                      <p className="text-sm text-slate-300">Bonus tokens • check your wallet after claiming</p>
-                    </div>
-                  </motion.div>
-                  <motion.button
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowExitPrompt(true)}
-                    className="w-full py-4 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-300/40 transition-all"
-                  >
-                    Claim rewards
-                  </motion.button>
-                  <motion.button
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.65 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => { window.location.href = "/"; }}
-                    className="w-full mt-3 py-3 rounded-2xl bg-slate-700/80 hover:bg-slate-600 text-slate-200 font-semibold border border-slate-500/40 transition-all"
+                    className="w-full py-4 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-300/40 transition-all"
                   >
                     Go home
                   </motion.button>
-                  <p className="text-xs text-slate-400 mt-4">Finalizes on blockchain</p>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
               </motion.div>
@@ -284,16 +250,6 @@ const GameModals: React.FC<GameModalsProps> = ({
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="mb-4 rounded-xl bg-black/40 border border-slate-500/40 px-4 py-3 text-left"
-                  >
-                    <p className="text-slate-200 font-semibold text-sm">Game details</p>
-                    <p className="text-slate-400 text-xs">Winner: {winner.username}</p>
-                    <p className="text-slate-400 text-xs">Players: {currentGame?.players?.length ?? currentGame?.number_of_players ?? "—"} in this game</p>
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.45 }}
                     className="mb-6 flex flex-col items-center gap-3"
                   >
                     <HeartHandshake className="w-12 h-12 text-cyan-400/80" />
@@ -302,26 +258,14 @@ const GameModals: React.FC<GameModalsProps> = ({
                   <motion.button
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.55 }}
+                    transition={{ delay: 0.5 }}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowExitPrompt(true)}
-                    className="w-full py-4 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-400/30 transition-all"
-                  >
-                    Collect consolation
-                  </motion.button>
-                  <motion.button
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => { window.location.href = "/"; }}
-                    className="w-full mt-3 py-3 rounded-2xl bg-slate-700/80 hover:bg-slate-600 text-slate-200 font-semibold border border-slate-500/40 transition-all"
+                    className="w-full py-4 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-400/30 transition-all"
                   >
                     Go home
                   </motion.button>
-                  <p className="text-xs text-slate-500 mt-4">Finalizes on blockchain</p>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
               </motion.div>

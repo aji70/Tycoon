@@ -136,10 +136,10 @@ const GameModals: React.FC<GameModalsProps> = ({
                 </>
               )}
               <button
-                onClick={() => setShowExitPrompt(true)}
+                onClick={() => { window.location.href = "/"; }}
                 className="px-12 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-xl md:text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300 border-4 border-white/40"
               >
-                {winner.user_id === me?.user_id ? "Claim Rewards" : "Finish Game"}
+                Go home
               </button>
               <p className="text-base text-yellow-200/80 mt-8 opacity-90">Thanks for playing Tycoon!</p>
             </motion.div>
