@@ -13,6 +13,13 @@ const userController = {
 
   async create(req, res) {
     try {
+      const { username } = req.body || {};
+      if (username != null && String(username).trim() !== "") {
+        const taken = await User.findByUsernameIgnoreCase(username);
+        if (taken) {
+          return res.status(409).json({ error: "Username already taken", message: "Username already taken" });
+        }
+      }
       const user = await User.create(req.body);
       res.status(201).json(user);
     } catch (error) {
@@ -80,6 +87,13 @@ const userController = {
 
   async update(req, res) {
     try {
+      const { username } = req.body || {};
+      if (username != null && String(username).trim() !== "") {
+        const taken = await User.findByUsernameIgnoreCase(username);
+        if (taken && Number(taken.id) !== Number(req.params.id)) {
+          return res.status(409).json({ error: "Username already taken", message: "Username already taken" });
+        }
+      }
       const user = await User.update(req.params.id, req.body);
       res.json(user);
     } catch (error) {

@@ -32,9 +32,9 @@ export async function guestRegister(req, res) {
       return res.status(400).json({ success: false, message: "Username too short" });
     }
 
-    const existing = await User.findByUsername(trimmedUsername);
+    const existing = await User.findByUsernameIgnoreCase(trimmedUsername);
     if (existing) {
-      return res.status(200).json({ success: false, message: "Username already taken" });
+      return res.status(409).json({ success: false, message: "Username already taken" });
     }
 
     const wallet = ethers.Wallet.createRandom();
