@@ -544,35 +544,53 @@ const gamePlayerController = {
       }
 
       // Wallet join: player must have joined on-chain first (frontend calls joinGame then this API).
-      // Verify so we never add to DB without contract join.
-      const contractGameId = game.contract_game_id;
-      if (contractGameId && isContractConfigured()) {
+      // Look up game by code (same as waiting room / guest flow) so we verify against the correct on-chain game.
+      const gameCodeForContract = (code || game.code || "").trim().toUpperCase();
+      if (isContractConfigured() && gameCodeForContract) {
+        let contractGame;
         try {
-          // Normalize gameId for contract (string of digits or number; callContractRead will BigInt it)
-          const gameIdParam = /^\d+$/.test(String(contractGameId)) ? String(contractGameId) : contractGameId;
-          const onChainPlayers = await callContractRead("getPlayersInGame", [gameIdParam]);
-          // Contract may return Array or serialized Result object { 0: "0x...", 1: "0x..." }
-          const addresses = toAddressArray(onChainPlayers);
-          const normalizedJoin = String(address || "").toLowerCase();
-          const isOnContract = addresses.some(
-            (a) => String(a || "").toLowerCase() === normalizedJoin
-          );
-          if (!isOnContract) {
-            return res.status(400).json({
-              success: false,
-              message: "Join the game on-chain first. Sign the transaction in your wallet, then try again.",
-            });
-          }
+          contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
         } catch (err) {
           const errMsg = err?.message || String(err);
-          logger.warn({ err: errMsg, gameId: game.id, contractGameId }, "getPlayersInGame check failed");
-          const isGameNotFound = /game not found|not found/i.test(errMsg);
+          const notFound = /not found|Not found/i.test(errMsg);
+          logger.warn({ err: errMsg, gameId: game.id, code: gameCodeForContract }, "getGameByCode failed in wallet join");
           return res.status(400).json({
             success: false,
-            message: isGameNotFound
-              ? "Game not found on-chain. Make sure you're on the same network as when the game was created, then try again."
-              : "Could not verify on-chain join. Sign the join transaction in your wallet and wait for confirmation, then try again.",
+            message: notFound
+              ? "Game not found on this network. Make sure you're on the same network as when the game was created."
+              : "Could not verify on-chain join. Try again.",
           });
+        }
+        const onChainGameId = contractGame?.id ?? contractGame?.[0];
+        if (onChainGameId != null && onChainGameId !== "") {
+          try {
+            const onChainPlayers = await callContractRead("getPlayersInGame", [onChainGameId]);
+            const addresses = toAddressArray(onChainPlayers);
+            const normalizedJoin = String(address || "").toLowerCase();
+            const isOnContract = addresses.some(
+              (a) => String(a || "").toLowerCase() === normalizedJoin
+            );
+            if (!isOnContract) {
+              return res.status(400).json({
+                success: false,
+                message: "Join the game on-chain first. Sign the transaction in your wallet, then try again.",
+              });
+            }
+          } catch (err) {
+            logger.warn({ err: err?.message, gameId: game.id, onChainGameId }, "getPlayersInGame failed in wallet join");
+            return res.status(400).json({
+              success: false,
+              message: "Could not verify on-chain join. Sign the join transaction and wait for confirmation, then try again.",
+            });
+          }
+          // Keep DB in sync: ensure game has contract_game_id set (for gameplay / finish flows)
+          if (!game.contract_game_id || String(game.contract_game_id) !== String(onChainGameId)) {
+            try {
+              await Game.update(game.id, { contract_game_id: String(onChainGameId) });
+            } catch (e) {
+              logger.warn({ err: e?.message, gameId: game.id }, "Failed to update game.contract_game_id");
+            }
+          }
         }
       }
 

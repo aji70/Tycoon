@@ -886,14 +886,15 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Already in game" });
     }
 
-    const contractGameId = game.contract_game_id;
-    if (!contractGameId) {
-      return res.status(400).json({ success: false, message: "Game has no contract id" });
+    // Look up game on-chain by code (same as waiting room / wallet flow)
+    const gameCodeForContract = (code || game.code || "").trim().toUpperCase();
+    if (!gameCodeForContract) {
+      return res.status(400).json({ success: false, message: "Game code required" });
     }
 
     let contractGame;
     try {
-      contractGame = await callContractRead("getGame", [contractGameId]);
+      contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
     } catch (err) {
       const errMsg = err?.message || String(err);
       const notFound = /not found|Not found/i.test(errMsg);
@@ -904,6 +905,11 @@ export const joinAsGuest = async (req, res) => {
         });
       }
       throw err;
+    }
+
+    const onChainGameId = contractGame?.id ?? contractGame?.[0];
+    if (onChainGameId == null || onChainGameId === "") {
+      return res.status(400).json({ success: false, message: "Could not get game id from contract" });
     }
 
     const stakePerPlayer = BigInt(contractGame?.stakePerPlayer ?? contractGame?.[9] ?? 0);
@@ -925,10 +931,10 @@ export const joinAsGuest = async (req, res) => {
       await joinGameByBackend(
         user.address,
         user.password_hash,
-        contractGameId,
+        onChainGameId,
         user.username,
         symbol || "car",
-        joinCode || code
+        joinCode || gameCodeForContract
       );
     } catch (err) {
       const errMsg = err?.message || String(err);
