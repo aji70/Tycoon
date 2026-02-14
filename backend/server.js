@@ -119,11 +119,15 @@ io.on("connection", (socket) => {
   });
 });
 
-// Rate limiting
+// Rate limiting: allow enough headroom for active game sessions (AI turns, sync, trades).
+// Frontend also throttles fetchUpdatedGame and batches AI actions to reduce bursts.
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX) || 500;
 const limiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 300,
+  max: RATE_LIMIT_MAX,
   message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 app.use(helmet());
