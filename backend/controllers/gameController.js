@@ -14,6 +14,12 @@ import {
 } from "../utils/gameCache.js";
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
+import {
+  createGameByBackend,
+  joinGameByBackend,
+  createAIGameByBackend,
+  callContractRead,
+} from "../services/tycoonContract.js";
 
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
@@ -696,6 +702,312 @@ export const join = async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, "Error creating game player");
     return res.status(200).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /games/create-as-guest
+ * Body: same as POST /games but without address (use req.user from auth).
+ * Requires Authorization: Bearer <token> and guest user with password_hash.
+ */
+export const createAsGuest = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !user.is_guest || !user.password_hash) {
+      return res.status(403).json({ success: false, message: "Guest authentication required" });
+    }
+
+    const {
+      code,
+      mode,
+      symbol,
+      number_of_players,
+      settings,
+      is_minipay,
+      is_ai,
+      duration,
+      chain,
+      stake = 0,
+      use_usdc,
+    } = req.body;
+
+    const stakeNum = Number(stake) || 0;
+    if (stakeNum > 0) {
+      return res.status(403).json({
+        success: false,
+        message: "Guests cannot create staked games. Please connect a wallet to create a staked game.",
+      });
+    }
+
+    const startingCash = settings?.starting_cash ?? 1500;
+    const stakeAmount = 0n; // Guests: free games only
+    const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
+
+    const { gameId: onChainGameId } = await createGameByBackend(
+      user.address,
+      user.password_hash,
+      user.username,
+      gameType,
+      symbol || "hat",
+      number_of_players ?? 4,
+      code,
+      startingCash,
+      stakeAmount
+    );
+
+    if (!onChainGameId) {
+      return res.status(500).json({ success: false, message: "Contract did not return game ID" });
+    }
+
+    const game = await Game.create({
+      code,
+      mode,
+      creator_id: user.id,
+      next_player_id: user.id,
+      number_of_players,
+      status: "PENDING",
+      is_minipay: !!is_minipay,
+      is_ai: !!is_ai,
+      duration,
+      chain: chain || "BASE",
+      contract_game_id: String(onChainGameId),
+    });
+
+    const chat = await Chat.create({ game_id: game.id, status: "open" });
+
+    const game_settings = await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? true,
+      starting_cash: startingCash,
+    });
+
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: user.id,
+      address: user.address,
+      balance: startingCash,
+      position: 0,
+      turn_order: 1,
+      symbol: symbol || "hat",
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+
+    const game_players = await GamePlayer.findByGameId(game.id);
+    await recordEvent("game_created", { entityType: "game", entityId: game.id, payload: { is_ai: game.is_ai } });
+
+    const io = req.app.get("io");
+    io.to(game.code).emit("game-created", { game: { ...game, settings: game_settings, players: game_players } });
+
+    return res.status(201).json({
+      success: true,
+      message: "successful",
+      data: { ...game, settings: game_settings, players: game_players },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createAsGuest failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create game" });
+  }
+};
+
+/**
+ * POST /games/join-as-guest
+ * Body: { code, symbol, joinCode? }
+ * Requires Authorization: Bearer <token> and guest user.
+ */
+export const joinAsGuest = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !user.is_guest || !user.password_hash) {
+      return res.status(403).json({ success: false, message: "Guest authentication required" });
+    }
+
+    const { code, symbol, joinCode } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: "Game code required" });
+    }
+
+    const game = await Game.findByCode(code.trim().toUpperCase());
+    if (!game) {
+      return res.status(404).json({ success: false, message: "Game not found" });
+    }
+    if (game.status !== "PENDING") {
+      return res.status(400).json({ success: false, message: "Game not open for join" });
+    }
+
+    const currentPlayers = await GamePlayer.findByGameId(game.id);
+    if (currentPlayers.length >= game.number_of_players) {
+      return res.status(400).json({ success: false, message: "Game is full" });
+    }
+    const existingPlayer = currentPlayers.find((p) => p.user_id === user.id);
+    if (existingPlayer) {
+      return res.status(400).json({ success: false, message: "Already in game" });
+    }
+
+    const contractGameId = game.contract_game_id;
+    if (!contractGameId) {
+      return res.status(400).json({ success: false, message: "Game has no contract id" });
+    }
+
+    const contractGame = await callContractRead("getGame", [contractGameId]);
+    const stakePerPlayer = BigInt(contractGame?.stakePerPlayer ?? contractGame?.[9] ?? 0);
+    if (stakePerPlayer > 0n) {
+      return res.status(403).json({
+        success: false,
+        message: "Guests cannot join staked games. Connect a wallet to join this game.",
+      });
+    }
+
+    await joinGameByBackend(
+      user.address,
+      user.password_hash,
+      contractGameId,
+      user.username,
+      symbol || "car",
+      joinCode || code
+    );
+
+    const settings = await GameSetting.findByGameId(game.id);
+    const maxTurnOrder = currentPlayers.length > 0 ? Math.max(...currentPlayers.map((p) => p.turn_order || 0)) : 0;
+    const nextTurnOrder = maxTurnOrder + 1;
+
+    await GamePlayer.create({
+      address: user.address,
+      symbol: symbol || "car",
+      user_id: user.id,
+      game_id: game.id,
+      balance: settings?.starting_cash ?? 1500,
+      position: 0,
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+      turn_order: nextTurnOrder,
+      circle: 0,
+      rolls: 0,
+    });
+
+    const updatedPlayers = await GamePlayer.findByGameId(game.id);
+    const io = req.app.get("io");
+    await invalidateGameByCode(game.code);
+    emitGameUpdate(io, game.code);
+    io.to(game.code).emit("player-joined", { player: updatedPlayers[updatedPlayers.length - 1], players: updatedPlayers, game });
+
+    if (updatedPlayers.length >= game.number_of_players) {
+      await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+      await invalidateGameById(game.id);
+      const updatedGame = await Game.findByCode(game.code);
+      if (updatedGame?.next_player_id) {
+        await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
+      }
+      const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-ready", { game: updatedGame, players: playersWithTurnStart });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Player added to game successfully",
+      data: updatedPlayers[updatedPlayers.length - 1],
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "joinAsGuest failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to join game" });
+  }
+};
+
+/**
+ * POST /games/create-ai-as-guest
+ * Body: { code, symbol, number_of_players (aiCount+1), settings, duration, chain }
+ * Creates AI game on-chain via createAIGameByBackend then DB game with is_ai: true.
+ */
+export const createAIAsGuest = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !user.is_guest || !user.password_hash) {
+      return res.status(403).json({ success: false, message: "Guest authentication required" });
+    }
+
+    const {
+      code,
+      symbol,
+      number_of_players,
+      settings,
+      duration,
+      chain,
+      is_minipay,
+    } = req.body;
+
+    const startingCash = settings?.starting_cash ?? 1500;
+    const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
+
+    const { gameId: onChainGameId } = await createAIGameByBackend(
+      user.address,
+      user.password_hash,
+      user.username,
+      "PRIVATE",
+      symbol || "hat",
+      numberOfAI,
+      code || "",
+      startingCash
+    );
+
+    if (!onChainGameId) {
+      return res.status(500).json({ success: false, message: "Contract did not return game ID" });
+    }
+
+    const game = await Game.create({
+      code: code || "",
+      mode: "PRIVATE",
+      creator_id: user.id,
+      next_player_id: user.id,
+      number_of_players: numberOfAI + 1,
+      status: "PENDING",
+      is_minipay: !!is_minipay,
+      is_ai: true,
+      duration: duration || 0,
+      chain: chain || "BASE",
+      contract_game_id: String(onChainGameId),
+    });
+
+    const chat = await Chat.create({ game_id: game.id, status: "open" });
+
+    await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? true,
+      starting_cash: startingCash,
+    });
+
+    await GamePlayer.create({
+      game_id: game.id,
+      user_id: user.id,
+      address: user.address,
+      balance: startingCash,
+      position: 0,
+      turn_order: 1,
+      symbol: symbol || "hat",
+      chance_jail_card: false,
+      community_chest_jail_card: false,
+    });
+
+    const game_players = await GamePlayer.findByGameId(game.id);
+    const game_settings = await GameSetting.findByGameId(game.id);
+    await recordEvent("game_created", { entityType: "game", entityId: game.id, payload: { is_ai: true } });
+
+    return res.status(201).json({
+      success: true,
+      message: "successful",
+      data: { ...game, settings: game_settings, players: game_players },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createAIAsGuest failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create AI game" });
   }
 };
 

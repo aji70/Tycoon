@@ -1,11 +1,11 @@
 import express from "express";
-import { register, login } from "../controllers/authController.js";
-import { validate } from "../middleware/validation.js";
-import { authSchemas } from "../schemas/auth.js";
+import { guestRegister, guestLogin, me } from "../controllers/guestAuthController.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/register", validate(authSchemas.register), register);
-router.post("/login", validate(authSchemas.login), login);
+router.post("/guest-register", guestRegister);
+router.post("/guest-login", guestLogin);
+router.get("/me", requireAuth, me);
 
 export default router;

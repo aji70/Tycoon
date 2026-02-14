@@ -3,7 +3,11 @@ import gameController, {
   create,
   join,
   leave,
+  createAsGuest,
+  joinAsGuest,
+  createAIAsGuest,
 } from "../controllers/gameController.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -30,5 +34,8 @@ router.delete("/:id", gameController.remove);
 router.post("/create", create);
 router.post("/join", join);
 router.post("/leave", leave);
+router.post("/create-as-guest", requireAuth, createAsGuest);
+router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
+router.post("/join-as-guest", requireAuth, joinAsGuest);
 
 export default router;

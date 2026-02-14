@@ -48,6 +48,50 @@ const TYCOON_ABI = [
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "registerPlayerFor",
+    inputs: [
+      { name: "playerAddress", type: "address", internalType: "address" },
+      { name: "username", type: "string", internalType: "string" },
+      { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "createGameByBackend",
+    inputs: [
+      { name: "forPlayer", type: "address", internalType: "address" },
+      { name: "forUsername", type: "string", internalType: "string" },
+      { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+      { name: "creatorUsername", type: "string", internalType: "string" },
+      { name: "gameType", type: "string", internalType: "string" },
+      { name: "playerSymbol", type: "string", internalType: "string" },
+      { name: "numberOfPlayers", type: "uint8", internalType: "uint8" },
+      { name: "code", type: "string", internalType: "string" },
+      { name: "startingBalance", type: "uint256", internalType: "uint256" },
+      { name: "stakeAmount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "gameId", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "joinGameByBackend",
+    inputs: [
+      { name: "forPlayer", type: "address", internalType: "address" },
+      { name: "forUsername", type: "string", internalType: "string" },
+      { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+      { name: "gameId", type: "uint256", internalType: "uint256" },
+      { name: "playerUsername", type: "string", internalType: "string" },
+      { name: "playerSymbol", type: "string", internalType: "string" },
+      { name: "joinCode", type: "string", internalType: "string" },
+    ],
+    outputs: [{ name: "order", type: "uint8", internalType: "uint8" }],
+    stateMutability: "nonpayable",
+  },
   // Read (view) functions for config-test
   { type: "function", name: "owner", inputs: [], outputs: [{ name: "", type: "address", internalType: "address" }], stateMutability: "view" },
   { type: "function", name: "backendGameController", inputs: [], outputs: [{ name: "", type: "address", internalType: "address" }], stateMutability: "view" },
@@ -98,6 +142,23 @@ const TYCOON_ABI = [
     { name: "creatorUsername", type: "string" }, { name: "gameType", type: "string" }, { name: "playerSymbol", type: "string" },
     { name: "numberOfAI", type: "uint8" }, { name: "code", type: "string" }, { name: "startingBalance", type: "uint256" }
   ], outputs: [{ name: "gameId", type: "uint256" }], stateMutability: "nonpayable" },
+  {
+    type: "function",
+    name: "createAIGameByBackend",
+    inputs: [
+      { name: "forPlayer", type: "address", internalType: "address" },
+      { name: "forUsername", type: "string", internalType: "string" },
+      { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+      { name: "creatorUsername", type: "string", internalType: "string" },
+      { name: "gameType", type: "string", internalType: "string" },
+      { name: "playerSymbol", type: "string", internalType: "string" },
+      { name: "numberOfAI", type: "uint8", internalType: "uint8" },
+      { name: "code", type: "string", internalType: "string" },
+      { name: "startingBalance", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "gameId", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
   { type: "function", name: "joinGame", inputs: [
     { name: "gameId", type: "uint256" }, { name: "playerUsername", type: "string" }, { name: "playerSymbol", type: "string" }, { name: "joinCode", type: "string" }
   ], outputs: [{ name: "order", type: "uint8" }], stateMutability: "nonpayable" },
@@ -235,6 +296,139 @@ export async function transferPropertyOwnership(
     "Tycoon transferPropertyOwnership tx"
   );
   return { hash: receipt?.hash };
+}
+
+/**
+ * Register a player on behalf of an address (guest flow). Backend must be game controller.
+ * @param {string} playerAddress - Custodial wallet address
+ * @param {string} username - Username
+ * @param {string} passwordHash - keccak256 hash of password (0x-prefixed hex 32 bytes)
+ */
+export async function registerPlayerFor(playerAddress, username, passwordHash) {
+  const tycoon = getContract();
+  const tx = await tycoon.registerPlayerFor(playerAddress, username, passwordHash);
+  const receipt = await tx.wait();
+  logger.info({ playerAddress, username, hash: receipt?.hash }, "Tycoon registerPlayerFor tx");
+  return { hash: receipt?.hash };
+}
+
+/**
+ * Create game on behalf of a player (guest). Uses forPlayer with empty forUsername.
+ * Returns gameId from GameCreated event.
+ */
+export async function createGameByBackend(
+  forPlayer,
+  passwordHash,
+  creatorUsername,
+  gameType,
+  playerSymbol,
+  numberOfPlayers,
+  code,
+  startingBalance,
+  stakeAmount
+) {
+  const tycoon = getContract();
+  const tx = await tycoon.createGameByBackend(
+    forPlayer,
+    "", // forUsername
+    passwordHash,
+    creatorUsername,
+    gameType,
+    playerSymbol,
+    Number(numberOfPlayers),
+    code,
+    BigInt(startingBalance),
+    BigInt(stakeAmount)
+  );
+  const receipt = await tx.wait();
+  let newGameId;
+  try {
+    const iface = new ethers.Interface([
+      "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
+    ]);
+    for (const log of receipt.logs || []) {
+      try {
+        const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+        if (parsed?.name === "GameCreated" && parsed.args?.gameId != null) {
+          newGameId = String(parsed.args.gameId);
+          break;
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createGameByBackend tx");
+  return { hash: receipt?.hash, gameId: newGameId };
+}
+
+/**
+ * Join game on behalf of a player (guest).
+ */
+export async function joinGameByBackend(
+  forPlayer,
+  passwordHash,
+  gameId,
+  playerUsername,
+  playerSymbol,
+  joinCode
+) {
+  const tycoon = getContract();
+  const tx = await tycoon.joinGameByBackend(
+    forPlayer,
+    "",
+    passwordHash,
+    BigInt(gameId),
+    playerUsername,
+    playerSymbol,
+    joinCode || ""
+  );
+  const receipt = await tx.wait();
+  logger.info({ forPlayer, gameId, hash: receipt?.hash }, "Tycoon joinGameByBackend tx");
+  return { hash: receipt?.hash };
+}
+
+/**
+ * Create AI game on behalf of a player (guest).
+ */
+export async function createAIGameByBackend(
+  forPlayer,
+  passwordHash,
+  creatorUsername,
+  gameType,
+  playerSymbol,
+  numberOfAI,
+  code,
+  startingBalance
+) {
+  const tycoon = getContract();
+  const tx = await tycoon.createAIGameByBackend(
+    forPlayer,
+    "",
+    passwordHash,
+    creatorUsername,
+    gameType,
+    playerSymbol,
+    Number(numberOfAI),
+    code,
+    BigInt(startingBalance)
+  );
+  const receipt = await tx.wait();
+  let newGameId;
+  try {
+    const iface = new ethers.Interface([
+      "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
+    ]);
+    for (const log of receipt.logs || []) {
+      try {
+        const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+        if (parsed?.name === "GameCreated" && parsed.args?.gameId != null) {
+          newGameId = String(parsed.args.gameId);
+          break;
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createAIGameByBackend tx");
+  return { hash: receipt?.hash, gameId: newGameId };
 }
 
 /**

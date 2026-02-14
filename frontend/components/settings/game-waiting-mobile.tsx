@@ -1,4 +1,5 @@
 "use client";
+// Guest (no-wallet) support: same useWaitingRoom() as desktop; guests can join via API (join-as-guest).
 
 import React from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -44,6 +45,7 @@ export default function GameWaitingMobile(): JSX.Element {
     handleLeaveGame,
     handleGoHome,
     isCreator,
+    guestCannotJoinStaked,
   } = useWaitingRoom();
 
   // Loading / Error guards
@@ -143,11 +145,16 @@ export default function GameWaitingMobile(): JSX.Element {
                     )}
                   </select>
                 </div>
+                {guestCannotJoinStaked && (
+                  <p className="text-amber-400 text-sm text-center bg-amber-900/30 p-3 rounded-xl border border-amber-500/40">
+                    Guests cannot join staked games. Connect a wallet to join this game.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={handleJoinGame}
                   className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming}
+                  disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming || guestCannotJoinStaked}
                 >
                   {actionLoading || isJoining || approvePending || approveConfirming ? "Entering..." : "Join the Battle"}
                 </button>
@@ -354,7 +361,7 @@ export default function GameWaitingMobile(): JSX.Element {
                   type="button"
                   onClick={handleJoinGame}
                   className="w-full bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black text-sm font-orbitron font-extrabold py-3 rounded-xl hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming}
+                  disabled={!playerSymbol || actionLoading || isJoining || approvePending || approveConfirming || guestCannotJoinStaked}
                 >
                   {actionLoading || isJoining || approvePending || approveConfirming ? "Entering..." : "Join the Battle"}
                 </button>
@@ -390,9 +397,10 @@ export default function GameWaitingMobile(): JSX.Element {
               </button>
             </div>
 
-            {(error || joinError || contractGameError) && (
+            {(error || guestCannotJoinStaked || joinError || contractGameError) && (
               <p className="text-red-400 text-xs mt-3 text-center bg-red-900/50 p-2 rounded-lg animate-pulse">
                 {error ??
+                  (guestCannotJoinStaked ? "Guests cannot join staked games. Connect a wallet to join this game." : null) ??
                   joinError?.message ??
                   contractGameError?.message ??
                   "System Glitch Detected"}

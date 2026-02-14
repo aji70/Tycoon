@@ -1,24 +1,53 @@
+/**
+ * Optional auth middleware: if Bearer token present, verify JWT and set req.user.
+ * Used for guest create/join; does not block if no token.
+ */
 import jwt from "jsonwebtoken";
-import db from "../config/database.js";
+import User from "../models/User.js";
 
-export const authenticate = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
+const JWT_SECRET = process.env.JWT_SECRET || "tycoon-guest-secret-change-in-production";
 
-    if (!token) {
-      return res.status(401).json({ error: "Access token required" });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await db("users").where({ id: decoded.userId }).first();
-
-    if (!user) {
-      return res.status(401).json({ error: "Invalid token" });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    res.status(401).json({ error: "Invalid token" });
+export async function optionalAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return next();
   }
-};
+  const token = authHeader.slice(7);
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.userId) return next();
+    const user = await User.findById(decoded.userId);
+    if (!user) return next();
+    req.user = user;
+    req.isGuest = !!decoded.isGuest;
+    next();
+  } catch (_) {
+    next();
+  }
+}
+
+/**
+ * Require auth: 401 if no valid token or user.
+ */
+export async function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ success: false, message: "Authentication required" });
+  }
+  const token = authHeader.slice(7);
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.userId) {
+      return res.status(401).json({ success: false, message: "Invalid token" });
+    }
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ success: false, message: "User not found" });
+    }
+    req.user = user;
+    req.isGuest = !!decoded.isGuest;
+    next();
+  } catch (_) {
+    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+  }
+}
