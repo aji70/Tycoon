@@ -1380,7 +1380,14 @@ const MobileGameLayout = ({
             boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
             backdropFilter: "blur(10px)",
           },
-          success: { icon: "", style: { borderColor: "#10b981" } },
+          success: {
+            icon: "✓",
+            style: {
+              borderColor: "rgba(34, 211, 238, 0.7)",
+              background: "rgba(6, 78, 99, 0.4)",
+              boxShadow: "0 10px 30px rgba(0, 240, 255, 0.25)",
+            },
+          },
           error: { icon: "", style: { borderColor: "#ef4444" } },
         }}
       />

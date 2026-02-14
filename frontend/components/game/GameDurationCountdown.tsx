@@ -83,8 +83,8 @@ export function GameDurationCountdown({ game, className = "", compact, onTimeUp 
       } ${className}`}
       title={compact ? `Time left: ${value}` : undefined}
     >
-      <span className="text-sm font-medium">{label}</span>
-      <span className={`font-mono font-bold tabular-nums ${compact ? "text-sm" : "text-base"}`}>
+      <span className={`text-sm ${compact ? "font-bold" : "font-medium"}`}>{label}</span>
+      <span className={`font-mono tabular-nums ${compact ? "text-sm font-extrabold" : "text-base font-bold"}`}>
         {value}
       </span>
     </div>
