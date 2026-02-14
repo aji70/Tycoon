@@ -13,6 +13,7 @@ import {
   usePreviousGameCode,
   useGetGameByCode,
 } from "@/context/ContractProvider";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
@@ -21,12 +22,16 @@ import { ApiResponse } from "@/types/api";
 const HeroSectionMobile: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
 
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
-
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
+  const [guestUsername, setGuestUsername] = useState("");
+  const [guestPassword, setGuestPassword] = useState("");
+  const [guestLoading, setGuestLoading] = useState(false);
 
   const { write: registerPlayer, isPending: registerPending } = useRegisterPlayer();
 
@@ -87,25 +92,21 @@ const HeroSectionMobile: React.FC = () => {
   }, [address]);
 
   const registrationStatus = useMemo(() => {
-    if (!address) return "disconnected";
-
-    const hasBackend = !!user;
-    const hasOnChain = !!isUserRegistered || localRegistered;
-
-    if (hasBackend && hasOnChain) return "fully-registered";
-    if (hasBackend && !hasOnChain) return "backend-only";
-    return "none";
-  }, [address, user, isUserRegistered, localRegistered]);
+    if (address) {
+      const hasBackend = !!user;
+      const hasOnChain = !!isUserRegistered || localRegistered;
+      if (hasBackend && hasOnChain) return "fully-registered";
+      if (hasBackend && !hasOnChain) return "backend-only";
+      return "none";
+    }
+    if (guestUser) return "guest";
+    return "disconnected";
+  }, [address, user, isUserRegistered, localRegistered, guestUser]);
 
   const displayUsername = useMemo(() => {
-    return (
-      user?.username ||
-      localUsername ||
-      fetchedUsername ||
-      inputUsername ||
-      "Player"
-    );
-  }, [user, localUsername, fetchedUsername, inputUsername]);
+    if (guestUser) return guestUser.username;
+    return user?.username || localUsername || fetchedUsername || inputUsername || "Player";
+  }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
   const handleRegister = async () => {
     if (!address) {
@@ -224,12 +225,11 @@ const handleContinuePrevious = () => {
 
         {/* Welcome / Loading message */}
         <div className="mt-6 text-center">
-          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only") &&
-            !loading && (
-              <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
-                Welcome back, {displayUsername}!
-              </p>
-            )}
+          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest") && !loading && (
+            <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
+              Welcome back, {displayUsername}!
+            </p>
+          )}
 
           {loading && (
             <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
@@ -265,7 +265,6 @@ const handleContinuePrevious = () => {
 
         {/* Main action area */}
         <div className="mt-10 w-full max-w-[380px] flex flex-col items-center gap-6">
-          {/* Username input - only for new users */}
           {address && registrationStatus === "none" && !loading && (
             <input
               type="text"
@@ -276,7 +275,55 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Register button */}
+          {/* Guest login/register */}
+          {!address && registrationStatus === "disconnected" && !loading && (
+            <div className="w-full flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
+              <p className="text-[#00F0FF] font-orbitron text-sm font-bold text-center">Play without a wallet</p>
+              <input
+                type="text"
+                value={guestUsername}
+                onChange={(e) => setGuestUsername(e.target.value)}
+                placeholder="Username"
+                className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
+              />
+              <input
+                type="password"
+                value={guestPassword}
+                onChange={(e) => setGuestPassword(e.target.value)}
+                placeholder="Password"
+                className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
+                    setGuestLoading(true);
+                    const r = await guestAuth?.registerGuest(guestUsername.trim(), guestPassword);
+                    setGuestLoading(false);
+                    if (r?.success) toast.success("Account created!"); else toast.error(r?.message ?? "Failed");
+                  }}
+                  disabled={guestLoading}
+                  className="flex-1 h-12 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold disabled:opacity-60"
+                >
+                  {guestLoading ? "..." : "Register"}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
+                    setGuestLoading(true);
+                    const r = await guestAuth?.loginGuest(guestUsername.trim(), guestPassword);
+                    setGuestLoading(false);
+                    if (r?.success) toast.success("Welcome back!"); else toast.error(r?.message ?? "Failed");
+                  }}
+                  disabled={guestLoading}
+                  className="flex-1 h-12 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold disabled:opacity-60"
+                >
+                  {guestLoading ? "..." : "Login"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {address && registrationStatus !== "fully-registered" && !loading && (
             <button
               onClick={handleRegister}
@@ -302,8 +349,7 @@ const handleContinuePrevious = () => {
             </button>
           )}
 
-          {/* Registered user actions */}
-          {address && registrationStatus === "fully-registered" && (
+          {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="w-full flex flex-col gap-5">
               {/* Continue Previous Game - prominent when available */}
               {gameCode && (contractGame?.status == 1) && (
@@ -400,12 +446,17 @@ const handleContinuePrevious = () => {
                   Challenge AI!
                 </span>
               </button>
+              {guestUser && (
+                <button onClick={() => guestAuth?.logoutGuest()} className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs">
+                  Sign out (guest)
+                </button>
+              )}
             </div>
-          )}
+          ) : null}
 
-          {!address && !loading && (
+          {!address && !guestUser && !loading && (
             <p className="text-gray-400 text-sm text-center mt-6">
-              Connect your wallet to start playing
+              Connect your wallet or play without a wallet above.
             </p>
           )}
         </div>

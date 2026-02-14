@@ -34,6 +34,7 @@ import {
   useCreateGame,
   useApprove,
 } from "@/context/ContractProvider";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -55,6 +56,8 @@ export default function CreateGameMobile() {
   const { address } = useAccount();
   const wagmiChainId = useChainId();
   const { caipNetwork } = useAppKitNetwork();
+  const guestAuth = useGuestAuthOptional();
+  const isGuest = !!guestAuth?.guestUser;
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
@@ -143,6 +146,49 @@ export default function CreateGameMobile() {
   const handlePlay = async () => {
     if (isStarting) return;
     setIsStarting(true);
+    const toastId = toast.loading("Preparing game...");
+
+    if (isGuest) {
+      try {
+        toast.update(toastId, { render: "Creating game (guest)..." });
+        const res = await apiClient.post<any>("/games/create-as-guest", {
+          code: gameCode,
+          mode: gameType,
+          symbol: settings.symbol,
+          number_of_players: settings.maxPlayers,
+          stake: 0,
+          starting_cash: settings.startingCash,
+          is_ai: false,
+          is_minipay: isMiniPay,
+          chain: chainName,
+          duration: settings.duration,
+          use_usdc: false,
+          settings: {
+            auction: settings.auction,
+            rent_in_prison: settings.rentInPrison,
+            mortgage: settings.mortgage,
+            even_build: settings.evenBuild,
+            randomize_play_order: settings.randomPlayOrder,
+            starting_cash: settings.startingCash,
+          },
+        });
+        const data = (res as any)?.data;
+        const dbGameId = data?.data?.id ?? data?.id;
+        if (!dbGameId) throw new Error("Backend did not return game ID");
+        toast.update(toastId, {
+          render: `Game created! Code: ${gameCode}`,
+          type: "success",
+          isLoading: false,
+          autoClose: 5000,
+          onClose: () => router.push(`/game-waiting?gameCode=${gameCode}`),
+        });
+      } catch (err: any) {
+        const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create game.";
+        toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+      }
+      setIsStarting(false);
+      return;
+    }
 
     if (!address || !username || !isUserRegistered) {
       toast.error("Connect wallet & register first!", { autoClose: 5000 });
@@ -162,10 +208,7 @@ export default function CreateGameMobile() {
       return;
     }
 
-    const toastId = toast.loading("Preparing game...");
-
     try {
-      // 1. Approval (paid games only)
       if (!isFreeGame) {
         toast.update(toastId, { render: "Checking USDC allowance..." });
         await refetchAllowance();
@@ -175,22 +218,15 @@ export default function CreateGameMobile() {
           toast.update(toastId, { render: "Approving USDC (one-time)..." });
           await approveUSDC(usdcTokenAddress!, contractAddress, stakeAmount);
 
-          await new Promise(r => setTimeout(r, 4000)); // wait for propagation
+          await new Promise(r => setTimeout(r, 4000));
           await refetchAllowance();
-
-          const newAllowance = usdcAllowance ? BigInt(usdcAllowance.toString()) : 0;
-          if (newAllowance < stakeAmount) {
-            // throw new Error("USDC approval didn't register properly.");
-          }
         }
       }
 
-      // 2. Create on-chain
       toast.update(toastId, { render: "Creating game on-chain..." });
       const onChainGameId = await createGame();
       if (!onChainGameId) throw new Error("No game ID received from contract");
 
-      // 3. Save to backend
       toast.update(toastId, { render: "Saving game to server..." });
 
       const saveRes = await apiClient.post<any>("/games", {
@@ -246,7 +282,9 @@ export default function CreateGameMobile() {
     }
   };
 
-  if (isRegisteredLoading) {
+  const canCreate = isGuest || (address && username && isUserRegistered);
+
+  if (!isGuest && isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
         <p className="text-[#00F0FF] text-3xl font-orbitron animate-pulse text-center px-8">
@@ -277,7 +315,8 @@ export default function CreateGameMobile() {
 
       {/* Main content */}
       <div className="flex-1 px-5 space-y-4 pb-6 overflow-y-auto">
-        {/* Free Game Toggle */}
+        {/* Free Game Toggle - hidden for guests (guest games are free only) */}
+        {!isGuest && (
         <div className="bg-black/65 rounded-xl p-4 border border-yellow-600/40">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -299,6 +338,18 @@ export default function CreateGameMobile() {
             />
           </div>
         </div>
+        )}
+        {isGuest && (
+          <div className="bg-black/65 rounded-xl p-4 border border-yellow-600/40">
+            <div className="flex items-center gap-2">
+              <FaCoins className="w-5 h-5 text-yellow-400" />
+              <div>
+                <h3 className="text-sm font-bold text-yellow-300">Guest games are free</h3>
+                <p className="text-gray-400 text-[10px]">Connect a wallet to create staked games</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Your Piece & Max Players - compact row */}
         <div className="grid grid-cols-2 gap-3">
@@ -354,7 +405,8 @@ export default function CreateGameMobile() {
           </div>
         </div>
 
-        {/* Stake */}
+        {/* Stake - hidden for guests */}
+        {!isGuest && (
         <div className={`bg-gradient-to-b from-green-900/55 to-emerald-900/55 rounded-xl p-4 border ${isFreeGame ? 'border-yellow-600/40 opacity-75' : 'border-green-500/40'}`}>
           <div className="flex items-center gap-2 mb-3">
             <FaCoins className="w-5 h-5 text-green-400" />
@@ -403,6 +455,7 @@ export default function CreateGameMobile() {
             </>
           )}
         </div>
+        )}
 
         {/* Starting Cash & Duration */}
         <div className="grid grid-cols-2 gap-3">
@@ -471,16 +524,16 @@ export default function CreateGameMobile() {
         <div className="pt-4 pb-6">
           <button
             onClick={handlePlay}
-            disabled={isStarting || isCreatePending || (approvePending || approveConfirming)}
+            disabled={!canCreate || isStarting || (!isGuest && (isCreatePending || approvePending || approveConfirming))}
             className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
                        bg-gradient-to-r from-cyan-600 via-purple-700 to-pink-600
                        hover:brightness-110 active:scale-[0.98]
                        rounded-xl shadow-lg transition-all duration-300
                        disabled:opacity-60 disabled:cursor-not-allowed border-2 border-white/10 text-white"
           >
-            {isStarting || approvePending || approveConfirming
+            {isStarting || (!isGuest && (approvePending || approveConfirming))
               ? "PROCESSING..."
-              : isCreatePending
+              : !isGuest && isCreatePending
               ? "CREATING..."
               : isFreeGame
               ? "START FREE GAME"

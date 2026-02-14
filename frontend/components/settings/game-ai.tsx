@@ -29,6 +29,7 @@ import {
   useCreateAIGame,
   useRegisteredAIAgents,
 } from "@/context/ContractProvider";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address } from "viem";
 import { ShieldCheck } from "lucide-react";
@@ -56,6 +57,8 @@ export default function PlayWithAI() {
   const router = useRouter();
   const { address } = useAccount();
   const { caipNetwork } = useAppKitNetwork();
+  const guestAuth = useGuestAuthOptional();
+  const isGuest = !!guestAuth?.guestUser;
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
@@ -92,6 +95,54 @@ export default function PlayWithAI() {
   );
 
   const handlePlay = async () => {
+    const toastId = toast.loading(`Summoning ${settings.aiCount} AI opponent${settings.aiCount > 1 ? "s" : ""}...`);
+
+    if (isGuest) {
+      try {
+        toast.update(toastId, { render: "Creating AI game (guest)..." });
+        const res = await apiClient.post<any>("/games/create-ai-as-guest", {
+          code: gameCode,
+          symbol: settings.symbol,
+          number_of_players: totalPlayers,
+          is_minipay: isMiniPay,
+          chain: chainName,
+          duration: settings.duration,
+          settings: {
+            auction: settings.auction,
+            rent_in_prison: settings.rentInPrison,
+            mortgage: settings.mortgage,
+            even_build: settings.evenBuild,
+            starting_cash: settings.startingCash,
+            randomize_play_order: settings.randomPlayOrder,
+          },
+        });
+        const data = (res as any)?.data;
+        const dbGameId = data?.data?.id ?? data?.id;
+        if (!dbGameId) throw new Error("Backend did not return game ID");
+
+        toast.update(toastId, { render: "Adding AI opponents..." });
+        let availablePieces = GamePieces.filter((p) => p.id !== settings.symbol);
+        for (let i = 0; i < settings.aiCount; i++) {
+          if (availablePieces.length === 0) availablePieces = [...GamePieces];
+          const randomIndex = Math.floor(Math.random() * availablePieces.length);
+          const aiSymbol = availablePieces[randomIndex].id;
+          availablePieces.splice(randomIndex, 1);
+          try {
+            await apiClient.post("/game-players/join", { address: ai_address[i], symbol: aiSymbol, code: gameCode });
+          } catch (_) {}
+        }
+        try {
+          await apiClient.put(`/games/${dbGameId}`, { status: "RUNNING" });
+        } catch (_) {}
+        toast.update(toastId, { render: "Battle begins! Good luck, Tycoon!", type: "success", isLoading: false, autoClose: 5000 });
+        router.push(`/ai-play?gameCode=${gameCode}`);
+      } catch (err: any) {
+        const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
+        toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+      }
+      return;
+    }
+
     if (!address || !username || !isUserRegistered) {
       toast.error("Please connect your wallet and register first!", { autoClose: 5000 });
       return;
@@ -101,8 +152,6 @@ export default function PlayWithAI() {
       toast.error("Game contract not deployed on this network.");
       return;
     }
-
-    const toastId = toast.loading(`Summoning ${settings.aiCount} AI opponent${settings.aiCount > 1 ? "s" : ""}...`);
 
     try {
       toast.update(toastId, { render: "Creating AI game on-chain..." });
@@ -198,7 +247,9 @@ export default function PlayWithAI() {
     }
   };
 
-  if (isRegisteredLoading) {
+  const canCreate = isGuest || (address && username && isUserRegistered);
+
+  if (!isGuest && isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
         <p className="text-[#00F0FF] text-4xl font-orbitron animate-pulse tracking-wider">
@@ -399,7 +450,7 @@ export default function PlayWithAI() {
         <div className="flex justify-center mt-12">
           <button
             onClick={handlePlay}
-            disabled={isCreatePending}
+            disabled={!canCreate || (!isGuest && isCreatePending)}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
                      bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
                      hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500

@@ -23,6 +23,7 @@ import waitlistsRoutes from "./routes/waitlists.js";
 import chatsRoutes from "./routes/chats.js";
 import messagesRoutes from "./routes/messages.js";
 import analyticsRoutes from "./routes/analytics.js";
+import authRoutes from "./routes/auth.js";
 
 import gamePerkController from "./controllers/gamePerkController.js";
 import { connectSocketRedis } from "./config/socketRedis.js";
@@ -207,6 +208,7 @@ app.post("/api/config/call-contract", async (req, res) => {
 });
 
 // API routes
+app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/games", gamesRoutes);
 app.use("/api/game-settings", gameSettingsRoutes);

@@ -7,10 +7,14 @@ import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
 export default function JoinRoom(): JSX.Element {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const canAct = isConnected || !!guestUser;
 
   const [code, setCode] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -34,9 +38,14 @@ export default function JoinRoom(): JSX.Element {
   // Uppercase and trim code input
   const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
 
-  // Fetch recent games where user is a player (for "Continue Game" section)
   useEffect(() => {
-    if (!isConnected || !address) {
+    if (!canAct) {
+      setFetchingRecent(false);
+      setFetchingPending(false);
+      return;
+    }
+    const addr = address ?? guestUser?.address;
+    if (!addr) {
       setFetchingRecent(false);
       setFetchingPending(false);
       return;
@@ -70,7 +79,7 @@ export default function JoinRoom(): JSX.Element {
 
     fetchRecent();
     fetchPending();
-  }, [address, isConnected]);
+  }, [address, canAct, guestUser?.address]);
 
   // Filter and sort pending games based on timeFilter
   useEffect(() => {
@@ -101,8 +110,8 @@ export default function JoinRoom(): JSX.Element {
       return;
     }
 
-    if (!isConnected) {
-      setError("Please connect your wallet to join a game.");
+    if (!canAct) {
+      setError("Please connect your wallet or sign in as guest to join a game.");
       return;
     }
 
@@ -122,8 +131,9 @@ export default function JoinRoom(): JSX.Element {
 
       if (game.status === "RUNNING") {
         // Game already started — go directly to play if player is in it
+        const addr = address ?? guestUser?.address;
         const isPlayerInGame = game.players.some(
-          (p) => p.address.toLowerCase() === address?.toLowerCase()
+          (p) => String(p.address || "").toLowerCase() === addr?.toLowerCase()
         );
 
         if (isPlayerInGame) {
@@ -142,7 +152,7 @@ export default function JoinRoom(): JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [normalizedCode, address, isConnected, router]);
+  }, [normalizedCode, address, canAct, router]);
 
   const handleContinueGame = useCallback(
     (game: Game) => {
@@ -157,15 +167,15 @@ export default function JoinRoom(): JSX.Element {
 
   const handleJoinPublicGame = useCallback(
     (game: Game) => {
-      if (!isConnected) {
-        setError("Please connect your wallet to join a game.");
+      if (!canAct) {
+        setError("Please connect your wallet or sign in as guest to join a game.");
         return;
       }
       if (game.status === "PENDING") {
         router.push(`/game-waiting?gameCode=${encodeURIComponent(game.code)}`);
       }
     },
-    [isConnected, router]
+    [canAct, router]
   );
 
   const handleCreateNew = () => router.push("/game-settings");
@@ -230,7 +240,7 @@ export default function JoinRoom(): JSX.Element {
 
           {/* Games Section */}
           <div className="space-y-12">
-            {isConnected && (
+            {canAct && (
               <>
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
@@ -312,9 +322,9 @@ export default function JoinRoom(): JSX.Element {
               </>
             )}
 
-            {!isConnected && (
+            {!canAct && (
               <p className="text-yellow-400 text-sm text-center mt-6 bg-yellow-900/30 p-3 rounded-lg font-orbitron">
-                Connect your wallet to join or continue games.
+                Connect your wallet or sign in as guest to join or continue games.
               </p>
             )}
           </div>

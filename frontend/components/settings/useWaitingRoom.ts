@@ -18,6 +18,7 @@ import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
 const POLL_INTERVAL = 5000;
 const COPY_FEEDBACK_MS = 2000;
@@ -31,6 +32,8 @@ export function useWaitingRoom() {
 
   const { address } = useAccount();
   const chainId = useChainId();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
 
   const [game, setGame] = useState<Game | null>(null);
   const [playerSymbol, setPlayerSymbol] = useState<PlayerSymbol | null>(null);
@@ -85,6 +88,8 @@ export function useWaitingRoom() {
   const stakePerPlayer = contractGame?.stakePerPlayer
     ? BigInt(contractGame.stakePerPlayer)
     : BigInt(0);
+
+  const guestCannotJoinStaked = !!guestUser && stakePerPlayer > BigInt(0);
 
   const {
     write: joinGame,
@@ -161,18 +166,22 @@ export function useWaitingRoom() {
 
   const checkPlayerJoined = useCallback(
     (g: Game | null) => {
-      if (!g || !address) return false;
+      if (!g) return false;
+      const addr = guestUser?.address ?? address;
+      if (!addr) return false;
       return g.players.some(
-        (p) => p.address.toLowerCase() === address.toLowerCase()
+        (p) => String(p.address || "").toLowerCase() === addr.toLowerCase()
       );
     },
-    [address]
+    [address, guestUser?.address]
   );
 
   const isCreator = useMemo(() => {
-    if (!game || !address) return false;
-    return address.toLowerCase() === String(contractGame?.creator).toLowerCase();
-  }, [game, address, contractGame?.creator]);
+    if (!game) return false;
+    const addr = guestUser?.address ?? address;
+    if (!addr) return false;
+    return addr.toLowerCase() === String(contractGame?.creator).toLowerCase();
+  }, [game, address, guestUser?.address, contractGame?.creator]);
 
   const showShare = useMemo(() => {
     if (!game) return false;
@@ -337,20 +346,59 @@ export function useWaitingRoom() {
       return;
     }
 
+    setActionLoading(true);
+    setError(null);
+    const toastId = toast.loading("Joining the game...");
+
+    if (guestUser) {
+      if (stakePerPlayer > BigInt(0)) {
+        setError("Guests cannot join staked games. Connect a wallet to join this game.");
+        setActionLoading(false);
+        toast.update(toastId, {
+          render: "Guests cannot join staked games. Connect a wallet to join.",
+          type: "error",
+          isLoading: false,
+          autoClose: 6000,
+        });
+        return;
+      }
+      try {
+        await apiClient.post("/games/join-as-guest", {
+          code: game.code,
+          symbol: playerSymbol.value,
+          joinCode: game.code,
+        });
+        if (mountedRef.current) {
+          setIsJoined(true);
+          setError(null);
+        }
+        toast.update(toastId, {
+          render: "Successfully joined the game!",
+          type: "success",
+          isLoading: false,
+          autoClose: 5000,
+        });
+      } catch (err: unknown) {
+        const message = (err as any)?.response?.data?.message ?? (err as Error)?.message ?? "Failed to join game.";
+        setError(message);
+        toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 8000 });
+      } finally {
+        if (mountedRef.current) setActionLoading(false);
+      }
+      return;
+    }
+
     if (!contractAddress) {
       setError("Contract not deployed on this network.");
+      setActionLoading(false);
       return;
     }
 
     if (!usdcTokenAddress && stakePerPlayer > 0) {
       setError("USDC not available on this network.");
+      setActionLoading(false);
       return;
     }
-
-    setActionLoading(true);
-    setError(null);
-
-    const toastId = toast.loading("Joining the game...");
 
     try {
       if (stakePerPlayer > 0) {
@@ -410,6 +458,7 @@ export function useWaitingRoom() {
     playerSymbol,
     availableSymbols,
     address,
+    guestUser,
     joinGame,
     stakePerPlayer,
     contractAddress,
@@ -476,6 +525,8 @@ export function useWaitingRoom() {
     approvePending,
     approveConfirming,
     stakePerPlayer,
+    guestCannotJoinStaked,
+    guestUser,
     joinGame,
     isJoining,
     joinError,
