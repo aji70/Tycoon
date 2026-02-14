@@ -208,36 +208,64 @@ const endTime =
     }
   }, []);
 
+  const FETCH_THROTTLE_MS = 2200;
+  const lastFetchTimeRef = useRef(0);
+  const pendingFetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const fetchUpdatedGame = useCallback(async (retryDelay = 2000) => {
-    try {
-      const gameRes = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
-      if (gameRes?.data?.success && gameRes.data.data) {
-        setCurrentGame(gameRes.data.data);
-        setPlayers(gameRes.data.data.players);
-      }
-      const propertiesRes = await apiClient.get<ApiResponse<GameProperty[]>>(`/game-properties/game/${game.id}`);
-      if (propertiesRes?.data?.success && propertiesRes.data.data) {
-        setCurrentGameProperties(propertiesRes.data.data);
-      }
+    const doFetch = async () => {
+      lastFetchTimeRef.current = Date.now();
       try {
-        await refreshTrades?.();
-      } catch {
-        // Non-critical
+        const gameRes = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
+        if (gameRes?.data?.success && gameRes.data.data) {
+          setCurrentGame(gameRes.data.data);
+          setPlayers(gameRes.data.data.players);
+        }
+        const propertiesRes = await apiClient.get<ApiResponse<GameProperty[]>>(`/game-properties/game/${game.id}`);
+        if (propertiesRes?.data?.success && propertiesRes.data.data) {
+          setCurrentGameProperties(propertiesRes.data.data);
+        }
+        try {
+          await refreshTrades?.();
+        } catch {
+          // Non-critical
+        }
+      } catch (err: any) {
+        if (err?.response?.status === 429 || err?.message?.toLowerCase().includes("too many")) {
+          const msg = err?.response?.data?.message || err?.message || "Too many requests — wait a moment";
+          toast(msg, { duration: 2500, icon: "⏳" });
+          setTimeout(() => fetchUpdatedGame(retryDelay * 1.5), retryDelay);
+          return;
+        }
+        console.error("Sync failed:", err);
       }
-    } catch (err: any) {
-      if (err?.response?.status === 429 || err?.message?.toLowerCase().includes("too many")) {
-        const msg = err?.response?.data?.message || err?.message || "Too many requests — wait a moment";
-        toast(msg, { duration: 2500, icon: "⏳" });
-        setTimeout(() => fetchUpdatedGame(retryDelay * 1.5), retryDelay);
-        return;
-      }
-      console.error("Sync failed:", err);
+    };
+
+    const now = Date.now();
+    const elapsed = now - lastFetchTimeRef.current;
+    if (elapsed > 0 && elapsed < FETCH_THROTTLE_MS) {
+      const wait = FETCH_THROTTLE_MS - elapsed;
+      if (pendingFetchTimeoutRef.current) clearTimeout(pendingFetchTimeoutRef.current);
+      pendingFetchTimeoutRef.current = setTimeout(() => {
+        pendingFetchTimeoutRef.current = null;
+        doFetch();
+      }, wait);
+      return;
     }
+
+    if (pendingFetchTimeoutRef.current) {
+      clearTimeout(pendingFetchTimeoutRef.current);
+      pendingFetchTimeoutRef.current = null;
+    }
+    await doFetch();
   }, [game.code, game.id, refreshTrades]);
 
   useEffect(() => {
-    const interval = setInterval(fetchUpdatedGame, 15000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchUpdatedGame, 20000);
+    return () => {
+      clearInterval(interval);
+      if (pendingFetchTimeoutRef.current) clearTimeout(pendingFetchTimeoutRef.current);
+    };
   }, [fetchUpdatedGame]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {

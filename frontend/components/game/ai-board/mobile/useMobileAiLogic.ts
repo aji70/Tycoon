@@ -124,14 +124,16 @@ export function useMobileAiLogic({
               property_id: gp.property_id,
             });
             built = true;
-            await fetchUpdatedGame();
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 900));
           } catch (err) {
             console.error("Build failed", err);
             break;
           }
         }
-        if (built) break;
+        if (built) {
+          await fetchUpdatedGame();
+          break;
+        }
       }
     },
     [
@@ -523,13 +525,14 @@ export function useMobileAiBankruptcy({
               user_id: player.user_id,
               property_id: gp.property_id,
             });
-            await fetchUpdatedGame();
+            await new Promise((r) => setTimeout(r, 600));
           } catch (err) {
             console.error("AI failed to sell house", err);
             break;
           }
         }
       }
+      await fetchUpdatedGame();
     },
     [currentGame.id, currentGameProperties, properties, fetchUpdatedGame]
   );
@@ -549,11 +552,12 @@ export function useMobileAiBankruptcy({
             user_id: player.user_id,
             property_id: gp.property_id,
           });
-          await fetchUpdatedGame();
+          await new Promise((r) => setTimeout(r, 600));
         } catch (err) {
           console.error("AI failed to mortgage", err);
         }
       }
+      await fetchUpdatedGame();
     },
     [currentGame.id, currentGameProperties, fetchUpdatedGame]
   );
