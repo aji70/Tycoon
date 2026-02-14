@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import MobileGameLayout from "@/components/game/board/mobile/board-mobile";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 const fetchMessageCount = async (gameId: string | number): Promise<unknown[]> => {
   const res = await apiClient.get<{ data?: unknown[] | { data?: unknown[] } }>(`/messages/game/${gameId}`);
   const payload = (res as { data?: { data?: unknown[] } })?.data;
@@ -35,6 +36,9 @@ export default function GamePlayPage() {
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   const { address } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const myAddress = guestUser?.address ?? address;
 
   useEffect(() => {
     const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
@@ -83,11 +87,11 @@ export default function GamePlayPage() {
   }, [gameCode, queryClient, refetchGame]);
 
   const me = useMemo(() => {
-    if (!game?.players || !address) return null;
+    if (!game?.players || !myAddress) return null;
     return game.players.find(
-      (pl: Player) => pl.address?.toLowerCase() === address.toLowerCase()
+      (pl: Player) => pl.address?.toLowerCase() === myAddress.toLowerCase()
     ) || null;
-  }, [game, address]);
+  }, [game, myAddress]);
 
   const {
     data: properties = [],
@@ -119,16 +123,16 @@ export default function GamePlayPage() {
   });
 
   const my_properties: Property[] = useMemo(() => {
-    if (!game_properties?.length || !properties?.length || !address) return [];
+    if (!game_properties?.length || !properties?.length || !myAddress) return [];
 
     const propertyMap = new Map(properties.map((p) => [p.id, p]));
 
     return game_properties
-      .filter((gp) => gp.address?.toLowerCase() === address.toLowerCase())
+      .filter((gp) => gp.address?.toLowerCase() === myAddress.toLowerCase())
       .map((gp) => propertyMap.get(gp.property_id))
       .filter((p): p is Property => !!p)
       .sort((a, b) => a.id - b.id);
-  }, [game_properties, properties, address]);
+  }, [game_properties, properties, myAddress]);
 
   const [activeTab, setActiveTab] = useState<'board' | 'players' | 'chat'>('board');
   const [focusTrades, setFocusTrades] = useState(false);
