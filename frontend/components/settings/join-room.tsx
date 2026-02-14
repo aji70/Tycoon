@@ -323,9 +323,17 @@ export default function JoinRoom(): JSX.Element {
             )}
 
             {!canAct && (
-              <p className="text-yellow-400 text-sm text-center mt-6 bg-yellow-900/30 p-3 rounded-lg font-orbitron">
-                Connect your wallet or sign in as guest to join or continue games.
-              </p>
+              <div className="mt-6 space-y-3 text-center">
+                <p className="text-yellow-400 text-sm bg-yellow-900/30 p-3 rounded-lg font-orbitron">
+                  Connect your wallet or sign in as guest to join or continue games.
+                </p>
+                <a
+                  href="/"
+                  className="inline-block px-6 py-3 bg-[#00F0FF]/20 text-[#00F0FF] font-orbitron font-bold rounded-lg border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all"
+                >
+                  Sign in as guest (home)
+                </a>
+              </div>
             )}
           </div>
 

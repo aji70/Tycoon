@@ -400,6 +400,16 @@ export async function createGameByBackend(
         } catch (_) {}
       }
     } catch (_) {}
+    // Fallback: game was created on-chain; fetch id by code (e.g. if event not emitted or log format differs)
+    if (newGameId == null && code) {
+      try {
+        const gameByCode = await tycoon.getGameByCode(code);
+        const id = gameByCode?.id ?? gameByCode?.[0];
+        if (id != null) newGameId = String(id);
+      } catch (lookupErr) {
+        logger.warn({ err: lookupErr?.message, code }, "getGameByCode fallback failed after createGameByBackend");
+      }
+    }
     logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createGameByBackend tx");
     return { hash: receipt?.hash, gameId: newGameId };
   });
@@ -475,6 +485,15 @@ export async function createAIGameByBackend(
         } catch (_) {}
       }
     } catch (_) {}
+    if (newGameId == null && code) {
+      try {
+        const gameByCode = await tycoon.getGameByCode(code);
+        const id = gameByCode?.id ?? gameByCode?.[0];
+        if (id != null) newGameId = String(id);
+      } catch (lookupErr) {
+        logger.warn({ err: lookupErr?.message, code }, "getGameByCode fallback failed after createAIGameByBackend");
+      }
+    }
     logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createAIGameByBackend tx");
     return { hash: receipt?.hash, gameId: newGameId };
   });
