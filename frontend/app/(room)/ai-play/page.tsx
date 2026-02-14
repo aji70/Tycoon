@@ -16,6 +16,7 @@ import { useMediaQuery } from "@/components/useMediaQuery";
 
 import { LayoutGrid, Users, Loader2, AlertCircle } from "lucide-react";
 import { useIsRegistered } from "@/context/ContractProvider";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
 /** Shown when the game has ended (e.g. after claiming). Redirects home so user doesn't see "already concluded" error. */
 function GameEndedRedirect({ onGoHome }: { onGoHome: () => void }) {
@@ -45,6 +46,9 @@ export default function GamePlayPage() {
   const [gameCode, setGameCode] = useState<string>("");
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { address } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const isGuest = !!guestUser;
   const {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
@@ -58,8 +62,8 @@ export default function GamePlayPage() {
     }
   }, [searchParams]);
 
-  // If not registered → show message and redirect option
-  if (!isRegisteredLoading && isUserRegistered === false) {
+  // If not registered and not guest → show message and redirect option (guests can play AI without wallet)
+  if (!isRegisteredLoading && isUserRegistered === false && !isGuest) {
     return (
       <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center gap-8 px-8 text-center">
         <AlertCircle className="w-20 h-20 text-red-400" />
@@ -102,19 +106,20 @@ export default function GamePlayPage() {
       }
       return res.data.data;
     },
-    enabled: !!gameCode && isUserRegistered === true,
+    enabled: !!gameCode && (isUserRegistered === true || isGuest),
     refetchInterval: 5000,
     staleTime: 3000,
   });
 
   const me = useMemo<Player | null>(() => {
-    if (!game?.players || !address) return null;
+    const myAddress = guestUser?.address ?? address;
+    if (!game?.players || !myAddress) return null;
     return (
       game.players.find(
-        (pl: Player) => pl.address?.toLowerCase() === address.toLowerCase()
+        (pl: Player) => pl.address?.toLowerCase() === myAddress.toLowerCase()
       ) || null
     );
-  }, [game, address]);
+  }, [game, address, guestUser?.address]);
 
   const {
     data: properties = [],
@@ -142,15 +147,16 @@ export default function GamePlayPage() {
   });
 
   const my_properties: Property[] = useMemo(() => {
-    if (!game_properties.length || !properties.length || !address) return [];
+    const myAddress = guestUser?.address ?? address;
+    if (!game_properties.length || !properties.length || !myAddress) return [];
 
     const propertyMap = new Map(properties.map((p) => [p.id, p]));
     return game_properties
-      .filter((gp) => gp.address?.toLowerCase() === address.toLowerCase())
+      .filter((gp) => gp.address?.toLowerCase() === myAddress.toLowerCase())
       .map((gp) => propertyMap.get(gp.property_id))
       .filter((p): p is Property => !!p)
       .sort((a, b) => a.id - b.id);
-  }, [game_properties, properties, address]);
+  }, [game_properties, properties, address, guestUser?.address]);
 
   const currentPlayer = useMemo<Player | null>(() => {
     if (!game?.next_player_id || !game?.players) return null;
