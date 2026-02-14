@@ -63,20 +63,30 @@ export default function GameWaiting(): JSX.Element {
   }
 
   if (error || !game) {
+    const needsGuestSignIn = error?.toLowerCase().includes("sign in as guest");
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
         <div className="space-y-3 text-center bg-[#0A1A1B]/80 p-6 rounded-xl shadow-lg border border-red-500/50">
           <p className="text-red-400 text-lg font-bold font-orbitron animate-pulse">
             {error ?? "Game Portal Closed"}
           </p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center">
             <button
               type="button"
               onClick={() => router.push("/join-room")}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              Retry Join
+              {needsGuestSignIn ? "Go to Join Room" : "Retry Join"}
             </button>
+            {needsGuestSignIn && (
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
+              >
+                Sign in as guest (home)
+              </button>
+            )}
             <button
               type="button"
               onClick={handleGoHome}

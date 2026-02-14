@@ -346,6 +346,18 @@ export function useWaitingRoom() {
       return;
     }
 
+    // No wallet and not signed in as guest: direct to sign in as guest (free) or connect wallet (staked)
+    const hasWalletOrGuest = !!address || !!guestUser;
+    if (!hasWalletOrGuest) {
+      const isFree = stakePerPlayer === BigInt(0);
+      setError(
+        isFree
+          ? "Sign in as guest to join this free game. Go to Join Room and sign in as guest, then return here."
+          : "Connect a wallet or sign in as guest to join. Staked games require a connected wallet."
+      );
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
     const toastId = toast.loading("Joining the game...");

@@ -69,14 +69,23 @@ export default function GameWaitingMobile(): JSX.Element {
           <p className="text-red-400 text-lg font-bold font-orbitron animate-pulse">
             {error ?? "Game Portal Closed"}
           </p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center">
             <button
               type="button"
               onClick={() => router.push("/join-room")}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              Retry Join
+              {error?.toLowerCase().includes("sign in as guest") ? "Go to Join Room" : "Retry Join"}
             </button>
+            {error?.toLowerCase().includes("sign in as guest") && (
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
+              >
+                Sign in as guest (home)
+              </button>
+            )}
             <button
               type="button"
               onClick={handleGoHome}
