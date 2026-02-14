@@ -230,14 +230,17 @@ const {
         success?: boolean;
         data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean; winner_turn_count?: number };
       }>(`/games/${game.id}/finish-by-time`);
-      const winnerId = res?.data?.data?.winner_id;
-      if (winnerId == null) return;
-      const updatedPlayers = res?.data?.data?.game?.players ?? players;
+      const data = res?.data?.data;
+      const winnerId = data?.winner_id;
+      if (winnerId == null) {
+        throw new Error((res?.data as { error?: string })?.error ?? "Could not finish game by time");
+      }
+      const updatedPlayers = data?.game?.players ?? players;
       const winnerPlayer = updatedPlayers.find((p) => p.user_id === winnerId) ?? null;
       setWinner(winnerPlayer);
       const myPosition = me?.position ?? 0;
       const myBalance = BigInt(me?.balance ?? 0);
-      const validWin = res?.data?.data?.valid_win !== false;
+      const validWin = data?.valid_win !== false;
       if (winnerId === me?.user_id) {
         setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
       } else {
