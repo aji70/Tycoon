@@ -900,6 +900,13 @@ export const joinAsGuest = async (req, res) => {
       });
     }
 
+    // Sync with contract: reject if game is already full on-chain (e.g. wallet user joined first)
+    const onChainJoined = Number(contractGame?.joinedPlayers ?? contractGame?.[6] ?? 0);
+    const onChainMax = Number(contractGame?.numberOfPlayers ?? contractGame?.[5] ?? game.number_of_players);
+    if (onChainJoined >= onChainMax) {
+      return res.status(400).json({ success: false, message: "Game is full" });
+    }
+
     await joinGameByBackend(
       user.address,
       user.password_hash,
