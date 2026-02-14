@@ -110,11 +110,6 @@ export default function JoinRoom(): JSX.Element {
       return;
     }
 
-    if (!canAct) {
-      setError("Please connect your wallet or sign in as guest to join a game.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -132,8 +127,8 @@ export default function JoinRoom(): JSX.Element {
       if (game.status === "RUNNING") {
         // Game already started — go directly to play if player is in it
         const addr = address ?? guestUser?.address;
-        const isPlayerInGame = game.players.some(
-          (p) => String(p.address || "").toLowerCase() === addr?.toLowerCase()
+        const isPlayerInGame = addr && game.players.some(
+          (p) => String(p.address || "").toLowerCase() === addr.toLowerCase()
         );
 
         if (isPlayerInGame) {
@@ -142,7 +137,7 @@ export default function JoinRoom(): JSX.Element {
           throw new Error("This game has already started and you are not a player.");
         }
       } else if (game.status === "PENDING") {
-        // Game waiting — go to waiting room
+        // Game waiting — go to waiting room (sign in as guest or connect wallet there to join)
         router.push(`/game-waiting?gameCode=${encodeURIComponent(normalizedCode)}`);
       } else {
         throw new Error("This game is no longer active.");
@@ -152,7 +147,7 @@ export default function JoinRoom(): JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [normalizedCode, address, canAct, router]);
+  }, [normalizedCode, address, guestUser?.address, router]);
 
   const handleContinueGame = useCallback(
     (game: Game) => {
@@ -167,15 +162,11 @@ export default function JoinRoom(): JSX.Element {
 
   const handleJoinPublicGame = useCallback(
     (game: Game) => {
-      if (!canAct) {
-        setError("Please connect your wallet or sign in as guest to join a game.");
-        return;
-      }
       if (game.status === "PENDING") {
         router.push(`/game-waiting?gameCode=${encodeURIComponent(game.code)}`);
       }
     },
-    [canAct, router]
+    [router]
   );
 
   const handleCreateNew = () => router.push("/game-settings");

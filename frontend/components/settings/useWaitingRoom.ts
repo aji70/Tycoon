@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAccount, useChainId, useReadContract } from "wagmi";
+import { useAccount, useChainId, useReadContract, usePublicClient } from "wagmi";
 import { Address } from "viem";
 import {
   useGetUsername,
@@ -63,6 +63,7 @@ export function useWaitingRoom() {
 
   const contractId = contractGame?.id ?? null;
   const { data: username } = useGetUsername(address);
+  const publicClient = usePublicClient();
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[
     chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES
@@ -403,12 +404,21 @@ export function useWaitingRoom() {
     if (!contractAddress) {
       setError("Contract not deployed on this network.");
       setActionLoading(false);
+      toast.dismiss(toastId);
+      return;
+    }
+
+    if (contractId == null || Number(contractId) === 0) {
+      setError("Game not found on-chain. Make sure you're on the correct network, or the game may still be creating.");
+      setActionLoading(false);
+      toast.dismiss(toastId);
       return;
     }
 
     if (!usdcTokenAddress && stakePerPlayer > 0) {
       setError("USDC not available on this network.");
       setActionLoading(false);
+      toast.dismiss(toastId);
       return;
     }
 
@@ -427,8 +437,13 @@ export function useWaitingRoom() {
         }
       }
 
-      toast.update(toastId, { render: "Joining game on-chain..." });
-      await joinGame();
+      toast.update(toastId, { render: "Joining game on-chain (sign in wallet)..." });
+      const hash = await joinGame();
+
+      if (hash && publicClient) {
+        toast.update(toastId, { render: "Waiting for confirmation..." });
+        await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+      }
 
       toast.update(toastId, { render: "Saving join to server..." });
       const res = await apiClient.post<ApiResponse>("/game-players/join", {
@@ -473,11 +488,13 @@ export function useWaitingRoom() {
     guestUser,
     joinGame,
     stakePerPlayer,
+    contractId,
     contractAddress,
     usdcTokenAddress,
     refetchAllowance,
     usdcAllowance,
     approveUSDC,
+    publicClient,
   ]);
 
   const handleLeaveGame = useCallback(async () => {
