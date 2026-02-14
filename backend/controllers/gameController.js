@@ -943,19 +943,31 @@ export const createAIAsGuest = async (req, res) => {
     const startingCash = settings?.starting_cash ?? 1500;
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
 
-    const { gameId: onChainGameId } = await createAIGameByBackend(
+    const gameCodeForContract = (code || "").trim();
+    const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
       user.address,
       user.password_hash,
       user.username,
       "PRIVATE",
       symbol || "hat",
       numberOfAI,
-      code || "",
+      gameCodeForContract,
       startingCash
     );
 
+    let onChainGameId = onChainGameIdFromEvent;
+    if (!onChainGameId && gameCodeForContract) {
+      try {
+        const contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
+        const id = contractGame?.id ?? contractGame?.[0];
+        if (id != null) onChainGameId = String(id);
+      } catch (lookupErr) {
+        logger.warn({ err: lookupErr?.message, code: gameCodeForContract }, "getGameByCode fallback failed after createAIGameByBackend");
+      }
+    }
+
     if (!onChainGameId) {
-      return res.status(500).json({ success: false, message: "Contract did not return game ID" });
+      return res.status(500).json({ success: false, message: "Contract did not return game ID; redirect using game code." });
     }
 
     const game = await Game.create({
