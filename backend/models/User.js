@@ -24,10 +24,20 @@ const User = {
   },
 
   /**
-   * Find by username
+   * Find by username (exact match)
    */
   async findByUsername(username) {
     return await db("users").where({ username }).first();
+  },
+
+  /**
+   * Find by username case-insensitive (for "username taken" checks).
+   * Returns existing user if any row has the same username ignoring case.
+   */
+  async findByUsernameIgnoreCase(username) {
+    if (username == null || String(username).trim() === "") return null;
+    const normalized = String(username).trim().toLowerCase();
+    return await db("users").whereRaw("LOWER(TRIM(username)) = ?", [normalized]).first();
   },
 
   /**
