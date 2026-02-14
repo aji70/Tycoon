@@ -25,7 +25,6 @@ type CenterAreaProps = {
   onDeclareBankruptcy: () => void;
   isPending: boolean;
   timerSlot?: React.ReactNode;
-  turnTimeLeft?: number | null;
   /** When true, show "Time's Up" and hide Roll Dice (time-up by net worth). */
   gameTimeUp?: boolean;
 };
@@ -48,7 +47,6 @@ export default function CenterArea({
   onDeclareBankruptcy,
   isPending,
   timerSlot,
-  turnTimeLeft,
   gameTimeUp = false,
 }: CenterAreaProps) {
   return (
@@ -77,13 +75,6 @@ export default function CenterArea({
       {gameTimeUp && (
         <div className="text-center mb-4 z-10 font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
           Time&apos;s Up!
-        </div>
-      )}
-
-      {/* 90s roll countdown — show only while waiting to roll; hide when time's up */}
-      {!gameTimeUp && isMyTurn && !roll && !isRolling && (
-        <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-          Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
         </div>
       )}
 

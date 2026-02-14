@@ -3,10 +3,30 @@
  * Requires BACKEND_GAME_CONTROLLER_PRIVATE_KEY to be set as game controller on the contract.
  * Used for: setTurnCount, removePlayerFromGame, transferPropertyOwnership.
  * Creates fresh provider/wallet per call to avoid stale env and ensure Railway env is used.
+ *
+ * Concurrency: All writes from the backend wallet are serialized via withTxQueue() so that
+ * only one transaction is in flight at a time. This prevents nonce collisions when many
+ * guests (or other backend-triggered actions) hit the API at once.
  */
 import { JsonRpcProvider, Wallet, Contract, Network } from "ethers";
 import { getCeloConfig } from "../config/celo.js";
 import logger from "../config/logger.js";
+
+/** Serialize backend wallet transactions to avoid nonce collisions under concurrent load. */
+let txQueue = Promise.resolve();
+
+function withTxQueue(fn) {
+  const prev = txQueue;
+  let resolveNext;
+  txQueue = new Promise((r) => {
+    resolveNext = r;
+  });
+  return prev
+    .then(() => fn())
+    .finally(() => {
+      resolveNext();
+    });
+}
 
 const TYCOON_ABI = [
   {
@@ -228,18 +248,20 @@ export async function testContractConnection() {
  * @returns {Promise<{ hash: string }>} Transaction receipt / hash
  */
 export async function setTurnCount(gameId, playerAddress, count) {
-  const tycoon = getContract();
-  const tx = await tycoon.setTurnCount(
-    BigInt(gameId),
-    playerAddress,
-    BigInt(count)
-  );
-  const receipt = await tx.wait();
-  logger.info(
-    { gameId: String(gameId), player: playerAddress, count, hash: receipt?.hash },
-    "Tycoon setTurnCount tx"
-  );
-  return { hash: receipt?.hash };
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.setTurnCount(
+      BigInt(gameId),
+      playerAddress,
+      BigInt(count)
+    );
+    const receipt = await tx.wait();
+    logger.info(
+      { gameId: String(gameId), player: playerAddress, count, hash: receipt?.hash },
+      "Tycoon setTurnCount tx"
+    );
+    return { hash: receipt?.hash };
+  });
 }
 
 /**
@@ -250,25 +272,27 @@ export async function setTurnCount(gameId, playerAddress, count) {
  * @returns {Promise<{ hash: string, removed: boolean }>}
  */
 export async function removePlayerFromGame(gameId, playerAddress, turnCount) {
-  const tycoon = getContract();
-  const tx = await tycoon.removePlayerFromGame(
-    BigInt(gameId),
-    playerAddress,
-    BigInt(turnCount)
-  );
-  const receipt = await tx.wait();
-  const removed = receipt?.status === 1;
-  logger.info(
-    {
-      gameId: String(gameId),
-      player: playerAddress,
-      turnCount,
-      hash: receipt?.hash,
-      removed,
-    },
-    "Tycoon removePlayerFromGame tx"
-  );
-  return { hash: receipt?.hash, removed };
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.removePlayerFromGame(
+      BigInt(gameId),
+      playerAddress,
+      BigInt(turnCount)
+    );
+    const receipt = await tx.wait();
+    const removed = receipt?.status === 1;
+    logger.info(
+      {
+        gameId: String(gameId),
+        player: playerAddress,
+        turnCount,
+        hash: receipt?.hash,
+        removed,
+      },
+      "Tycoon removePlayerFromGame tx"
+    );
+    return { hash: receipt?.hash, removed };
+  });
 }
 
 /**
@@ -281,21 +305,23 @@ export async function transferPropertyOwnership(
   sellerUsername,
   buyerUsername
 ) {
-  const tycoon = getContract();
-  const tx = await tycoon.transferPropertyOwnership(
-    sellerUsername,
-    buyerUsername
-  );
-  const receipt = await tx.wait();
-  logger.info(
-    {
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.transferPropertyOwnership(
       sellerUsername,
-      buyerUsername,
-      hash: receipt?.hash,
-    },
-    "Tycoon transferPropertyOwnership tx"
-  );
-  return { hash: receipt?.hash };
+      buyerUsername
+    );
+    const receipt = await tx.wait();
+    logger.info(
+      {
+        sellerUsername,
+        buyerUsername,
+        hash: receipt?.hash,
+      },
+      "Tycoon transferPropertyOwnership tx"
+    );
+    return { hash: receipt?.hash };
+  });
 }
 
 /**
@@ -305,11 +331,13 @@ export async function transferPropertyOwnership(
  * @param {string} passwordHash - keccak256 hash of password (0x-prefixed hex 32 bytes)
  */
 export async function registerPlayerFor(playerAddress, username, passwordHash) {
-  const tycoon = getContract();
-  const tx = await tycoon.registerPlayerFor(playerAddress, username, passwordHash);
-  const receipt = await tx.wait();
-  logger.info({ playerAddress, username, hash: receipt?.hash }, "Tycoon registerPlayerFor tx");
-  return { hash: receipt?.hash };
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.registerPlayerFor(playerAddress, username, passwordHash);
+    const receipt = await tx.wait();
+    logger.info({ playerAddress, username, hash: receipt?.hash }, "Tycoon registerPlayerFor tx");
+    return { hash: receipt?.hash };
+  });
 }
 
 /**
@@ -327,37 +355,39 @@ export async function createGameByBackend(
   startingBalance,
   stakeAmount
 ) {
-  const tycoon = getContract();
-  const tx = await tycoon.createGameByBackend(
-    forPlayer,
-    "", // forUsername
-    passwordHash,
-    creatorUsername,
-    gameType,
-    playerSymbol,
-    Number(numberOfPlayers),
-    code,
-    BigInt(startingBalance),
-    BigInt(stakeAmount)
-  );
-  const receipt = await tx.wait();
-  let newGameId;
-  try {
-    const iface = new ethers.Interface([
-      "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
-    ]);
-    for (const log of receipt.logs || []) {
-      try {
-        const parsed = iface.parseLog({ topics: log.topics, data: log.data });
-        if (parsed?.name === "GameCreated" && parsed.args?.gameId != null) {
-          newGameId = String(parsed.args.gameId);
-          break;
-        }
-      } catch (_) {}
-    }
-  } catch (_) {}
-  logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createGameByBackend tx");
-  return { hash: receipt?.hash, gameId: newGameId };
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.createGameByBackend(
+      forPlayer,
+      "", // forUsername
+      passwordHash,
+      creatorUsername,
+      gameType,
+      playerSymbol,
+      Number(numberOfPlayers),
+      code,
+      BigInt(startingBalance),
+      BigInt(stakeAmount)
+    );
+    const receipt = await tx.wait();
+    let newGameId;
+    try {
+      const iface = new ethers.Interface([
+        "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
+      ]);
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+          if (parsed?.name === "GameCreated" && parsed.args?.gameId != null) {
+            newGameId = String(parsed.args.gameId);
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createGameByBackend tx");
+    return { hash: receipt?.hash, gameId: newGameId };
+  });
 }
 
 /**
@@ -371,19 +401,21 @@ export async function joinGameByBackend(
   playerSymbol,
   joinCode
 ) {
-  const tycoon = getContract();
-  const tx = await tycoon.joinGameByBackend(
-    forPlayer,
-    "",
-    passwordHash,
-    BigInt(gameId),
-    playerUsername,
-    playerSymbol,
-    joinCode || ""
-  );
-  const receipt = await tx.wait();
-  logger.info({ forPlayer, gameId, hash: receipt?.hash }, "Tycoon joinGameByBackend tx");
-  return { hash: receipt?.hash };
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.joinGameByBackend(
+      forPlayer,
+      "",
+      passwordHash,
+      BigInt(gameId),
+      playerUsername,
+      playerSymbol,
+      joinCode || ""
+    );
+    const receipt = await tx.wait();
+    logger.info({ forPlayer, gameId, hash: receipt?.hash }, "Tycoon joinGameByBackend tx");
+    return { hash: receipt?.hash };
+  });
 }
 
 /**
@@ -399,36 +431,38 @@ export async function createAIGameByBackend(
   code,
   startingBalance
 ) {
-  const tycoon = getContract();
-  const tx = await tycoon.createAIGameByBackend(
-    forPlayer,
-    "",
-    passwordHash,
-    creatorUsername,
-    gameType,
-    playerSymbol,
-    Number(numberOfAI),
-    code,
-    BigInt(startingBalance)
-  );
-  const receipt = await tx.wait();
-  let newGameId;
-  try {
-    const iface = new ethers.Interface([
-      "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
-    ]);
-    for (const log of receipt.logs || []) {
-      try {
-        const parsed = iface.parseLog({ topics: log.topics, data: log.data });
-        if (parsed?.name === "GameCreated" && parsed.args?.gameId != null) {
-          newGameId = String(parsed.args.gameId);
-          break;
-        }
-      } catch (_) {}
-    }
-  } catch (_) {}
-  logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createAIGameByBackend tx");
-  return { hash: receipt?.hash, gameId: newGameId };
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.createAIGameByBackend(
+      forPlayer,
+      "",
+      passwordHash,
+      creatorUsername,
+      gameType,
+      playerSymbol,
+      Number(numberOfAI),
+      code,
+      BigInt(startingBalance)
+    );
+    const receipt = await tx.wait();
+    let newGameId;
+    try {
+      const iface = new ethers.Interface([
+        "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
+      ]);
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+          if (parsed?.name === "GameCreated" && parsed.args?.gameId != null) {
+            newGameId = String(parsed.args.gameId);
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createAIGameByBackend tx");
+    return { hash: receipt?.hash, gameId: newGameId };
+  });
 }
 
 /**
@@ -577,21 +611,22 @@ function serializeContractResult(val) {
  * @returns {Promise<{ hash: string; status?: number; blockNumber?: number }>}
  */
 export async function callContractWrite(fn, params = []) {
-  if (!ALLOWED_WRITE_FNS.includes(fn)) {
-    throw new Error(`Unknown write function: ${fn}. Allowed: ${ALLOWED_WRITE_FNS.join(", ")}`);
-  }
-  const tycoon = getContract();
+  return withTxQueue(async () => {
+    if (!ALLOWED_WRITE_FNS.includes(fn)) {
+      throw new Error(`Unknown write function: ${fn}. Allowed: ${ALLOWED_WRITE_FNS.join(", ")}`);
+    }
+    const tycoon = getContract();
 
-  const normalized = params.map((p) => {
-    if (p === true || p === false) return p;
-    if (typeof p === "string" && (p === "true" || p === "false")) return p === "true";
-    if (typeof p === "number" || (typeof p === "string" && /^\d+$/.test(String(p))))
-      return BigInt(p);
-    return p ?? "";
-  });
+    const normalized = params.map((p) => {
+      if (p === true || p === false) return p;
+      if (typeof p === "string" && (p === "true" || p === "false")) return p === "true";
+      if (typeof p === "number" || (typeof p === "string" && /^\d+$/.test(String(p))))
+        return BigInt(p);
+      return p ?? "";
+    });
 
-  let tx;
-  switch (fn) {
+    let tx;
+    switch (fn) {
     case "registerPlayer":
       tx = await tycoon.registerPlayer(normalized[0] ?? "");
       break;
@@ -664,12 +699,13 @@ export async function callContractWrite(fn, params = []) {
       break;
     default:
       throw new Error(`Unhandled write function: ${fn}`);
-  }
+    }
 
-  const receipt = await tx.wait();
-  return {
-    hash: receipt?.hash,
-    status: receipt?.status,
-    blockNumber: receipt?.blockNumber ? Number(receipt.blockNumber) : undefined,
-  };
+    const receipt = await tx.wait();
+    return {
+      hash: receipt?.hash,
+      status: receipt?.status,
+      blockNumber: receipt?.blockNumber ? Number(receipt.blockNumber) : undefined,
+    };
+  });
 }

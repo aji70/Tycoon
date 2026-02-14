@@ -9,7 +9,6 @@ interface RollDiceSectionProps {
   showInsolvencyModal: boolean;
   me: Player | null;
   roll: { die1: number; die2: number; total: number } | null;
-  turnTimeLeft?: number | null;
   onRollDice: () => void;
   onDeclareBankruptcy: () => void;
 }
@@ -21,7 +20,6 @@ export default function RollDiceSection({
   showInsolvencyModal,
   me,
   roll,
-  turnTimeLeft,
   onRollDice,
   onDeclareBankruptcy,
 }: RollDiceSectionProps) {
@@ -29,9 +27,6 @@ export default function RollDiceSection({
 
   return (
     <>
-      <div className={`text-center mb-2 font-mono font-bold ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-200"}`}>
-        Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
-      </div>
       {me && me.balance >= 0 && !roll && (
         <div className="flex justify-center items-center w-full mb-8">
           <button

@@ -95,7 +95,6 @@ const MobileGameLayout = ({
   const [cardPlayerName, setCardPlayerName] = useState("");
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
-  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
   const [gameTimeUp, setGameTimeUp] = useState(false);
   const timeUpHandledRef = useRef(false);
 
@@ -367,31 +366,7 @@ const endTime =
   }, [currentGame.id, currentGame.status, me, players, onFinishGameByTime]);
 
   const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp);
-  useEffect(() => {
-    if (!isMyTurn || !playerCanRoll || isRolling || roll) {
-      setTurnTimeLeft(null);
-      return;
-    }
-    // Start countdown immediately: use server turn_start if present, otherwise "now"
-    const raw = currentPlayer?.turn_start;
-    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
-    if (Number.isNaN(turnStartSec)) {
-      setTurnTimeLeft(null);
-      return;
-    }
-    const TURN_ROLL_SECONDS = 90;
-    const tick = () => {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
-      setTurnTimeLeft(remaining);
-      if (remaining <= 0) {
-        END_TURN(true);
-      }
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, isRolling, roll, showToast, END_TURN]);
+  // Per-turn roll timer removed: no countdown or auto-end turn.
 
   const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
     if (landedPositionThisTurn.current !== null) return;
@@ -821,11 +796,6 @@ const endTime =
                 {gameTimeUp && (
                   <div className="font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
                     Time&apos;s Up!
-                  </div>
-                )}
-                {!gameTimeUp && isMyTurn && !roll && !isRolling && (
-                  <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-                    Roll in {Math.floor((turnTimeLeft ?? 90) / 60)}:{((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}
                   </div>
                 )}
                 {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (

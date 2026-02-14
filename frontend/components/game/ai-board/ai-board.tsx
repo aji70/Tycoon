@@ -27,7 +27,6 @@ import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
-import { GameDurationCountdown } from "../GameDurationCountdown";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
@@ -144,7 +143,6 @@ const AiBoard = ({
   const lastToastMessage = useRef<string | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
-  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -338,35 +336,7 @@ const {
     }
   }, [currentPlayerId, game.id, lockAction, unlockAction, showToast]);
 
-  useEffect(() => {
-    if (!isMyTurn || !playerCanRoll || roll) {
-      setTurnTimeLeft(null);
-      return;
-    }
-    // Start countdown immediately: use server turn_start if present, otherwise "now"
-    const raw = currentPlayer?.turn_start;
-    const turnStartSec = raw ? parseInt(String(raw), 10) : Math.floor(Date.now() / 1000);
-    if (Number.isNaN(turnStartSec)) {
-      setTurnTimeLeft(null);
-      return;
-    }
-    const TURN_ROLL_SECONDS = 90;
-    const tick = () => {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const remaining = Math.max(0, TURN_ROLL_SECONDS - (nowSec - turnStartSec));
-      setTurnTimeLeft(remaining);
-      if (remaining <= 0) {
-        END_TURN(true);
-      }
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [isMyTurn, playerCanRoll, currentPlayer?.turn_start, roll, showToast, END_TURN]);
-
-  useEffect(() => {
-    setTurnTimeLeft(null);
-  }, [currentPlayerId]);
+  // Per-turn roll timer removed: no countdown or auto-end turn.
 
 // ── Then your BUY_PROPERTY becomes: ──
 const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
@@ -1058,8 +1028,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
               isPending={false}
-              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} /> : null}
-              turnTimeLeft={turnTimeLeft}
+              timerSlot={null}
               gameTimeUp={gameTimeUp}
             />
 
