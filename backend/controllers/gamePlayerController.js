@@ -10,6 +10,7 @@ import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured } from "../services/tycoonContract.js";
+import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 
 async function notifyGameUpdate(req, gameId) {
   try {
@@ -976,9 +977,10 @@ const gamePlayerController = {
             updated_at: new Date(),
           });
         await trx.commit();
-        // End AI game on contract so human gets consolation (fire-and-forget)
+        // End AI game on contract so human gets consolation (guest or wallet when we have contract auth)
         if (game.contract_game_id && isContractConfigured()) {
-          const eliminatedUser = await db("users").where({ id: eliminatedUserId }).select("address", "username", "password_hash").first();
+          const eliminatedUser = await ensureUserHasContractPassword(db, eliminatedUserId) ||
+            (await db("users").where({ id: eliminatedUserId }).select("address", "username", "password_hash").first());
           if (eliminatedUser?.address && eliminatedUser?.password_hash) {
             endAIGameByBackend(
               eliminatedUser.address,
@@ -1379,10 +1381,10 @@ const gamePlayerController = {
         const { contract_game_id, target_address, target_turn_count, winner_user_id } = removalResultForContract;
         if (contract_game_id && target_address) {
           removePlayerFromGame(contract_game_id, target_address, target_turn_count)
-            .then(() => {
-              if (winner_user_id && contract_game_id) {
-                return db("users").where({ id: winner_user_id }).select("address", "username", "password_hash").first();
-              }
+            .then(async () => {
+              if (!winner_user_id || !contract_game_id) return null;
+              const u = await ensureUserHasContractPassword(db, winner_user_id);
+              return u || (await db("users").where({ id: winner_user_id }).select("address", "username", "password_hash").first());
             })
             .then((winnerUser) => {
               if (winnerUser?.address && winnerUser?.password_hash && removalResultForContract.contract_game_id) {
@@ -1573,7 +1575,11 @@ const gamePlayerController = {
       // On-chain: remove player, then if game ended (1 winner) end game on contract for winner
       if (isContractConfigured() && result.contract_game_id && result.target_address) {
         removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count)
-          .then(() => result.winner_user_id && result.contract_game_id ? db("users").where({ id: result.winner_user_id }).select("address", "username", "password_hash").first() : null)
+          .then(async () => {
+            if (!result.winner_user_id || !result.contract_game_id) return null;
+            const u = await ensureUserHasContractPassword(db, result.winner_user_id);
+            return u || (await db("users").where({ id: result.winner_user_id }).select("address", "username", "password_hash").first());
+          })
           .then((winnerUser) => {
             if (winnerUser?.address && winnerUser?.password_hash && result.contract_game_id) {
               return exitGameByBackend(winnerUser.address, winnerUser.username || "", winnerUser.password_hash, result.contract_game_id);
