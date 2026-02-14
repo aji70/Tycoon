@@ -9,9 +9,46 @@ import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721
 contract Wallet {
     address public router; // router/paymaster address (only this address can withdraw)
 
+      event ETHWithdrawn(
+        address indexed recipient,
+        uint256 amount,
+        address indexed executedBy
+    );
+    
+    /// @notice Emitted when ERC20 tokens are withdrawn from the wallet
+    event ERC20Withdrawn(
+        address indexed token,
+        address indexed recipient,
+        uint256 amount,
+        address indexed executedBy
+    );
+    
+    /// @notice Emitted when an ERC721 NFT is withdrawn from the wallet
+    event ERC721Withdrawn(
+        address indexed nft,
+        address indexed recipient,
+        uint256 tokenId,
+        address indexed executedBy
+    );
+    
+    /// @notice Emitted when funds are received by the wallet
+    event FundsReceived(
+        address indexed from,
+        uint256 amount,
+        uint256 newBalance
+    );
+    
+    /// @notice Emitted when the router/owner is changed
+    event RouterUpdated(
+        address indexed oldRouter,
+        address indexed newRouter,
+        address indexed updatedBy
+    );
+
     constructor(address _router) {
         require(_router != address(0), "Invalid router");
         router = _router;
+         emit RouterUpdated(address(0), _router, msg.sender);
     }
 
     modifier onlyOwner() {
@@ -24,6 +61,7 @@ contract Wallet {
         require(address(this).balance >= amount, "Insufficient balance");
         (bool sent,) = recipient.call{value: amount}("");
         require(sent, "ETH transfer failed");
+        emit ETHWithdrawn(recipient, amount, msg.sender);
     }
 
     function getBalance() external view returns (uint256) {
@@ -36,7 +74,9 @@ contract Wallet {
         require(erc20.balanceOf(address(this)) >= amount, "Insufficient token balance");
         bool ok = erc20.transfer(recipient, amount);
         require(ok, "Token transfer failed");
+       emit ERC20Withdrawn(token, recipient, amount, msg.sender);
         return true;
+
     }
 
     function getERC20Balance(address token) external view returns (uint256) {
@@ -54,6 +94,7 @@ contract Wallet {
         IERC721 erc721 = IERC721(nft);
         require(erc721.ownerOf(tokenId) == address(this), "NFT not owned by wallet");
         erc721.safeTransferFrom(address(this), recipient, tokenId);
+         emit ERC721Withdrawn(nft, recipient, tokenId, msg.sender);
     }
 
     /**
@@ -65,7 +106,9 @@ contract Wallet {
         return IERC721(nft).balanceOf(address(this));
     }
 
-    receive() external payable {}
+    receive() external payable {
+emit FundsReceived(msg.sender, msg.value, address(this).balance);
+    }
 }
 
 interface IWallet {
