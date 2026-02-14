@@ -18,23 +18,17 @@ import { LayoutGrid, Users, Loader2, AlertCircle } from "lucide-react";
 import { useIsRegistered } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
-/** Shown when the game has ended (e.g. after claiming). Redirects home so user doesn't see "already concluded" error. */
+/** Shown when the game has ended and we have no game data (e.g. deep link to cancelled game). User goes home when they click. */
 function GameEndedRedirect({ onGoHome }: { onGoHome: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onGoHome, 2500);
-    return () => clearTimeout(t);
-  }, [onGoHome]);
-
   return (
     <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
       <h2 className="text-2xl font-bold text-cyan-400 mb-2">Game over</h2>
-      <p className="text-gray-400 mb-6">This game has ended. Taking you home...</p>
-      <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mb-6" />
+      <p className="text-gray-400 mb-6">This game has ended.</p>
       <button
         onClick={onGoHome}
         className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all"
       >
-        Go home now
+        Go home
       </button>
     </div>
   );
