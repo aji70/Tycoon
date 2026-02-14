@@ -9,7 +9,7 @@ import db from "../config/database.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import logger from "../config/logger.js";
-import { removePlayerFromGame, isContractConfigured } from "../services/tycoonContract.js";
+import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured } from "../services/tycoonContract.js";
 
 async function notifyGameUpdate(req, gameId) {
   try {
@@ -73,6 +73,7 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
   return {
     removed_user_id: target_user_id,
     remaining_count: remaining.length,
+    winner_user_id: remaining.length === 1 ? remaining[0].user_id : null,
     contract_game_id: game.contract_game_id,
     target_address: targetAddress,
     target_turn_count: targetTurnCount,
@@ -960,6 +961,7 @@ const gamePlayerController = {
       const newStrikes = timed_out ? currentStrikes + 1 : 0;
       if (game.is_ai && timed_out && newStrikes >= 3) {
         const currentPlayerRow = players[currentIdx];
+        const eliminatedUserId = currentPlayerRow.user_id;
         await trx("game_properties")
           .where({ game_id, player_id: currentPlayerRow.id })
           .update({ player_id: null, mortgaged: false, development: 0, updated_at: db.fn.now() });
@@ -974,6 +976,21 @@ const gamePlayerController = {
             updated_at: new Date(),
           });
         await trx.commit();
+        // End AI game on contract so human gets consolation (fire-and-forget)
+        if (game.contract_game_id && isContractConfigured()) {
+          const eliminatedUser = await db("users").where({ id: eliminatedUserId }).select("address", "username", "password_hash").first();
+          if (eliminatedUser?.address && eliminatedUser?.password_hash) {
+            endAIGameByBackend(
+              eliminatedUser.address,
+              eliminatedUser.username || "",
+              eliminatedUser.password_hash,
+              game.contract_game_id,
+              Number(currentPlayerRow.position ?? 0),
+              String(currentPlayerRow.balance ?? 0),
+              false
+            ).catch((err) => logger.warn({ err: err?.message, game_id }, "endAIGameByBackend (eliminated) failed"));
+          }
+        }
         return res.status(200).json({
           success: true,
           message: "Eliminated due to inactivity. AI wins.",
@@ -1357,13 +1374,29 @@ const gamePlayerController = {
 
       await trx.commit();
 
-      // On-chain: remove player from game (fire-and-forget)
+      // On-chain: remove player from game, then if game ended (1 winner left) end game on contract for winner
       if (removed && removalResultForContract && isContractConfigured()) {
-        const { contract_game_id, target_address, target_turn_count } = removalResultForContract;
+        const { contract_game_id, target_address, target_turn_count, winner_user_id } = removalResultForContract;
         if (contract_game_id && target_address) {
-          removePlayerFromGame(contract_game_id, target_address, target_turn_count).catch((err) => {
-            logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame failed");
-          });
+          removePlayerFromGame(contract_game_id, target_address, target_turn_count)
+            .then(() => {
+              if (winner_user_id && contract_game_id) {
+                return db("users").where({ id: winner_user_id }).select("address", "username", "password_hash").first();
+              }
+            })
+            .then((winnerUser) => {
+              if (winnerUser?.address && winnerUser?.password_hash && removalResultForContract.contract_game_id) {
+                return exitGameByBackend(
+                  winnerUser.address,
+                  winnerUser.username || "",
+                  winnerUser.password_hash,
+                  removalResultForContract.contract_game_id
+                );
+              }
+            })
+            .catch((err) => {
+              logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame / exitGameByBackend failed");
+            });
         }
       }
 
@@ -1537,11 +1570,16 @@ const gamePlayerController = {
       await notifyGameUpdate(req, game_id);
       await trx.commit();
 
-      // On-chain: remove player from game (fire-and-forget)
+      // On-chain: remove player, then if game ended (1 winner) end game on contract for winner
       if (isContractConfigured() && result.contract_game_id && result.target_address) {
-        removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count).catch((err) => {
-          logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame failed (inactive)");
-        });
+        removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count)
+          .then(() => result.winner_user_id && result.contract_game_id ? db("users").where({ id: result.winner_user_id }).select("address", "username", "password_hash").first() : null)
+          .then((winnerUser) => {
+            if (winnerUser?.address && winnerUser?.password_hash && result.contract_game_id) {
+              return exitGameByBackend(winnerUser.address, winnerUser.username || "", winnerUser.password_hash, result.contract_game_id);
+            }
+          })
+          .catch((err) => logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame / exitGameByBackend failed (inactive)"));
       }
 
       return res.status(200).json({

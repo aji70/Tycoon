@@ -19,6 +19,9 @@ import {
   joinGameByBackend,
   createAIGameByBackend,
   callContractRead,
+  endAIGameByBackend,
+  exitGameByBackend,
+  isContractConfigured,
 } from "../services/tycoonContract.js";
 
 const PROPERTY_TYPES = {
@@ -357,6 +360,38 @@ const gameController = {
       await invalidateGameById(game.id);
       const io = req.app.get("io");
       emitGameUpdate(io, game.code);
+
+      // End game on the contract so players get rewards.
+      if (game.contract_game_id && isContractConfigured()) {
+        if (game.is_ai) {
+          const creator = await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first();
+          const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
+          if (creator?.address && creator?.password_hash && humanGp) {
+            const isWin = result.winner_id === game.creator_id;
+            endAIGameByBackend(
+              creator.address,
+              creator.username || "",
+              creator.password_hash,
+              game.contract_game_id,
+              Number(humanGp.position ?? 0),
+              String(humanGp.balance ?? 0),
+              isWin
+            ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
+          }
+        } else {
+          // Multiplayer: winner exits on-chain so game ends and they get payout
+          const winnerUser = await db("users").where({ id: result.winner_id }).select("address", "username", "password_hash").first();
+          if (winnerUser?.address && winnerUser?.password_hash) {
+            exitGameByBackend(
+              winnerUser.address,
+              winnerUser.username || "",
+              winnerUser.password_hash,
+              game.contract_game_id
+            ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "exitGameByBackend failed (game already ended on-chain?)"));
+          }
+        }
+      }
+
       const updated = await Game.findById(game.id);
       return res.status(200).json({
         success: true,

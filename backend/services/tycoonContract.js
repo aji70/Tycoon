@@ -184,9 +184,24 @@ const TYCOON_ABI = [
   ], outputs: [{ name: "order", type: "uint8" }], stateMutability: "nonpayable" },
   { type: "function", name: "leavePendingGame", inputs: [{ name: "gameId", type: "uint256" }], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" },
   { type: "function", name: "exitGame", inputs: [{ name: "gameId", type: "uint256" }], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" },
+  { type: "function", name: "exitGameByBackend", inputs: [
+    { name: "forPlayer", type: "address", internalType: "address" },
+    { name: "forUsername", type: "string", internalType: "string" },
+    { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+    { name: "gameId", type: "uint256", internalType: "uint256" },
+  ], outputs: [{ name: "", type: "bool", internalType: "bool" }], stateMutability: "nonpayable" },
   { type: "function", name: "endAIGame", inputs: [
     { name: "gameId", type: "uint256" }, { name: "finalPosition", type: "uint8" }, { name: "finalBalance", type: "uint256" }, { name: "isWin", type: "bool" }
   ], outputs: [{ name: "", type: "bool" }], stateMutability: "nonpayable" },
+  { type: "function", name: "endAIGameByBackend", inputs: [
+    { name: "forPlayer", type: "address", internalType: "address" },
+    { name: "forUsername", type: "string", internalType: "string" },
+    { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+    { name: "gameId", type: "uint256", internalType: "uint256" },
+    { name: "finalPosition", type: "uint8", internalType: "uint8" },
+    { name: "finalBalance", type: "uint256", internalType: "uint256" },
+    { name: "isWin", type: "bool", internalType: "bool" },
+  ], outputs: [{ name: "", type: "bool", internalType: "bool" }], stateMutability: "nonpayable" },
   { type: "function", name: "setBackendGameController", inputs: [{ name: "newController", type: "address" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "setMinTurnsForPerks", inputs: [{ name: "newMin", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "setMinStake", inputs: [{ name: "newMinStake", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
@@ -462,6 +477,47 @@ export async function createAIGameByBackend(
     } catch (_) {}
     logger.info({ forPlayer, code, gameId: newGameId, hash: receipt?.hash }, "Tycoon createAIGameByBackend tx");
     return { hash: receipt?.hash, gameId: newGameId };
+  });
+}
+
+/**
+ * End AI game on-chain on behalf of the human player (e.g. when game ends by time).
+ * Requires the player's password hash (guests have it in DB). Idempotent if game already ended on-chain.
+ */
+export async function endAIGameByBackend(forPlayer, forUsername, passwordHash, gameId, finalPosition, finalBalance, isWin) {
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.endAIGameByBackend(
+      forPlayer,
+      forUsername || "",
+      passwordHash,
+      BigInt(gameId),
+      Number(finalPosition ?? 0),
+      BigInt(finalBalance ?? 0),
+      Boolean(isWin)
+    );
+    const receipt = await tx.wait();
+    logger.info({ forPlayer, gameId, isWin, hash: receipt?.hash }, "Tycoon endAIGameByBackend tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Exit game on-chain on behalf of a player (e.g. when multiplayer game ends and winner is the last one).
+ * Requires the player's password hash (guests have it in DB). Ends the game and pays out the winner.
+ */
+export async function exitGameByBackend(forPlayer, forUsername, passwordHash, gameId) {
+  return withTxQueue(async () => {
+    const tycoon = getContract();
+    const tx = await tycoon.exitGameByBackend(
+      forPlayer,
+      forUsername || "",
+      passwordHash,
+      BigInt(gameId)
+    );
+    const receipt = await tx.wait();
+    logger.info({ forPlayer, gameId, hash: receipt?.hash }, "Tycoon exitGameByBackend tx");
+    return { hash: receipt?.hash };
   });
 }
 
