@@ -77,7 +77,7 @@ export default function PlayWithAIMobile() {
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    duration: 0, // minutes
+    duration: 30, // minutes
   });
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;

@@ -144,7 +144,7 @@ const GameModals: React.FC<GameModalsProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-50 p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[100] p-4 overflow-y-auto"
           >
             {/* Ambient background — deep indigo/cyan, no gold */}
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
@@ -337,7 +337,7 @@ const GameModals: React.FC<GameModalsProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+            className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-[110] p-4"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -396,7 +396,7 @@ const GameModals: React.FC<GameModalsProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
           >
             <motion.div
               initial={{ scale: 0.8 }}
@@ -433,7 +433,7 @@ const GameModals: React.FC<GameModalsProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4"
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
           >
             <motion.div
               initial={{ scale: 0.8 }}
@@ -460,7 +460,7 @@ const GameModals: React.FC<GameModalsProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
           >
             <motion.div
               initial={{ scale: 0.8 }}
@@ -488,7 +488,7 @@ const GameModals: React.FC<GameModalsProps> = ({
         <motion.div
           initial={{ y: 100 }}
           animate={{ y: 0 }}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[65] w-[80vw] max-w-md"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[110] w-[80vw] max-w-md"
         >
           <button
             onClick={handleRetryAfterFunds}

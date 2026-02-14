@@ -25,7 +25,7 @@ export default function BuyPromptModal({
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="fixed inset-x-0 bottom-0 bg-gray-900/95 backdrop-blur-lg p-6 rounded-t-3xl shadow-2xl z-[60] border-t border-cyan-500/30"
+        className="fixed inset-x-0 bottom-0 bg-gray-900/95 backdrop-blur-lg p-6 rounded-t-3xl shadow-2xl z-[100] border-t border-cyan-500/30"
       >
         <div className="max-w-md mx-auto text-center">
           <h3 className="text-2xl font-bold text-white mb-2">

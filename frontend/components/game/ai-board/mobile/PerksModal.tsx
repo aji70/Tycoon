@@ -38,14 +38,14 @@ export default function PerksModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/80 z-50"
+          className="fixed inset-0 bg-black/80 z-[100]"
         />
         <motion.div
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", damping: 30, stiffness: 300 }}
-          className="fixed inset-x-0 bottom-0 top-16 z-50 bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
+          className="fixed inset-x-0 bottom-0 top-16 z-[100] bg-[#0A1C1E] rounded-t-3xl border-t border-cyan-500/50 overflow-hidden shadow-2xl flex flex-col"
         >
           <div className="p-6 border-b border-cyan-900/50 flex items-center justify-between">
             <h2 className="text-3xl font-bold flex items-center gap-4">

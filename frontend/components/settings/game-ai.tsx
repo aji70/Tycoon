@@ -70,14 +70,14 @@ export default function PlayWithAI() {
   const [settings, setSettings] = useState({
     symbol: "hat",
     aiCount: 1,
-    startingCash: 5000,
+    startingCash: 1500,
     aiDifficulty: "boss" as "easy" | "medium" | "hard" | "boss",
     auction: true,
     rentInPrison: false,
     mortgage: true,
     evenBuild: true,
     randomPlayOrder: true,
-    duration: 0, // minutes
+    duration: 30, // minutes
   });
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[caipNetwork?.id as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
