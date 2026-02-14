@@ -922,7 +922,16 @@ const endTime =
             fontWeight: "500",
             boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
           },
-          success: { icon: "✓", duration: 2000 },
+          success: {
+            icon: "✓",
+            duration: 2000,
+            style: {
+              borderColor: "rgba(34, 211, 238, 0.7)",
+              background: "rgba(6, 78, 99, 0.35)",
+              boxShadow: "0 4px 16px rgba(0, 240, 255, 0.2)",
+              color: "#a5f3fc",
+            },
+          },
           error: { icon: "!", duration: 2500 },
           loading: { duration: Infinity },
         }}
