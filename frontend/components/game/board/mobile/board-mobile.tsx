@@ -1352,11 +1352,13 @@ const MobileGameLayout = ({
         onReturnHome={() => window.location.href = "/"}
       />
 
+      {/* Multiplayer uses GameModals winner/loser screen (matches AI); backend handles end & winner. No separate claim modal. */}
       <VictoryModal
         winner={winner}
         me={me}
         onClaim={handleFinalizeAndLeave}
         claiming={endGamePending}
+        isOpen={false}
       />
 
 
