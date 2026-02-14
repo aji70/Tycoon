@@ -364,7 +364,22 @@ const gameController = {
       emitGameUpdate(io, game.code);
 
       // End game on the contract so players get rewards (guest or wallet; we ensure password when possible).
-      if (game.contract_game_id && isContractConfigured()) {
+      let contractGameIdToUse = game.contract_game_id;
+      if (!game.is_ai && isContractConfigured() && game.code) {
+        if (!contractGameIdToUse) {
+          try {
+            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()]);
+            const onChainId = contractGame?.id ?? contractGame?.[0];
+            if (onChainId != null && onChainId !== "") {
+              contractGameIdToUse = String(onChainId);
+              await Game.update(game.id, { contract_game_id: contractGameIdToUse });
+            }
+          } catch (err) {
+            logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in finishByTime failed");
+          }
+        }
+      }
+      if (contractGameIdToUse && isContractConfigured()) {
         if (game.is_ai) {
           const creator = await ensureUserHasContractPassword(db, game.creator_id) ||
             (await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first());
@@ -375,7 +390,7 @@ const gameController = {
               creator.address,
               creator.username || "",
               creator.password_hash,
-              game.contract_game_id,
+              contractGameIdToUse,
               Number(humanGp.position ?? 0),
               String(humanGp.balance ?? 0),
               isWin
@@ -389,7 +404,7 @@ const gameController = {
               winnerUser.address,
               winnerUser.username || "",
               winnerUser.password_hash,
-              game.contract_game_id
+              contractGameIdToUse
             ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "exitGameByBackend failed (game already ended on-chain?)"));
           }
         }

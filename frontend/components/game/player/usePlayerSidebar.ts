@@ -460,7 +460,7 @@ export function usePlayerSidebar({
     [game.id, getGamePlayerId]
   );
 
-  const handleFinalizeAndLeave = useCallback(async () => {
+  const handleFinalizeAndLeave = useCallback(async (skipRedirect?: boolean) => {
     const toastId = toast.loading(
       winner?.user_id === me?.user_id ? "Claiming your prize..." : "Finalizing game..."
     );
@@ -476,9 +476,11 @@ export function usePlayerSidebar({
           : "Game completed — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
+      if (!skipRedirect) {
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1500);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Something went wrong — try again later", {
         id: toastId,
