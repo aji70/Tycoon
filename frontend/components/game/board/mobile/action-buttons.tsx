@@ -97,7 +97,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 20 }}
-            className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md p-4 rounded-t-2xl shadow-2xl z-[60] flex flex-col items-center gap-4"
+            className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-md p-4 rounded-t-2xl shadow-2xl z-[100] flex flex-col items-center gap-4"
           >
             <h3 className="text-lg font-bold text-white">Buy {justLandedProperty.name}?</h3>
             <p className="text-sm text-gray-300">Price: ${justLandedProperty.price?.toLocaleString()}</p>

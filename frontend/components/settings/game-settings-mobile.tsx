@@ -70,7 +70,7 @@ export default function CreateGameMobile() {
 
   const [settings, setSettings] = useState({
     symbol: "hat",
-    maxPlayers: 4,
+    maxPlayers: 2,
     privateRoom: true,
     auction: true,
     rentInPrison: false,
@@ -79,7 +79,7 @@ export default function CreateGameMobile() {
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    duration: 60,
+    duration: 30,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
