@@ -13,6 +13,20 @@ import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 
+/**
+ * Convert contract result to array of addresses.
+ * getPlayersInGame may return a serialized Result object { 0: "0x...", 1: "0x..." } instead of Array.
+ */
+function toAddressArray(val) {
+  if (Array.isArray(val)) return val;
+  if (val != null && typeof val === "object") {
+    if (typeof val.length === "number") return Array.from(val);
+    const keys = Object.keys(val).filter((k) => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
+    return keys.map((k) => val[k]);
+  }
+  return [];
+}
+
 async function notifyGameUpdate(req, gameId) {
   try {
     const io = req.app.get("io");
@@ -534,8 +548,11 @@ const gamePlayerController = {
       const contractGameId = game.contract_game_id;
       if (contractGameId && isContractConfigured()) {
         try {
-          const onChainPlayers = await callContractRead("getPlayersInGame", [contractGameId]);
-          const addresses = Array.isArray(onChainPlayers) ? onChainPlayers : [];
+          // Normalize gameId for contract (string of digits or number; callContractRead will BigInt it)
+          const gameIdParam = /^\d+$/.test(String(contractGameId)) ? String(contractGameId) : contractGameId;
+          const onChainPlayers = await callContractRead("getPlayersInGame", [gameIdParam]);
+          // Contract may return Array or serialized Result object { 0: "0x...", 1: "0x..." }
+          const addresses = toAddressArray(onChainPlayers);
           const normalizedJoin = String(address || "").toLowerCase();
           const isOnContract = addresses.some(
             (a) => String(a || "").toLowerCase() === normalizedJoin
@@ -547,10 +564,14 @@ const gamePlayerController = {
             });
           }
         } catch (err) {
-          logger.warn({ err: err?.message, gameId: game.id }, "getPlayersInGame check failed");
+          const errMsg = err?.message || String(err);
+          logger.warn({ err: errMsg, gameId: game.id, contractGameId }, "getPlayersInGame check failed");
+          const isGameNotFound = /game not found|not found/i.test(errMsg);
           return res.status(400).json({
             success: false,
-            message: "Could not verify on-chain join. Sign the join transaction in your wallet first.",
+            message: isGameNotFound
+              ? "Game not found on-chain. Make sure you're on the same network as when the game was created, then try again."
+              : "Could not verify on-chain join. Sign the join transaction in your wallet and wait for confirmation, then try again.",
           });
         }
       }

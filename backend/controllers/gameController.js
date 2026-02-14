@@ -891,7 +891,21 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game has no contract id" });
     }
 
-    const contractGame = await callContractRead("getGame", [contractGameId]);
+    let contractGame;
+    try {
+      contractGame = await callContractRead("getGame", [contractGameId]);
+    } catch (err) {
+      const errMsg = err?.message || String(err);
+      const notFound = /not found|Not found/i.test(errMsg);
+      if (notFound) {
+        return res.status(400).json({
+          success: false,
+          message: "Game not found on this network. The game was created on a different chain. Ensure the app and backend use the same network (e.g. both Celo or both Base).",
+        });
+      }
+      throw err;
+    }
+
     const stakePerPlayer = BigInt(contractGame?.stakePerPlayer ?? contractGame?.[9] ?? 0);
     if (stakePerPlayer > 0n) {
       return res.status(403).json({
@@ -907,14 +921,25 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game is full" });
     }
 
-    await joinGameByBackend(
-      user.address,
-      user.password_hash,
-      contractGameId,
-      user.username,
-      symbol || "car",
-      joinCode || code
-    );
+    try {
+      await joinGameByBackend(
+        user.address,
+        user.password_hash,
+        contractGameId,
+        user.username,
+        symbol || "car",
+        joinCode || code
+      );
+    } catch (err) {
+      const errMsg = err?.message || String(err);
+      if (/not found|Not found|Game not found/i.test(errMsg)) {
+        return res.status(400).json({
+          success: false,
+          message: "Game not found on this network. The game was created on a different chain. Ensure the app and backend use the same network.",
+        });
+      }
+      throw err;
+    }
 
     const settings = await GameSetting.findByGameId(game.id);
     const maxTurnOrder = currentPlayers.length > 0 ? Math.max(...currentPlayers.map((p) => p.turn_order || 0)) : 0;
