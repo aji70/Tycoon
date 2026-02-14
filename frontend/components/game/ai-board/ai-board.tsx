@@ -268,7 +268,7 @@ const {
         }
       }
       toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
-      setTimeout(() => { window.location.href = "/"; }, 1500);
+      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
     } finally {
@@ -1218,10 +1218,10 @@ const endTurnAfterSpecialMove = useCallback(() => {
                 {endGamePending ? "Processing..." : "Yes, end game"}
               </button>
               <button
-                onClick={() => { setShowExitPrompt(false); setTimeout(() => { window.location.href = "/"; }, 300); }}
+                onClick={() => setShowExitPrompt(false)}
                 className="px-8 py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition"
               >
-                Skip & leave
+                Back
               </button>
             </div>
           </motion.div>

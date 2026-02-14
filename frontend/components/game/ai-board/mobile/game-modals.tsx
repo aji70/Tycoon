@@ -124,7 +124,7 @@ const GameModals: React.FC<GameModalsProps> = ({
         isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      setTimeout(() => (window.location.href = "/"), 1500);
+      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(
         err?.message || "Something went wrong — you can try again later",
@@ -318,13 +318,10 @@ const GameModals: React.FC<GameModalsProps> = ({
                     {isPending ? "Processing…" : "Confirm"}
                   </motion.button>
                   <button
-                    onClick={() => {
-                      setShowExitPrompt(false);
-                      setTimeout(() => (window.location.href = "/"), 300);
-                    }}
+                    onClick={() => setShowExitPrompt(false)}
                     className="w-full py-3 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-300 font-medium transition"
                   >
-                    Leave without claiming
+                    Back
                   </button>
                 </div>
               </div>
