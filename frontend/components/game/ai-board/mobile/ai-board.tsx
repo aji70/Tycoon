@@ -288,7 +288,6 @@ const endTime =
     setHasMovementFinished(false);
     setStrategyRanThisTurn(false);
     setIsRaisingFunds(false);
-    setTurnTimeLeft(null);
   }, [currentPlayerId]);
 
   useEffect(() => {
