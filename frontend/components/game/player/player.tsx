@@ -9,7 +9,7 @@ import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../modals/property-action";
 import { AiTradePopup } from "../modals/ai-trade";
 import { AiResponsePopup } from "../modals/ai-response";
-import { VictoryModal } from "./victory";
+import { VictoryDefeatModal } from "../modals/VictoryDefeatModal";
 import { TradeModal } from "../modals/trade";
 import ClaimPropertyModal from "../dev";
 import { usePlayerSidebar } from "./usePlayerSidebar";
@@ -226,12 +226,13 @@ export default function GamePlayers({
           onClose={() => setAiResponsePopup(null)}
         />
 
-        <VictoryModal
-          winner={winner}
-          me={me}
-          onClaim={handleFinalizeAndLeave}
-          claiming={endGamePending}
-        />
+        {showVictoryModal && winner && (
+          <VictoryDefeatModal
+            winner={winner}
+            me={me}
+            onGoHome={() => handleFinalizeAndLeave(true)}
+          />
+        )}
 
         <TradeModal
           open={tradeModal.open}
