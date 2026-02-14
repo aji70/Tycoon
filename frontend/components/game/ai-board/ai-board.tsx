@@ -1154,12 +1154,23 @@ const endTurnAfterSpecialMove = useCallback(() => {
                   <motion.span className="text-6xl md:text-7xl block mb-4" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 0.6 }}>🏆</motion.span>
                   <h1 className="text-4xl md:text-5xl font-black text-white mb-3 drop-shadow-lg tracking-tight">YOU WIN!</h1>
                   <p className="text-xl md:text-2xl font-bold text-amber-100 mb-2">Congratulations, Champion</p>
-                  <p className="text-lg text-amber-200/90 mb-8">Highest net worth when time ran out.</p>
+                  <p className="text-lg text-amber-200/90 mb-2">Highest net worth when time ran out.</p>
+                  <div className="mb-6 rounded-xl bg-amber-400/20 border border-amber-500/40 px-4 py-3 text-left inline-block">
+                    <p className="text-amber-100 font-semibold">Game details</p>
+                    <p className="text-amber-200/90 text-sm">Winner: {winner.username}</p>
+                    <p className="text-amber-200/90 text-sm">Players: {game?.players?.length ?? game?.number_of_players ?? "—"} in this game</p>
+                  </div>
                   <button
                     onClick={() => setShowExitPrompt(true)}
-                    className="px-10 py-4 bg-white text-amber-800 font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-100 transition-all border-2 border-amber-700/50"
+                    className="block w-full mb-3 px-10 py-4 bg-white text-amber-800 font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-100 transition-all border-2 border-amber-700/50"
                   >
                     End game on blockchain & claim rewards
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = "/"; }}
+                    className="block w-full px-10 py-3 bg-amber-600/80 hover:bg-amber-600 text-white font-bold rounded-2xl border border-amber-500/60 transition-all"
+                  >
+                    Go home
                   </button>
                   <p className="text-sm text-amber-200/80 mt-6">Thanks for playing Tycoon!</p>
                 </div>
@@ -1173,14 +1184,25 @@ const endTurnAfterSpecialMove = useCallback(() => {
               >
                 <div className="relative z-10">
                   <span className="text-5xl md:text-6xl block mb-4">⏱️</span>
-                  <h1 className="text-3xl md:text-4xl font-bold text-slate-200 mb-3">Time&apos;s up</h1>
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-200 mb-3">Game ended</h1>
                   <p className="text-xl font-semibold text-white mb-1">{winner.username} wins by net worth</p>
-                  <p className="text-slate-400 mb-8">You still get a consolation prize for playing.</p>
+                  <p className="text-slate-400 mb-2">You still get a consolation prize for playing.</p>
+                  <div className="mb-6 rounded-xl bg-slate-700/40 border border-slate-500/50 px-4 py-3 text-left inline-block">
+                    <p className="text-slate-200 font-semibold">Game details</p>
+                    <p className="text-slate-400 text-sm">Winner: {winner.username}</p>
+                    <p className="text-slate-400 text-sm">Players: {game?.players?.length ?? game?.number_of_players ?? "—"} in this game</p>
+                  </div>
                   <button
                     onClick={() => setShowExitPrompt(true)}
-                    className="px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-100 transition-all border border-cyan-400/40"
+                    className="block w-full mb-3 px-10 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-cyan-500/30 hover:scale-105 active:scale-100 transition-all border border-cyan-400/40"
                   >
                     End game & collect consolation prize
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = "/"; }}
+                    className="block w-full px-10 py-3 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-2xl border border-slate-500/50 transition-all"
+                  >
+                    Go home
                   </button>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
