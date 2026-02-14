@@ -563,6 +563,13 @@ const gamePlayerController = {
           .json({ success: false, message: "Game players not found" });
       }
 
+      const alreadyInGame = players.some(
+        (p) => p.user_id === user.id || (p.address && address && String(p.address).toLowerCase() === String(address).toLowerCase())
+      );
+      if (alreadyInGame) {
+        return res.status(400).json({ success: false, message: "Already in game" });
+      }
+
       // find max turn order (0 if no players yet)
       const maxTurnOrder =
         players.length > 0
