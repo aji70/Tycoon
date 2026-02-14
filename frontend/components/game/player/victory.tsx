@@ -10,6 +10,7 @@ interface VictoryModalProps {
   me: Player | null;
   onClaim: () => void;
   claiming: boolean;
+  isOpen?: boolean;
   claimError?: string | null;
   onClearError?: () => void;
 }
@@ -19,10 +20,11 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   me,
   onClaim,
   claiming,
+  isOpen = true,
   claimError = null,
   onClearError,
 }) => {
-  if (!winner) return null;
+  if (!winner || !isOpen) return null;
 
   const isWinner = me?.user_id === winner.user_id;
 
