@@ -77,7 +77,7 @@ export default function GameSettings() {
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    duration: 5,
+    duration: 10,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
@@ -479,7 +479,7 @@ export default function GameSettings() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="5">5 minutes</SelectItem>
+                  <SelectItem value="10">10 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
                   <SelectItem value="60">60 minutes</SelectItem>

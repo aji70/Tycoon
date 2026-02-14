@@ -9,7 +9,7 @@ import db from "../config/database.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import logger from "../config/logger.js";
-import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured } from "../services/tycoonContract.js";
+import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 
 async function notifyGameUpdate(req, gameId) {
@@ -519,6 +519,32 @@ const gamePlayerController = {
         return res
           .status(200)
           .json({ success: false, message: "Game not found" });
+      }
+
+      // Wallet join: player must have joined on-chain first (frontend calls joinGame then this API).
+      // Verify so we never add to DB without contract join.
+      const contractGameId = game.contract_game_id;
+      if (contractGameId && isContractConfigured()) {
+        try {
+          const onChainPlayers = await callContractRead("getPlayersInGame", [contractGameId]);
+          const addresses = Array.isArray(onChainPlayers) ? onChainPlayers : [];
+          const normalizedJoin = String(address || "").toLowerCase();
+          const isOnContract = addresses.some(
+            (a) => String(a || "").toLowerCase() === normalizedJoin
+          );
+          if (!isOnContract) {
+            return res.status(400).json({
+              success: false,
+              message: "Join the game on-chain first. Sign the transaction in your wallet, then try again.",
+            });
+          }
+        } catch (err) {
+          logger.warn({ err: err?.message, gameId: game.id }, "getPlayersInGame check failed");
+          return res.status(400).json({
+            success: false,
+            message: "Could not verify on-chain join. Sign the join transaction in your wallet first.",
+          });
+        }
       }
 
       // find settings

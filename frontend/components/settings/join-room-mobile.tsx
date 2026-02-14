@@ -7,10 +7,14 @@ import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
 export default function JoinRoom(): JSX.Element {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const canAct = isConnected || !!guestUser;
 
   const [code, setCode] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -36,7 +40,8 @@ export default function JoinRoom(): JSX.Element {
 
   // Fetch recent games where user is a player (for "Continue Game" section)
   useEffect(() => {
-    if (!isConnected || !address) {
+    const addr = address ?? guestUser?.address;
+    if (!canAct || !addr) {
       setFetchingRecent(false);
       setFetchingPending(false);
       return;
@@ -70,7 +75,7 @@ export default function JoinRoom(): JSX.Element {
 
     fetchRecent();
     fetchPending();
-  }, [address, isConnected]);
+  }, [address, canAct, guestUser?.address]);
 
   // Filter and sort pending games based on timeFilter
   useEffect(() => {
@@ -101,11 +106,6 @@ export default function JoinRoom(): JSX.Element {
       return;
     }
 
-    if (!isConnected) {
-      setError("Please connect your wallet to join a game.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -121,9 +121,9 @@ export default function JoinRoom(): JSX.Element {
       const game: Game = res.data.data;
 
       if (game.status === "RUNNING") {
-        // Game already started — go directly to play if player is in it
-        const isPlayerInGame = game.players.some(
-          (p) => p.address.toLowerCase() === address?.toLowerCase()
+        const addr = address ?? guestUser?.address;
+        const isPlayerInGame = addr && game.players.some(
+          (p) => String(p.address || "").toLowerCase() === addr.toLowerCase()
         );
 
         if (isPlayerInGame) {
@@ -132,7 +132,6 @@ export default function JoinRoom(): JSX.Element {
           throw new Error("This game has already started and you are not a player.");
         }
       } else if (game.status === "PENDING") {
-        // Game waiting — go to waiting room
         router.push(`/game-waiting?gameCode=${encodeURIComponent(normalizedCode)}`);
       } else {
         throw new Error("This game is no longer active.");
@@ -142,7 +141,7 @@ export default function JoinRoom(): JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [normalizedCode, address, isConnected, router]);
+  }, [normalizedCode, address, guestUser?.address, router]);
 
   const handleContinueGame = useCallback(
     (game: Game) => {
@@ -157,15 +156,11 @@ export default function JoinRoom(): JSX.Element {
 
   const handleJoinPublicGame = useCallback(
     (game: Game) => {
-      if (!isConnected) {
-        setError("Please connect your wallet to join a game.");
-        return;
-      }
       if (game.status === "PENDING") {
         router.push(`/game-waiting?gameCode=${encodeURIComponent(game.code)}`);
       }
     },
-    [isConnected, router]
+    [router]
   );
 
   const handleCreateNew = () => router.push("/game-settings");
@@ -230,7 +225,7 @@ export default function JoinRoom(): JSX.Element {
 
           {/* Games Section */}
           <div className="space-y-12">
-            {isConnected && (
+            {canAct && (
               <>
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
@@ -312,10 +307,18 @@ export default function JoinRoom(): JSX.Element {
               </>
             )}
 
-            {!isConnected && (
-              <p className="text-yellow-400 text-sm text-center mt-6 bg-yellow-900/30 p-3 rounded-lg font-orbitron">
-                Connect your wallet to join or continue games.
-              </p>
+            {!canAct && (
+              <div className="mt-6 space-y-3 text-center">
+                <p className="text-yellow-400 text-sm bg-yellow-900/30 p-3 rounded-lg font-orbitron">
+                  Connect your wallet or sign in as guest to join or continue games.
+                </p>
+                <a
+                  href="/"
+                  className="inline-block px-6 py-3 bg-[#00F0FF]/20 text-[#00F0FF] font-orbitron font-bold rounded-lg border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all"
+                >
+                  Sign in as guest (home)
+                </a>
+              </div>
             )}
           </div>
 
