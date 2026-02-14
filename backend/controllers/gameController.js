@@ -429,9 +429,7 @@ const gameController = {
 
       const game = await Game.findByCode(code);
       if (!game) return res.status(404).json({ error: "Game not found" });
-      if (game.status === "FINISHED" || game.status === "CANCELLED") {
-        return res.status(200).json({ success: false, error: "Game ended" });
-      }
+      // Return full game data for FINISHED/CANCELLED so the board can show winner modal; no "Game ended" error that would replace the page.
       const settings = await GameSetting.findByGameId(game.id);
       const players = await GamePlayer.findByGameId(game.id);
       const history = await GamePlayHistory.findByGameId(game.id);
