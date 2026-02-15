@@ -15,6 +15,7 @@ import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContract
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
 const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
+import { expirePendingTradesForTarget } from "./gameTradeRequestController.js";
 
 /**
  * Convert contract result to array of addresses.
@@ -935,6 +936,7 @@ const gamePlayerController = {
           });
 
         await insertPlayHistory({ jail: true });
+        await expirePendingTradesForTarget(trx, game_id, user_id);
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({
@@ -1006,6 +1008,7 @@ const gamePlayerController = {
           final_position: pay_rent.position || new_position,
         });
 
+        await expirePendingTradesForTarget(trx, game_id, user_id);
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({
@@ -1032,6 +1035,7 @@ const gamePlayerController = {
           { stayed_in_jail: true },
           "You are still in jail"
         );
+        await expirePendingTradesForTarget(trx, game_id, user_id);
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({

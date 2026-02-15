@@ -173,6 +173,19 @@ export function usePlayerSidebar({
     const targetPlayer = tradeModal.target;
     const isAI = isAIPlayer(targetPlayer);
 
+    const myBalance = Number(me.balance ?? 0);
+    const theirBalance = Number(targetPlayer.balance ?? 0);
+    const myPostBalance = myBalance - offerCash + requestCash;
+    const theirPostBalance = theirBalance - requestCash + offerCash;
+    if (myPostBalance < 0) {
+      toast.error("This trade would put you in negative balance.");
+      return;
+    }
+    if (theirPostBalance < 0) {
+      toast.error("This trade would put the other player in negative balance.");
+      return;
+    }
+
     try {
       const payload = {
         game_id: game.id,
