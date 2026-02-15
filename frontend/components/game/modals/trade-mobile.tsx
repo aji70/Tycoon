@@ -27,36 +27,36 @@ const PropertyCard = ({
   prop,
   isSelected,
   onClick,
-  accent,
 }: {
   prop: Property;
   isSelected: boolean;
   onClick: () => void;
-  accent: "offer" | "request";
 }) => (
-  <motion.button
-    type="button"
-    whileTap={{ scale: 0.98 }}
+  <motion.div
+    whileTap={{ scale: 0.95 }}
     onClick={onClick}
     className={`
-      w-full text-left p-3 rounded-xl border-2 transition-all duration-200 flex items-center gap-3
-      focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-slate-900
+      relative p-3 rounded-xl border-2 cursor-pointer transition-all
+      flex flex-col gap-1.5 overflow-hidden shadow-md
       ${isSelected
-        ? accent === "offer"
-          ? "border-emerald-400 bg-emerald-500/20 shadow-sm shadow-emerald-500/30"
-          : "border-amber-400 bg-amber-500/20 shadow-sm shadow-amber-500/30"
-        : "border-slate-600/80 bg-slate-800/50 active:border-slate-500 active:bg-slate-700/50"
+        ? "border-cyan-400 bg-cyan-900/70 shadow-lg shadow-cyan-400/50"
+        : "border-gray-700 bg-black/50 hover:border-gray-500"
       }
     `}
   >
+    {isSelected && (
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/30 to-purple-600/20 animate-pulse" />
+    )}
     {prop.color && (
       <div
-        className="w-8 h-8 rounded-lg flex-shrink-0 border border-white/10"
+        className="h-5 rounded-t-lg -m-3 -mt-3 mb-2"
         style={{ backgroundColor: prop.color }}
       />
     )}
-    <span className="text-sm font-medium text-slate-200 truncate">{prop.name}</span>
-  </motion.button>
+    <div className="text-xs font-bold text-cyan-200 text-center leading-tight relative z-10 truncate px-1">
+      {prop.name}
+    </div>
+  </motion.div>
 );
 
 export const TradeModal: React.FC<TradeModalProps> = (props) => {
@@ -79,6 +79,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     setRequestCash,
     toggleSelect,
     targetPlayerAddress,
+    isAITrade = false,
   } = props;
 
   const targetOwnedProps = useMemo(() => {
@@ -96,116 +97,136 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 px-4"
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: "100%", opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: "100%", opacity: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 35 }}
+        initial={{ y: 400, opacity: 0 }}
+        animate={{ y: -10, opacity: 1 }}
+        exit={{ y: 400, opacity: 0 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg max-h-[90vh] sm:max-h-[85vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden"
+        className="relative bg-gradient-to-b from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
       >
-        <div className="sm:hidden flex justify-center pt-3 pb-1">
-          <div className="w-12 h-1 rounded-full bg-slate-500" />
-        </div>
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-cyan-400/60 rounded-full" />
 
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/80 bg-slate-800/50">
-          <h2 className="text-lg font-bold text-slate-100">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition touch-manipulation"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-3xl text-red-400 hover:text-red-300 z-10"
+        >
+          ×
+        </button>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6">
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
-              You offer
-            </h3>
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {my_properties.length > 0 ? (
-                my_properties.map((p) => (
-                  <PropertyCard
-                    key={p.id}
-                    prop={p}
-                    isSelected={offerProperties.includes(p.id)}
-                    onClick={() => toggleSelect(p.id, offerProperties, setOfferProperties)}
-                    accent="offer"
-                  />
-                ))
-              ) : (
-                <p className="text-sm text-slate-500 py-4 text-center">No properties</p>
-              )}
-            </div>
-            <label className="block">
-              <span className="text-xs text-slate-400 block mb-1">Cash ($)</span>
+        <div className="pt-12 pb-10 px-5">
+          <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8 drop-shadow-lg">
+            {title}
+          </h2>
+
+          <div className="space-y-10">
+            {/* YOU GIVE */}
+            <div>
+              <h3 className="text-2xl font-bold text-green-400 text-center mb-4">
+                YOU GIVE
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {my_properties.length > 0 ? (
+                  my_properties.map((p) => (
+                    <PropertyCard
+                      key={p.id}
+                      prop={p}
+                      isSelected={offerProperties.includes(p.id)}
+                      onClick={() => toggleSelect(p.id, offerProperties, setOfferProperties)}
+                    />
+                  ))
+                ) : (
+                  <p className="col-span-3 text-center text-gray-500 py-6 text-sm">
+                    No properties to offer
+                  </p>
+                )}
+              </div>
+
               <input
                 type="number"
-                min={0}
-                placeholder="0"
+                min="0"
+                placeholder="+$ CASH"
                 value={offerCash || ""}
                 onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 text-base"
+                className="w-full mt-5 bg-black/60 border-2 border-green-500 rounded-xl px-4 py-3.5 text-green-400 font-bold text-xl text-center placeholder-green-700 focus:outline-none focus:border-green-400 transition"
               />
-            </label>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-              You request
-            </h3>
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {targetOwnedProps.length > 0 ? (
-                targetOwnedProps.map((p) => (
-                  <PropertyCard
-                    key={p.id}
-                    prop={p}
-                    isSelected={requestProperties.includes(p.id)}
-                    onClick={() => toggleSelect(p.id, requestProperties, setRequestProperties)}
-                    accent="request"
-                  />
-                ))
-              ) : (
-                <p className="text-sm text-slate-500 py-4 text-center">No properties</p>
-              )}
             </div>
-            <label className="block">
-              <span className="text-xs text-slate-400 block mb-1">Cash ($)</span>
+
+            {/* YOU GET */}
+            <div>
+              <h3 className="text-2xl font-bold text-red-400 text-center mb-4">
+                YOU GET
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {targetOwnedProps.length > 0 ? (
+                  targetOwnedProps.map((p) => (
+                    <PropertyCard
+                      key={p.id}
+                      prop={p}
+                      isSelected={requestProperties.includes(p.id)}
+                      onClick={() => toggleSelect(p.id, requestProperties, setRequestProperties)}
+                    />
+                  ))
+                ) : (
+                  <p className="col-span-3 text-center text-gray-500 py-6 text-sm">
+                    No properties available
+                  </p>
+                )}
+              </div>
+
               <input
                 type="number"
-                min={0}
-                placeholder="0"
+                min="0"
+                placeholder="+$ CASH"
                 value={requestCash || ""}
                 onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl bg-slate-800 border border-slate-600 px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 text-base"
+                className="w-full mt-5 bg-black/60 border-2 border-red-500 rounded-xl px-4 py-3.5 text-red-400 font-bold text-xl text-center placeholder-red-700 focus:outline-none focus:border-red-400 transition"
               />
-            </label>
-          </div>
-        </div>
+            </div>
 
-        <div className="flex-shrink-0 flex gap-3 px-5 py-4 pb-safe border-t border-slate-700/80 bg-slate-800/90 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3.5 rounded-xl font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 active:bg-slate-600 transition touch-manipulation"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            className="flex-1 py-3.5 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-500 transition focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-slate-900 touch-manipulation"
-          >
-            Send deal
-          </button>
+            {/* AI Extra Incentive */}
+            {isAITrade && (
+              <div className="bg-yellow-900/30 border-2 border-yellow-600/50 rounded-xl p-4">
+                <h4 className="text-lg font-bold text-yellow-300 text-center mb-3">
+                  🤖 Extra Amount to Send for AI
+                </h4>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="$0"
+                  value={offerCash || ""}
+                  onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full bg-black/70 border-2 border-yellow-500 rounded-lg px-4 py-3 text-yellow-300 font-bold text-2xl text-center placeholder-yellow-600 focus:outline-none focus:border-yellow-400 transition"
+                />
+                <p className="text-xs text-yellow-200/80 text-center mt-2">
+                  AI loves good deals! Extra cash increases acceptance chance.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* SIDE-BY-SIDE BUTTONS */}
+          <div className="mt-10 px-4">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={onClose}
+                className="py-3.5 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-lg text-gray-300 hover:bg-gray-700 transition shadow-md"
+              >
+                CANCEL
+              </button>
+
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={onSubmit}
+                className="py-3.5 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/50 transition"
+              >
+                SEND DEAL
+              </motion.button>
+            </div>
+          </div>
         </div>
       </motion.div>
     </motion.div>

@@ -6,7 +6,6 @@ import { Dices, Gamepad2, Wallet } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { Address } from "viem";
 import {
   useIsRegistered,
   useGetUsername,
@@ -32,12 +31,6 @@ const HeroSection: React.FC = () => {
   const [guestUsername, setGuestUsername] = useState("");
   const [guestPassword, setGuestPassword] = useState("");
   const [guestLoading, setGuestLoading] = useState(false);
-  const [guestReregisterPassword, setGuestReregisterPassword] = useState("");
-  const [guestReregisterLoading, setGuestReregisterLoading] = useState(false);
-
-  const guestUser = guestAuth?.guestUser ?? null;
-  /** Wallet address or guest's on-chain address for contract reads */
-  const effectiveAddress = (address ?? (guestUser?.address as Address | undefined)) ?? undefined;
 
   const {
     write: registerPlayer,
@@ -48,41 +41,15 @@ const HeroSection: React.FC = () => {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
     error: registeredError,
-  } = useIsRegistered(effectiveAddress);
+  } = useIsRegistered(address);
 
-  const { data: fetchedUsername } = useGetUsername(effectiveAddress);
+  const { data: fetchedUsername } = useGetUsername(address);
 
-  const { data: gameCode } = usePreviousGameCode(effectiveAddress);
+  const { data: gameCode } = usePreviousGameCode(address);
 
   const { data: contractGame } = useGetGameByCode(gameCode);
 
-  /** Backend game status for previous game: only show Continue Game when not FINISHED/CANCELLED */
-  const [backendGameStatus, setBackendGameStatus] = useState<string | null>(null);
-
   const [user, setUser] = useState<UserType | null>(null);
-
-  // Fetch backend game by code to know if previous game has ended (don't show Continue Game then)
-  useEffect(() => {
-    if (!gameCode) {
-      setBackendGameStatus(null);
-      return;
-    }
-    let isActive = true;
-    apiClient
-      .get<ApiResponse<{ status?: string }>>(`/games/code/${encodeURIComponent(gameCode)}`)
-      .then((res) => {
-        if (!isActive) return;
-        const status = (res?.data as { data?: { status?: string } })?.data?.status ?? null;
-        setBackendGameStatus(status);
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setBackendGameStatus(null);
-      });
-    return () => {
-      isActive = false;
-    };
-  }, [gameCode]);
 
   // Reset on disconnect
   useEffect(() => {
@@ -130,6 +97,8 @@ const HeroSection: React.FC = () => {
     };
   }, [address]);
 
+  const guestUser = guestAuth?.guestUser ?? null;
+
   const registrationStatus = useMemo(() => {
     if (address) {
       const hasBackend = !!user;
@@ -138,10 +107,7 @@ const HeroSection: React.FC = () => {
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
-    if (guestUser) {
-      const guestOnChain = !!isUserRegistered;
-      return guestOnChain ? "guest" : "guest-needs-reregister";
-    }
+    if (guestUser) return "guest";
     return "disconnected";
   }, [address, user, isUserRegistered, localRegistered, guestUser]);
 
@@ -286,73 +252,6 @@ const handleContinuePrevious = () => {
               Welcome back, {displayUsername}!
             </p>
           </div>
-        )}
-
-        {/* Guest not on-chain (e.g. after contract redeploy): prompt re-register */}
-        {!address && registrationStatus === "guest-needs-reregister" && guestUser && !guestReregisterLoading && (
-          <div className="mt-20 md:mt-28 lg:mt-0 w-[80%] md:w-[360px] flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/95 border border-[#003B3E]">
-            <p className="text-[#00F0FF] font-orbitron text-sm font-bold text-center">
-              Re-register on the new contract
-            </p>
-            <p className="text-[#A0B8BC] font-dmSans text-xs text-center">
-              We&apos;ve deployed a new game contract. Enter your password to re-register and keep playing.
-            </p>
-            <input
-              type="password"
-              value={guestReregisterPassword}
-              onChange={(e) => setGuestReregisterPassword(e.target.value)}
-              placeholder="Your password"
-              className="h-[42px] bg-[#010F10] rounded-lg border border-[#003B3E] px-3 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-            />
-            <button
-              onClick={async () => {
-                if (!guestReregisterPassword) {
-                  toast.warn("Enter your password to re-register");
-                  return;
-                }
-                setGuestReregisterLoading(true);
-                const toastId = toast.loading("Re-registering on the new contract...");
-                try {
-                  const r = await guestAuth?.reregisterGuest(guestReregisterPassword);
-                  setGuestReregisterLoading(false);
-                  setGuestReregisterPassword("");
-                  if (r?.success) {
-                    toast.update(toastId, {
-                      render: "Re-registered! You can play again.",
-                      type: "success",
-                      isLoading: false,
-                      autoClose: 4000,
-                    });
-                    guestAuth?.refetchGuest();
-                    router.refresh();
-                  } else {
-                    toast.update(toastId, {
-                      render: r?.message ?? "Re-registration failed",
-                      type: "error",
-                      isLoading: false,
-                      autoClose: 5000,
-                    });
-                  }
-                } catch (err: any) {
-                  setGuestReregisterLoading(false);
-                  const errMsg = err?.message ?? "Something went wrong. Try again.";
-                  toast.update(toastId, {
-                    render: errMsg,
-                    type: "error",
-                    isLoading: false,
-                    autoClose: 5000,
-                  });
-                }
-              }}
-              disabled={guestReregisterLoading || !guestReregisterPassword.trim()}
-              className="w-full h-[42px] rounded-lg bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold hover:opacity-90 disabled:opacity-60"
-            >
-              Re-register
-            </button>
-          </div>
-        )}
-        {!address && registrationStatus === "guest-needs-reregister" && isRegisteredLoading && (
-          <p className="font-orbitron text-[#00F0FF] text-sm mt-4">Checking registration...</p>
         )}
 
         {loading && (
@@ -529,15 +428,11 @@ const handleContinuePrevious = () => {
             </button>
           )}
 
-          {/* Action buttons: wallet registered OR guest (only when guest is registered on-chain) */}
+          {/* Action buttons: wallet registered OR guest */}
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
-              {/* Continue Previous Game - only when game is still in progress (not ended) */}
-              {address &&
-                gameCode &&
-                contractGame?.status === 1 &&
-                backendGameStatus !== "FINISHED" &&
-                backendGameStatus !== "CANCELLED" && (
+              {/* Continue Previous Game - Highlighted */}
+              {address && gameCode && (contractGame?.status == 1) && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"

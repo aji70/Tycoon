@@ -68,11 +68,8 @@ export function useGameBoardLogic({
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   /** When set, show popup "X timed out. Vote them out?" (set after record-timeout succeeds) */
   const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
-  /** When true, current user was voted out or left (e.g. bankruptcy) — show "Go home" / "Continue watching" */
+  /** When true, current user was voted out — show "Go home" / "Continue watching" */
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
-  /** Reason we're no longer in the game: 'voted_out' | 'bankruptcy' — used for modal title/body */
-  const [leaveReasonForModal, setLeaveReasonForModal] = useState<"voted_out" | "bankruptcy">("voted_out");
-  const leaveReasonRef = useRef<"bankruptcy" | null>(null);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const [landedPosition, setLandedPosition] = useState<number | null>(null);
@@ -184,13 +181,10 @@ export function useGameBoardLogic({
       if (res?.data?.success && res.data.data?.players) {
         const updatedPlayers = res.data.data.players;
         setPlayers(updatedPlayers);
-        // If we're in the game but no longer in the players list: either voted out or we left (e.g. bankruptcy)
+        // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket)
         const wasRemovedByUserId = me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id);
         const wasRemovedByAddress = myAddress && !updatedPlayers.some((p: Player) => String(p.address || "").toLowerCase() === myAddress.toLowerCase());
         if (wasRemovedByUserId || wasRemovedByAddress) {
-          const reason = leaveReasonRef.current === "bankruptcy" ? "bankruptcy" : "voted_out";
-          leaveReasonRef.current = null;
-          setLeaveReasonForModal(reason);
           setShowVotedOutModal(true);
         }
       }
@@ -557,7 +551,6 @@ export function useGameBoardLogic({
         toast.success(`${successCount}/${myOwnedProperties.length} properties returned to bank.`);
       }
       await END_TURN();
-      leaveReasonRef.current = "bankruptcy";
       await apiClient.post("/game-players/leave", { address: me.address, code: game.code, reason: "bankruptcy" });
       await fetchUpdatedGame();
       showToast("You have declared bankruptcy and left the game.", "error");
@@ -717,10 +710,7 @@ export function useGameBoardLogic({
     if (!game?.id || !game?.code) return;
     const handleVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
       if (data.removed) {
-        if (data.target_user_id === me?.user_id) {
-          setLeaveReasonForModal("voted_out");
-          setShowVotedOutModal(true);
-        }
+        if (data.target_user_id === me?.user_id) setShowVotedOutModal(true);
         fetchUpdatedGame();
         onGameUpdated?.();
       } else {
@@ -800,7 +790,6 @@ export function useGameBoardLogic({
     dismissTimeoutPopup: () => setTimeoutPopupPlayer(null),
     showVotedOutModal,
     setShowVotedOutModal,
-    leaveReasonForModal,
     fetchUpdatedGame,
     showToast,
   };

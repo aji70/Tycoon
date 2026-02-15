@@ -16,7 +16,6 @@ type GuestAuthContextValue = {
   isLoading: boolean;
   registerGuest: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   loginGuest: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  reregisterGuest: (password: string) => Promise<{ success: boolean; message?: string }>;
   logoutGuest: () => void;
   refetchGuest: () => Promise<void>;
 };
@@ -92,20 +91,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const reregisterGuest = useCallback(async (password: string) => {
-    try {
-      const res = await apiClient.post<ApiResponse & { data?: { message?: string }; message?: string }>("auth/guest-reregister", { password });
-      const data = res?.data as any;
-      if (data?.success) {
-        return { success: true, message: data?.message ?? "Re-registered on the new contract." };
-      }
-      return { success: false, message: (data?.message as string) || "Re-registration failed" };
-    } catch (err: any) {
-      const message = err?.response?.data?.message ?? err?.message ?? "Re-registration failed";
-      return { success: false, message };
-    }
-  }, []);
-
   const logoutGuest = useCallback(() => {
     if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
     setGuestUser(null);
@@ -116,7 +101,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     registerGuest,
     loginGuest,
-    reregisterGuest,
     logoutGuest,
     refetchGuest,
   };

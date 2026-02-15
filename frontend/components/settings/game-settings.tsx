@@ -56,13 +56,10 @@ export default function GameSettings() {
   const wagmiChainId = useChainId();
   const { caipNetwork } = useAppKitNetwork();
   const guestAuth = useGuestAuthOptional();
-  const guestUser = guestAuth?.guestUser ?? null;
-  const isGuest = !!guestUser;
-  const effectiveAddress = (address ?? guestUser?.address) as Address | undefined;
+  const isGuest = !!guestAuth?.guestUser;
 
-  const { data: usernameFromChain } = useGetUsername(effectiveAddress);
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(effectiveAddress);
-  const username = guestUser?.username ?? usernameFromChain ?? "";
+  const { data: username } = useGetUsername(address);
+  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
 
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
@@ -80,7 +77,7 @@ export default function GameSettings() {
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    duration: 15,
+    duration: 10,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
@@ -92,8 +89,8 @@ export default function GameSettings() {
     address: usdcTokenAddress,
     abi: Erc20Abi,
     functionName: 'allowance',
-    args: effectiveAddress && contractAddress ? [effectiveAddress, contractAddress] : undefined,
-    query: { enabled: !!effectiveAddress && !!usdcTokenAddress && !!contractAddress },
+    args: address && contractAddress ? [address, contractAddress] : undefined,
+    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
   });
 
   const gameCode = generateGameCode();
@@ -136,10 +133,6 @@ export default function GameSettings() {
 
   const handlePlay = async () => {
     if (isGuest) {
-      if (!isUserRegistered) {
-        toast.error("Please re-register on the new contract from the home page.", { autoClose: 6000 });
-        return;
-      }
       const toastId = toast.loading("Creating your game room...");
       try {
         toast.update(toastId, { render: "Creating game (guest)..." });
@@ -273,7 +266,7 @@ export default function GameSettings() {
     }
   };
 
-  if (isRegisteredLoading) {
+  if (!isGuest && isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
         <p className="text-[#00F0FF] text-4xl font-orbitron animate-pulse tracking-wider">
@@ -283,23 +276,7 @@ export default function GameSettings() {
     );
   }
 
-  if (isGuest && !isUserRegistered) {
-    return (
-      <div className="w-full min-h-screen flex flex-col items-center justify-center bg-settings bg-cover p-6">
-        <p className="text-[#00F0FF] text-xl font-orbitron text-center mb-4">
-          Re-register on the new contract to create games.
-        </p>
-        <button
-          onClick={() => router.push("/")}
-          className="px-6 py-3 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 font-orbitron hover:bg-cyan-500/30"
-        >
-          Go to Home
-        </button>
-      </div>
-    );
-  }
-
-  const canCreate = (isGuest && isUserRegistered) || (!!address && !!username && !!isUserRegistered);
+  const canCreate = isGuest || (address && username && isUserRegistered);
 
   return (
     <div className="min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-6">
@@ -502,7 +479,6 @@ export default function GameSettings() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="5">5 minutes</SelectItem>
                   <SelectItem value="10">10 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
