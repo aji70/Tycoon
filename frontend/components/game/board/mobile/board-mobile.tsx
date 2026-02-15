@@ -134,6 +134,7 @@ const MobileGameLayout = ({
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [gameTimeUp, setGameTimeUp] = useState(false);
   const [endGameCandidate, setEndGameCandidate] = useState<{ winner: Player | null; position: number; balance: bigint }>({
     winner: null,
     position: 0,
@@ -571,8 +572,14 @@ const MobileGameLayout = ({
             onPropertyClick={onPropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
-                {/* Username is playing — on top, above time */}
-                {!isMyTurn && (
+                {/* Time's Up — show when game ended by time */}
+                {gameTimeUp && (
+                  <div className="font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
+                    Time&apos;s Up!
+                  </div>
+                )}
+                {/* Username is playing — on top, above time (hidden when Time's Up) */}
+                {!gameTimeUp && !isMyTurn && (
                   <div className="flex flex-col items-center gap-2 bg-transparent">
                     <span className="text-base font-bold text-cyan-400 bg-transparent">
                       {currentPlayer?.username ?? "Player"} is playing…
@@ -581,7 +588,7 @@ const MobileGameLayout = ({
                   </div>
                 )}
                 {game?.duration && Number(game.duration) > 0 && (
-                  <GameDurationCountdown game={game} compact onTimeUp={onFinishByTime} />
+                  <GameDurationCountdown game={game} compact onTimeUp={() => { setGameTimeUp(true); onFinishByTime?.(); }} />
                 )}
                 {turnTimeLeft != null && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
@@ -618,7 +625,7 @@ const MobileGameLayout = ({
                     })}
                   </div>
                 )}
-                {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   hasNegativeBalance ? (
                     <button
                       onClick={handleBankruptcy}
