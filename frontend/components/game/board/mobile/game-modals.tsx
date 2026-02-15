@@ -7,6 +7,8 @@ import { VictoryDefeatModal } from "../../modals/VictoryDefeatModal";
 
 interface GameModalsProps {
   winner: Player | null;
+  /** Loser's finishing position (1 = winner, 2 = 2nd, etc.). From game.placements when finished by time. */
+  myPosition?: number;
   showExitPrompt: boolean;
   setShowExitPrompt: (value: boolean) => void;
   showInsolvencyModal: boolean;
@@ -37,6 +39,7 @@ interface GameModalsProps {
 
 const GameModals: React.FC<GameModalsProps> = ({
   winner,
+  myPosition,
   showExitPrompt,
   setShowExitPrompt,
   showInsolvencyModal,
@@ -101,7 +104,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     <>
       {/* Winner / Loser — shared with desktop multiplayer */}
       {winner && (
-        <VictoryDefeatModal winner={winner} me={me} />
+        <VictoryDefeatModal winner={winner} me={me} myPosition={myPosition} />
       )}
 
       {/* Exit Prompt */}

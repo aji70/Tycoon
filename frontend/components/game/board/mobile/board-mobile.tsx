@@ -696,6 +696,12 @@ const MobileGameLayout = ({
 
       <GameModals
         winner={winner}
+        myPosition={(() => {
+          const p = game?.placements;
+          if (!p || !me) return undefined;
+          const placements = typeof p === "string" ? (() => { try { return JSON.parse(p); } catch { return null; } })() : p;
+          return placements?.[me.user_id] as number | undefined;
+        })()}
         showExitPrompt={showExitPrompt}
         setShowExitPrompt={setShowExitPrompt}
         showInsolvencyModal={showInsolvencyModal}
