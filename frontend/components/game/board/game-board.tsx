@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import BoardSquare from "./board-square";
@@ -105,6 +105,12 @@ const Board = ({
 
   const togglePerksModal = () => setShowPerksModal((prev: boolean) => !prev);
 
+  const [gameTimeUp, setGameTimeUp] = useState(false);
+  const handleTimeUp = useCallback(() => {
+    setGameTimeUp(true);
+    onFinishByTime?.();
+  }, [onFinishByTime]);
+
   return (
     <div className="w-full min-h-screen bg-[#010F10] text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
       {/* Timeout popup: "X timed out. Vote them out?" */}
@@ -200,6 +206,7 @@ const Board = ({
               isMyTurn={isMyTurn}
               me={me}
               game={game}
+              gameTimeUp={gameTimeUp}
               playerCanRoll={playerCanRoll}
               isRolling={isRolling}
               roll={roll}
@@ -213,7 +220,7 @@ const Board = ({
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={() => setShowBankruptcyModal(true)}
               isPending={false}
-              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={onFinishByTime} /> : null}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={handleTimeUp} /> : null}
               turnTimeLeft={turnTimeLeft}
               voteablePlayers={voteablePlayersList}
               voteStatuses={logic.voteStatuses}

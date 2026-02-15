@@ -35,6 +35,8 @@ type CenterAreaProps = {
   /** Legacy: kept for backward compatibility */
   removablePlayers?: Player[];
   onRemoveInactive?: (targetUserId: number) => void;
+  /** When true, show "Time's Up!" and hide Roll Dice (game ended by time) */
+  gameTimeUp?: boolean;
 };
 
 export default function CenterArea({
@@ -62,6 +64,7 @@ export default function CenterArea({
   onVoteToRemove,
   removablePlayers,
   onRemoveInactive,
+  gameTimeUp = false,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -82,8 +85,8 @@ export default function CenterArea({
         Tycoon
       </h1>
 
-      {/* Multiplayer: "Username is playing" — right under Tycoon, above time */}
-      {!isMyTurn && (
+      {/* Multiplayer: "Username is playing" — right under Tycoon, above time (hidden when Time's Up) */}
+      {!gameTimeUp && !isMyTurn && (
         <div className="text-center mb-4 z-10" aria-live="polite">
           <motion.h2
             className="text-xl font-bold text-cyan-400"
@@ -97,6 +100,13 @@ export default function CenterArea({
 
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
+
+      {/* Time's Up (net worth) — multiplayer game ended by time */}
+      {gameTimeUp && (
+        <div className="text-center mb-4 z-10 font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
+          Time&apos;s Up!
+        </div>
+      )}
 
       {/* 90s turn timer — countdown stops when they roll; show to ALL players */}
       {turnTimeLeft != null && (
@@ -159,8 +169,8 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Player's Turn: Roll or Bankruptcy */}
-      {isMyTurn && !roll && !isRolling && (
+      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp) */}
+      {!gameTimeUp && isMyTurn && !roll && !isRolling && (
         playerCanRoll ? (
           <button
             onClick={onRollDice}
@@ -179,8 +189,8 @@ export default function CenterArea({
         )
       )}
 
-      {/* Buy Property Prompt */}
-      {isMyTurn && buyPrompted && currentProperty && (
+      {/* Buy Property Prompt (hidden when gameTimeUp) */}
+      {!gameTimeUp && isMyTurn && buyPrompted && currentProperty && (
         <div className="flex gap-4 flex-wrap justify-center mt-4">
           <button
             onClick={onBuyProperty}
@@ -202,8 +212,8 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Multiplayer: Spinner when not my turn — in place of Roll Dice */}
-      {!isMyTurn && (
+      {/* Multiplayer: Spinner when not my turn — in place of Roll Dice (hidden when Time's Up) */}
+      {!gameTimeUp && !isMyTurn && (
         <div className="mt-5 flex justify-center z-10">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-transparent border-t-cyan-400 border-b-cyan-600/50" />
         </div>
