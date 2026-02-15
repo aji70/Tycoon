@@ -125,7 +125,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6">
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
               You offer
@@ -191,7 +191,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           </div>
         </div>
 
-        <div className="flex gap-3 px-5 py-4 border-t border-slate-700/80 bg-slate-800/30">
+        <div className="flex-shrink-0 flex gap-3 px-5 py-4 pb-safe border-t border-slate-700/80 bg-slate-800/90 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
           <button
             type="button"
             onClick={onClose}

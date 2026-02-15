@@ -139,8 +139,8 @@ export default function TradeModal({
             </button>
           </div>
 
-          {/* Content - scrollable */}
-          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+          {/* Content - scrollable (min-h-0 lets flex shrink so footer stays visible) */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6">
             {/* You offer */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
@@ -214,8 +214,8 @@ export default function TradeModal({
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex gap-3 px-5 py-4 border-t border-slate-700/80 bg-slate-800/30 safe-area-pb">
+          {/* Footer - flex-shrink-0 so it's always visible on mobile */}
+          <div className="flex-shrink-0 flex gap-3 px-5 py-4 pb-safe border-t border-slate-700/80 bg-slate-800/90 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
             <button
               type="button"
               onClick={onClose}
