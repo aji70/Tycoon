@@ -64,9 +64,22 @@ export default function CenterArea({
       {roll && !isRolling && <RollResult roll={roll} />}
 
       {/* Game Title */}
-      <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-6 z-10">
+      <h1 className="text-3xl lg:text-5xl font-bold text-[#F0F7F7] font-orbitron text-center mb-2 z-10">
         Tycoon
       </h1>
+
+      {/* AI Turn: "Username is playing" — on top, above time */}
+      {isAITurn && (
+        <div className="text-center mb-4 z-10">
+          <motion.h2
+            className="text-xl font-bold text-cyan-400"
+            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            {currentPlayer?.username} is playing…
+          </motion.h2>
+        </div>
+      )}
 
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
@@ -121,16 +134,9 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* AI Turn Indicator */}
+      {/* AI Turn: Spinner + subtitle (below Roll Dice area) */}
       {isAITurn && (
         <div className="mt-5 text-center z-10">
-          <motion.h2
-            className="text-2xl font-bold text-cyan-300 mb-3"
-            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          >
-            {currentPlayer?.username} is playing…
-          </motion.h2>
           <div className="flex justify-center mt-4">
             <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyan-400"></div>
           </div>

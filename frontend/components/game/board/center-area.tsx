@@ -78,9 +78,22 @@ export default function CenterArea({
       {roll && !isRolling && <RollResult roll={roll} />}
 
       {/* Game Title */}
-      <h1 className="text-3xl lg:text-5xl font-bold font-orbitron text-center mb-6 z-10 bg-gradient-to-r from-cyan-400 via-purple-400 to-blue-500 bg-clip-text text-transparent">
+      <h1 className="text-3xl lg:text-5xl font-bold font-orbitron text-center mb-2 z-10 text-cyan-400">
         Tycoon
       </h1>
+
+      {/* Multiplayer: "Username is playing" — right under Tycoon, above time */}
+      {!isMyTurn && (
+        <div className="text-center mb-4 z-10" aria-live="polite">
+          <motion.h2
+            className="text-xl font-bold text-cyan-400"
+            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            {currentPlayer?.username ?? "Player"} is playing…
+          </motion.h2>
+        </div>
+      )}
 
       {/* Game timer (countdown) in center */}
       {timerSlot && <div className="flex justify-center mb-4 z-10">{timerSlot}</div>}
@@ -151,7 +164,7 @@ export default function CenterArea({
         playerCanRoll ? (
           <button
             onClick={onRollDice}
-            className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-xl"
+            className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold text-xl rounded-full hover:from-cyan-400 hover:to-cyan-500 transform hover:scale-110 active:scale-95 transition-all shadow-xl shadow-cyan-500/30 border border-cyan-400/30"
           >
             Roll Dice
           </button>
@@ -189,19 +202,10 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Multiplayer: "Player is playing" — inline like AI board, in place of Roll Dice when not my turn */}
+      {/* Multiplayer: Spinner when not my turn — in place of Roll Dice */}
       {!isMyTurn && (
-        <div className="mt-5 text-center z-10 bg-transparent" aria-live="polite">
-          <motion.h2
-            className="text-2xl font-bold mb-3 bg-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-blue-500 bg-clip-text text-transparent"
-            animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          >
-            {currentPlayer?.username ?? "Player"} is playing…
-          </motion.h2>
-          <div className="flex justify-center mt-4 bg-transparent">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-transparent border-t-cyan-400 border-b-purple-400 bg-transparent" />
-          </div>
+        <div className="mt-5 flex justify-center z-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-transparent border-t-cyan-400 border-b-cyan-600/50" />
         </div>
       )}
 

@@ -65,7 +65,7 @@ const MobileGameLayout = ({
   useEffect(() => {
     setCurrentGame(game);
     if (game?.players?.length) setPlayers(game.players);
-  }, [game]);
+  }, [game?.id, game?.status, game?.winner_id, game?.players?.length]);
 
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
@@ -795,6 +795,15 @@ const endTime =
             onPropertyClick={handlePropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full">
+                {/* Username is playing — on top, above time */}
+                {isAITurn && !gameTimeUp && (
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-base font-bold text-cyan-400">
+                      {currentPlayer?.username ?? "AI"} is playing…
+                    </span>
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400/50 border-t-cyan-400" />
+                  </div>
+                )}
                 {currentGame?.duration && Number(currentGame.duration) > 0 && (
                   <GameDurationCountdown game={currentGame} compact onTimeUp={handleGameTimeUp} />
                 )}
