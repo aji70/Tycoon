@@ -82,6 +82,7 @@ const Board = ({
     dismissTimeoutPopup,
     showVotedOutModal,
     setShowVotedOutModal,
+    leaveReasonForModal,
   } = logic;
 
   const voteablePlayersList = players.filter((p: Player) => {
