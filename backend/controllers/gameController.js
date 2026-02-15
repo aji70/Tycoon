@@ -396,7 +396,7 @@ const gameController = {
       if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
 
       const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
-      placements = {};
+      let placements = {};
       for (let i = 0; i < sortedByNetWorth.length; i++) {
         const position = sortedByNetWorth.length - i;
         placements[sortedByNetWorth[i].user_id] = position;
