@@ -748,8 +748,9 @@ export function useAIBoardLogic({
     return () => clearTimeout(t);
   }, [roll, buyPrompted, isRolling, actionLock, isAITurn, END_TURN]);
 
-  // Victory by last player standing (e.g. AI eliminated, human wins)
+  // Victory by last player standing (e.g. opponent eliminated in multiplayer). Skip for AI: AI games only have one DB player (human), so players.length === 1 on load would wrongly show "you win".
   useEffect(() => {
+    if (game?.is_ai) return;
     if (!me || players.length !== 1 || players[0].user_id !== me.user_id) return;
     const turnCount = me.turn_count ?? 0;
     const validWin = turnCount >= 20;
@@ -760,7 +761,25 @@ export function useAIBoardLogic({
       balance: BigInt(me.balance ?? 0),
       validWin,
     });
-  }, [me, players]);
+  }, [game?.is_ai, me, players]);
+
+  // When loading an already FINISHED game (e.g. refresh after time's up), show winner from backend
+  useEffect(() => {
+    if (game?.status !== "FINISHED" || game.winner_id == null || winner != null) return;
+    const winnerPlayer = players.find((p) => p.user_id === game.winner_id) ?? null;
+    if (winnerPlayer) {
+      setWinner(winnerPlayer);
+      const isMe = winnerPlayer.user_id === me?.user_id;
+      const myPosition = me?.position ?? 0;
+      const myBalance = BigInt(me?.balance ?? 0);
+      setEndGameCandidate({
+        winner: isMe ? winnerPlayer : null,
+        position: myPosition,
+        balance: myBalance,
+        validWin: (winnerPlayer.turn_count ?? 0) >= 20,
+      });
+    }
+  }, [game?.status, game.winner_id, me?.user_id, me?.position, me?.balance, players, winner]);
 
   useEffect(() => {
     const history = game.history ?? [];
