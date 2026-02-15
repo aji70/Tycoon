@@ -571,6 +571,15 @@ const MobileGameLayout = ({
             onPropertyClick={onPropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
+                {/* Username is playing — on top, above time */}
+                {!isMyTurn && (
+                  <div className="flex flex-col items-center gap-2 bg-transparent">
+                    <span className="text-base font-bold text-cyan-400 bg-transparent">
+                      {currentPlayer?.username ?? "Player"} is playing…
+                    </span>
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400/50 border-t-cyan-400 bg-transparent" />
+                  </div>
+                )}
                 {game?.duration && Number(game.duration) > 0 && (
                   <GameDurationCountdown game={game} compact onTimeUp={onFinishByTime} />
                 )}
@@ -607,14 +616,6 @@ const MobileGameLayout = ({
                         </div>
                       );
                     })}
-                  </div>
-                )}
-                {!isMyTurn && (
-                  <div className="flex flex-col items-center gap-2 bg-transparent">
-                    <span className="text-base font-bold text-cyan-300 bg-transparent">
-                      {currentPlayer?.username ?? "Player"} is playing…
-                    </span>
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400/50 border-t-cyan-400 bg-transparent" />
                   </div>
                 )}
                 {isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (

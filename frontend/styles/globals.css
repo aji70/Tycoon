@@ -46,6 +46,13 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* System font fallback when NEXT_PUBLIC_USE_SYSTEM_FONTS=true (offline/CI build) */
+.font-system-fallback {
+  --font-dm-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-krona-one: ui-sans-serif, system-ui, sans-serif;
+  --font-orbitron-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

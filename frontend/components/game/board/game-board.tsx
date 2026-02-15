@@ -353,18 +353,19 @@ const Board = ({
           duration: 3200,
           style: {
             fontFamily: "Orbitron, sans-serif",
-            background: "#0E1415",
+            background: "#0A1A1B",
             color: "#00F0FF",
-            border: "1px solid #003B3E",
+            border: "1px solid rgba(0, 240, 255, 0.4)",
             borderRadius: "12px",
             padding: "12px 20px",
             fontSize: "16px",
             fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 240, 255, 0.15)",
+            boxShadow: "0 10px 30px rgba(0, 240, 255, 0.2)",
             backdropFilter: "blur(10px)",
           },
-          success: { icon: "✔", style: { borderColor: "#10b981", color: "#00F0FF" } },
-          error: { icon: "✖", style: { borderColor: "#ef4444", color: "#00F0FF" } },
+          success: { icon: "✔", style: { borderColor: "rgba(0, 240, 255, 0.5)", color: "#00F0FF" } },
+          error: { icon: "✖", style: { borderColor: "rgba(255, 107, 107, 0.5)", color: "#00F0FF" } },
+          loading: { style: { borderColor: "rgba(0, 240, 255, 0.4)", color: "#00F0FF" } },
         }}
       />
     </div>
