@@ -832,6 +832,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
         game.status = TycoonLib.GameStatus.Ended;
         game.winner = isWin ? actor : address(0);
         game.endedAt = uint64(block.timestamp);
+        codeToGame[game.code] = game;
 
         TycoonLib.User storage user = users[gamePlayers[gameId][actor].username];
 
@@ -1142,6 +1143,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
             game.status = TycoonLib.GameStatus.Ended;
             game.winner = player;
             game.endedAt = uint64(block.timestamp);
+            codeToGame[game.code] = game;
 
             emit GameEnded(gameId, player, uint64(block.timestamp));
         } else {
@@ -1159,6 +1161,7 @@ contract Tycoon is ReentrancyGuard, Ownable {
                 game.status = TycoonLib.GameStatus.Ended;
                 game.winner = remaining;
                 game.endedAt = uint64(block.timestamp);
+                codeToGame[game.code] = game;
                 claims[gameId][remaining] = 1;
                 _payoutReward(gameId, remaining, 1, type(uint256).max);
                 emit GameEnded(gameId, remaining, uint64(block.timestamp));

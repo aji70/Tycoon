@@ -4,13 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useGetGameByCode, useExitGame } from "@/context/ContractProvider";
-import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
+import { Game, GameProperty, Property, Player } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import {
-  BOARD_SQUARES,
-  ROLL_ANIMATION_MS,
-  MOVE_ANIMATION_MS_PER_SQUARE,
   JAIL_POSITION,
   MIN_SCALE,
   MAX_SCALE,
@@ -18,7 +14,6 @@ import {
   TOKEN_POSITIONS,
   MONOPOLY_STATS,
   BUILD_PRIORITY,
-  getDiceValues,
 } from "../../constants";
 import Board from "./board";
 import DiceAnimation from "./dice-animation";
@@ -35,15 +30,17 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { socketService } from "@/lib/socket";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
+import { useGameBoardLogic } from "../useGameBoardLogic";
+
 const MobileGameLayout = ({
   game,
   properties,
   game_properties,
   me,
   myAddress,
+  onGameUpdated,
   onFinishByTime,
   onViewTrades,
 }: {
@@ -52,59 +49,96 @@ const MobileGameLayout = ({
   game_properties: GameProperty[];
   me: Player | null;
   myAddress?: string;
+  onGameUpdated?: () => void;
   onFinishByTime?: () => void | Promise<void>;
   onViewTrades?: () => void;
 }) => {
-  const [currentGame, setCurrentGame] = useState<Game>(game);
-  const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
-  const [currentGameProperties, setCurrentGameProperties] = useState<GameProperty[]>(game_properties);
-
-  // Sync from parent when game/properties update (e.g. from socket-triggered refetch)
-  useEffect(() => {
-    setCurrentGame(game);
-    setPlayers(game?.players ?? []);
-  }, [game]);
-  useEffect(() => {
-    setCurrentGameProperties(game_properties);
-  }, [game_properties]);
-  const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
-  const [isRolling, setIsRolling] = useState(false);
-  const [pendingRoll, setPendingRoll] = useState(0);
-  const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
-  const [buyPrompted, setBuyPrompted] = useState(false);
-  const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
-  const [hasMovementFinished, setHasMovementFinished] = useState(false);
-  const [showInsolvencyModal, setShowInsolvencyModal] = useState(false);
-  const [insolvencyDebt, setInsolvencyDebt] = useState(0);
-  const [isRaisingFunds, setIsRaisingFunds] = useState(false);
-  const [showPerksModal, setShowPerksModal] = useState(false);
-  const [isSpecialMove, setIsSpecialMove] = useState(false);
-  const [winner, setWinner] = useState<Player | null>(null);
-  const [showVictoryModal, setShowVictoryModal] = useState(false);
-  const [showExitPrompt, setShowExitPrompt] = useState(false);
-  const [endGameCandidate, setEndGameCandidate] = useState<{ winner: Player | null; position: number; balance: bigint }>({
-    winner: null,
-    position: 0,
-    balance: BigInt(0),
+  const logic = useGameBoardLogic({
+    game,
+    properties,
+    game_properties,
+    me,
+    onGameUpdated,
+    myAddress,
   });
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
-  const [cardPlayerName, setCardPlayerName] = useState("");
-  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
-  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
-  const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
-  const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
-  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
-  const [showVotedOutModal, setShowVotedOutModal] = useState(false);
+  const {
+    players,
+    roll,
+    isRolling,
+    buyPrompted,
+    animatedPositions,
+    hasMovementFinished,
+    showPerksModal,
+    setShowPerksModal,
+    showCardModal,
+    setShowCardModal,
+    cardData,
+    cardPlayerName,
+    selectedProperty,
+    setSelectedProperty,
+    showBankruptcyModal,
+    setShowBankruptcyModal,
+    showExitPrompt,
+    setShowExitPrompt,
+    turnTimeLeft,
+    voteStatuses,
+    votingLoading,
+    currentPlayerId,
+    currentPlayer,
+    isMyTurn,
+    playerCanRoll,
+    currentProperty,
+    justLandedProperty,
+    playersByPosition,
+    propertyOwner,
+    developmentStage,
+    isPropertyMortgaged,
+    handleRollDice,
+    handleBuyProperty,
+    handleSkipBuy,
+    handleBankruptcy,
+    handleDevelopment,
+    handleDowngrade,
+    handleMortgage,
+    handleUnmortgage,
+    getCurrentRent,
+    ROLL_DICE,
+    END_TURN,
+    triggerLandingLogic,
+    endTurnAfterSpecialMove,
+    touchActivity,
+    timeoutPopupPlayer,
+    dismissTimeoutPopup,
+    showVotedOutModal,
+    setShowVotedOutModal,
+    fetchUpdatedGame,
+    showToast,
+    voteToRemove,
+    fetchVoteStatus,
+    exitHook,
+  } = logic;
+
+  const selectedGameProperty = useMemo(
+    () => (selectedProperty ? game_properties.find((gp) => gp.property_id === selectedProperty.id) : undefined),
+    [selectedProperty, game_properties]
+  );
 
   const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
   const [isFollowingMyMove, setIsFollowingMyMove] = useState(false);
   const [defaultScale, setDefaultScale] = useState(1.45);
   const [bellFlash, setBellFlash] = useState(false);
+  const [showInsolvencyModal, setShowInsolvencyModal] = useState(false);
+  const [insolvencyDebt, setInsolvencyDebt] = useState(0);
+  const [isRaisingFunds, setIsRaisingFunds] = useState(false);
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [endGameCandidate, setEndGameCandidate] = useState<{ winner: Player | null; position: number; balance: bigint }>({
+    winner: null,
+    position: 0,
+    balance: BigInt(0),
+  });
 
   const prevIncomingTradeCount = useRef(0);
   const tradeToastShownThisTurn = useRef(false);
@@ -148,10 +182,6 @@ const MobileGameLayout = ({
     return () => window.removeEventListener("resize", calculateScale);
   }, []);
 
-  const currentPlayerId = currentGame.next_player_id;
-  const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
-  const isMyTurn = me?.user_id === currentPlayerId;
-
   // Reset "shown this turn" when turn changes so we show at most one purple toast per turn
   useEffect(() => {
     if (lastTurnForTradeToast.current !== currentPlayerId) {
@@ -160,227 +190,15 @@ const MobileGameLayout = ({
     }
   }, [currentPlayerId]);
 
-  const landedPositionThisTurn = useRef<number | null>(null);
-  const turnEndInProgress = useRef(false);
-  const lastToastMessage = useRef<string | null>(null);
-  const recordTimeoutCalledForTurn = useRef<number | null>(null);
-  const timeLeftFrozenAtRollRef = useRef<number | null>(null);
-  const lastActivityRef = useRef<number>(Date.now());
-
-  const INACTIVITY_SECONDS = 30;
-  const TURN_TOTAL_SECONDS = 90;
-
-  const justLandedProperty = useMemo(() => {
-    if (landedPositionThisTurn.current === null) return null;
-    return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
-  }, [landedPositionThisTurn.current, properties]);
-
-  const { data: contractGame } = useGetGameByCode(game.code);
-  const onChainGameId = contractGame?.id;
-  const { exit: endGame, isPending: endGamePending, reset: endGameReset } = useExitGame(onChainGameId ?? BigInt(0));
-
-  // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
-  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
-    if (type === "success" && (message.startsWith("You bought") || (message.includes("bought") && message.endsWith("!")))) {
-      toast.success(message);
-    }
-  }, []);
-
-  const isFetching = useRef(false);
-
-  const fetchUpdatedGame = useCallback(async () => {
-    if (isFetching.current) return;
-    isFetching.current = true;
-
-    try {
-      const [gameRes, propertiesRes] = await Promise.all([
-        apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`),
-        apiClient.get<ApiResponse<GameProperty[]>>(`/game-properties/game/${game.id}`),
-      ]);
-
-      if (gameRes?.data?.success && gameRes.data.data) {
-        const updatedPlayers = gameRes.data.data.players ?? [];
-        setCurrentGame(gameRes.data.data);
-        setPlayers(updatedPlayers);
-        // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket or were on another tab)
-        const wasRemovedByUserId = me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id);
-        const wasRemovedByAddress = myAddress && !updatedPlayers.some((p: Player) => String(p.address || "").toLowerCase() === myAddress.toLowerCase());
-        if (wasRemovedByUserId || wasRemovedByAddress) {
-          setShowVotedOutModal(true);
-        }
-      }
-      if (propertiesRes?.data?.success && propertiesRes.data.data) {
-        setCurrentGameProperties(propertiesRes.data.data);
-      }
-      refreshTrades?.();
-    } catch (err) {
-      console.error("Sync failed:", err);
-    } finally {
-      isFetching.current = false;
-    }
-  }, [game.code, game.id, refreshTrades, me?.user_id, myAddress]);
-
-  const touchActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-  }, []);
-
-  const fetchVoteStatus = useCallback(
-    async (targetUserId: number) => {
-      if (!currentGame?.id) return;
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-players/vote-status", {
-          game_id: currentGame.id,
-          target_user_id: targetUserId,
-        });
-        const data = res?.data?.data;
-        if (res?.data?.success && data) {
-          setVoteStatuses((prev) => ({ ...prev, [targetUserId]: data }));
-        }
-      } catch (err) {
-        console.error("Failed to fetch vote status:", err);
-      }
-    },
-    [currentGame?.id]
-  );
-
-  const voteToRemove = useCallback(
-    async (targetUserId: number) => {
-      touchActivity();
-      if (!me?.user_id || !currentGame?.id) return;
-      setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
-      try {
-        const res = await apiClient.post<ApiResponse>("/game-players/vote-to-remove", {
-          game_id: currentGame.id,
-          user_id: me.user_id,
-          target_user_id: targetUserId,
-        });
-        if (res?.data?.success) {
-          const data = res.data.data;
-          setVoteStatuses((prev) => ({
-            ...prev,
-            [targetUserId]: {
-              vote_count: data.vote_count,
-              required_votes: data.required_votes,
-              voters: [],
-            },
-          }));
-          if (data.removed) {
-            showToast(players.find((p) => p.user_id === targetUserId)?.username + " has been removed", "success");
-            await fetchUpdatedGame();
-          } else {
-            await fetchVoteStatus(targetUserId);
-          }
-        }
-      } catch (err: unknown) {
-        toast.error(getContractErrorMessage(err as Error, "Failed to vote"));
-      } finally {
-        setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
-      }
-    },
-    [currentGame?.id, me?.user_id, players, fetchUpdatedGame, fetchVoteStatus, showToast, touchActivity]
-  );
-
-  useEffect(() => {
-    if (!currentGame?.id || !me?.user_id) return;
-    const otherPlayers = players.filter((p) => p.user_id !== me.user_id);
-    const voteable = players.filter((p) => {
-      if (p.user_id === me.user_id) return false;
-      const strikes = p.consecutive_timeouts ?? 0;
-      if (otherPlayers.length === 1) return strikes >= 3;
-      const isCurrentPlayer = p.user_id === currentPlayerId;
-      const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
-      return strikes > 0 || (isCurrentPlayer && timeElapsed);
-    });
-    voteable.forEach((p) => fetchVoteStatus(p.user_id));
-  }, [currentGame?.id, me?.user_id, players, currentPlayerId, turnTimeLeft, fetchVoteStatus]);
-
-  useEffect(() => {
-    if (!currentGame?.code) return;
-    const handleVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
-      if (data.removed) {
-        if (data.target_user_id === me?.user_id) setShowVotedOutModal(true);
-        fetchUpdatedGame();
-      } else {
-        setVoteStatuses((prev) => ({
-          ...prev,
-          [data.target_user_id]: {
-            vote_count: data.vote_count,
-            required_votes: data.required_votes,
-            voters: [],
-          },
-        }));
-        fetchVoteStatus(data.target_user_id);
-      }
-    };
-    socketService.onVoteCast(handleVoteCast);
-    return () => {
-      socketService.removeListener("vote-cast", handleVoteCast);
-    };
-  }, [currentGame?.code, me?.user_id, fetchUpdatedGame, fetchVoteStatus]);
-
   useEffect(() => {
     const interval = setInterval(() => {
       if (!isRolling) {
         fetchUpdatedGame();
+        refreshTrades?.();
       }
     }, 8000);
-
     return () => clearInterval(interval);
-  }, [fetchUpdatedGame, isRolling, actionLock]);
-
-  useEffect(() => {
-    fetchUpdatedGame();
-  }, []);
-
-  useEffect(() => {
-    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    const pos = landedPositionThisTurn.current;
-    const square = properties.find(p => p.id === pos);
-    if (!square || square.price == null) {
-      setBuyPrompted(false);
-      return;
-    }
-
-    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
-    const action = PROPERTY_ACTION(pos);
-    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-    const canBuy = !isOwned && isBuyableType;
-
-    setBuyPrompted(canBuy);
-    if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
-      showToast(`Not enough money to buy ${square.name}`, "error");
-    }
-  }, [roll, landedPositionThisTurn.current, hasMovementFinished, properties, currentGameProperties, currentPlayer, showToast]);
-
-  const lockAction = useCallback((type: "ROLL" | "END") => {
-    if (actionLock) return false;
-    setActionLock(type);
-    return true;
-  }, [actionLock]);
-
-  const unlockAction = useCallback(() => setActionLock(null), []);
-
-  useEffect(() => {
-    setRoll(null);
-    setBuyPrompted(false);
-    setIsRolling(false);
-    setPendingRoll(0);
-    landedPositionThisTurn.current = null;
-    turnEndInProgress.current = false;
-    lastToastMessage.current = null;
-    recordTimeoutCalledForTurn.current = null;
-    setTimeoutPopupPlayer(null);
-    setAnimatedPositions({});
-    setHasMovementFinished(false);
-    setIsRaisingFunds(false);
-    setTurnTimeLeft(null);
-    timeLeftFrozenAtRollRef.current = null;
-    lastActivityRef.current = Date.now();
-  }, [currentPlayerId]);
+  }, [fetchUpdatedGame, isRolling, refreshTrades]);
 
   // Keep board at scale 1 so full board always fits on screen (no zoom-in that cuts off half)
   useEffect(() => {
@@ -388,298 +206,16 @@ const MobileGameLayout = ({
     setBoardTransformOrigin("50% 50%");
   }, []);
 
-  const END_TURN = useCallback(async (timedOut?: boolean) => {
-    if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
-    turnEndInProgress.current = true;
-
-    try {
-      await apiClient.post("/game-players/end-turn", {
-        user_id: currentPlayerId,
-        game_id: currentGame.id,
-        ...(timedOut === true && { timed_out: true }),
-      });
-      // Turn state visible on board — no toast
-      await fetchUpdatedGame();
-    } catch (err) {
-      toast.error(getContractErrorMessage(err, "Failed to end turn"));
-    } finally {
-      unlockAction();
-      turnEndInProgress.current = false;
-    }
-  }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
-
-  const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0);
-  const hasRolled = isMyTurn && roll != null && hasMovementFinished;
-  // Timer for current player — stops counting when they roll; 90s total to wrap up
-  const isTwoPlayer = players.length === 2;
-  useEffect(() => {
-    if (!currentPlayer?.turn_start) {
-      setTurnTimeLeft(null);
-      return;
-    }
-    const raw = currentPlayer.turn_start;
-    const turnStartSec = typeof raw === "number" ? raw : parseInt(String(raw), 10);
-    if (Number.isNaN(turnStartSec)) {
-      setTurnTimeLeft(null);
-      return;
-    }
-    const tick = () => {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const elapsed = nowSec - turnStartSec;
-      const liveRemaining = Math.max(0, TURN_TOTAL_SECONDS - elapsed);
-
-      if (hasRolled) {
-        if (timeLeftFrozenAtRollRef.current === null) {
-          timeLeftFrozenAtRollRef.current = liveRemaining;
-        }
-        setTurnTimeLeft(timeLeftFrozenAtRollRef.current);
-      } else {
-        setTurnTimeLeft(liveRemaining);
-      }
-
-      if (liveRemaining <= 0) {
-        if (isTwoPlayer) {
-          END_TURN(true);
-        } else {
-          if (
-            me?.user_id &&
-            recordTimeoutCalledForTurn.current !== turnStartSec
-          ) {
-            recordTimeoutCalledForTurn.current = turnStartSec;
-            const timedOutPlayer = currentPlayer;
-            apiClient
-              .post<ApiResponse>("/game-players/record-timeout", {
-                game_id: currentGame.id,
-                user_id: me.user_id,
-                target_user_id: currentPlayer.user_id,
-              })
-              .then(() => {
-                fetchUpdatedGame();
-                if (timedOutPlayer) setTimeoutPopupPlayer(timedOutPlayer);
-              })
-              .catch((err) => console.warn("record-timeout failed:", err));
-          }
-        }
-      }
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, currentGame.id, END_TURN, fetchUpdatedGame, hasRolled]);
-
-  // 30s inactivity after roll → auto-end turn
-  useEffect(() => {
-    if (!isMyTurn || !hasRolled || actionLock || isRolling) return;
-    const check = () => {
-      const idleMs = Date.now() - lastActivityRef.current;
-      if (idleMs >= INACTIVITY_SECONDS * 1000) END_TURN();
-    };
-    check();
-    const interval = setInterval(check, 1000);
-    return () => clearInterval(interval);
-  }, [isMyTurn, hasRolled, actionLock, isRolling, END_TURN]);
-
-  const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
-    if (landedPositionThisTurn.current !== null) return;
-    landedPositionThisTurn.current = newPosition;
-    setIsSpecialMove(isSpecial);
-    setRoll({ die1: 0, die2: 0, total: 0 });
-    setHasMovementFinished(true);
-  }, []);
-
-  const endTurnAfterSpecialMove = useCallback(() => {
-    setBuyPrompted(false);
-    landedPositionThisTurn.current = null;
-    setIsSpecialMove(false);
-    setTimeout(END_TURN, 800);
-  }, [END_TURN]);
-
-  const BUY_PROPERTY = useCallback(async () => {
-    touchActivity();
-    if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
-      showToast("Cannot buy right now", "error");
-      return;
-    }
-
-    const playerBalance = currentPlayer.balance ?? 0;
-    if (playerBalance < justLandedProperty.price) {
-      showToast("Not enough money!", "error");
-      return;
-    }
-
-    const buyerUsername = me?.username;
-    if (!buyerUsername) {
-      showToast("Cannot buy: your username is missing", "error");
-      return;
-    }
-
-    try {
-      await apiClient.post("/game-properties/buy", {
-        user_id: currentPlayer.user_id,
-        game_id: currentGame.id,
-        property_id: justLandedProperty.id,
-      });
-      showToast(`You bought ${justLandedProperty.name}!`, "success");
-      setBuyPrompted(false);
-      landedPositionThisTurn.current = null;
-      await fetchUpdatedGame();
-      setTimeout(END_TURN, 800);
-    } catch (err) {
-      toast.error(getContractErrorMessage(err, "Purchase failed"));
-    }
-  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame, touchActivity]);
-
-  const ROLL_DICE = useCallback(async (forAI = false) => {
-    if (isRolling || actionLock || !lockAction("ROLL")) return;
-    touchActivity();
-
-    const playerId = forAI ? currentPlayerId! : me!.user_id;
-    const player = players.find((p) => p.user_id === playerId);
-    if (!player) {
-      unlockAction();
-      return;
-    }
-
-    const isInJail = Boolean(player.in_jail) && Number(player.position) === JAIL_POSITION;
-
-    if (isInJail) {
-      setIsRolling(true);
-      // Jail roll — result visible
-
-      const value = getDiceValues();
-      if (!value || value.die1 !== value.die2) {
-        setTimeout(async () => {
-          try {
-            await apiClient.post("/game-players/change-position", {
-              user_id: playerId,
-              game_id: currentGame.id,
-              position: player.position,
-              rolled: value?.total ?? 0,
-              is_double: false,
-            });
-            await fetchUpdatedGame();
-            showToast("No doubles — still in jail", "error");
-            setTimeout(END_TURN, 1000);
-          } catch (err) {
-            toast.error(getContractErrorMessage(err, "Jail roll failed"));
-            END_TURN();
-          } finally {
-            setIsRolling(false);
-            unlockAction();
-          }
-        }, 800);
-        return;
-      }
-
-      setRoll(value);
-      const totalMove = value.total;
-      const newPos = (player.position + totalMove) % BOARD_SQUARES;
-
-      setTimeout(async () => {
-        try {
-          await apiClient.post("/game-players/change-position", {
-            user_id: playerId,
-            game_id: currentGame.id,
-            position: newPos,
-            rolled: totalMove,
-            is_double: true,
-          });
-          landedPositionThisTurn.current = newPos;
-          await fetchUpdatedGame();
-          // Escaped jail — state visible
-        } catch (err) {
-          toast.error(getContractErrorMessage(err, "Escape failed"));
-        } finally {
-          setIsRolling(false);
-          unlockAction();
-        }
-      }, 800);
-
-      return;
-    }
-
-    setIsRolling(true);
-    setRoll(null);
-    setHasMovementFinished(false);
-
-    setTimeout(async () => {
-      const value = getDiceValues();
-      if (!value) {
-        // Doubles visible — no toast
-        setIsRolling(false);
-        unlockAction();
-        return;
-      }
-
-      setRoll(value);
-      const currentPos = player.position ?? 0;
-      const totalMove = value.total + pendingRoll;
-      let newPos = (currentPos + totalMove) % BOARD_SQUARES;
-
-      if (totalMove > 0 && !forAI) {
-        const movePath: number[] = [];
-        for (let i = 1; i <= totalMove; i++) {
-          movePath.push((currentPos + i) % BOARD_SQUARES);
-        }
-
-        for (let i = 0; i < movePath.length; i++) {
-          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
-          setAnimatedPositions((prev) => ({
-            ...prev,
-            [playerId]: movePath[i],
-          }));
-        }
-      }
-
-      setHasMovementFinished(true);
-
-      try {
-        await apiClient.post("/game-players/change-position", {
-          user_id: playerId,
-          game_id: currentGame.id,
-          position: newPos,
-          rolled: value.total + pendingRoll,
-          is_double: value.die1 === value.die2,
-        });
-        setPendingRoll(0);
-        landedPositionThisTurn.current = newPos;
-        await fetchUpdatedGame();
-        // Roll visible on board — no toast
-      } catch (err) {
-        console.error("Move failed:", err);
-        toast.error(getContractErrorMessage(err, "Move failed"));
-        END_TURN();
-      } finally {
-        setIsRolling(false);
-        unlockAction();
-      }
-    }, ROLL_ANIMATION_MS);
-  }, [
-    isRolling,
-    actionLock,
-    lockAction,
-    unlockAction,
-    currentPlayerId,
-    me,
-    players,
-    pendingRoll,
-    currentGame.id,
-    fetchUpdatedGame,
-    showToast,
-    END_TURN,
-    touchActivity,
-  ]);
-
   const getPlayerOwnedProperties = useCallback((playerAddress: string | undefined) => {
     if (!playerAddress) return [];
-    return currentGameProperties
+    return game_properties
       .filter(gp => gp.address?.toLowerCase() === playerAddress.toLowerCase())
       .map(gp => ({
         gp,
         prop: properties.find(p => p.id === gp.property_id)!,
       }))
       .filter(item => !!item.prop);
-  }, [currentGameProperties, properties]);
+  }, [game_properties, properties]);
 
   const getCompleteMonopolies = useCallback((playerAddress: string | undefined) => {
     if (!playerAddress) return [];
@@ -700,7 +236,7 @@ const MobileGameLayout = ({
   const handlePropertyTransfer = async (propertyId: number, newPlayerId: number) => {
     try {
       const res = await apiClient.put<ApiResponse>(`/game-properties/${propertyId}`, {
-        game_id: currentGame.id,
+        game_id: game.id,
         player_id: newPlayerId,
       });
       return res.data?.success ?? false;
@@ -713,7 +249,7 @@ const MobileGameLayout = ({
   const handleDeleteGameProperty = async (id: number) => {
     try {
       const res = await apiClient.delete<ApiResponse>(`/game-properties/${id}`, {
-        data: { game_id: currentGame.id },
+        data: { game_id: game.id },
       });
       return res.data?.success ?? false;
     } catch (err) {
@@ -724,93 +260,9 @@ const MobileGameLayout = ({
 
   const getGamePlayerId = useCallback((walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
-    const ownedProp = currentGameProperties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
+    const ownedProp = game_properties.find(gp => gp.address?.toLowerCase() === walletAddress.toLowerCase());
     return ownedProp?.player_id ?? null;
-  }, [currentGameProperties]);
-
-  const handleBankruptcy = useCallback(async () => {
-    if (!me || !currentGame.id || !currentGame.code) {
-      showToast("Cannot declare bankruptcy right now", "error");
-      return;
-    }
-
-    showToast("Declaring bankruptcy...", "error");
-
-    let creditorPlayerId: number | null = null;
-    if (justLandedProperty) {
-      const landedGameProp = currentGameProperties.find(
-        (gp) => gp.property_id === justLandedProperty.id
-      );
-      if (landedGameProp?.address && landedGameProp.address !== "bank") {
-        const owner = players.find(
-          (p) => p.address?.toLowerCase() === landedGameProp.address?.toLowerCase() &&
-                 p.user_id !== me.user_id
-        );
-        if (owner) creditorPlayerId = owner.user_id;
-      }
-    }
-
-    try {
-      // Backend handles on-chain exit when we call POST /game-players/leave — no wallet signature needed
-
-      const myOwnedProperties = currentGameProperties.filter(
-        (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
-      );
-
-      if (myOwnedProperties.length === 0) {
-        showToast("You have no properties to transfer.", "default");
-      } else if (creditorPlayerId) {
-        showToast(`Transferring all properties to the player who bankrupted you...`, "error");
-        let successCount = 0;
-        for (const gp of myOwnedProperties) {
-          try {
-            await apiClient.put(`/game-properties/${gp.id}`, {
-              game_id: currentGame.id,
-              player_id: creditorPlayerId,
-            });
-            successCount++;
-          } catch (err) {
-            console.error(`Failed to transfer property ${gp.property_id}`, err);
-          }
-        }
-        toast.success(`${successCount}/${myOwnedProperties.length} properties transferred!`);
-      } else {
-        showToast("Returning all properties to the bank...", "error");
-        let successCount = 0;
-        for (const gp of myOwnedProperties) {
-          try {
-            await apiClient.delete(`/game-properties/${gp.id}`, {
-              data: { game_id: currentGame.id },
-            });
-            successCount++;
-          } catch (err) {
-            console.error(`Failed to return property ${gp.property_id}`, err);
-          }
-        }
-        toast.success(`${successCount}/${myOwnedProperties.length} properties returned to bank.`);
-      }
-
-      await END_TURN();
-      await apiClient.post("/game-players/leave", {
-        address: me.address,
-        code: currentGame.code,
-        reason: "bankruptcy",
-      });
-
-      await fetchUpdatedGame();
-      showToast("You have declared bankruptcy and left the game.", "error");
-      setShowExitPrompt(true);
-    } catch (err: any) {
-      console.error("Bankruptcy process failed:", err);
-      toast.error(getContractErrorMessage(err, "Bankruptcy failed — but you are eliminated."));
-      try { await END_TURN(); } catch {}
-      // User can go home via exit prompt or modal when ready
-    } finally {
-      setShowBankruptcyModal(false);
-      setBuyPrompted(false);
-      landedPositionThisTurn.current = null;
-    }
-  }, [me, currentGame, justLandedProperty, currentGameProperties, players, showToast, fetchUpdatedGame, END_TURN]);
+  }, [game_properties]);
 
   const handleFinalizeAndLeave = async () => {
     const toastId = toast.loading(
@@ -819,7 +271,7 @@ const MobileGameLayout = ({
 
     try {
       // Backend already ended the game on-chain (bankruptcy/leave or finish-by-time); no wallet signature needed
-      await apiClient.put(`/games/${currentGame.id}`, {
+      await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
         winner_id: me?.user_id || null,
       });
@@ -835,22 +287,22 @@ const MobileGameLayout = ({
         { id: toastId, duration: 8000 }
       );
     } finally {
-      if (endGameReset) endGameReset();
+      exitHook?.reset?.();
     }
   };
 
   useEffect(() => {
-    if (!currentGame || currentGame.status !== "FINISHED" || !me) return;
+    if (!game || game.status !== "FINISHED" || !me) return;
 
     let theWinner: Player | null = null;
 
-    if (currentGame.winner_id != null) {
-      theWinner = currentGame.players.find((p) => p.user_id === currentGame.winner_id) ?? null;
+    if (game.winner_id != null) {
+      theWinner = game.players.find((p) => p.user_id === game.winner_id) ?? null;
     }
     if (!theWinner) {
-      const activePlayers = currentGame.players.filter((player) => {
+      const activePlayers = game.players.filter((player) => {
         if ((player.balance ?? 0) > 0) return true;
-        return currentGameProperties.some(
+        return game_properties.some(
           (gp) => gp.address?.toLowerCase() === player.address?.toLowerCase() &&
                   gp.mortgaged !== true
         );
@@ -871,111 +323,33 @@ const MobileGameLayout = ({
         toast.success("You are the Monopoly champion! ");
       }
     }
-  }, [currentGame?.players, currentGame?.winner_id, currentGameProperties, currentGame?.status, me, winner]);
+  }, [game?.players, game?.winner_id, game_properties, game?.status, me, winner]);
 
-  useEffect(() => {
-    if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds) return;
-    const timer = setTimeout(END_TURN, 2000);
-    return () => clearTimeout(timer);
-  }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, END_TURN]);
-
-  const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
-    if (!gp || !gp.address) return prop.rent_site_only || 0;
-    if (gp.mortgaged) return 0;
-    if (gp.development === 5) return prop.rent_hotel || 0;
-    if (gp.development && gp.development > 0) {
-      switch (gp.development) {
-        case 1: return prop.rent_one_house || 0;
-        case 2: return prop.rent_two_houses || 0;
-        case 3: return prop.rent_three_houses || 0;
-        case 4: return prop.rent_four_houses || 0;
-        default: return prop.rent_site_only || 0;
-      }
-    }
-
-    const groupEntry = Object.entries(MONOPOLY_STATS.colorGroups).find(([_, ids]) =>
-      ids.includes(prop.id)
-    );
-
-    if (groupEntry) {
-      const [groupName] = groupEntry;
-      if (groupName !== "railroad" && groupName !== "utility") {
-        const groupIds = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-        const ownedInGroup = currentGameProperties.filter(
-          g => groupIds.includes(g.property_id) && g.address === gp.address
-        ).length;
-        if (ownedInGroup === groupIds.length) return (prop.rent_site_only || 0) * 2;
-      }
-    }
-
-    return prop.rent_site_only || 0;
-  };
-
-  const handlePropertyClick = useCallback((propertyId: number) => {
+  const onPropertyClick = useCallback((propertyId: number) => {
     touchActivity();
     const prop = properties.find(p => p.id === propertyId);
-    const gp = currentGameProperties.find(g => g.property_id === propertyId);
-    if (prop) {
-      setSelectedProperty(prop);
-      setSelectedGameProperty(gp);
+    if (prop) setSelectedProperty(prop);
+  }, [properties, touchActivity]);
+
+  const onDevelopOrDowngrade = useCallback(() => {
+    touchActivity();
+    if (selectedProperty) {
+      handleDevelopment(selectedProperty.id);
+      setSelectedProperty(null);
     }
-  }, [properties, currentGameProperties, touchActivity]);
+  }, [selectedProperty, handleDevelopment, touchActivity]);
 
-  const handleDevelopment = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/development", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
-
-      if (res.data?.success) {
-        const currentDev = selectedGameProperty.development ?? 0;
-        const isBuilding = currentDev < 5;
-        const item = currentDev === 4 && isBuilding ? "hotel" : "house";
-        const action = isBuilding ? "built" : "sold";
-
-        showToast(`Successfully ${action} ${item}!`, "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
+  const onMortgageToggle = useCallback(() => {
+    touchActivity();
+    if (selectedProperty && selectedGameProperty != null) {
+      if (selectedGameProperty.mortgaged) {
+        handleUnmortgage(selectedProperty.id);
       } else {
-        showToast(res.data?.message || "Action failed", "error");
+        handleMortgage(selectedProperty.id);
       }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Development failed", "error");
+      setSelectedProperty(null);
     }
-  };
-
-  const handleMortgageToggle = async () => {
-    if (!selectedGameProperty || !me || !isMyTurn) {
-      showToast("Not your turn or invalid property", "error");
-      return;
-    }
-
-    try {
-      const res = await apiClient.post<ApiResponse>("/game-properties/mortgage", {
-        game_id: currentGame.id,
-        user_id: me.user_id,
-        property_id: selectedGameProperty.property_id,
-      });
-
-      if (res.data?.success) {
-        const action = selectedGameProperty.mortgaged ? "redeemed" : "mortgaged";
-        showToast(`Property ${action}!`, "success");
-        await fetchUpdatedGame();
-        setSelectedProperty(null);
-      } else {
-        showToast(res.data?.message || "Mortgage failed", "error");
-      }
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Mortgage action failed", "error");
-    }
-  };
+  }, [selectedProperty, selectedGameProperty, handleMortgage, handleUnmortgage, touchActivity]);
 
   const handleSellProperty = async () => {
     if (!selectedGameProperty || !me || !isMyTurn) {
@@ -990,7 +364,7 @@ const MobileGameLayout = ({
 
     try {
       const res = await apiClient.post<ApiResponse>("/game-properties/sell", {
-        game_id: currentGame.id,
+        game_id: game.id,
         user_id: me.user_id,
         property_id: selectedGameProperty.property_id,
       });
@@ -1075,7 +449,7 @@ const MobileGameLayout = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setTimeoutPopupPlayer(null)}
+            onClick={() => dismissTimeoutPopup()}
           >
             <motion.div
               initial={{ scale: 0.9 }}
@@ -1094,7 +468,7 @@ const MobileGameLayout = ({
               </p>
               <div className="flex gap-3 justify-end">
                 <button
-                  onClick={() => setTimeoutPopupPlayer(null)}
+                  onClick={() => dismissTimeoutPopup()}
                   className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
                 >
                   Dismiss
@@ -1103,7 +477,7 @@ const MobileGameLayout = ({
                   <button
                     onClick={() => {
                       voteToRemove(timeoutPopupPlayer.user_id);
-                      setTimeoutPopupPlayer(null);
+                      dismissTimeoutPopup();
                     }}
                     disabled={votingLoading[timeoutPopupPlayer.user_id]}
                     className="px-4 py-2 rounded-lg bg-cyan-700 text-cyan-100 hover:bg-cyan-600 transition disabled:opacity-60"
@@ -1191,14 +565,14 @@ const MobileGameLayout = ({
           <Board
             properties={properties}
             players={players}
-            currentGameProperties={currentGameProperties}
+            currentGameProperties={game_properties}
             animatedPositions={animatedPositions}
             currentPlayerId={currentPlayerId}
-            onPropertyClick={handlePropertyClick}
+            onPropertyClick={onPropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
-                {currentGame?.duration && Number(currentGame.duration) > 0 && (
-                  <GameDurationCountdown game={currentGame} compact onTimeUp={onFinishByTime} />
+                {game?.duration && Number(game.duration) > 0 && (
+                  <GameDurationCountdown game={game} compact onTimeUp={onFinishByTime} />
                 )}
                 {turnTimeLeft != null && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
@@ -1253,7 +627,7 @@ const MobileGameLayout = ({
                     </button>
                   ) : (
                     <button
-                      onClick={() => ROLL_DICE(false)}
+                      onClick={() => ROLL_DICE()}
                       className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
                     >
                       Roll Dice
@@ -1276,19 +650,14 @@ const MobileGameLayout = ({
         <MyBalanceBar me={me} bottomBar />
       </div>
       <div className="w-full max-w-2xl mx-auto px-4 pb-24">
-        <GameLog history={currentGame.history} />
+        <GameLog history={game.history} />
       </div>
 
       <BuyPromptModal
         visible={!!(isMyTurn && buyPrompted && justLandedProperty)}
         property={justLandedProperty ?? null}
-        onBuy={BUY_PROPERTY}
-        onSkip={() => {
-          touchActivity();
-          setBuyPrompted(false);
-          landedPositionThisTurn.current = null;
-          setTimeout(END_TURN, 800);
-        }}
+        onBuy={handleBuyProperty}
+        onSkip={handleSkipBuy}
       />
 
       <BoardPropertyDetailModal
@@ -1299,9 +668,9 @@ const MobileGameLayout = ({
         isMyTurn={isMyTurn}
         getCurrentRent={getCurrentRent}
         onClose={() => setSelectedProperty(null)}
-        onDevelop={() => { touchActivity(); handleDevelopment(); }}
-        onDowngrade={() => { touchActivity(); handleDevelopment(); }}
-        onMortgageToggle={() => { touchActivity(); handleMortgageToggle(); }}
+        onDevelop={onDevelopOrDowngrade}
+        onDowngrade={onDevelopOrDowngrade}
+        onMortgageToggle={onMortgageToggle}
         onSellProperty={() => { touchActivity(); handleSellProperty(); }}
       />
 
@@ -1338,7 +707,7 @@ const MobileGameLayout = ({
         setShowCardModal={setShowCardModal}
         me={me}
         players={players}
-        currentGame={currentGame}
+        currentGame={game}
         isPending={true}
         setShowInsolvencyModal={setShowInsolvencyModal}
         setIsRaisingFunds={setIsRaisingFunds}

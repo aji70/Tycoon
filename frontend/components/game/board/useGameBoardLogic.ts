@@ -31,6 +31,8 @@ export interface UseGameBoardLogicProps {
   me: Player | null;
   /** Called after successfully removing an inactive player so parent can refetch game */
   onGameUpdated?: () => void;
+  /** Optional: for voted-out detection by address (e.g. mobile when user id may lag) */
+  myAddress?: string;
 }
 
 export function useGameBoardLogic({
@@ -39,6 +41,7 @@ export function useGameBoardLogic({
   game_properties,
   me,
   onGameUpdated,
+  myAddress,
 }: UseGameBoardLogicProps) {
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
@@ -179,14 +182,16 @@ export function useGameBoardLogic({
         const updatedPlayers = res.data.data.players;
         setPlayers(updatedPlayers);
         // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket)
-        if (me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id)) {
+        const wasRemovedByUserId = me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id);
+        const wasRemovedByAddress = myAddress && !updatedPlayers.some((p: Player) => String(p.address || "").toLowerCase() === myAddress.toLowerCase());
+        if (wasRemovedByUserId || wasRemovedByAddress) {
           setShowVotedOutModal(true);
         }
       }
     } catch (err) {
       console.error("Sync failed:", err);
     }
-  }, [game.code, me?.user_id]);
+  }, [game.code, me?.user_id, myAddress]);
 
   // Timer for current player — show to ALL players. Stops counting when they roll (90s total, wrap up trades in remaining time).
   const isTwoPlayer = players.length === 2;
@@ -785,5 +790,7 @@ export function useGameBoardLogic({
     dismissTimeoutPopup: () => setTimeoutPopupPlayer(null),
     showVotedOutModal,
     setShowVotedOutModal,
+    fetchUpdatedGame,
+    showToast,
   };
 }
