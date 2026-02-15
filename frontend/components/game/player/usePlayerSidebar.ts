@@ -511,10 +511,16 @@ export function usePlayerSidebar({
     showVictoryModal,
     setShowVictoryModal,
     myPosition: (() => {
-      const p = game?.placements;
-      if (!p || !me) return undefined;
-      const placements = typeof p === "string" ? (() => { try { return JSON.parse(p); } catch { return null; } })() : p;
-      return placements?.[me.user_id] as number | undefined;
+      try {
+        const p = game?.placements;
+        if (!p || !me?.user_id) return undefined;
+        const placements = typeof p === "string" ? (() => { try { return JSON.parse(p); } catch { return null; } })() : p;
+        if (!placements || typeof placements !== "object") return undefined;
+        const pos = placements[me.user_id] ?? placements[String(me.user_id)];
+        return typeof pos === "number" ? pos : undefined;
+      } catch {
+        return undefined;
+      }
     })(),
     endGameCandidate,
     claimModalOpen,
