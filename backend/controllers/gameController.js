@@ -778,8 +778,12 @@ export const join = async (req, res) => {
  * POST /games/create-as-guest
  * Body: same as POST /games but without address (use req.user from auth).
  * Requires Authorization: Bearer <token> and guest user with password_hash.
+ *
+ * Saves the game to the backend first, then creates on-chain. This ensures guest games
+ * are always in the DB; if the contract call fails we remove the placeholder game.
  */
 export const createAsGuest = async (req, res) => {
+  let game = null;
   try {
     const user = req.user;
     if (!user || !user.is_guest || !user.password_hash) {
@@ -812,23 +816,9 @@ export const createAsGuest = async (req, res) => {
     const stakeAmount = 0n; // Guests: free games only
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
 
-    const { gameId: onChainGameId } = await createGameByBackend(
-      user.address,
-      user.password_hash,
-      user.username,
-      gameType,
-      symbol || "hat",
-      number_of_players ?? 4,
-      code,
-      startingCash,
-      stakeAmount
-    );
-
-    if (!onChainGameId) {
-      return res.status(500).json({ success: false, message: "Contract did not return game ID" });
-    }
-
-    const game = await Game.create({
+    // 1) Create game and related rows in DB first so guest games are always on the backend.
+    //    contract_game_id is set after the on-chain create succeeds.
+    game = await Game.create({
       code,
       mode,
       creator_id: user.id,
@@ -839,10 +829,10 @@ export const createAsGuest = async (req, res) => {
       is_ai: !!is_ai,
       duration,
       chain: chain || "BASE",
-      contract_game_id: String(onChainGameId),
+      contract_game_id: null,
     });
 
-    const chat = await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.create({ game_id: game.id, status: "open" });
 
     const game_settings = await GameSetting.create({
       game_id: game.id,
@@ -866,6 +856,44 @@ export const createAsGuest = async (req, res) => {
       community_chest_jail_card: false,
     });
 
+    // 2) Create game on-chain (backend signs for guest).
+    let onChainGameId;
+    try {
+      const result = await createGameByBackend(
+        user.address,
+        user.password_hash,
+        user.username,
+        gameType,
+        symbol || "hat",
+        number_of_players ?? 4,
+        code,
+        startingCash,
+        stakeAmount
+      );
+      onChainGameId = result?.gameId;
+    } catch (contractErr) {
+      logger.warn({ err: contractErr?.message, gameId: game.id, code }, "createAsGuest: contract failed, removing backend game");
+      await db("chats").where({ game_id: game.id }).del();
+      await db("game_players").where({ game_id: game.id }).del();
+      await db("game_settings").where({ game_id: game.id }).del();
+      await db("games").where({ id: game.id }).del();
+      return res.status(500).json({
+        success: false,
+        message: contractErr?.message || "Failed to create game on-chain. Try again or connect a wallet.",
+      });
+    }
+
+    if (!onChainGameId) {
+      await db("chats").where({ game_id: game.id }).del();
+      await db("game_players").where({ game_id: game.id }).del();
+      await db("game_settings").where({ game_id: game.id }).del();
+      await db("games").where({ id: game.id }).del();
+      return res.status(500).json({ success: false, message: "Contract did not return game ID" });
+    }
+
+    await Game.update(game.id, { contract_game_id: String(onChainGameId) });
+    game = await Game.findById(game.id);
+
     const game_players = await GamePlayer.findByGameId(game.id);
     await recordEvent("game_created", { entityType: "game", entityId: game.id, payload: { is_ai: game.is_ai } });
 
@@ -878,6 +906,16 @@ export const createAsGuest = async (req, res) => {
       data: { ...game, settings: game_settings, players: game_players },
     });
   } catch (err) {
+    if (game?.id) {
+      try {
+        await db("chats").where({ game_id: game.id }).del();
+        await db("game_players").where({ game_id: game.id }).del();
+        await db("game_settings").where({ game_id: game.id }).del();
+        await db("games").where({ id: game.id }).del();
+      } catch (cleanupErr) {
+        logger.warn({ err: cleanupErr?.message, gameId: game.id }, "createAsGuest cleanup failed");
+      }
+    }
     logger.error({ err: err?.message }, "createAsGuest failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create game" });
   }
@@ -1028,9 +1066,10 @@ export const joinAsGuest = async (req, res) => {
 /**
  * POST /games/create-ai-as-guest
  * Body: { code, symbol, number_of_players (aiCount+1), settings, duration, chain }
- * Creates AI game on-chain via createAIGameByBackend then DB game with is_ai: true.
+ * Saves AI game to backend first, then creates on-chain (so guest AI games are always in DB).
  */
 export const createAIAsGuest = async (req, res) => {
+  let game = null;
   try {
     const user = req.user;
     if (!user || !user.is_guest || !user.password_hash) {
@@ -1049,35 +1088,10 @@ export const createAIAsGuest = async (req, res) => {
 
     const startingCash = settings?.starting_cash ?? 1500;
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
-
     const gameCodeForContract = (code || "").trim();
-    const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
-      user.address,
-      user.password_hash,
-      user.username,
-      "PRIVATE",
-      symbol || "hat",
-      numberOfAI,
-      gameCodeForContract,
-      startingCash
-    );
 
-    let onChainGameId = onChainGameIdFromEvent;
-    if (!onChainGameId && gameCodeForContract) {
-      try {
-        const contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
-        const id = contractGame?.id ?? contractGame?.[0];
-        if (id != null) onChainGameId = String(id);
-      } catch (lookupErr) {
-        logger.warn({ err: lookupErr?.message, code: gameCodeForContract }, "getGameByCode fallback failed after createAIGameByBackend");
-      }
-    }
-
-    if (!onChainGameId) {
-      return res.status(500).json({ success: false, message: "Contract did not return game ID; redirect using game code." });
-    }
-
-    const game = await Game.create({
+    // 1) Create game and related rows in DB first.
+    game = await Game.create({
       code: code || "",
       mode: "PRIVATE",
       creator_id: user.id,
@@ -1088,10 +1102,10 @@ export const createAIAsGuest = async (req, res) => {
       is_ai: true,
       duration: duration || 0,
       chain: chain || "BASE",
-      contract_game_id: String(onChainGameId),
+      contract_game_id: null,
     });
 
-    const chat = await Chat.create({ game_id: game.id, status: "open" });
+    await Chat.create({ game_id: game.id, status: "open" });
 
     await GameSetting.create({
       game_id: game.id,
@@ -1115,6 +1129,48 @@ export const createAIAsGuest = async (req, res) => {
       community_chest_jail_card: false,
     });
 
+    // 2) Create AI game on-chain.
+    let onChainGameId;
+    try {
+      const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
+        user.address,
+        user.password_hash,
+        user.username,
+        "PRIVATE",
+        symbol || "hat",
+        numberOfAI,
+        gameCodeForContract,
+        startingCash
+      );
+      onChainGameId = onChainGameIdFromEvent;
+      if (!onChainGameId && gameCodeForContract) {
+        const contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
+        const id = contractGame?.id ?? contractGame?.[0];
+        if (id != null) onChainGameId = String(id);
+      }
+    } catch (contractErr) {
+      logger.warn({ err: contractErr?.message, gameId: game.id, code: gameCodeForContract }, "createAIAsGuest: contract failed, removing backend game");
+      await db("chats").where({ game_id: game.id }).del();
+      await db("game_players").where({ game_id: game.id }).del();
+      await db("game_settings").where({ game_id: game.id }).del();
+      await db("games").where({ id: game.id }).del();
+      return res.status(500).json({
+        success: false,
+        message: contractErr?.message || "Failed to create AI game on-chain. Try again or connect a wallet.",
+      });
+    }
+
+    if (!onChainGameId) {
+      await db("chats").where({ game_id: game.id }).del();
+      await db("game_players").where({ game_id: game.id }).del();
+      await db("game_settings").where({ game_id: game.id }).del();
+      await db("games").where({ id: game.id }).del();
+      return res.status(500).json({ success: false, message: "Contract did not return game ID; redirect using game code." });
+    }
+
+    await Game.update(game.id, { contract_game_id: String(onChainGameId) });
+    game = await Game.findById(game.id);
+
     const game_players = await GamePlayer.findByGameId(game.id);
     const game_settings = await GameSetting.findByGameId(game.id);
     await recordEvent("game_created", { entityType: "game", entityId: game.id, payload: { is_ai: true } });
@@ -1125,6 +1181,16 @@ export const createAIAsGuest = async (req, res) => {
       data: { ...game, settings: game_settings, players: game_players },
     });
   } catch (err) {
+    if (game?.id) {
+      try {
+        await db("chats").where({ game_id: game.id }).del();
+        await db("game_players").where({ game_id: game.id }).del();
+        await db("game_settings").where({ game_id: game.id }).del();
+        await db("games").where({ id: game.id }).del();
+      } catch (cleanupErr) {
+        logger.warn({ err: cleanupErr?.message, gameId: game.id }, "createAIAsGuest cleanup failed");
+      }
+    }
     logger.error({ err: err?.message }, "createAIAsGuest failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create AI game" });
   }
