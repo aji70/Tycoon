@@ -230,7 +230,7 @@ export default function GameWaitingMobile(): JSX.Element {
                     <span className="text-[10px] font-orbitron font-bold text-[#00F0FF] tracking-[0.3em] mb-2 opacity-90">SCAN TO JOIN</span>
                     <div className="p-3 rounded-xl bg-white border-2 border-[#00F0FF]/60 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
                       <QRCodeSVG
-                        value={farcasterMiniappUrl}
+                        value={gameUrl}
                         size={180}
                         level="M"
                         bgColor="#ffffff"
