@@ -144,6 +144,7 @@ const MobileGameLayout = ({
   const prevIncomingTradeCount = useRef(0);
   const tradeToastShownThisTurn = useRef(false);
   const lastTurnForTradeToast = useRef<number | null>(null);
+  const timeUpHandledRef = useRef(false);
   const { tradeRequests = [], refreshTrades } = useGameTrades({
     gameId: game?.id,
     myUserId: me?.user_id,
@@ -291,6 +292,21 @@ const MobileGameLayout = ({
       exitHook?.reset?.();
     }
   };
+
+  const handleGameTimeUp = useCallback(async () => {
+    if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
+    timeUpHandledRef.current = true;
+    setGameTimeUp(true);
+    try {
+      await apiClient.post(`/games/${game.id}/finish-by-time`);
+      await onFinishByTime?.();
+    } catch (e) {
+      console.error("Finish by time failed:", e);
+      timeUpHandledRef.current = false;
+      setGameTimeUp(false);
+      toast.error("Could not end game. Please try again.");
+    }
+  }, [game?.id, game?.status, onFinishByTime]);
 
   useEffect(() => {
     if (!game || game.status !== "FINISHED" || !me) return;
@@ -595,7 +611,7 @@ const MobileGameLayout = ({
                   </div>
                 )}
                 {game?.duration && Number(game.duration) > 0 && (
-                  <GameDurationCountdown game={game} compact onTimeUp={() => { setGameTimeUp(true); onFinishByTime?.(); }} />
+                  <GameDurationCountdown game={game} compact onTimeUp={handleGameTimeUp} />
                 )}
                 {turnTimeLeft != null && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
