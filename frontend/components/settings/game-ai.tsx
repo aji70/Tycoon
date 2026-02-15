@@ -391,6 +391,7 @@ export default function PlayWithAI() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="2">2 minutes</SelectItem>
                   <SelectItem value="5">5 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>

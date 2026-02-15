@@ -363,6 +363,7 @@ export default function PlayWithAIMobile() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="2">2m</SelectItem>
                   <SelectItem value="5">5m</SelectItem>
                   <SelectItem value="30">30m</SelectItem>
                   <SelectItem value="45">45m</SelectItem>
