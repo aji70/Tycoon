@@ -395,9 +395,31 @@ const gameController = {
       const result = await computeWinnerByNetWorth(game);
       if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
 
-      let placements = null;
-      // End game on the contract first so on-chain status is Ended and payouts happen. Only then mark DB FINISHED
-      // so that a retry (e.g. if contract tx failed) will run the contract block again.
+      const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
+      placements = {};
+      for (let i = 0; i < sortedByNetWorth.length; i++) {
+        const position = sortedByNetWorth.length - i;
+        placements[sortedByNetWorth[i].user_id] = position;
+      }
+
+      const updatePayload = { status: "FINISHED", winner_id: result.winner_id };
+      if (placements) updatePayload.placements = JSON.stringify(placements);
+
+      // Atomic claim: only one request wins the transition RUNNING → FINISHED. Others get 0 rows and return existing game.
+      const rowCount = await db("games")
+        .where({ id: game.id, status: "RUNNING" })
+        .update({ ...updatePayload, updated_at: db.fn.now() });
+
+      if (rowCount === 0) {
+        const updated = await Game.findById(game.id);
+        return res.status(200).json({
+          success: true,
+          message: "Game already concluded",
+          data: { game: updated, winner_id: updated?.winner_id, valid_win: true },
+        });
+      }
+
+      // We won the race — run contract removals. Catch errors so "Not in game" (another request removed them) doesn't fail us.
       let contractGameIdToUse = game.contract_game_id;
       if (!game.is_ai && isContractConfigured() && game.code) {
         if (!contractGameIdToUse) {
@@ -406,7 +428,7 @@ const gameController = {
             const onChainId = contractGame?.id ?? contractGame?.[0];
             if (onChainId != null && onChainId !== "") {
               contractGameIdToUse = String(onChainId);
-              await Game.update(game.id, { contract_game_id: contractGameIdToUse });
+              await db("games").where({ id: game.id }).update({ contract_game_id: contractGameIdToUse });
             }
           } catch (err) {
             logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in finishByTime failed");
@@ -431,28 +453,12 @@ const gameController = {
             ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
           }
         } else {
-          // Multiplayer: Remove players in order — last place first, winner last — so each gets fair on-chain payout.
-          // removePlayerFromGame is used (backend game controller); no player passwords needed.
           const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
-          const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
-          if (sortedByNetWorth.length === 0) {
-            logger.warn({ gameId: game.id }, "finishByTime: no net_worths, cannot end game on-chain");
-          }
-          const playerRows = await db("game_players")
-            .where({ game_id: game.id })
-            .select("user_id", "turn_count");
+          const playerRows = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
           const turnCountByUser = Object.fromEntries(playerRows.map((r) => [r.user_id, Number(r.turn_count ?? 0)]));
-          placements = {};
-          for (let i = 0; i < sortedByNetWorth.length; i++) {
-            const position = sortedByNetWorth.length - i; // 1 = winner (last in sorted), N = last place
-            placements[sortedByNetWorth[i].user_id] = position;
-          }
           for (const { user_id } of sortedByNetWorth) {
             const user = await db("users").where({ id: user_id }).select("address").first();
-            if (!user?.address) {
-              logger.warn({ gameId: game.id, user_id }, "finishByTime: player has no address");
-              continue;
-            }
+            if (!user?.address) continue;
             const turnCount = turnCountByUser[user_id];
             try {
               await removePlayerFromGame(
@@ -461,16 +467,14 @@ const gameController = {
                 turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256
               );
             } catch (err) {
-              logger.warn({ err: err?.message, gameId: game.id, user_id }, "finishByTime: removePlayerFromGame failed");
-              throw err;
+              logger.warn(
+                { err: err?.message, gameId: game.id, user_id },
+                "finishByTime: removePlayerFromGame failed (Not in game / race) — continuing"
+              );
             }
           }
         }
       }
-
-      const updatePayload = { status: "FINISHED", winner_id: result.winner_id };
-      if (placements) updatePayload.placements = JSON.stringify(placements);
-      await Game.update(game.id, updatePayload);
       await invalidateGameById(game.id);
       const io = req.app.get("io");
       if (io) emitGameUpdate(io, game.code);
