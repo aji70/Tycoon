@@ -389,8 +389,8 @@ const gameController = {
 
       const startAt = game.started_at || game.created_at;
       const endMs = new Date(startAt).getTime() + durationMinutes * 60 * 1000;
-      // Allow up to 3s before end: countdown fires at 0 when 0–1s left; small clock skew can otherwise reject.
-      if (Date.now() < endMs - 3000) return res.status(400).json({ success: false, error: "Game time has not ended yet" });
+      // Allow up to 30s before end: handles client/server clock skew; countdown fires at 0.
+      if (Date.now() < endMs - 30000) return res.status(400).json({ success: false, error: "Game time has not ended yet" });
 
       const result = await computeWinnerByNetWorth(game);
       if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
