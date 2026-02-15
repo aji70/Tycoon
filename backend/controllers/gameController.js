@@ -339,10 +339,13 @@ const gameController = {
       if (!game) return res.status(404).json({ success: false, error: "Game not found" });
       // Idempotent: if already finished, return success so frontend can show modal with winner_id
       if (game.status === "FINISHED" || game.status === "CANCELLED") {
+        const settings = await GameSetting.findByGameId(game.id);
+        const players = await GamePlayer.findByGameId(game.id);
+        const fullGame = { ...game, settings, players };
         return res.status(200).json({
           success: true,
           message: "Game already concluded",
-          data: { game, winner_id: game.winner_id, valid_win: true },
+          data: { game: fullGame, winner_id: game.winner_id, valid_win: true },
         });
       }
       if (game.status !== "RUNNING") return res.status(400).json({ success: false, error: "Game is not running" });
@@ -421,11 +424,14 @@ const gameController = {
       }
 
       const updated = await Game.findById(game.id);
+      const settings = await GameSetting.findByGameId(game.id);
+      const players = await GamePlayer.findByGameId(game.id);
+      const fullGame = { ...updated, settings, players };
       return res.status(200).json({
         success: true,
         message: "Game finished by time; winner by net worth",
         data: {
-          game: updated,
+          game: fullGame,
           winner_id: result.winner_id,
           winner_turn_count: result.winner_turn_count || 0,
           valid_win: result.valid_win !== false // Valid if >= 20 turns

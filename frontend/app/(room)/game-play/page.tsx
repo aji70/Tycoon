@@ -143,12 +143,13 @@ export default function GamePlayPage() {
   const finishGameByTime = useCallback(async () => {
     if (!game?.id || game?.status !== "RUNNING" || !gameCode) return;
     try {
-      const res = await apiClient.post<{ data?: { success?: boolean; data?: { game?: Game } } }>(`/games/${game.id}/finish-by-time`);
-      const payload = res?.data as { data?: { success?: boolean; data?: { game?: Game } } } | undefined;
-      const updatedGame = payload?.data?.data?.game ?? payload?.data?.game;
-      if (updatedGame) {
+      type FinishByTimeRes = { success?: boolean; data?: { game?: Game; winner_id?: number } };
+      const res = await apiClient.post<FinishByTimeRes>(`/games/${game.id}/finish-by-time`);
+      const updatedGame = res?.data?.data?.game;
+      if (updatedGame && Array.isArray(updatedGame.players)) {
         queryClient.setQueryData(["game", gameCode], updatedGame);
       }
+      await queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
       await refetchGame();
     } catch (e: unknown) {
       const msg = e && typeof e === "object" && "response" in e && e.response && typeof e.response === "object" && "data" in e.response
