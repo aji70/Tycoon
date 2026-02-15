@@ -358,12 +358,8 @@ const gameController = {
       const result = await computeWinnerByNetWorth(game);
       if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
 
-      await Game.update(game.id, { status: "FINISHED", winner_id: result.winner_id });
-      await invalidateGameById(game.id);
-      const io = req.app.get("io");
-      emitGameUpdate(io, game.code);
-
-      // End game on the contract so players get rewards (guest or wallet; we ensure password when possible).
+      // End game on the contract first so on-chain status is Ended and payouts happen. Only then mark DB FINISHED
+      // so that a retry (e.g. if contract tx failed) will run the contract block again.
       let contractGameIdToUse = game.contract_game_id;
       if (!game.is_ai && isContractConfigured() && game.code) {
         if (!contractGameIdToUse) {
@@ -386,7 +382,7 @@ const gameController = {
           const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
           if (creator?.address && creator?.password_hash && humanGp) {
             const isWin = result.winner_id === game.creator_id;
-            endAIGameByBackend(
+            await endAIGameByBackend(
               creator.address,
               creator.username || "",
               creator.password_hash,
@@ -397,18 +393,38 @@ const gameController = {
             ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
           }
         } else {
-          const winnerUser = await ensureUserHasContractPassword(db, result.winner_id) ||
-            (await db("users").where({ id: result.winner_id }).select("address", "username", "password_hash").first());
-          if (winnerUser?.address && winnerUser?.password_hash) {
-            exitGameByBackend(
-              winnerUser.address,
-              winnerUser.username || "",
-              winnerUser.password_hash,
+          // Contract: game.status is set to Ended ONLY when the last player exits (_exitOrRemovePlayer when joinedPlayers == 1).
+          // Rank is by exit order: first to exit = worst rank (consolation), last to exit = rank 1 (winner).
+          // We must exit EVERY player in order (losers first, winner last) so the final exit runs the Ended branch.
+          const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
+          if (sortedByNetWorth.length === 0) {
+            logger.warn({ gameId: game.id }, "finishByTime: no net_worths, cannot end game on-chain");
+          }
+          const usersToExit = [];
+          for (const { user_id } of sortedByNetWorth) {
+            const user = await ensureUserHasContractPassword(db, user_id) ||
+              (await db("users").where({ id: user_id }).select("address", "username", "password_hash").first());
+            if (!user?.address || !user?.password_hash) {
+              logger.warn({ gameId: game.id, user_id }, "finishByTime: no contract auth for player");
+              throw new Error(`Cannot end game on-chain: player ${user_id} has no contract auth (address/password). All players must be able to exit for the game to be ended on-chain.`);
+            }
+            usersToExit.push(user);
+          }
+          for (const user of usersToExit) {
+            await exitGameByBackend(
+              user.address,
+              user.username || "",
+              user.password_hash,
               contractGameIdToUse
-            ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "exitGameByBackend failed (game already ended on-chain?)"));
+            );
           }
         }
       }
+
+      await Game.update(game.id, { status: "FINISHED", winner_id: result.winner_id });
+      await invalidateGameById(game.id);
+      const io = req.app.get("io");
+      if (io) emitGameUpdate(io, game.code);
 
       const updated = await Game.findById(game.id);
       return res.status(200).json({
