@@ -139,7 +139,7 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
               >
                 Game over
               </motion.h1>
-              {myPosition != null && myPosition > 1 && (
+              {typeof myPosition === "number" && myPosition > 1 && Number.isFinite(myPosition) && (
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
