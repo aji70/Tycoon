@@ -688,7 +688,62 @@ const gamePlayerController = {
       if (!game) {
         return res.status(404).json({ success: false, message: "Game not found" });
       }
+
+      const playersBeforeLeave = await db("game_players").where({ game_id: game.id }).select("user_id");
+      const willLeaveOneRemaining = playersBeforeLeave.length === 2 && game.status === "RUNNING";
+
+      if (willLeaveOneRemaining && isContractConfigured()) {
+        let contractGameIdToUse = game.contract_game_id;
+        if (!contractGameIdToUse && game.code) {
+          try {
+            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()]);
+            const onChainId = contractGame?.id ?? contractGame?.[0];
+            if (onChainId != null && onChainId !== "") {
+              contractGameIdToUse = String(onChainId);
+            }
+          } catch (err) {
+            logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in leave failed");
+          }
+        }
+        if (contractGameIdToUse) {
+          const winnerRow = playersBeforeLeave.find((p) => p.user_id !== user.id);
+          const leaverUser = await ensureUserHasContractPassword(db, user.id) ||
+            (await db("users").where({ id: user.id }).select("address", "username", "password_hash").first());
+          const winnerUser = winnerRow && (await ensureUserHasContractPassword(db, winnerRow.user_id) ||
+            (await db("users").where({ id: winnerRow.user_id }).select("address", "username", "password_hash").first()));
+          if (leaverUser?.address && leaverUser?.password_hash) {
+            await exitGameByBackend(
+              leaverUser.address,
+              leaverUser.username || "",
+              leaverUser.password_hash,
+              contractGameIdToUse
+            );
+            if (winnerUser?.address && winnerUser?.password_hash) {
+              await exitGameByBackend(
+                winnerUser.address,
+                winnerUser.username || "",
+                winnerUser.password_hash,
+                contractGameIdToUse
+              );
+            }
+          }
+        }
+      }
+
       await GamePlayer.leave(game.id, user.id);
+
+      const remaining = await db("game_players").where({ game_id: game.id }).select("user_id");
+      if (remaining.length === 1 && game.status === "RUNNING") {
+        await Game.update(game.id, {
+          status: "FINISHED",
+          winner_id: remaining[0].user_id,
+          next_player_id: remaining[0].user_id,
+        });
+        await invalidateGameById(game.id);
+        const io = req.app.get("io");
+        if (io && game.code) emitGameUpdate(io, game.code);
+      }
+
       return res.status(200).json({
         success: true,
         message: "Player removed from game successfully",
