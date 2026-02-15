@@ -5,6 +5,7 @@ import GameRoom from "@/components/game/game-room";
 import GamePlayers from "@/components/game/player/player";
 import MobileGamePlayers from "@/components/game/player/mobile/player";
 import { apiClient } from "@/lib/api";
+import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -147,6 +148,7 @@ export default function GamePlayPage() {
       await refetchGame();
     } catch (e) {
       console.error("Finish by time failed:", e);
+      toast.error("Could not end game by time. Please try again.");
     }
   }, [game?.id, game?.status, refetchGame]);
 

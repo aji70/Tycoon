@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { Toaster } from "react-hot-toast";
+import React, { useState, useCallback, useRef } from "react";
+import { Toaster, toast } from "react-hot-toast";
+import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
@@ -111,10 +112,22 @@ const Board = ({
   const togglePerksModal = () => setShowPerksModal((prev: boolean) => !prev);
 
   const [gameTimeUp, setGameTimeUp] = useState(false);
-  const handleTimeUp = useCallback(() => {
+  const timeUpHandledRef = useRef(false);
+
+  const handleGameTimeUp = useCallback(async () => {
+    if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
+    timeUpHandledRef.current = true;
     setGameTimeUp(true);
-    onFinishByTime?.();
-  }, [onFinishByTime]);
+    try {
+      await apiClient.post(`/games/${game.id}/finish-by-time`);
+      await onFinishByTime?.();
+    } catch (e) {
+      console.error("Finish by time failed:", e);
+      timeUpHandledRef.current = false;
+      setGameTimeUp(false);
+      toast.error("Could not end game. Please try again.");
+    }
+  }, [game?.id, game?.status, onFinishByTime]);
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
@@ -225,7 +238,7 @@ const Board = ({
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={() => setShowBankruptcyModal(true)}
               isPending={false}
-              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={handleTimeUp} /> : null}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} /> : null}
               turnTimeLeft={turnTimeLeft}
               voteablePlayers={voteablePlayersList}
               voteStatuses={logic.voteStatuses}
