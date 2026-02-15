@@ -61,6 +61,12 @@ const MobileGameLayout = ({
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [currentGameProperties, setCurrentGameProperties] = useState<GameProperty[]>(game_properties);
 
+  // Sync from parent when game is refetched (e.g. after finish-by-time) so winner effect sees FINISHED.
+  useEffect(() => {
+    setCurrentGame(game);
+    if (game?.players?.length) setPlayers(game.players);
+  }, [game]);
+
   const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [isRolling, setIsRolling] = useState(false);
   const [pendingRoll, setPendingRoll] = useState(0);
@@ -636,27 +642,23 @@ const endTime =
     }
   }, [me?.balance]);
 
+  // Only show winner when the backend has marked the game FINISHED (not when we merely have 1 player at start — e.g. AI joins failed).
   useEffect(() => {
-    if (!me) return;
+    if (!currentGame || currentGame.status !== "FINISHED" || currentGame.winner_id == null) return;
 
-    const aiPlayers = players.filter(p => isAIPlayer(p));
-    const humanPlayer = me;
+    const winnerPlayer = players.find((p) => p.user_id === currentGame.winner_id) ?? (me?.user_id === currentGame.winner_id ? me : null);
+    if (!winnerPlayer) return;
 
-    const shouldDeclareVictory =
-      (players.length === 1 && players[0].user_id === me.user_id);
-
-    if (shouldDeclareVictory) {
-      const turnCount = humanPlayer.turn_count ?? 0;
-      const validWin = turnCount >= 20;
-      setWinner(humanPlayer);
-      setEndGameCandidate({
-        winner: humanPlayer,
-        position: humanPlayer.position ?? 0,
-        balance: BigInt(humanPlayer.balance),
-        validWin,
-      });
-    }
-  }, [players, me]);
+    setWinner(winnerPlayer);
+    const turnCount = winnerPlayer.turn_count ?? 0;
+    const validWin = turnCount >= 20;
+    setEndGameCandidate({
+      winner: winnerPlayer,
+      position: winnerPlayer.position ?? 0,
+      balance: BigInt(winnerPlayer.balance ?? 0),
+      validWin,
+    });
+  }, [currentGame?.status, currentGame?.winner_id, players, me]);
 
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;

@@ -25,6 +25,36 @@ import {
 } from "../services/tycoonContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 
+// AI bot addresses (must match frontend) — used to create DB players for guest AI games so we have 2+ players from the start.
+const AI_ADDRESSES = [
+  "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
+  "0xB2EE17D003e63985f3648f6c1d213BE86B474B11",
+  "0xC3FF882E779aCbc112165fa1E7fFC093e9353B21",
+  "0xD4FFDE5296C3EE6992bAf871418CC3BE84C99C32",
+  "0xE5FF75Fcf243C4cE05B9F3dc5Aeb9F901AA361D1",
+  "0xF6FF469692a259eD5920C15A78640571ee845E8",
+  "0xA7FFE1f969Fa6029Ff2246e79B6A623A665cE69",
+  "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
+];
+const AI_SYMBOLS = ["car", "dog", "hat", "thimble", "wheelbarrow", "battleship", "boot", "iron", "top_hat"];
+
+/** Get or create a user for an AI bot (by index). Used so game_players can reference a user_id for AI. */
+async function getOrCreateAIUser(aiIndex) {
+  const address = AI_ADDRESSES[aiIndex];
+  if (!address) return null;
+  let user = await User.findByAddress(address);
+  if (!user) user = await User.findByAddress(address, "Base");
+  if (user) return user;
+  const username = `AI_${aiIndex + 1}`;
+  try {
+    const created = await User.create({ address, username, chain: "BASE" });
+    return created;
+  } catch (err) {
+    logger.warn({ err: err?.message, address, username }, "getOrCreateAIUser create failed");
+    return null;
+  }
+}
+
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
   UTILITY: [12, 28],
@@ -1120,6 +1150,26 @@ export const createAIAsGuest = async (req, res) => {
       chance_jail_card: false,
       community_chest_jail_card: false,
     });
+
+    // Add AI players in DB so we have 2+ players from the start (frontend AI "join" would fail for guest).
+    const humanSymbol = (symbol || "hat").toLowerCase();
+    const availableSymbols = AI_SYMBOLS.filter((s) => s !== humanSymbol);
+    for (let i = 0; i < numberOfAI; i++) {
+      const aiUser = await getOrCreateAIUser(i);
+      if (!aiUser) continue;
+      const aiSymbol = availableSymbols[i % availableSymbols.length] || AI_SYMBOLS[i % AI_SYMBOLS.length];
+      await GamePlayer.create({
+        game_id: game.id,
+        user_id: aiUser.id,
+        address: aiUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: i + 2,
+        symbol: aiSymbol,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+    }
 
     const game_players = await GamePlayer.findByGameId(game.id);
     const game_settings = await GameSetting.findByGameId(game.id);
