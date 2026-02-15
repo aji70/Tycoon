@@ -462,17 +462,17 @@ export function usePlayerSidebar({
 
   const handleFinalizeAndLeave = useCallback(async (skipRedirect?: boolean) => {
     const toastId = toast.loading(
-      winner?.user_id === me?.user_id ? "Claiming your prize..." : "Finalizing game..."
+      winner?.user_id === me?.user_id ? "Finalizing..." : "Finalizing game..."
     );
     try {
-      if (endGame) await endGame();
+      // Backend already ended the game on-chain (bankruptcy/leave or finish-by-time); no wallet signature needed
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
         winner_id: me?.user_id || null,
       });
       toast.success(
         winner?.user_id === me?.user_id
-          ? "Prize claimed! 🎉"
+          ? "You won! Prize already distributed."
           : "Game completed — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
@@ -489,7 +489,7 @@ export function usePlayerSidebar({
     } finally {
       if (endGameReset) endGameReset();
     }
-  }, [winner, me, endGame, game.id, endGameReset]);
+  }, [winner, me, game.id, endGameReset]);
 
   return {
     showEmpire,

@@ -204,7 +204,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             >
               <span className="relative z-10">
                 {isWinner 
-                  ? (claiming ? "Claiming Rewards..." : "Claim Your Rewards")
+                  ? (claiming ? "Finalizing..." : "Return to Lobby")
                   : "Return to Lobby"
                 }
               </span>

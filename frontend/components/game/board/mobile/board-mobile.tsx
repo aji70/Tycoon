@@ -814,22 +814,21 @@ const MobileGameLayout = ({
 
   const handleFinalizeAndLeave = async () => {
     const toastId = toast.loading(
-      winner?.user_id === me?.user_id ? "Claiming your prize..." : "Finalizing game..."
+      winner?.user_id === me?.user_id ? "Finalizing..." : "Finalizing game..."
     );
 
     try {
-      if (endGame) await endGame();
+      // Backend already ended the game on-chain (bankruptcy/leave or finish-by-time); no wallet signature needed
       await apiClient.put(`/games/${currentGame.id}`, {
         status: "FINISHED",
         winner_id: me?.user_id || null,
       });
       toast.success(
         winner?.user_id === me?.user_id
-          ? "Prize claimed! "
+          ? "You won! Prize already distributed."
           : "Game completed — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(
         getContractErrorMessage(err, "Something went wrong — try again later"),
