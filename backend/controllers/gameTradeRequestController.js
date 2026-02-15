@@ -10,34 +10,6 @@ import {
 } from "../utils/userPropertyStats.js";
 import logger from "../config/logger.js";
 
-/**
- * Expire all pending/counter trades sent to target_user_id (e.g. when target rolls dice).
- * Refunds initiators' locked cash and marks trades as declined.
- * @param {object} trx - knex transaction
- * @param {number} game_id
- * @param {number} target_user_id - user_id of the player who rolled (target of pending trades)
- */
-export async function expirePendingTradesForTarget(trx, game_id, target_user_id) {
-  const pending = await trx("game_trade_requests")
-    .where({ game_id, target_player_id: target_user_id })
-    .whereIn("status", ["pending", "counter"]);
-  for (const t of pending) {
-    const amt = Number(t.offer_amount || 0);
-    if (amt > 0) {
-      await trx("game_players")
-        .where({ game_id, user_id: t.player_id })
-        .update({
-          trade_locked_balance: trx.raw("GREATEST(0, COALESCE(trade_locked_balance, 0) - ?)", [amt]),
-          updated_at: new Date(),
-        });
-    }
-    await trx("game_trade_requests").where({ id: t.id }).update({
-      status: "declined",
-      updated_at: new Date(),
-    });
-  }
-}
-
 export const GameTradeRequestController = {
   // CREATE TRADE REQUEST
   async create(req, res) {
@@ -114,42 +86,19 @@ export const GameTradeRequestController = {
         });
       }
 
-      const offerAmountNum = Number(offer_amount) || 0;
-      const requestedAmountNum = Number(requested_amount) || 0;
-
-      // 4️⃣ Check sufficient balances and prevent negative post-trade balances
-      const playerLocked = Number(player.trade_locked_balance || 0);
-      const playerAvailable = Number(player.balance || 0) - playerLocked;
-      if (playerAvailable < offerAmountNum) {
+      // 4️⃣ Check sufficient balances for cash offers
+      if (player.balance < offer_amount) {
         await trx.rollback();
         return res
           .status(400)
-          .json({ success: false, message: "Insufficient available balance (including locked in other trades)" });
+          .json({ success: false, message: "Player has insufficient balance" });
       }
 
-      if (Number(targetPlayer.balance || 0) < requestedAmountNum) {
+      if (targetPlayer.balance < requested_amount) {
         await trx.rollback();
         return res.status(400).json({
           success: false,
           message: "Target player has insufficient balance",
-        });
-      }
-
-      // Post-trade balances must stay non-negative for both parties
-      const initiatorPostBalance = Number(player.balance || 0) - offerAmountNum + requestedAmountNum;
-      const targetPostBalance = Number(targetPlayer.balance || 0) - requestedAmountNum + offerAmountNum;
-      if (initiatorPostBalance < 0) {
-        await trx.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "This trade would put you in negative balance",
-        });
-      }
-      if (targetPostBalance < 0) {
-        await trx.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "This trade would put the other player in negative balance",
         });
       }
 
@@ -160,25 +109,15 @@ export const GameTradeRequestController = {
         player_id,
         target_player_id,
         offer_properties: JSON.stringify(offer_properties),
-        offer_amount: offerAmountNum,
+        offer_amount,
         requested_properties: JSON.stringify(requested_properties),
-        requested_amount: requestedAmountNum,
+        requested_amount,
         status,
         created_at: new Date(),
         updated_at: new Date(),
       });
 
-      // 6️⃣ Lock offered cash on initiator (so they can't spend it until trade resolves)
-      if (offerAmountNum > 0) {
-        await trx("game_players")
-          .where({ game_id, user_id: player_id })
-          .update({
-            trade_locked_balance: trx.raw("COALESCE(trade_locked_balance, 0) + ?", [offerAmountNum]),
-            updated_at: new Date(),
-          });
-      }
-
-      // Commit initial insert and lock
+      // Commit initial insert
       await trx.commit();
       const trade = await db("game_trade_requests")
         .where({ id: tradeId })
@@ -231,12 +170,8 @@ export const GameTradeRequestController = {
       const requested_amount = Number(_requested_amount);
 
       // Parse JSON fields
-      const offeredProps = Array.isArray(offer_properties)
-        ? offer_properties
-        : safeJsonParse(offer_properties);
-      const requestedProps = Array.isArray(requested_properties)
-        ? requested_properties
-        : safeJsonParse(requested_properties);
+      const offeredProps = (offer_properties);
+      const requestedProps = (requested_properties);
 
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
@@ -250,26 +185,6 @@ export const GameTradeRequestController = {
         return res
           .status(404)
           .json({ success: false, message: "Player(s) not found" });
-      }
-
-      // Re-check post-trade balances (may have changed since offer)
-      const playerNewBalance =
-        Number(player.balance) - offer_amount + requested_amount;
-      const targetNewBalance =
-        Number(target_player.balance) + offer_amount - requested_amount;
-      if (playerNewBalance < 0) {
-        await trx.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "Initiator would have negative balance after this trade",
-        });
-      }
-      if (targetNewBalance < 0) {
-        await trx.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "Other player would have negative balance after this trade",
-        });
       }
 
       // 1️⃣ Exchange properties
@@ -289,14 +204,15 @@ export const GameTradeRequestController = {
           .update({ player_id: player.id });
       }
 
-      // 2️⃣ Update balances (release initiator's lock and apply transfer)
+      // 2️⃣ Update balances
+      const playerNewBalance =
+        Number(player.balance) - offer_amount + requested_amount;
+      const targetNewBalance =
+        Number(target_player.balance) + offer_amount - requested_amount;
+
       await trx("game_players")
         .where({ id: player.id })
-        .update({
-          balance: playerNewBalance,
-          trade_locked_balance: trx.raw("GREATEST(0, COALESCE(trade_locked_balance, 0) - ?)", [offer_amount]),
-          updated_at: new Date(),
-        });
+        .update({ balance: playerNewBalance, updated_at: new Date() });
 
       await trx("game_players")
         .where({ id: target_player.id })
@@ -365,37 +281,16 @@ export const GameTradeRequestController = {
     }
   },
 
-  // DECLINE TRADE (refund initiator's locked cash)
+  // DECLINE TRADE
   async decline(req, res) {
-    const trx = await db.transaction();
     try {
       const { id } = req.body;
-      const trade = await trx("game_trade_requests").where({ id }).first();
-      if (!trade) {
-        await trx.rollback();
-        return res.status(404).json({ success: false, message: "Trade not found" });
-      }
-      if (trade.status !== "pending" && trade.status !== "counter") {
-        await trx.rollback();
-        return res.status(400).json({ success: false, message: "Trade is not pending" });
-      }
-      const offerAmount = Number(trade.offer_amount || 0);
-      if (offerAmount > 0) {
-        await trx("game_players")
-          .where({ game_id: trade.game_id, user_id: trade.player_id })
-          .update({
-            trade_locked_balance: trx.raw("GREATEST(0, COALESCE(trade_locked_balance, 0) - ?)", [offerAmount]),
-            updated_at: new Date(),
-          });
-      }
-      await trx("game_trade_requests").where({ id }).update({
+      await db("game_trade_requests").where({ id }).update({
         status: "declined",
         updated_at: new Date(),
       });
-      await trx.commit();
       res.json({ success: true, message: "Trade declined" });
     } catch (error) {
-      await trx.rollback();
       console.error("Decline Trade Error:", error);
       res
         .status(500)

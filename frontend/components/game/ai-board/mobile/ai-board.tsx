@@ -4,17 +4,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { Game, GameProperty, Property, Player } from "@/types/game";
+import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
+import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { isAIPlayer } from "@/utils/gameUtils";
 
 import {
+  BOARD_SQUARES,
+  ROLL_ANIMATION_MS,
+  MOVE_ANIMATION_MS_PER_SQUARE,
+  JAIL_POSITION,
   MIN_SCALE,
   MAX_SCALE,
   BASE_WIDTH_REFERENCE,
   TOKEN_POSITIONS,
   MONOPOLY_STATS,
-  JAIL_POSITION,
+  getDiceValues,
 } from "./constants";
 
 import Board from "./board";
@@ -32,8 +37,10 @@ import { GameDurationCountdown } from "../../GameDurationCountdown";
 import { ApiResponse } from "@/types/api";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
-import { useMobileAiBankruptcy } from "./useMobileAiLogic";
-import { useAIBoardLogic } from "../useAIBoardLogic";
+import {
+  useMobileAiLogic,
+  useMobileAiBankruptcy,
+} from "./useMobileAiLogic";
 
 const MobileGameLayout = ({
   game,
@@ -51,12 +58,48 @@ const MobileGameLayout = ({
   onViewTrades?: () => void;
 }) => {
   const [currentGame, setCurrentGame] = useState<Game>(game);
+  const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [currentGameProperties, setCurrentGameProperties] = useState<GameProperty[]>(game_properties);
+
+  const [roll, setRoll] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  const [isRolling, setIsRolling] = useState(false);
+  const [pendingRoll, setPendingRoll] = useState(0);
+  const [actionLock, setActionLock] = useState<"ROLL" | "END" | null>(null);
+  const [buyPrompted, setBuyPrompted] = useState(false);
+  const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>({});
+  const [hasMovementFinished, setHasMovementFinished] = useState(false);
+  const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
 
   const [showInsolvencyModal, setShowInsolvencyModal] = useState(false);
   const [insolvencyDebt, setInsolvencyDebt] = useState(0);
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
+  const [isSpecialMove, setIsSpecialMove] = useState(false);
+
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+    validWin?: boolean; // true if winner has >= 20 turns, false otherwise
+  }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
+
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardData, setCardData] = useState<{
+    type: "chance" | "community";
+    text: string;
+    effect?: string;
+    isGood: boolean;
+  } | null>(null);
+  const [cardPlayerName, setCardPlayerName] = useState("");
+
+  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [gameTimeUp, setGameTimeUp] = useState(false);
+  const timeUpHandledRef = useRef(false);
+
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
 
   const [boardScale, setBoardScale] = useState(1);
   const [boardTransformOrigin, setBoardTransformOrigin] = useState("50% 50%");
@@ -68,11 +111,101 @@ const MobileGameLayout = ({
   const tradeToastShownThisTurn = useRef(false);
   const lastTurnForTradeToast = useRef<number | null>(null);
 
-  const { tradeRequests = [], refreshTrades } = useGameTrades({
+  const {
+    tradeRequests = [],
+    refreshTrades,
+  } = useGameTrades({
     gameId: game?.id,
     myUserId: me?.user_id,
     players: game?.players ?? [],
   });
+
+ const durationMinutes = Number(game.duration ?? 0); // converts string → number, null/undefined → 0
+const endTime =
+  new Date(game.created_at).getTime() +
+  durationMinutes * 60 * 1000;
+
+  const myIncomingTrades = useMemo(() => {
+    if (!me) return [];
+    return tradeRequests.filter(
+      (t) => t.target_player_id === me.user_id && t.status === "pending"
+    );
+  }, [tradeRequests, me]);
+
+  useEffect(() => {
+    const currentCount = myIncomingTrades.length;
+    const previousCount = prevIncomingTradeCount.current;
+
+    if (currentCount > previousCount && previousCount >= 0 && !tradeToastShownThisTurn.current) {
+      tradeToastShownThisTurn.current = true;
+      setBellFlash(true);
+      setTimeout(() => setBellFlash(false), 800);
+    }
+
+    prevIncomingTradeCount.current = currentCount;
+  }, [myIncomingTrades]);
+
+
+
+  useEffect(() => {
+    const calculateScale = () => {
+      const width = window.innerWidth;
+      let scale = (width / BASE_WIDTH_REFERENCE) * 1.48;
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+      setDefaultScale(scale);
+    };
+
+    calculateScale();
+    window.addEventListener("resize", calculateScale);
+    return () => window.removeEventListener("resize", calculateScale);
+  }, []);
+
+  const currentPlayerId = currentGame.next_player_id;
+  const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
+  const isMyTurn = me?.user_id === currentPlayerId;
+  const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
+
+  // Reset "shown this turn" when turn changes so we show at most one purple toast per turn
+  useEffect(() => {
+    if (lastTurnForTradeToast.current !== currentPlayerId) {
+      lastTurnForTradeToast.current = currentPlayerId ?? null;
+      tradeToastShownThisTurn.current = false;
+    }
+  }, [currentPlayerId]);
+
+  const landedPositionThisTurn = useRef<number | null>(null);
+  const turnEndInProgress = useRef(false);
+  const lastToastMessage = useRef<string | null>(null);
+  const rolledForPlayerId = useRef<number | null>(null);
+
+  const justLandedProperty = useMemo(() => {
+    if (landedPositionThisTurn.current === null) return null;
+    return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
+  }, [landedPositionThisTurn.current, properties]);
+
+  const { data: contractGame } = useGetGameByCode(game.code);
+  const onChainGameId = contractGame?.id;
+
+  const {
+    write: endGame,
+    isPending: endGamePending,
+    reset: endGameReset,
+  } = useEndAIGameAndClaim(
+    onChainGameId ?? BigInt(0),
+    endGameCandidate.position,
+    BigInt(endGameCandidate.balance),
+    // Use validWin: if winner has < 20 turns, pass false to prevent spam, but still show them as winner
+    endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
+  );
+
+  const activeToasts = useRef<Set<string>>(new Set());
+
+  // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
+  const showToast = useCallback((message: string, type: "success" | "error" | "default" = "default") => {
+    if (type === "success" && (message.startsWith("You bought") || message.startsWith("AI bought") || (message.includes("bought") && message.endsWith("!")))) {
+      toast.success(message);
+    }
+  }, []);
 
   const FETCH_THROTTLE_MS = 2200;
   const lastFetchTimeRef = useRef(0);
@@ -85,6 +218,7 @@ const MobileGameLayout = ({
         const gameRes = await apiClient.get<ApiResponse<Game>>(`/games/code/${game.code}`);
         if (gameRes?.data?.success && gameRes.data.data) {
           setCurrentGame(gameRes.data.data);
+          setPlayers(gameRes.data.data.players);
         }
         const propertiesRes = await apiClient.get<ApiResponse<GameProperty[]>>(`/game-properties/game/${game.id}`);
         if (propertiesRes?.data?.success && propertiesRes.data.data) {
@@ -95,10 +229,9 @@ const MobileGameLayout = ({
         } catch {
           // Non-critical
         }
-      } catch (err: unknown) {
-        const e = err as { response?: { status: number; data?: { message?: string } }; message?: string };
-        if (e?.response?.status === 429 || e?.message?.toLowerCase().includes("too many")) {
-          const msg = e?.response?.data?.message || e?.message || "Too many requests — wait a moment";
+      } catch (err: any) {
+        if (err?.response?.status === 429 || err?.message?.toLowerCase().includes("too many")) {
+          const msg = err?.response?.data?.message || err?.message || "Too many requests — wait a moment";
           toast(msg, { duration: 2500, icon: "⏳" });
           setTimeout(() => fetchUpdatedGame(retryDelay * 1.5), retryDelay);
           return;
@@ -118,6 +251,7 @@ const MobileGameLayout = ({
       }, wait);
       return;
     }
+
     if (pendingFetchTimeoutRef.current) {
       clearTimeout(pendingFetchTimeoutRef.current);
       pendingFetchTimeoutRef.current = null;
@@ -125,104 +259,36 @@ const MobileGameLayout = ({
     await doFetch();
   }, [game.code, game.id, refreshTrades]);
 
-  const {
-    players,
-    gameTimeUp,
-    winner,
-    showExitPrompt,
-    setShowExitPrompt,
-    roll,
-    isRolling,
-    buyPrompted,
-    animatedPositions,
-    hasMovementFinished,
-    currentPlayerId,
-    currentPlayer,
-    isMyTurn,
-    isAITurn,
-    justLandedProperty,
-    showToast,
-    handleGameTimeUp,
-    handleFinalizeTimeUpAndLeave,
-    endGame,
-    endGamePending,
-    endGameReset,
-    endGameCandidate,
-    handleRollDice,
-    handleBuyProperty,
-    handleSkipBuy,
-    handleDeclareBankruptcy,
-    handlePropertyClick: hookHandlePropertyClick,
-    selectedProperty,
-    setSelectedProperty,
-    showCardModal,
-    setShowCardModal,
-    cardData,
-    cardPlayerName,
-    showBankruptcyModal,
-    setShowBankruptcyModal,
-    triggerLandingLogic,
-    endTurnAfterSpecialMove,
-    ROLL_DICE,
-    END_TURN,
-  } = useAIBoardLogic({
-    game: currentGame,
-    properties,
-    game_properties: currentGameProperties,
-    me,
-    onFinishGameByTime,
-    onGameUpdated: fetchUpdatedGame,
-    disablePolling: true,
-  });
-
-  const myIncomingTrades = useMemo(() => {
-    if (!me) return [];
-    return tradeRequests.filter(
-      (t) => t.target_player_id === me.user_id && t.status === "pending"
-    );
-  }, [tradeRequests, me]);
-
   useEffect(() => {
-    const currentCount = myIncomingTrades.length;
-    const previousCount = prevIncomingTradeCount.current;
-    if (currentCount > previousCount && previousCount >= 0 && !tradeToastShownThisTurn.current) {
-      tradeToastShownThisTurn.current = true;
-      setBellFlash(true);
-      setTimeout(() => setBellFlash(false), 800);
-    }
-    prevIncomingTradeCount.current = currentCount;
-  }, [myIncomingTrades]);
-
-  useEffect(() => {
-    const calculateScale = () => {
-      const width = window.innerWidth;
-      let scale = (width / BASE_WIDTH_REFERENCE) * 1.48;
-      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
-      setDefaultScale(scale);
+    const interval = setInterval(fetchUpdatedGame, 20000);
+    return () => {
+      clearInterval(interval);
+      if (pendingFetchTimeoutRef.current) clearTimeout(pendingFetchTimeoutRef.current);
     };
-    calculateScale();
-    window.addEventListener("resize", calculateScale);
-    return () => window.removeEventListener("resize", calculateScale);
-  }, []);
+  }, [fetchUpdatedGame]);
+
+  const lockAction = useCallback((type: "ROLL" | "END") => {
+    if (actionLock) return false;
+    setActionLock(type);
+    return true;
+  }, [actionLock]);
+
+  const unlockAction = useCallback(() => setActionLock(null), []);
 
   useEffect(() => {
-    if (lastTurnForTradeToast.current !== currentPlayerId) {
-      lastTurnForTradeToast.current = currentPlayerId ?? null;
-      tradeToastShownThisTurn.current = false;
-    }
+    setRoll(null);
+    setBuyPrompted(false);
+    setIsRolling(false);
+    setPendingRoll(0);
+    landedPositionThisTurn.current = null;
+    rolledForPlayerId.current = null;
+    turnEndInProgress.current = false;
+    lastToastMessage.current = null;
+    setAnimatedPositions({});
+    setHasMovementFinished(false);
+    setStrategyRanThisTurn(false);
+    setIsRaisingFunds(false);
   }, [currentPlayerId]);
-
-  useMobileAiBankruptcy({
-    game: currentGame,
-    currentGame,
-    currentGameProperties,
-    players,
-    isAITurn,
-    currentPlayer,
-    fetchUpdatedGame,
-    setIsRaisingFunds,
-    properties,
-  });
 
   useEffect(() => {
     if (!isMyTurn || !roll || !hasMovementFinished) {
@@ -231,8 +297,10 @@ const MobileGameLayout = ({
       setIsFollowingMyMove(false);
       return;
     }
+
     const myPos = animatedPositions[me!.user_id] ?? me?.position ?? 0;
     const coord = TOKEN_POSITIONS[myPos] || { x: 50, y: 50 };
+
     setBoardScale(defaultScale * 1.8);
     setBoardTransformOrigin(`${coord.x}% ${coord.y}%`);
     setIsFollowingMyMove(true);
@@ -245,20 +313,356 @@ const MobileGameLayout = ({
     }
   }, [isAITurn, defaultScale]);
 
-  const selectedGameProperty = useMemo(
-    () => (selectedProperty ? currentGameProperties.find((gp) => gp.property_id === selectedProperty.id) : undefined),
-    [selectedProperty, currentGameProperties]
-  );
+  const END_TURN = useCallback(async (timedOut?: boolean) => {
+    if (!currentPlayerId || turnEndInProgress.current || !lockAction("END")) return;
+    turnEndInProgress.current = true;
 
-  const handlePropertyClick = useCallback(
-    (propertyId: number) => {
-      const prop = properties.find((p) => p.id === propertyId);
-      if (prop) {
-        hookHandlePropertyClick(prop);
+    try {
+      await apiClient.post("/game-players/end-turn", {
+        user_id: currentPlayerId,
+        game_id: currentGame.id,
+        ...(timedOut === true && { timed_out: true }),
+      });
+      showToast(timedOut ? "Time's up! Turn ended." : "Turn ended", timedOut ? "default" : "success");
+      await fetchUpdatedGame();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end turn"));
+    } finally {
+      unlockAction();
+      turnEndInProgress.current = false;
+    }
+  }, [currentPlayerId, currentGame.id, fetchUpdatedGame, lockAction, unlockAction, showToast]);
+
+  const handleGameTimeUp = useCallback(async () => {
+    if (timeUpHandledRef.current || currentGame.status !== "RUNNING") return;
+    timeUpHandledRef.current = true;
+    setGameTimeUp(true);
+    try {
+      // Backend finishes the game (assigns winner) before we show the modal.
+      const res = await apiClient.post<{
+        success?: boolean;
+        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean; winner_turn_count?: number };
+      }>(`/games/${currentGame.id}/finish-by-time`);
+      const data = res?.data?.data;
+      const winnerId = data?.winner_id;
+      if (winnerId == null) {
+        throw new Error((res?.data as { error?: string })?.error ?? "Could not finish game by time");
       }
-    },
-    [properties, hookHandlePropertyClick]
-  );
+      const updatedPlayers = data?.game?.players ?? players;
+      const winnerPlayer = updatedPlayers.find((p) => p.user_id === winnerId) ?? null;
+      setWinner(winnerPlayer);
+      const myPosition = me?.position ?? 0;
+      const myBalance = BigInt(me?.balance ?? 0);
+      const validWin = data?.valid_win !== false;
+
+      if (winnerId === me?.user_id) {
+        setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
+      } else {
+        setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
+      }
+      await onFinishGameByTime?.(); // invalidate & refetch so parent has updated game
+    } catch (e) {
+      console.error("Time up / finish-by-time failed:", e);
+      timeUpHandledRef.current = false;
+      setGameTimeUp(false);
+    }
+  }, [currentGame.id, currentGame.status, me, players, onFinishGameByTime]);
+
+  const playerCanRoll = Boolean(isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp);
+  // Per-turn roll timer removed: no countdown or auto-end turn.
+
+  const triggerLandingLogic = useCallback((newPosition: number, isSpecial = false) => {
+    if (landedPositionThisTurn.current !== null) return;
+
+    landedPositionThisTurn.current = newPosition;
+    setIsSpecialMove(isSpecial);
+    setHasMovementFinished(true);
+  }, []);
+
+  const endTurnAfterSpecialMove = useCallback(() => {
+    setBuyPrompted(false);
+    landedPositionThisTurn.current = null;
+    setIsSpecialMove(false);
+    setTimeout(END_TURN, 800);
+  }, [END_TURN]);
+
+  const BUY_PROPERTY = useCallback(async () => {
+    if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
+      showToast("Cannot buy right now", "error");
+      return;
+    }
+
+    const playerBalance = currentPlayer.balance ?? 0;
+    if (playerBalance < justLandedProperty.price) {
+      showToast("Not enough money!", "error");
+      return;
+    }
+
+      const buyerUsername = me?.username;
+  
+
+  if (!buyerUsername) {
+    showToast("Cannot buy: your username is missing", "error");
+    return;
+  }
+
+    try {
+      showToast("Sending transaction...", "default");
+      await apiClient.post("/game-properties/buy", {
+        user_id: currentPlayer.user_id,
+        game_id: currentGame.id,
+        property_id: justLandedProperty.id,
+      });
+
+      showToast(`You bought ${justLandedProperty.name}!`, "success");
+      setBuyPrompted(false);
+      landedPositionThisTurn.current = null;
+      await fetchUpdatedGame();
+      setTimeout(END_TURN, 800);
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Purchase failed"));
+    }
+  }, [currentPlayer, justLandedProperty, actionLock, END_TURN, showToast, currentGame.id, fetchUpdatedGame]);
+
+  const ROLL_DICE = useCallback(async (forAI = false) => {
+    if (isRolling || actionLock || !lockAction("ROLL")) return;
+
+    const playerId = forAI ? currentPlayerId! : me!.user_id;
+    const player = players.find((p) => p.user_id === playerId);
+    if (!player) {
+      unlockAction();
+      return;
+    }
+
+    const isInJail = Boolean(player.in_jail) && Number(player.position) === JAIL_POSITION;
+
+    if (isInJail) {
+      setIsRolling(true);
+      showToast(`${player.username} is in jail — attempting to roll out...`, "default");
+
+      const value = getDiceValues();
+      if (!value || value.die1 !== value.die2) {
+        setTimeout(async () => {
+          try {
+            await apiClient.post("/game-players/change-position", {
+              user_id: playerId,
+              game_id: currentGame.id,
+              position: player.position,
+              rolled: value?.total ?? 0,
+              is_double: false,
+            });
+            await fetchUpdatedGame();
+            showToast("No doubles — still in jail", "error");
+            setTimeout(END_TURN, 1000);
+          } catch (err) {
+            toast.error(getContractErrorMessage(err, "Jail roll failed"));
+            END_TURN();
+          } finally {
+            setIsRolling(false);
+            unlockAction();
+          }
+        }, 800);
+        return;
+      }
+
+      // Doubles - escape jail with animation
+      setRoll(value);
+      const currentPos = player.position ?? 0;
+      const totalMove = value.total;
+      const newPos = (currentPos + totalMove) % BOARD_SQUARES;
+
+      // Animate escape
+      if (totalMove > 0) {
+        const movePath: number[] = [];
+        for (let i = 1; i <= totalMove; i++) {
+          movePath.push((currentPos + i) % BOARD_SQUARES);
+        }
+
+        for (let i = 0; i < movePath.length; i++) {
+          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          setAnimatedPositions((prev) => ({
+            ...prev,
+            [playerId]: movePath[i],
+          }));
+        }
+      }
+
+      setHasMovementFinished(true);
+
+      setTimeout(async () => {
+        try {
+          await apiClient.post("/game-players/change-position", {
+            user_id: playerId,
+            game_id: currentGame.id,
+            position: newPos,
+            rolled: totalMove,
+            is_double: true,
+          });
+          landedPositionThisTurn.current = newPos;
+          await fetchUpdatedGame();
+          showToast(`${player.username} rolled doubles and escaped jail!`, "success");
+        } catch (err) {
+          toast.error(getContractErrorMessage(err, "Escape failed"));
+        } finally {
+          setIsRolling(false);
+          unlockAction();
+        }
+      }, 800);
+      return;
+    }
+
+    setIsRolling(true);
+    setRoll(null);
+    setHasMovementFinished(false);
+    setAnimatedPositions({}); // Clear previous animations
+
+    setTimeout(async () => {
+      const value = getDiceValues();
+      if (!value) {
+        showToast("DOUBLES! Roll again!", "success");
+        setIsRolling(false);
+        unlockAction();
+        return;
+      }
+
+      setRoll(value);
+
+      const currentPos = player.position ?? 0;
+      const totalMove = value.total + pendingRoll;
+      let newPos = (currentPos + totalMove) % BOARD_SQUARES;
+
+      // Animate movement for BOTH human and AI
+      if (totalMove > 0) {
+        const movePath: number[] = [];
+        for (let i = 1; i <= totalMove; i++) {
+          movePath.push((currentPos + i) % BOARD_SQUARES);
+        }
+
+        for (let i = 0; i < movePath.length; i++) {
+          await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+          setAnimatedPositions((prev) => ({
+            ...prev,
+            [playerId]: movePath[i],
+          }));
+        }
+      }
+
+      setHasMovementFinished(true);
+
+      try {
+        await apiClient.post("/game-players/change-position", {
+          user_id: playerId,
+          game_id: currentGame.id,
+          position: newPos,
+          rolled: value.total + pendingRoll,
+          is_double: value.die1 === value.die2,
+        });
+
+        setPendingRoll(0);
+        landedPositionThisTurn.current = newPos;
+        await fetchUpdatedGame();
+
+        showToast(
+          `${player.username} rolled ${value.die1} + ${value.die2} = ${value.total}!`,
+          "success"
+        );
+
+        if (forAI) rolledForPlayerId.current = currentPlayerId;
+      } catch (err) {
+        console.error("Move failed:", err);
+        toast.error(getContractErrorMessage(err, "Move failed"));
+        END_TURN();
+      } finally {
+        setIsRolling(false);
+        unlockAction();
+      }
+    }, ROLL_ANIMATION_MS);
+  }, [
+    isRolling,
+    actionLock,
+    lockAction,
+    unlockAction,
+    currentPlayerId,
+    me,
+    players,
+    pendingRoll,
+    currentGame.id,
+    fetchUpdatedGame,
+    showToast,
+    END_TURN
+  ]);
+
+  useMobileAiLogic({
+    game,
+    properties,
+    game_properties,
+    me,
+    currentGame,
+    currentGameProperties,
+    players,
+    isAITurn,
+    currentPlayer,
+    strategyRanThisTurn,
+    setStrategyRanThisTurn,
+    justLandedProperty,
+    isRolling,
+    roll,
+    actionLock,
+    hasMovementFinished,
+    fetchUpdatedGame,
+    showToast,
+    ROLL_DICE,
+    END_TURN,
+    landedPositionRef: landedPositionThisTurn,
+  });
+
+  useMobileAiBankruptcy({
+    game,
+    currentGame,
+    currentGameProperties,
+    players,
+    isAITurn,
+    currentPlayer,
+    fetchUpdatedGame,
+    setIsRaisingFunds,
+    properties,
+  });
+
+  useEffect(() => {
+    if (!me) return;
+
+    if (me.balance < 0) {
+      // Player is bankrupt — show bankruptcy button instead of roll
+    }
+  }, [me?.balance]);
+
+  useEffect(() => {
+    if (!me) return;
+
+    const aiPlayers = players.filter(p => isAIPlayer(p));
+    const humanPlayer = me;
+
+    const shouldDeclareVictory =
+      (players.length === 1 && players[0].user_id === me.user_id);
+
+    if (shouldDeclareVictory) {
+      const turnCount = humanPlayer.turn_count ?? 0;
+      const validWin = turnCount >= 20;
+      setWinner(humanPlayer);
+      setEndGameCandidate({
+        winner: humanPlayer,
+        position: humanPlayer.position ?? 0,
+        balance: BigInt(humanPlayer.balance),
+        validWin,
+      });
+    }
+  }, [players, me]);
+
+  useEffect(() => {
+    if (actionLock || isRolling || buyPrompted || !roll || isRaisingFunds || showInsolvencyModal) return;
+    const timer = setTimeout(END_TURN, 2000);
+    return () => clearTimeout(timer);
+  }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
@@ -287,6 +691,15 @@ const MobileGameLayout = ({
     return prop.rent_site_only || 0;
   };
 
+  const handlePropertyClick = (propertyId: number) => {
+    const prop = properties.find(p => p.id === propertyId);
+    const gp = currentGameProperties.find(g => g.property_id === propertyId);
+    if (prop) {
+      setSelectedProperty(prop);
+      setSelectedGameProperty(gp);
+    }
+  };
+
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     currentGame.id,
     me?.user_id,
@@ -294,6 +707,61 @@ const MobileGameLayout = ({
     fetchUpdatedGame,
     showToast
   );
+
+  const declareBankruptcy = async () => {
+    showToast("Declaring bankruptcy...", "default");
+
+    try {
+      if (endGame) await endGame();
+
+      const opponent = players.find(p => p.user_id !== me?.user_id);
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: opponent?.user_id || null,
+      });
+
+      showToast("Game over! You have declared bankruptcy.", "error");
+      setShowBankruptcyModal(true);
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end game"));
+    }
+  };
+
+  // Buy prompt logic
+  useEffect(() => {
+    if (!roll || landedPositionThisTurn.current === null || !hasMovementFinished) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const pos = landedPositionThisTurn.current;
+    const square = properties.find(p => p.id === pos);
+
+    if (!square || square.price == null) {
+      setBuyPrompted(false);
+      return;
+    }
+
+    const isOwned = currentGameProperties.some(gp => gp.property_id === pos);
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+
+    const canBuy = !isOwned && isBuyableType;
+
+    setBuyPrompted(canBuy);
+
+    if (canBuy && (currentPlayer?.balance ?? 0) < square.price!) {
+      showToast(`Not enough money to buy ${square.name}`, "error");
+    }
+  }, [
+    roll,
+    landedPositionThisTurn.current,
+    hasMovementFinished,
+    properties,
+    currentGameProperties,
+    currentPlayer,
+    showToast,
+  ]);
 
   return (
     <div className="w-full min-h-screen bg-black text-white flex flex-col items-center justify-start relative overflow-hidden">
@@ -336,7 +804,7 @@ const MobileGameLayout = ({
                 {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   (currentPlayer?.balance ?? 0) < 0 ? (
                     <button
-                      onClick={handleDeclareBankruptcy}
+                      onClick={declareBankruptcy}
                       className="py-2 px-6 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-800 text-white font-bold text-sm rounded-full shadow-md border border-white/20"
                     >
                       Declare Bankruptcy
@@ -357,7 +825,7 @@ const MobileGameLayout = ({
       </div>
 
       <DiceAnimation
-        isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer?.position === JAIL_POSITION)}
+        isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
         roll={roll}
       />
 
@@ -371,8 +839,13 @@ const MobileGameLayout = ({
       <BuyPromptModal
         visible={!!(isMyTurn && buyPrompted && justLandedProperty)}
         property={justLandedProperty ?? null}
-        onBuy={handleBuyProperty}
-        onSkip={handleSkipBuy}
+        onBuy={BUY_PROPERTY}
+        onSkip={() => {
+          showToast("Skipped purchase", "default");
+          setBuyPrompted(false);
+          landedPositionThisTurn.current = null;
+          setTimeout(END_TURN, 800);
+        }}
       />
 
       <PropertyDetailModal
