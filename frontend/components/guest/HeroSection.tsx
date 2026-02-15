@@ -49,7 +49,33 @@ const HeroSection: React.FC = () => {
 
   const { data: contractGame } = useGetGameByCode(gameCode);
 
+  /** Backend game status for previous game: only show Continue Game when not FINISHED/CANCELLED */
+  const [backendGameStatus, setBackendGameStatus] = useState<string | null>(null);
+
   const [user, setUser] = useState<UserType | null>(null);
+
+  // Fetch backend game by code to know if previous game has ended (don't show Continue Game then)
+  useEffect(() => {
+    if (!gameCode) {
+      setBackendGameStatus(null);
+      return;
+    }
+    let isActive = true;
+    apiClient
+      .get<ApiResponse<{ status?: string }>>(`/games/code/${encodeURIComponent(gameCode)}`)
+      .then((res) => {
+        if (!isActive) return;
+        const status = (res?.data as { data?: { status?: string } })?.data?.status ?? null;
+        setBackendGameStatus(status);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setBackendGameStatus(null);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [gameCode]);
 
   // Reset on disconnect
   useEffect(() => {
@@ -431,8 +457,12 @@ const handleContinuePrevious = () => {
           {/* Action buttons: wallet registered OR guest */}
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
-              {/* Continue Previous Game - Highlighted */}
-              {address && gameCode && (contractGame?.status == 1) && (
+              {/* Continue Previous Game - only when game is still in progress (not ended) */}
+              {address &&
+                gameCode &&
+                contractGame?.status === 1 &&
+                backendGameStatus !== "FINISHED" &&
+                backendGameStatus !== "CANCELLED" && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"

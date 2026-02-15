@@ -45,9 +45,34 @@ const HeroSectionMobile: React.FC = () => {
   const { data: gameCode } = usePreviousGameCode(address);
 
   const { data: contractGame } = useGetGameByCode(gameCode);
-  
+
+  /** Backend game status for previous game: only show Continue Game when not FINISHED/CANCELLED */
+  const [backendGameStatus, setBackendGameStatus] = useState<string | null>(null);
 
   const [user, setUser] = useState<UserType | null>(null);
+
+  // Fetch backend game by code to know if previous game has ended (don't show Continue Game then)
+  useEffect(() => {
+    if (!gameCode) {
+      setBackendGameStatus(null);
+      return;
+    }
+    let isActive = true;
+    apiClient
+      .get<ApiResponse<{ status?: string }>>(`/games/code/${encodeURIComponent(gameCode)}`)
+      .then((res) => {
+        if (!isActive) return;
+        const status = (res?.data as { data?: { status?: string } })?.data?.status ?? null;
+        setBackendGameStatus(status);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setBackendGameStatus(null);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [gameCode]);
 
   // Reset on disconnect
   useEffect(() => {
@@ -351,8 +376,11 @@ const handleContinuePrevious = () => {
 
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="w-full flex flex-col gap-5">
-              {/* Continue Previous Game - prominent when available */}
-              {gameCode && (contractGame?.status == 1) && (
+              {/* Continue Previous Game - only when game is still in progress (not ended) */}
+              {gameCode &&
+                contractGame?.status === 1 &&
+                backendGameStatus !== "FINISHED" &&
+                backendGameStatus !== "CANCELLED" && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative w-full h-14 transition-transform active:scale-[0.98]"
