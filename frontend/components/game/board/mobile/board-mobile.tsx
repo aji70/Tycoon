@@ -197,8 +197,13 @@ const MobileGameLayout = ({
       ]);
 
       if (gameRes?.data?.success && gameRes.data.data) {
+        const updatedPlayers = gameRes.data.data.players ?? [];
         setCurrentGame(gameRes.data.data);
-        setPlayers(gameRes.data.data.players);
+        setPlayers(updatedPlayers);
+        // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket)
+        if (me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id)) {
+          setShowVotedOutModal(true);
+        }
       }
       if (propertiesRes?.data?.success && propertiesRes.data.data) {
         setCurrentGameProperties(propertiesRes.data.data);
@@ -209,7 +214,7 @@ const MobileGameLayout = ({
     } finally {
       isFetching.current = false;
     }
-  }, [game.code, game.id, refreshTrades]);
+  }, [game.code, game.id, refreshTrades, me?.user_id]);
 
   const touchActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -1109,7 +1114,7 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
-      {/* Voted out: Go home or Continue watching */}
+      {/* Voted out: modal to inform and choose Continue watching or Leave */}
       <AnimatePresence>
         {showVotedOutModal && (
           <motion.div
@@ -1125,7 +1130,7 @@ const MobileGameLayout = ({
               className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
             >
               <p className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
-              <p className="text-sm text-slate-400 mb-6">You can go home or keep watching the game.</p>
+              <p className="text-sm text-slate-400 mb-6">You can continue watching the game or leave.</p>
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setShowVotedOutModal(false)}
@@ -1137,7 +1142,7 @@ const MobileGameLayout = ({
                   onClick={() => { window.location.href = "/"; }}
                   className="px-4 py-2 rounded-lg bg-cyan-700 text-cyan-100 hover:bg-cyan-600 transition"
                 >
-                  Go home
+                  Leave
                 </button>
               </div>
             </motion.div>
