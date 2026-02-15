@@ -43,6 +43,7 @@ const MobileGameLayout = ({
   properties,
   game_properties,
   me,
+  myAddress,
   onFinishByTime,
   onViewTrades,
 }: {
@@ -50,6 +51,7 @@ const MobileGameLayout = ({
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  myAddress?: string;
   onFinishByTime?: () => void | Promise<void>;
   onViewTrades?: () => void;
 }) => {
@@ -200,8 +202,10 @@ const MobileGameLayout = ({
         const updatedPlayers = gameRes.data.data.players ?? [];
         setCurrentGame(gameRes.data.data);
         setPlayers(updatedPlayers);
-        // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket)
-        if (me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id)) {
+        // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket or were on another tab)
+        const wasRemovedByUserId = me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id);
+        const wasRemovedByAddress = myAddress && !updatedPlayers.some((p: Player) => String(p.address || "").toLowerCase() === myAddress.toLowerCase());
+        if (wasRemovedByUserId || wasRemovedByAddress) {
           setShowVotedOutModal(true);
         }
       }
@@ -214,7 +218,7 @@ const MobileGameLayout = ({
     } finally {
       isFetching.current = false;
     }
-  }, [game.code, game.id, refreshTrades, me?.user_id]);
+  }, [game.code, game.id, refreshTrades, me?.user_id, myAddress]);
 
   const touchActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -1114,14 +1118,17 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
-      {/* Voted out: modal to inform and choose Continue watching or Leave */}
+      {/* Voted out: modal to inform and choose Continue watching or Leave — high z-index so it appears above nav and other modals on mobile */}
       <AnimatePresence>
         {showVotedOutModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="voted-out-title"
           >
             <motion.div
               initial={{ scale: 0.9 }}
@@ -1129,7 +1136,7 @@ const MobileGameLayout = ({
               exit={{ scale: 0.9 }}
               className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
             >
-              <p className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
+              <p id="voted-out-title" className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
               <p className="text-sm text-slate-400 mb-6">You can continue watching the game or leave.</p>
               <div className="flex gap-3 justify-end">
                 <button

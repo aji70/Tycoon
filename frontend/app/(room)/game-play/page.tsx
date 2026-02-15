@@ -193,6 +193,7 @@ export default function GamePlayPage() {
               properties={properties}
               game_properties={game_properties}
               me={me}
+              myAddress={myAddress ?? undefined}
               onFinishByTime={finishGameByTime}
               onViewTrades={() => {
                 setActiveTab('players');
