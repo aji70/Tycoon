@@ -11,6 +11,9 @@ import { invalidateGameById, invalidateGameByCode } from "../utils/gameCache.js"
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
+
+/** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
+const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 
 /**
@@ -700,33 +703,27 @@ const gamePlayerController = {
             const onChainId = contractGame?.id ?? contractGame?.[0];
             if (onChainId != null && onChainId !== "") {
               contractGameIdToUse = String(onChainId);
+              await Game.update(game.id, { contract_game_id: contractGameIdToUse });
             }
           } catch (err) {
             logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in leave failed");
           }
         }
         if (contractGameIdToUse) {
+          const leaverAddress = user.address;
           const winnerRow = playersBeforeLeave.find((p) => p.user_id !== user.id);
-          const leaverUser = await ensureUserHasContractPassword(db, user.id) ||
-            (await db("users").where({ id: user.id }).select("address", "username", "password_hash").first());
-          const winnerUser = winnerRow && (await ensureUserHasContractPassword(db, winnerRow.user_id) ||
-            (await db("users").where({ id: winnerRow.user_id }).select("address", "username", "password_hash").first()));
-          if (leaverUser?.address && leaverUser?.password_hash) {
-            await exitGameByBackend(
-              leaverUser.address,
-              leaverUser.username || "",
-              leaverUser.password_hash,
-              contractGameIdToUse
-            );
-            if (winnerUser?.address && winnerUser?.password_hash) {
-              await exitGameByBackend(
-                winnerUser.address,
-                winnerUser.username || "",
-                winnerUser.password_hash,
-                contractGameIdToUse
-              );
-            }
+          const winnerUserRow = winnerRow
+            ? await db("users").where({ id: winnerRow.user_id }).select("address").first()
+            : null;
+          const winnerAddress = winnerUserRow?.address;
+          if (leaverAddress && winnerAddress) {
+            await removePlayerFromGame(contractGameIdToUse, leaverAddress, MAX_UINT256);
+            await removePlayerFromGame(contractGameIdToUse, winnerAddress, MAX_UINT256);
+          } else {
+            logger.warn({ gameId: game.id, leaverId: user.id, winnerId: winnerRow?.user_id }, "leave: missing address for leaver or winner, skipping contract end");
           }
+        } else {
+          logger.warn({ gameId: game.id, code: game.code }, "leave: could not resolve contract_game_id, game will not end on-chain");
         }
       }
 
