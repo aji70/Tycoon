@@ -751,7 +751,7 @@ const MobileGameLayout = ({
     }
 
     try {
-      if (endGame) await endGame();
+      // Backend handles on-chain exit when we call POST /game-players/leave — no wallet signature needed
 
       const myOwnedProperties = currentGameProperties.filter(
         (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
@@ -810,7 +810,7 @@ const MobileGameLayout = ({
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
     }
-  }, [me, currentGame, justLandedProperty, currentGameProperties, players, showToast, fetchUpdatedGame, END_TURN, endGame]);
+  }, [me, currentGame, justLandedProperty, currentGameProperties, players, showToast, fetchUpdatedGame, END_TURN]);
 
   const handleFinalizeAndLeave = async () => {
     const toastId = toast.loading(
