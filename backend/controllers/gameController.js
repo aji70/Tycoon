@@ -273,7 +273,13 @@ const gameController = {
 
   async update(req, res) {
     try {
-      await Game.update(req.params.id, req.body);
+      const payload = { ...req.body };
+      // When setting game to RUNNING, set started_at so duration countdown starts from now (fixes AI "time's up" immediately).
+      if (payload.status === "RUNNING") {
+        const existing = await Game.findById(req.params.id);
+        if (existing && !existing.started_at) payload.started_at = db.fn.now();
+      }
+      await Game.update(req.params.id, payload);
       await invalidateGameById(req.params.id);
       const io = req.app.get("io");
       const game = await Game.findById(req.params.id);

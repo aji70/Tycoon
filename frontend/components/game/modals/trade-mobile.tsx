@@ -27,36 +27,35 @@ const PropertyCard = ({
   prop,
   isSelected,
   onClick,
+  accent,
 }: {
   prop: Property;
   isSelected: boolean;
   onClick: () => void;
+  accent: "offer" | "request";
 }) => (
-  <motion.div
-    whileTap={{ scale: 0.95 }}
+  <button
+    type="button"
     onClick={onClick}
     className={`
-      relative p-3 rounded-xl border-2 cursor-pointer transition-all
-      flex flex-col gap-1.5 overflow-hidden shadow-md
+      w-full text-left p-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-3
+      focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-[#0f172a]
       ${isSelected
-        ? "border-cyan-400 bg-cyan-900/70 shadow-lg shadow-cyan-400/50"
-        : "border-gray-700 bg-black/50 hover:border-gray-500"
+        ? accent === "offer"
+          ? "border-emerald-400 bg-emerald-500/20 shadow-sm shadow-emerald-500/30"
+          : "border-amber-400 bg-amber-500/20 shadow-sm shadow-amber-500/30"
+        : "border-slate-600/80 bg-slate-800/50 hover:border-slate-500 hover:bg-slate-700/50"
       }
     `}
   >
-    {isSelected && (
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/30 to-purple-600/20 animate-pulse" />
-    )}
     {prop.color && (
       <div
-        className="h-5 rounded-t-lg -m-3 -mt-3 mb-2"
+        className="w-8 h-8 rounded flex-shrink-0 border border-white/10"
         style={{ backgroundColor: prop.color }}
       />
     )}
-    <div className="text-xs font-bold text-cyan-200 text-center leading-tight relative z-10 truncate px-1">
-      {prop.name}
-    </div>
-  </motion.div>
+    <span className="text-sm font-medium text-slate-200 truncate">{prop.name}</span>
+  </button>
 );
 
 export const TradeModal: React.FC<TradeModalProps> = (props) => {
@@ -97,38 +96,41 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
-        initial={{ y: 400, opacity: 0 }}
-        animate={{ y: -10, opacity: 1 }}
-        exit={{ y: 400, opacity: 0 }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-gradient-to-b from-purple-950 via-black to-cyan-950 rounded-3xl border-4 border-cyan-500 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden"
       >
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-cyan-400/60 rounded-full" />
+        {/* Header - matches desktop */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/80 bg-slate-800/50 flex-shrink-0">
+          <h2 className="text-lg font-bold text-slate-100 truncate pr-2">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition flex-shrink-0"
+            aria-label="Close"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-3xl text-red-400 hover:text-red-300 z-10"
-        >
-          ×
-        </button>
-
-        <div className="pt-12 pb-10 px-5">
-          <h2 className="text-3xl font-bold text-cyan-300 text-center mb-8 drop-shadow-lg">
-            {title}
-          </h2>
-
-          <div className="space-y-10">
-            {/* YOU GIVE */}
-            <div>
-              <h3 className="text-2xl font-bold text-green-400 text-center mb-4">
-                YOU GIVE
+        {/* Content - two sections like desktop (stack on mobile) */}
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="space-y-6">
+            {/* You offer */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-emerald-400">
+                You offer
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                 {my_properties.length > 0 ? (
                   my_properties.map((p) => (
                     <PropertyCard
@@ -136,31 +138,32 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                       prop={p}
                       isSelected={offerProperties.includes(p.id)}
                       onClick={() => toggleSelect(p.id, offerProperties, setOfferProperties)}
+                      accent="offer"
                     />
                   ))
                 ) : (
-                  <p className="col-span-3 text-center text-gray-500 py-6 text-sm">
-                    No properties to offer
-                  </p>
+                  <p className="text-sm text-slate-500 py-3 text-center">No properties</p>
                 )}
               </div>
-
-              <input
-                type="number"
-                min="0"
-                placeholder="+$ CASH"
-                value={offerCash || ""}
-                onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full mt-5 bg-black/60 border-2 border-green-500 rounded-xl px-4 py-3.5 text-green-400 font-bold text-xl text-center placeholder-green-700 focus:outline-none focus:border-green-400 transition"
-              />
+              <label className="block">
+                <span className="text-xs text-slate-400 block mb-1">Cash ($)</span>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={offerCash || ""}
+                  onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                />
+              </label>
             </div>
 
-            {/* YOU GET */}
-            <div>
-              <h3 className="text-2xl font-bold text-red-400 text-center mb-4">
-                YOU GET
+            {/* You request */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-amber-400">
+                You request
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                 {targetOwnedProps.length > 0 ? (
                   targetOwnedProps.map((p) => (
                     <PropertyCard
@@ -168,65 +171,64 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                       prop={p}
                       isSelected={requestProperties.includes(p.id)}
                       onClick={() => toggleSelect(p.id, requestProperties, setRequestProperties)}
+                      accent="request"
                     />
                   ))
                 ) : (
-                  <p className="col-span-3 text-center text-gray-500 py-6 text-sm">
-                    No properties available
-                  </p>
+                  <p className="text-sm text-slate-500 py-3 text-center">No properties</p>
                 )}
               </div>
-
-              <input
-                type="number"
-                min="0"
-                placeholder="+$ CASH"
-                value={requestCash || ""}
-                onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full mt-5 bg-black/60 border-2 border-red-500 rounded-xl px-4 py-3.5 text-red-400 font-bold text-xl text-center placeholder-red-700 focus:outline-none focus:border-red-400 transition"
-              />
+              <label className="block">
+                <span className="text-xs text-slate-400 block mb-1">Cash ($)</span>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={requestCash || ""}
+                  onChange={(e) => setRequestCash(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50"
+                />
+              </label>
             </div>
 
-            {/* AI Extra Incentive */}
+            {/* AI extra incentive - styled to match slate/amber */}
             {isAITrade && (
-              <div className="bg-yellow-900/30 border-2 border-yellow-600/50 rounded-xl p-4">
-                <h4 className="text-lg font-bold text-yellow-300 text-center mb-3">
-                  🤖 Extra Amount to Send for AI
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+                <h4 className="text-sm font-semibold text-amber-400 mb-2">
+                  Extra amount for AI (optional)
                 </h4>
                 <input
                   type="number"
-                  min="0"
-                  placeholder="$0"
+                  min={0}
+                  placeholder="0"
                   value={offerCash || ""}
                   onChange={(e) => setOfferCash(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full bg-black/70 border-2 border-yellow-500 rounded-lg px-4 py-3 text-yellow-300 font-bold text-2xl text-center placeholder-yellow-600 focus:outline-none focus:border-yellow-400 transition"
+                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50"
                 />
-                <p className="text-xs text-yellow-200/80 text-center mt-2">
-                  AI loves good deals! Extra cash increases acceptance chance.
+                <p className="text-xs text-slate-400 mt-2">
+                  Extra cash can increase AI acceptance chance.
                 </p>
               </div>
             )}
           </div>
+        </div>
 
-          {/* SIDE-BY-SIDE BUTTONS */}
-          <div className="mt-10 px-4">
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={onClose}
-                className="py-3.5 bg-gray-800/90 backdrop-blur rounded-xl font-bold text-lg text-gray-300 hover:bg-gray-700 transition shadow-md"
-              >
-                CANCEL
-              </button>
-
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={onSubmit}
-                className="py-3.5 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/50 transition"
-              >
-                SEND DEAL
-              </motion.button>
-            </div>
-          </div>
+        {/* Footer - matches desktop */}
+        <div className="flex gap-3 px-5 py-4 border-t border-slate-700/80 bg-slate-800/30 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="flex-1 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-500 transition focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+          >
+            Send deal
+          </button>
         </div>
       </motion.div>
     </motion.div>
