@@ -8,6 +8,8 @@ import { Player } from "@/types/game";
 interface VictoryDefeatModalProps {
   winner: Player | null;
   me: Player | null;
+  /** Loser's finishing position (1 = winner, 2 = 2nd, etc.). Shown when game ended by time. */
+  myPosition?: number;
   /** Called when "Go home" is clicked. Can be async (e.g. finalize/claim). Then we redirect to /. */
   onGoHome?: () => void | Promise<void>;
 }
@@ -16,9 +18,17 @@ interface VictoryDefeatModalProps {
  * Shared victory/defeat modal for multiplayer (desktop and mobile).
  * Matches the mobile game-modals design: YOU WIN / Game over, Go home.
  */
+const positionLabel = (pos: number) => {
+  if (pos === 1) return "1st";
+  if (pos === 2) return "2nd";
+  if (pos === 3) return "3rd";
+  return `${pos}th`;
+};
+
 export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
   winner,
   me,
+  myPosition,
   onGoHome,
 }) => {
   if (!winner) return null;
@@ -129,6 +139,16 @@ export const VictoryDefeatModal: React.FC<VictoryDefeatModalProps> = ({
               >
                 Game over
               </motion.h1>
+              {myPosition != null && myPosition > 1 && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-lg font-semibold text-cyan-300 mb-2"
+                >
+                  You finished {positionLabel(myPosition)}
+                </motion.p>
+              )}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

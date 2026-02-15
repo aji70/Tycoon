@@ -21,6 +21,7 @@ import {
   callContractRead,
   endAIGameByBackend,
   exitGameByBackend,
+  removePlayerFromGame,
   isContractConfigured,
 } from "../services/tycoonContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
@@ -394,6 +395,7 @@ const gameController = {
       const result = await computeWinnerByNetWorth(game);
       if (!result || result.winner_id == null) return res.status(400).json({ success: false, error: "Could not compute winner" });
 
+      let placements = null;
       // End game on the contract first so on-chain status is Ended and payouts happen. Only then mark DB FINISHED
       // so that a retry (e.g. if contract tx failed) will run the contract block again.
       let contractGameIdToUse = game.contract_game_id;
@@ -429,40 +431,56 @@ const gameController = {
             ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
           }
         } else {
-          // Contract: game.status is set to Ended ONLY when the last player exits (_exitOrRemovePlayer when joinedPlayers == 1).
-          // Rank is by exit order: first to exit = worst rank (consolation), last to exit = rank 1 (winner).
-          // We must exit EVERY player in order (losers first, winner last) so the final exit runs the Ended branch.
+          // Multiplayer: Remove players in order — last place first, winner last — so each gets fair on-chain payout.
+          // removePlayerFromGame is used (backend game controller); no player passwords needed.
+          const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
           const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
           if (sortedByNetWorth.length === 0) {
             logger.warn({ gameId: game.id }, "finishByTime: no net_worths, cannot end game on-chain");
           }
-          const usersToExit = [];
-          for (const { user_id } of sortedByNetWorth) {
-            const user = await ensureUserHasContractPassword(db, user_id) ||
-              (await db("users").where({ id: user_id }).select("address", "username", "password_hash").first());
-            if (!user?.address || !user?.password_hash) {
-              logger.warn({ gameId: game.id, user_id }, "finishByTime: no contract auth for player");
-              throw new Error(`Cannot end game on-chain: player ${user_id} has no contract auth (address/password). All players must be able to exit for the game to be ended on-chain.`);
-            }
-            usersToExit.push(user);
+          const playerRows = await db("game_players")
+            .where({ game_id: game.id })
+            .select("user_id", "turn_count");
+          const turnCountByUser = Object.fromEntries(playerRows.map((r) => [r.user_id, Number(r.turn_count ?? 0)]));
+          placements = {};
+          for (let i = 0; i < sortedByNetWorth.length; i++) {
+            const position = sortedByNetWorth.length - i; // 1 = winner (last in sorted), N = last place
+            placements[sortedByNetWorth[i].user_id] = position;
           }
-          for (const user of usersToExit) {
-            await exitGameByBackend(
-              user.address,
-              user.username || "",
-              user.password_hash,
-              contractGameIdToUse
-            );
+          for (const { user_id } of sortedByNetWorth) {
+            const user = await db("users").where({ id: user_id }).select("address").first();
+            if (!user?.address) {
+              logger.warn({ gameId: game.id, user_id }, "finishByTime: player has no address");
+              continue;
+            }
+            const turnCount = turnCountByUser[user_id];
+            try {
+              await removePlayerFromGame(
+                contractGameIdToUse,
+                user.address,
+                turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256
+              );
+            } catch (err) {
+              logger.warn({ err: err?.message, gameId: game.id, user_id }, "finishByTime: removePlayerFromGame failed");
+              throw err;
+            }
           }
         }
       }
 
-      await Game.update(game.id, { status: "FINISHED", winner_id: result.winner_id });
+      const updatePayload = { status: "FINISHED", winner_id: result.winner_id };
+      if (placements) updatePayload.placements = JSON.stringify(placements);
+      await Game.update(game.id, updatePayload);
       await invalidateGameById(game.id);
       const io = req.app.get("io");
       if (io) emitGameUpdate(io, game.code);
 
       const updated = await Game.findById(game.id);
+      let parsedPlacements = placements;
+      if (typeof parsedPlacements === "string") parsedPlacements = JSON.parse(parsedPlacements);
+      if (!parsedPlacements && updated?.placements) {
+        parsedPlacements = typeof updated.placements === "string" ? JSON.parse(updated.placements) : updated.placements;
+      }
       return res.status(200).json({
         success: true,
         message: "Game finished by time; winner by net worth",
@@ -470,7 +488,8 @@ const gameController = {
           game: updated,
           winner_id: result.winner_id,
           winner_turn_count: result.winner_turn_count || 0,
-          valid_win: result.valid_win !== false // Valid if >= 20 turns
+          valid_win: result.valid_win !== false,
+          placements: parsedPlacements,
         },
       });
     } catch (error) {

@@ -50,6 +50,8 @@ export interface Game {
   /** Set when status becomes RUNNING (e.g. all players joined). Game timing starts from this. */
   started_at?: string | null;
   is_ai?: boolean;
+  /** When game ends by time: { user_id: position } where 1 = winner. */
+  placements?: Record<number, number>;
   settings: GameSettings;
   players: Player[];
   history: History[];

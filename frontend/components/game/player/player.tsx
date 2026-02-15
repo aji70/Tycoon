@@ -46,6 +46,7 @@ export default function GamePlayers({
     setSelectedProperty,
     winner,
     showVictoryModal,
+    myPosition,
     claimModalOpen,
     setClaimModalOpen,
     offerProperties,
@@ -230,6 +231,7 @@ export default function GamePlayers({
           <VictoryDefeatModal
             winner={winner}
             me={me}
+            myPosition={myPosition}
             onGoHome={() => handleFinalizeAndLeave(true)}
           />
         )}
