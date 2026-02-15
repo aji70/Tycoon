@@ -9,6 +9,7 @@ import {
   useJoinGame,
   useGetGameByCode,
   useApprove,
+  useIsRegistered,
 } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { Game } from "@/lib/types/games";
@@ -68,7 +69,9 @@ export function useWaitingRoom() {
   }, [contractGameErrorRaw]);
 
   const contractId = contractGame?.id ?? null;
-  const { data: username } = useGetUsername(address);
+  const effectiveAddress = (address ?? guestUser?.address) as Address | undefined;
+  const { data: username } = useGetUsername(effectiveAddress);
+  const { data: isGuestOnChainRegistered } = useIsRegistered(guestUser?.address as Address | undefined);
   const publicClient = usePublicClient();
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[
@@ -82,8 +85,8 @@ export function useWaitingRoom() {
     address: usdcTokenAddress,
     abi: Erc20Abi,
     functionName: "allowance",
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
+    args: effectiveAddress && contractAddress ? [effectiveAddress, contractAddress] : undefined,
+    query: { enabled: !!effectiveAddress && !!usdcTokenAddress && !!contractAddress },
   });
 
   const {
@@ -406,6 +409,17 @@ export function useWaitingRoom() {
         });
         return;
       }
+      if (!isGuestOnChainRegistered) {
+        setError("Please re-register on the new contract from the home page, then try again.");
+        setActionLoading(false);
+        toast.update(toastId, {
+          render: "Re-register on the new contract from the home page to join games.",
+          type: "error",
+          isLoading: false,
+          autoClose: 6000,
+        });
+        return;
+      }
       try {
         await apiClient.post("/games/join-as-guest", {
           code: game.code,
@@ -517,6 +531,7 @@ export function useWaitingRoom() {
     availableSymbols,
     address,
     guestUser,
+    isGuestOnChainRegistered,
     joinGame,
     stakePerPlayer,
     contractId,

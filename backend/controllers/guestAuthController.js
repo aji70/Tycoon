@@ -121,6 +121,44 @@ export async function guestLogin(req, res) {
 }
 
 /**
+ * POST /auth/guest-reregister
+ * Authorization: Bearer <token>
+ * Body: { password }
+ * Re-registers the guest on the current contract (e.g. after redeploy) via registerPlayerFor.
+ */
+export async function guestReregister(req, res) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Not authenticated" });
+  }
+  const user = req.user;
+  if (!user.is_guest) {
+    return res.status(400).json({ success: false, message: "Only guest accounts can re-register" });
+  }
+  const { password } = req.body;
+  if (!password || typeof password !== "string") {
+    return res.status(400).json({ success: false, message: "Password required" });
+  }
+  const passwordHash = passwordToHash(password);
+  if (user.password_hash !== passwordHash) {
+    return res.status(401).json({ success: false, message: "Invalid password" });
+  }
+  try {
+    const username = (user.username || user.address?.slice(0, 10) || "guest").trim();
+    await registerPlayerFor(user.address, username, passwordHash);
+    return res.status(200).json({
+      success: true,
+      message: "Re-registered on the new contract. You can play again.",
+    });
+  } catch (err) {
+    logger.error({ err: err?.message, address: user.address }, "guestReregister failed");
+    return res.status(500).json({
+      success: false,
+      message: err?.message || "Re-registration failed. Try again later.",
+    });
+  }
+}
+
+/**
  * GET /auth/me
  * Authorization: Bearer <token>
  * Returns current user from JWT (do not send password_hash to client).

@@ -57,10 +57,13 @@ export default function CreateGameMobile() {
   const wagmiChainId = useChainId();
   const { caipNetwork } = useAppKitNetwork();
   const guestAuth = useGuestAuthOptional();
-  const isGuest = !!guestAuth?.guestUser;
+  const guestUser = guestAuth?.guestUser ?? null;
+  const isGuest = !!guestUser;
+  const effectiveAddress = (address ?? guestUser?.address) as Address | undefined;
 
-  const { data: username } = useGetUsername(address);
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
+  const { data: usernameFromChain } = useGetUsername(effectiveAddress);
+  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(effectiveAddress);
+  const username = guestUser?.username ?? usernameFromChain ?? "";
 
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = caipNetwork?.name?.toLowerCase().replace(" ", "") || `chain-${wagmiChainId}` || "unknown";
@@ -91,8 +94,8 @@ export default function CreateGameMobile() {
     address: usdcTokenAddress,
     abi: Erc20Abi,
     functionName: 'allowance',
-    args: address && contractAddress ? [address, contractAddress] : undefined,
-    query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress && !isFreeGame },
+    args: effectiveAddress && contractAddress ? [effectiveAddress, contractAddress] : undefined,
+    query: { enabled: !!effectiveAddress && !!usdcTokenAddress && !!contractAddress && !isFreeGame },
   });
 
   const gameCode = generateGameCode();
@@ -145,6 +148,10 @@ export default function CreateGameMobile() {
 
   const handlePlay = async () => {
     if (isStarting) return;
+    if (isGuest && !isUserRegistered) {
+      toast.error("Please re-register on the new contract from the home page.", { autoClose: 6000 });
+      return;
+    }
     setIsStarting(true);
     const toastId = toast.loading("Preparing game...");
 
@@ -282,14 +289,30 @@ export default function CreateGameMobile() {
     }
   };
 
-  const canCreate = isGuest || (address && username && isUserRegistered);
+  const canCreate = (isGuest && isUserRegistered) || (!!address && !!username && !!isUserRegistered);
 
-  if (!isGuest && isRegisteredLoading) {
+  if (isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
         <p className="text-[#00F0FF] text-3xl font-orbitron animate-pulse text-center px-8">
           LOADING ARENA...
         </p>
+      </div>
+    );
+  }
+
+  if (isGuest && !isUserRegistered) {
+    return (
+      <div className="w-full min-h-screen flex flex-col items-center justify-center bg-settings bg-cover p-6 pt-24">
+        <p className="text-[#00F0FF] text-lg font-orbitron text-center mb-4">
+          Re-register on the new contract to create games.
+        </p>
+        <button
+          onClick={() => router.push("/")}
+          className="px-6 py-3 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 font-orbitron hover:bg-cyan-500/30"
+        >
+          Go to Home
+        </button>
       </div>
     );
   }
