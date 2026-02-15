@@ -19,8 +19,14 @@ import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contr
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { socketService } from "@/lib/socket";
 
-const POLL_INTERVAL = 5000;
+const POLL_INTERVAL = 2000;
+const SOCKET_URL =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_SOCKET_URL ||
+        (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, ""))
+    : "";
 const COPY_FEEDBACK_MS = 2000;
 export const USDC_DECIMALS = 6;
 
@@ -105,6 +111,8 @@ export function useWaitingRoom() {
   );
 
   const mountedRef = useRef(true);
+  const refetchGameRef = useRef<() => Promise<void>>(null);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -299,6 +307,8 @@ export function useWaitingRoom() {
       }
     };
 
+    refetchGameRef.current = fetchOnce;
+
     const startPolling = async () => {
       await fetchOnce();
       const tick = async () => {
@@ -315,9 +325,30 @@ export function useWaitingRoom() {
     startPolling();
 
     return () => {
+      refetchGameRef.current = null;
       if (pollTimer) clearTimeout(pollTimer);
     };
   }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
+
+  // Socket: refetch immediately when someone joins (game-update / player-joined)
+  useEffect(() => {
+    if (!gameCode || !SOCKET_URL) return;
+    const socket = socketService.connect(SOCKET_URL);
+    socketService.joinGameRoom(gameCode);
+    const onGameUpdate = (data: { gameCode?: string }) => {
+      if (data?.gameCode === gameCode) refetchGameRef.current?.();
+    };
+    const onPlayerJoined = () => {
+      refetchGameRef.current?.();
+    };
+    socketService.onGameUpdate(onGameUpdate);
+    socketService.onPlayerJoined(onPlayerJoined);
+    return () => {
+      socketService.removeListener("game-update", onGameUpdate);
+      socketService.removeListener("player-joined", onPlayerJoined);
+      socketService.leaveGameRoom(gameCode);
+    };
+  }, [gameCode]);
 
   const playersJoined =
     contractGame?.joinedPlayers
