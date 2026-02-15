@@ -111,7 +111,7 @@ export function useWaitingRoom() {
   );
 
   const mountedRef = useRef(true);
-  const refetchGameRef = useRef<() => Promise<void>>(null);
+  const refetchGameRef = useRef<{ fn: (() => Promise<void>) | null }>({ fn: null });
 
   useEffect(() => {
     mountedRef.current = true;
@@ -307,7 +307,7 @@ export function useWaitingRoom() {
       }
     };
 
-    refetchGameRef.current = fetchOnce;
+    refetchGameRef.current.fn = fetchOnce;
 
     const startPolling = async () => {
       await fetchOnce();
@@ -325,7 +325,7 @@ export function useWaitingRoom() {
     startPolling();
 
     return () => {
-      refetchGameRef.current = null;
+      refetchGameRef.current.fn = null;
       if (pollTimer) clearTimeout(pollTimer);
     };
   }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
@@ -336,10 +336,10 @@ export function useWaitingRoom() {
     const socket = socketService.connect(SOCKET_URL);
     socketService.joinGameRoom(gameCode);
     const onGameUpdate = (data: { gameCode?: string }) => {
-      if (data?.gameCode === gameCode) refetchGameRef.current?.();
+      if (data?.gameCode === gameCode) refetchGameRef.current.fn?.();
     };
     const onPlayerJoined = () => {
-      refetchGameRef.current?.();
+      refetchGameRef.current.fn?.();
     };
     socketService.onGameUpdate(onGameUpdate);
     socketService.onPlayerJoined(onPlayerJoined);
