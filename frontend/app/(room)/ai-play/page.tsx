@@ -289,6 +289,8 @@ export default function GamePlayPage() {
           currentPlayer={currentPlayer}
           roll={roll}
           isAITurn={isAITurn}
+          focusTrades={focusTrades}
+          onViewedTrades={() => setFocusTrades(false)}
         />
       </div>
 
@@ -299,6 +301,7 @@ export default function GamePlayPage() {
           game_properties={game_properties}
           me={me}
           onFinishGameByTime={finishGameByTime}
+          onViewTrades={() => setFocusTrades(true)}
         />
       </div>
 

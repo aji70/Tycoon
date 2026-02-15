@@ -8,6 +8,7 @@ import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../../modals/property-action";
 import { TradeModal } from "../../modals/trade-mobile";
+import { VictoryDefeatModal } from "../../modals/VictoryDefeatModal";
 import { usePlayerSidebar } from "../usePlayerSidebar";
 
 interface GamePlayersProps {
@@ -65,6 +66,10 @@ export default function MobileGamePlayers({
     handleDowngrade,
     handleMortgage,
     handleUnmortgage,
+    winner,
+    showVictoryModal,
+    myPosition,
+    handleFinalizeAndLeave,
   } = usePlayerSidebar({
     game,
     properties,
@@ -264,6 +269,15 @@ export default function MobileGamePlayers({
             game.players.find((p) => p.user_id === counterModal.trade?.target_player_id)?.address
           }
         />
+
+        {showVictoryModal && winner && (
+          <VictoryDefeatModal
+            winner={winner}
+            me={me}
+            myPosition={myPosition}
+            onGoHome={() => handleFinalizeAndLeave(true)}
+          />
+        )}
       </AnimatePresence>
 
       <style jsx>{`

@@ -26,6 +26,9 @@ interface GamePlayersProps {
   currentPlayer: Player | null;
   roll: { die1: number; die2: number; total: number } | null;
   isAITurn: boolean;
+  /** When true, expand trades section and scroll into view (e.g. after clicking bell on board). */
+  focusTrades?: boolean;
+  onViewedTrades?: () => void;
 }
 
 export default function GamePlayers({
@@ -36,6 +39,8 @@ export default function GamePlayers({
   me,
   currentPlayer,
   isAITurn,
+  focusTrades = false,
+  onViewedTrades,
 }: GamePlayersProps) {
   const isDevMode = false;
 
@@ -102,6 +107,19 @@ export default function GamePlayers({
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
+
+  // When parent asks to focus trades (e.g. bell on board), expand section and scroll into view
+  useEffect(() => {
+    if (!focusTrades) return;
+    setShowTrade(true);
+    onViewedTrades?.();
+    const el = document.getElementById("ai-desktop-trades-section");
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [focusTrades, onViewedTrades]);
 
 useEffect(() => {
   if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
@@ -352,7 +370,7 @@ useEffect(() => {
     </section>
 
     {/* Active Trades Section */}
-    <section className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-pink-500/30 shadow-xl shadow-pink-900/40">
+    <section id="ai-desktop-trades-section" className="backdrop-blur-sm bg-white/5 rounded-2xl p-4 border border-pink-500/30 shadow-xl shadow-pink-900/40">
       <TradeSection
         showTrade={showTrade}
         toggleTrade={toggleTrade}

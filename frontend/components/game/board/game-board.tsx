@@ -84,16 +84,21 @@ const Board = ({
     setShowVotedOutModal,
   } = logic;
 
-  const voteablePlayersList = players.filter((p: Player) => {
-    if (p.user_id === me?.user_id) return false;
-    const strikes = p.consecutive_timeouts ?? 0;
-    const otherPlayers = players.filter((pl) => pl.user_id !== me?.user_id);
-    const isCurrentPlayer = p.user_id === currentPlayerId;
-    const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
-    if (otherPlayers.length === 1) return strikes >= 3;
-    return strikes > 0 || (isCurrentPlayer && timeElapsed);
-  });
-  const canVoteOutTimeoutPlayer = timeoutPopupPlayer && voteablePlayersList.some((p) => p.user_id === timeoutPopupPlayer.user_id);
+  const voteablePlayersList = players
+    .filter((p: Player) => {
+      if (p.user_id === me?.user_id) return false;
+      const strikes = p.consecutive_timeouts ?? 0;
+      const otherPlayers = players.filter((pl) => pl.user_id !== me?.user_id);
+      const isCurrentPlayer = p.user_id === currentPlayerId;
+      const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
+      if (otherPlayers.length === 1) return strikes >= 3;
+      return strikes > 0 || (isCurrentPlayer && timeElapsed);
+    })
+    .filter((p: Player) => p.user_id !== me?.user_id);
+  const canVoteOutTimeoutPlayer =
+    timeoutPopupPlayer &&
+    timeoutPopupPlayer.user_id !== me?.user_id &&
+    voteablePlayersList.some((p) => p.user_id === timeoutPopupPlayer.user_id);
 
   if (!game || !Array.isArray(properties) || properties.length === 0) {
     return (

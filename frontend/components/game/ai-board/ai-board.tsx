@@ -30,6 +30,8 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
+import { useGameTrades } from "@/hooks/useGameTrades";
+import TradeAlertPill from "../TradeAlertPill";
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAIPlayer } from "@/utils/gameUtils";
@@ -104,12 +106,14 @@ const AiBoard = ({
   game_properties,
   me,
   onFinishGameByTime,
+  onViewTrades,
 }: {
   game: Game;
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
   onFinishGameByTime?: () => Promise<void>;
+  onViewTrades?: () => void;
 }) => {
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [gameTimeUp, setGameTimeUp] = useState(false);
@@ -149,6 +153,19 @@ const AiBoard = ({
 
   const isMyTurn = me?.user_id === currentPlayerId;
   const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
+
+  const { tradeRequests = [] } = useGameTrades({
+    gameId: game?.id,
+    myUserId: me?.user_id,
+    players: game?.players ?? [],
+  });
+  const myIncomingTrades = useMemo(() => {
+    if (!me) return [];
+    return tradeRequests.filter(
+      (t: { target_player_id: number; status: string }) =>
+        t.target_player_id === me.user_id && t.status === "pending"
+    );
+  }, [tradeRequests, me]);
 
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp
@@ -1013,6 +1030,13 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-cyan-900 text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
+      {/* Trade notification bell - takes user to incoming trades in sidebar */}
+      <div className="fixed top-4 right-6 z-40">
+        <TradeAlertPill
+          incomingCount={myIncomingTrades.length}
+          onViewTrades={onViewTrades}
+        />
+      </div>
       <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
         <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
           <div className="grid grid-cols-11 grid-rows-11 w-full h-full gap-[2px] box-border">

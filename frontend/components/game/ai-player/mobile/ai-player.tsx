@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import toast from "react-hot-toast";
@@ -106,6 +106,7 @@ export default function MobileGamePlayers({
   const totalActiveTrades = openTrades.length + tradeRequests.length;
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setSectionOpen((prev) => ({ ...prev, trades: !prev.trades })), []);
+  const tradesSectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!me || game.players.length !== 2) return;
@@ -165,12 +166,18 @@ export default function MobileGamePlayers({
     });
   }, [my_properties.length, showEmpire, totalActiveTrades]);
 
-  // When parent asks to focus trades (e.g. "View trades" pill), open trades section after mount
+  // When parent asks to focus trades (e.g. "View trades" pill), open trades section and scroll into view
   useEffect(() => {
     if (!focusTrades) return;
     const t = setTimeout(() => {
       setSectionOpen((prev) => ({ ...prev, trades: true }));
       onViewedTrades?.();
+      // Scroll trades section into view after AnimatePresence expands (use double rAF for layout)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          tradesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
     }, 0);
     return () => clearTimeout(t);
   }, [focusTrades, onViewedTrades]);
@@ -255,7 +262,7 @@ export default function MobileGamePlayers({
           </section>
 
           {/* Active Trades Section */}
-          <section className="bg-black/30 backdrop-blur-sm rounded-2xl border border-pink-500/30 shadow-xl overflow-hidden">
+          <section ref={tradesSectionRef} className="bg-black/30 backdrop-blur-sm rounded-2xl border border-pink-500/30 shadow-xl overflow-hidden">
             <button
               onClick={() => setSectionOpen(prev => ({ ...prev, trades: !prev.trades }))}
               className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-white/5 transition-colors relative"
