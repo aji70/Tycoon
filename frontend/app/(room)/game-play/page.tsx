@@ -15,6 +15,7 @@ import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import MobileGameLayout from "@/components/game/board/mobile/board-mobile";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { toast } from "react-hot-toast";
 const fetchMessageCount = async (gameId: string | number): Promise<unknown[]> => {
   const res = await apiClient.get<{ data?: unknown[] | { data?: unknown[] } }>(`/messages/game/${gameId}`);
   const payload = (res as { data?: { data?: unknown[] } })?.data;
@@ -140,14 +141,23 @@ export default function GamePlayPage() {
 
   /** Backend finishes game (assigns winner) before modals show; then refetch so UI sees FINISHED. */
   const finishGameByTime = useCallback(async () => {
-    if (!game?.id || game?.status !== "RUNNING") return;
+    if (!game?.id || game?.status !== "RUNNING" || !gameCode) return;
     try {
-      await apiClient.post(`/games/${game.id}/finish-by-time`);
+      const res = await apiClient.post<{ data?: { success?: boolean; data?: { game?: Game } } }>(`/games/${game.id}/finish-by-time`);
+      const payload = res?.data as { data?: { success?: boolean; data?: { game?: Game } } } | undefined;
+      const updatedGame = payload?.data?.data?.game ?? payload?.data?.game;
+      if (updatedGame) {
+        queryClient.setQueryData(["game", gameCode], updatedGame);
+      }
       await refetchGame();
-    } catch (e) {
+    } catch (e: unknown) {
+      const msg = e && typeof e === "object" && "response" in e && e.response && typeof e.response === "object" && "data" in e.response
+        ? (e.response as { data?: { message?: string; error?: string } }).data?.message ?? (e.response as { data?: { error?: string } }).data?.error
+        : e instanceof Error ? e.message : "Could not end game by time.";
       console.error("Finish by time failed:", e);
+      toast.error(msg || "Time's up — could not end game. Try again or leave the game.");
     }
-  }, [game?.id, game?.status, refetchGame]);
+  }, [game?.id, game?.status, gameCode, queryClient, refetchGame]);
 
   const gameId = game?.code ?? game?.id ?? "";
   const { data: messages = [] } = useQuery({
