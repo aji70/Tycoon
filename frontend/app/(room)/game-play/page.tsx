@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiResponse } from "@/types/api";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import MobileGameLayout from "@/components/game/board/mobile/board-mobile";
+import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 const fetchMessageCount = async (gameId: string | number): Promise<unknown[]> => {
   const res = await apiClient.get<{ data?: unknown[] | { data?: unknown[] } }>(`/messages/game/${gameId}`);
@@ -186,6 +187,12 @@ export default function GamePlayPage() {
 
     return (
       <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10]" >
+        {/* Persistent countdown so finish-by-time fires even when user is on players/chat tab */}
+        {game?.duration && Number(game.duration) > 0 && (
+          <div className="shrink-0 flex justify-center py-2">
+            <GameDurationCountdown game={game} compact onTimeUp={finishGameByTime} />
+          </div>
+        )}
         <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} ${activeTab !== 'chat' ? 'pb-20' : ''}`}>
           {activeTab === 'board' && (
             <MobileGameLayout

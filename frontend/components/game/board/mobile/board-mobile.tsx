@@ -295,6 +295,8 @@ const MobileGameLayout = ({
   useEffect(() => {
     if (!game || game.status !== "FINISHED" || !me) return;
 
+    setGameTimeUp(true);
+
     let theWinner: Player | null = null;
 
     if (game.winner_id != null) {
@@ -312,7 +314,7 @@ const MobileGameLayout = ({
     }
 
     if (theWinner && winner?.user_id !== theWinner.user_id) {
-      toast.success(`${theWinner.username} wins the game! `);
+      toast.success(`${theWinner.username} wins the game! 🎉🏆`);
       setWinner(theWinner);
       setEndGameCandidate({
         winner: theWinner,
@@ -321,7 +323,7 @@ const MobileGameLayout = ({
       });
       setShowVictoryModal(true);
       if (me?.user_id === theWinner.user_id) {
-        toast.success("You are the Monopoly champion! ");
+        toast.success("You are the Monopoly champion! 🏆");
       }
     }
   }, [game?.players, game?.winner_id, game_properties, game?.status, me, winner]);
@@ -428,17 +430,22 @@ const MobileGameLayout = ({
 
   const voteablePlayersList = useMemo(() => {
     const otherPlayers = players.filter((p) => p.user_id !== me?.user_id);
-    return players.filter((p) => {
-      if (p.user_id === me?.user_id) return false;
-      const strikes = p.consecutive_timeouts ?? 0;
-      if (otherPlayers.length === 1) return strikes >= 3;
-      const isCurrentPlayer = p.user_id === currentPlayerId;
-      const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
-      return strikes > 0 || (isCurrentPlayer && timeElapsed);
-    });
+    return players
+      .filter((p) => {
+        if (p.user_id === me?.user_id) return false;
+        const strikes = p.consecutive_timeouts ?? 0;
+        if (otherPlayers.length === 1) return strikes >= 3;
+        const isCurrentPlayer = p.user_id === currentPlayerId;
+        const timeElapsed = turnTimeLeft != null && turnTimeLeft <= 0;
+        return strikes > 0 || (isCurrentPlayer && timeElapsed);
+      })
+      .filter((p) => p.user_id !== me?.user_id);
   }, [players, me?.user_id, currentPlayerId, turnTimeLeft]);
 
-  const canVoteOutTimeoutPlayer = timeoutPopupPlayer && voteablePlayersList.some((p) => p.user_id === timeoutPopupPlayer.user_id);
+  const canVoteOutTimeoutPlayer =
+    timeoutPopupPlayer &&
+    timeoutPopupPlayer.user_id !== me?.user_id &&
+    voteablePlayersList.some((p) => p.user_id === timeoutPopupPlayer.user_id);
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] text-white flex flex-col items-center justify-start relative overflow-x-hidden overflow-y-auto">
