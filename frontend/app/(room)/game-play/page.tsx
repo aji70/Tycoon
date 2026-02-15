@@ -146,9 +146,10 @@ export default function GamePlayPage() {
     try {
       await apiClient.post(`/games/${game.id}/finish-by-time`);
       await refetchGame();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Finish by time failed:", e);
-      toast.error("Could not end game by time. Please try again.");
+      const msg = e?.response?.data?.error || e?.response?.data?.message || e?.message || "Could not end game by time. Please try again.";
+      toast.error(msg);
     }
   }, [game?.id, game?.status, refetchGame]);
 
