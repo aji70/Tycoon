@@ -514,7 +514,7 @@ export function useGameBoardLogic({
       }
     }
     try {
-      if (exitHook.exit) await exitHook.exit();
+      // Backend handles on-chain exit when we call POST /game-players/leave — no wallet signature needed
       const myOwnedProperties = game_properties.filter(
         (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
       );
@@ -568,7 +568,7 @@ export function useGameBoardLogic({
       landedPositionThisTurn.current = null;
       setLandedPosition(null);
     }
-  }, [me, game, justLandedProperty, game_properties, players, showToast, fetchUpdatedGame, END_TURN, exitHook.exit]);
+  }, [me, game, justLandedProperty, game_properties, players, showToast, fetchUpdatedGame, END_TURN]);
 
   const { handleDevelopment, handleDowngrade, handleMortgage, handleUnmortgage } = usePropertyActions(
     game.id,
