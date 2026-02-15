@@ -82,7 +82,7 @@ export default function CreateGameMobile() {
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    duration: 10,
+    duration: 15,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
@@ -509,6 +509,7 @@ export default function CreateGameMobile() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="5">5m</SelectItem>
                 <SelectItem value="10">10m</SelectItem>
                 <SelectItem value="30">30m</SelectItem>
                 <SelectItem value="60">60m</SelectItem>
