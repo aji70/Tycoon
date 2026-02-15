@@ -352,18 +352,19 @@ const Board = ({
         toastOptions={{
           duration: 3200,
           style: {
-            background: "rgba(15, 23, 42, 0.95)",
-            color: "#fff",
-            border: "1px solid rgba(34, 211, 238, 0.3)",
+            fontFamily: "Orbitron, sans-serif",
+            background: "#0E1415",
+            color: "#00F0FF",
+            border: "1px solid #003B3E",
             borderRadius: "12px",
             padding: "12px 20px",
             fontSize: "16px",
             fontWeight: "600",
-            boxShadow: "0 10px 30px rgba(0, 255, 255, 0.15)",
+            boxShadow: "0 10px 30px rgba(0, 240, 255, 0.15)",
             backdropFilter: "blur(10px)",
           },
-          success: { icon: "✔", style: { borderColor: "#10b981" } },
-          error: { icon: "✖", style: { borderColor: "#ef4444" } },
+          success: { icon: "✔", style: { borderColor: "#10b981", color: "#00F0FF" } },
+          error: { icon: "✖", style: { borderColor: "#ef4444", color: "#00F0FF" } },
         }}
       />
     </div>
