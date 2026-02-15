@@ -176,12 +176,17 @@ export function useGameBoardLogic({
     try {
       const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
       if (res?.data?.success && res.data.data?.players) {
-        setPlayers(res.data.data.players);
+        const updatedPlayers = res.data.data.players;
+        setPlayers(updatedPlayers);
+        // If we're in the game but no longer in the players list, we were voted out (e.g. missed socket)
+        if (me?.user_id && !updatedPlayers.some((p: Player) => p.user_id === me.user_id)) {
+          setShowVotedOutModal(true);
+        }
       }
     } catch (err) {
       console.error("Sync failed:", err);
     }
-  }, [game.code]);
+  }, [game.code, me?.user_id]);
 
   // Timer for current player — show to ALL players. Stops counting when they roll (90s total, wrap up trades in remaining time).
   const isTwoPlayer = players.length === 2;
