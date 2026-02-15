@@ -1017,6 +1017,16 @@ contract Tycoon is ReentrancyGuard, Ownable {
         emit PlayerRemoved(gameId, playerToRemove, uint64(block.timestamp));
     }
 
+    /// @dev When joinedPlayers == 1, returns the single remaining player address (for ending game in same tx).
+    function _getRemainingPlayer(uint256 gameId) internal view returns (address) {
+        TycoonLib.Game storage game = games[gameId];
+        for (uint8 i = 1; i <= game.numberOfPlayers; i++) {
+            address a = gameOrderToPlayer[gameId][i];
+            if (a != address(0)) return a;
+        }
+        return address(0);
+    }
+
     /// @param turnCount Pass type(uint256).max to skip min-turns check (e.g. voluntary exit). Otherwise backend-reported turn count for removePlayerFromGame.
     function _payoutReward(uint256 gameId, address player, uint256 rank, uint256 turnCount) private {
         TycoonLib.Game storage game = games[gameId];
@@ -1048,6 +1058,14 @@ contract Tycoon is ReentrancyGuard, Ownable {
         uint256 rewardAmount = TycoonLib.getRankRewardAmount(distributable, rank);
 
         if (rewardAmount == 0) {
+            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
+            emit RewardClaimed(gameId, player, 0);
+            return;
+        }
+
+        // If contract doesn't have enough USDC (e.g. accounting mismatch, bankrupt flow), give voucher only so removal never reverts.
+        uint256 available = usdcToken.balanceOf(address(this));
+        if (available < rewardAmount) {
             rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
             emit RewardClaimed(gameId, player, 0);
             return;
@@ -1132,6 +1150,19 @@ contract Tycoon is ReentrancyGuard, Ownable {
             claims[gameId][player] = rank;
 
             _payoutReward(gameId, player, rank, turnCount);
+
+            // If removal left exactly one player, end the game and pay winner in this same tx (one backend call).
+            if (game.joinedPlayers == 1) {
+                address remaining = _getRemainingPlayer(gameId);
+                require(remaining != address(0), "No remaining player");
+                users[gamePlayers[gameId][remaining].username].gamesWon++;
+                game.status = TycoonLib.GameStatus.Ended;
+                game.winner = remaining;
+                game.endedAt = uint64(block.timestamp);
+                claims[gameId][remaining] = 1;
+                _payoutReward(gameId, remaining, 1, type(uint256).max);
+                emit GameEnded(gameId, remaining, uint64(block.timestamp));
+            }
         }
 
         emit PlayerExited(gameId, player);

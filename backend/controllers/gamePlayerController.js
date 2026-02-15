@@ -711,16 +711,19 @@ const gamePlayerController = {
         }
         if (contractGameIdToUse) {
           const leaverAddress = user.address;
-          const winnerRow = playersBeforeLeave.find((p) => p.user_id !== user.id);
-          const winnerUserRow = winnerRow
-            ? await db("users").where({ id: winnerRow.user_id }).select("address").first()
-            : null;
-          const winnerAddress = winnerUserRow?.address;
-          if (leaverAddress && winnerAddress) {
-            await removePlayerFromGame(contractGameIdToUse, leaverAddress, MAX_UINT256);
-            await removePlayerFromGame(contractGameIdToUse, winnerAddress, MAX_UINT256);
+          if (leaverAddress) {
+            try {
+              // Single call: contract removes leaver and, when joinedPlayers becomes 1, ends game and pays winner.
+              await removePlayerFromGame(contractGameIdToUse, leaverAddress, MAX_UINT256);
+            } catch (contractErr) {
+              // Still remove player and set winner in DB so the game does not get stuck (e.g. contract "check balance" / USDC revert).
+              logger.warn(
+                { err: contractErr?.message, gameId: game.id, code: game.code, leaverId: user.id },
+                "leave: contract removePlayerFromGame failed; continuing with DB leave and winner set"
+              );
+            }
           } else {
-            logger.warn({ gameId: game.id, leaverId: user.id, winnerId: winnerRow?.user_id }, "leave: missing address for leaver or winner, skipping contract end");
+            logger.warn({ gameId: game.id, leaverId: user.id }, "leave: missing leaver address, skipping contract end");
           }
         } else {
           logger.warn({ gameId: game.id, code: game.code }, "leave: could not resolve contract_game_id, game will not end on-chain");
