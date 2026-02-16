@@ -135,9 +135,11 @@ const PlayerList: React.FC<PlayerListProps> = ({
               </div>
             </div>
 
-            <div className={`font-black drop-shadow-md ${compact ? "text-sm" : "text-lg"} ${balanceColor}`}>
-              ${p.balance.toLocaleString()}
-            </div>
+            {p.balance > 0 && (
+              <div className={`font-black drop-shadow-md ${compact ? "text-sm" : "text-lg"} ${balanceColor}`}>
+                ${p.balance.toLocaleString()}
+              </div>
+            )}
 
             {/* Trade button - only in non-compact mode or on selection */}
             <AnimatePresence>

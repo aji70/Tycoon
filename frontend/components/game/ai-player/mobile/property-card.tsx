@@ -16,6 +16,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   properties,
   onClick,
 }) => {
+  const rent = rentPrice(prop.id, properties, game_properties);
   return (
     <motion.div
       whileHover={{ scale: onClick ? 1.05 : 1 }}
@@ -26,7 +27,9 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         <div className="h-3 rounded" style={{ backgroundColor: prop.color }} />
       )}
       <div className="mt-2 text-sm font-bold text-cyan-200 truncate">{prop.name}</div>
-      <div className="text-xs text-green-400">Rent: ${rentPrice(prop.id, properties, game_properties)}</div>
+      {rent > 0 && (
+        <div className="text-xs text-green-400">Rent: ${rent}</div>
+      )}
       {isMortgaged(prop.id, game_properties) && (
         <div className="text-red-500 text-xs mt-1 font-bold animate-pulse">MORTGAGED</div>
       )}
