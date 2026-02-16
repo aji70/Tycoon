@@ -189,7 +189,7 @@ export default function GamePlayPage() {
     if (!game) return null;
 
     return (
-      <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10]" >
+      <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10] pt-[calc(80px+env(safe-area-inset-top,0px))]" >
         {/* Persistent countdown so finish-by-time fires even when user is on players/chat tab */}
         {game?.duration && Number(game.duration) > 0 && (
           <div className="shrink-0 flex justify-center py-2">

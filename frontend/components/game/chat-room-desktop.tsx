@@ -3,9 +3,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
-import { Send, MessageCircle, Users } from "lucide-react";
+import { Send, MessageCircle, Users, Reply, X } from "lucide-react";
 import { Player } from "@/types/game";
 import toast from "react-hot-toast";
+import { parseMessageBody } from "./chat-room";
+
+const REPLY_QUOTE_PREFIX = "> ";
+const REPLY_QUOTE_SEP = "\n\n";
+const REPLY_QUOTE_MAX_LEN = 80;
 
 interface Message {
   id: string | number;
@@ -14,6 +19,8 @@ interface Message {
   created_at?: string;
   username?: string | null;
 }
+
+type ReplyingTo = { id: string | number; name: string; body: string };
 
 interface ChatRoomDesktopProps {
   gameId: string | number;
@@ -56,6 +63,7 @@ function getInitial(name: string) {
 const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ReplyingTo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -80,13 +88,21 @@ const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
 
     setSending(true);
     const trimmed = newMessage.trim();
+    let bodyToSend = trimmed;
+    if (replyingTo) {
+      const quoteText = replyingTo.body.length > REPLY_QUOTE_MAX_LEN
+        ? replyingTo.body.slice(0, REPLY_QUOTE_MAX_LEN) + "…"
+        : replyingTo.body;
+      bodyToSend = `${REPLY_QUOTE_PREFIX}@${replyingTo.name}: ${quoteText}${REPLY_QUOTE_SEP}${trimmed}`;
+      setReplyingTo(null);
+    }
     setNewMessage("");
 
     queryClient.setQueryData<Message[]>(["messages", gameId], (old = []) => [
       ...old,
       {
         id: "temp-" + Date.now(),
-        body: trimmed,
+        body: bodyToSend,
         player_id: playerId,
         created_at: new Date().toISOString(),
       },
@@ -96,7 +112,7 @@ const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
       await apiClient.post("/messages", {
         game_id: gameId,
         player_id: playerId,
-        body: trimmed,
+        body: bodyToSend,
       });
       queryClient.invalidateQueries({ queryKey: ["messages", gameId] });
     } catch (err: unknown) {
@@ -140,12 +156,12 @@ const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
             {messages.map((msg) => {
               const isMe = String(msg.player_id) === playerId;
               const displayName = getDisplayName(msg, me, playerId);
+              const { quote, main } = parseMessageBody(msg.body);
               return (
                 <div
                   key={msg.id}
                   className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}
                 >
-                  {/* Avatar / initial */}
                   <div
                     className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
                       isMe
@@ -170,16 +186,32 @@ const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
                         </span>
                       )}
                     </div>
-                    <div
-                      className={`max-w-[85%] px-4 py-3 rounded-2xl ${
-                        isMe
-                          ? "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-br-md"
-                          : "bg-white/[0.06] text-white/95 border border-white/10 rounded-bl-md"
-                      }`}
-                    >
-                      <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-                        {msg.body}
-                      </p>
+                    <div className={`group flex items-end gap-1 max-w-[85%] ${isMe ? "flex-row-reverse" : ""}`}>
+                      <div
+                        className={`px-4 py-3 rounded-2xl ${
+                          isMe
+                            ? "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-br-md"
+                            : "bg-white/[0.06] text-white/95 border border-white/10 rounded-bl-md"
+                        }`}
+                      >
+                        {quote && (
+                          <div className={`mb-2 pl-2 border-l-2 text-xs opacity-90 ${isMe ? "border-white/50" : "border-cyan-400/50"}`}>
+                            <p className="font-semibold text-[11px] mb-0.5">{quote.name}</p>
+                            <p className="leading-snug break-words line-clamp-2">{quote.text}</p>
+                          </div>
+                        )}
+                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                          {main}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setReplyingTo({ id: msg.id, name: displayName, body: main })}
+                        className="flex-shrink-0 p-1.5 rounded-lg text-white/50 hover:text-cyan-300 transition opacity-0 group-hover:opacity-100"
+                        aria-label={`Reply to ${displayName}`}
+                      >
+                        <Reply className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -192,6 +224,22 @@ const ChatRoomDesktop = ({ gameId, me }: ChatRoomDesktopProps) => {
 
       {/* Input — desktop: cleaner bar, no extra bottom padding */}
       <div className="flex-shrink-0 p-4 border-t border-white/[0.06] bg-[#060a0b]/95">
+        {replyingTo && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl bg-cyan-500/10 border border-cyan-400/20">
+            <Reply className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <p className="flex-1 min-w-0 text-xs text-cyan-200 truncate">
+              Replying to <span className="font-semibold">{replyingTo.name}</span>: {replyingTo.body.slice(0, 60)}{replyingTo.body.length > 60 ? "…" : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
+              aria-label="Cancel reply"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         {!canSend ? (
           <div className="text-center py-3 text-sm text-white/45 font-medium">
             Join the game to send messages
