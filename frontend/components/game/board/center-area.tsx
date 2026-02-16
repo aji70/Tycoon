@@ -23,7 +23,7 @@ type CenterAreaProps = {
   onDeclareBankruptcy: () => void;
   isPending: boolean;
   timerSlot?: React.ReactNode;
-  /** Seconds left to roll (90s turn timer); null when not applicable */
+  /** Seconds left to roll (2 min turn timer); null when not applicable */
   turnTimeLeft?: number | null;
   /** Players that can be voted out (timed out OR 3+ consecutive timeouts) */
   voteablePlayers?: Player[];
@@ -126,16 +126,16 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* 90s turn timer — countdown stops when they roll; show to ALL players */}
+      {/* 2 min turn timer — countdown stops when they roll; show to ALL players */}
       {turnTimeLeft != null && (
-        <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
+        <div className={`text-center mb-2 z-10 font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 ${(turnTimeLeft ?? 120) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
           {roll
             ? isMyTurn
-              ? `Complete in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
-              : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to wrap up`
+              ? `Complete in ${Math.floor((turnTimeLeft ?? 120) / 60)}:${((turnTimeLeft ?? 120) % 60).toString().padStart(2, "0")}`
+              : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 120) / 60)}:${((turnTimeLeft ?? 120) % 60).toString().padStart(2, "0")} to wrap up`
             : isMyTurn
-              ? `Roll in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
-              : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to roll`}
+              ? `Roll in ${Math.floor((turnTimeLeft ?? 120) / 60)}:${((turnTimeLeft ?? 120) % 60).toString().padStart(2, "0")}`
+              : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 120) / 60)}:${((turnTimeLeft ?? 120) % 60).toString().padStart(2, "0")} to roll`}
         </div>
       )}
 
@@ -172,7 +172,7 @@ export default function CenterArea({
         </div>
       )}
       
-      {/* Legacy: Remove inactive player (3 consecutive 90s timeouts) - fallback if voteablePlayers not provided */}
+      {/* Legacy: Remove inactive player (3 consecutive 2 min timeouts) - fallback if voteablePlayers not provided */}
       {!voteablePlayers && removablePlayers && removablePlayers.length > 0 && onRemoveInactive && (
         <div className="flex flex-wrap justify-center gap-2 mb-3 z-10">
           {removablePlayers.map((p) => (
