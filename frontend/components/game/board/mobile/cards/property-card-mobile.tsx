@@ -30,23 +30,23 @@ const PropertyCardMobile: React.FC<PropertyCardMobileProps> = ({
 
   const pricePositionClasses: Record<Position, string> = {
     bottom: "bottom-1 right-1",
-    left: "bottom-[38%] -right-1 rotate-90",
+    left: "bottom-[38%] right-1 rotate-90 origin-right",
     top: "top-1 right-1",
-    right: "top-[38%] -left-1 -rotate-90",
+    right: "top-[30%] left-1 -rotate-90 origin-left",
   };
 
   const rentPositionClasses: Record<Position, string> = {
     bottom: "bottom-1 left-1",
-    left: "top-[38%] left-1 rotate-90",
+    left: "top-[38%] left-1 rotate-90 origin-left",
     top: "top-1 left-1",
-    right: "bottom-[38%] right-1 -rotate-90",
+    right: "top-[55%] left-1 -rotate-90 origin-left",
   };
 
   const ownerPositionClasses: Record<Position, string> = {
     bottom: "top-1 left-1",
     left: "top-1 right-1 rotate-90",
     top: "bottom-1 right-1",
-    right: "bottom-1 left-1 -rotate-90",
+    right: "top-1 right-1 -rotate-90 origin-right",
   };
 
   const imageRotation: Record<Position, string> = {
