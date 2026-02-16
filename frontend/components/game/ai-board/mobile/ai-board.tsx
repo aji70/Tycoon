@@ -116,6 +116,9 @@ const MobileGameLayout = ({
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
   const [gameTimeUp, setGameTimeUp] = useState(false);
   const timeUpHandledRef = useRef(false);
+  const [turnEndScheduled, setTurnEndScheduled] = useState(false);
+  const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{ vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> } | null>(null);
+  const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
 
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
@@ -307,7 +310,12 @@ const endTime =
     setHasMovementFinished(false);
     setStrategyRanThisTurn(false);
     setIsRaisingFunds(false);
+    setTurnEndScheduled(false);
   }, [currentPlayerId]);
+
+  useEffect(() => {
+    if (!isMyTurn) setTurnEndScheduled(false);
+  }, [isMyTurn]);
 
   useEffect(() => {
     if (!isMyTurn || !roll || !hasMovementFinished) {
@@ -399,6 +407,7 @@ const endTime =
   }, []);
 
   const endTurnAfterSpecialMove = useCallback(() => {
+    setTurnEndScheduled(true);
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setIsSpecialMove(false);
@@ -434,6 +443,7 @@ const endTime =
       });
 
       showToast(`You bought ${justLandedProperty.name}!`, "success");
+      setTurnEndScheduled(true);
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
       await fetchUpdatedGame();
@@ -622,6 +632,64 @@ const endTime =
     showToast,
     END_TURN
   ]);
+
+  const isUntimed = !currentGame?.duration || Number(currentGame.duration) === 0;
+
+  const fetchEndByNetWorthStatus = useCallback(async () => {
+    if (!currentGame?.id || !isUntimed) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/end-by-networth-status", { game_id: currentGame.id });
+      if (res?.data?.success && res.data.data) {
+        setEndByNetWorthStatus({
+          vote_count: res.data.data.vote_count,
+          required_votes: res.data.data.required_votes,
+          voters: res.data.data.voters ?? [],
+        });
+      } else {
+        setEndByNetWorthStatus(null);
+      }
+    } catch {
+      setEndByNetWorthStatus(null);
+    }
+  }, [currentGame?.id, isUntimed]);
+
+  const voteEndByNetWorth = useCallback(async () => {
+    if (!me?.user_id || !currentGame?.id || !isUntimed) return;
+    setEndByNetWorthLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/vote-end-by-networth", {
+        game_id: currentGame.id,
+        user_id: me.user_id,
+      });
+      if (res?.data?.success && res.data.data) {
+        const data = res.data.data;
+        setEndByNetWorthStatus({
+          vote_count: data.vote_count,
+          required_votes: data.required_votes,
+          voters: data.voters ?? [],
+        });
+        if (data.all_voted) {
+          toast.success("Game ended by net worth");
+          await fetchUpdatedGame();
+          await onFinishGameByTime?.();
+        } else {
+          toast.success(`${data.vote_count}/${data.required_votes} voted to end by net worth`);
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(getContractErrorMessage(err, "Failed to vote"));
+    } finally {
+      setEndByNetWorthLoading(false);
+    }
+  }, [currentGame?.id, me?.user_id, isUntimed, fetchUpdatedGame, onFinishGameByTime]);
+
+  useEffect(() => {
+    if (!isUntimed || !currentGame?.id) {
+      setEndByNetWorthStatus(null);
+      return;
+    }
+    fetchEndByNetWorthStatus();
+  }, [currentGame?.id, isUntimed, fetchEndByNetWorthStatus, currentGame?.history?.length]);
 
   useMobileAiLogic({
     game,
@@ -851,7 +919,29 @@ const endTime =
                     Time&apos;s Up!
                   </div>
                 )}
-                {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                {isUntimed && endByNetWorthStatus != null && voteEndByNetWorth && (
+                  <div className="flex flex-col items-center gap-1 mb-2">
+                    <span className="text-cyan-200/90 text-xs">End by net worth (resets when anyone rolls)</span>
+                    <button
+                      onClick={voteEndByNetWorth}
+                      disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+                      className={`text-xs font-medium rounded-lg px-3 py-1.5 border shrink-0 ${
+                        endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                          ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50"
+                          : endByNetWorthLoading
+                          ? "bg-amber-900/60 text-amber-200 border-amber-500/50"
+                          : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80"
+                      }`}
+                    >
+                      {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                        ? `✓ Voted (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`
+                        : endByNetWorthLoading
+                        ? "..."
+                        : `End by net worth (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`}
+                    </button>
+                  </div>
+                )}
+                {!gameTimeUp && isMyTurn && !turnEndScheduled && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   (currentPlayer?.balance ?? 0) < 0 ? (
                     <button
                       onClick={declareBankruptcy}
@@ -1025,6 +1115,7 @@ const endTime =
         onBuy={BUY_PROPERTY}
         onSkip={() => {
           showToast("Skipped purchase", "default");
+          setTurnEndScheduled(true);
           setBuyPrompted(false);
           landedPositionThisTurn.current = null;
           setTimeout(END_TURN, 800);

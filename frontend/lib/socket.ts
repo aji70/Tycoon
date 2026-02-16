@@ -114,6 +114,12 @@ class SocketService {
     }
   }
 
+  onEndByNetWorthVote(callback: (data: { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }) => void): void {
+    if (this.socket) {
+      this.socket.on("end-by-networth-vote", callback);
+    }
+  }
+
   // Remove event listeners
   removeListener(event: string, callback: (...args: any[]) => void): void {
     if (this.socket) {

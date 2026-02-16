@@ -35,6 +35,13 @@ type CenterAreaProps = {
   /** Legacy: kept for backward compatibility */
   removablePlayers?: Player[];
   onRemoveInactive?: (targetUserId: number) => void;
+  /** Untimed games: vote to end game by net worth (all must vote yes; cleared when anyone rolls) */
+  isUntimed?: boolean;
+  endByNetWorthStatus?: { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> } | null;
+  endByNetWorthLoading?: boolean;
+  onVoteEndByNetWorth?: () => void;
+  /** When true, hide Roll Dice (turn end scheduled after buy/skip) */
+  turnEndScheduled?: boolean;
   /** When true, show "Time's Up!" and hide Roll Dice (game ended by time) */
   gameTimeUp?: boolean;
   /** Jail: my turn and I'm in jail */
@@ -74,6 +81,11 @@ export default function CenterArea({
   onVoteToRemove,
   removablePlayers,
   onRemoveInactive,
+  isUntimed = false,
+  endByNetWorthStatus = null,
+  endByNetWorthLoading = false,
+  onVoteEndByNetWorth,
+  turnEndScheduled = false,
   gameTimeUp = false,
   meInJail = false,
   jailChoiceRequired = false,
@@ -187,6 +199,32 @@ export default function CenterArea({
         </div>
       )}
 
+      {/* Untimed games: vote to end game by net worth (all must vote; votes clear when anyone rolls) */}
+      {isUntimed && endByNetWorthStatus != null && onVoteEndByNetWorth && (
+        <div className="flex flex-col items-center gap-2 mb-3 z-10">
+          <p className="text-cyan-200/90 text-xs">End game by net worth — votes reset when anyone rolls</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onVoteEndByNetWorth}
+              disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+              className={`text-sm font-medium rounded-lg px-4 py-2 border transition-all ${
+                endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                  ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50 cursor-not-allowed"
+                  : endByNetWorthLoading
+                  ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
+                  : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80 hover:scale-105"
+              }`}
+            >
+              {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                ? `✓ Voted (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`
+                : endByNetWorthLoading
+                ? "Voting..."
+                : `End by net worth (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Jail: rolled from jail, no doubles — choose Pay $50 / Use card / Stay */}
       {!gameTimeUp && isMyTurn && jailChoiceRequired && (
         <div className="flex flex-col items-center gap-3 mb-3 z-10">
@@ -234,7 +272,7 @@ export default function CenterArea({
       )}
 
       {/* Jail: my turn, in jail, before rolling — show Pay / Use card / Roll */}
-      {!gameTimeUp && isMyTurn && meInJail && !jailChoiceRequired && !roll && !isRolling && (
+      {!gameTimeUp && isMyTurn && !turnEndScheduled && meInJail && !jailChoiceRequired && !roll && !isRolling && (
         <div className="flex flex-col items-center gap-3 mb-3 z-10">
           <p className="text-cyan-200 text-sm font-medium">You&apos;re in jail. Pay $50, use a card, or roll for doubles.</p>
           <div className="flex flex-wrap justify-center gap-2">
@@ -277,8 +315,8 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp; hide when jail UI is shown) */}
-      {!gameTimeUp && isMyTurn && !roll && !isRolling && !meInJail && !jailChoiceRequired && (
+      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp; hide when jail UI or turn end scheduled) */}
+      {!gameTimeUp && isMyTurn && !turnEndScheduled && !roll && !isRolling && !meInJail && !jailChoiceRequired && (
         playerCanRoll ? (
           <button
             onClick={onRollDice}

@@ -11,6 +11,7 @@ import { invalidateGameById, invalidateGameByCode } from "../utils/gameCache.js"
 import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
+import { finishGameByNetWorthAndNotify } from "./gameController.js";
 
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
 const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
@@ -943,6 +944,9 @@ const gamePlayerController = {
           message: "You already rolled this round.",
         });
       }
+
+      // Clear vote-to-end-by-networth when any player rolls (untimed games)
+      await trx("end_by_networth_votes").where({ game_id }).del();
 
       // Compute positions
       const old_position = Number(game_player.position || 0);
@@ -2032,6 +2036,148 @@ const gamePlayerController = {
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to get vote status",
+      });
+    }
+  },
+
+  /**
+   * Vote to end the game by net worth (untimed games only). Game ends when all players have voted yes.
+   * Body: { game_id, user_id }.
+   */
+  async voteEndByNetWorth(req, res) {
+    try {
+      const { game_id, user_id } = req.body;
+      if (!game_id || !user_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id or user_id",
+        });
+      }
+
+      const game = await db("games").where({ id: game_id }).first();
+      if (!game) {
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        return res.status(400).json({
+          success: false,
+          message: "Game is not in progress",
+        });
+      }
+
+      const durationMinutes = Number(game.duration) || 0;
+      if (durationMinutes > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Vote to end by net worth is only available in untimed games",
+        });
+      }
+
+      const players = await db("game_players").where({ game_id });
+      const isInGame = players.some((p) => p.user_id === user_id);
+      if (!isInGame) {
+        return res.status(403).json({ success: false, message: "You are not in this game" });
+      }
+
+      const existing = await db("end_by_networth_votes").where({ game_id, user_id }).first();
+      if (!existing) {
+        await db("end_by_networth_votes").insert({ game_id, user_id });
+      }
+
+      const votes = await db("end_by_networth_votes").where({ game_id }).select("user_id");
+      const voteCount = votes.length;
+      // AI games: only human needs to vote (1 vote). Multiplayer: all players must vote.
+      const requiredVotes = game.is_ai ? 1 : players.length;
+
+      if (voteCount >= requiredVotes) {
+        const io = req.app.get("io");
+        const result = await finishGameByNetWorthAndNotify(io, game);
+        if (result) {
+          const updated = await Game.findById(game.id);
+          return res.status(200).json({
+            success: true,
+            message: "Game ended by net worth — all players voted",
+            data: {
+              game: updated,
+              winner_id: result.winner_id,
+              vote_count: voteCount,
+              required_votes: requiredVotes,
+              all_voted: true,
+            },
+          });
+        }
+      }
+
+      const voters = await db("users")
+        .whereIn("id", votes.map((v) => v.user_id))
+        .select("id", "username");
+
+      const io = req.app.get("io");
+      if (io && game.code) {
+        io.to(game.code).emit("end-by-networth-vote", {
+          vote_count: voteCount,
+          required_votes: requiredVotes,
+          voters: voters.map((v) => ({ user_id: v.id, username: v.username })),
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: voteCount >= requiredVotes ? "Game ended by net worth" : `Vote recorded. ${voteCount}/${requiredVotes} to end by net worth.`,
+        data: {
+          vote_count: voteCount,
+          required_votes: requiredVotes,
+          all_voted: voteCount >= requiredVotes,
+          voters: voters.map((v) => ({ user_id: v.id, username: v.username })),
+        },
+      });
+    } catch (error) {
+      logger.error({ err: error }, "voteEndByNetWorth error");
+      return res.status(500).json({
+        success: false,
+        message: error?.message || "Failed to vote",
+      });
+    }
+  },
+
+  /**
+   * Get vote-to-end-by-networth status for an untimed game.
+   * Body: { game_id }.
+   */
+  async getEndByNetWorthStatus(req, res) {
+    try {
+      const { game_id } = req.body;
+      if (!game_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id",
+        });
+      }
+
+      const game = await db("games").where({ id: game_id }).first();
+      if (!game) {
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+
+      const players = await db("game_players").where({ game_id });
+      const requiredVotes = game.is_ai ? 1 : players.length;
+      const votes = await db("end_by_networth_votes").where({ game_id }).select("user_id");
+      const voterIds = votes.map((v) => v.user_id);
+      const voters = await db("users").whereIn("id", voterIds).select("id", "username");
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          vote_count: votes.length,
+          required_votes: requiredVotes,
+          voters: voters.map((v) => ({ user_id: v.id, username: v.username })),
+        },
+      });
+    } catch (error) {
+      logger.error({ err: error }, "getEndByNetWorthStatus error");
+      return res.status(500).json({
+        success: false,
+        message: error?.message || "Failed to get status",
       });
     }
   },

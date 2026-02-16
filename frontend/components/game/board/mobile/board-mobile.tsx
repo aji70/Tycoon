@@ -119,6 +119,11 @@ const MobileGameLayout = ({
     voteToRemove,
     fetchVoteStatus,
     exitHook,
+    isUntimed,
+    endByNetWorthStatus,
+    voteEndByNetWorth,
+    endByNetWorthLoading,
+    turnEndScheduled,
     jailChoiceRequired,
     meInJail,
     canPayToLeaveJail,
@@ -663,6 +668,29 @@ const MobileGameLayout = ({
                     })}
                   </div>
                 )}
+                {/* Untimed: vote to end game by net worth */}
+                {isUntimed && endByNetWorthStatus != null && voteEndByNetWorth && (
+                  <div className="flex flex-col items-center gap-1 w-full max-w-[260px]">
+                    <span className="text-cyan-200/90 text-xs">End by net worth (resets when anyone rolls)</span>
+                    <button
+                      onClick={voteEndByNetWorth}
+                      disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+                      className={`text-xs font-medium rounded-lg px-3 py-1.5 border shrink-0 ${
+                        endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                          ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50"
+                          : endByNetWorthLoading
+                          ? "bg-amber-900/60 text-amber-200 border-amber-500/50"
+                          : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80"
+                      }`}
+                    >
+                      {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                        ? `✓ Voted (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`
+                        : endByNetWorthLoading
+                        ? "..."
+                        : `End by net worth (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`}
+                    </button>
+                  </div>
+                )}
                 {/* Jail: no doubles — choose Pay $50 / Use card / Stay */}
                 {!gameTimeUp && isMyTurn && jailChoiceRequired && (
                   <div className="flex flex-wrap justify-center gap-2">
@@ -693,7 +721,7 @@ const MobileGameLayout = ({
                   </div>
                 )}
                 {/* Jail: in jail, before rolling — Pay / Use card / Roll */}
-                {!gameTimeUp && isMyTurn && meInJail && !jailChoiceRequired && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                {!gameTimeUp && isMyTurn && !turnEndScheduled && meInJail && !jailChoiceRequired && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   <div className="flex flex-wrap justify-center gap-2">
                     {payToLeaveJail && (
                       <button
@@ -722,7 +750,7 @@ const MobileGameLayout = ({
                     </button>
                   </div>
                 )}
-                {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && !meInJail && !jailChoiceRequired && (
+                {!gameTimeUp && isMyTurn && !turnEndScheduled && !isRolling && !isRaisingFunds && !showInsolvencyModal && !meInJail && !jailChoiceRequired && (
                   hasNegativeBalance ? (
                     <button
                       onClick={handleBankruptcy}
