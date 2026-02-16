@@ -37,6 +37,16 @@ type CenterAreaProps = {
   onRemoveInactive?: (targetUserId: number) => void;
   /** When true, show "Time's Up!" and hide Roll Dice (game ended by time) */
   gameTimeUp?: boolean;
+  /** Jail: my turn and I'm in jail */
+  meInJail?: boolean;
+  /** After rolling from jail with no doubles, show Pay / Use card / Stay */
+  jailChoiceRequired?: boolean;
+  canPayToLeaveJail?: boolean;
+  hasChanceJailCard?: boolean;
+  hasCommunityChestJailCard?: boolean;
+  onPayToLeaveJail?: () => void;
+  onUseGetOutOfJailFree?: (cardType: "chance" | "community_chest") => void;
+  onStayInJail?: () => void;
 };
 
 export default function CenterArea({
@@ -65,6 +75,14 @@ export default function CenterArea({
   removablePlayers,
   onRemoveInactive,
   gameTimeUp = false,
+  meInJail = false,
+  jailChoiceRequired = false,
+  canPayToLeaveJail = false,
+  hasChanceJailCard = false,
+  hasCommunityChestJailCard = false,
+  onPayToLeaveJail,
+  onUseGetOutOfJailFree,
+  onStayInJail,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -169,8 +187,98 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp) */}
-      {!gameTimeUp && isMyTurn && !roll && !isRolling && (
+      {/* Jail: rolled from jail, no doubles — choose Pay $50 / Use card / Stay */}
+      {!gameTimeUp && isMyTurn && jailChoiceRequired && (
+        <div className="flex flex-col items-center gap-3 mb-3 z-10">
+          <p className="text-cyan-200 text-sm font-medium">No doubles. Pay $50, use a card, or stay in jail.</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {onPayToLeaveJail && (
+              <button
+                onClick={onPayToLeaveJail}
+                disabled={!canPayToLeaveJail}
+                className={`px-4 py-2 rounded-lg font-medium border transition-all ${
+                  canPayToLeaveJail
+                    ? "bg-amber-600/80 text-white border-amber-500 hover:bg-amber-500/90"
+                    : "bg-gray-600 text-gray-400 border-gray-500 cursor-not-allowed"
+                }`}
+              >
+                Pay $50
+              </button>
+            )}
+            {onUseGetOutOfJailFree && hasChanceJailCard && (
+              <button
+                onClick={() => onUseGetOutOfJailFree("chance")}
+                className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 hover:bg-orange-500/90 transition-all"
+              >
+                Use Chance Card
+              </button>
+            )}
+            {onUseGetOutOfJailFree && hasCommunityChestJailCard && (
+              <button
+                onClick={() => onUseGetOutOfJailFree("community_chest")}
+                className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 hover:bg-blue-500/90 transition-all"
+              >
+                Use Community Chest Card
+              </button>
+            )}
+            {onStayInJail && (
+              <button
+                onClick={onStayInJail}
+                className="px-4 py-2 rounded-lg font-medium bg-gray-600 text-white border border-gray-500 hover:bg-gray-500/90 transition-all"
+              >
+                Stay in Jail
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Jail: my turn, in jail, before rolling — show Pay / Use card / Roll */}
+      {!gameTimeUp && isMyTurn && meInJail && !jailChoiceRequired && !roll && !isRolling && (
+        <div className="flex flex-col items-center gap-3 mb-3 z-10">
+          <p className="text-cyan-200 text-sm font-medium">You&apos;re in jail. Pay $50, use a card, or roll for doubles.</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {onPayToLeaveJail && (
+              <button
+                onClick={onPayToLeaveJail}
+                disabled={!canPayToLeaveJail}
+                className={`px-4 py-2 rounded-lg font-medium border transition-all ${
+                  canPayToLeaveJail
+                    ? "bg-amber-600/80 text-white border-amber-500 hover:bg-amber-500/90"
+                    : "bg-gray-600 text-gray-400 border-gray-500 cursor-not-allowed"
+                }`}
+              >
+                Pay $50
+              </button>
+            )}
+            {onUseGetOutOfJailFree && hasChanceJailCard && (
+              <button
+                onClick={() => onUseGetOutOfJailFree("chance")}
+                className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 hover:bg-orange-500/90 transition-all"
+              >
+                Use Chance Card
+              </button>
+            )}
+            {onUseGetOutOfJailFree && hasCommunityChestJailCard && (
+              <button
+                onClick={() => onUseGetOutOfJailFree("community_chest")}
+                className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 hover:bg-blue-500/90 transition-all"
+              >
+                Use Community Chest Card
+              </button>
+            )}
+            <button
+              onClick={onRollDice}
+              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold rounded-full hover:from-cyan-400 hover:to-cyan-500 transform hover:scale-105 transition-all shadow-lg border border-cyan-400/30"
+            >
+              Roll Dice
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp; hide when jail UI is shown) */}
+      {!gameTimeUp && isMyTurn && !roll && !isRolling && !meInJail && !jailChoiceRequired && (
         playerCanRoll ? (
           <button
             onClick={onRollDice}
@@ -179,13 +287,15 @@ export default function CenterArea({
             Roll Dice
           </button>
         ) : (
-          <button
-            onClick={onDeclareBankruptcy}
-            disabled={isPending}
-            className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50 disabled:opacity-70"
-          >
-            {isPending ? "Ending Game..." : "💔 Declare Bankruptcy"}
-          </button>
+          !meInJail && (
+            <button
+              onClick={onDeclareBankruptcy}
+              disabled={isPending}
+              className="px-12 py-6 bg-gradient-to-r from-red-700 to-red-900 text-white text-2xl font-bold rounded-2xl shadow-2xl hover:shadow-red-500/50 hover:scale-105 transition-all duration-300 border-4 border-red-500/50 disabled:opacity-70"
+            >
+              {isPending ? "Ending Game..." : "💔 Declare Bankruptcy"}
+            </button>
+          )
         )
       )}
 

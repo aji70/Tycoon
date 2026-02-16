@@ -51,7 +51,7 @@ export default function ActionLog({ history }: ActionLogProps) {
             const rolled = typeof h === "object" && h !== null && "rolled" in h ? (h as { rolled?: number }).rolled : undefined;
             return (
               <motion.p
-                key={`${h && typeof h === "object" && "id" in h ? (h as { id?: number }).id : i}-${name}-${comment.slice(0, 30)}`}
+                key={`${h && typeof h === "object" && "id" in h ? (h as { id?: number }).id : i}-${name}-${(comment ?? "").slice(0, 30)}`}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-xs text-gray-300"

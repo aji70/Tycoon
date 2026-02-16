@@ -119,6 +119,14 @@ const MobileGameLayout = ({
     voteToRemove,
     fetchVoteStatus,
     exitHook,
+    jailChoiceRequired,
+    meInJail,
+    canPayToLeaveJail,
+    hasChanceJailCard,
+    hasCommunityChestJailCard,
+    payToLeaveJail,
+    useGetOutOfJailFree,
+    stayInJail,
   } = logic;
 
   const selectedGameProperty = useMemo(
@@ -655,7 +663,66 @@ const MobileGameLayout = ({
                     })}
                   </div>
                 )}
-                {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                {/* Jail: no doubles — choose Pay $50 / Use card / Stay */}
+                {!gameTimeUp && isMyTurn && jailChoiceRequired && (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {payToLeaveJail && (
+                      <button
+                        onClick={payToLeaveJail}
+                        disabled={!canPayToLeaveJail}
+                        className={`py-2 px-4 rounded-lg text-sm font-medium border ${canPayToLeaveJail ? "bg-amber-600/80 text-white border-amber-500" : "bg-gray-600 text-gray-400 border-gray-500"}`}
+                      >
+                        Pay $50
+                      </button>
+                    )}
+                    {useGetOutOfJailFree && hasChanceJailCard && (
+                      <button onClick={() => useGetOutOfJailFree("chance")} className="py-2 px-4 rounded-lg text-sm font-medium bg-orange-600/80 text-white border border-orange-500">
+                        Chance Card
+                      </button>
+                    )}
+                    {useGetOutOfJailFree && hasCommunityChestJailCard && (
+                      <button onClick={() => useGetOutOfJailFree("community_chest")} className="py-2 px-4 rounded-lg text-sm font-medium bg-blue-600/80 text-white border border-blue-500">
+                        CC Card
+                      </button>
+                    )}
+                    {stayInJail && (
+                      <button onClick={stayInJail} className="py-2 px-4 rounded-lg text-sm font-medium bg-gray-600 text-white border border-gray-500">
+                        Stay
+                      </button>
+                    )}
+                  </div>
+                )}
+                {/* Jail: in jail, before rolling — Pay / Use card / Roll */}
+                {!gameTimeUp && isMyTurn && meInJail && !jailChoiceRequired && !roll && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {payToLeaveJail && (
+                      <button
+                        onClick={payToLeaveJail}
+                        disabled={!canPayToLeaveJail}
+                        className={`py-2 px-4 rounded-lg text-sm font-medium border ${canPayToLeaveJail ? "bg-amber-600/80 text-white border-amber-500" : "bg-gray-600 text-gray-400 border-gray-500"}`}
+                      >
+                        Pay $50
+                      </button>
+                    )}
+                    {useGetOutOfJailFree && hasChanceJailCard && (
+                      <button onClick={() => useGetOutOfJailFree("chance")} className="py-2 px-4 rounded-lg text-sm font-medium bg-orange-600/80 text-white border border-orange-500">
+                        Chance Card
+                      </button>
+                    )}
+                    {useGetOutOfJailFree && hasCommunityChestJailCard && (
+                      <button onClick={() => useGetOutOfJailFree("community_chest")} className="py-2 px-4 rounded-lg text-sm font-medium bg-blue-600/80 text-white border border-blue-500">
+                        CC Card
+                      </button>
+                    )}
+                    <button
+                      onClick={() => ROLL_DICE()}
+                      className="py-2.5 px-6 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold text-sm rounded-full border border-cyan-300/30"
+                    >
+                      Roll Dice
+                    </button>
+                  </div>
+                )}
+                {!gameTimeUp && isMyTurn && !isRolling && !isRaisingFunds && !showInsolvencyModal && !meInJail && !jailChoiceRequired && (
                   hasNegativeBalance ? (
                     <button
                       onClick={handleBankruptcy}
