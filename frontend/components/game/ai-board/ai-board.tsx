@@ -32,6 +32,7 @@ import { Sparkles, X, Crown, Trophy, Wallet, HeartHandshake } from "lucide-react
 import { usePropertyActions } from "@/hooks/usePropertyActions";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import TradeAlertPill from "../TradeAlertPill";
+import { GameDurationCountdown } from "../GameDurationCountdown";
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAIPlayer } from "@/utils/gameUtils";
@@ -105,6 +106,7 @@ const AiBoard = ({
   properties,
   game_properties,
   me,
+  isGuest = false,
   onFinishGameByTime,
   onViewTrades,
 }: {
@@ -112,6 +114,7 @@ const AiBoard = ({
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  isGuest?: boolean;
   onFinishGameByTime?: () => Promise<void>;
   onViewTrades?: () => void;
 }) => {
@@ -301,7 +304,10 @@ const {
     setClaimAndLeaveInProgress(true);
     const isHumanWinner = winner?.user_id === me?.user_id;
     try {
-      await endGame();
+      // Guest: backend already claimed on-chain when finish-by-time ran; skip wallet call.
+      if (!isGuest) {
+        await endGame();
+      }
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
@@ -319,7 +325,7 @@ const {
     } finally {
       endGameReset();
     }
-  }, [winner?.user_id, me?.user_id, onFinishGameByTime, endGame, endGameReset]);
+  }, [winner?.user_id, me?.user_id, isGuest, onFinishGameByTime, endGame, endGameReset]);
 
   // Sync players
   useEffect(() => {
@@ -1100,7 +1106,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
               isPending={false}
-              timerSlot={null}
+              timerSlot={game?.duration && Number(game.duration) > 0 ? (
+                <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
+              ) : null}
               gameTimeUp={gameTimeUp}
             />
 

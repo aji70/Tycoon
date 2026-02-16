@@ -166,19 +166,18 @@ export default function MobileGamePlayers({
     });
   }, [my_properties.length, showEmpire, totalActiveTrades]);
 
-  // When parent asks to focus trades (e.g. "View trades" pill), open trades section and scroll into view
+  // When parent asks to focus trades (e.g. notification bell), open only trades section and scroll into view
   useEffect(() => {
     if (!focusTrades) return;
     const t = setTimeout(() => {
-      setSectionOpen((prev) => ({ ...prev, trades: true }));
+      setSectionOpen({ players: false, empire: false, trades: true });
       onViewedTrades?.();
-      // Scroll trades section into view after AnimatePresence expands (use double rAF for layout)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           tradesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       });
-    }, 0);
+    }, 50);
     return () => clearTimeout(t);
   }, [focusTrades, onViewedTrades]);
 

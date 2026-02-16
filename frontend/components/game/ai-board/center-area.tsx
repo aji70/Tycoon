@@ -96,7 +96,7 @@ export default function CenterArea({
         playerCanRoll ? (
           <button
             onClick={onRollDice}
-            className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xl rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-xl"
+            className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold text-xl rounded-full hover:from-cyan-600 hover:to-cyan-700 transform hover:scale-110 active:scale-95 transition-all shadow-xl shadow-cyan-500/30"
           >
             Roll Dice
           </button>
@@ -117,7 +117,7 @@ export default function CenterArea({
           <button
             onClick={onBuyProperty}
             disabled={currentProperty.price != null && currentPlayerBalance < currentProperty.price}
-            className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
+            className={`px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold rounded-full hover:from-cyan-600 hover:to-cyan-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
               currentProperty.price != null && currentPlayerBalance < currentProperty.price
                 ? "opacity-50 cursor-not-allowed"
                 : ""

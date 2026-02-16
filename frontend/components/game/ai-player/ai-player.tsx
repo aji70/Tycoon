@@ -29,6 +29,8 @@ interface GamePlayersProps {
   /** When true, expand trades section and scroll into view (e.g. after clicking bell on board). */
   focusTrades?: boolean;
   onViewedTrades?: () => void;
+  /** Guest players: backend already claimed on-chain; skip wallet claim. */
+  isGuest?: boolean;
 }
 
 export default function GamePlayers({
@@ -41,6 +43,7 @@ export default function GamePlayers({
   isAITurn,
   focusTrades = false,
   onViewedTrades,
+  isGuest = false,
 }: GamePlayersProps) {
   const isDevMode = false;
 
@@ -263,7 +266,7 @@ useEffect(() => {
     );
 
     try {
-      if (endGameHook.write) await endGameHook.write();
+      if (!isGuest && endGameHook.write) await endGameHook.write();
 
       toast.success(
         winner?.user_id === me?.user_id
