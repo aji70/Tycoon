@@ -81,10 +81,7 @@ export default function JoinRoom(): JSX.Element {
   const activeRecentGames = useMemo(
     () =>
       recentGames.filter(
-        (g) =>
-          g.status !== "FINISHED" &&
-          g.status !== "COMPLETED" &&
-          g.status !== "CANCELLED"
+        (g) => g.status !== "COMPLETED" && g.status !== "CANCELLED"
       ),
     [recentGames]
   );
