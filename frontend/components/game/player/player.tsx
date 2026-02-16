@@ -120,7 +120,7 @@ export default function GamePlayers({
               className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/10 transition-all duration-200"
             >
               <h3 className="text-lg font-bold text-cyan-300 tracking-wide">
-                Active Players ({sortedPlayers.length})
+                Active Players{sortedPlayers.length > 0 ? ` (${sortedPlayers.length})` : ""}
               </h3>
               <motion.div
                 animate={{ rotate: showPlayerList ? 180 : 0 }}

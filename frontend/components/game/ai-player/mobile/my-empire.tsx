@@ -29,7 +29,7 @@ export const MyEmpire: React.FC<MyEmpireProps> = ({
         }}
         className="w-full text-xl font-bold text-purple-300 flex justify-between items-center hover:bg-white/5 px-3 py-4 rounded-lg transition-colors"
       >
-        <span>MY EMPIRE ({my_properties.length})</span>
+        <span>MY EMPIRE{my_properties.length > 0 ? ` (${my_properties.length})` : ""}</span>
         <motion.span animate={{ rotate: showEmpire ? 180 : 0 }} className="text-3xl text-cyan-400">
           ▼
         </motion.span>

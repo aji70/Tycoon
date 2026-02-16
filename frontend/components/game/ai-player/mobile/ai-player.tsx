@@ -203,7 +203,7 @@ export default function MobileGamePlayers({
               className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
             >
               <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-purple-400">
-                PLAYERS ({game.players.length})
+                PLAYERS{game.players.length > 0 ? ` (${game.players.length})` : ""}
               </h3>
               <motion.div
                 animate={{ rotate: sectionOpen.players ? 180 : 0 }}

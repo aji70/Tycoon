@@ -128,9 +128,11 @@ const PlayerList: React.FC<PlayerListProps> = ({
                     </div>
                   </div>
 
-                  <div className={`text-xl font-black ${balanceColor} drop-shadow-md`}>
-                    ${p.balance.toLocaleString()}
-                  </div>
+                  {p.balance > 0 && (
+                    <div className={`text-xl font-black ${balanceColor} drop-shadow-md`}>
+                      ${p.balance.toLocaleString()}
+                    </div>
+                  )}
                 </div>
 
                 <AnimatePresence>
