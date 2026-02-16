@@ -5,6 +5,7 @@ import NavBar from "@/components/shared/navbar";
 import NavBarMobile from "@/components/shared/navbar-mobile";
 import { ReactNode, useEffect, useState } from "react";
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts"; // Adjust path if needed
+import { ProfileProvider } from "@/context/ProfileContext";
 
 interface ClientLayoutProps {
   children: ReactNode;
@@ -30,9 +31,11 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   }
 
   return (
-    <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-      {isMobile ? <NavBarMobile /> : <NavBar />}
-      {children}
-    </div>
+    <ProfileProvider>
+      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
+        {isMobile ? <NavBarMobile /> : <NavBar />}
+        {children}
+      </div>
+    </ProfileProvider>
   );
 }
