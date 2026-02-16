@@ -113,9 +113,6 @@ const PlayerList: React.FC<PlayerListProps> = ({
                       YOU
                     </span>
                   )}
-                  {p.in_jail && (
-                    <span className="text-red-400 text-xs font-bold">[JAIL]</span>
-                  )}
                   {isAI && <span className="text-gray-500 text-xs">🤖</span>}
                 </div>
 
