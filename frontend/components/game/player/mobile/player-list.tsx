@@ -108,11 +108,6 @@ const PlayerList: React.FC<PlayerListProps> = ({
                             YOU
                           </span>
                         )}
-                        {p.in_jail && (
-                          <span className="text-red-400 text-xs font-bold flex-shrink-0">
-                            [JAIL]
-                          </span>
-                        )}
                       </div>
 
                       {isTurn && (
