@@ -43,6 +43,9 @@ export const PropertyActionModal: React.FC<PropertyActionModalProps> = ({
           X
         </button>
         <h3 className="text-3xl font-bold text-cyan-300 text-center mb-6 relative z-10">{property.name}</h3>
+        {property.cost_of_house != null && property.cost_of_house > 0 && (
+          <p className="text-center text-emerald-300 font-semibold mb-4 relative z-10">Cost per house: ${property.cost_of_house}</p>
+        )}
         <div className="grid grid-cols-2 gap-4 relative z-10">
           <button onClick={() => { onDevelop(property.id); onClose(); }} className="py-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl font-bold text-white shadow-lg hover:shadow-green-500/50">BUILD</button>
           <button onClick={() => { onDowngrade(property.id); onClose(); }} className="py-4 bg-gradient-to-r from-orange-600 to-red-700 rounded-xl font-bold text-white shadow-lg hover:shadow-orange-500/50">SELL</button>

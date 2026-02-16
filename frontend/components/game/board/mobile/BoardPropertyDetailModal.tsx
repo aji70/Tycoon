@@ -74,6 +74,14 @@ export default function BoardPropertyDetailModal({
                   ${getCurrentRent(property, gameProperty)}
                 </span>
               </div>
+              {property.cost_of_house != null && property.cost_of_house > 0 && (
+                <div className="flex justify-between">
+                  <span>Cost per house:</span>
+                  <span className="font-bold text-emerald-400">
+                    ${property.cost_of_house}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Owner:</span>
                 <span className="font-medium">
