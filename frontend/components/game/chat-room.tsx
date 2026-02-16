@@ -3,9 +3,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
-import { Send, MessageCircle } from "lucide-react";
+import { Send, MessageCircle, Reply, X } from "lucide-react";
 import { Player } from "@/types/game";
 import toast from "react-hot-toast";
+
+const REPLY_QUOTE_PREFIX = "> ";
+const REPLY_QUOTE_SEP = "\n\n";
+const REPLY_QUOTE_MAX_LEN = 80;
 
 interface Message {
   id: string | number;
@@ -13,6 +17,18 @@ interface Message {
   player_id: string;
   created_at?: string;
   username?: string | null;
+}
+
+export function parseMessageBody(body: string): { quote: { name: string; text: string } | null; main: string } {
+  if (!body.startsWith(REPLY_QUOTE_PREFIX)) return { quote: null, main: body };
+  const idx = body.indexOf(REPLY_QUOTE_SEP);
+  if (idx === -1) return { quote: null, main: body };
+  const quoteLine = body.slice(REPLY_QUOTE_PREFIX.length, idx).trim();
+  const main = body.slice(idx + REPLY_QUOTE_SEP.length).trim();
+  const atIndex = quoteLine.indexOf(": ");
+  const name = atIndex >= 0 ? quoteLine.slice(0, atIndex).replace(/^@/, "") : "Someone";
+  const text = atIndex >= 0 ? quoteLine.slice(atIndex + 2) : quoteLine;
+  return { quote: { name, text }, main: main || body };
 }
 
 interface ChatRoomProps {
@@ -50,9 +66,12 @@ function getDisplayName(msg: Message, me: Player | null, playerId: string) {
   return msg.username ?? "Player";
 }
 
+type ReplyingTo = { id: string | number; name: string; body: string };
+
 const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ReplyingTo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -77,13 +96,21 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
 
     setSending(true);
     const trimmed = newMessage.trim();
+    let bodyToSend = trimmed;
+    if (replyingTo) {
+      const quoteText = replyingTo.body.length > REPLY_QUOTE_MAX_LEN
+        ? replyingTo.body.slice(0, REPLY_QUOTE_MAX_LEN) + "…"
+        : replyingTo.body;
+      bodyToSend = `${REPLY_QUOTE_PREFIX}@${replyingTo.name}: ${quoteText}${REPLY_QUOTE_SEP}${trimmed}`;
+      setReplyingTo(null);
+    }
     setNewMessage("");
 
     queryClient.setQueryData<Message[]>(["messages", gameId], (old = []) => [
       ...old,
       {
         id: "temp-" + Date.now(),
-        body: trimmed,
+        body: bodyToSend,
         player_id: playerId,
         created_at: new Date().toISOString(),
       },
@@ -93,7 +120,7 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
       await apiClient.post("/messages", {
         game_id: gameId,
         player_id: playerId,
-        body: trimmed,
+        body: bodyToSend,
       });
       queryClient.invalidateQueries({ queryKey: ["messages", gameId] });
     } catch (err: unknown) {
@@ -137,9 +164,9 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
             {messages.map((msg) => {
               const isMe = String(msg.player_id) === playerId;
               const displayName = getDisplayName(msg, me, playerId);
+              const { quote, main } = parseMessageBody(msg.body);
               return (
                 <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                  {/* Username above message */}
                   <div className={`flex items-center gap-2 mb-1.5 ${isMe ? "flex-row-reverse" : ""}`}>
                     <span className={`text-xs font-semibold tracking-wide ${
                       isMe ? "text-cyan-400" : "text-cyan-400/80"
@@ -152,17 +179,34 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
                       </span>
                     )}
                   </div>
-                  {/* Message bubble */}
-                  <div
-                    className={`max-w-[85%] px-4 py-2.5 rounded-2xl ${
-                      isMe
-                        ? "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-br-md"
-                        : "bg-white/5 text-white/95 border border-white/10 rounded-bl-md backdrop-blur-sm"
-                    }`}
-                  >
-                    <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-                      {msg.body}
-                    </p>
+                  <div className={`max-w-[85%] flex flex-col gap-1.5 ${isMe ? "items-end" : "items-start"}`}>
+                    <div className={`group flex items-end gap-1 ${isMe ? "flex-row-reverse" : ""}`}>
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl ${
+                          isMe
+                            ? "bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-br-md"
+                            : "bg-white/5 text-white/95 border border-white/10 rounded-bl-md backdrop-blur-sm"
+                        }`}
+                      >
+                        {quote && (
+                          <div className={`mb-2 pl-2 border-l-2 text-xs opacity-90 ${isMe ? "border-white/50" : "border-cyan-400/50"}`}>
+                            <p className="font-semibold text-[11px] mb-0.5">{quote.name}</p>
+                            <p className="leading-snug break-words line-clamp-2">{quote.text}</p>
+                          </div>
+                        )}
+                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                          {main}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setReplyingTo({ id: msg.id, name: displayName, body: main })}
+                        className={`flex-shrink-0 p-1.5 rounded-lg text-white/60 hover:text-cyan-300 transition ${isMobile ? "" : "opacity-0 group-hover:opacity-100"}`}
+                        aria-label={`Reply to ${displayName}`}
+                      >
+                        <Reply className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -174,6 +218,22 @@ const ChatRoom = ({ gameId, me, isMobile = false }: ChatRoomProps) => {
 
       {/* Input - always visible at bottom (extra pb on mobile to clear nav bar) */}
       <div className={`flex-shrink-0 bg-[#060a0b]/90 border-t border-white/5 backdrop-blur-sm ${isMobile ? "p-3 pb-20" : "p-3"}`}>
+        {replyingTo && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-xl bg-cyan-500/15 border border-cyan-400/30">
+            <Reply className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <p className="flex-1 min-w-0 text-xs text-cyan-200 truncate">
+              Replying to <span className="font-semibold">{replyingTo.name}</span>: {replyingTo.body.slice(0, 50)}{replyingTo.body.length > 50 ? "…" : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => setReplyingTo(null)}
+              className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10"
+              aria-label="Cancel reply"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         {!canSend ? (
           <div className="text-center py-3 text-sm text-white/40 font-medium">
             Join the game to send messages
