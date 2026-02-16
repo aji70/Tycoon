@@ -250,7 +250,10 @@ export default function GamePlayPage() {
 
         <nav className="fixed bottom-0 left-0 right-0 h-20 pb-safe bg-[#010F10]/95 backdrop-blur-xl border-t border-[#003B3E] flex items-center justify-around z-50 shadow-2xl">
           <button
-            onClick={() => setActiveTab("board")}
+            onClick={() => {
+              setActiveTab("board");
+              setFocusTrades(false);
+            }}
             className={`flex flex-col items-center justify-center flex-1 py-3 transition-all ${
               activeTab === "board"
                 ? "text-[#00F0FF] scale-110"

@@ -81,6 +81,18 @@ export default function JoinRoom(): JSX.Element {
     fetchPending();
   }, [address, canAct, guestUser?.address]);
 
+  // Only show games that are not finished (so "Continue Game" is never for ended games)
+  const activeRecentGames = useMemo(
+    () =>
+      recentGames.filter(
+        (g) =>
+          g.status !== "FINISHED" &&
+          g.status !== "COMPLETED" &&
+          g.status !== "CANCELLED"
+      ),
+    [recentGames]
+  );
+
   // Filter and sort pending games based on timeFilter
   useEffect(() => {
     const now = Date.now();
@@ -282,14 +294,14 @@ export default function JoinRoom(): JSX.Element {
                   )}
                 </div>
 
-                {recentGames.length > 0 && (
+                {activeRecentGames.length > 0 && (
                   <div className="space-y-6">
                     <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
                       Continue Game
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {recentGames.map((game) => (
+                      {activeRecentGames.map((game) => (
                         <button
                           key={game.id}
                           onClick={() => handleContinueGame(game)}

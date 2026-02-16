@@ -935,6 +935,10 @@ const gamePlayerController = {
           });
 
         await insertPlayHistory({ jail: true });
+        // Decline all pending trades proposed to this player (they rolled without responding)
+        await trx("game_trade_requests")
+          .where({ game_id, target_player_id: user_id, status: "pending" })
+          .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({
@@ -1006,6 +1010,11 @@ const gamePlayerController = {
           final_position: pay_rent.position || new_position,
         });
 
+        // Decline all pending trades proposed to this player (they rolled without responding)
+        await trx("game_trade_requests")
+          .where({ game_id, target_player_id: user_id, status: "pending" })
+          .update({ status: "declined", updated_at: now });
+
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({
@@ -1032,6 +1041,10 @@ const gamePlayerController = {
           { stayed_in_jail: true },
           "You are still in jail"
         );
+        // Decline all pending trades proposed to this player (they rolled without responding)
+        await trx("game_trade_requests")
+          .where({ game_id, target_player_id: user_id, status: "pending" })
+          .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({

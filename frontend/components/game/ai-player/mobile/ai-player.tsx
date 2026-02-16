@@ -157,29 +157,27 @@ export default function MobileGamePlayers({
     }
   };
 
-  // Auto-open sections intelligently
+  // Auto-open sections intelligently (skip when bell asked to focus trades)
   useEffect(() => {
+    if (focusTrades) return;
     setSectionOpen({
       players: true,
       empire: my_properties.length > 0 || showEmpire,
       trades: totalActiveTrades > 0,
     });
-  }, [my_properties.length, showEmpire, totalActiveTrades]);
+  }, [focusTrades, my_properties.length, showEmpire, totalActiveTrades]);
 
   // When parent asks to focus trades (e.g. notification bell), open only trades section and scroll into view
   useEffect(() => {
     if (!focusTrades) return;
+    setSectionOpen({ players: false, empire: false, trades: true });
     const t = setTimeout(() => {
-      setSectionOpen({ players: false, empire: false, trades: true });
-      onViewedTrades?.();
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          tradesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        tradesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
-    }, 50);
+    }, 80);
     return () => clearTimeout(t);
-  }, [focusTrades, onViewedTrades]);
+  }, [focusTrades]);
 
   return (
     <div className="w-full h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white flex flex-col overflow-hidden">
