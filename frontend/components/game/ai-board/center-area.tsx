@@ -27,6 +27,11 @@ type CenterAreaProps = {
   timerSlot?: React.ReactNode;
   /** When true, show "Time's Up" and hide Roll Dice (time-up by net worth). */
   gameTimeUp?: boolean;
+  /** When true and it's my turn, show "Pay $50 to get out" (leave jail before rolling). */
+  inJail?: boolean;
+  /** Can afford the $50 jail fine. */
+  canPayToLeaveJail?: boolean;
+  onPayToLeaveJail?: () => void;
 };
 
 export default function CenterArea({
@@ -48,6 +53,9 @@ export default function CenterArea({
   isPending,
   timerSlot,
   gameTimeUp = false,
+  inJail = false,
+  canPayToLeaveJail = false,
+  onPayToLeaveJail,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -91,15 +99,25 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Player's Turn: Roll or Bankruptcy (hidden when gameTimeUp) */}
+      {/* Player's Turn: Pay to leave jail (when in jail and can afford), Roll, or Bankruptcy (hidden when gameTimeUp) */}
       {!gameTimeUp && isMyTurn && !roll && !isRolling && (
         playerCanRoll ? (
-          <button
-            onClick={onRollDice}
-            className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold text-xl rounded-full hover:from-cyan-600 hover:to-cyan-700 transform hover:scale-110 active:scale-95 transition-all shadow-xl shadow-cyan-500/30"
-          >
-            Roll Dice
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            {inJail && canPayToLeaveJail && onPayToLeaveJail && (
+              <button
+                onClick={onPayToLeaveJail}
+                className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-full transition-all shadow-lg"
+              >
+                Pay $50 to get out
+              </button>
+            )}
+            <button
+              onClick={onRollDice}
+              className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold text-xl rounded-full hover:from-cyan-600 hover:to-cyan-700 transform hover:scale-110 active:scale-95 transition-all shadow-xl shadow-cyan-500/30"
+            >
+              Roll Dice
+            </button>
+          </div>
         ) : (
           <button
             onClick={onDeclareBankruptcy}

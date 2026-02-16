@@ -177,6 +177,11 @@ const AiBoard = ({
 
   const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && Boolean(currentPlayer?.in_jail);
 
+  const meInJail = Boolean(
+    isMyTurn && me && Number(me.position) === JAIL_POSITION && me.in_jail
+  );
+  const canPayToLeaveJail = meInJail && (me?.balance ?? 0) >= 50;
+
   
 
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -829,6 +834,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
       const currentPos = player.position ?? 0;
       const isInJail = Boolean(player.in_jail) && currentPos === JAIL_POSITION;
+      const rolledDouble = value.die1 === value.die2;
 
       let newPos = currentPos;
       let shouldAnimate = false;
@@ -853,25 +859,45 @@ const endTurnAfterSpecialMove = useCallback(() => {
           }
         }
       } else {
-        showToast(
-          `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total}`,
-          "default"
-        );
+        if (rolledDouble) {
+          const totalMove = value.total;
+          newPos = (currentPos + totalMove) % BOARD_SQUARES;
+          shouldAnimate = totalMove > 0;
+          if (shouldAnimate) {
+            const movePath: number[] = [];
+            for (let i = 1; i <= totalMove; i++) {
+              movePath.push((currentPos + i) % BOARD_SQUARES);
+            }
+            for (let i = 0; i < movePath.length; i++) {
+              await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
+              setAnimatedPositions((prev) => ({
+                ...prev,
+                [playerId]: movePath[i],
+              }));
+            }
+          }
+        } else {
+          showToast(
+            `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no double, stay in jail)`,
+            "default"
+          );
+        }
       }
 
       setHasMovementFinished(true);
 
       try {
+        if (isInJail) landedPositionThisTurn.current = null;
         await apiClient.post("/game-players/change-position", {
           user_id: playerId,
           game_id: game.id,
           position: newPos,
           rolled: value.total + pendingRoll,
-          is_double: value.die1 === value.die2,
+          is_double: rolledDouble,
         });
 
         setPendingRoll(0);
-        landedPositionThisTurn.current = isInJail ? null : newPos;
+        landedPositionThisTurn.current = isInJail ? (rolledDouble ? newPos : null) : newPos;
 
         if (!isInJail) {
           showToast(
@@ -1029,6 +1055,31 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
 
+  const fetchGameState = useCallback(async () => {
+    try {
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      if (res?.data?.success && res.data.data?.players) {
+        setPlayers(res.data.data.players);
+      }
+    } catch (err) {
+      console.error("Fetch game failed:", err);
+    }
+  }, [game.code]);
+
+  const handlePayToLeaveJail = useCallback(async () => {
+    if (!me || !game?.id) return;
+    try {
+      await apiClient.post("/game-players/pay-to-leave-jail", {
+        game_id: game.id,
+        user_id: me.user_id,
+      });
+      toast.success("Paid $50. You may now roll.");
+      await fetchGameState();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+    }
+  }, [me, game?.id, fetchGameState]);
+
   const handleRollDice = () => ROLL_DICE(false);
   const handleBuyProperty = () => BUY_PROPERTY(false);
   const handleSkipBuy = () => {
@@ -1110,6 +1161,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
                 <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
               ) : null}
               gameTimeUp={gameTimeUp}
+              inJail={meInJail}
+              canPayToLeaveJail={canPayToLeaveJail}
+              onPayToLeaveJail={handlePayToLeaveJail}
             />
 
             {properties.map((square) => {

@@ -1069,6 +1069,121 @@ const gamePlayerController = {
       });
     }
   },
+
+  /**
+   * POST /game-players/pay-to-leave-jail
+   * Body: { game_id, user_id }
+   * Pay $50 to leave jail before rolling. Player stays at position 10 but can then roll and move.
+   */
+  async payToLeaveJail(req, res) {
+    const trx = await db.transaction();
+    const JAIL_FINE = 50;
+    const JAIL_POSITION = 10;
+
+    try {
+      const { game_id, user_id } = req.body;
+      if (!game_id || !user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id or user_id",
+        });
+      }
+
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Game is not in progress",
+        });
+      }
+      if (game.next_player_id !== user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "It is not your turn",
+        });
+      }
+
+      const game_player = await trx("game_players")
+        .where({ game_id, user_id })
+        .forUpdate()
+        .first();
+      if (!game_player) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Player not found in game" });
+      }
+
+      const inJail = Boolean(game_player.in_jail);
+      const atJail = Number(game_player.position) === JAIL_POSITION;
+      if (!inJail || !atJail) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "You are not in jail",
+        });
+      }
+
+      const balance = Number(game_player.balance || 0);
+      if (balance < JAIL_FINE) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Insufficient balance. Need $50 to pay the fine.",
+        });
+      }
+
+      const now = new Date();
+      await trx("game_players")
+        .where({ id: game_player.id })
+        .update({
+          balance: balance - JAIL_FINE,
+          in_jail: false,
+          in_jail_rolls: 0,
+          updated_at: now,
+        });
+
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: game_player.id,
+        rolled: 0,
+        old_position: JAIL_POSITION,
+        new_position: JAIL_POSITION,
+        action: "visiting_jail",
+        amount: -JAIL_FINE,
+        extra: JSON.stringify({ description: "Paid $50 to leave jail" }),
+        comment: "Paid $50 to leave jail",
+        active: 1,
+        created_at: now,
+        updated_at: now,
+      });
+
+      await trx.commit();
+      await notifyGameUpdate(req, game_id);
+      return res.json({
+        success: true,
+        message: "Paid $50 and left jail. You may now roll.",
+        data: { balance: balance - JAIL_FINE },
+      });
+    } catch (error) {
+      try {
+        await trx.rollback();
+      } catch (e) {
+        /* ignore */
+      }
+      logger.error({ err: error }, "payToLeaveJail error");
+      return res.status(500).json({
+        success: false,
+        message: error?.message || "Internal server error",
+      });
+    }
+  },
+
   async endTurn(req, res) {
     const trx = await db.transaction();
 
