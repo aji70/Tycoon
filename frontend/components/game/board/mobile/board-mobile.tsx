@@ -613,7 +613,7 @@ const MobileGameLayout = ({
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
                 {/* Roll result — show for current player (me or opponent) so everyone sees what was rolled */}
                 {displayRoll && !isRolling && (
-                  <RollResult roll={displayRoll} />
+                  <RollResult roll={displayRoll} compact />
                 )}
                 {/* Time's Up — show when game ended by time */}
                 {gameTimeUp && (
