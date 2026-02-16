@@ -9,6 +9,7 @@ import { SiFarcaster } from "react-icons/si";
 import { IoCopyOutline, IoHomeOutline } from "react-icons/io5";
 import { useWaitingRoom, USDC_DECIMALS } from "./useWaitingRoom";
 import { getPlayerSymbolData, symbols } from "@/lib/types/symbol";
+import GameRoomLoading from "./game-room-loading";
 
 export default function GameWaiting(): JSX.Element {
   const {
@@ -50,16 +51,7 @@ export default function GameWaiting(): JSX.Element {
 
   // Loading / Error guards
   if (loading || contractGameLoading) {
-    return (
-      <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
-        <div className="flex flex-col items-center space-y-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-3 border-[#00F0FF] border-opacity-50"></div>
-          <p className="text-[#00F0FF] text-lg font-semibold font-orbitron animate-pulse">
-            Entering the Lobby...
-          </p>
-        </div>
-      </section>
-    );
+    return <GameRoomLoading variant="waiting" />;
   }
 
   if (error || !game) {
