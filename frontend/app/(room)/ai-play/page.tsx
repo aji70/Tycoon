@@ -225,6 +225,7 @@ export default function GamePlayPage() {
               properties={properties}
               game_properties={game_properties}
               me={me}
+              isGuest={isGuest}
               onFinishGameByTime={finishGameByTime}
               onViewTrades={() => {
                 setActiveTab("players");
@@ -291,6 +292,7 @@ export default function GamePlayPage() {
           isAITurn={isAITurn}
           focusTrades={focusTrades}
           onViewedTrades={() => setFocusTrades(false)}
+          isGuest={isGuest}
         />
       </div>
 
@@ -300,6 +302,7 @@ export default function GamePlayPage() {
           properties={properties}
           game_properties={game_properties}
           me={me}
+          isGuest={isGuest}
           onFinishGameByTime={finishGameByTime}
           onViewTrades={() => setFocusTrades(true)}
         />

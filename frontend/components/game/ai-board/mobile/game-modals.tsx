@@ -25,6 +25,7 @@ interface GameModalsProps {
   me: Player | null;
   players: Player[];
   currentGame: Game;
+  isGuest?: boolean;
   isPending: boolean;
   endGame: () => Promise<any>;
   reset: () => void;
@@ -51,6 +52,7 @@ const GameModals: React.FC<GameModalsProps> = ({
   me,
   players,
   currentGame,
+  isGuest = false,
   isPending,
   endGame,
   reset,
@@ -73,7 +75,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      if (endGame) await endGame();
+      if (!isGuest && endGame) await endGame();
 
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${currentGame.id}`, {
@@ -108,9 +110,10 @@ const GameModals: React.FC<GameModalsProps> = ({
     );
 
     try {
-      // 1) Claim on-chain first (winners and losers both call exit AI game to get rewards)
-      await endGame();
-      // 2) Then sync backend (mark game FINISHED, set winner). Both can call; backend is idempotent if already finished.
+      // Guest: backend already claimed on-chain when finish-by-time ran; skip wallet call.
+      if (!isGuest) {
+        await endGame();
+      }
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
@@ -124,7 +127,6 @@ const GameModals: React.FC<GameModalsProps> = ({
         isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(
         err?.message || "Something went wrong — you can try again later",
@@ -140,10 +142,13 @@ const GameModals: React.FC<GameModalsProps> = ({
     setClaimAndLeaveInProgress(true);
     const isHumanWinner = winner?.user_id === me?.user_id;
     const toastId = toast.loading(
-      isHumanWinner ? "Claiming your prize on-chain…" : "Claiming consolation on-chain…"
+      isHumanWinner ? "Claiming your prize…" : "Finishing up…"
     );
     try {
-      await endGame();
+      // Guest: backend already claimed on-chain when finish-by-time ran; skip wallet call.
+      if (!isGuest) {
+        await endGame();
+      }
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
@@ -167,7 +172,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     } finally {
       reset();
     }
-  }, [winner?.user_id, me?.user_id, endGame, onFinishGameByTime, reset]);
+  }, [winner?.user_id, me?.user_id, isGuest, endGame, onFinishGameByTime, reset]);
 
   return (
     <>

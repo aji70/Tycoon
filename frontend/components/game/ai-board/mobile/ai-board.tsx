@@ -47,6 +47,7 @@ const MobileGameLayout = ({
   properties,
   game_properties,
   me,
+  isGuest = false,
   onFinishGameByTime,
   onViewTrades,
 }: {
@@ -54,6 +55,7 @@ const MobileGameLayout = ({
   properties: Property[];
   game_properties: GameProperty[];
   me: Player | null;
+  isGuest?: boolean;
   onFinishGameByTime?: () => Promise<void>;
   onViewTrades?: () => void;
 }) => {
@@ -907,6 +909,7 @@ const endTime =
         me={me}
         players={players}
         currentGame={currentGame}
+        isGuest={isGuest}
         isPending={endGamePending}
         endGame={endGame}
         reset={endGameReset}
