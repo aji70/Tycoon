@@ -49,6 +49,28 @@ const HeroSection: React.FC = () => {
 
   const { data: contractGame } = useGetGameByCode(gameCode);
 
+  const [backendGame, setBackendGame] = useState<{ status: string } | null>(null);
+
+  useEffect(() => {
+    if (!gameCode || typeof gameCode !== "string") {
+      setBackendGame(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .get<ApiResponse>(`/games/code/${encodeURIComponent(gameCode.trim().toUpperCase())}`)
+      .then((res) => {
+        if (cancelled || !res?.data?.success || !res.data.data) return;
+        setBackendGame(res.data.data as { status: string });
+      })
+      .catch(() => {
+        if (!cancelled) setBackendGame(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameCode]);
+
   const [user, setUser] = useState<UserType | null>(null);
 
   // Reset on disconnect
@@ -432,7 +454,7 @@ const handleContinuePrevious = () => {
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted */}
-              {address && gameCode && (contractGame?.status == 1) && (
+              {address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED")) && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"

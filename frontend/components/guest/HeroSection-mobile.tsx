@@ -45,7 +45,28 @@ const HeroSectionMobile: React.FC = () => {
   const { data: gameCode } = usePreviousGameCode(address);
 
   const { data: contractGame } = useGetGameByCode(gameCode);
-  
+
+  const [backendGame, setBackendGame] = useState<{ status: string } | null>(null);
+
+  useEffect(() => {
+    if (!gameCode || typeof gameCode !== "string") {
+      setBackendGame(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .get<ApiResponse>(`/games/code/${encodeURIComponent(gameCode.trim().toUpperCase())}`)
+      .then((res) => {
+        if (cancelled || !res?.data?.success || !res.data.data) return;
+        setBackendGame(res.data.data as { status: string });
+      })
+      .catch(() => {
+        if (!cancelled) setBackendGame(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameCode]);
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -352,7 +373,7 @@ const handleContinuePrevious = () => {
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="w-full flex flex-col gap-5">
               {/* Continue Previous Game - prominent when available */}
-              {gameCode && (contractGame?.status == 1) && (
+              {gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED")) && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative w-full h-14 transition-transform active:scale-[0.98]"
