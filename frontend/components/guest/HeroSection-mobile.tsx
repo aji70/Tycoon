@@ -81,7 +81,7 @@ const HeroSectionMobile: React.FC = () => {
       .then((res) => {
         if (cancelled || !res?.data?.success || !Array.isArray(res.data.data)) return;
         const games = res.data.data as { code: string; status: string }[];
-        const active = games.find((g) => g.status === "PENDING" || g.status === "RUNNING");
+        const active = games.find((g) => g.status === "RUNNING");
         setGuestLastGame(active ? { code: active.code, status: active.status } : null);
       })
       .catch(() => {
