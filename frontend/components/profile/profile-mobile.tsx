@@ -237,6 +237,8 @@ export default function ProfilePageMobile() {
     setLocalBio(profile?.bio ?? '');
   }, [profile?.displayName, profile?.bio]);
 
+  const displayName = profile?.displayName?.trim() || null;
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -364,10 +366,10 @@ export default function ProfilePageMobile() {
 
             <div>
               <h2 className="text-2xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent">
-                {profile?.displayName || userData.username}
+                {userData.username}
               </h2>
-              {profile?.displayName && (
-                <p className="text-gray-500 font-mono text-xs mt-0.5">@{userData.username}</p>
+              {displayName && (
+                <p className="text-gray-500 font-mono text-xs mt-0.5">Nickname: {displayName}</p>
               )}
             </div>
 
@@ -387,7 +389,7 @@ export default function ProfilePageMobile() {
                 <User className="w-4 h-4 text-cyan-400 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Display name"
+                  placeholder="Nickname (optional)"
                   value={localDisplayName}
                   onChange={(e) => setLocalDisplayName(e.target.value)}
                   onBlur={saveDisplayName}

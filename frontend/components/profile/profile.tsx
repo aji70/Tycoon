@@ -61,6 +61,8 @@ export default function Profile() {
     setLocalBio(profile?.bio ?? '');
   }, [profile?.displayName, profile?.bio]);
 
+  const displayName = profile?.displayName?.trim() || null;
+
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -368,13 +370,13 @@ export default function Profile() {
             </div>
 
             <div className="flex-1 w-full text-center lg:text-left space-y-6">
-              {/* Names */}
+              {/* Backend username as main display */}
               <div>
                 <h2 className="text-3xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent">
-                  {profile?.displayName || userData.username}
+                  {userData.username}
                 </h2>
-                {profile?.displayName && (
-                  <p className="text-gray-500 font-mono text-sm mt-0.5">@{userData.username}</p>
+                {displayName && (
+                  <p className="text-gray-500 font-mono text-sm mt-0.5">Nickname: {displayName}</p>
                 )}
               </div>
 
@@ -398,7 +400,7 @@ export default function Profile() {
                     <User className="w-4 h-4 text-cyan-400 shrink-0" />
                     <input
                       type="text"
-                      placeholder="Display name"
+                      placeholder="Nickname (optional)"
                       value={localDisplayName}
                       onChange={(e) => setLocalDisplayName(e.target.value)}
                       onBlur={saveDisplayName}
