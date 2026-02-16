@@ -1479,7 +1479,7 @@ const gamePlayerController = {
       const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
       const next_player = players[nextIdx];
 
-      // 2b️⃣ Consecutive timeouts: if turn ended by 90s timeout, increment; else reset
+      // 2b️⃣ Consecutive timeouts: if turn ended by 2 min timeout, increment; else reset
       const currentStrikes = Number(players[currentIdx].consecutive_timeouts || 0);
       const currentTurnCount = Number(players[currentIdx].turn_count || 0);
       if (timed_out) {
@@ -1564,7 +1564,7 @@ const gamePlayerController = {
         updated_at: new Date(),
       });
 
-      // 4b️⃣ Set turn_start for the next player (90s roll timer)
+      // 4b️⃣ Set turn_start for the next player (2 min roll timer)
       const turnStartSeconds = String(Math.floor(Date.now() / 1000));
       await trx("game_players")
         .where({ game_id: game.id, user_id: next_player.user_id })
@@ -1737,7 +1737,7 @@ const gamePlayerController = {
         return res.status(404).json({ success: false, message: "Target not in game" });
       }
 
-      const TURN_ROLL_SECONDS = 90;
+      const TURN_ROLL_SECONDS = 120;
       const turnStartSec = Number(target.turn_start) || 0;
       const nowSec = Math.floor(Date.now() / 1000);
       const elapsed = nowSec - turnStartSec;
@@ -1789,7 +1789,7 @@ const gamePlayerController = {
    * Vote to remove an inactive/timed-out player.
    * Body: { game_id, user_id (voter), target_user_id }.
    * Player can be voted out if:
-   * - They just timed out (90s) OR
+   * - They just timed out (2 min) OR
    * - They have 3+ consecutive timeouts
    * Removal happens when all other players vote (or 1 vote if only 2 players).
    */
@@ -1852,8 +1852,8 @@ const gamePlayerController = {
       const strikes = Number(target.consecutive_timeouts || 0);
       const otherPlayersCount = players.filter((p) => p.user_id !== target_user_id).length;
 
-      // Soft timeout: if target is current player and 90s has elapsed, allow vote (3+ players only)
-      const TURN_ROLL_SECONDS = 90;
+      // Soft timeout: if target is current player and 2 min has elapsed, allow vote (3+ players only)
+      const TURN_ROLL_SECONDS = 120;
       const turnStartSec = Number(target.turn_start) || 0;
       const nowSec = Math.floor(Date.now() / 1000);
       const timeElapsed = nowSec - turnStartSec;
@@ -1861,7 +1861,7 @@ const gamePlayerController = {
       const softTimeout = otherPlayersCount > 1 && isCurrentPlayer && timeElapsed >= TURN_ROLL_SECONDS;
       
       // With 2 players: need 3+ consecutive timeouts (from end-turn timed_out)
-      // With more players: strikes > 0 OR soft timeout (current player's 90s elapsed)
+      // With more players: strikes > 0 OR soft timeout (current player's 2 min elapsed)
       const canBeVotedOut = otherPlayersCount === 1 
         ? strikes >= 3  // 2-player game: need 3 timeouts
         : (strikes > 0 || softTimeout);
@@ -2037,7 +2037,7 @@ const gamePlayerController = {
   },
 
   /**
-   * Remove an inactive player from a multiplayer game after 3 consecutive 90s timeouts.
+   * Remove an inactive player from a multiplayer game after 3 consecutive 2 min timeouts.
    * DEPRECATED: Use voteToRemove instead. Kept for backward compatibility.
    * Body: { game_id, user_id (requester), target_user_id }.
    */

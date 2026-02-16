@@ -92,7 +92,7 @@ export function useGameBoardLogic({
   const prevHistoryLength = useRef(game?.history?.length ?? 0);
 
   const INACTIVITY_SECONDS = 30;
-  const TURN_TOTAL_SECONDS = 90;
+  const TURN_TOTAL_SECONDS = 120;
 
   const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
@@ -253,7 +253,7 @@ export function useGameBoardLogic({
     }
   }, [game.code, me?.user_id, myAddress]);
 
-  // Timer for current player — show to ALL players. Stops counting when they roll (90s total, wrap up trades in remaining time).
+  // Timer for current player — show to ALL players. Stops counting when they roll (2 min total, wrap up trades in remaining time).
   const isTwoPlayer = players.length === 2;
   const hasRolled = isMyTurn && roll != null && hasMovementFinished;
   useEffect(() => {
