@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp, Camera, Copy, Check, User, FileText } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
 import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { formatUnits, type Address, type Abi } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useProfile } from '@/context/ProfileContext';
 
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -37,15 +38,28 @@ const getPerkMetadata = (perk: number) => {
   return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-16 h-16 bg-gray-500/20 rounded-2xl flex items-center justify-center text-3xl">?</div> };
 };
 
+const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
+const MAX_AVATAR_DIM = 512;
+
 export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
-  const [showVouchers, setShowVouchers] = useState(false); // ← New: toggle vouchers
+  const [showVouchers, setShowVouchers] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
+  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setLocalDisplayName(profile?.displayName ?? '');
+    setLocalBio(profile?.bio ?? '');
+  }, [profile?.displayName, profile?.bio]);
 
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -220,6 +234,66 @@ export default function Profile() {
     }
   }, [txSuccess, txHash, reset, tycBalance]);
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file (PNG, JPG, etc.)');
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      toast.error('Image must be under 1MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_AVATAR_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setAvatar(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const resized = canvas.toDataURL('image/jpeg', 0.85);
+        setAvatar(resized);
+        toast.success('Profile photo updated!');
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const copyAddress = () => {
+    if (!walletAddress) return;
+    navigator.clipboard.writeText(walletAddress);
+    setCopied(true);
+    toast.success('Address copied');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const saveDisplayName = () => {
+    const trimmed = localDisplayName.trim() || null;
+    setDisplayName(trimmed);
+    setProfile({ displayName: trimmed });
+    toast.success('Display name saved');
+  };
+
+  const saveBio = () => {
+    const trimmed = localBio.trim() || null;
+    setBio(trimmed);
+    setProfile({ bio: trimmed });
+    toast.success('Bio saved');
+  };
+
   if (!isConnected || loading || error || !userData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center">
@@ -259,59 +333,154 @@ export default function Profile() {
       </header>
 
       <main className="container mx-auto px-6 py-8 max-w-7xl">
-        {/* Compact Player Info + Balances */}
-        <div className="glass-card rounded-3xl p-6 mb-8 border border-cyan-500/20">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-[#00F0FF] ring-offset-4 ring-offset-transparent">
-                <Image src={avatar} alt="Avatar" fill className="object-cover" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-xl">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
+
+        {/* Profile Hero Card */}
+        <div className="glass-card rounded-3xl p-8 mb-8 border border-cyan-500/20 overflow-hidden">
+          <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8">
+            {/* Avatar + Upload */}
+            <div className="relative group shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="relative w-28 h-28 rounded-full overflow-hidden ring-4 ring-[#00F0FF] ring-offset-4 ring-offset-[#0A1C1E] focus:outline-none focus:ring-2 focus:ring-cyan-400 block"
+              >
+                {profile?.avatar ? (
+                  <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="absolute inset-0 [&>img]:object-cover">
+                    <Image src={avatar} alt="Avatar" width={112} height={112} className="w-full h-full object-cover" />
+                  </span>
+                )}
+                <span className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                  <Camera className="w-10 h-10 text-white" />
+                </span>
+              </button>
+              <div className="absolute -bottom-1 -right-1 bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-xl shadow-lg">
                 <Crown className="w-5 h-5 text-black" />
               </div>
             </div>
 
-            <div className="flex-1 text-center sm:text-left">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent">
-                {userData.username}
-              </h2>
-              <p className="text-gray-400 font-mono text-sm mt-1">{userData.address}</p>
+            <div className="flex-1 w-full text-center lg:text-left space-y-6">
+              {/* Names */}
+              <div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent">
+                  {profile?.displayName || userData.username}
+                </h2>
+                {profile?.displayName && (
+                  <p className="text-gray-500 font-mono text-sm mt-0.5">@{userData.username}</p>
+                )}
+              </div>
+
+              {/* Wallet address - copyable */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
+                <span className="text-gray-400 font-mono text-sm break-all">{walletAddress}</span>
+                <button
+                  type="button"
+                  onClick={copyAddress}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-[#00F0FF] transition"
+                  title="Copy address"
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Display name & Bio */}
+              <div className="space-y-4 max-w-xl">
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                  <div className="flex-1 flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2">
+                    <User className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Display name"
+                      value={localDisplayName}
+                      onChange={(e) => setLocalDisplayName(e.target.value)}
+                      onBlur={saveDisplayName}
+                      className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveDisplayName}
+                    className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-sm font-medium hover:bg-cyan-500/30 transition"
+                  >
+                    Save name
+                  </button>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-start">
+                  <div className="flex-1 flex gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 min-h-[80px]">
+                    <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                    <textarea
+                      placeholder="Short bio (e.g. Monopoly enthusiast)"
+                      value={localBio}
+                      onChange={(e) => setLocalBio(e.target.value)}
+                      onBlur={saveBio}
+                      rows={2}
+                      className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm resize-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveBio}
+                    className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-sm font-medium hover:bg-cyan-500/30 transition shrink-0"
+                  >
+                    Save bio
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Balances */}
-            <div className="flex gap-4">
-              <div className="text-center">
-                <p className="text-gray-500 text-xs">TYC</p>
-                <p className="text-xl font-bold">
+            {/* Balances - right column on desktop */}
+            <div className="flex sm:flex-row lg:flex-col gap-6 shrink-0">
+              <div className="text-center min-w-[80px]">
+                <p className="text-gray-500 text-xs uppercase tracking-wider">TYC</p>
+                <p className="text-xl font-bold text-[#00F0FF]">
                   {tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)}
                 </p>
               </div>
-              <div className="text-center">
-                <p className="text-gray-500 text-xs">USDC</p>
-                <p className="text-xl font-bold">
+              <div className="text-center min-w-[80px]">
+                <p className="text-gray-500 text-xs uppercase tracking-wider">USDC</p>
+                <p className="text-xl font-bold text-[#00F0FF]">
                   {usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)}
                 </p>
               </div>
-              <div className="text-center">
-                <p className="text-gray-500 text-xs">ETH</p>
-                <p className="text-xl font-bold">{ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'}</p>
+              <div className="text-center min-w-[80px]">
+                <p className="text-gray-500 text-xs uppercase tracking-wider">ETH</p>
+                <p className="text-xl font-bold text-[#00F0FF]">
+                  {ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Compact Stats Badges */}
-          <div className="flex flex-wrap gap-4 mt-6 justify-center sm:justify-start">
-            <div className="bg-white/5 rounded-xl px-4 py-2 border border-white/10">
-              <p className="text-xs text-gray-400">Games</p>
-              <p className="font-bold">{userData.gamesPlayed}</p>
+          {/* Stats row */}
+          <div className="flex flex-wrap gap-4 mt-8 pt-6 border-t border-cyan-900/30 justify-center sm:justify-start">
+            <div className="bg-white/5 rounded-xl px-5 py-3 border border-white/10 flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-cyan-400" />
+              <div>
+                <p className="text-xs text-gray-400">Games played</p>
+                <p className="font-bold text-lg">{userData.gamesPlayed}</p>
+              </div>
             </div>
-            <div className="bg-white/5 rounded-xl px-4 py-2 border border-white/10">
-              <p className="text-xs text-gray-400">Wins</p>
-              <p className="font-bold text-green-400">{userData.wins} ({userData.winRate})</p>
+            <div className="bg-white/5 rounded-xl px-5 py-3 border border-white/10 flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-400" />
+              <div>
+                <p className="text-xs text-gray-400">Wins</p>
+                <p className="font-bold text-lg text-green-400">{userData.wins} <span className="text-sm font-normal text-gray-400">({userData.winRate})</span></p>
+              </div>
             </div>
-            <div className="bg-white/5 rounded-xl px-4 py-2 border border-white/10">
-              <p className="text-xs text-gray-400">Earned</p>
-              <p className="font-bold text-emerald-400">{userData.totalEarned} BLOCK</p>
+            <div className="bg-white/5 rounded-xl px-5 py-3 border border-white/10 flex items-center gap-2">
+              <Coins className="w-5 h-5 text-emerald-400" />
+              <div>
+                <p className="text-xs text-gray-400">Total earned</p>
+                <p className="font-bold text-lg text-emerald-400">{userData.totalEarned} BLOCK</p>
+              </div>
             </div>
           </div>
         </div>

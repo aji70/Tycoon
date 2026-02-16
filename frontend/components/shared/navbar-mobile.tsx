@@ -16,6 +16,7 @@ import WalletConnectModal from './wallet-connect-modal';
 import WalletDisconnectModal from './wallet-disconnect-modal';
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
+import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
 
 const SCROLL_TOP_THRESHOLD = 40;
@@ -78,7 +79,8 @@ const safeAddress = address && isAddress(address)
   : undefined;
 
 const { data: fetchedUsername } = useGetUsername(safeAddress);
-  
+  const profileAvatar = useProfileAvatar();
+
   // MiniPay detection + auto-connect attempt
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
@@ -174,8 +176,12 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 {isConnected && (
                   <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full border-3 border-[#0FF0FC] overflow-hidden shadow-lg">
-                        <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover" />
+                      <div className="h-12 w-12 rounded-full border-2 border-[#0FF0FC] overflow-hidden shadow-lg shrink-0">
+                        {profileAvatar ? (
+                          <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover w-full h-full" />
+                        )}
                       </div>
                       <span className="text-[#00F0FF] font-orbitron text-lg">
                         {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}

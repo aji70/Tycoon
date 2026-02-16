@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { 
   BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, 
-  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft 
+  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, Copy, Check, User, FileText 
 } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
@@ -12,6 +12,7 @@ import { useAccount, useBalance, useReadContract, useReadContracts, useWriteCont
 import { formatUnits, type Address, type Abi } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useProfile } from '@/context/ProfileContext';
 
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -22,6 +23,9 @@ const COLLECTIBLE_ID_START = 2_000_000_000;
 
 const isVoucherToken = (tokenId: bigint): boolean =>
   tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
+
+const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
+const MAX_AVATAR_DIM = 512;
 
 const getPerkMetadata = (perk: number) => {
   const data = [
@@ -42,6 +46,7 @@ const getPerkMetadata = (perk: number) => {
 
 export default function ProfilePageMobile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +54,10 @@ export default function ProfilePageMobile() {
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
+  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -223,6 +232,70 @@ export default function ProfilePageMobile() {
     }
   }, [txSuccess, txHash, reset, tycBalance]);
 
+  useEffect(() => {
+    setLocalDisplayName(profile?.displayName ?? '');
+    setLocalBio(profile?.bio ?? '');
+  }, [profile?.displayName, profile?.bio]);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file (PNG, JPG, etc.)');
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      toast.error('Image must be under 1MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_AVATAR_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setAvatar(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        setAvatar(canvas.toDataURL('image/jpeg', 0.85));
+        toast.success('Profile photo updated!');
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const copyAddress = () => {
+    if (!walletAddress) return;
+    navigator.clipboard.writeText(walletAddress);
+    setCopied(true);
+    toast.success('Address copied');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const saveDisplayName = () => {
+    const trimmed = localDisplayName.trim() || null;
+    setDisplayName(trimmed);
+    setProfile({ displayName: trimmed });
+    toast.success('Display name saved');
+  };
+
+  const saveBio = () => {
+    const trimmed = localBio.trim() || null;
+    setBio(trimmed);
+    setProfile({ bio: trimmed });
+    toast.success('Bio saved');
+  };
+
   if (!isConnected || loading || error || !userData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
@@ -258,28 +331,88 @@ export default function ProfilePageMobile() {
       </header>
 
       <main className="px-4 pt-6 max-w-xl mx-auto space-y-8">
-        {/* Player Card */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
+
+        {/* Profile Card */}
         <div className="bg-[#0E1415]/70 backdrop-blur-md rounded-2xl p-6 border border-[#003B3E]/60">
           <div className="flex flex-col items-center text-center gap-4">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-[#00F0FF]/50 ring-offset-4 ring-offset-transparent">
-                <Image src={avatar} alt="Avatar" fill className="object-cover" />
-              </div>
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="relative w-24 h-24 rounded-full overflow-hidden ring-4 ring-[#00F0FF]/50 ring-offset-4 ring-offset-transparent block"
+              >
+                {profile?.avatar ? (
+                  <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <Image src={avatar} alt="Avatar" width={96} height={96} className="w-full h-full object-cover" />
+                )}
+                <span className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                  <Camera className="w-8 h-8 text-white" />
+                </span>
+              </button>
               <div className="absolute -bottom-2 -right-2 bg-gradient-to-br from-yellow-400 to-amber-500 p-2 rounded-xl border-2 border-black/30">
                 <Crown className="w-6 h-6 text-black" />
               </div>
             </div>
 
             <div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent">
-                {userData.username}
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent">
+                {profile?.displayName || userData.username}
               </h2>
-              <p className="text-gray-400 font-mono text-sm mt-1 break-all">{userData.address}</p>
+              {profile?.displayName && (
+                <p className="text-gray-500 font-mono text-xs mt-0.5">@{userData.username}</p>
+              )}
+            </div>
+
+            {/* Copy address */}
+            <button
+              type="button"
+              onClick={copyAddress}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-sm"
+            >
+              <span className="font-mono truncate max-w-[180px]">{walletAddress}</span>
+              {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+
+            {/* Display name */}
+            <div className="w-full flex flex-col gap-2">
+              <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2">
+                <User className="w-4 h-4 text-cyan-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Display name"
+                  value={localDisplayName}
+                  onChange={(e) => setLocalDisplayName(e.target.value)}
+                  onBlur={saveDisplayName}
+                  className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm text-center"
+                />
+              </div>
+              <div className="flex flex-col gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="text-xs text-gray-400">Bio</span>
+                </div>
+                <textarea
+                  placeholder="Short bio"
+                  value={localBio}
+                  onChange={(e) => setLocalBio(e.target.value)}
+                  onBlur={saveBio}
+                  rows={2}
+                  className="w-full bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm resize-none"
+                />
+              </div>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-8">
+          <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-[#003B3E]/60">
             <div className="text-center">
               <p className="text-xs text-gray-400">Games</p>
               <p className="text-xl font-bold">{userData.gamesPlayed}</p>
