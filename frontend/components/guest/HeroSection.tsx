@@ -23,6 +23,7 @@ const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
 
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
@@ -142,8 +143,6 @@ const HeroSection: React.FC = () => {
       isActive = false;
     };
   }, [address]);
-
-  const guestUser = guestAuth?.guestUser ?? null;
 
   const registrationStatus = useMemo(() => {
     if (address) {
