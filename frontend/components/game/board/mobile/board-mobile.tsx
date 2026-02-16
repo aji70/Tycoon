@@ -149,6 +149,7 @@ const MobileGameLayout = ({
   const [isRaisingFunds, setIsRaisingFunds] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [gameTimeUp, setGameTimeUp] = useState(false);
   const [endGameCandidate, setEndGameCandidate] = useState<{ winner: Player | null; position: number; balance: bigint }>({
     winner: null,
@@ -570,6 +571,48 @@ const MobileGameLayout = ({
         )}
       </AnimatePresence>
 
+      {/* End game by net worth — are you sure */}
+      <AnimatePresence>
+        {showEndByNetWorthConfirm && voteEndByNetWorth && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowEndByNetWorthConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-900/30 p-6 max-w-sm w-full"
+            >
+              <p className="text-lg font-semibold text-cyan-100 mb-1">End game by net worth?</p>
+              <p className="text-sm text-cyan-200/80 mb-6">The game will end and the player with the highest net worth will win.</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowEndByNetWorthConfirm(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-cyan-200 hover:text-cyan-100 border border-cyan-500/40 hover:bg-cyan-500/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    voteEndByNetWorth();
+                    setShowEndByNetWorthConfirm(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-cyan-600/90 text-white hover:bg-cyan-500 border border-cyan-400/50 transition-colors"
+                >
+                  Yes, vote to end
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <button
         onClick={fetchUpdatedGame}
         className="fixed top-4 right-4 z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded-full hover:bg-blue-600 transition"
@@ -670,24 +713,26 @@ const MobileGameLayout = ({
                 )}
                 {/* Untimed: vote to end game by net worth */}
                 {isUntimed && endByNetWorthStatus != null && voteEndByNetWorth && (
-                  <div className="flex flex-col items-center gap-1 w-full max-w-[260px]">
-                    <span className="text-cyan-200/90 text-xs">End by net worth (resets when anyone rolls)</span>
+                  <div className="flex flex-col items-center w-full max-w-[260px]">
                     <button
-                      onClick={voteEndByNetWorth}
+                      onClick={() => {
+                        if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+                        if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+                      }}
                       disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-                      className={`text-xs font-medium rounded-lg px-3 py-1.5 border shrink-0 ${
+                      className={`text-sm font-medium rounded-xl px-4 py-2 border shrink-0 transition-all duration-200 ${
                         endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
-                          ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50"
+                          ? "bg-emerald-900/50 text-emerald-200/90 border-emerald-500/40"
                           : endByNetWorthLoading
-                          ? "bg-amber-900/60 text-amber-200 border-amber-500/50"
-                          : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80"
+                          ? "bg-amber-900/50 text-amber-200 border-amber-500/40"
+                          : "bg-slate-800/80 text-cyan-100 border-cyan-500/50 hover:bg-slate-700/90 hover:border-cyan-400/60"
                       }`}
                     >
                       {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
-                        ? `✓ Voted (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`
+                        ? `✓ Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`
                         : endByNetWorthLoading
                         ? "..."
-                        : `End by net worth (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`}
+                        : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
                     </button>
                   </div>
                 )}
