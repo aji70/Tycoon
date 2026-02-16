@@ -712,7 +712,7 @@ const MobileGameLayout = ({
                   </div>
                 )}
                 {/* Untimed: vote to end game by net worth */}
-                {isUntimed && endByNetWorthStatus != null && voteEndByNetWorth && (
+                {isUntimed && endByNetWorthStatus != null && (
                   <div className="flex flex-col items-center w-full max-w-[260px]">
                     <button
                       onClick={() => {
