@@ -1209,6 +1209,95 @@ export const createAIAsGuest = async (req, res) => {
   }
 };
 
+/**
+ * POST /games/:id/add-ai-players
+ * Body: { ai_count: number }
+ * Adds AI players directly to an existing game (for wallet-created AI games).
+ */
+export const addAIPlayers = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ai_count } = req.body;
+
+    if (!ai_count || ai_count < 1) {
+      return res.status(400).json({ success: false, message: "ai_count must be at least 1" });
+    }
+
+    const game = await Game.findById(id);
+    if (!game) {
+      return res.status(404).json({ success: false, message: "Game not found" });
+    }
+
+    if (!game.is_ai) {
+      return res.status(400).json({ success: false, message: "This endpoint is only for AI games" });
+    }
+
+    if (game.status !== "PENDING") {
+      return res.status(400).json({ success: false, message: "Can only add AI players to pending games" });
+    }
+
+    const existingPlayers = await GamePlayer.findByGameId(game.id);
+    const humanSymbol = existingPlayers.find(p => {
+      const aiAddresses = AI_ADDRESSES.map(a => a.toLowerCase());
+      return !aiAddresses.includes(String(p.address || "").toLowerCase());
+    })?.symbol?.toLowerCase() || "hat";
+
+    const availableSymbols = AI_SYMBOLS.filter((s) => s !== humanSymbol);
+    const settings = await GameSetting.findByGameId(game.id);
+    const startingCash = settings?.starting_cash ?? 1500;
+
+    const addedPlayers = [];
+    for (let i = 0; i < ai_count; i++) {
+      const aiUser = await getOrCreateAIUser(i);
+      if (!aiUser) {
+        logger.warn({ aiIndex: i }, "Failed to get or create AI user");
+        continue;
+      }
+
+      // Check if this AI is already in the game
+      const alreadyInGame = existingPlayers.some(p => p.user_id === aiUser.id);
+      if (alreadyInGame) {
+        logger.info({ aiIndex: i, address: aiUser.address }, "AI player already in game");
+        continue;
+      }
+
+      const aiSymbol = availableSymbols[i % availableSymbols.length] || AI_SYMBOLS[i % AI_SYMBOLS.length];
+      const turnOrder = existingPlayers.length + addedPlayers.length + 1;
+
+      const aiPlayer = await GamePlayer.create({
+        game_id: game.id,
+        user_id: aiUser.id,
+        address: aiUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: turnOrder,
+        symbol: aiSymbol,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+
+      addedPlayers.push(aiPlayer);
+    }
+
+    const updatedPlayers = await GamePlayer.findByGameId(game.id);
+    const io = req.app.get("io");
+    await invalidateGameByCode(game.code);
+    if (io) {
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("ai-players-added", { players: updatedPlayers, game });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Added ${addedPlayers.length} AI player(s)`,
+      data: { players: updatedPlayers, added: addedPlayers.length },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "addAIPlayers failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to add AI players" });
+  }
+};
+
 export const leave = async (req, res) => {
   try {
     const { address, code } = req.body;

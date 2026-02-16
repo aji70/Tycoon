@@ -6,6 +6,7 @@ import gameController, {
   createAsGuest,
   joinAsGuest,
   createAIAsGuest,
+  addAIPlayers,
 } from "../controllers/gameController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -37,5 +38,6 @@ router.post("/leave", leave);
 router.post("/create-as-guest", requireAuth, createAsGuest);
 router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
 router.post("/join-as-guest", requireAuth, joinAsGuest);
+router.post("/:id/add-ai-players", addAIPlayers);
 
 export default router;
