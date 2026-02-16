@@ -120,6 +120,51 @@ export default function GameWaiting(): JSX.Element {
             <p className="text-center text-[#00F0FF] font-orbitron font-bold text-sm mb-4">Code: {gameCode}</p>
           )}
 
+          {/* Game details card */}
+          <div className="mb-6 p-4 rounded-xl bg-[#010F10]/70 border border-[#00F0FF]/30 space-y-3">
+            <h3 className="text-sm font-orbitron font-bold text-[#00F0FF] tracking-widest uppercase">Game details</h3>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <span className="text-[#869298]">Mode</span>
+              <span className="text-[#F0F7F7] font-semibold">{game.mode ?? "PRIVATE"}</span>
+              <span className="text-[#869298]">Players</span>
+              <span className="text-[#F0F7F7] font-semibold">{game.number_of_players} max</span>
+              <span className="text-[#869298]">Starting cash</span>
+              <span className="text-[#F0F7F7] font-semibold">${(game.settings as any)?.starting_cash ?? 1500}</span>
+              {(game as any)?.duration != null && Number((game as any).duration) > 0 && (
+                <>
+                  <span className="text-[#869298]">Duration</span>
+                  <span className="text-[#F0F7F7] font-semibold">{(game as any).duration} min</span>
+                </>
+              )}
+            </div>
+            <div className="pt-2 border-t border-[#00F0FF]/20">
+              <p className="text-[#869298] text-xs font-orbitron mb-1.5">House rules</p>
+              <div className="flex flex-wrap gap-2">
+                {(game.settings as any)?.auction && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] text-xs">Auction</span>
+                )}
+                {(game.settings as any)?.mortgage && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] text-xs">Mortgage</span>
+                )}
+                {(game.settings as any)?.even_build && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] text-xs">Even build</span>
+                )}
+                {(game.settings as any)?.randomize_play_order && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] text-xs">Random order</span>
+                )}
+                {(game.settings as any)?.rent_in_prison && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-xs">Rent in jail</span>
+                )}
+              </div>
+            </div>
+            {(game as any)?.is_ai && (
+              <p className="text-cyan-400/90 text-xs font-semibold flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                AI game
+              </p>
+            )}
+          </div>
+
           {/* Non-creator: show Join first so they prioritise picking symbol + joining */}
           {!isCreator && game.players.length < game.number_of_players && !isJoined && (
             <div className="mb-6 space-y-5">
