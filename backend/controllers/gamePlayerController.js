@@ -180,8 +180,10 @@ const payRent = async (
       if (!card) return;
 
       chanceCard = card;
-      // const extra = card.extra ? JSON.parse(card.extra) : {};
-      const extra = card.extra;
+      const extra =
+        typeof card.extra === "string"
+          ? JSON.parse(card.extra || "{}")
+          : card.extra || {};
       const cardType = card.type.trim().toLowerCase();
       const players_count = await getPlayersCount();
 
@@ -221,8 +223,8 @@ const payRent = async (
         },
       };
 
-      rent = rentConfig[cardType] || {};
-      if ("position" in rent) position = rent.position;
+      rent = { player: 0, owner: 0, players: 0, ...(rentConfig[cardType] || {}) };
+      if (rent.position !== undefined) position = rent.position;
 
       if (extra?.rule) {
         const rule = extra.rule;
@@ -246,10 +248,11 @@ const payRent = async (
             position: 10,
             updated_at: now,
           });
-          rent =
-            old_position > new_position
-              ? { player: -200, owner: 0, players: 0 }
-              : { player: 0, owner: 0, players: 0 };
+          rent = {
+            player: old_position > new_position ? -200 : 0,
+            owner: 0,
+            players: 0,
+          };
         } else if (rule === "per_player") {
           rent = {
             player: -card.amount * players_count,
@@ -257,6 +260,37 @@ const payRent = async (
             players: card.amount,
           };
         }
+      }
+
+      // "Pay each player" (e.g. Chairman of the Board): debit + per_player
+      if (extra.per_player === true && cardType === "debit") {
+        rent = {
+          player: -card.amount * players_count,
+          owner: 0,
+          players: card.amount,
+        };
+      }
+      // "Collect from every player" (e.g. Grand Opera Night, Birthday): credit + per_player
+      if (extra.per_player === true && cardType === "credit") {
+        rent = {
+          player: card.amount * players_count,
+          owner: 0,
+          players: -card.amount,
+        };
+      }
+
+      // If you pass Go on a move (wrap from high to low), collect $200 (not when sent to jail)
+      if (
+        position !== new_position &&
+        position < new_position &&
+        position !== 10
+      ) {
+        const goBonus = 200;
+        rent = {
+          player: Number(rent?.player ?? 0) + goBonus,
+          owner: rent?.owner ?? 0,
+          players: rent?.players ?? 0,
+        };
       }
 
       comment = `drew ${typeName}: ${card.instruction}`;
@@ -365,57 +399,59 @@ const payRent = async (
       }
     }
 
-    // Process transactions
+    // Process transactions (ensure numeric amounts to avoid DB errors / rollbacks)
+    const playerAmount = Number(rent?.player ?? 0);
+    const ownerAmount = Number(rent?.owner ?? 0);
+    const playersAmount = Number(rent?.players ?? 0);
+
     if (rent) {
       const updates = [];
       const historyInserts = [];
 
-      if (rent.player !== 0) {
+      if (playerAmount !== 0 && Number.isFinite(playerAmount)) {
         updates.push(
           trx("game_players")
             .where({ id: game_player.id })
-            .increment("balance", rent.player)
+            .increment("balance", playerAmount)
         );
         historyInserts.push(
           createHistory(
             game_player.id,
-            rent.player,
-            `${rent.player > 0 ? "received" : "paid"} ${Number(rent.player)}`
+            playerAmount,
+            `${playerAmount > 0 ? "received" : "paid"} ${playerAmount}`
           )
         );
       }
 
-      if (rent.owner !== 0 && game_property && game_property?.player_id) {
+      if (ownerAmount !== 0 && Number.isFinite(ownerAmount) && game_property?.player_id) {
         updates.push(
           trx("game_players")
             .where({ id: game_property.player_id })
-            .increment("balance", rent.owner)
+            .increment("balance", ownerAmount)
         );
         historyInserts.push(
           createHistory(
             game_property.player_id,
-            rent.owner,
+            ownerAmount,
             `${_owner ? _owner?.username : "Owner"} ${
-              rent.owner > 0 ? "received" : "paid"
-            } ${Number(rent.owner)}`
+              ownerAmount > 0 ? "received" : "paid"
+            } ${ownerAmount}`
           )
         );
       }
 
-      if (rent.players !== 0) {
+      if (playersAmount !== 0 && Number.isFinite(playersAmount)) {
         updates.push(
           trx("game_players")
             .where("game_id", game_id)
             .where("id", "!=", game_player.id)
-            .increment("balance", rent.players)
+            .increment("balance", playersAmount)
         );
         historyInserts.push(
           createHistory(
             game_player.id,
-            rent.players * (await getPlayersCount()),
-            `Other players ${rent.players > 0 ? "received" : "paid"} ${Number(
-              rent.players
-            )} each`
+            playersAmount * (await getPlayersCount()),
+            `Other players ${playersAmount > 0 ? "received" : "paid"} ${playersAmount} each`
           )
         );
       }
@@ -436,8 +472,7 @@ const payRent = async (
       }
 
       if (
-        (rent.owner !== 0 || rent.player !== 0) &&
-        game_property &&
+        (ownerAmount !== 0 || playerAmount !== 0) &&
         game_property?.player_id
       ) {
         updates.push(
@@ -447,8 +482,8 @@ const payRent = async (
             to_player_id: game_property.player_id,
             type: "CASH",
             status: "ACCEPTED",
-            sending_amount: Number(rent.player),
-            receiving_amount: Number(rent.owner),
+            sending_amount: Math.abs(playerAmount),
+            receiving_amount: ownerAmount,
             created_at: now,
             updated_at: now,
           })
