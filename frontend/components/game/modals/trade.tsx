@@ -94,7 +94,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-[100px] bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -103,7 +103,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden"
+        className="w-full max-w-2xl max-h-[calc(100vh-140px)] flex flex-col rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden mb-[80px]"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/80 bg-slate-800/50 flex-shrink-0">
