@@ -320,126 +320,135 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] text-[#F0F7F7]">
+    <div className="min-h-screen text-[#F0F7F7] profile-page">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
-      <header className="sticky top-0 z-20 border-b border-cyan-900/30 bg-[#010F10]/80 backdrop-blur-xl">
-        <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between max-w-6xl">
-          <Link href="/" className="text-[#00F0FF] font-medium hover:text-cyan-300 transition flex items-center gap-1">
-            ← Back
+      {/* Ambient background */}
+      <div className="fixed inset-0 -z-10 bg-[#030c0d]" />
+      <div className="fixed inset-0 -z-10 bg-gradient-to-b from-cyan-950/25 via-transparent to-transparent" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(0,240,255,0.08),transparent_50%)]" />
+
+      <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
+        <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between max-w-5xl">
+          <Link href="/" className="flex items-center gap-2 text-cyan-300/90 hover:text-cyan-200 transition text-sm font-medium">
+            <span className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">←</span>
+            Back
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-400 bg-clip-text text-transparent">
-            Profile
-          </h1>
-          <div className="w-14 sm:w-16" />
+          <h1 className="text-lg font-semibold text-white/90 tracking-tight">My Profile</h1>
+          <div className="w-20" />
         </div>
       </header>
 
-      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-10 max-w-6xl">
-        {/* ─── Hero: Avatar + Identity + Balances ─── */}
-        <section className="glass-card rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-cyan-500/20 mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
-            <div className="relative group shrink-0">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden ring-4 ring-[#00F0FF]/60 ring-offset-4 ring-offset-[#0A1C1E] focus:outline-none focus:ring-2 focus:ring-cyan-400 block"
-              >
-                {profile?.avatar ? (
-                  <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="absolute inset-0 [&>img]:object-cover">
-                    <Image src={avatar} alt="Avatar" width={112} height={112} className="w-full h-full object-cover" />
-                  </span>
-                )}
-                <span className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                  <Camera className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-                </span>
-              </button>
-              <div className="absolute -bottom-1 -right-1 bg-gradient-to-br from-yellow-400 to-amber-500 p-1.5 sm:p-2 rounded-lg shadow-lg">
-                <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
-              </div>
-            </div>
-
-            <div className="flex-1 w-full text-center sm:text-left min-w-0">
-              <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-[#00F0FF] to-cyan-300 bg-clip-text text-transparent truncate">
-                {userData.username}
-              </h2>
-              {displayName && (
-                <p className="text-gray-500 text-sm mt-0.5">Nickname: {displayName}</p>
-              )}
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
-                <span className="text-gray-400 font-mono text-xs sm:text-sm truncate max-w-full">{walletAddress}</span>
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-5xl">
+        {/* Hero card — focal point */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="relative rounded-3xl overflow-hidden mb-8 sm:mb-10 profile-hero"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-teal-500/10" />
+          <div className="absolute inset-0 border border-cyan-500/20 rounded-3xl" />
+          <div className="relative p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
+              <div className="relative group shrink-0">
                 <button
                   type="button"
-                  onClick={copyAddress}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-[#00F0FF] transition shrink-0"
-                  title="Copy address"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#030c0d] block"
                 >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {profile?.avatar ? (
+                    <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="absolute inset-0 [&>img]:object-cover">
+                      <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
+                    </span>
+                  )}
+                  <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="w-12 h-12 rounded-full bg-cyan-500/30 flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-white" />
+                    </span>
+                  </span>
                 </button>
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#030c0d]">
+                  <Crown className="w-5 h-5 text-black" />
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-row sm:flex-col gap-4 sm:gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-              <div className="flex-1 sm:flex-none text-center py-3 px-4 rounded-xl bg-white/5 border border-white/10 min-w-0">
-                <p className="text-gray-500 text-xs uppercase tracking-wider">TYC</p>
-                <p className="text-lg font-bold text-[#00F0FF] truncate">
-                  {tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)}
-                </p>
+              <div className="flex-1 w-full text-center sm:text-left min-w-0">
+                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">
+                  {userData.username}
+                </h2>
+                {displayName && (
+                  <p className="text-cyan-300/80 text-sm mt-1">"{displayName}"</p>
+                )}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+                  <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{walletAddress}</span>
+                  <button
+                    type="button"
+                    onClick={copyAddress}
+                    className="p-2 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 transition shrink-0"
+                    title="Copy address"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="flex-1 sm:flex-none text-center py-3 px-4 rounded-xl bg-white/5 border border-white/10 min-w-0">
-                <p className="text-gray-500 text-xs uppercase tracking-wider">USDC</p>
-                <p className="text-lg font-bold text-[#00F0FF] truncate">
-                  {usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)}
-                </p>
-              </div>
-              <div className="flex-1 sm:flex-none text-center py-3 px-4 rounded-xl bg-white/5 border border-white/10 min-w-0">
-                <p className="text-gray-500 text-xs uppercase tracking-wider">ETH</p>
-                <p className="text-lg font-bold text-[#00F0FF] truncate">
-                  {ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
 
-        {/* ─── Stats row ─── */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <div className="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-white/10 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center shrink-0">
-              <BarChart2 className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400">Games</p>
-              <p className="font-bold text-lg truncate">{userData.gamesPlayed}</p>
-            </div>
-          </div>
-          <div className="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-white/10 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-              <Crown className="w-5 h-5 text-amber-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400">Wins</p>
-              <p className="font-bold text-lg text-green-400 truncate">{userData.wins} <span className="text-gray-400 font-normal text-sm">({userData.winRate})</span></p>
+              <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                {[
+                  { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
+                  { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
+                  { label: 'ETH', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                    <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="glass-card rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-white/10 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
-              <Coins className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400">Earned</p>
-              <p className="font-bold text-lg text-emerald-400 truncate">{userData.totalEarned} BLOCK</p>
-            </div>
-          </div>
+        </motion.section>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+          {[
+            { icon: BarChart2, label: 'Games', value: userData.gamesPlayed, accent: 'cyan' },
+            { icon: Crown, label: 'Wins', value: `${userData.wins} (${userData.winRate})`, accent: 'amber', valueClass: 'text-amber-300' },
+            { icon: Coins, label: 'Earned', value: `${userData.totalEarned} BLOCK`, accent: 'emerald', valueClass: 'text-emerald-300' },
+          ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`profile-stat stat-${accent} rounded-2xl p-4 sm:p-5 flex items-center gap-4`}
+            >
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                <Icon className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                <p className={`font-bold text-lg truncate ${valueClass}`}>{value}</p>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
-        {/* ─── About (Nickname + Bio) ─── */}
-        <section className="glass-card rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-cyan-500/10 mb-6 sm:mb-8">
-          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">About</h3>
+        {/* About */}
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.05 }}
+          className="profile-card rounded-2xl p-5 sm:p-6 mb-8"
+        >
+          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="w-1 h-4 rounded-full bg-cyan-500" />
+            About you
+          </h3>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+            <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
               <User className="w-4 h-4 text-cyan-400 shrink-0" />
               <input
                 type="text"
@@ -447,11 +456,11 @@ export default function Profile() {
                 value={localDisplayName}
                 onChange={(e) => setLocalDisplayName(e.target.value)}
                 onBlur={saveDisplayName}
-                className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm min-w-0"
+                className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
               />
               <button type="button" onClick={saveDisplayName} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0">Save</button>
             </div>
-            <div className="sm:col-span-2 flex gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+            <div className="sm:col-span-2 flex gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
               <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
               <textarea
                 placeholder="Short bio (optional)"
@@ -459,53 +468,58 @@ export default function Profile() {
                 onChange={(e) => setLocalBio(e.target.value)}
                 onBlur={saveBio}
                 rows={2}
-                className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm resize-none min-w-0"
+                className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none min-w-0"
               />
               <button type="button" onClick={saveBio} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0 self-end">Save</button>
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        {/* ─── My Perks ─── */}
-        <section className="mb-8 sm:mb-10">
-          <h3 className="text-lg sm:text-xl font-bold mb-4 flex items-center gap-2">
-            <ShoppingBag className="w-6 h-6 sm:w-7 sm:h-7 text-[#00F0FF]" />
-            My Perks <span className="text-gray-400 font-normal">({ownedCollectibles.length})</span>
+        {/* Perks */}
+        <section className="mb-10">
+          <h3 className="text-sm font-semibold text-white/80 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="w-1 h-4 rounded-full bg-purple-500" />
+            My Perks <span className="text-white/40 font-normal normal-case">({ownedCollectibles.length})</span>
           </h3>
 
           {ownedCollectibles.length > 0 && (
-            <div className="glass-card rounded-xl p-4 sm:p-5 mb-6 border border-purple-500/20 max-w-xl">
-              <label className="text-xs text-gray-400 mb-2 block">Transfer to address</label>
+            <div className="profile-card rounded-xl p-4 mb-6 max-w-xl border border-purple-500/20">
+              <label className="text-xs text-white/50 mb-2 block">Transfer to address</label>
               <input
                 type="text"
                 placeholder="0x0000...0000"
                 value={sendAddress}
                 onChange={(e) => setSendAddress(e.target.value.trim())}
-                className="w-full px-4 py-2.5 bg-black/40 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                className="w-full px-4 py-3 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm border border-white/10"
               />
             </div>
           )}
 
           {ownedCollectibles.length === 0 ? (
-            <div className="glass-card rounded-2xl py-12 sm:py-16 text-center border border-[#003B3E]/50">
-              <ShoppingBag className="w-16 h-16 sm:w-20 sm:h-20 text-gray-600 mx-auto mb-4 opacity-40" />
-              <p className="text-gray-400">No perks yet — visit the shop to collect.</p>
+            <div className="profile-card rounded-2xl py-14 text-center border border-white/5">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
+                <ShoppingBag className="w-8 h-8 text-purple-400/60" />
+              </div>
+              <p className="text-slate-400 text-sm">No perks yet — visit the shop to collect.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
-              {ownedCollectibles.map((item) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {ownedCollectibles.map((item, i) => (
                 <motion.div
                   key={item.tokenId.toString()}
-                  whileHover={{ scale: 1.03, y: -4 }}
-                  className="glass-card rounded-2xl p-5 sm:p-6 text-center border border-[#003B3E] hover:border-[#00F0FF]/50 transition-all duration-300"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  whileHover={{ y: -4 }}
+                  className="profile-card rounded-2xl p-5 text-center border border-white/10 hover:border-purple-500/30 transition-all duration-300 hover:shadow-[0_0_30px_rgba(168,85,247,0.1)]"
                 >
                   {item.icon}
-                  <h4 className="mt-3 font-bold text-base">{item.name}</h4>
-                  {item.isTiered && item.strength > 0 && <p className="text-cyan-300 text-xs mt-1">Tier {item.strength}</p>}
+                  <h4 className="mt-3 font-semibold text-white text-sm">{item.name}</h4>
+                  {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-1">Tier {item.strength}</p>}
                   <button
                     onClick={() => handleSend(item.tokenId)}
                     disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
-                    className="mt-4 w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                    className="mt-4 w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-white"
                   >
                     <Send className="w-3.5 h-3.5" />
                     {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
@@ -516,20 +530,22 @@ export default function Profile() {
           )}
         </section>
 
-        {/* ─── Vouchers ─── */}
+        {/* Vouchers */}
         <section>
           <button
             onClick={() => setShowVouchers(!showVouchers)}
-            className="w-full glass-card rounded-2xl p-5 sm:p-6 border border-amber-600/30 flex items-center justify-between hover:border-amber-500/50 transition-all text-left"
+            className="w-full profile-card rounded-2xl p-5 sm:p-6 border border-amber-500/20 hover:border-amber-500/40 flex items-center justify-between transition-all text-left"
           >
             <div className="flex items-center gap-4">
-              <Ticket className="w-8 h-8 sm:w-9 sm:h-9 text-amber-400 shrink-0" />
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Ticket className="w-6 h-6 text-amber-400" />
+              </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-bold text-amber-300">Reward Vouchers</h3>
-                <p className="text-gray-400 text-sm">{myVouchers.length} voucher{myVouchers.length !== 1 ? 's' : ''} · {showVouchers ? 'Hide' : 'View & redeem'}</p>
+                <h3 className="text-base font-semibold text-amber-200">Reward Vouchers</h3>
+                <p className="text-white/50 text-sm">{myVouchers.length} voucher{myVouchers.length !== 1 ? 's' : ''} · {showVouchers ? 'Hide' : 'View & redeem'}</p>
               </div>
             </div>
-            {showVouchers ? <ChevronUp className="w-6 h-6 text-amber-400 shrink-0" /> : <ChevronDown className="w-6 h-6 text-amber-400 shrink-0" />}
+            {showVouchers ? <ChevronUp className="w-5 h-5 text-amber-400/80 shrink-0" /> : <ChevronDown className="w-5 h-5 text-amber-400/80 shrink-0" />}
           </button>
 
           <AnimatePresence>
@@ -542,9 +558,9 @@ export default function Profile() {
                 className="overflow-hidden mt-4"
               >
                 {myVouchers.length === 0 ? (
-                  <div className="glass-card rounded-2xl py-10 text-center border border-amber-600/20">
-                    <Ticket className="w-14 h-14 text-gray-600 mx-auto mb-3 opacity-50" />
-                    <p className="text-gray-500">No vouchers yet — keep winning games!</p>
+                  <div className="profile-card rounded-2xl py-10 text-center border border-amber-500/10">
+                    <Ticket className="w-12 h-12 text-amber-400/30 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">No vouchers yet — keep winning games!</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -553,10 +569,10 @@ export default function Profile() {
                         key={voucher.tokenId.toString()}
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="glass-card rounded-2xl p-5 sm:p-6 text-center border border-amber-600/40"
+                        className="profile-card rounded-2xl p-5 text-center border border-amber-500/20"
                       >
-                        <Ticket className="w-12 h-12 sm:w-14 sm:h-14 text-amber-400 mx-auto mb-3" />
-                        <p className="text-xl sm:text-2xl font-bold text-amber-300 mb-4">{voucher.value} TYC</p>
+                        <Ticket className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                        <p className="text-xl font-bold text-amber-200 mb-4">{voucher.value} TYC</p>
                         <button
                           onClick={() => handleRedeemVoucher(voucher.tokenId)}
                           disabled={redeemingId === voucher.tokenId || isWriting || isConfirming}
@@ -576,10 +592,31 @@ export default function Profile() {
       </main>
 
       <style jsx global>{`
-        .glass-card {
-          background: rgba(14, 20, 21, 0.7);
+        .profile-page .profile-hero {
+          background: linear-gradient(135deg, rgba(6, 78, 89, 0.25) 0%, rgba(4, 47, 46, 0.2) 50%, rgba(15, 23, 42, 0.4) 100%);
+          backdrop-filter: blur(16px);
+          box-shadow: 0 4px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 240, 255, 0.1);
+        }
+        .profile-page .balance-pill {
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(8px);
+        }
+        .profile-page .balance-cyan { border-color: rgba(0, 240, 255, 0.15); box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.05); }
+        .profile-page .balance-emerald { border-color: rgba(52, 211, 153, 0.15); box-shadow: inset 0 0 20px rgba(52, 211, 153, 0.05); }
+        .profile-page .balance-slate { border-color: rgba(255, 255, 255, 0.08); }
+        .profile-page .profile-stat {
+          background: rgba(15, 23, 42, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(8px);
+        }
+        .profile-page .stat-cyan .stat-icon { background: rgba(0, 240, 255, 0.12); color: rgb(34, 211, 238); }
+        .profile-page .stat-amber .stat-icon { background: rgba(251, 191, 36, 0.12); color: rgb(251, 191, 36); }
+        .profile-page .stat-emerald .stat-icon { background: rgba(52, 211, 153, 0.12); color: rgb(52, 211, 153); }
+        .profile-page .profile-card {
+          background: rgba(15, 23, 42, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.06);
           backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
         }
       `}</style>
     </div>
