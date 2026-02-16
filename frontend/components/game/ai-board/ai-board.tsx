@@ -33,6 +33,15 @@ import { usePropertyActions } from "@/hooks/usePropertyActions";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import TradeAlertPill from "../TradeAlertPill";
 import { GameDurationCountdown } from "../GameDurationCountdown";
+
+/** Convert dice total (2–12) to die1+die2 for display when we only have the total (e.g. from API). */
+function totalToDice(total: number): { die1: number; die2: number; total: number } {
+  const t = Math.max(2, Math.min(12, Math.round(total)));
+  if (t === 2) return { die1: 1, die2: 1, total: 2 };
+  if (t === 12) return { die1: 6, die2: 6, total: 12 };
+  const die1 = Math.min(6, Math.max(1, Math.floor(t / 2)));
+  return { die1, die2: t - die1, total: t };
+}
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAIPlayer } from "@/utils/gameUtils";
@@ -1044,6 +1053,16 @@ const endTurnAfterSpecialMove = useCallback(() => {
     return map;
   }, [players, animatedPositions]);
 
+  /** Roll to show in center: local roll when set, or current player's roll from API (so we see AI/human roll). */
+  const displayRoll = useMemo((): { die1: number; die2: number; total: number } | null => {
+    if (roll) return roll;
+    const otherRolled = currentPlayer?.rolled;
+    if (otherRolled != null && Number(otherRolled) >= 2 && Number(otherRolled) <= 12) {
+      return totalToDice(Number(otherRolled));
+    }
+    return null;
+  }, [roll, currentPlayer?.rolled]);
+
   const propertyOwner = (id: number) => {
     const gp = game_properties.find((gp) => gp.property_id === id);
     return gp ? players.find((p) => p.address === gp.address)?.username || null : null;
@@ -1146,7 +1165,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
               currentPlayer={currentPlayer}
               playerCanRoll={playerCanRoll}
               isRolling={isRolling}
-              roll={roll}
+              roll={displayRoll}
               buyPrompted={buyPrompted}
               currentProperty={justLandedProperty || currentProperty}
               currentPlayerBalance={currentPlayer?.balance ?? 0}

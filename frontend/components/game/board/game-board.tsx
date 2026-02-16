@@ -35,6 +35,7 @@ const Board = ({
 
   const {
     roll,
+    displayRoll,
     isRolling,
     buyPrompted,
     animatedPositions,
@@ -228,7 +229,7 @@ const Board = ({
               gameTimeUp={gameTimeUp}
               playerCanRoll={playerCanRoll}
               isRolling={isRolling}
-              roll={roll}
+              roll={displayRoll}
               currentPlayer={currentPlayer}
               buyPrompted={buyPrompted}
               currentProperty={justLandedProperty || currentProperty}

@@ -34,7 +34,17 @@ import PropertyDetailModal from "./PropertyDetailModal";
 import PerksModal from "./PerksModal";
 import { Sparkles } from "lucide-react";
 import { GameDurationCountdown } from "../../GameDurationCountdown";
+import RollResult from "../roll-result";
 import { ApiResponse } from "@/types/api";
+
+/** Convert dice total (2–12) to die1+die2 for display when we only have the total (e.g. from API). */
+function totalToDice(total: number): { die1: number; die2: number; total: number } {
+  const t = Math.max(2, Math.min(12, Math.round(total)));
+  if (t === 2) return { die1: 1, die2: 1, total: 2 };
+  if (t === 12) return { die1: 6, die2: 6, total: 12 };
+  const die1 = Math.min(6, Math.max(1, Math.floor(t / 2)));
+  return { die1, die2: t - die1, total: t };
+}
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import {
@@ -666,6 +676,16 @@ const endTime =
     return () => clearTimeout(timer);
   }, [actionLock, isRolling, buyPrompted, roll, isRaisingFunds, showInsolvencyModal, END_TURN]);
 
+  /** Roll to show: local roll when set, or current player's roll from API (so we see AI roll). */
+  const displayRoll = useMemo((): { die1: number; die2: number; total: number } | null => {
+    if (roll) return roll;
+    const otherRolled = currentPlayer?.rolled;
+    if (otherRolled != null && Number(otherRolled) >= 2 && Number(otherRolled) <= 12) {
+      return totalToDice(Number(otherRolled));
+    }
+    return null;
+  }, [roll, currentPlayer?.rolled]);
+
   const getCurrentRent = (prop: Property, gp: GameProperty | undefined): number => {
     if (!gp || !gp.address) return prop.rent_site_only || 0;
     if (gp.mortgaged) return 0;
@@ -795,6 +815,10 @@ const endTime =
             onPropertyClick={handlePropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full">
+                {/* Roll result — show for current player (me or AI) so everyone sees what was rolled */}
+                {displayRoll && !isRolling && (
+                  <RollResult roll={displayRoll} />
+                )}
                 {/* Username is playing — on top, above time */}
                 {isAITurn && !gameTimeUp && (
                   <div className="flex flex-col items-center gap-2">
@@ -858,7 +882,7 @@ const endTime =
 
       <DiceAnimation
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
-        roll={roll}
+        roll={displayRoll ?? roll}
       />
 
       {/* Balance bar above action log — extra pb so log is fully visible above bottom nav */}
