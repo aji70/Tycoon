@@ -7,7 +7,7 @@ import MobileGamePlayers from "@/components/game/player/mobile/player";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
@@ -32,6 +32,7 @@ const SOCKET_URL =
 
 export default function GamePlayPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [gameCode, setGameCode] = useState<string>("");
 
@@ -87,6 +88,14 @@ export default function GamePlayPage() {
       socketService.leaveGameRoom(gameCode);
     };
   }, [gameCode, queryClient, refetchGame]);
+
+  // Don't allow AI game codes on multiplayer page — redirect to AI board
+  useEffect(() => {
+    if (!game || !gameCode) return;
+    if (game.is_ai === true) {
+      router.replace(`/ai-play?gameCode=${encodeURIComponent(gameCode)}`);
+    }
+  }, [game, gameCode, router]);
 
   const me = useMemo(() => {
     if (!game?.players || !myAddress) return null;
@@ -173,6 +182,15 @@ export default function GamePlayPage() {
     return (
       <div className="w-full min-h-screen flex items-center justify-center text-lg font-medium text-white">
         Loading game...
+      </div>
+    );
+  }
+
+  // AI game opened on multiplayer URL — redirect runs in useEffect; avoid rendering multiplayer UI
+  if (game && game.is_ai === true) {
+    return (
+      <div className="w-full min-h-screen flex items-center justify-center text-lg font-medium text-white">
+        Redirecting to AI game...
       </div>
     );
   }
