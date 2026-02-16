@@ -248,6 +248,14 @@ const Board = ({
               onVoteToRemove={logic.voteToRemove}
               removablePlayers={players.filter((p: Player) => p.user_id !== me?.user_id && (p.consecutive_timeouts ?? 0) >= 3)}
               onRemoveInactive={removeInactive}
+              meInJail={logic.meInJail}
+              jailChoiceRequired={logic.jailChoiceRequired}
+              canPayToLeaveJail={logic.canPayToLeaveJail}
+              hasChanceJailCard={logic.hasChanceJailCard}
+              hasCommunityChestJailCard={logic.hasCommunityChestJailCard}
+              onPayToLeaveJail={logic.payToLeaveJail}
+              onUseGetOutOfJailFree={logic.useGetOutOfJailFree}
+              onStayInJail={logic.stayInJail}
             />
 
             {properties.map((square) => {

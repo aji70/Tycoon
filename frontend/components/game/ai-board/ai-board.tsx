@@ -160,6 +160,7 @@ const AiBoard = ({
   const lastToastMessage = useRef<string | null>(null);
   const rolledForPlayerId = useRef<number | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -886,8 +887,38 @@ const endTurnAfterSpecialMove = useCallback(() => {
             }
           }
         } else {
+          // Human in jail, no doubles — backend will return still_in_jail; show Pay / Use card / Stay
+          if (!forAI) {
+            setHasMovementFinished(true);
+            try {
+              const res = await apiClient.post<{ data?: { still_in_jail?: boolean; rolled?: number } }>(
+                "/game-players/change-position",
+                {
+                  user_id: playerId,
+                  game_id: game.id,
+                  position: currentPos,
+                  rolled: value.total,
+                  is_double: false,
+                }
+              );
+              const data = (res?.data ?? res) as { still_in_jail?: boolean; rolled?: number } | undefined;
+              await fetchGameState();
+              if (data?.still_in_jail) {
+                setJailChoiceRequired(true);
+                setRoll(value);
+              } else {
+                setTimeout(END_TURN, 1000);
+              }
+            } catch (err) {
+              toast.error(getContractErrorMessage(err, "Jail roll failed"));
+              END_TURN();
+            }
+            setIsRolling(false);
+            unlockAction();
+            return;
+          }
           showToast(
-            `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no double, stay in jail)`,
+            `${player.username || "Player"} is in jail — rolled ${value.die1} + ${value.die2} = ${value.total} (no double)`,
             "default"
           );
         }
@@ -897,13 +928,34 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
       try {
         if (isInJail) landedPositionThisTurn.current = null;
-        await apiClient.post("/game-players/change-position", {
-          user_id: playerId,
-          game_id: game.id,
-          position: newPos,
-          rolled: value.total + pendingRoll,
-          is_double: rolledDouble,
-        });
+        const res = await apiClient.post<{ data?: { still_in_jail?: boolean } }>(
+          "/game-players/change-position",
+          {
+            user_id: playerId,
+            game_id: game.id,
+            position: newPos,
+            rolled: value.total + pendingRoll,
+            is_double: rolledDouble,
+          }
+        );
+        const data = (res?.data ?? res) as { still_in_jail?: boolean } | undefined;
+        if (data?.still_in_jail) {
+          if (!forAI) {
+            setJailChoiceRequired(true);
+            setRoll(value);
+            setPendingRoll(0);
+            await fetchGameState();
+            setIsRolling(false);
+            unlockAction();
+            return;
+          }
+          await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: game.id });
+          await fetchGameState();
+          setPendingRoll(0);
+          setIsRolling(false);
+          unlockAction();
+          return;
+        }
 
         setPendingRoll(0);
         landedPositionThisTurn.current = isInJail ? (rolledDouble ? newPos : null) : newPos;
@@ -928,7 +980,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   }, [
     isRolling, actionLock, lockAction, unlockAction,
     currentPlayerId, me, players, pendingRoll, game.id,
-    showToast, END_TURN
+    showToast, END_TURN, fetchGameState,
   ]);
 
   useEffect(() => {
@@ -1104,12 +1156,47 @@ const endTurnAfterSpecialMove = useCallback(() => {
         game_id: game.id,
         user_id: me.user_id,
       });
+      setJailChoiceRequired(false);
       toast.success("Paid $50. You may now roll.");
       await fetchGameState();
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
     }
   }, [me, game?.id, fetchGameState]);
+
+  const handleUseGetOutOfJailFree = useCallback(
+    async (cardType: "chance" | "community_chest") => {
+      if (!me || !game?.id) return;
+      try {
+        await apiClient.post("/game-players/use-get-out-of-jail-free", {
+          game_id: game.id,
+          user_id: me.user_id,
+          card_type: cardType,
+        });
+        setJailChoiceRequired(false);
+        toast.success("Used Get Out of Jail Free. You may now roll.");
+        await fetchGameState();
+      } catch (err) {
+        toast.error(getContractErrorMessage(err, "Use card failed"));
+      }
+    },
+    [me, game?.id, fetchGameState]
+  );
+
+  const handleStayInJail = useCallback(async () => {
+    if (!me || !game?.id) return;
+    try {
+      await apiClient.post("/game-players/stay-in-jail", { user_id: me.user_id, game_id: game.id });
+      setJailChoiceRequired(false);
+      await fetchGameState();
+      END_TURN();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+    }
+  }, [me, game?.id, fetchGameState, END_TURN]);
+
+  const hasChanceJailCard = (me?.chance_jail_card ?? 0) >= 1;
+  const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
 
   const handleRollDice = () => ROLL_DICE(false);
   const handleBuyProperty = () => BUY_PROPERTY(false);
@@ -1193,8 +1280,13 @@ const endTurnAfterSpecialMove = useCallback(() => {
               ) : null}
               gameTimeUp={gameTimeUp}
               inJail={meInJail}
+              jailChoiceRequired={jailChoiceRequired}
               canPayToLeaveJail={canPayToLeaveJail}
+              hasChanceJailCard={hasChanceJailCard}
+              hasCommunityChestJailCard={hasCommunityChestJailCard}
               onPayToLeaveJail={handlePayToLeaveJail}
+              onUseGetOutOfJailFree={handleUseGetOutOfJailFree}
+              onStayInJail={handleStayInJail}
             />
 
             {properties.map((square) => {

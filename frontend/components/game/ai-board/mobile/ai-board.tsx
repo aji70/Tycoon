@@ -113,6 +113,7 @@ const MobileGameLayout = ({
   const [cardPlayerName, setCardPlayerName] = useState("");
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
   const [gameTimeUp, setGameTimeUp] = useState(false);
   const timeUpHandledRef = useRef(false);
 
@@ -463,16 +464,30 @@ const endTime =
       if (!value || value.die1 !== value.die2) {
         setTimeout(async () => {
           try {
-            await apiClient.post("/game-players/change-position", {
-              user_id: playerId,
-              game_id: currentGame.id,
-              position: player.position,
-              rolled: value?.total ?? 0,
-              is_double: false,
-            });
+            const res = await apiClient.post<{ data?: { still_in_jail?: boolean; rolled?: number } }>(
+              "/game-players/change-position",
+              {
+                user_id: playerId,
+                game_id: currentGame.id,
+                position: player.position,
+                rolled: value?.total ?? 0,
+                is_double: false,
+              }
+            );
+            const data = (res?.data ?? res) as { still_in_jail?: boolean; rolled?: number } | undefined;
             await fetchUpdatedGame();
-            showToast("No doubles — still in jail", "error");
-            setTimeout(END_TURN, 1000);
+            if (data?.still_in_jail) {
+              if (!forAI) {
+                setRoll(value);
+                setJailChoiceRequired(true);
+              } else {
+                await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: currentGame.id });
+                await fetchUpdatedGame();
+              }
+            } else {
+              showToast("No doubles — still in jail", "error");
+              setTimeout(END_TURN, 1000);
+            }
           } catch (err) {
             toast.error(getContractErrorMessage(err, "Jail roll failed"));
             END_TURN();
@@ -845,32 +860,144 @@ const endTime =
                       Declare Bankruptcy
                     </button>
                   ) : (
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-                      {me && Number(me.position) === JAIL_POSITION && Boolean(me.in_jail) && (me.balance ?? 0) >= 50 && (
+                    <div className="flex flex-col items-center gap-2">
+                      {jailChoiceRequired ? (
+                        <>
+                          <p className="text-cyan-200 text-xs font-medium">No doubles. Pay $50, use a card, or stay.</p>
+                          <div className="flex flex-wrap justify-center gap-2">
+                            {(me?.balance ?? 0) >= 50 && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await apiClient.post("/game-players/pay-to-leave-jail", { game_id: currentGame.id, user_id: me!.user_id });
+                                    setJailChoiceRequired(false);
+                                    toast.success("Paid $50. You may now roll.");
+                                    await fetchUpdatedGame();
+                                  } catch (err) {
+                                    toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+                                  }
+                                }}
+                                className="py-2 px-4 rounded-lg text-sm font-medium bg-amber-600/80 text-white border border-amber-500"
+                              >
+                                Pay $50
+                              </button>
+                            )}
+                            {(me?.chance_jail_card ?? 0) >= 1 && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await apiClient.post("/game-players/use-get-out-of-jail-free", { game_id: currentGame.id, user_id: me!.user_id, card_type: "chance" });
+                                    setJailChoiceRequired(false);
+                                    toast.success("Used Chance card. You may now roll.");
+                                    await fetchUpdatedGame();
+                                  } catch (err) {
+                                    toast.error(getContractErrorMessage(err, "Use card failed"));
+                                  }
+                                }}
+                                className="py-2 px-4 rounded-lg text-sm font-medium bg-orange-600/80 text-white border border-orange-500"
+                              >
+                                Chance Card
+                              </button>
+                            )}
+                            {(me?.community_chest_jail_card ?? 0) >= 1 && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await apiClient.post("/game-players/use-get-out-of-jail-free", { game_id: currentGame.id, user_id: me!.user_id, card_type: "community_chest" });
+                                    setJailChoiceRequired(false);
+                                    toast.success("Used CC card. You may now roll.");
+                                    await fetchUpdatedGame();
+                                  } catch (err) {
+                                    toast.error(getContractErrorMessage(err, "Use card failed"));
+                                  }
+                                }}
+                                className="py-2 px-4 rounded-lg text-sm font-medium bg-blue-600/80 text-white border border-blue-500"
+                              >
+                                CC Card
+                              </button>
+                            )}
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await apiClient.post("/game-players/stay-in-jail", { user_id: me!.user_id, game_id: currentGame.id });
+                                  setJailChoiceRequired(false);
+                                  await fetchUpdatedGame();
+                                  END_TURN();
+                                } catch (err) {
+                                  toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+                                }
+                              }}
+                              className="py-2 px-4 rounded-lg text-sm font-medium bg-gray-600 text-white border border-gray-500"
+                            >
+                              Stay
+                            </button>
+                          </div>
+                        </>
+                      ) : me && Number(me.position) === JAIL_POSITION && Boolean(me.in_jail) ? (
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {(me.balance ?? 0) >= 50 && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await apiClient.post("/game-players/pay-to-leave-jail", { game_id: currentGame.id, user_id: me.user_id });
+                                  toast.success("Paid $50. You may now roll.");
+                                  await fetchUpdatedGame();
+                                } catch (err) {
+                                  toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+                                }
+                              }}
+                              className="py-2 px-4 rounded-lg text-sm font-medium bg-amber-600/80 text-white border border-amber-500"
+                            >
+                              Pay $50
+                            </button>
+                          )}
+                          {(me.chance_jail_card ?? 0) >= 1 && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await apiClient.post("/game-players/use-get-out-of-jail-free", { game_id: currentGame.id, user_id: me.user_id, card_type: "chance" });
+                                  toast.success("Used Chance card. You may now roll.");
+                                  await fetchUpdatedGame();
+                                } catch (err) {
+                                  toast.error(getContractErrorMessage(err, "Use card failed"));
+                                }
+                              }}
+                              className="py-2 px-4 rounded-lg text-sm font-medium bg-orange-600/80 text-white border border-orange-500"
+                            >
+                              Chance Card
+                            </button>
+                          )}
+                          {(me.community_chest_jail_card ?? 0) >= 1 && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await apiClient.post("/game-players/use-get-out-of-jail-free", { game_id: currentGame.id, user_id: me.user_id, card_type: "community_chest" });
+                                  toast.success("Used CC card. You may now roll.");
+                                  await fetchUpdatedGame();
+                                } catch (err) {
+                                  toast.error(getContractErrorMessage(err, "Use card failed"));
+                                }
+                              }}
+                              className="py-2 px-4 rounded-lg text-sm font-medium bg-blue-600/80 text-white border border-blue-500"
+                            >
+                              CC Card
+                            </button>
+                          )}
+                          <button
+                            onClick={() => ROLL_DICE(false)}
+                            className="py-2.5 px-6 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold text-sm rounded-full border border-cyan-300/30"
+                          >
+                            Roll Dice
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={async () => {
-                            try {
-                              await apiClient.post("/game-players/pay-to-leave-jail", {
-                                game_id: currentGame.id,
-                                user_id: me.user_id,
-                              });
-                              toast.success("Paid $50. You may now roll.");
-                              await fetchUpdatedGame();
-                            } catch (err) {
-                              toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
-                            }
-                          }}
-                          className="py-2 px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-full shadow-md"
+                          onClick={() => ROLL_DICE(false)}
+                          className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
                         >
-                          Pay $50 to get out
+                          Roll Dice
                         </button>
                       )}
-                      <button
-                        onClick={() => ROLL_DICE(false)}
-                        className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
-                      >
-                        Roll Dice
-                      </button>
                     </div>
                   )
                 )}

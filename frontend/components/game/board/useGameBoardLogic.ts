@@ -79,6 +79,8 @@ export function useGameBoardLogic({
   const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
   /** When true, current user was voted out — show "Go home" / "Continue watching" */
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
+  /** When true, player rolled from jail without doubles — show Pay $50 / Use card / Stay */
+  const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const [landedPosition, setLandedPosition] = useState<number | null>(null);
@@ -216,6 +218,7 @@ export function useGameBoardLogic({
 
   const END_TURN = useCallback(async (timedOut?: boolean) => {
     if (currentPlayerId === -1 || turnEndInProgress.current || !lockAction("END")) return;
+    setJailChoiceRequired(false);
     turnEndInProgress.current = true;
     try {
       await apiClient.post("/game-players/end-turn", {
@@ -418,16 +421,26 @@ export function useGameBoardLogic({
       if (!value || value.die1 !== value.die2) {
         setTimeout(async () => {
           try {
-            await apiClient.post("/game-players/change-position", {
-              user_id: playerId,
-              game_id: game.id,
-              position: player.position,
-              rolled: value?.total ?? 0,
-              is_double: false,
-            });
+            const res = await apiClient.post<{ data?: { success?: boolean; still_in_jail?: boolean; rolled?: number } }>(
+              "/game-players/change-position",
+              {
+                user_id: playerId,
+                game_id: game.id,
+                position: player.position,
+                rolled: value?.total ?? 0,
+                is_double: false,
+              }
+            );
+            const data = res?.data as { success?: boolean; still_in_jail?: boolean; rolled?: number } | undefined;
             await fetchUpdatedGame();
-            showToast("No doubles — still in jail", "error");
-            setTimeout(END_TURN, 1000);
+            if (data?.still_in_jail) {
+              const total = data.rolled ?? value?.total ?? 0;
+              setRoll(totalToDice(total));
+              setJailChoiceRequired(true);
+            } else {
+              showToast("No doubles — still in jail", "error");
+              setTimeout(END_TURN, 1000);
+            }
           } catch (err) {
             toast.error(getContractErrorMessage(err, "Jail roll failed"));
             END_TURN();
@@ -515,6 +528,60 @@ export function useGameBoardLogic({
       }
     }, ROLL_ANIMATION_MS);
   }, [isRolling, actionLock, lockAction, unlockAction, me, players, pendingRoll, game.id, fetchUpdatedGame, showToast, END_TURN, touchActivity]);
+
+  const payToLeaveJail = useCallback(async () => {
+    if (!me?.user_id || !game?.id || actionLock) return;
+    if (!lockAction("ROLL")) return;
+    touchActivity();
+    try {
+      await apiClient.post("/game-players/pay-to-leave-jail", { user_id: me.user_id, game_id: game.id });
+      setJailChoiceRequired(false);
+      await fetchUpdatedGame();
+      showToast("Paid $50. You may now roll.", "success");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Pay to leave jail failed"));
+    } finally {
+      unlockAction();
+    }
+  }, [me?.user_id, game?.id, actionLock, lockAction, unlockAction, fetchUpdatedGame, showToast, touchActivity]);
+
+  const useGetOutOfJailFree = useCallback(
+    async (cardType: "chance" | "community_chest") => {
+      if (!me?.user_id || !game?.id || actionLock) return;
+      if (!lockAction("ROLL")) return;
+      touchActivity();
+      try {
+        await apiClient.post("/game-players/use-get-out-of-jail-free", {
+          user_id: me.user_id,
+          game_id: game.id,
+          card_type: cardType,
+        });
+        setJailChoiceRequired(false);
+        await fetchUpdatedGame();
+        showToast("Used Get Out of Jail Free. You may now roll.", "success");
+      } catch (err) {
+        toast.error(getContractErrorMessage(err, "Use card failed"));
+      } finally {
+        unlockAction();
+      }
+    },
+    [me?.user_id, game?.id, actionLock, lockAction, unlockAction, fetchUpdatedGame, showToast, touchActivity]
+  );
+
+  const stayInJail = useCallback(async () => {
+    if (!me?.user_id || !game?.id || actionLock) return;
+    if (!lockAction("END")) return;
+    touchActivity();
+    try {
+      await apiClient.post("/game-players/stay-in-jail", { user_id: me.user_id, game_id: game.id });
+      setJailChoiceRequired(false);
+      await fetchUpdatedGame();
+      END_TURN();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+      unlockAction();
+    }
+  }, [me?.user_id, game?.id, actionLock, lockAction, unlockAction, fetchUpdatedGame, END_TURN, touchActivity]);
 
   useEffect(() => {
     if (!roll || !hasMovementFinished || buyPrompted || actionLock || isRolling) return;
@@ -800,6 +867,12 @@ export function useGameBoardLogic({
     };
   }, [game?.id, game?.code, me?.user_id, fetchUpdatedGame, fetchVoteStatus, onGameUpdated]);
 
+  const mePlayer = useMemo(() => (me ? players.find((p) => p.user_id === me.user_id) : null), [me, players]);
+  const meInJail = Boolean(isMyTurn && mePlayer?.in_jail && Number(mePlayer?.position) === JAIL_POSITION);
+  const canPayToLeaveJail = meInJail && (currentPlayer?.balance ?? 0) >= 50;
+  const hasChanceJailCard = (mePlayer?.chance_jail_card ?? 0) >= 1;
+  const hasCommunityChestJailCard = (mePlayer?.community_chest_jail_card ?? 0) >= 1;
+
   return {
     players,
     roll,
@@ -860,5 +933,13 @@ export function useGameBoardLogic({
     setShowVotedOutModal,
     fetchUpdatedGame,
     showToast,
+    jailChoiceRequired,
+    meInJail,
+    canPayToLeaveJail,
+    hasChanceJailCard,
+    hasCommunityChestJailCard,
+    payToLeaveJail,
+    useGetOutOfJailFree,
+    stayInJail,
   };
 }

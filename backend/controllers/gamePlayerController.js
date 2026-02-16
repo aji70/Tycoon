@@ -994,12 +994,34 @@ const gamePlayerController = {
         });
       }
 
-      // Check if player can leave jail
+      // Check if player can leave jail: doubles, or after 3 turns of choosing "Stay" (in_jail_rolls >= 3)
       const canLeaveJail = game_player.in_jail
-        ? Number(game_player.in_jail_rolls || 0) >= 2 || // 3rd roll means 2 previous rolls
-          Number(rolled || 0) >= 12 ||
-          Boolean(is_double)
+        ? Number(game_player.in_jail_rolls || 0) >= 3 || Boolean(is_double)
         : true; // Not in jail, can move freely
+
+      // In jail, rolled but no doubles (and not yet 3 stays): return choice — Pay $50, Use card, or Stay
+      const JAIL_POSITION = 10;
+      if (game_player.in_jail && new_position === JAIL_POSITION && !canLeaveJail) {
+        await trx("game_players")
+          .where({ id: game_player.id })
+          .update({
+            rolls: Number(game_player.rolls || 0) + 1,
+            rolled: rolled ?? null,
+            updated_at: now,
+          });
+        await insertPlayHistory(
+          { stayed_in_jail: true, choice_required: true },
+          "Rolled from jail (no doubles). Choose: Pay $50, Use Get Out of Jail Free, or Stay."
+        );
+        await trx.commit();
+        await notifyGameUpdate(req, game_id);
+        return res.json({
+          success: true,
+          still_in_jail: true,
+          rolled: rolled ?? null,
+          message: "Choose: Pay $50, Use Get Out of Jail Free, or Stay in jail.",
+        });
+      }
 
       if (canLeaveJail) {
         // Player is moving (either normal move or leaving jail)
@@ -1230,6 +1252,186 @@ const gamePlayerController = {
         success: false,
         message: error?.message || "Internal server error",
       });
+    }
+  },
+
+  /**
+   * Stay in jail (no pay, no card). Increment in_jail_rolls; if >= 3 release automatically. Then end turn.
+   */
+  async stayInJail(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { user_id, game_id } = req.body;
+      if (!user_id || !game_id) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "Missing user_id or game_id." });
+      }
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "Game not found." });
+      }
+      if (game.next_player_id !== user_id) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "Not your turn." });
+      }
+      const players = await trx("game_players").where({ game_id }).forUpdate().orderBy("turn_order", "asc");
+      if (!players.length) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "No players in game." });
+      }
+      const game_player = players.find((p) => p.user_id === user_id);
+      if (!game_player || !game_player.in_jail) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "You are not in jail." });
+      }
+      const currentIdx = players.findIndex((p) => p.user_id === user_id);
+      const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
+      const next_player = players[nextIdx];
+      const now = new Date();
+      const newInJailRolls = Number(game_player.in_jail_rolls || 0) + 1;
+      const release = newInJailRolls >= 3;
+
+      await trx("game_players")
+        .where({ id: game_player.id })
+        .update({
+          in_jail_rolls: release ? 0 : newInJailRolls,
+          in_jail: !release,
+          rolled: null,
+          updated_at: now,
+        });
+
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: game_player.id,
+        rolled: null,
+        old_position: 10,
+        new_position: 10,
+        action: "stay_in_jail",
+        amount: 0,
+        extra: JSON.stringify({ stayed_in_jail: true, in_jail_rolls: newInJailRolls, released: release }),
+        comment: release ? "Stayed in jail; released after 3 turns." : "Stayed in jail.",
+        active: 1,
+        created_at: now,
+        updated_at: now,
+      });
+
+      const last_active = await trx("game_play_history")
+        .where({ game_id, active: 1 })
+        .orderBy("id", "desc")
+        .first();
+      if (last_active) {
+        await trx("game_play_history").where({ id: last_active.id }).update({ active: 0 });
+      }
+
+      await trx("games").where({ id: game.id }).update({
+        next_player_id: next_player.user_id,
+        updated_at: now,
+      });
+      const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+      await trx("game_players")
+        .where({ game_id, user_id: next_player.user_id })
+        .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+
+      const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
+      if (allRolled) {
+        await trx("game_players").where({ game_id }).update({ rolls: 0 });
+      }
+
+      await trx.commit();
+      await notifyGameUpdate(req, game_id);
+      return res.json({
+        success: true,
+        message: release ? "Released after 3 turns in jail. Next player's turn." : "Stayed in jail. Next player's turn.",
+        released: release,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error({ err: error }, "stayInJail error");
+      return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    }
+  },
+
+  /**
+   * Use Get Out of Jail Free card (Chance or Community Chest). Leave jail; do not end turn — player can then roll.
+   */
+  async useGetOutOfJailFree(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { user_id, game_id, card_type } = req.body; // card_type: "chance" | "community_chest"
+      if (!user_id || !game_id || !card_type) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "Missing user_id, game_id, or card_type." });
+      }
+      if (!["chance", "community_chest"].includes(card_type)) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "card_type must be 'chance' or 'community_chest'." });
+      }
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "Game not found." });
+      }
+      if (game.next_player_id !== user_id) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "Not your turn." });
+      }
+      const game_player = await trx("game_players")
+        .where({ game_id, user_id })
+        .forUpdate()
+        .first();
+      if (!game_player || !game_player.in_jail) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "You are not in jail." });
+      }
+      const hasChance = Number(game_player.chance_jail_card || 0) >= 1;
+      const hasChest = Number(game_player.community_chest_jail_card || 0) >= 1;
+      if (card_type === "chance" && !hasChance) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "You do not have a Get Out of Jail Free (Chance) card." });
+      }
+      if (card_type === "community_chest" && !hasChest) {
+        await trx.rollback();
+        return res.status(200).json({ success: false, message: "You do not have a Get Out of Jail Free (Community Chest) card." });
+      }
+      const now = new Date();
+      const updates = {
+        in_jail: false,
+        in_jail_rolls: 0,
+        updated_at: now,
+      };
+      if (card_type === "chance") {
+        updates.chance_jail_card = Math.max(0, Number(game_player.chance_jail_card || 0) - 1);
+      } else {
+        updates.community_chest_jail_card = Math.max(0, Number(game_player.community_chest_jail_card || 0) - 1);
+      }
+      await trx("game_players").where({ id: game_player.id }).update(updates);
+
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: game_player.id,
+        rolled: null,
+        old_position: 10,
+        new_position: 10,
+        action: "use_get_out_of_jail_free",
+        amount: 0,
+        extra: JSON.stringify({ card_type }),
+        comment: `Used Get Out of Jail Free (${card_type}). You may now roll.`,
+        active: 1,
+        created_at: now,
+        updated_at: now,
+      });
+
+      await trx.commit();
+      await notifyGameUpdate(req, game_id);
+      return res.json({
+        success: true,
+        message: "Used Get Out of Jail Free. You may now roll.",
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error({ err: error }, "useGetOutOfJailFree error");
+      return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
     }
   },
 
