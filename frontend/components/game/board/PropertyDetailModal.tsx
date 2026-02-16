@@ -92,7 +92,14 @@ export default function PropertyDetailModal({
                   ${getCurrentRent(property, gameProperty)}
                 </span>
               </div>
-              
+              {property.cost_of_house != null && property.cost_of_house > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300">Cost per house:</span>
+                  <span className="font-bold text-emerald-400">
+                    ${property.cost_of_house}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Owner:</span>
                 <span className="font-medium text-cyan-300">
