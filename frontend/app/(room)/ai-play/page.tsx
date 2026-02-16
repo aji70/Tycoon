@@ -177,6 +177,14 @@ export default function GamePlayPage() {
     }
   }, [game?.id, game?.is_ai, game?.status, gameCode, queryClient, refetchGame]);
 
+  // Don't allow multiplayer game codes on AI page — redirect to multiplayer board
+  useEffect(() => {
+    if (!game || !gameCode) return;
+    if (game.is_ai === false || game.is_ai === undefined) {
+      router.replace(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
+    }
+  }, [game, gameCode, router]);
+
   const [activeTab, setActiveTab] = useState<"board" | "players">("board");
   const [focusTrades, setFocusTrades] = useState(false);
 
@@ -210,6 +218,16 @@ export default function GamePlayPage() {
         >
           Go Home
         </button>
+      </div>
+    );
+  }
+
+  // Multiplayer game opened on AI URL — redirect runs in useEffect; avoid rendering AI UI
+  if (game.is_ai === false || game.is_ai === undefined) {
+    return (
+      <div className="w-full h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
+        <Loader2 className="w-12 h-12 animate-spin" />
+        <p className="text-xl font-orbitron">Redirecting to multiplayer game...</p>
       </div>
     );
   }
