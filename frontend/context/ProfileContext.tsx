@@ -20,6 +20,15 @@ const defaultProfile: ProfileData = {
   updatedAt: 0,
 };
 
+const defaultContextValue: ProfileContextValue = {
+  profile: null,
+  setAvatar: () => {},
+  setDisplayName: () => {},
+  setBio: () => {},
+  setProfile: () => {},
+  avatarUrl: null,
+};
+
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
@@ -75,10 +84,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 }
 
-export function useProfile() {
+/** Safe hook: returns default (no-op setters, null profile) when outside ProfileProvider. */
+export function useProfile(): ProfileContextValue {
   const ctx = useContext(ProfileContext);
-  if (!ctx) throw new Error('useProfile must be used within ProfileProvider');
-  return ctx;
+  return ctx ?? defaultContextValue;
 }
 
 export function useProfileAvatar(): string | null {

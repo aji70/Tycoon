@@ -10,7 +10,6 @@ import { MyEmpire } from "./my-empire";
 import { TradeSection } from "./trade-section";
 import { PropertyActionModal } from "../modals/property-action";
 import { AiResponsePopup } from "../modals/ai-response";
-import { VictoryModal } from "../modals/victory";
 import { TradeModal } from "../modals/trade";
 import ClaimPropertyModal from "../dev";
 import { useAiPlayerLogic } from "./useAiPlayerLogic";
@@ -442,13 +441,6 @@ useEffect(() => {
           popup={aiResponsePopup}
           properties={properties}
           onClose={() => setAiResponsePopup(null)}
-        />
-
-        <VictoryModal
-          winner={winner}
-          me={me}
-          onClaim={handleFinalizeAndLeave}
-          claiming={endGameHook.isPending}
         />
 
         <TradeModal
