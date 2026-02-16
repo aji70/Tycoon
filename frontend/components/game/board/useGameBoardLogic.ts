@@ -75,12 +75,17 @@ export function useGameBoardLogic({
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
+  /** Vote-to-end-by-networth (untimed games): vote_count, required_votes, voters */
+  const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{ vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> } | null>(null);
+  const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   /** When set, show popup "X timed out. Vote them out?" (set after record-timeout succeeds) */
   const [timeoutPopupPlayer, setTimeoutPopupPlayer] = useState<Player | null>(null);
   /** When true, current user was voted out — show "Go home" / "Continue watching" */
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
   /** When true, player rolled from jail without doubles — show Pay $50 / Use card / Stay */
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
+  /** When true, hide Roll Dice (turn end scheduled after buy/skip) */
+  const [turnEndScheduled, setTurnEndScheduled] = useState(false);
 
   const landedPositionThisTurn = useRef<number | null>(null);
   const [landedPosition, setLandedPosition] = useState<number | null>(null);
@@ -253,6 +258,10 @@ export function useGameBoardLogic({
     }
   }, [game.code, me?.user_id, myAddress]);
 
+  useEffect(() => {
+    if (!isMyTurn) setTurnEndScheduled(false);
+  }, [isMyTurn]);
+
   // Timer for current player — show to ALL players. Stops counting when they roll (2 min total, wrap up trades in remaining time).
   const isTwoPlayer = players.length === 2;
   const hasRolled = isMyTurn && roll != null && hasMovementFinished;
@@ -348,6 +357,7 @@ export function useGameBoardLogic({
         property_id: justLandedProperty.id,
       });
       showToast(`You bought ${justLandedProperty.name}!`, "success");
+      setTurnEndScheduled(true);
       setBuyPrompted(false);
       landedPositionThisTurn.current = null;
       setLandedPosition(null);
@@ -379,6 +389,7 @@ export function useGameBoardLogic({
   }, [properties, game_properties]);
 
   const endTurnAfterSpecialMove = useCallback(() => {
+    setTurnEndScheduled(true);
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setLandedPosition(null);
@@ -629,7 +640,7 @@ export function useGameBoardLogic({
 
   const handleSkipBuy = useCallback(() => {
     touchActivity();
-    // Skipped — no toast
+    setTurnEndScheduled(true);
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setLandedPosition(null);
@@ -820,6 +831,82 @@ export function useGameBoardLogic({
     [voteToRemove]
   );
 
+  const isUntimed = !game?.duration || Number(game.duration) === 0;
+
+  const fetchEndByNetWorthStatus = useCallback(async () => {
+    if (!game?.id || !isUntimed) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/end-by-networth-status", { game_id: game.id });
+      if (res?.data?.success && res.data.data) {
+        setEndByNetWorthStatus({
+          vote_count: res.data.data.vote_count,
+          required_votes: res.data.data.required_votes,
+          voters: res.data.data.voters ?? [],
+        });
+      } else {
+        setEndByNetWorthStatus(null);
+      }
+    } catch {
+      setEndByNetWorthStatus(null);
+    }
+  }, [game?.id, isUntimed]);
+
+  const voteEndByNetWorth = useCallback(async () => {
+    if (!me?.user_id || !game?.id || !isUntimed) return;
+    touchActivity();
+    setEndByNetWorthLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/vote-end-by-networth", {
+        game_id: game.id,
+        user_id: me.user_id,
+      });
+      if (res?.data?.success && res.data.data) {
+        const data = res.data.data;
+        setEndByNetWorthStatus({
+          vote_count: data.vote_count,
+          required_votes: data.required_votes,
+          voters: data.voters ?? [],
+        });
+        if (data.all_voted) {
+          showToast("Game ended by net worth — all players voted", "success");
+          await fetchUpdatedGame();
+          onGameUpdated?.();
+        } else {
+          showToast(`${data.vote_count}/${data.required_votes} voted to end by net worth`, "default");
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(getContractErrorMessage(err, "Failed to vote"));
+    } finally {
+      setEndByNetWorthLoading(false);
+    }
+  }, [game?.id, me?.user_id, isUntimed, fetchUpdatedGame, onGameUpdated, showToast, touchActivity]);
+
+  // Fetch end-by-networth status when untimed (votes clear when anyone rolls, so refetch when game/history updates)
+  useEffect(() => {
+    if (!isUntimed || !game?.id) {
+      setEndByNetWorthStatus(null);
+      return;
+    }
+    fetchEndByNetWorthStatus();
+  }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
+
+  // Listen for other players voting to end by net worth
+  useEffect(() => {
+    if (!isUntimed) return;
+    const handleEndByNetWorthVote = (data: { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }) => {
+      setEndByNetWorthStatus({
+        vote_count: data.vote_count,
+        required_votes: data.required_votes,
+        voters: data.voters ?? [],
+      });
+    };
+    socketService.onEndByNetWorthVote(handleEndByNetWorthVote);
+    return () => {
+      socketService.removeListener("end-by-networth-vote", handleEndByNetWorthVote);
+    };
+  }, [isUntimed]);
+
   // Fetch vote statuses for voteable players
   useEffect(() => {
     if (!game?.id || !me?.user_id) return;
@@ -926,6 +1013,11 @@ export function useGameBoardLogic({
     voteStatuses,
     votingLoading,
     fetchVoteStatus,
+    isUntimed,
+    endByNetWorthStatus,
+    voteEndByNetWorth,
+    endByNetWorthLoading,
+    turnEndScheduled,
     touchActivity,
     timeoutPopupPlayer,
     dismissTimeoutPopup: () => setTimeoutPopupPlayer(null),

@@ -161,6 +161,9 @@ const AiBoard = ({
   const rolledForPlayerId = useRef<number | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
+  const [turnEndScheduled, setTurnEndScheduled] = useState(false);
+  const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{ vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> } | null>(null);
+  const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
 
   const currentPlayerId = game.next_player_id ?? -1;
   const currentPlayer = players.find((p) => p.user_id === currentPlayerId);
@@ -392,7 +395,13 @@ const {
     setAnimatedPositions({});
     setHasMovementFinished(false);
     setStrategyRanThisTurn(false);
+    setTurnEndScheduled(false);
   }, [currentPlayerId]);
+
+  // Clear turnEndScheduled once it's no longer our turn (e.g. after refetch)
+  useEffect(() => {
+    if (!isMyTurn) setTurnEndScheduled(false);
+  }, [isMyTurn]);
 
   const lockAction = useCallback((type: "ROLL" | "END") => {
     if (actionLock) return false;
@@ -460,6 +469,7 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
       "success"
     );
 
+    setTurnEndScheduled(true);
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 800);
@@ -832,6 +842,64 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   }, [game.code]);
 
+  const isUntimed = !game?.duration || Number(game.duration) === 0;
+
+  const fetchEndByNetWorthStatus = useCallback(async () => {
+    if (!game?.id || !isUntimed) return;
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/end-by-networth-status", { game_id: game.id });
+      if (res?.data?.success && res.data.data) {
+        setEndByNetWorthStatus({
+          vote_count: res.data.data.vote_count,
+          required_votes: res.data.data.required_votes,
+          voters: res.data.data.voters ?? [],
+        });
+      } else {
+        setEndByNetWorthStatus(null);
+      }
+    } catch {
+      setEndByNetWorthStatus(null);
+    }
+  }, [game?.id, isUntimed]);
+
+  const voteEndByNetWorth = useCallback(async () => {
+    if (!me?.user_id || !game?.id || !isUntimed) return;
+    setEndByNetWorthLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse>("/game-players/vote-end-by-networth", {
+        game_id: game.id,
+        user_id: me.user_id,
+      });
+      if (res?.data?.success && res.data.data) {
+        const data = res.data.data;
+        setEndByNetWorthStatus({
+          vote_count: data.vote_count,
+          required_votes: data.required_votes,
+          voters: data.voters ?? [],
+        });
+        if (data.all_voted) {
+          toast.success("Game ended by net worth");
+          await fetchGameState();
+          await onFinishGameByTime?.();
+        } else {
+          toast.success(`${data.vote_count}/${data.required_votes} voted to end by net worth`);
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(getContractErrorMessage(err, "Failed to vote"));
+    } finally {
+      setEndByNetWorthLoading(false);
+    }
+  }, [game?.id, me?.user_id, isUntimed, fetchGameState, onFinishGameByTime]);
+
+  useEffect(() => {
+    if (!isUntimed || !game?.id) {
+      setEndByNetWorthStatus(null);
+      return;
+    }
+    fetchEndByNetWorthStatus();
+  }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
+
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
@@ -1201,7 +1269,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const handleRollDice = () => ROLL_DICE(false);
   const handleBuyProperty = () => BUY_PROPERTY(false);
   const handleSkipBuy = () => {
-    // Skipped — no toast
+    setTurnEndScheduled(true);
     setBuyPrompted(false);
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 900);
@@ -1287,6 +1355,12 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onPayToLeaveJail={handlePayToLeaveJail}
               onUseGetOutOfJailFree={handleUseGetOutOfJailFree}
               onStayInJail={handleStayInJail}
+              turnEndScheduled={turnEndScheduled}
+              isUntimed={isUntimed}
+              endByNetWorthStatus={endByNetWorthStatus}
+              endByNetWorthLoading={endByNetWorthLoading}
+              onVoteEndByNetWorth={voteEndByNetWorth}
+              me={me}
             />
 
             {properties.map((square) => {

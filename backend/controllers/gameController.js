@@ -156,6 +156,94 @@ async function computeWinnerByNetWorth(game) {
 }
 
 /**
+ * Finish a running game by net worth (winner = highest net worth). Used by finishByTime and by vote-end-by-networth.
+ * Updates DB, runs contract cleanup, invalidates cache, emits socket. Does not send HTTP response.
+ * @param {object} io - Socket.io server instance (from req.app.get("io"))
+ * @param {object} game - Game row (RUNNING)
+ * @returns {Promise<{ winner_id, placements, winner_turn_count, valid_win } | null>}
+ */
+export async function finishGameByNetWorthAndNotify(io, game) {
+  if (!game || game.status !== "RUNNING") return null;
+  const result = await computeWinnerByNetWorth(game);
+  if (!result || result.winner_id == null) return null;
+
+  const sortedByNetWorth = [...(result.net_worths || [])].sort((a, b) => (a.net_worth ?? 0) - (b.net_worth ?? 0));
+  const placements = {};
+  for (let i = 0; i < sortedByNetWorth.length; i++) {
+    const position = sortedByNetWorth.length - i;
+    placements[sortedByNetWorth[i].user_id] = position;
+  }
+
+  const updatePayload = { status: "FINISHED", winner_id: result.winner_id, placements: JSON.stringify(placements) };
+  const rowCount = await db("games")
+    .where({ id: game.id, status: "RUNNING" })
+    .update({ ...updatePayload, updated_at: db.fn.now() });
+
+  if (rowCount === 0) return null;
+
+  let contractGameIdToUse = game.contract_game_id;
+  if (!game.is_ai && isContractConfigured() && game.code) {
+    if (!contractGameIdToUse) {
+      try {
+        const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()]);
+        const onChainId = contractGame?.id ?? contractGame?.[0];
+        if (onChainId != null && onChainId !== "") {
+          contractGameIdToUse = String(onChainId);
+          await db("games").where({ id: game.id }).update({ contract_game_id: contractGameIdToUse });
+        }
+      } catch (err) {
+        logger.warn({ err: err?.message, gameId: game.id, code: game.code }, "getGameByCode in finishGameByNetWorthAndNotify failed");
+      }
+    }
+  }
+  if (contractGameIdToUse && isContractConfigured()) {
+    if (game.is_ai) {
+      const creator = await ensureUserHasContractPassword(db, game.creator_id) ||
+        (await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first());
+      const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
+      if (creator?.address && creator?.password_hash && humanGp) {
+        const isWin = result.winner_id === game.creator_id;
+        await endAIGameByBackend(
+          creator.address,
+          creator.username || "",
+          creator.password_hash,
+          contractGameIdToUse,
+          Number(humanGp.position ?? 0),
+          String(humanGp.balance ?? 0),
+          isWin
+        ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed"));
+      }
+    } else {
+      const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+      const playerRows = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
+      const turnCountByUser = Object.fromEntries(playerRows.map((r) => [r.user_id, Number(r.turn_count ?? 0)]));
+      for (const { user_id } of sortedByNetWorth) {
+        const user = await db("users").where({ id: user_id }).select("address").first();
+        if (!user?.address) continue;
+        const turnCount = turnCountByUser[user_id];
+        try {
+          await removePlayerFromGame(
+            contractGameIdToUse,
+            user.address,
+            turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256
+          );
+        } catch (err) {
+          logger.warn({ err: err?.message, gameId: game.id, user_id }, "finishGameByNetWorthAndNotify: removePlayerFromGame failed");
+        }
+      }
+    }
+  }
+  await invalidateGameById(game.id);
+  if (io) emitGameUpdate(io, game.code);
+  return {
+    winner_id: result.winner_id,
+    placements,
+    winner_turn_count: result.winner_turn_count || 0,
+    valid_win: result.valid_win !== false,
+  };
+}
+
+/**
  * Game Controller
  *
  * Handles requests related to game sessions.

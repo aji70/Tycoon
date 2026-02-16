@@ -37,6 +37,14 @@ type CenterAreaProps = {
   onPayToLeaveJail?: () => void;
   onUseGetOutOfJailFree?: (cardType: "chance" | "community_chest") => void;
   onStayInJail?: () => void;
+  /** When true, hide Roll Dice (turn end scheduled after buy/skip) */
+  turnEndScheduled?: boolean;
+  /** Untimed games: vote to end by net worth (AI: 1 vote enough) */
+  isUntimed?: boolean;
+  endByNetWorthStatus?: { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> } | null;
+  endByNetWorthLoading?: boolean;
+  onVoteEndByNetWorth?: () => void;
+  me?: { user_id?: number } | null;
 };
 
 export default function CenterArea({
@@ -66,6 +74,12 @@ export default function CenterArea({
   onPayToLeaveJail,
   onUseGetOutOfJailFree,
   onStayInJail,
+  turnEndScheduled = false,
+  isUntimed = false,
+  endByNetWorthStatus = null,
+  endByNetWorthLoading = false,
+  onVoteEndByNetWorth,
+  me,
 }: CenterAreaProps) {
   return (
     <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
@@ -109,7 +123,7 @@ export default function CenterArea({
         </div>
       )}
 
-      {/* Jail: no doubles — choose Pay $50 / Use card / Stay */}
+      {/* Jail: rolled from jail, no doubles — choose Pay $50 / Use card / Stay */}
       {!gameTimeUp && isMyTurn && jailChoiceRequired && (
         <div className="flex flex-col items-center gap-3 mb-3">
           <p className="text-cyan-200 text-sm font-medium">No doubles. Pay $50, use a card, or stay in jail.</p>
@@ -143,7 +157,7 @@ export default function CenterArea({
       )}
 
       {/* Jail: in jail, before rolling — Pay / Use card / Roll */}
-      {!gameTimeUp && isMyTurn && inJail && !jailChoiceRequired && !roll && !isRolling && (
+      {!gameTimeUp && isMyTurn && !turnEndScheduled && inJail && !jailChoiceRequired && !roll && !isRolling && (
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           {onPayToLeaveJail && (
             <button
@@ -173,8 +187,32 @@ export default function CenterArea({
         </div>
       )}
 
+      {/* Untimed: vote to end game by net worth (AI: 1 vote) */}
+      {isUntimed && endByNetWorthStatus != null && onVoteEndByNetWorth && (
+        <div className="flex flex-col items-center gap-2 mb-3 z-10">
+          <p className="text-cyan-200/90 text-xs">End game by net worth — votes reset when anyone rolls</p>
+          <button
+            onClick={onVoteEndByNetWorth}
+            disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+            className={`text-sm font-medium rounded-lg px-4 py-2 border transition-all ${
+              endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+                ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50 cursor-not-allowed"
+                : endByNetWorthLoading
+                ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
+                : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80 hover:scale-105"
+            }`}
+          >
+            {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+              ? `✓ Voted (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`
+              : endByNetWorthLoading
+              ? "Voting..."
+              : `End by net worth (${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes})`}
+          </button>
+        </div>
+      )}
+
       {/* Player's Turn: Roll or Bankruptcy (when not in jail choice flow) */}
-      {!gameTimeUp && isMyTurn && !roll && !isRolling && !inJail && !jailChoiceRequired && (
+      {!gameTimeUp && isMyTurn && !turnEndScheduled && !roll && !isRolling && !inJail && !jailChoiceRequired && (
         playerCanRoll ? (
           <button
             onClick={onRollDice}

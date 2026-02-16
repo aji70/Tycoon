@@ -31,4 +31,6 @@ router.post("/remove-inactive", gamePlayerController.removeInactive);
 router.post("/record-timeout", gamePlayerController.recordTimeout);
 router.post("/vote-to-remove", gamePlayerController.voteToRemove);
 router.post("/vote-status", gamePlayerController.getVoteStatus);
+router.post("/vote-end-by-networth", gamePlayerController.voteEndByNetWorth);
+router.post("/end-by-networth-status", gamePlayerController.getEndByNetWorthStatus);
 export default router;
