@@ -1303,7 +1303,11 @@ const gamePlayerController = {
           .update({ active: 0 });
       }
 
-      // 4️⃣ Update next player turn
+      // 4️⃣ Update next player turn — clear rolled for the player who just ended so next turn we only show roll after they roll
+      await trx("game_players")
+        .where({ game_id: game.id, user_id: game.next_player_id })
+        .update({ rolled: null, updated_at: db.fn.now() });
+
       await trx("games").where({ id: game.id }).update({
         next_player_id: next_player.user_id,
         updated_at: new Date(),
@@ -1315,7 +1319,7 @@ const gamePlayerController = {
         .where({ game_id: game.id, user_id: next_player.user_id })
         .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
 
-      // 5️⃣ Check if all players have rolled once (end of round)
+      // 5️⃣ Check if all players have rolled once (end of round)j
       const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
 
       if (allRolled) {

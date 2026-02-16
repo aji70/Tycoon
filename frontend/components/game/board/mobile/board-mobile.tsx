@@ -33,6 +33,7 @@ import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { BankruptcyModal } from "../../modals/bankruptcy";
 import { CardModal } from "../../modals/cards";
 import { useGameBoardLogic } from "../useGameBoardLogic";
+import RollResult from "../roll-result";
 
 const MobileGameLayout = ({
   game,
@@ -65,6 +66,7 @@ const MobileGameLayout = ({
   const {
     players,
     roll,
+    displayRoll,
     isRolling,
     buyPrompted,
     animatedPositions,
@@ -596,6 +598,10 @@ const MobileGameLayout = ({
             onPropertyClick={onPropertyClick}
             centerContent={
               <div className="flex flex-col items-center justify-center gap-3 text-center min-h-[80px] px-4 py-3 z-30 relative w-full bg-transparent">
+                {/* Roll result — show for current player (me or opponent) so everyone sees what was rolled */}
+                {displayRoll && !isRolling && (
+                  <RollResult roll={displayRoll} />
+                )}
                 {/* Time's Up — show when game ended by time */}
                 {gameTimeUp && (
                   <div className="font-mono font-bold rounded-xl px-6 py-3 bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 text-lg">
@@ -616,7 +622,7 @@ const MobileGameLayout = ({
                 )}
                 {turnTimeLeft != null && (
                   <div className={`font-mono font-bold rounded-lg px-3 py-1.5 bg-black/90 text-sm ${(turnTimeLeft ?? 90) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}>
-                    {roll
+                    {displayRoll
                       ? isMyTurn
                         ? `Complete in ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")}`
                         : `${currentPlayer?.username ?? "Player"} has ${Math.floor((turnTimeLeft ?? 90) / 60)}:${((turnTimeLeft ?? 90) % 60).toString().padStart(2, "0")} to wrap up`
@@ -674,7 +680,7 @@ const MobileGameLayout = ({
 
       <DiceAnimation
         isRolling={isRolling && !(currentPlayer?.in_jail && currentPlayer.position === JAIL_POSITION)}
-        roll={roll}
+        roll={displayRoll ?? roll}
       />
 
       {/* Balance bar above action log */}

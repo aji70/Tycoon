@@ -78,6 +78,8 @@ export interface Player {
   joined_date: string;
   username: string;
   rolls: number;
+  /** Dice total for current turn (2–12); set after player rolls, reset on end turn */
+  rolled?: number | null;
   circle: number;
   in_jail: boolean;
   in_jail_rolls: number;
