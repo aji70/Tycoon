@@ -445,6 +445,7 @@ const endTime =
     const isInJail = Boolean(player.in_jail) && Number(player.position) === JAIL_POSITION;
 
     if (isInJail) {
+      landedPositionThisTurn.current = null;
       setIsRolling(true);
       showToast(`${player.username} is in jail — attempting to roll out...`, "default");
 
@@ -473,19 +474,17 @@ const endTime =
         return;
       }
 
-      // Doubles - escape jail with animation
+      // Doubles - escape jail: animate first, then call API and set landing only after success
       setRoll(value);
       const currentPos = player.position ?? 0;
       const totalMove = value.total;
       const newPos = (currentPos + totalMove) % BOARD_SQUARES;
 
-      // Animate escape
       if (totalMove > 0) {
         const movePath: number[] = [];
         for (let i = 1; i <= totalMove; i++) {
           movePath.push((currentPos + i) % BOARD_SQUARES);
         }
-
         for (let i = 0; i < movePath.length; i++) {
           await new Promise((resolve) => setTimeout(resolve, MOVE_ANIMATION_MS_PER_SQUARE));
           setAnimatedPositions((prev) => ({
@@ -494,8 +493,6 @@ const endTime =
           }));
         }
       }
-
-      setHasMovementFinished(true);
 
       setTimeout(async () => {
         try {
@@ -507,6 +504,7 @@ const endTime =
             is_double: true,
           });
           landedPositionThisTurn.current = newPos;
+          setHasMovementFinished(true);
           await fetchUpdatedGame();
           showToast(`${player.username} rolled doubles and escaped jail!`, "success");
         } catch (err) {
@@ -823,12 +821,33 @@ const endTime =
                       Declare Bankruptcy
                     </button>
                   ) : (
-                    <button
-                      onClick={() => ROLL_DICE(false)}
-                      className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
-                    >
-                      Roll Dice
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                      {me && Number(me.position) === JAIL_POSITION && Boolean(me.in_jail) && (me.balance ?? 0) >= 50 && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await apiClient.post("/game-players/pay-to-leave-jail", {
+                                game_id: currentGame.id,
+                                user_id: me.user_id,
+                              });
+                              toast.success("Paid $50. You may now roll.");
+                              await fetchUpdatedGame();
+                            } catch (err) {
+                              toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+                            }
+                          }}
+                          className="py-2 px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-full shadow-md"
+                        >
+                          Pay $50 to get out
+                        </button>
+                      )}
+                      <button
+                        onClick={() => ROLL_DICE(false)}
+                        className="py-2.5 px-8 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white font-bold text-sm rounded-full shadow-lg border border-cyan-300/30"
+                      >
+                        Roll Dice
+                      </button>
+                    </div>
                   )
                 )}
               </div>
