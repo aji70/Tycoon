@@ -78,6 +78,22 @@ const Game = {
 
     return query.orderBy("created_at", "desc").limit(limit).offset(offset);
   },
+
+  /**
+   * Games where the given user (by user_id or address) is a player.
+   * Used for "Continue Game" / "My games" (works for wallet and guest).
+   */
+  async findByPlayer({ userId, address }, { limit = 50, offset = 0 } = {}) {
+    if (!userId && !address) return [];
+    const subQuery = db("game_players").select("game_id");
+    if (userId) subQuery.where("user_id", userId);
+    else if (address) subQuery.whereRaw("LOWER(address) = ?", [String(address).toLowerCase()]);
+    return db("games")
+      .whereIn("id", subQuery)
+      .orderBy("updated_at", "desc")
+      .limit(limit)
+      .offset(offset);
+  },
 };
 
 export default Game;
