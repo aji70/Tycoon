@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
@@ -135,6 +135,40 @@ const GameModals: React.FC<GameModalsProps> = ({
     }
   };
 
+  const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
+  const handleClaimAndGoHome = useCallback(async () => {
+    setClaimAndLeaveInProgress(true);
+    const isHumanWinner = winner?.user_id === me?.user_id;
+    const toastId = toast.loading(
+      isHumanWinner ? "Claiming your prize on-chain…" : "Claiming consolation on-chain…"
+    );
+    try {
+      await endGame();
+      try {
+        await onFinishGameByTime?.();
+      } catch (backendErr: any) {
+        if (backendErr?.message?.includes("not running") || backendErr?.response?.data?.error === "Game is not running") {
+          // ignore
+        } else {
+          throw backendErr;
+        }
+      }
+      toast.success(
+        isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
+        { id: toastId, duration: 5000 }
+      );
+      window.location.href = "/";
+    } catch (err: any) {
+      toast.error(
+        err?.message || "Something went wrong — you can try again later",
+        { id: toastId, duration: 8000 }
+      );
+      setClaimAndLeaveInProgress(false);
+    } finally {
+      reset();
+    }
+  }, [winner?.user_id, me?.user_id, endGame, onFinishGameByTime, reset]);
+
   return (
     <>
       {/* Winner / Loser Screen (time's up by net worth) */}
@@ -204,10 +238,11 @@ const GameModals: React.FC<GameModalsProps> = ({
                     transition={{ delay: 0.5 }}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => { window.location.href = "/"; }}
-                    className="w-full py-4 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-300/40 transition-all"
+                    onClick={handleClaimAndGoHome}
+                    disabled={claimAndLeaveInProgress || isPending}
+                    className="w-full py-4 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 text-slate-900 font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-300/40 transition-all disabled:cursor-wait"
                   >
-                    Go home
+                    {claimAndLeaveInProgress || isPending ? "Claiming…" : "Claim & go home"}
                   </motion.button>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
@@ -261,10 +296,11 @@ const GameModals: React.FC<GameModalsProps> = ({
                     transition={{ delay: 0.5 }}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => { window.location.href = "/"; }}
-                    className="w-full py-4 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-400/30 transition-all"
+                    onClick={handleClaimAndGoHome}
+                    disabled={claimAndLeaveInProgress || isPending}
+                    className="w-full py-4 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-600 text-white font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-400/30 transition-all disabled:cursor-wait"
                   >
-                    Go home
+                    {claimAndLeaveInProgress || isPending ? "Claiming…" : "Claim & go home"}
                   </motion.button>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>

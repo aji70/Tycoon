@@ -236,24 +236,24 @@ useEffect(() => {
 }, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
  
 
-useEffect(() => {
-    if (!me) return;
+// Only show winner when backend has marked the game FINISHED (same as mobile).
+  // Do not set winner when e.g. only 1 player is loaded (AI not joined yet).
+  useEffect(() => {
+    if (!game || game.status !== "FINISHED" || game.winner_id == null) return;
 
-    const aiPlayer = game.players.find(p => isAIPlayer(p) && p.user_id !== me.user_id);
-    const humanPlayer = me;
+    const winnerPlayer = game.players.find((p) => p.user_id === game.winner_id!) ?? (me?.user_id === game.winner_id ? me : null);
+    if (!winnerPlayer) return;
 
-    if (game.players.length <= 2 && (!aiPlayer) && humanPlayer.balance > 0) {
-      const turnCount = humanPlayer.turn_count ?? 0;
-      const validWin = turnCount >= 20;
-      setWinner(humanPlayer);
-      setEndGameCandidate({
-        winner: humanPlayer,
-        position: humanPlayer.position ?? 0,
-        balance: BigInt(humanPlayer.balance),
-        validWin,
-      });
-    }
-  }, [game.players, me]);
+    setWinner(winnerPlayer);
+    const turnCount = winnerPlayer.turn_count ?? 0;
+    const validWin = turnCount >= 20;
+    setEndGameCandidate({
+      winner: winnerPlayer,
+      position: winnerPlayer.position ?? 0,
+      balance: BigInt(winnerPlayer.balance ?? 0),
+      validWin,
+    });
+  }, [game?.status, game?.winner_id, game?.players, me]);
 
   const handleFinalizeAndLeave = async () => {
     const toastId = toast.loading(
