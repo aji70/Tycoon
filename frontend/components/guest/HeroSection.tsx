@@ -50,6 +50,7 @@ const HeroSection: React.FC = () => {
   const { data: contractGame } = useGetGameByCode(gameCode);
 
   const [backendGame, setBackendGame] = useState<{ status: string } | null>(null);
+  const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string } | null>(null);
 
   useEffect(() => {
     if (!gameCode || typeof gameCode !== "string") {
@@ -70,6 +71,29 @@ const HeroSection: React.FC = () => {
       cancelled = true;
     };
   }, [gameCode]);
+
+  // Guest: fetch "my games" so they can continue their last game
+  useEffect(() => {
+    if (!guestUser || address) {
+      setGuestLastGame(null);
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .get<ApiResponse>("/games/my-games", { params: { limit: 10 } })
+      .then((res) => {
+        if (cancelled || !res?.data?.success || !Array.isArray(res.data.data)) return;
+        const games = res.data.data as { code: string; status: string }[];
+        const active = games.find((g) => g.status === "PENDING" || g.status === "RUNNING");
+        setGuestLastGame(active ? { code: active.code, status: active.status } : null);
+      })
+      .catch(() => {
+        if (!cancelled) setGuestLastGame(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [guestUser, address]);
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -227,6 +251,14 @@ const HeroSection: React.FC = () => {
   };
 
 const handleContinuePrevious = () => {
+  if (guestUser && guestLastGame) {
+    if (guestLastGame.status === "PENDING") {
+      router.push(`/game-waiting?gameCode=${encodeURIComponent(guestLastGame.code)}`);
+    } else {
+      router.push(`/game-play?gameCode=${encodeURIComponent(guestLastGame.code)}`);
+    }
+    return;
+  }
   if (!gameCode) return;
 
   if (contractGame?.ai) {
@@ -453,8 +485,9 @@ const handleContinuePrevious = () => {
           {/* Action buttons: wallet registered OR guest */}
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
-              {/* Continue Previous Game - Highlighted */}
-              {address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED")) && (
+              {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
+              {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
+                (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
                 <button
                   onClick={handleContinuePrevious}
                   className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"

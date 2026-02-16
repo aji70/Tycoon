@@ -626,6 +626,40 @@ const gameController = {
       res.status(200).json({ success: false, message: error.message });
     }
   },
+
+  /**
+   * Games where the current user is a player (for "Continue Game").
+   * Auth: optionalAuth — if req.user set (guest or registered with token), use user_id; else if query address=0x..., use address.
+   */
+  async findMyGames(req, res) {
+    try {
+      const { limit, offset, address: queryAddress } = req.query;
+      const opts = {
+        limit: Math.min(Number.parseInt(limit) || 50, 100),
+        offset: Number.parseInt(offset) || 0,
+      };
+      let games = [];
+      if (req.user?.id) {
+        games = await Game.findByPlayer({ userId: req.user.id }, opts);
+      } else if (queryAddress && String(queryAddress).trim()) {
+        games = await Game.findByPlayer({ address: String(queryAddress).trim() }, opts);
+      }
+      const withSettingsAndPlayers = await Promise.all(
+        games.map(async (g) => ({
+          ...g,
+          settings: await GameSetting.findByGameId(g.id),
+          players: await GamePlayer.findByGameId(g.id),
+        }))
+      );
+      res.json({
+        success: true,
+        message: "successful",
+        data: withSettingsAndPlayers,
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
 };
 
 export const create = async (req, res) => {

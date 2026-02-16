@@ -49,7 +49,9 @@ export default function JoinRoom(): JSX.Element {
 
     const fetchRecent = async () => {
       try {
-        const res = await apiClient.get<ApiResponse>("/games/my-games");
+        const res = await apiClient.get<ApiResponse>("/games/my-games", {
+          params: { address: addr },
+        });
         if (res?.data?.success && Array.isArray(res.data.data)) {
           setRecentGames(res.data.data as Game[]);
         }

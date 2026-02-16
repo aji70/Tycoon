@@ -8,7 +8,7 @@ import gameController, {
   createAIAsGuest,
   addAIPlayers,
 } from "../controllers/gameController.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -20,6 +20,7 @@ router.get("/creator/:userId", gameController.findByCreator);
 router.get("/winner/:userId", gameController.findByWinner);
 router.get("/active", gameController.findActive);
 router.get("/pending", gameController.findPending);
+router.get("/my-games", optionalAuth, gameController.findMyGames);
 
 // -------------------------
 // 🔹 Game CRUD
