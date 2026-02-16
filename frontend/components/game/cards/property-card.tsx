@@ -21,16 +21,16 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
 
   const priceOrientationClasses: Record<Position, string> = {
     bottom: "bottom-0.5 right-0.5",
-    left: "bottom-[30%] -right-0.5 transform -rotate-90",
+    left: "bottom-[30%] right-0.5 transform -rotate-90 origin-right",
     top: "bottom-0.5 right-0.5",
-    right: "transform rotate-90 bottom-[30%] -left-0.5",
+    right: "top-[30%] left-0.5 transform -rotate-90 origin-left",
   };
 
   const rent_site_onlyOrientationClasses: Record<Position, string> = {
     bottom: "bottom-0.5 left-0.5",
-    left: "bottom-[30%] left-0.5 transform -rotate-90",
+    left: "bottom-[30%] left-0.5 transform -rotate-90 origin-left",
     top: "bottom-0.5 left-0.5",
-    right: "transform rotate-90 bottom-[30%] right-0.5",
+    right: "top-[55%] left-0.5 transform -rotate-90 origin-left",
   };
 
   const imageOrientationClasses: Record<Position, string> = {
@@ -69,9 +69,9 @@ const PropertyCard = ({ square, owner }: PropertyCardProps) => {
         ${price}
       </p>
 
-      {rent_site_only && (
+      {(rent_site_only !== undefined && rent_site_only !== null) && (
         <p
-          className={`absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] ${rent_site_onlyOrientationClasses[position]}`}
+          className={`absolute font-semibold bg-[#F0F7F7] shadow-sm p-0.5 rounded-[3px] whitespace-nowrap ${rent_site_onlyOrientationClasses[position]}`}
           style={smallTextStyle}
         >
           ${rent_site_only}
