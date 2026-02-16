@@ -821,6 +821,17 @@ const endTurnAfterSpecialMove = useCallback(() => {
     }
   }, [isAITurn, currentPlayer, strategyRanThisTurn]);
 
+  const fetchGameState = useCallback(async () => {
+    try {
+      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
+      if (res?.data?.success && res.data.data?.players) {
+        setPlayers(res.data.data.players);
+      }
+    } catch (err) {
+      console.error("Fetch game failed:", err);
+    }
+  }, [game.code]);
+
   const ROLL_DICE = useCallback(async (forAI = false) => {
     if (isRolling || actionLock || !lockAction("ROLL")) return;
 
@@ -1137,17 +1148,6 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
   const isPropertyMortgaged = (id: number) =>
     game_properties.find((gp) => gp.property_id === id)?.mortgaged === true;
-
-  const fetchGameState = useCallback(async () => {
-    try {
-      const res = await apiClient.get<ApiResponse>(`/games/code/${game.code}`);
-      if (res?.data?.success && res.data.data?.players) {
-        setPlayers(res.data.data.players);
-      }
-    } catch (err) {
-      console.error("Fetch game failed:", err);
-    }
-  }, [game.code]);
 
   const handlePayToLeaveJail = useCallback(async () => {
     if (!me || !game?.id) return;
