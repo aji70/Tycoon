@@ -414,13 +414,15 @@ const payRent = async (
             .where({ id: game_player.id })
             .increment("balance", playerAmount)
         );
-        historyInserts.push(
-          createHistory(
-            game_player.id,
-            playerAmount,
-            `${playerAmount > 0 ? "received" : "paid"} ${playerAmount}`
-          )
-        );
+        if (!chanceCard) {
+          historyInserts.push(
+            createHistory(
+              game_player.id,
+              playerAmount,
+              `${playerAmount > 0 ? "received" : "paid"} ${playerAmount}`
+            )
+          );
+        }
       }
 
       if (ownerAmount !== 0 && Number.isFinite(ownerAmount) && game_property?.player_id) {
@@ -429,15 +431,17 @@ const payRent = async (
             .where({ id: game_property.player_id })
             .increment("balance", ownerAmount)
         );
-        historyInserts.push(
-          createHistory(
-            game_property.player_id,
-            ownerAmount,
-            `${_owner ? _owner?.username : "Owner"} ${
-              ownerAmount > 0 ? "received" : "paid"
-            } ${ownerAmount}`
-          )
-        );
+        if (!chanceCard) {
+          historyInserts.push(
+            createHistory(
+              game_property.player_id,
+              ownerAmount,
+              `${_owner ? _owner?.username : "Owner"} ${
+                ownerAmount > 0 ? "received" : "paid"
+              } ${ownerAmount}`
+            )
+          );
+        }
       }
 
       if (playersAmount !== 0 && Number.isFinite(playersAmount)) {
@@ -447,13 +451,15 @@ const payRent = async (
             .where("id", "!=", game_player.id)
             .increment("balance", playersAmount)
         );
-        historyInserts.push(
-          createHistory(
-            game_player.id,
-            playersAmount * (await getPlayersCount()),
-            `Other players ${playersAmount > 0 ? "received" : "paid"} ${playersAmount} each`
-          )
-        );
+        if (!chanceCard) {
+          historyInserts.push(
+            createHistory(
+              game_player.id,
+              playersAmount * (await getPlayersCount()),
+              `Other players ${playersAmount > 0 ? "received" : "paid"} ${playersAmount} each`
+            )
+          );
+        }
       }
 
       if (position !== new_position) {
@@ -462,13 +468,19 @@ const payRent = async (
             .where({ id: game_player.id })
             .update({ position, updated_at: now })
         );
-        historyInserts.push(
-          createHistory(
-            game_player.id,
-            0,
-            `Moved from position ${new_position} to ${position}`
-          )
-        );
+        if (!chanceCard) {
+          historyInserts.push(
+            createHistory(
+              game_player.id,
+              0,
+              `Moved from position ${new_position} to ${position}`
+            )
+          );
+        }
+      }
+
+      if (chanceCard) {
+        historyInserts.push(createHistory(game_player.id, 0, comment));
       }
 
       if (
@@ -1039,11 +1051,13 @@ const gamePlayerController = {
           });
         }
 
-        // Log move to history
-        await insertPlayHistory({
-          rent: pay_rent.rent,
-          final_position: pay_rent.position || new_position,
-        });
+        // Log move to history (skip when Chance/CC already inserted a single row in payRent)
+        if (!pay_rent.card) {
+          await insertPlayHistory({
+            rent: pay_rent.rent,
+            final_position: pay_rent.position || new_position,
+          });
+        }
 
         // Decline all pending trades proposed to this player (they rolled without responding)
         await trx("game_trade_requests")

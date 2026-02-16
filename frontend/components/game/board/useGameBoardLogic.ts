@@ -87,6 +87,7 @@ export function useGameBoardLogic({
   const recordTimeoutCalledForTurn = useRef<number | null>(null);
   const timeLeftFrozenAtRollRef = useRef<number | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
+  const prevHistoryLength = useRef(game?.history?.length ?? 0);
 
   const INACTIVITY_SECONDS = 30;
   const TURN_TOTAL_SECONDS = 90;
@@ -153,6 +154,53 @@ export function useGameBoardLogic({
     timeLeftFrozenAtRollRef.current = null;
     lastActivityRef.current = Date.now();
   }, [currentPlayerId]);
+
+  // When any player lands on Chance/CC, show transparent card popup for everyone
+  useEffect(() => {
+    const history = game?.history ?? [];
+    if (history.length <= prevHistoryLength.current) return;
+
+    // API returns history newest first (created_at desc)
+    const newEntry = history[0];
+    prevHistoryLength.current = history.length;
+
+    const comment =
+      typeof newEntry === "string"
+        ? newEntry
+        : (newEntry as { comment?: string })?.comment ?? "";
+    const playerName =
+      typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
+        ? String((newEntry as { player_name?: string }).player_name ?? "Player")
+        : "";
+
+    const cardRegex = /drew (chance|community chest): (.+)/i;
+    const match = comment.match(cardRegex);
+    if (!match) return;
+
+    const [, typeStr, text] = match;
+    const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+
+    const lowerText = text.toLowerCase();
+    const isGood =
+      lowerText.includes("collect") ||
+      lowerText.includes("receive") ||
+      lowerText.includes("advance") ||
+      lowerText.includes("get out of jail") ||
+      lowerText.includes("matures") ||
+      lowerText.includes("refund") ||
+      lowerText.includes("prize") ||
+      lowerText.includes("inherit");
+
+    const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+    const effect = effectMatch ? effectMatch[0] : undefined;
+
+    setCardData({ type, text, effect, isGood });
+    setCardPlayerName(playerName.trim() || "Player");
+    setShowCardModal(true);
+
+    const timer = setTimeout(() => setShowCardModal(false), 15000);
+    return () => clearTimeout(timer);
+  }, [game?.history]);
 
   const touchActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
