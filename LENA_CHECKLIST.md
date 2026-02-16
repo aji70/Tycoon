@@ -1,6 +1,6 @@
-# Checklist: What We Need to Do to Match Lena’s Ask
+# Checklist: What We Did to Match Lena’s Ask
 
-Lena’s requests:
+Lena’s requests (all addressed):
 
 1. **Analysis** – Is it scalable for 100–200k DAUs? What when 200 play at once? Industry-standard frontend?
 2. **Execute all improvements** – Step by step, test in between so nothing breaks.

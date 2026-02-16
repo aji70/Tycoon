@@ -106,7 +106,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
         className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-slate-900 border border-slate-600/50 shadow-2xl overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/80 bg-slate-800/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/80 bg-slate-800/50 flex-shrink-0">
           <h2 className="text-xl font-bold text-slate-100">{title}</h2>
           <button
             type="button"
@@ -121,7 +121,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
         </div>
 
         {/* Two columns: Offer | Request */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {/* You offer */}
             <div className="space-y-4">
@@ -191,8 +191,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-700/80 bg-slate-800/30">
+        {/* Footer - always visible so Send/Cancel are reachable */}
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-700/80 bg-slate-800/30 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
