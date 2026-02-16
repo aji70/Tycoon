@@ -157,27 +157,19 @@ export default function MobileGamePlayers({
     }
   };
 
-  // Auto-open sections intelligently (skip when bell asked to focus trades)
-  useEffect(() => {
-    if (focusTrades) return;
-    setSectionOpen({
-      players: true,
-      empire: my_properties.length > 0 || showEmpire,
-      trades: totalActiveTrades > 0,
-    });
-  }, [focusTrades, my_properties.length, showEmpire, totalActiveTrades]);
-
-  // When parent asks to focus trades (e.g. notification bell), open only trades section and scroll into view
+  // When parent asks to focus trades (e.g. notification bell), open trades section and scroll into view
+  // Only opens trades; Players and My Empire remain independent per user's choice.
   useEffect(() => {
     if (!focusTrades) return;
-    setSectionOpen({ players: false, empire: false, trades: true });
+    setSectionOpen((prev) => ({ ...prev, trades: true }));
+    onViewedTrades?.();
     const t = setTimeout(() => {
       requestAnimationFrame(() => {
         tradesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }, 80);
     return () => clearTimeout(t);
-  }, [focusTrades]);
+  }, [focusTrades, onViewedTrades]);
 
   return (
     <div className="w-full h-screen bg-gradient-to-b from-[#0a001a] via-[#15082a] to-[#1a0033] text-white flex flex-col overflow-hidden">
