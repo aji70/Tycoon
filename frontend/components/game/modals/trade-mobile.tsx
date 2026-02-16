@@ -123,7 +123,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
         </div>
 
         {/* Content - two sections like desktop (stack on mobile) */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5">
           <div className="space-y-6">
             {/* You offer */}
             <div className="space-y-3">

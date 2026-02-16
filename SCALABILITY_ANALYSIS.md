@@ -4,6 +4,8 @@
 **Project:** Tycoon - Monopoly Tycoon on Chain  
 **Analyst:** AI Code Review
 
+**Status:** This document describes the *before* state and recommendations. Most of the recommended improvements have since been **implemented** (production DB pool, indexes, Redis adapter for Socket.io, game-update events, rate limits, Redis cache, Pino logging, health checks, analytics backend + dashboard). See **`LENA_CHECKLIST.md`** for what was done and **`ANALYTICS_SUMMARY.md`** for the updated summary.
+
 ---
 
 ## 📊 Executive Summary
