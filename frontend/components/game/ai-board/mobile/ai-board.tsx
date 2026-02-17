@@ -692,6 +692,61 @@ const endTime =
     fetchEndByNetWorthStatus();
   }, [currentGame?.id, isUntimed, fetchEndByNetWorthStatus, currentGame?.history?.length]);
 
+  // When any player lands on Chance/CC, show card popup for everyone
+  const prevHistoryLength = useRef(currentGame?.history?.length ?? 0);
+  useEffect(() => {
+    const history = currentGame?.history ?? [];
+    if (history.length <= prevHistoryLength.current) return;
+
+    // API returns history newest first (created_at desc)
+    const newEntry = history[0];
+    prevHistoryLength.current = history.length;
+
+    const comment =
+      typeof newEntry === "string"
+        ? newEntry
+        : (newEntry as { comment?: string })?.comment ?? "";
+    const playerName =
+      typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
+        ? String((newEntry as { player_name?: string }).player_name ?? "Player")
+        : "";
+
+    const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
+    const stringMatch = typeof newEntry === "string" ? (newEntry as string).match(cardRegex) : null;
+    const objectMatch = comment.match(/drew (chance|community chest): (.+)/i);
+
+    const match = stringMatch ?? (objectMatch ? [null, playerName, objectMatch[1], objectMatch[2]] : null);
+    if (!match) return;
+
+    const typeStr = (match[2] ?? "").toLowerCase();
+    const text = match[3] ?? "";
+    const type = typeStr.includes("chance") ? "chance" : "community";
+    const displayName = (match[1] ?? playerName).trim() || "Player";
+
+    const lowerText = text.toLowerCase();
+    const isGood =
+      lowerText.includes("collect") ||
+      lowerText.includes("receive") ||
+      lowerText.includes("advance") ||
+      lowerText.includes("get out of jail") ||
+      lowerText.includes("matures") ||
+      lowerText.includes("refund") ||
+      lowerText.includes("prize") ||
+      lowerText.includes("inherit");
+
+    const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+    const effect = effectMatch ? effectMatch[0] : undefined;
+
+    setCardData({ type, text, effect, isGood });
+    setCardPlayerName(displayName);
+    setShowCardModal(true);
+
+    // Extended timer to account for two-stage animation:
+    // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
+    const timer = setTimeout(() => setShowCardModal(false), 15000);
+    return () => clearTimeout(timer);
+  }, [currentGame?.history]);
+
   useMobileAiLogic({
     game,
     properties,

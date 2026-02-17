@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
+import { CardModal } from "../../modals/cards";
 
 interface GameModalsProps {
   winner: Player | null;
@@ -435,35 +436,15 @@ const GameModals: React.FC<GameModalsProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Card Modal */}
-      <AnimatePresence>
-        {showCardModal && cardData && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-3xl max-w-md w-full text-center border border-cyan-500/30 shadow-2xl"
-            >
-              <h2 className="text-2xl font-bold text-white mb-4">{cardData.type.toUpperCase()} Card</h2>
-              <p className="text-lg text-gray-300 mb-4">{cardPlayerName} drew:</p>
-              <p className={`text-xl font-bold ${cardData.isGood ? "text-green-400" : "text-red-400"}`}>{cardData.text}</p>
-              {cardData.effect && <p className="text-lg text-yellow-400 mt-2">Effect: {cardData.effect}</p>}
-              <button
-                onClick={() => setShowCardModal(false)}
-                className="mt-6 px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition"
-              >
-                Close
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Card Modal - using CardModal component for consistent experience */}
+      {showCardModal && cardData && (
+        <CardModal
+          isOpen={showCardModal}
+          onClose={() => setShowCardModal(false)}
+          card={cardData}
+          playerName={cardPlayerName}
+        />
+      )}
 
       {/* Raised Funds Button */}
       {isRaisingFunds && (
