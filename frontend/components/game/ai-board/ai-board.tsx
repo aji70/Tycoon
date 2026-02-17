@@ -1108,52 +1108,58 @@ const endTurnAfterSpecialMove = useCallback(() => {
     if (history.length <= prevHistoryLength.current) return;
 
     // API returns history newest first (created_at desc)
-    const newEntry = history[0];
+    // Check the new entries (recent additions) to find card draws
+    const newEntries = history.slice(0, history.length - prevHistoryLength.current);
     prevHistoryLength.current = history.length;
 
-    const comment =
-      typeof newEntry === "string"
-        ? newEntry
-        : (newEntry as { comment?: string } | null)?.comment ?? "";
-    const playerName =
-      typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
-        ? String((newEntry as { player_name?: string }).player_name ?? "Player")
-        : "";
+    // Search through new entries to find a card draw
+    for (const newEntry of newEntries) {
+      const comment =
+        typeof newEntry === "string"
+          ? newEntry
+          : (newEntry as { comment?: string } | null)?.comment ?? "";
+      const playerName =
+        typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
+          ? String((newEntry as { player_name?: string }).player_name ?? "Player")
+          : "";
 
-    const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
-    const stringMatch = typeof newEntry === "string" ? (newEntry as string).match(cardRegex) : null;
-    const objectMatch = comment.match(/drew (chance|community chest): (.+)/i);
+      // Match patterns like "drew chance: ..." or "PlayerName drew Chance: ..."
+      // The backend format is: "drew chance: [card instruction]" or "drew community chest: [card instruction]"
+      const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+?)(?:\s*\[|$)/i;
+      const match = comment.match(cardRegex);
+      
+      if (!match || !match[2]) continue; // Not a card entry or no text, check next
 
-    const match = stringMatch ?? (objectMatch ? [null, playerName, objectMatch[1], objectMatch[2]] : null);
-    if (!match) return;
+      const [, typeStr, text] = match;
+      const cardText = text.trim();
+      if (!cardText) continue; // Empty card text, skip
+      
+      const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+      const displayName = playerName.trim() || "Player";
 
-    const typeStr = (match[2] ?? "").toLowerCase();
-    const text = match[3] ?? "";
-    const type = typeStr.includes("chance") ? "chance" : "community";
-    const displayName = (match[1] ?? playerName).trim() || "Player";
+      const lowerText = cardText.toLowerCase();
+      const isGood =
+        lowerText.includes("collect") ||
+        lowerText.includes("receive") ||
+        lowerText.includes("advance") ||
+        lowerText.includes("get out of jail") ||
+        lowerText.includes("matures") ||
+        lowerText.includes("refund") ||
+        lowerText.includes("prize") ||
+        lowerText.includes("inherit");
 
-    const lowerText = text.toLowerCase();
-    const isGood =
-      lowerText.includes("collect") ||
-      lowerText.includes("receive") ||
-      lowerText.includes("advance") ||
-      lowerText.includes("get out of jail") ||
-      lowerText.includes("matures") ||
-      lowerText.includes("refund") ||
-      lowerText.includes("prize") ||
-      lowerText.includes("inherit");
+      const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+      const effect = effectMatch ? effectMatch[0] : undefined;
 
-    const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
-    const effect = effectMatch ? effectMatch[0] : undefined;
+      setCardData({ type, text: cardText, effect, isGood });
+      setCardPlayerName(displayName);
+      setShowCardModal(true);
 
-    setCardData({ type, text, effect, isGood });
-    setCardPlayerName(displayName);
-    setShowCardModal(true);
-
-    // Extended timer to account for two-stage animation:
-    // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
-    const timer = setTimeout(() => setShowCardModal(false), 15000);
-    return () => clearTimeout(timer);
+      // Extended timer to account for two-stage animation:
+      // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
+      const timer = setTimeout(() => setShowCardModal(false), 15000);
+      return () => clearTimeout(timer);
+    }
   }, [game.history]);
 
   useEffect(() => {

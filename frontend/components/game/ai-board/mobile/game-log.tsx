@@ -7,18 +7,40 @@ type ActionLogProps = {
   history: Game["history"];
 };
 
+/** Dedupe entries: remove duplicates where same comment appears for different players (e.g., rent payments create entries for both payer and receiver). */
 function dedupeHistory(history: Game["history"]): Game["history"] {
   if (!history?.length) return history ?? [];
   const out: Game["history"] = [];
-  let prevKey = "";
+  const seenComments = new Set<string>();
+  
   for (const entry of history) {
     const name = typeof entry === "object" && entry !== null && "player_name" in entry ? String((entry as { player_name?: string }).player_name ?? "") : "";
     const comment = typeof entry === "object" && entry !== null && "comment" in entry ? String((entry as { comment?: string }).comment ?? "") : String(entry ?? "");
-    if (`${name}|${comment}` !== prevKey) {
-      out.push(entry);
-      prevKey = `${name}|${comment}`;
-    }
+    const rolled = typeof entry === "object" && entry !== null && "rolled" in entry ? (entry as { rolled?: number }).rolled : undefined;
+    
+    // Create a key from comment + rolled to identify duplicate actions
+    const commentKey = `${comment}|${rolled ?? ""}`;
+    
+      // Check if this comment+rolled combination was already seen
+      if (seenComments.has(commentKey)) {
+        // If we've seen this comment before, check if this entry makes logical sense
+        // Filter out entries where player_name matches the recipient in "paid X to Y" patterns
+        const paidToMatch = comment.match(/paid\s+\d+\s+(?:rent\s+)?to\s+([^\s]+(?:\s+[^\s]+)*?)(?:\s+for|\s*$)/i);
+        if (paidToMatch && paidToMatch[1]) {
+          const recipient = paidToMatch[1].trim();
+          if (name.toLowerCase() === recipient.toLowerCase()) {
+            // This is a duplicate where the recipient is shown as the payer (e.g., "OG paid 8 rent to OG")
+            continue;
+          }
+        }
+        // For other duplicates, skip them
+        continue;
+      }
+    
+    seenComments.add(commentKey);
+    out.push(entry);
   }
+  
   return out;
 }
 
