@@ -1143,11 +1143,11 @@ const endTime =
             if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
           }}
           disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-          className="fixed top-4 left-4 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-slate-800/90 border border-cyan-500/50 text-cyan-200 hover:bg-slate-700/90 hover:border-cyan-400/60 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          className="fixed top-4 left-4 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
           title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
           aria-label="Vote to end game by net worth"
         >
-          <span className="text-sm font-bold">$</span>
+          <span className="text-lg font-bold leading-none">×</span>
         </button>
       )}
 
