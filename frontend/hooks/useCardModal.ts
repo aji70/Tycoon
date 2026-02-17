@@ -1,56 +1,53 @@
-import { useEffect, useRef } from "react";
-
 export const useCardModal = (
-  game: { history?: string[] },
-  setShowCardModal: (value: boolean) => void,
-  setCardData: (data: {
+  _game: { history?: string[] },
+  _setShowCardModal: (value: boolean) => void,
+  _setCardData: (data: {
     type: "chance" | "community";
     text: string;
     effect?: string;
     isGood: boolean;
   } | null) => void,
-  setCardPlayerName: (name: string) => void
+  _setCardPlayerName: (name: string) => void
 ) => {
-  const prevHistoryLength = useRef(game.history?.length ?? 0);
+  // COMMENTED OUT: Chance/Community Chest modal trigger disabled
+  // useEffect(() => {
+  //   const history = game.history ?? [];
+  //   if (history.length <= prevHistoryLength.current) return;
 
-  useEffect(() => {
-    const history = game.history ?? [];
-    if (history.length <= prevHistoryLength.current) return;
+  //   const newEntry = history[history.length - 1];
+  //   prevHistoryLength.current = history.length;
 
-    const newEntry = history[history.length - 1];
-    prevHistoryLength.current = history.length;
+  //   if (newEntry == null || typeof newEntry !== "string") return;
 
-    if (newEntry == null || typeof newEntry !== "string") return;
+  //   const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
+  //   const match = (newEntry as string).match(cardRegex);
 
-    const cardRegex = /(.+) drew (Chance|Community Chest): (.+)/i;
-    const match = (newEntry as string).match(cardRegex);
+  //   if (!match) return;
 
-    if (!match) return;
+  //   const [, playerName, typeStr, text] = match;
+  //   const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
 
-    const [, playerName, typeStr, text] = match;
-    const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+  //   const lowerText = text.toLowerCase();
+  //   const isGood =
+  //     lowerText.includes("collect") ||
+  //     lowerText.includes("receive") ||
+  //     lowerText.includes("advance") ||
+  //     lowerText.includes("get out of jail") ||
+  //     lowerText.includes("matures") ||
+  //     lowerText.includes("refund") ||
+  //     lowerText.includes("prize") ||
+  //     lowerText.includes("inherit");
 
-    const lowerText = text.toLowerCase();
-    const isGood =
-      lowerText.includes("collect") ||
-      lowerText.includes("receive") ||
-      lowerText.includes("advance") ||
-      lowerText.includes("get out of jail") ||
-      lowerText.includes("matures") ||
-      lowerText.includes("refund") ||
-      lowerText.includes("prize") ||
-      lowerText.includes("inherit");
+  //   const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+  //   const effect = effectMatch ? effectMatch[0] : undefined;
 
-    const effectMatch = text.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
-    const effect = effectMatch ? effectMatch[0] : undefined;
+  //   setCardData({ type, text, effect, isGood });
+  //   setCardPlayerName(playerName.trim());
+  //   setShowCardModal(true);
 
-    setCardData({ type, text, effect, isGood });
-    setCardPlayerName(playerName.trim());
-    setShowCardModal(true);
-
-    // Extended timer to account for two-stage animation:
-    // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
-    const timer = setTimeout(() => setShowCardModal(false), 15000);
-    return () => clearTimeout(timer);
-  }, [game.history, setShowCardModal, setCardData, setCardPlayerName]);
+  //   // Extended timer to account for two-stage animation:
+  //   // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
+  //   const timer = setTimeout(() => setShowCardModal(false), 15000);
+  //   return () => clearTimeout(timer);
+  // }, [game.history, setShowCardModal, setCardData, setCardPlayerName]);
 };
