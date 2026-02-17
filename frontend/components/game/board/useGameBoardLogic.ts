@@ -163,63 +163,64 @@ export function useGameBoardLogic({
   }, [currentPlayerId]);
 
   // When any player lands on Chance/CC, show transparent card popup for everyone
-  useEffect(() => {
-    const history = game?.history ?? [];
-    if (history.length <= prevHistoryLength.current) return;
+  // COMMENTED OUT: Card modal disabled
+  // useEffect(() => {
+  //   const history = game?.history ?? [];
+  //   if (history.length <= prevHistoryLength.current) return;
 
-    // API returns history newest first (created_at desc)
-    // Check the new entries (recent additions) to find card draws
-    const newEntries = history.slice(0, history.length - prevHistoryLength.current);
-    prevHistoryLength.current = history.length;
+  //   // API returns history newest first (created_at desc)
+  //   // Check the new entries (recent additions) to find card draws
+  //   const newEntries = history.slice(0, history.length - prevHistoryLength.current);
+  //   prevHistoryLength.current = history.length;
 
-    // Search through new entries to find a card draw
-    for (const newEntry of newEntries) {
-      const comment =
-        typeof newEntry === "string"
-          ? newEntry
-          : (newEntry as { comment?: string })?.comment ?? "";
-      const playerName =
-        typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
-          ? String((newEntry as { player_name?: string }).player_name ?? "Player")
-          : "";
+  //   // Search through new entries to find a card draw
+  //   for (const newEntry of newEntries) {
+  //     const comment =
+  //       typeof newEntry === "string"
+  //         ? newEntry
+  //         : (newEntry as { comment?: string })?.comment ?? "";
+  //     const playerName =
+  //       typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
+  //         ? String((newEntry as { player_name?: string }).player_name ?? "Player")
+  //         : "";
 
-      // Match patterns like "drew chance: ..." or "PlayerName drew Chance: ..."
-      // The backend format is: "drew chance: [card instruction]" or "drew community chest: [card instruction]"
-      // Capture everything after the colon - the card instruction text
-      const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
-      const match = comment.match(cardRegex);
+  //     // Match patterns like "drew chance: ..." or "PlayerName drew Chance: ..."
+  //     // The backend format is: "drew chance: [card instruction]" or "drew community chest: [card instruction]"
+  //     // Capture everything after the colon - the card instruction text
+  //     const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
+  //     const match = comment.match(cardRegex);
       
-      if (!match || !match[2]) continue; // Not a card entry or no text, check next
+  //     if (!match || !match[2]) continue; // Not a card entry or no text, check next
 
-      const [, typeStr, text] = match;
-      // Remove any trailing "[Rolled X]" or similar patterns, but keep the card text
-      const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
-      if (!cardText) continue; // Empty card text, skip
+  //     const [, typeStr, text] = match;
+  //     // Remove any trailing "[Rolled X]" or similar patterns, but keep the card text
+  //     const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
+  //     if (!cardText) continue; // Empty card text, skip
       
-      const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+  //     const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
 
-      const lowerText = cardText.toLowerCase();
-      const isGood =
-        lowerText.includes("collect") ||
-        lowerText.includes("receive") ||
-        lowerText.includes("advance") ||
-        lowerText.includes("get out of jail") ||
-        lowerText.includes("matures") ||
-        lowerText.includes("refund") ||
-        lowerText.includes("prize") ||
-        lowerText.includes("inherit");
+  //     const lowerText = cardText.toLowerCase();
+  //     const isGood =
+  //       lowerText.includes("collect") ||
+  //       lowerText.includes("receive") ||
+  //       lowerText.includes("advance") ||
+  //       lowerText.includes("get out of jail") ||
+  //       lowerText.includes("matures") ||
+  //       lowerText.includes("refund") ||
+  //       lowerText.includes("prize") ||
+  //       lowerText.includes("inherit");
 
-      const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
-      const effect = effectMatch ? effectMatch[0] : undefined;
+  //     const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+  //     const effect = effectMatch ? effectMatch[0] : undefined;
 
-      setCardData({ type, text: cardText, effect, isGood });
-      setCardPlayerName(playerName.trim() || "Player");
-      setShowCardModal(true);
+  //     setCardData({ type, text: cardText, effect, isGood });
+  //     setCardPlayerName(playerName.trim() || "Player");
+  //     setShowCardModal(true);
 
-      const timer = setTimeout(() => setShowCardModal(false), 15000);
-      return () => clearTimeout(timer);
-    }
-  }, [game?.history]);
+  //     const timer = setTimeout(() => setShowCardModal(false), 15000);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [game?.history]);
 
   const touchActivity = useCallback(() => {
     lastActivityRef.current = Date.now();

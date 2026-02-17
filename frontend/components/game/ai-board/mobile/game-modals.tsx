@@ -437,14 +437,14 @@ const GameModals: React.FC<GameModalsProps> = ({
       </AnimatePresence>
 
       {/* Card Modal - using CardModal component for consistent experience */}
-      {showCardModal && cardData && (
+      {/* {showCardModal && cardData && (
         <CardModal
           isOpen={showCardModal}
           onClose={() => setShowCardModal(false)}
           card={cardData}
           playerName={cardPlayerName}
         />
-      )}
+      )} */}
 
       {/* Raised Funds Button */}
       {isRaisingFunds && (

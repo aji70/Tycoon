@@ -178,7 +178,7 @@ const GameModals: React.FC<GameModalsProps> = ({
       </AnimatePresence>
 
       {/* Card Modal */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {showCardModal && cardData && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -205,7 +205,7 @@ const GameModals: React.FC<GameModalsProps> = ({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Raised Funds Button */}
       {isRaisingFunds && (
