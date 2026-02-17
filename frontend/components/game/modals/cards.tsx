@@ -20,7 +20,7 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card, pla
   const CONTENT_DISPLAY_DURATION = 8000; // 8 seconds to read the card content
 
   useEffect(() => {
-    if (isOpen && card) {
+    if (isOpen && card && card.text) {
       setShowCardContent(false);
       // Show "drew" message first
       const drawTimer = setTimeout(() => {
@@ -41,7 +41,7 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card, pla
     }
   }, [isOpen, card, onClose]);
 
-  if (!isOpen || !card) return null;
+  if (!isOpen || !card || !card.text) return null;
 
   const isGood = card.isGood;
   const typeTitle = card.type === "chance" ? "Chance" : "Community Chest";
@@ -189,7 +189,7 @@ export const CardModal: React.FC<CardModalProps> = ({ isOpen, onClose, card, pla
                 transition={{ delay: 0.3 }}
                 className="bg-black/40 rounded-2xl p-6 mb-6 border border-white/10"
               >
-                <p className="text-2xl italic text-white leading-relaxed">
+                <p className="text-2xl italic text-white leading-relaxed whitespace-pre-wrap">
                   "{card.text}"
                 </p>
               </motion.div>
