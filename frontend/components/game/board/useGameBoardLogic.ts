@@ -185,13 +185,15 @@ export function useGameBoardLogic({
 
       // Match patterns like "drew chance: ..." or "PlayerName drew Chance: ..."
       // The backend format is: "drew chance: [card instruction]" or "drew community chest: [card instruction]"
-      const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+?)(?:\s*\[|$)/i;
+      // Capture everything after the colon - the card instruction text
+      const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
       const match = comment.match(cardRegex);
       
       if (!match || !match[2]) continue; // Not a card entry or no text, check next
 
       const [, typeStr, text] = match;
-      const cardText = text.trim();
+      // Remove any trailing "[Rolled X]" or similar patterns, but keep the card text
+      const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
       if (!cardText) continue; // Empty card text, skip
       
       const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";

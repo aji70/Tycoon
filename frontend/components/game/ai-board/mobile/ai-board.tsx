@@ -716,14 +716,19 @@ const endTime =
 
       // Match patterns like "drew chance: ..." or "PlayerName drew Chance: ..."
       // The backend format is: "drew chance: [card instruction]" or "drew community chest: [card instruction]"
-      const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+?)(?:\s*\[|$)/i;
+      // Capture everything after the colon - the card instruction text
+      const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
       const match = comment.match(cardRegex);
       
       if (!match || !match[2]) continue; // Not a card entry or no text, check next
 
       const [, typeStr, text] = match;
-      const cardText = text.trim();
-      if (!cardText) continue; // Empty card text, skip
+      // Remove any trailing "[Rolled X]" or similar patterns, but keep the card text
+      const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
+      if (!cardText) {
+        console.warn("Card modal: Empty card text extracted from comment:", comment);
+        continue; // Empty card text, skip
+      }
       
       const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
       const displayName = playerName.trim() || "Player";
@@ -742,6 +747,7 @@ const endTime =
       const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
       const effect = effectMatch ? effectMatch[0] : undefined;
 
+      console.log("Card modal: Setting card data:", { type, text: cardText, effect, isGood, playerName: displayName });
       setCardData({ type, text: cardText, effect, isGood });
       setCardPlayerName(displayName);
       setShowCardModal(true);
