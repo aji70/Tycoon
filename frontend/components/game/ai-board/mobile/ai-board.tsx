@@ -920,30 +920,7 @@ const endTime =
                     Time&apos;s Up!
                   </div>
                 )}
-                {isUntimed && endByNetWorthStatus != null && (
-                  <div className="flex flex-col items-center mb-2">
-                    <button
-                      onClick={() => {
-                        if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
-                        if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
-                      }}
-                      disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-                      className={`text-sm font-medium rounded-xl px-4 py-2 border shrink-0 transition-all duration-200 ${
-                        endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
-                          ? "bg-emerald-900/50 text-emerald-200/90 border-emerald-500/40"
-                          : endByNetWorthLoading
-                          ? "bg-amber-900/50 text-amber-200 border-amber-500/40"
-                          : "bg-slate-800/80 text-cyan-100 border-cyan-500/50 hover:bg-slate-700/90 hover:border-cyan-400/60"
-                      }`}
-                    >
-                      {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
-                        ? `✓ Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`
-                        : endByNetWorthLoading
-                        ? "..."
-                        : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
-                    </button>
-                  </div>
-                )}
+                {/* Untimed: vote to end game by net worth — moved to top-left corner $ button */}
                 {!gameTimeUp && isMyTurn && !turnEndScheduled && !isRolling && !isRaisingFunds && !showInsolvencyModal && (
                   (currentPlayer?.balance ?? 0) < 0 ? (
                     <button
@@ -1158,7 +1135,23 @@ const endTime =
         onEndTurnAfterSpecial={endTurnAfterSpecialMove}
       />
 
-      {/* End game by net worth — are you sure */}
+      {/* End game by net worth — corner button (top-left) */}
+      {isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+        <button
+          onClick={() => {
+            if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+            if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+          }}
+          disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+          className="fixed top-4 left-4 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-slate-800/90 border border-cyan-500/50 text-cyan-200 hover:bg-slate-700/90 hover:border-cyan-400/60 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+          aria-label="Vote to end game by net worth"
+        >
+          <span className="text-sm font-bold">$</span>
+        </button>
+      )}
+
+      {/* End game by net worth — confirm modal (with X to close) */}
       <AnimatePresence>
         {showEndByNetWorthConfirm && (
           <motion.div
@@ -1174,9 +1167,17 @@ const endTime =
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: "spring", duration: 0.3 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-900/30 p-6 max-w-sm w-full"
+              className="relative bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-900/30 p-6 max-w-sm w-full"
             >
-              <p className="text-lg font-semibold text-cyan-100 mb-1">End game by net worth?</p>
+              <button
+                type="button"
+                onClick={() => setShowEndByNetWorthConfirm(false)}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-cyan-300 hover:text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                aria-label="Close"
+              >
+                <span className="text-xl leading-none">×</span>
+              </button>
+              <p className="text-lg font-semibold text-cyan-100 mb-1 pr-8">End game by net worth?</p>
               <p className="text-sm text-cyan-200/80 mb-6">The game will end and the player with the highest net worth will win.</p>
               <div className="flex gap-3 justify-end">
                 <button
