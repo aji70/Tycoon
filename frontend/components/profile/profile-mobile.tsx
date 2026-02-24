@@ -102,7 +102,7 @@ export default function ProfilePageMobile() {
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
-  const [profileTab, setProfileTab] = useState<'about' | 'perks' | 'vouchers'>('about');
+  const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
@@ -445,64 +445,11 @@ export default function ProfilePageMobile() {
           ))}
         </div>
 
-        {/* Game stats — from contract User struct */}
-        <div>
-          <p className="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-2">
-            <span className="w-1 h-3 rounded-full bg-cyan-500" />
-            Game stats
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
-            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-              <BarChart2 className="w-4 h-4 text-cyan-400" />
-              <p className="text-[10px] text-white/50">Games</p>
-              <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
-            </div>
-            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-              <Crown className="w-4 h-4 text-amber-400" />
-              <p className="text-[10px] text-white/50">Wins</p>
-              <p className="text-sm font-bold text-amber-300">{userData.gamesWon}</p>
-            </div>
-            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-              <Coins className="w-4 h-4 text-slate-400" />
-              <p className="text-[10px] text-white/50">Losses</p>
-              <p className="text-sm font-bold text-slate-300">{userData.gamesLost}</p>
-            </div>
-            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
-              <BarChart2 className="w-4 h-4 text-emerald-400" />
-              <p className="text-[10px] text-white/50">Win rate</p>
-              <p className="text-sm font-bold text-emerald-300">{userData.winRate}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-              <p className="text-[9px] text-white/50">Staked</p>
-              <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(userData.totalStaked)}</p>
-            </div>
-            <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-              <p className="text-[9px] text-white/50">Earned</p>
-              <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(userData.totalEarned)}</p>
-            </div>
-            <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
-              <p className="text-[9px] text-white/50">Withdrawn</p>
-              <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(userData.totalWithdrawn)}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
-              <p className="text-[9px] text-white/50">Props bought</p>
-              <p className="text-sm font-bold text-cyan-300">{userData.propertiesBought}</p>
-            </div>
-            <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
-              <p className="text-[9px] text-white/50">Props sold</p>
-              <p className="text-sm font-bold text-amber-300">{userData.propertiesSold}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* About | My Perks | Vouchers — tabs side by side */}
+        {/* Game stats | About | Perks | Vouchers — one line of tabs, content below */}
         <section className="pb-4">
-          <div className="flex gap-1.5 mb-3">
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {[
+              { id: 'stats' as const, label: 'Stats', icon: BarChart2 },
               { id: 'about' as const, label: 'About', icon: User },
               { id: 'perks' as const, label: 'Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
               { id: 'vouchers' as const, label: 'Vouchers', icon: Ticket, badge: myVouchers.length },
@@ -511,7 +458,7 @@ export default function ProfilePageMobile() {
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl font-semibold text-xs transition-all ${
+                className={`flex-1 min-w-[70px] flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl font-semibold text-xs transition-all ${
                   profileTab === id
                     ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
                     : 'bg-white/5 border border-white/10 text-white/70'
@@ -527,6 +474,56 @@ export default function ProfilePageMobile() {
           </div>
 
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto">
+            {profileTab === 'stats' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                  <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                    <BarChart2 className="w-4 h-4 text-cyan-400" />
+                    <p className="text-[10px] text-white/50">Games</p>
+                    <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
+                  </div>
+                  <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                    <Crown className="w-4 h-4 text-amber-400" />
+                    <p className="text-[10px] text-white/50">Wins</p>
+                    <p className="text-sm font-bold text-amber-300">{userData.gamesWon}</p>
+                  </div>
+                  <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                    <Coins className="w-4 h-4 text-slate-400" />
+                    <p className="text-[10px] text-white/50">Losses</p>
+                    <p className="text-sm font-bold text-slate-300">{userData.gamesLost}</p>
+                  </div>
+                  <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                    <BarChart2 className="w-4 h-4 text-emerald-400" />
+                    <p className="text-[10px] text-white/50">Win rate</p>
+                    <p className="text-sm font-bold text-emerald-300">{userData.winRate}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                    <p className="text-[9px] text-white/50">Staked</p>
+                    <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(userData.totalStaked)}</p>
+                  </div>
+                  <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                    <p className="text-[9px] text-white/50">Earned</p>
+                    <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(userData.totalEarned)}</p>
+                  </div>
+                  <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                    <p className="text-[9px] text-white/50">Withdrawn</p>
+                    <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(userData.totalWithdrawn)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+                    <p className="text-[9px] text-white/50">Props bought</p>
+                    <p className="text-sm font-bold text-cyan-300">{userData.propertiesBought}</p>
+                  </div>
+                  <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+                    <p className="text-[9px] text-white/50">Props sold</p>
+                    <p className="text-sm font-bold text-amber-300">{userData.propertiesSold}</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
             {profileTab === 'about' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
                 <div className="space-y-3">
