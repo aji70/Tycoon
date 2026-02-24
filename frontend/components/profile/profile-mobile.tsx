@@ -450,7 +450,7 @@ export default function ProfilePageMobile() {
 
         {/* Game stats | About | Perks | Vouchers — one line of tabs, content below */}
         <section className="pb-4">
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex gap-1.5 mb-3">
             {[
               { id: 'stats' as const, label: 'Stats', icon: BarChart2 },
               { id: 'about' as const, label: 'About', icon: User },
@@ -461,17 +461,19 @@ export default function ProfilePageMobile() {
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 min-w-[70px] flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl font-semibold text-xs transition-all ${
+                className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 py-2.5 px-1.5 rounded-xl font-semibold text-[11px] transition-all ${
                   profileTab === id
                     ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
                     : 'bg-white/5 border border-white/10 text-white/70'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
-                {label}
-                {badge !== undefined && badge > 0 && (
-                  <span className="min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
-                )}
+                <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap">
+                  <span className="text-center leading-tight break-words">{label}</span>
+                  {badge !== undefined && badge > 0 && (
+                    <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
