@@ -31,19 +31,14 @@ import {
 
 import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
-import {
-  REWARD_CONTRACT_ADDRESSES,
-  TYC_TOKEN_ADDRESS,
-  USDC_TOKEN_ADDRESS,
-} from '@/constants/contracts';
+import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
-// Import user-facing reward hooks
 import {
   useRewardBuyCollectible,
   useRewardRedeemVoucher,
-  useRewardCollectibleInfo,
   useApprove,
-} from '@/context/ContractProvider'; // Adjust path if needed
+  useRewardTokenAddresses,
+} from '@/context/ContractProvider';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -74,8 +69,7 @@ export default function GameShop() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
-  const tycTokenAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
   const [useUsdc, setUseUsdc] = useState(false);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);

@@ -719,6 +719,32 @@ export function useTotalGames() {
 
 /* ----------------------- Reward System Hooks ----------------------- */
 
+/** Read TYC and USDC token addresses from the reward contract (single source of truth). */
+export function useRewardTokenAddresses(): { tycAddress: Address | undefined; usdcAddress: Address | undefined; isLoading: boolean } {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+
+  const { data: tycAddress, isLoading: tycLoading } = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'tycToken',
+    query: { enabled: !!contractAddress },
+  });
+
+  const { data: usdcAddress, isLoading: usdcLoading } = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'usdc',
+    query: { enabled: !!contractAddress },
+  });
+
+  return {
+    tycAddress: tycAddress as Address | undefined,
+    usdcAddress: usdcAddress as Address | undefined,
+    isLoading: tycLoading || usdcLoading,
+  };
+}
+
 export function useRewardCollectibleInfo(tokenId?: bigint) {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
