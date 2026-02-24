@@ -100,6 +100,7 @@ export default function Profile() {
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
+  const [profileTab, setProfileTab] = useState<'about' | 'perks' | 'vouchers'>('about');
   const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
@@ -447,7 +448,7 @@ export default function Profile() {
                 {[
                   { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
                   { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
-                  { label: 'ETH', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
+                  { label: 'Celo', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
                     <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
@@ -536,129 +537,131 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* About */}
-        <motion.section
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.05 }}
-          className="profile-card rounded-2xl p-5 sm:p-6 mb-8"
-        >
-          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 rounded-full bg-cyan-500" />
-            About you
-          </h3>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
-              <User className="w-4 h-4 text-cyan-400 shrink-0" />
-              <input
-                type="text"
-                placeholder="Nickname (optional)"
-                value={localDisplayName}
-                onChange={(e) => setLocalDisplayName(e.target.value)}
-                onBlur={saveDisplayName}
-                className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
-              />
-              <button type="button" onClick={saveDisplayName} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0">Save</button>
-            </div>
-            <div className="sm:col-span-2 flex gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
-              <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-              <textarea
-                placeholder="Short bio (optional)"
-                value={localBio}
-                onChange={(e) => setLocalBio(e.target.value)}
-                onBlur={saveBio}
-                rows={2}
-                className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none min-w-0"
-              />
-              <button type="button" onClick={saveBio} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0 self-end">Save</button>
-            </div>
+        {/* About | My Perks | Reward Vouchers — tabs side by side, one content area */}
+        <section className="mb-8">
+          <div className="flex gap-2 mb-4">
+            {[
+              { id: 'about' as const, label: 'About you', icon: User },
+              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
+              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
+            ].map(({ id, label, icon: Icon, badge }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setProfileTab(id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all ${
+                  profileTab === id
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:border-white/20 hover:text-white/90'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {label}
+                {badge !== undefined && badge > 0 && (
+                  <span className="ml-1 min-w-[1.25rem] h-5 px-1.5 rounded-md bg-white/10 text-xs flex items-center justify-center">{badge}</span>
+                )}
+              </button>
+            ))}
           </div>
-        </motion.section>
 
-        {/* Perks */}
-        <section className="mb-10">
-          <h3 className="text-sm font-semibold text-white/80 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 rounded-full bg-purple-500" />
-            My Perks <span className="text-white/40 font-normal normal-case">({ownedCollectibles.length})</span>
-          </h3>
-
-          {ownedCollectibles.length > 0 && (
-            <div className="profile-card rounded-xl p-4 mb-6 max-w-xl border border-purple-500/20">
-              <label className="text-xs text-white/50 mb-2 block">Transfer to address</label>
-              <input
-                type="text"
-                placeholder="0x0000...0000"
-                value={sendAddress}
-                onChange={(e) => setSendAddress(e.target.value.trim())}
-                className="w-full px-4 py-3 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm border border-white/10"
-              />
-            </div>
-          )}
-
-          {ownedCollectibles.length === 0 ? (
-            <div className="profile-card rounded-2xl py-14 text-center border border-white/5">
-              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
-                <ShoppingBag className="w-8 h-8 text-purple-400/60" />
-              </div>
-              <p className="text-slate-400 text-sm">No perks yet — visit the shop to collect.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {ownedCollectibles.map((item, i) => (
-                <motion.div
-                  key={item.tokenId.toString()}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  whileHover={{ y: -4 }}
-                  className="profile-card rounded-2xl p-5 text-center border border-white/10 hover:border-purple-500/30 transition-all duration-300 hover:shadow-[0_0_30px_rgba(168,85,247,0.1)]"
-                >
-                  {item.icon}
-                  <h4 className="mt-3 font-semibold text-white text-sm">{item.name}</h4>
-                  {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-1">Tier {item.strength}</p>}
-                  <button
-                    onClick={() => handleSend(item.tokenId)}
-                    disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
-                    className="mt-4 w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-white"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Vouchers */}
-        <section>
-          <button
-            onClick={() => setShowVouchers(!showVouchers)}
-            className="w-full profile-card rounded-2xl p-5 sm:p-6 border border-amber-500/20 hover:border-amber-500/40 flex items-center justify-between transition-all text-left"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Ticket className="w-6 h-6 text-amber-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-amber-200">Reward Vouchers</h3>
-                <p className="text-white/50 text-sm">{myVouchers.length} voucher{myVouchers.length !== 1 ? 's' : ''} · {showVouchers ? 'Hide' : 'View & redeem'}</p>
-              </div>
-            </div>
-            {showVouchers ? <ChevronUp className="w-5 h-5 text-amber-400/80 shrink-0" /> : <ChevronDown className="w-5 h-5 text-amber-400/80 shrink-0" />}
-          </button>
-
-          <AnimatePresence>
-            {showVouchers && (
+          <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[280px] max-h-[60vh] overflow-y-auto">
+            {profileTab === 'about' && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden mt-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-5 sm:p-6"
+              >
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
+                    <User className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Nickname (optional)"
+                      value={localDisplayName}
+                      onChange={(e) => setLocalDisplayName(e.target.value)}
+                      onBlur={saveDisplayName}
+                      className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
+                    />
+                    <button type="button" onClick={saveDisplayName} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0">Save</button>
+                  </div>
+                  <div className="sm:col-span-2 flex gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
+                    <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                    <textarea
+                      placeholder="Short bio (optional)"
+                      value={localBio}
+                      onChange={(e) => setLocalBio(e.target.value)}
+                      onBlur={saveBio}
+                      rows={2}
+                      className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none min-w-0"
+                    />
+                    <button type="button" onClick={saveBio} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0 self-end">Save</button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {profileTab === 'perks' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-5 sm:p-6"
+              >
+                {ownedCollectibles.length > 0 && (
+                  <div className="mb-4">
+                    <label className="text-xs text-white/50 mb-2 block">Transfer to address</label>
+                    <input
+                      type="text"
+                      placeholder="0x0000...0000"
+                      value={sendAddress}
+                      onChange={(e) => setSendAddress(e.target.value.trim())}
+                      className="w-full max-w-md px-4 py-3 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm border border-white/10"
+                    />
+                  </div>
+                )}
+                {ownedCollectibles.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
+                      <ShoppingBag className="w-8 h-8 text-purple-400/60" />
+                    </div>
+                    <p className="text-slate-400 text-sm">No perks yet — visit the shop to collect.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {ownedCollectibles.map((item, i) => (
+                      <motion.div
+                        key={item.tokenId.toString()}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.02 }}
+                        whileHover={{ y: -2 }}
+                        className="rounded-2xl p-4 text-center border border-white/10 hover:border-purple-500/30 transition-all bg-black/20"
+                      >
+                        {item.icon}
+                        <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
+                        {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
+                        <button
+                          onClick={() => handleSend(item.tokenId)}
+                          disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
+                          className="mt-3 w-full py-2 rounded-xl font-semibold text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 flex items-center justify-center gap-1.5 text-white"
+                        >
+                          <Send className="w-3 h-3" />
+                          {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
+                        </button>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {profileTab === 'vouchers' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-5 sm:p-6"
               >
                 {myVouchers.length === 0 ? (
-                  <div className="profile-card rounded-2xl py-10 text-center border border-amber-500/10">
+                  <div className="py-12 text-center">
                     <Ticket className="w-12 h-12 text-amber-400/30 mx-auto mb-3" />
                     <p className="text-slate-500 text-sm">No vouchers yet — keep winning games!</p>
                   </div>
@@ -667,12 +670,12 @@ export default function Profile() {
                     {myVouchers.map((voucher) => (
                       <motion.div
                         key={voucher.tokenId.toString()}
-                        initial={{ opacity: 0, y: 12 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="profile-card rounded-2xl p-5 text-center border border-amber-500/20"
+                        className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
                       >
-                        <Ticket className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                        <p className="text-xl font-bold text-amber-200 mb-4">{voucher.value} TYC</p>
+                        <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                        <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
                         <button
                           onClick={() => handleRedeemVoucher(voucher.tokenId)}
                           disabled={redeemingId === voucher.tokenId || isWriting || isConfirming}
@@ -687,7 +690,7 @@ export default function Profile() {
                 )}
               </motion.div>
             )}
-          </AnimatePresence>
+          </div>
         </section>
       </main>
 
