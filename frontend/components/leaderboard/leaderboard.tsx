@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useChainId } from 'wagmi';
+import { useAccount, useChainId, useReadContract } from 'wagmi';
 import { Trophy, TrendingUp, Wallet, Target, Loader2, Users, ChevronLeft } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import TycoonABI from '@/context/abi/tycoonabi.json';
 
 /** Map chainId to backend chain name for leaderboard filter */
 function chainIdToLeaderboardChain(chainId: number): string {
@@ -20,7 +22,7 @@ function chainIdToLeaderboardChain(chainId: number): string {
     case 80001:
       return 'POLYGON';
     default:
-      return 'BASE';
+      return 'CELO';
   }
 }
 
@@ -74,9 +76,20 @@ function formatBigNumber(n: number): string {
   return n.toLocaleString();
 }
 
+/** Parse backend row or contract User tuple into a consistent shape (same source idea as profile). */
+function normalizeLeaderboardArray(res: any): unknown[] {
+  const raw = res?.data;
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  return [];
+}
+
 export default function Leaderboard() {
+  const { address: walletAddress, isConnected } = useAccount();
   const chainId = useChainId();
   const chainParam = chainIdToLeaderboardChain(chainId);
+  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
+
   const [activeTab, setActiveTab] = useState<LeaderboardKind>('wins');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,29 +98,67 @@ export default function Leaderboard() {
   const [stakes, setStakes] = useState<StakesRow[]>([]);
   const [winrate, setWinrate] = useState<WinRateRow[]>([]);
 
+  // Same as profile: get username from contract then getUser(username) for on-chain stats
+  const { data: username } = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI,
+    functionName: 'addressToUsername',
+    args: walletAddress ? [walletAddress] : undefined,
+    query: { enabled: !!walletAddress && !!tycoonAddress },
+  });
+  const { data: contractUser } = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI,
+    functionName: 'getUser',
+    args: username ? [username as string] : undefined,
+    query: { enabled: !!username && !!tycoonAddress },
+  });
+
+  const currentUserFromContract = useMemo((): WinsRow & EarningsRow & StakesRow & WinRateRow | null => {
+    if (!contractUser || !username) return null;
+    const t = contractUser as [bigint, string, string, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+    const gamesPlayed = Number(t[4] ?? 0);
+    const gamesWon = Number(t[5] ?? 0);
+    const gamesLost = Number(t[6] ?? 0);
+    const totalStaked = Number(t[7] ?? 0);
+    const totalEarned = Number(t[8] ?? 0);
+    const totalWithdrawn = Number(t[9] ?? 0);
+    return {
+      id: -1,
+      username: String(username),
+      games_played: gamesPlayed,
+      game_won: gamesWon,
+      game_lost: gamesLost,
+      total_earned: totalEarned,
+      total_staked: totalStaked,
+      total_withdrawn: totalWithdrawn,
+      win_rate: gamesPlayed > 0 ? gamesWon / gamesPlayed : 0,
+    };
+  }, [contractUser, username]);
+
   const fetchLeaderboard = useCallback(async (kind: LeaderboardKind) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<unknown[]>('/users/leaderboard', {
+      const res = await apiClient.get('/users/leaderboard', {
         chain: chainParam,
         type: kind,
         limit: LIMIT,
       });
-      const data = res.data;
-      if (!Array.isArray(data)) throw new Error('Invalid leaderboard response');
+      const data = normalizeLeaderboardArray(res) as unknown[];
+      const list = Array.isArray(data) ? data : [];
       switch (kind) {
         case 'wins':
-          setWins(data as WinsRow[]);
+          setWins(list as WinsRow[]);
           break;
         case 'earnings':
-          setEarnings(data as EarningsRow[]);
+          setEarnings(list as EarningsRow[]);
           break;
         case 'stakes':
-          setStakes(data as StakesRow[]);
+          setStakes(list as StakesRow[]);
           break;
         case 'winrate':
-          setWinrate(data as WinRateRow[]);
+          setWinrate(list as WinRateRow[]);
           break;
       }
     } catch (err: any) {
@@ -126,6 +177,10 @@ export default function Leaderboard() {
   }, [activeTab, fetchLeaderboard]);
 
   const currentList = activeTab === 'wins' ? wins : activeTab === 'earnings' ? earnings : activeTab === 'stakes' ? stakes : winrate;
+  const showContractFallback = !loading && !error && currentList.length === 0 && isConnected && currentUserFromContract;
+  const displayList = showContractFallback && currentUserFromContract
+    ? [currentUserFromContract]
+    : currentList;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white">
@@ -137,8 +192,8 @@ export default function Leaderboard() {
           <ChevronLeft className="w-5 h-5" />
           Back
         </Link>
-        <h1 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-cyan-200 flex items-center gap-2">
-          <Trophy className="w-6 h-6 text-amber-400" />
+        <h1 className="text-xl md:text-2xl font-bold text-cyan-400 flex items-center gap-2">
+          <Trophy className="w-6 h-6 text-cyan-400" />
           Leaderboard
         </h1>
         <div className="w-16 md:w-20" />
@@ -147,6 +202,9 @@ export default function Leaderboard() {
       <main className="max-w-4xl mx-auto px-4 py-6 md:py-8">
         <p className="text-center text-white/60 text-sm mb-2">Top players on this chain</p>
         <p className="text-center text-cyan-400/90 text-xs font-medium mb-6">Chain: {chainParam}</p>
+        {showContractFallback && (
+          <p className="text-center text-cyan-400/80 text-xs mb-4">Showing your stats from chain (same as profile)</p>
+        )}
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 justify-center mb-6">
@@ -206,9 +264,9 @@ export default function Leaderboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentList as WinsRow[]).map((row, i) => (
+                      {(displayList as WinsRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4 font-bold text-amber-400/90">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
+                          <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
                           <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
                           <td className="py-3 px-4 text-right text-white/80">{row.games_played ?? 0}</td>
                           <td className="py-3 px-4 text-right font-semibold text-cyan-300">{row.game_won ?? 0}</td>
@@ -237,9 +295,9 @@ export default function Leaderboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentList as EarningsRow[]).map((row, i) => (
+                      {(displayList as EarningsRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4 font-bold text-amber-400/90">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
+                          <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
                           <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
                           <td className="py-3 px-4 text-right font-semibold text-emerald-300">{formatBigNumber(Number(row.total_earned ?? 0))}</td>
                           <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">{formatBigNumber(Number(row.total_staked ?? 0))}</td>
@@ -267,9 +325,9 @@ export default function Leaderboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentList as StakesRow[]).map((row, i) => (
+                      {(displayList as StakesRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4 font-bold text-amber-400/90">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
+                          <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
                           <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
                           <td className="py-3 px-4 text-right font-semibold text-cyan-300">{formatBigNumber(Number(row.total_staked ?? 0))}</td>
                           <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">{formatBigNumber(Number(row.total_earned ?? 0))}</td>
@@ -297,17 +355,17 @@ export default function Leaderboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(currentList as WinRateRow[]).map((row, i) => (
+                      {(displayList as WinRateRow[]).map((row, i) => (
                         <tr key={row.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4 font-bold text-amber-400/90">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
+                          <td className="py-3 px-4 font-bold text-cyan-400">{i + 1 === 1 ? '🏆' : `#${i + 1}`}</td>
                           <td className="py-3 px-4 font-medium text-white">{row.username || '—'}</td>
                           <td className="py-3 px-4 text-right font-semibold text-emerald-300">
-                            {row.games_played > 0
-                              ? `${((Number(row.game_won) / Number(row.games_played)) * 100).toFixed(1)}%`
+                            {(row as WinRateRow).games_played > 0
+                              ? `${((Number((row as WinRateRow).game_won) / Number((row as WinRateRow).games_played)) * 100).toFixed(1)}%`
                               : '—'}
                           </td>
                           <td className="py-3 px-4 text-right text-white/60 hidden sm:table-cell">
-                            {row.game_won ?? 0} / {row.games_played ?? 0}
+                            {(row as WinRateRow).game_won ?? 0} / {(row as WinRateRow).games_played ?? 0}
                           </td>
                         </tr>
                       ))}
@@ -318,10 +376,10 @@ export default function Leaderboard() {
             </AnimatePresence>
           )}
 
-          {!loading && !error && currentList.length === 0 && (
+          {!loading && !error && displayList.length === 0 && (
             <div className="py-16 flex flex-col items-center gap-2 text-white/50">
-              <Users className="w-12 h-12" />
-              <p>No entries yet. Play games to climb the board!</p>
+              <Users className="w-12 h-12 text-cyan-400/50" />
+              <p>No entries yet. Connect and play games to climb the board!</p>
             </div>
           )}
         </div>
