@@ -199,10 +199,18 @@ const GameStats: React.FC = () => {
 
             {/* Leaderboard */}
             <section className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6">
-              <h3 className="font-orbitron text-2xl text-[#00F0FF] font-bold mb-6 flex items-center gap-2 justify-center">
-                <Users className="w-6 h-6" />
-                Global Leaderboard
-              </h3>
+              <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
+                <h3 className="font-orbitron text-2xl text-[#00F0FF] font-bold flex items-center gap-2">
+                  <Users className="w-6 h-6" />
+                  Global Leaderboard
+                </h3>
+                <Link
+                  href="/leaderboard"
+                  className="text-sm font-semibold text-[#00F0FF] hover:text-[#0FF0FC] border border-[#00F0FF]/50 hover:border-[#00F0FF] rounded-lg px-4 py-2 transition-colors"
+                >
+                  View full leaderboard →
+                </Link>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[#F0F7F7] font-dmSans">
                   <thead>
