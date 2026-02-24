@@ -357,21 +357,23 @@ export default function GameShopMobile() {
       </div>
 
       <div className="px-4 pt-6 pb-32 max-w-xl mx-auto space-y-8">
-        {/* USDC Balance — glass card */}
+        {/* USDC Balance — compact */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl p-5 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl text-center shadow-[0_0_0_1px_rgba(0,240,255,0.05)]"
+          className="rounded-xl px-4 py-3 flex items-center justify-between border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
         >
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Your USDC Balance</p>
-          <p className="text-3xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-            {usdcLoading ? <Loader2 className="inline animate-spin" /> : `$${usdcBalance}`}
-          </p>
-          <button
-            onClick={() => refetchUsdc()}
-            className="mt-3 text-xs text-[#00F0FF] hover:underline flex items-center gap-1.5 mx-auto"
-          >
-            <RefreshCw size={14} /> Refresh
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-5 h-5 text-[#00F0FF]" />
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">USDC</p>
+              <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
+                {usdcLoading ? <Loader2 className="inline animate-spin" size={18} /> : `$${usdcBalance}`}
+              </p>
+            </div>
+          </div>
+          <button onClick={() => refetchUsdc()} className="text-xs text-[#00F0FF] flex items-center gap-1">
+            <RefreshCw size={12} /> Refresh
           </button>
         </motion.div>
 
@@ -406,17 +408,17 @@ export default function GameShopMobile() {
             <p className="text-sm text-slate-500 mt-2">New perks coming soon!</p>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5">
             {shopItems.map((item, index) => (
               <motion.div
                 key={item.tokenId.toString()}
-                initial={{ opacity: 0, y: 24 }}
+                initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.04 }}
-                className="group rounded-2xl overflow-hidden border border-[#003B3E]/70 bg-[#0E1415]/70 backdrop-blur-sm transition-all active:scale-[0.98]"
+                transition={{ delay: index * 0.03 }}
+                className="group flex flex-col rounded-xl overflow-hidden border border-[#003B3E]/70 bg-[#0E1415]/70 backdrop-blur-sm transition-all active:scale-[0.98]"
               >
-                <div className="relative aspect-[4/3]">
+                <div className="relative aspect-[4/3] w-full flex-shrink-0">
                   <Image
                     src={item.image || '/game/shop/placeholder.jpg'}
                     alt={item.name}
@@ -432,10 +434,10 @@ export default function GameShopMobile() {
                   </div>
                 </div>
 
-                <div className="p-3.5">
-                  <p className="text-[11px] text-slate-500 mb-2.5 line-clamp-2">{item.desc}</p>
+                <div className="p-3 flex flex-col flex-1 min-h-0">
+                  <p className="text-[11px] text-slate-500 mb-2 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
-                  <div className="flex justify-between items-end mb-3">
+                  <div className="flex justify-between items-end mb-3 mt-auto">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase">Price</p>
                       <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</p>
