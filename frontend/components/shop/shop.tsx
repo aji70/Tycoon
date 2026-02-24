@@ -374,125 +374,192 @@ const { data: usdcAllowance } = useReadContract({
   const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
 
   return (
-    <section className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-[#F0F7F7] py-8 px-4">
+    <section className="min-h-screen text-[#F0F7F7] py-8 px-4 relative overflow-hidden">
+      {/* Background: gradient + subtle grid + soft glow */}
+      <div className="fixed inset-0 -z-10 bg-[#010F10]" />
+      <div
+        className="fixed inset-0 -z-10 opacity-40"
+        style={{
+          backgroundImage: `
+            linear-gradient(to bottom, rgba(0, 240, 255, 0.03) 0%, transparent 40%),
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 240, 255, 0.08), transparent),
+            linear-gradient(180deg, #010F10 0%, #0A1618 50%, #0E1415 100%)
+          `,
+        }}
+      />
+      <div
+        className="fixed inset-0 -z-10 opacity-30"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2300F0FF' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        }}
+      />
+
       <div className="max-w-7xl mx-auto relative">
         {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-wide flex items-center gap-4">
-            <ShoppingBag className="w-12 h-12 text-[#00F0FF]" />
-            Tycoon Perk Shop
-          </h1>
-          <button onClick={handleBack} className="text-[#00F0FF] hover:text-[#0FF0FC] transition text-lg">
-            ← Back to Game
+        <div className="flex justify-between items-center mb-12">
+          <div className="flex items-center gap-5">
+            <div className="rounded-2xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 p-3.5 shadow-[0_0_30px_rgba(0,240,255,0.15)]">
+              <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
+            </div>
+            <div>
+              <p className="text-[#00F0FF]/80 text-sm font-medium tracking-widest uppercase mb-0.5 font-[family-name:var(--font-orbitron-sans)]">
+                Tycoon
+              </p>
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight font-[family-name:var(--font-orbitron-sans)] bg-clip-text text-transparent bg-gradient-to-r from-white via-[#E0F7F8] to-[#00F0FF]">
+                Perk Shop
+              </h1>
+            </div>
+          </div>
+          <button
+            onClick={handleBack}
+            className="group flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#003B3E] bg-[#0E1415]/80 text-[#00F0FF] hover:border-[#00F0FF]/50 hover:bg-[#00F0FF]/10 transition-all duration-300 font-medium"
+          >
+            <span className="group-hover:-translate-x-0.5 transition-transform">←</span> Back to Game
           </button>
         </div>
 
-        {/* Balances + Payment Toggle */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center relative">
-            <Wallet className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
-            <p className="text-lg font-semibold">TYC Balance</p>
-            <p className="text-2xl font-bold text-[#00F0FF]">
+        {/* Balances + Payment Toggle — glass cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="rounded-2xl p-6 text-center relative overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl shadow-[0_0_0_1px_rgba(0,240,255,0.05),inset_0_1px_0_rgba(255,255,255,0.03)]"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-[#00F0FF]/5 to-transparent pointer-events-none" />
+            <Wallet className="w-9 h-9 mx-auto mb-3 text-[#00F0FF]" />
+            <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">TYC Balance</p>
+            <p className="text-2xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
               {tycLoading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : `${tycBalance} TYC`}
             </p>
-            <button onClick={() => refetchTyc()} className="absolute top-4 right-4 text-gray-400 hover:text-[#00F0FF]">
+            <button onClick={() => refetchTyc()} className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-[#00F0FF] hover:bg-[#00F0FF]/10 transition">
               <RefreshCw className="w-5 h-5" />
             </button>
-          </div>
+          </motion.div>
 
-          <div className="bg-[#0E1415]/80 rounded-xl p-6 border border-[#003B3E] text-center relative">
-            <CreditCard className="w-8 h-8 mx-auto mb-2 text-[#00F0FF]" />
-            <p className="text-lg font-semibold">USDC Balance</p>
-            <p className="text-2xl font-bold text-[#00F0FF]">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.05 }}
+            className="rounded-2xl p-6 text-center relative overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl shadow-[0_0_0_1px_rgba(0,240,255,0.05),inset_0_1px_0_rgba(255,255,255,0.03)]"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-[#00F0FF]/5 to-transparent pointer-events-none" />
+            <CreditCard className="w-9 h-9 mx-auto mb-3 text-[#00F0FF]" />
+            <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">USDC Balance</p>
+            <p className="text-2xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
               {usdcLoading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : `$${usdcBalance}`}
             </p>
-            <button onClick={() => refetchUsdc()} className="absolute top-4 right-4 text-gray-400 hover:text-[#00F0FF]">
+            <button onClick={() => refetchUsdc()} className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-[#00F0FF] hover:bg-[#00F0FF]/10 transition">
               <RefreshCw className="w-5 h-5" />
             </button>
-          </div>
+          </motion.div>
 
-          <div className="bg-[#003B3E]/50 rounded-xl p-6 border border-[#00F0FF]/30 flex items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="rounded-2xl p-6 flex items-center justify-center border border-[#00F0FF]/20 bg-[#003B3E]/30 backdrop-blur-xl"
+          >
             <button
               onClick={() => setUseUsdc(!useUsdc)}
-              className="px-8 py-4 bg-[#003B3E] rounded-xl border-2 border-[#00F0FF] flex items-center gap-4 hover:bg-[#00F0FF]/20 transition text-lg font-semibold"
+              className="px-8 py-4 rounded-xl border-2 border-[#00F0FF]/50 bg-[#0E1415]/80 flex items-center gap-3 font-semibold text-lg hover:border-[#00F0FF] hover:bg-[#00F0FF]/10 transition-all duration-300"
             >
-              Pay with <span className="text-[#00F0FF]">{useUsdc ? 'USDC 💵' : 'TYC 🪙'}</span>
+              Pay with <span className="text-[#00F0FF]">{useUsdc ? 'USDC' : 'TYC'}</span>
+              <span className="text-2xl">{useUsdc ? '💵' : '🪙'}</span>
             </button>
-          </div>
+          </motion.div>
+        </div>
+
+        {/* Section label */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+          <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Available perks</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
         </div>
 
         {/* Shop Grid */}
         {isLoadingShop ? (
-          <div className="flex justify-center items-center py-20">
-            <Loader2 className="w-12 h-12 animate-spin text-[#00F0FF]" />
-            <span className="ml-4 text-xl">Loading perks...</span>
-          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col justify-center items-center py-24"
+          >
+            <div className="rounded-full border-2 border-[#00F0FF]/30 border-t-[#00F0FF] w-14 h-14 animate-spin mb-6" />
+            <p className="text-slate-400 text-lg">Loading perks...</p>
+          </motion.div>
         ) : shopItems.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 text-xl">
-            No collectibles available yet. Check back soon!
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-24 px-8 rounded-3xl border border-[#003B3E]/60 bg-[#0E1415]/40 backdrop-blur-sm"
+          >
+            <ShoppingBag className="w-16 h-16 mx-auto mb-6 text-slate-600" />
+            <h3 className="text-xl font-semibold text-slate-300 mb-2">No collectibles yet</h3>
+            <p className="text-slate-500 max-w-md mx-auto">New perks will appear here. Check back soon!</p>
+          </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-            {shopItems.map((item) => {
-              const priceStr = useUsdc ? item.usdcPrice : item.tycPrice;
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            {shopItems.map((item, index) => {
               const isProcessing = buyingPending || buyingConfirming;
 
               return (
                 <motion.div
                   key={item.tokenId.toString()}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 40 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  whileHover={{ scale: 1.05, y: -8 }}
-                  className="bg-[#0E1415] rounded-2xl overflow-hidden border border-[#003B3E] hover:border-[#00F0FF] transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-[#00F0FF]/30"
+                  viewport={{ once: true, margin: '-20px' }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  whileHover={{ y: -6 }}
+                  className="group rounded-2xl overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/70 backdrop-blur-sm transition-all duration-300 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
                 >
-                  <div className="relative h-56 overflow-hidden">
+                  <div className="relative h-52 overflow-hidden">
                     <Image
                       src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
                       fill
-                      className="object-cover transition-transform duration-500 hover:scale-110"
+                      className="object-cover transition-transform duration-700 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-                    <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                      {item.icon}
-                      <span className="font-bold text-xl">{item.name}</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
+                      Stock {item.stock}
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
+                      <div className="rounded-xl bg-black/30 backdrop-blur-sm p-2 border border-white/10">
+                        {item.icon}
+                      </div>
+                      <span className="font-bold text-lg text-white drop-shadow-lg">{item.name}</span>
                     </div>
                   </div>
 
-                  <div className="p-6">
-                    <p className="text-gray-300 mb-5 text-sm leading-relaxed">{item.desc}</p>
+                  <div className="p-5">
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5 line-clamp-2">{item.desc}</p>
 
-                    <div className="flex justify-between items-end mb-6">
+                    <div className="flex justify-between items-end mb-5">
                       <div>
-                        <p className="text-sm text-gray-400">Price</p>
-                        <p className="text-2xl font-bold text-[#00F0FF]">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Price</p>
+                        <p className="text-xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
                           {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
                         </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-400">Stock</p>
-                        <p className="text-xl font-bold">{item.stock > 0 ? item.stock : 'Sold Out'}</p>
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleBuy(item)}
                       disabled={item.stock === 0 || isProcessing}
-                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg transition ${
+                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 ${
                         item.stock === 0
-                          ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                          ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
                           : isProcessing
-                          ? 'bg-yellow-600 text-black cursor-wait'
-                          : 'bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] text-black hover:shadow-[#00F0FF]/50'
+                          ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
+                          : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
                       }`}
                     >
                       {isProcessing ? (
-                        <> <Loader2 className="w-6 h-6 animate-spin" /> Purchasing... </>
+                        <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
                       ) : item.stock === 0 ? (
                         'Sold Out'
                       ) : (
-                        <> <Coins className="w-6 h-6" /> Buy Now </>
+                        <> <Coins className="w-5 h-5" /> Buy Now </>
                       )}
                     </button>
                   </div>
@@ -502,22 +569,22 @@ const { data: usdcAllowance } = useReadContract({
           </div>
         )}
 
-        {/* Voucher Teaser */}
+        {/* Voucher Teaser FAB */}
         <AnimatePresence>
           {hasVouchers && !isVoucherPanelOpen && (
             <motion.button
-              initial={{ opacity: 0, x: 100 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 100 }}
+              initial={{ opacity: 0, scale: 0.8, x: 20 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8, x: 20 }}
               onClick={() => setIsVoucherPanelOpen(true)}
-              className="fixed right-8 bottom-8 z-40 bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold py-5 px-8 rounded-2xl shadow-2xl flex items-center gap-4 hover:shadow-amber-500/50 transition-all"
+              className="fixed right-8 bottom-8 z-40 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-black font-bold py-5 px-6 shadow-[0_10px_40px_rgba(251,191,36,0.4)] border border-amber-400/30 flex items-center gap-4 hover:scale-105 hover:shadow-[0_15px_50px_rgba(251,191,36,0.5)] transition-all"
             >
               <Ticket className="w-8 h-8" />
               <div className="text-left">
-                <p className="text-sm">You have</p>
+                <p className="text-xs opacity-90">You have</p>
                 <p className="text-2xl font-black">{myVouchers.length} Voucher{myVouchers.length > 1 ? 's' : ''}</p>
               </div>
-              <span className="ml-2 text-lg">→</span>
+              <span className="text-lg">→</span>
             </motion.button>
           )}
         </AnimatePresence>
@@ -531,60 +598,62 @@ const { data: usdcAllowance } = useReadContract({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsVoucherPanelOpen(false)}
-                className="fixed inset-0 bg-black/60 z-40"
+                className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
               />
 
               <motion.div
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="fixed right-0 top-0 h-full w-full max-w-md bg-[#0A1F20] shadow-2xl z-50 overflow-y-auto border-l border-amber-600/50"
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                className="fixed right-0 top-0 h-full w-full max-w-md bg-gradient-to-b from-[#0A1A1C] to-[#071012] shadow-2xl z-50 overflow-y-auto border-l border-amber-600/40"
               >
                 <div className="p-8">
                   <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-bold flex items-center gap-3">
-                      <Ticket className="w-10 h-10 text-amber-400" />
+                    <h2 className="text-2xl font-bold font-[family-name:var(--font-orbitron-sans)] flex items-center gap-3">
+                      <div className="rounded-xl bg-amber-500/20 p-2 border border-amber-500/30">
+                        <Ticket className="w-8 h-8 text-amber-400" />
+                      </div>
                       My Vouchers ({myVouchers.length})
                     </h2>
                     <button
                       onClick={() => setIsVoucherPanelOpen(false)}
-                      className="text-gray-400 hover:text-white transition"
+                      className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
                     >
-                      <X className="w-8 h-8" />
+                      <X className="w-6 h-6" />
                     </button>
                   </div>
 
                   {myVouchers.length === 0 ? (
-                    <p className="text-center text-gray-400 py-20">No vouchers found.</p>
+                    <p className="text-center text-slate-500 py-20">No vouchers found.</p>
                   ) : (
-                    <div className="grid gap-6">
+                    <div className="grid gap-5">
                       {myVouchers.map((voucher) => {
                         const isProcessing = redeemingPending || redeemingConfirming;
 
                         return (
                           <motion.div
                             key={voucher.tokenId.toString()}
-                            whileHover={{ scale: 1.03 }}
-                            className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 rounded-xl p-6 border border-amber-600/50 flex flex-col items-center text-center"
+                            whileHover={{ scale: 1.02 }}
+                            className="rounded-2xl p-6 border border-amber-600/40 bg-gradient-to-br from-amber-950/30 to-orange-950/20 flex flex-col items-center text-center"
                           >
-                            <Ticket className="w-16 h-16 text-amber-400 mb-4" />
-                            <p className="text-2xl font-bold text-amber-300">{voucher.value} TYC</p>
-                            <p className="text-sm text-gray-400 mt-2 mb-6">ID: {voucher.tokenId.toString()}</p>
+                            <Ticket className="w-14 h-14 text-amber-400 mb-4" />
+                            <p className="text-2xl font-bold text-amber-300 font-[family-name:var(--font-orbitron-sans)]">{voucher.value} TYC</p>
+                            <p className="text-sm text-slate-500 mt-2 mb-6">ID: {voucher.tokenId.toString()}</p>
 
                             <button
                               onClick={() => handleRedeemVoucher(voucher.tokenId)}
                               disabled={isProcessing}
-                              className={`w-full py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition ${
+                              className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
                                 isProcessing
-                                  ? 'bg-gray-700 text-gray-400 cursor-wait'
-                                  : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black'
+                                  ? 'bg-slate-700/80 text-slate-400 cursor-wait'
+                                  : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black hover:shadow-lg hover:shadow-amber-500/30'
                               }`}
                             >
                               {isProcessing ? (
-                                <> <Loader2 className="w-6 h-6 animate-spin" /> Redeeming... </>
+                                <> <Loader2 className="w-5 h-5 animate-spin" /> Redeeming... </>
                               ) : (
-                                <> <Coins className="w-6 h-6" /> Redeem Now </>
+                                <> <Coins className="w-5 h-5" /> Redeem Now </>
                               )}
                             </button>
                           </motion.div>
@@ -599,12 +668,17 @@ const { data: usdcAllowance } = useReadContract({
         </AnimatePresence>
 
         {!isConnected && (
-          <div className="mt-16 text-center p-10 bg-[#0E1415]/60 rounded-2xl border border-red-800">
-            <h3 className="text-2xl font-bold mb-4">Wallet Not Connected</h3>
-            <p className="text-lg text-gray-300">
-              Connect your wallet to buy perks and redeem vouchers!
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-16 text-center p-10 rounded-2xl border border-[#003B3E]/80 bg-[#0E1415]/50 backdrop-blur-sm"
+          >
+            <Wallet className="w-14 h-14 mx-auto mb-4 text-[#00F0FF]/50" />
+            <h3 className="text-xl font-bold mb-2">Connect your wallet</h3>
+            <p className="text-slate-400 max-w-md mx-auto">
+              Connect your wallet to buy perks and redeem vouchers.
             </p>
-          </div>
+          </motion.div>
         )}
       </div>
     </section>
