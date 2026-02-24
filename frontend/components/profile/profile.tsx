@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp, Camera, Copy, Check, User, FileText } from 'lucide-react';
+import { BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, Loader2, Send, ChevronDown, ChevronUp, Camera, Copy, Check, User, FileText, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
 import { useAccount, useBalance, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
@@ -105,6 +105,7 @@ export default function Profile() {
   const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const [editingBio, setEditingBio] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -571,22 +572,38 @@ export default function Profile() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-white/70 mb-2">Short bio</label>
-                    <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-cyan-500/40 focus-within:bg-white/[0.07] transition-all">
-                      <div className="flex gap-3">
-                        <FileText className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
-                        <textarea
-                          placeholder="A line or two about you — what you love, your play style, or anything you’d like others to see."
-                          value={localBio}
-                          onChange={(e) => setLocalBio(e.target.value)}
-                          onBlur={saveBio}
-                          rows={4}
-                          className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-base resize-none min-w-0 leading-relaxed"
-                        />
+                    {editingBio ? (
+                      <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-cyan-500/40 focus-within:bg-white/[0.07] transition-all">
+                        <div className="flex gap-3">
+                          <FileText className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                          <textarea
+                            placeholder="A line or two about you — what you love, your play style, or anything you'd like others to see."
+                            value={localBio}
+                            onChange={(e) => setLocalBio(e.target.value)}
+                            rows={4}
+                            className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-base resize-none min-w-0 leading-relaxed"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 mt-3">
+                          <button type="button" onClick={() => setEditingBio(false)} className="px-4 py-2 rounded-xl bg-white/10 text-white/80 hover:bg-white/15 text-sm font-semibold transition-colors">Cancel</button>
+                          <button type="button" onClick={() => { saveBio(); setEditingBio(false); }} className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">Save bio</button>
+                        </div>
                       </div>
-                      <div className="flex justify-end mt-3">
-                        <button type="button" onClick={saveBio} className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">Save bio</button>
+                    ) : (
+                      <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 flex items-start justify-between gap-3">
+                        <div className="flex gap-3 min-w-0 flex-1">
+                          <FileText className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                          <p className="text-base text-white/90 leading-relaxed whitespace-pre-wrap break-words">
+                            {localBio.trim() || <span className="text-slate-500">No bio yet.</span>}
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => setEditingBio(true)} className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </button>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </motion.div>

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { 
   BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, 
-  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, Copy, Check, User, FileText 
+  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, Copy, Check, User, FileText, Pencil 
 } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
@@ -107,6 +107,7 @@ export default function ProfilePageMobile() {
   const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const [editingBio, setEditingBio] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
@@ -547,19 +548,32 @@ export default function ProfilePageMobile() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-white/70 mb-1.5">Short bio</label>
-                    <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/30 transition-colors">
-                      <textarea
-                        placeholder="A line or two about you."
-                        value={localBio}
-                        onChange={(e) => setLocalBio(e.target.value)}
-                        onBlur={saveBio}
-                        rows={3}
-                        className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none leading-relaxed"
-                      />
-                      <div className="flex justify-end mt-2">
-                        <button type="button" onClick={saveBio} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save bio</button>
+                    {editingBio ? (
+                      <div className="rounded-xl bg-white/5 border border-cyan-500/30 px-3 py-2.5">
+                        <textarea
+                          placeholder="A line or two about you."
+                          value={localBio}
+                          onChange={(e) => setLocalBio(e.target.value)}
+                          rows={3}
+                          className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none leading-relaxed"
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-2 mt-2">
+                          <button type="button" onClick={() => setEditingBio(false)} className="px-3 py-1.5 rounded-lg bg-white/10 text-white/80 text-xs font-semibold">Cancel</button>
+                          <button type="button" onClick={() => { saveBio(); setEditingBio(false); }} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save bio</button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 flex items-start justify-between gap-2">
+                        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap break-words flex-1 min-w-0">
+                          {localBio.trim() || <span className="text-slate-500">No bio yet.</span>}
+                        </p>
+                        <button type="button" onClick={() => setEditingBio(true)} className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 text-white/80 hover:bg-cyan-500/20 hover:text-cyan-300 text-xs font-medium">
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
