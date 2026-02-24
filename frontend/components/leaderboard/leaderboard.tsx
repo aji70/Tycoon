@@ -2,9 +2,27 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useChainId } from 'wagmi';
 import { Trophy, TrendingUp, Wallet, Target, Loader2, Users, ChevronLeft } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
+
+/** Map chainId to backend chain name for leaderboard filter */
+function chainIdToLeaderboardChain(chainId: number): string {
+  switch (chainId) {
+    case 8453:
+    case 84531:
+      return 'BASE';
+    case 42220:
+    case 44787:
+      return 'CELO';
+    case 137:
+    case 80001:
+      return 'POLYGON';
+    default:
+      return 'BASE';
+  }
+}
 
 type LeaderboardKind = 'wins' | 'earnings' | 'stakes' | 'winrate';
 
@@ -57,6 +75,8 @@ function formatBigNumber(n: number): string {
 }
 
 export default function Leaderboard() {
+  const chainId = useChainId();
+  const chainParam = chainIdToLeaderboardChain(chainId);
   const [activeTab, setActiveTab] = useState<LeaderboardKind>('wins');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,9 +89,12 @@ export default function Leaderboard() {
     setLoading(true);
     setError(null);
     try {
-      const endpoint = `/users/leaderboard/${kind}?limit=${LIMIT}`;
-      const res = await apiClient.get(endpoint);
-      const data = res.data as unknown[];
+      const res = await apiClient.get<unknown[]>('/users/leaderboard', {
+        chain: chainParam,
+        type: kind,
+        limit: LIMIT,
+      });
+      const data = res.data;
       if (!Array.isArray(data)) throw new Error('Invalid leaderboard response');
       switch (kind) {
         case 'wins':
@@ -89,14 +112,14 @@ export default function Leaderboard() {
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to load leaderboard');
-      if (kind === 'wins') setWins([]);
-      if (kind === 'earnings') setEarnings([]);
-      if (kind === 'stakes') setStakes([]);
-      if (kind === 'winrate') setWinrate([]);
+      setWins([]);
+      setEarnings([]);
+      setStakes([]);
+      setWinrate([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [chainParam]);
 
   useEffect(() => {
     fetchLeaderboard(activeTab);
@@ -122,7 +145,8 @@ export default function Leaderboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 md:py-8">
-        <p className="text-center text-white/60 text-sm mb-6">Top players from the backend</p>
+        <p className="text-center text-white/60 text-sm mb-2">Top players on this chain</p>
+        <p className="text-center text-cyan-400/90 text-xs font-medium mb-6">Chain: {chainParam}</p>
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-2 justify-center mb-6">

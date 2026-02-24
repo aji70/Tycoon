@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
@@ -227,6 +227,15 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     >
                       <ShoppingBag size={24} />
                       Shop
+                    </Link>
+
+                    <Link
+                      href="/leaderboard"
+                      onClick={closeMobileMenu}
+                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#FFD700] text-lg font-medium transition"
+                    >
+                      <Trophy size={24} />
+                      Leaderboard
                     </Link>
                   </>
                 )}

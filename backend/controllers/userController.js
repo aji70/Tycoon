@@ -111,45 +111,38 @@ const userController = {
   },
 
   // -------------------------
-  // 🏆 Leaderboards
+  // 🏆 Leaderboard (by chain)
   // -------------------------
 
-  async leaderboardByWins(req, res) {
+  /**
+   * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate&limit=20
+   * Returns top players for the given chain. Chain can be name (BASE, CELO) or chainId (8453, 42220).
+   */
+  async getLeaderboard(req, res) {
     try {
-      const { limit } = req.query;
-      const data = await User.leaderboardByWins(Number.parseInt(limit) || 10);
-      res.json(data);
+      const { chain = "BASE", type = "wins", limit = 20 } = req.query;
+      const normalizedLimit = Math.min(Number.parseInt(limit, 10) || 20, 100);
+      const normalizedType = String(type).toLowerCase();
+      let data;
+      switch (normalizedType) {
+        case "wins":
+          data = await User.getLeaderboardByWins(chain, normalizedLimit);
+          break;
+        case "earnings":
+          data = await User.getLeaderboardByEarnings(chain, normalizedLimit);
+          break;
+        case "stakes":
+          data = await User.getLeaderboardByStakes(chain, normalizedLimit);
+          break;
+        case "winrate":
+          data = await User.getLeaderboardByWinRate(chain, normalizedLimit);
+          break;
+        default:
+          return res.status(400).json({ error: "Invalid type. Use: wins, earnings, stakes, winrate" });
+      }
+      res.json(Array.isArray(data) ? data : []);
     } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-
-  async leaderboardByEarnings(req, res) {
-    try {
-      const { limit } = req.query;
-      const data = await User.leaderboardByEarnings(Number.parseInt(limit) || 10);
-      res.json(data);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-
-  async leaderboardByStakes(req, res) {
-    try {
-      const { limit } = req.query;
-      const data = await User.leaderboardByStakes(Number.parseInt(limit) || 10);
-      res.json(data);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-
-  async leaderboardByWinRate(req, res) {
-    try {
-      const { limit } = req.query;
-      const data = await User.leaderboardByWinRate(Number.parseInt(limit) || 10);
-      res.json(data);
-    } catch (error) {
+      console.error("Leaderboard error:", error);
       res.status(500).json({ error: error.message });
     }
   },

@@ -130,68 +130,79 @@ const User = {
   },
 
   // -------------------------
-  // 🏆 Leaderboards
+  // 🏆 Leaderboards (by chain)
   // -------------------------
 
   /**
-   * Top players by games won
+   * Normalize chain from query (chain name or chainId number) to DB value.
+   * Supports: BASE, CELO, POLYGON; 8453/84531 -> BASE, 42220/44787 -> CELO, 137/80001 -> POLYGON.
    */
-  async leaderboardByWins(limit = 10) {
+  normalizeChain(chain) {
+    if (chain == null || String(chain).trim() === "") return "BASE";
+    const s = String(chain).trim().toUpperCase();
+    const n = Number(chain);
+    if (s === "BASE" || n === 8453 || n === 84531) return "BASE";
+    if (s === "CELO" || n === 42220 || n === 44787) return "CELO";
+    if (s === "POLYGON" || n === 137 || n === 80001) return "POLYGON";
+    return s;
+  },
+
+  /**
+   * Top players by games won (filtered by chain)
+   */
+  async getLeaderboardByWins(chain, limit = 20) {
+    const normalized = this.normalizeChain(chain);
     return await db("users")
-      .select("id", "username", "games_played", "game_won", "game_lost")
+      .where({ chain: normalized })
+      .select("id", "username", "address", "games_played", "game_won", "game_lost")
       .orderBy("game_won", "desc")
-      .limit(limit);
+      .orderBy("games_played", "desc")
+      .limit(Math.min(Number(limit) || 20, 100));
   },
 
   /**
-   * Top players by earnings
+   * Top players by total earned (filtered by chain)
    */
-  async leaderboardByEarnings(limit = 10) {
+  async getLeaderboardByEarnings(chain, limit = 20) {
+    const normalized = this.normalizeChain(chain);
     return await db("users")
-      .select(
-        "id",
-        "username",
-        "total_earned",
-        "total_staked",
-        "total_withdrawn"
-      )
+      .where({ chain: normalized })
+      .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
       .orderBy("total_earned", "desc")
-      .limit(limit);
+      .limit(Math.min(Number(limit) || 20, 100));
   },
 
   /**
-   * Top players by staked amount
+   * Top players by total staked (filtered by chain)
    */
-  async leaderboardByStakes(limit = 10) {
+  async getLeaderboardByStakes(chain, limit = 20) {
+    const normalized = this.normalizeChain(chain);
     return await db("users")
-      .select(
-        "id",
-        "username",
-        "total_staked",
-        "total_earned",
-        "total_withdrawn"
-      )
+      .where({ chain: normalized })
+      .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
       .orderBy("total_staked", "desc")
-      .limit(limit);
+      .limit(Math.min(Number(limit) || 20, 100));
   },
 
   /**
-   * Win ratio leaderboard (wins / games played)
+   * Top players by win rate, min 1 game (filtered by chain)
    */
-  async leaderboardByWinRate(limit = 10) {
+  async getLeaderboardByWinRate(chain, limit = 20) {
+    const normalized = this.normalizeChain(chain);
     return await db("users")
+      .where({ chain: normalized })
+      .where("games_played", ">", 0)
       .select(
         "id",
         "username",
+        "address",
         "games_played",
         "game_won",
         "game_lost",
-        db.raw(
-          "CASE WHEN games_played > 0 THEN game_won / games_played ELSE 0 END as win_rate"
-        )
+        db.raw("(CASE WHEN games_played > 0 THEN (1.0 * game_won / games_played) ELSE 0 END) AS win_rate")
       )
       .orderBy("win_rate", "desc")
-      .limit(limit);
+      .limit(Math.min(Number(limit) || 20, 100));
   },
 };
 
