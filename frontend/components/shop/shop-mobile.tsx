@@ -32,15 +32,13 @@ import {
 
 import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
-import {
-  REWARD_CONTRACT_ADDRESSES,
-  USDC_TOKEN_ADDRESS,
-} from '@/constants/contracts';
+import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
 import {
   useRewardBuyCollectible,
   useRewardRedeemVoucher,
   useApprove,
+  useRewardTokenAddresses,
 } from '@/context/ContractProvider';
 
 const VOUCHER_ID_START = 1_000_000_000;
@@ -70,7 +68,7 @@ export default function GameShopMobile() {
   const chainId = useChainId();
 
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
+  const { usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
 

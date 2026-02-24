@@ -9,8 +9,9 @@ export const TYCOON_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
 export const REWARD_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_REWARD as Address,
 };
+/** TYC ERC20 token address (must be the token contract, not the reward contract). Use useRewardTokenAddresses() in shop for addresses that match the reward contract. */
 export const TYC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
-  [celo.id]: process.env.NEXT_PUBLIC_CELO_REWARD as Address,
+  [celo.id]: process.env.NEXT_PUBLIC_CELO_TYC as Address | undefined,
 };
 
 export const USDC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
