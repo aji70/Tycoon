@@ -325,103 +325,135 @@ export default function GameShopMobile() {
   const handleBack = () => router.push('/');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0A1415] text-white pb-24">
+    <div className="min-h-screen text-white pb-24 relative">
+      {/* Background */}
+      <div className="fixed inset-0 -z-10 bg-[#010F10]" />
+      <div
+        className="fixed inset-0 -z-10 opacity-50"
+        style={{
+          background: 'linear-gradient(180deg, rgba(0, 240, 255, 0.02) 0%, transparent 30%, #0A1415 100%)',
+        }}
+      />
+
       {/* Sticky Header */}
-      <div className="sticky top-0 z-30 bg-[#010F10]/90 backdrop-blur-lg border-b border-[#003B3E]/60">
+      <div className="sticky top-0 z-30 border-b border-[#003B3E]/60 bg-[#010F10]/85 backdrop-blur-xl">
         <div className="flex items-center justify-between px-4 py-4 max-w-xl mx-auto">
           <button
             onClick={handleBack}
-            className="p-2 -ml-2 text-[#00F0FF] hover:text-[#0FF0FC] transition"
+            className="p-2.5 -ml-2 rounded-xl text-[#00F0FF] hover:bg-[#00F0FF]/10 transition"
           >
-            <ArrowLeft size={28} />
+            <ArrowLeft size={26} />
           </button>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
-            <ShoppingBag size={26} className="text-[#00F0FF]" />
-            Perk Shop
-          </h1>
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/20 p-2">
+              <ShoppingBag size={22} className="text-[#00F0FF]" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight font-[family-name:var(--font-orbitron-sans)] bg-clip-text text-transparent bg-gradient-to-r from-white to-[#00F0FF]">
+              Perk Shop
+            </h1>
+          </div>
           <div className="w-10" />
         </div>
       </div>
 
       <div className="px-4 pt-6 pb-32 max-w-xl mx-auto space-y-8">
-        {/* USDC Balance */}
-        <div className="bg-[#0E1415]/70 rounded-2xl p-5 border border-[#003B3E]/60 text-center">
-          <p className="text-sm text-gray-400 mb-1">Your USDC Balance</p>
-          <p className="text-3xl font-bold text-[#00F0FF]">
+        {/* USDC Balance — glass card */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl p-5 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl text-center shadow-[0_0_0_1px_rgba(0,240,255,0.05)]"
+        >
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Your USDC Balance</p>
+          <p className="text-3xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
             {usdcLoading ? <Loader2 className="inline animate-spin" /> : `$${usdcBalance}`}
           </p>
           <button
             onClick={() => refetchUsdc()}
-            className="mt-2 text-xs text-[#00F0FF] hover:underline flex items-center gap-1.5 mx-auto"
+            className="mt-3 text-xs text-[#00F0FF] hover:underline flex items-center gap-1.5 mx-auto"
           >
             <RefreshCw size={14} /> Refresh
           </button>
+        </motion.div>
+
+        {/* Section label */}
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#003B3E]/80" />
+          <span className="text-xs text-slate-500 uppercase tracking-widest">Perks</span>
+          <div className="h-px flex-1 bg-[#003B3E]/80" />
         </div>
 
         {/* Shop Items */}
         {!isConnected ? (
-          <div className="text-center py-16 px-6 bg-[#0E1415]/50 rounded-2xl border border-red-900/40">
-            <Wallet size={48} className="mx-auto mb-4 text-red-400 opacity-70" />
-            <h3 className="text-xl font-bold mb-3">Wallet Required</h3>
-            <p className="text-gray-400 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16 px-6 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40"
+          >
+            <Wallet size={48} className="mx-auto mb-4 text-[#00F0FF]/50" />
+            <h3 className="text-lg font-bold mb-2">Connect your wallet</h3>
+            <p className="text-slate-400 text-sm">
               Connect your wallet to purchase game perks with USDC
             </p>
-          </div>
+          </motion.div>
         ) : shopItems.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <ShoppingBag size={64} className="mx-auto mb-6 opacity-40" />
-            <p className="text-xl">Shop is currently empty</p>
-            <p className="mt-2">New perks coming soon!</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-20 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40"
+          >
+            <ShoppingBag size={56} className="mx-auto mb-6 text-slate-600" />
+            <p className="text-lg font-medium text-slate-400">Shop is currently empty</p>
+            <p className="text-sm text-slate-500 mt-2">New perks coming soon!</p>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            {shopItems.map((item) => (
+            {shopItems.map((item, index) => (
               <motion.div
                 key={item.tokenId.toString()}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="bg-[#0E1415]/80 rounded-2xl overflow-hidden border border-[#003B3E]/70 hover:border-[#00F0FF]/40 transition-all"
+                transition={{ delay: index * 0.04 }}
+                className="group rounded-2xl overflow-hidden border border-[#003B3E]/70 bg-[#0E1415]/70 backdrop-blur-sm transition-all active:scale-[0.98]"
               >
                 <div className="relative aspect-[4/3]">
                   <Image
                     src={item.image || '/game/shop/placeholder.jpg'}
                     alt={item.name}
                     fill
-                    className="object-cover"
+                    className="object-cover transition-transform duration-500 group-active:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <p className="font-bold text-lg leading-tight">{item.name}</p>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/50 text-[10px] font-medium text-slate-300">
+                    {item.stock}
+                  </div>
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <p className="font-bold text-base leading-tight text-white drop-shadow-lg">{item.name}</p>
                   </div>
                 </div>
 
-                <div className="p-4">
-                  <p className="text-xs text-gray-400 mb-3 line-clamp-2">{item.desc}</p>
+                <div className="p-3.5">
+                  <p className="text-[11px] text-slate-500 mb-2.5 line-clamp-2">{item.desc}</p>
 
-                  <div className="flex justify-between items-end mb-4">
+                  <div className="flex justify-between items-end mb-3">
                     <div>
-                      <p className="text-xs text-gray-400">Price</p>
-                      <p className="text-lg font-bold text-[#00F0FF]">${item.usdcPrice}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Stock</p>
-                      <p className="text-base font-bold">{item.stock || '0'}</p>
+                      <p className="text-[10px] text-slate-500 uppercase">Price</p>
+                      <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</p>
                     </div>
                   </div>
 
                   <button
                     onClick={() => handleBuy(item)}
                     disabled={item.stock === 0 || buyingPending || buyingConfirming}
-                    className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all
-                      ${item.stock === 0 
-                        ? 'bg-gray-800 text-gray-500' 
-                        : buyingPending || buyingConfirming 
-                        ? 'bg-amber-700 text-white' 
-                        : 'bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] text-black hover:brightness-110'}`}
+                    className={`w-full py-3 rounded-xl font-semibold text-sm transition-all
+                      ${item.stock === 0
+                        ? 'bg-slate-800/80 text-slate-500'
+                        : buyingPending || buyingConfirming
+                        ? 'bg-amber-600/90 text-black'
+                        : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
                   >
                     {buyingPending || buyingConfirming ? (
-                      <Loader2 className="inline animate-spin mr-2" size={18} />
+                      <Loader2 className="inline animate-spin mr-2" size={16} />
                     ) : item.stock === 0 ? 'Sold Out' : 'Buy Now'}
                   </button>
                 </div>
@@ -435,16 +467,16 @@ export default function GameShopMobile() {
       <AnimatePresence>
         {myVouchers.length > 0 && !isVoucherPanelOpen && (
           <motion.button
-            initial={{ y: 100, opacity: 0 }}
+            initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
+            exit={{ y: 80, opacity: 0 }}
             onClick={() => setIsVoucherPanelOpen(true)}
-            className="fixed bottom-6 right-6 z-40 bg-gradient-to-br from-amber-600 to-orange-600 text-white rounded-full p-5 shadow-2xl shadow-amber-900/40 flex items-center gap-3 hover:scale-105 transition-transform"
+            className="fixed bottom-6 right-6 z-40 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-black font-bold py-4 px-5 shadow-[0_10px_30px_rgba(251,191,36,0.35)] border border-amber-400/30 flex items-center gap-3 active:scale-95 transition-transform"
           >
-            <Ticket size={28} />
+            <Ticket size={26} />
             <div className="text-left">
-              <p className="text-xs opacity-90">Vouchers</p>
-              <p className="font-bold text-lg">{myVouchers.length}</p>
+              <p className="text-[10px] opacity-90 uppercase tracking-wider">Vouchers</p>
+              <p className="text-lg font-black">{myVouchers.length}</p>
             </div>
           </motion.button>
         )}
@@ -454,7 +486,6 @@ export default function GameShopMobile() {
       <AnimatePresence>
         {isVoucherPanelOpen && (
           <>
-            {/* Backdrop - always clickable */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -463,46 +494,47 @@ export default function GameShopMobile() {
               className="fixed inset-0 bg-black/70 z-[9999] backdrop-blur-sm"
             />
 
-            {/* Voucher Panel */}
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-gradient-to-b from-[#0A1F20] to-[#0B1718] z-[10000] overflow-y-auto border-l border-amber-700/30"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-gradient-to-b from-[#0A1A1C] to-[#071012] z-[10000] overflow-y-auto border-l border-amber-600/40"
             >
               <div className="p-6">
-                <div className="flex items-center justify-between mb-8 sticky top-0 bg-[#0A1F20]/90 backdrop-blur-md -mx-6 -mt-6 px-6 pt-6 pb-4 z-10">
-                  <h2 className="text-2xl font-bold flex items-center gap-3">
-                    <Ticket className="text-amber-400" size={28} />
+                <div className="flex items-center justify-between mb-8 sticky top-0 bg-[#0A1A1C]/95 backdrop-blur-md -mx-6 -mt-6 px-6 pt-6 pb-4 z-10 border-b border-amber-600/20">
+                  <h2 className="text-xl font-bold font-[family-name:var(--font-orbitron-sans)] flex items-center gap-3">
+                    <div className="rounded-xl bg-amber-500/20 p-2 border border-amber-500/30">
+                      <Ticket className="text-amber-400" size={24} />
+                    </div>
                     My Vouchers
                   </h2>
-                  <button 
-                    onClick={() => setIsVoucherPanelOpen(false)} 
-                    className="p-3 rounded-full hover:bg-white/10 transition"
+                  <button
+                    onClick={() => setIsVoucherPanelOpen(false)}
+                    className="p-3 rounded-xl hover:bg-white/10 transition"
                   >
-                    <X size={32} className="text-white" />
+                    <X size={28} className="text-white" />
                   </button>
                 </div>
 
                 {myVouchers.length === 0 ? (
-                  <div className="text-center py-20 text-gray-400">
-                    <Ticket size={64} className="mx-auto mb-6 opacity-30" />
+                  <div className="text-center py-20 text-slate-500">
+                    <Ticket size={56} className="mx-auto mb-6 opacity-30" />
                     <p>No vouchers available yet</p>
                   </div>
                 ) : (
                   <div className="space-y-5">
                     {myVouchers.map((v) => (
-                      <div
+                      <motion.div
                         key={v.tokenId.toString()}
-                        className="bg-gradient-to-br from-amber-950/40 to-orange-950/30 rounded-2xl p-5 border border-amber-800/40"
+                        className="rounded-2xl p-5 border border-amber-600/40 bg-gradient-to-br from-amber-950/40 to-orange-950/30"
                       >
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <p className="text-2xl font-bold text-amber-300">{v.value} TYC</p>
-                            <p className="text-sm text-gray-400 mt-1">Voucher ID: {v.tokenId.toString()}</p>
+                            <p className="text-2xl font-bold text-amber-300 font-[family-name:var(--font-orbitron-sans)]">{v.value} TYC</p>
+                            <p className="text-sm text-slate-500 mt-1">ID: {v.tokenId.toString()}</p>
                           </div>
-                          <Ticket className="text-amber-400" size={40} />
+                          <Ticket className="text-amber-400" size={36} />
                         </div>
 
                         <button
@@ -510,14 +542,14 @@ export default function GameShopMobile() {
                           disabled={redeemingPending || redeemingConfirming}
                           className={`w-full py-4 rounded-xl font-bold transition-all
                             ${redeemingPending || redeemingConfirming
-                              ? 'bg-gray-800 text-gray-500'
-                              : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:brightness-110 text-white'}`}
+                              ? 'bg-slate-700/80 text-slate-400'
+                              : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black shadow-lg shadow-amber-500/20'}`}
                         >
                           {redeemingPending || redeemingConfirming ? (
                             <Loader2 className="animate-spin inline mr-2" />
                           ) : 'Redeem Now'}
                         </button>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 )}
