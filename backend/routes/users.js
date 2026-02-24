@@ -8,18 +8,12 @@ const router = express.Router();
 // -------------------------
 router.post("/", userController.create);
 router.get("/", userController.findAll);
+// Leaderboard must be before /:id so "leaderboard" is not captured as id
+router.get("/leaderboard", userController.getLeaderboard);
+router.get("/by-address/:address", userController.findByAddress);
 router.get("/:id/property-stats", userController.getPropertyStats);
 router.get("/:id", userController.findById);
-router.get("/by-address/:address", userController.findByAddress);
 router.put("/:id", userController.update);
 router.delete("/:id", userController.remove);
-
-// -------------------------
-// 🏆 Leaderboards
-// -------------------------
-router.get("/leaderboard/wins", userController.leaderboardByWins);
-router.get("/leaderboard/earnings", userController.leaderboardByEarnings);
-router.get("/leaderboard/stakes", userController.leaderboardByStakes);
-router.get("/leaderboard/winrate", userController.leaderboardByWinRate);
 
 export default router;

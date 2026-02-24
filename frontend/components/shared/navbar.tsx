@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Globe } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -94,6 +94,17 @@ const NavBar = () => {
             >
               <ShoppingBag className="w-[16px] h-[16px]" />
               <span className="text-[12px] font-[400] font-dmSans">Shop</span>
+            </Link>
+          )}
+
+          {/* Leaderboard button (only when connected) */}
+          {isConnected && (
+            <Link
+              href="/leaderboard"
+              className="w-[100px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#FFD700]"
+            >
+              <Trophy className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Leaderboard</span>
             </Link>
           )}
 
