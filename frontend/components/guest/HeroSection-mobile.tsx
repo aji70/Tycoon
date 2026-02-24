@@ -406,13 +406,13 @@ const handleContinuePrevious = () => {
           )}
 
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
-            <div className="w-full flex flex-col gap-5">
-              {/* Continue Previous Game - prominent when available (wallet: contract; guest: my-games) */}
+            <div className="w-full flex flex-col items-center gap-5">
+              {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
                 <button
                   onClick={handleContinuePrevious}
-                  className="relative w-full h-14 transition-transform active:scale-[0.98]"
+                  className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
                 >
                   <svg
                     className="absolute inset-0 w-full h-full"
@@ -427,15 +427,15 @@ const handleContinuePrevious = () => {
                       strokeWidth="2.5"
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold gap-2">
-                    <Gamepad2 size={20} />
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold gap-2">
+                    <Gamepad2 size={18} />
                     Continue Game
                   </span>
                 </button>
               )}
 
               {/* Secondary buttons grid */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 w-full max-w-[280px]">
                 <button
                   onClick={() => router.push("/game-settings")}
                   className="relative h-12 transition-transform active:scale-[0.97]"
@@ -481,10 +481,10 @@ const handleContinuePrevious = () => {
                 </button>
               </div>
 
-              {/* Challenge AI - always visible and prominent */}
+              {/* Challenge AI - prominent but not full width */}
               <button
                 onClick={() => router.push("/play-ai")}
-                className="relative w-full h-14 transition-transform active:scale-[0.98]"
+                className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
               >
                 <svg
                   className="absolute inset-0 w-full h-full"
@@ -499,7 +499,7 @@ const handleContinuePrevious = () => {
                     strokeWidth="2.5"
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-lg font-orbitron font-bold uppercase">
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold uppercase">
                   Challenge AI!
                 </span>
               </button>
