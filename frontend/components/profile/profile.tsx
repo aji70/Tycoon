@@ -98,6 +98,7 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
+  const [selectedPerkForTransfer, setSelectedPerkForTransfer] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
@@ -276,6 +277,7 @@ export default function Profile() {
       reset();
       setSendingTokenId(null);
       setRedeemingId(null);
+      setSelectedPerkForTransfer(null);
       tycBalance.refetch();
     }
   }, [txSuccess, txHash, reset, tycBalance]);
@@ -548,32 +550,43 @@ export default function Profile() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="p-5 sm:p-6"
+                className="p-6 sm:p-8"
               >
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
-                    <User className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Nickname (optional)"
-                      value={localDisplayName}
-                      onChange={(e) => setLocalDisplayName(e.target.value)}
-                      onBlur={saveDisplayName}
-                      className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
-                    />
-                    <button type="button" onClick={saveDisplayName} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0">Save</button>
+                <p className="text-xs font-medium text-cyan-400/90 uppercase tracking-widest mb-6">Tell us about yourself</p>
+                <div className="space-y-6 max-w-xl">
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">Display name</label>
+                    <div className="flex gap-3 rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-cyan-500/40 focus-within:bg-white/[0.07] transition-all">
+                      <User className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                      <input
+                        type="text"
+                        placeholder="How should we call you?"
+                        value={localDisplayName}
+                        onChange={(e) => setLocalDisplayName(e.target.value)}
+                        onBlur={saveDisplayName}
+                        className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-base min-w-0"
+                      />
+                      <button type="button" onClick={saveDisplayName} className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">Save</button>
+                    </div>
                   </div>
-                  <div className="sm:col-span-2 flex gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3 focus-within:border-cyan-500/30 transition-colors">
-                    <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    <textarea
-                      placeholder="Short bio (optional)"
-                      value={localBio}
-                      onChange={(e) => setLocalBio(e.target.value)}
-                      onBlur={saveBio}
-                      rows={2}
-                      className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none min-w-0"
-                    />
-                    <button type="button" onClick={saveBio} className="text-cyan-400 hover:text-cyan-300 text-sm font-medium shrink-0 self-end">Save</button>
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">Short bio</label>
+                    <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-cyan-500/40 focus-within:bg-white/[0.07] transition-all">
+                      <div className="flex gap-3">
+                        <FileText className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                        <textarea
+                          placeholder="A line or two about you — what you love, your play style, or anything you’d like others to see."
+                          value={localBio}
+                          onChange={(e) => setLocalBio(e.target.value)}
+                          onBlur={saveBio}
+                          rows={4}
+                          className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-base resize-none min-w-0 leading-relaxed"
+                        />
+                      </div>
+                      <div className="flex justify-end mt-3">
+                        <button type="button" onClick={saveBio} className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">Save bio</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -585,18 +598,6 @@ export default function Profile() {
                 animate={{ opacity: 1 }}
                 className="p-5 sm:p-6"
               >
-                {ownedCollectibles.length > 0 && (
-                  <div className="mb-4">
-                    <label className="text-xs text-white/50 mb-2 block">Transfer to address</label>
-                    <input
-                      type="text"
-                      placeholder="0x0000...0000"
-                      value={sendAddress}
-                      onChange={(e) => setSendAddress(e.target.value.trim())}
-                      className="w-full max-w-md px-4 py-3 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm border border-white/10"
-                    />
-                  </div>
-                )}
                 {ownedCollectibles.length === 0 ? (
                   <div className="py-12 text-center">
                     <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
@@ -613,19 +614,51 @@ export default function Profile() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.02 }}
                         whileHover={{ y: -2 }}
-                        className="rounded-2xl p-4 text-center border border-white/10 hover:border-purple-500/30 transition-all bg-black/20"
+                        className={`rounded-2xl p-4 text-center border transition-all bg-black/20 ${
+                          selectedPerkForTransfer === item.tokenId ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10 hover:border-purple-500/30'
+                        }`}
                       >
                         {item.icon}
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
-                        <button
-                          onClick={() => handleSend(item.tokenId)}
-                          disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
-                          className="mt-3 w-full py-2 rounded-xl font-semibold text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 flex items-center justify-center gap-1.5 text-white"
-                        >
-                          <Send className="w-3 h-3" />
-                          {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
-                        </button>
+                        {selectedPerkForTransfer === item.tokenId ? (
+                          <div className="mt-3 space-y-2 text-left">
+                            <label className="text-[10px] font-medium text-white/50 uppercase tracking-wider block">Send to address</label>
+                            <input
+                              type="text"
+                              placeholder="0x0000...0000"
+                              value={sendAddress}
+                              onChange={(e) => setSendAddress(e.target.value.trim())}
+                              className="w-full px-3 py-2 rounded-lg bg-black/40 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs border border-white/10"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSend(item.tokenId)}
+                                disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
+                                className="flex-1 py-2 rounded-lg font-semibold text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 flex items-center justify-center gap-1.5 text-white"
+                              >
+                                {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                                {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPerkForTransfer(null)}
+                                className="px-3 py-2 rounded-lg font-medium text-xs bg-white/10 text-white/80 hover:bg-white/15"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPerkForTransfer(item.tokenId)}
+                            className="mt-3 w-full py-2 rounded-xl font-semibold text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 flex items-center justify-center gap-1.5 text-white"
+                          >
+                            <Send className="w-3 h-3" />
+                            Transfer
+                          </button>
+                        )}
                       </motion.div>
                     ))}
                   </div>
