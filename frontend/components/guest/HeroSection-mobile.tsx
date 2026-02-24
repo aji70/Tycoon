@@ -253,46 +253,49 @@ const handleContinuePrevious = () => {
   }
 
   return (
-    <section className="relative w-full min-h-screen bg-[#010F10] overflow-x-hidden pb-12 z-0">
+    <section className="relative w-full min-h-screen min-h-[100dvh] bg-[#010F10] overflow-x-hidden z-0">
       {/* Background Image */}
       <div className="absolute inset-0">
         <Image
           src={herobg}
           alt="Hero Background"
           fill
-          className="object-cover hero-bg-zoom"
+          className="object-cover object-center hero-bg-zoom"
           priority
           quality={90}
+          sizes="100vw"
         />
+        {/* Gradient overlay for readability on mobile */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#010F10]/40 via-transparent to-[#010F10]/90" aria-hidden />
       </div>
 
-      {/* Content Container */}
-      <div className="w-full relative -z-0 flex flex-col items-center px-5 pt-16 pb-10 min-h-screen">
-        {/* Title */}
-        <h1 className="font-orbitron font-black text-6xl sm:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center mt-10">
-          TYCOON
-          <span className="absolute -top-1 -right-6 text-[#0FF0FC] font-dmSans font-bold text-3xl rotate-12 animate-pulse">
-            ?
-          </span>
-        </h1>
+      {/* Content Container - safe area for notches & home indicator */}
+      <div className="relative z-10 flex flex-col items-center px-4 sm:px-5 pt-[calc(env(safe-area-inset-top)+5rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)] min-h-screen min-h-[100dvh]">
+        {/* Title - wrapped so "?" doesn't overflow on narrow screens */}
+        <div className="relative w-full flex justify-center mt-4 sm:mt-8">
+          <h1 className="font-orbitron font-black text-5xl sm:text-6xl md:text-7xl leading-none uppercase text-[#17ffff] tracking-[-0.02em] text-center drop-shadow-[0_0_20px_rgba(0,240,255,0.2)]">
+            TYCOON
+            <span className="inline-block ml-1 sm:ml-2 text-[#0FF0FC] font-dmSans font-bold text-2xl sm:text-3xl rotate-12 animate-pulse drop-shadow-lg align-top">?</span>
+          </h1>
+        </div>
 
         {/* Welcome / Loading message */}
-        <div className="mt-6 text-center">
+        <div className="mt-5 sm:mt-6 text-center px-2">
           {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest") && !loading && (
-            <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
+            <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
               Welcome back, {displayUsername}!
             </p>
           )}
 
           {loading && (
-            <p className="font-orbitron text-xl font-bold text-[#00F0FF]">
+            <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
               Registering... Please wait
             </p>
           )}
         </div>
 
         {/* Animated phrase */}
-        <div className="mt-5">
+        <div className="mt-4 sm:mt-5 px-2 min-h-[2.5rem] flex items-center justify-center">
           <TypeAnimation
             sequence={[
               "Conquer", 1200,
@@ -306,18 +309,18 @@ const handleContinuePrevious = () => {
             wrapper="span"
             speed={45}
             repeat={Infinity}
-            className="font-orbitron text-2xl sm:text-3xl font-bold text-[#F0F7F7] text-center block"
+            className="font-orbitron text-xl sm:text-2xl md:text-3xl font-bold text-[#F0F7F7] text-center block"
           />
         </div>
 
         {/* Short description */}
-        <p className="mt-6 text-center text-[#DDEEEE] text-base leading-relaxed max-w-[340px] font-dmSans">
+        <p className="mt-5 sm:mt-6 text-center text-[#DDEEEE] text-[15px] sm:text-base leading-relaxed max-w-[340px] font-dmSans px-1">
           Roll the dice • Buy properties • Collect rent •
           Play against AI • Become the top tycoon
         </p>
 
         {/* Main action area */}
-        <div className="mt-10 w-full max-w-[380px] flex flex-col items-center gap-6">
+        <div className="mt-8 sm:mt-10 w-full max-w-[380px] flex flex-col items-center gap-5 sm:gap-6 flex-1">
           {address && registrationStatus === "none" && !loading && (
             <input
               type="text"
@@ -509,7 +512,7 @@ const handleContinuePrevious = () => {
           ) : null}
 
           {!address && !guestUser && !loading && (
-            <p className="text-gray-400 text-sm text-center mt-6">
+            <p className="text-gray-400 text-sm text-center mt-4">
               Connect your wallet or play without a wallet above.
             </p>
           )}
