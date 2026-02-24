@@ -92,7 +92,6 @@ export default function Leaderboard() {
 
   const [activeTab, setActiveTab] = useState<LeaderboardKind>('wins');
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wins, setWins] = useState<WinsRow[]>([]);
   const [earnings, setEarnings] = useState<EarningsRow[]>([]);
@@ -177,18 +176,6 @@ export default function Leaderboard() {
     fetchLeaderboard(activeTab);
   }, [activeTab, fetchLeaderboard]);
 
-  const syncFromChain = useCallback(async () => {
-    setSyncing(true);
-    try {
-      await apiClient.post(`/users/sync-leaderboard?chain=${encodeURIComponent(chainParam)}`);
-      await fetchLeaderboard(activeTab);
-    } catch (_) {
-      // Sync may only be supported for Celo on backend
-    } finally {
-      setSyncing(false);
-    }
-  }, [chainParam, activeTab, fetchLeaderboard]);
-
   const currentList = activeTab === 'wins' ? wins : activeTab === 'earnings' ? earnings : activeTab === 'stakes' ? stakes : winrate;
   const showContractFallback = !loading && !error && currentList.length === 0 && isConnected && currentUserFromContract;
   const displayList = showContractFallback && currentUserFromContract
@@ -214,23 +201,7 @@ export default function Leaderboard() {
 
       <main className="max-w-4xl mx-auto px-4 py-6 md:py-8">
         <p className="text-center text-white/60 text-sm mb-2">Top players on this chain</p>
-        <p className="text-center text-cyan-400/90 text-xs font-medium mb-2">Chain: {chainParam}</p>
-        <p className="text-center text-white/50 text-xs mb-4 max-w-md mx-auto">
-          Leaderboard uses backend data. Not seeing previous data? Sync from chain to pull full on-chain history into the leaderboard.
-        </p>
-        {chainParam === 'CELO' && (
-          <div className="flex justify-center mb-4">
-            <button
-              type="button"
-              onClick={syncFromChain}
-              disabled={syncing}
-              className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 font-semibold text-sm border border-cyan-500/40 hover:bg-cyan-500/30 disabled:opacity-50 flex items-center gap-2"
-            >
-              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {syncing ? 'Syncing…' : 'Sync from chain'}
-            </button>
-          </div>
-        )}
+        <p className="text-center text-cyan-400/90 text-xs font-medium mb-6">Chain: {chainParam}</p>
         {showContractFallback && (
           <p className="text-center text-cyan-400/80 text-xs mb-4">Showing your stats from chain (same as profile)</p>
         )}

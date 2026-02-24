@@ -2,6 +2,8 @@
 
 The backend can perform **game controller** actions on the Tycoon contract when configured.
 
+**Architecture:** This backend is shared. The repo’s frontend is **Celo-only**; a separate frontend for Polygon will use this same backend. When adding Polygon (or other chains), the backend will need chain-specific RPC and contract config so it can talk to each chain’s contract.
+
 ## Setup
 
 1. **Env vars** (see `.env.example`):

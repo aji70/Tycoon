@@ -2,7 +2,7 @@
 import { Address } from 'viem';
 import { celo } from 'wagmi/chains';
 
-// Celo only (Base support paused)
+// This frontend is Celo-only. A separate Polygon frontend uses the same backend.
 export const TYCOON_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO as Address,
 };
