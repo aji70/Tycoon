@@ -102,6 +102,7 @@ export default function ProfilePageMobile() {
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
+  const [profileTab, setProfileTab] = useState<'about' | 'perks' | 'vouchers'>('about');
   const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
@@ -435,7 +436,7 @@ export default function ProfilePageMobile() {
           {[
             { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
             { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
-            { label: 'ETH', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
+            { label: 'Celo', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
           ].map(({ label, value }) => (
             <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
               <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
@@ -498,118 +499,111 @@ export default function ProfilePageMobile() {
           </div>
         </div>
 
-        {/* About */}
-        <div className="profile-card rounded-2xl p-4 border border-white/5">
-          <p className="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
-            <span className="w-1 h-3 rounded-full bg-cyan-500" />
-            About you
-          </p>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/20 transition-colors">
-              <User className="w-4 h-4 text-cyan-400 shrink-0" />
-              <input
-                type="text"
-                placeholder="Nickname (optional)"
-                value={localDisplayName}
-                onChange={(e) => setLocalDisplayName(e.target.value)}
-                onBlur={saveDisplayName}
-                className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
-              />
-            </div>
-            <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/20 transition-colors">
-              <textarea
-                placeholder="Short bio (optional)"
-                value={localBio}
-                onChange={(e) => setLocalBio(e.target.value)}
-                onBlur={saveBio}
-                rows={2}
-                className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Perks */}
-        <section>
-          <p className="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
-            <span className="w-1 h-3 rounded-full bg-purple-500" />
-            My Perks <span className="text-white/40 font-normal normal-case">({ownedCollectibles.length})</span>
-          </p>
-
-          {ownedCollectibles.length > 0 && (
-            <div className="profile-card rounded-xl p-3 mb-4 border border-purple-500/15">
-              <p className="text-[10px] text-white/50 mb-2">Transfer to</p>
-              <input
-                type="text"
-                placeholder="0x0000...0000"
-                value={sendAddress}
-                onChange={(e) => setSendAddress(e.target.value.trim())}
-                className="w-full px-3 py-2.5 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs border border-white/10"
-              />
-            </div>
-          )}
-
-          {ownedCollectibles.length === 0 ? (
-            <div className="profile-card rounded-2xl py-10 text-center border border-white/5">
-              <div className="w-14 h-14 rounded-xl bg-purple-500/10 flex items-center justify-center mx-auto mb-3">
-                <ShoppingBag className="w-7 h-7 text-purple-400/50" />
-              </div>
-              <p className="text-slate-400 text-sm">No perks yet — visit the shop.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {ownedCollectibles.map((item) => (
-                <motion.div
-                  key={item.tokenId.toString()}
-                  whileTap={{ scale: 0.98 }}
-                  className="profile-card rounded-xl p-4 border border-white/10 text-center hover:border-purple-500/20 transition-colors"
-                >
-                  {item.icon}
-                  <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
-                  {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
-                  <button
-                    onClick={() => handleSend(item.tokenId)}
-                    disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
-                    className="mt-3 w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-1 text-white"
-                  >
-                    {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Vouchers */}
+        {/* About | My Perks | Vouchers — tabs side by side */}
         <section className="pb-4">
-          <button
-            onClick={() => setShowVouchers(!showVouchers)}
-            className="w-full profile-card rounded-2xl p-4 border border-amber-500/15 hover:border-amber-500/30 flex items-center justify-between transition-all text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Ticket className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-amber-200">Vouchers</h3>
-                <p className="text-white/50 text-xs">{myVouchers.length} · {showVouchers ? 'Hide' : 'View'}</p>
-              </div>
-            </div>
-            {showVouchers ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-          </button>
-
-          <AnimatePresence>
-            {showVouchers && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden mt-3"
+          <div className="flex gap-1.5 mb-3">
+            {[
+              { id: 'about' as const, label: 'About', icon: User },
+              { id: 'perks' as const, label: 'Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
+              { id: 'vouchers' as const, label: 'Vouchers', icon: Ticket, badge: myVouchers.length },
+            ].map(({ id, label, icon: Icon, badge }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setProfileTab(id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl font-semibold text-xs transition-all ${
+                  profileTab === id
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
+                    : 'bg-white/5 border border-white/10 text-white/70'
+                }`}
               >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                {label}
+                {badge !== undefined && badge > 0 && (
+                  <span className="min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto">
+            {profileTab === 'about' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/20 transition-colors">
+                    <User className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Nickname (optional)"
+                      value={localDisplayName}
+                      onChange={(e) => setLocalDisplayName(e.target.value)}
+                      onBlur={saveDisplayName}
+                      className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
+                    />
+                  </div>
+                  <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/20 transition-colors">
+                    <textarea
+                      placeholder="Short bio (optional)"
+                      value={localBio}
+                      onChange={(e) => setLocalBio(e.target.value)}
+                      onBlur={saveBio}
+                      rows={2}
+                      className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {profileTab === 'perks' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                {ownedCollectibles.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-[10px] text-white/50 mb-2">Transfer to</p>
+                    <input
+                      type="text"
+                      placeholder="0x0000...0000"
+                      value={sendAddress}
+                      onChange={(e) => setSendAddress(e.target.value.trim())}
+                      className="w-full px-3 py-2.5 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs border border-white/10"
+                    />
+                  </div>
+                )}
+                {ownedCollectibles.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <ShoppingBag className="w-10 h-10 text-purple-400/50 mx-auto mb-2" />
+                    <p className="text-slate-400 text-sm">No perks yet — visit the shop.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {ownedCollectibles.map((item) => (
+                      <motion.div
+                        key={item.tokenId.toString()}
+                        whileTap={{ scale: 0.98 }}
+                        className="rounded-xl p-4 border border-white/10 text-center bg-black/20"
+                      >
+                        {item.icon}
+                        <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
+                        {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
+                        <button
+                          onClick={() => handleSend(item.tokenId)}
+                          disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
+                          className="mt-3 w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-1 text-white"
+                        >
+                          {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
+                        </button>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {profileTab === 'vouchers' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
                 {myVouchers.length === 0 ? (
-                  <div className="profile-card rounded-xl py-8 text-center border border-amber-500/10">
+                  <div className="py-8 text-center">
                     <Ticket className="w-10 h-10 text-amber-400/30 mx-auto mb-2" />
                     <p className="text-slate-500 text-sm">No vouchers yet</p>
                   </div>
@@ -636,7 +630,7 @@ export default function ProfilePageMobile() {
                 )}
               </motion.div>
             )}
-          </AnimatePresence>
+          </div>
         </section>
       </main>
 
