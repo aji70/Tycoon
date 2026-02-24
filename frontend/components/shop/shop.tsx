@@ -418,54 +418,53 @@ const { data: usdcAllowance } = useReadContract({
           </button>
         </div>
 
-        {/* Balances + Payment Toggle — glass cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
+        {/* Balances + Payment — compact single row */}
+        <div className="flex flex-wrap items-center justify-center gap-4 mb-10">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="rounded-2xl p-6 text-center relative overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl shadow-[0_0_0_1px_rgba(0,240,255,0.05),inset_0_1px_0_rgba(255,255,255,0.03)]"
+            transition={{ duration: 0.3 }}
+            className="rounded-xl px-4 py-3 flex items-center gap-3 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-[#00F0FF]/5 to-transparent pointer-events-none" />
-            <Wallet className="w-9 h-9 mx-auto mb-3 text-[#00F0FF]" />
-            <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">TYC Balance</p>
-            <p className="text-2xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-              {tycLoading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : `${tycBalance} TYC`}
-            </p>
-            <button onClick={() => refetchTyc()} className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-[#00F0FF] hover:bg-[#00F0FF]/10 transition">
-              <RefreshCw className="w-5 h-5" />
+            <Wallet className="w-5 h-5 text-[#00F0FF] shrink-0" />
+            <div className="text-left">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">TYC</p>
+              <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
+                {tycLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `${tycBalance}`}
+              </p>
+            </div>
+            <button onClick={() => refetchTyc()} className="p-1 rounded text-slate-500 hover:text-[#00F0FF]">
+              <RefreshCw className="w-4 h-4" />
             </button>
           </motion.div>
-
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.05 }}
-            className="rounded-2xl p-6 text-center relative overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl shadow-[0_0_0_1px_rgba(0,240,255,0.05),inset_0_1px_0_rgba(255,255,255,0.03)]"
+            transition={{ duration: 0.3, delay: 0.05 }}
+            className="rounded-xl px-4 py-3 flex items-center gap-3 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-[#00F0FF]/5 to-transparent pointer-events-none" />
-            <CreditCard className="w-9 h-9 mx-auto mb-3 text-[#00F0FF]" />
-            <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">USDC Balance</p>
-            <p className="text-2xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-              {usdcLoading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : `$${usdcBalance}`}
-            </p>
-            <button onClick={() => refetchUsdc()} className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-[#00F0FF] hover:bg-[#00F0FF]/10 transition">
-              <RefreshCw className="w-5 h-5" />
+            <CreditCard className="w-5 h-5 text-[#00F0FF] shrink-0" />
+            <div className="text-left">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">USDC</p>
+              <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
+                {usdcLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `$${usdcBalance}`}
+              </p>
+            </div>
+            <button onClick={() => refetchUsdc()} className="p-1 rounded text-slate-500 hover:text-[#00F0FF]">
+              <RefreshCw className="w-4 h-4" />
             </button>
           </motion.div>
-
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="rounded-2xl p-6 flex items-center justify-center border border-[#00F0FF]/20 bg-[#003B3E]/30 backdrop-blur-xl"
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="rounded-xl px-4 py-3 border border-[#00F0FF]/20 bg-[#003B3E]/30"
           >
             <button
               onClick={() => setUseUsdc(!useUsdc)}
-              className="px-8 py-4 rounded-xl border-2 border-[#00F0FF]/50 bg-[#0E1415]/80 flex items-center gap-3 font-semibold text-lg hover:border-[#00F0FF] hover:bg-[#00F0FF]/10 transition-all duration-300"
+              className="flex items-center gap-2 font-medium text-sm text-[#00F0FF]"
             >
-              Pay with <span className="text-[#00F0FF]">{useUsdc ? 'USDC' : 'TYC'}</span>
-              <span className="text-2xl">{useUsdc ? '💵' : '🪙'}</span>
+              Pay with {useUsdc ? 'USDC' : 'TYC'}
             </button>
           </motion.div>
         </div>
@@ -477,7 +476,7 @@ const { data: usdcAllowance } = useReadContract({
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
         </div>
 
-        {/* Shop Grid */}
+        {/* Shop Grid — rows & columns */}
         {isLoadingShop ? (
           <motion.div
             initial={{ opacity: 0 }}
@@ -498,21 +497,21 @@ const { data: usdcAllowance } = useReadContract({
             <p className="text-slate-500 max-w-md mx-auto">New perks will appear here. Check back soon!</p>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-6 gap-y-8 items-stretch">
             {shopItems.map((item, index) => {
               const isProcessing = buyingPending || buyingConfirming;
 
               return (
                 <motion.div
                   key={item.tokenId.toString()}
-                  initial={{ opacity: 0, y: 40 }}
+                  initial={{ opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-20px' }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                  whileHover={{ y: -6 }}
-                  className="group rounded-2xl overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/70 backdrop-blur-sm transition-all duration-300 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
+                  transition={{ duration: 0.35, delay: index * 0.04 }}
+                  whileHover={{ y: -4 }}
+                  className="group flex flex-col rounded-2xl overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/70 backdrop-blur-sm transition-all duration-300 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
                 >
-                  <div className="relative h-52 overflow-hidden">
+                  <div className="relative h-48 min-h-[12rem] overflow-hidden flex-shrink-0">
                     <Image
                       src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
@@ -531,14 +530,14 @@ const { data: usdcAllowance } = useReadContract({
                     </div>
                   </div>
 
-                  <div className="p-5">
-                    <p className="text-slate-400 text-sm leading-relaxed mb-5 line-clamp-2">{item.desc}</p>
+                  <div className="p-5 flex flex-col flex-1 min-h-0">
+                    <p className="text-slate-400 text-sm leading-relaxed mb-4 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
-                    <div className="flex justify-between items-end mb-5">
+                    <div className="flex justify-between items-end mb-4 mt-auto">
                       <div>
                         <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Price</p>
                         <p className="text-xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          {useUsdc ? `$${item.usdcPrice}` : `${item.tycPrice} TYC`}
+                          ${item.usdcPrice}
                         </p>
                       </div>
                     </div>
