@@ -181,6 +181,11 @@ export async function finishGameByNetWorthAndNotify(io, game) {
 
   if (rowCount === 0) return null;
 
+  const playerUserIds = (result.net_worths || []).map((n) => n.user_id).filter(Boolean);
+  User.recordChainGameResult(game.chain || "BASE", result.winner_id, playerUserIds).catch((err) =>
+    logger.warn({ err: err?.message, gameId: game.id }, "recordChainGameResult failed")
+  );
+
   let contractGameIdToUse = game.contract_game_id;
   if (!game.is_ai && isContractConfigured() && game.code) {
     if (!contractGameIdToUse) {
@@ -506,6 +511,11 @@ const gameController = {
           data: { game: updated, winner_id: updated?.winner_id, valid_win: true },
         });
       }
+
+      const playerUserIds = (result.net_worths || []).map((n) => n.user_id).filter(Boolean);
+      User.recordChainGameResult(game.chain || "BASE", result.winner_id, playerUserIds).catch((err) =>
+        logger.warn({ err: err?.message, gameId: game.id }, "recordChainGameResult failed")
+      );
 
       // We won the race — run contract removals. Catch errors so "Not in game" (another request removed them) doesn't fail us.
       let contractGameIdToUse = game.contract_game_id;
