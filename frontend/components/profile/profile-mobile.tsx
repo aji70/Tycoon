@@ -14,7 +14,8 @@ import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfile } from '@/context/ProfileContext';
 
-import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 
@@ -26,6 +27,53 @@ const isVoucherToken = (tokenId: bigint): boolean =>
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
+
+function parseUserFromContract(data: unknown, username: string, walletAddress: string | undefined): {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  propertiesBought: number;
+  propertiesSold: number;
+  registeredAt: number;
+} | null {
+  if (!data) return null;
+  const d = data as Record<string, unknown> | unknown[];
+  const gamesPlayed = Array.isArray(d) ? Number(d[4] ?? 0) : Number((d as Record<string, unknown>).gamesPlayed ?? 0);
+  const gamesWon = Array.isArray(d) ? Number(d[5] ?? 0) : Number((d as Record<string, unknown>).gamesWon ?? 0);
+  const gamesLost = Array.isArray(d) ? Number(d[6] ?? 0) : Number((d as Record<string, unknown>).gamesLost ?? 0);
+  const totalStaked = Array.isArray(d) ? Number(d[7] ?? 0) : Number((d as Record<string, unknown>).totalStaked ?? 0);
+  const totalEarned = Array.isArray(d) ? Number(d[8] ?? 0) : Number((d as Record<string, unknown>).totalEarned ?? 0);
+  const totalWithdrawn = Array.isArray(d) ? Number(d[9] ?? 0) : Number((d as Record<string, unknown>).totalWithdrawn ?? 0);
+  const propertiesBought = Array.isArray(d) ? Number(d[10] ?? 0) : Number((d as Record<string, unknown>).propertiesbought ?? 0);
+  const propertiesSold = Array.isArray(d) ? Number(d[11] ?? 0) : Number((d as Record<string, unknown>).propertiesSold ?? 0);
+  const registeredAt = Array.isArray(d) ? Number(d[3] ?? 0) : Number((d as Record<string, unknown>).registeredAt ?? 0);
+  return {
+    username: username || (Array.isArray(d) ? String(d[1] ?? '') : String((d as Record<string, unknown>).username ?? '')) || 'Unknown',
+    shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) + '%' : '0%',
+    totalStaked,
+    totalEarned,
+    totalWithdrawn,
+    propertiesBought,
+    propertiesSold,
+    registeredAt,
+  };
+}
+
+function formatStakeOrEarned(value: number): string {
+  if (value >= 1e18) return (value / 1e18).toFixed(2);
+  if (value >= 1e15) return (value / 1e18).toFixed(4);
+  return String(value);
+}
 
 const getPerkMetadata = (perk: number) => {
   const data = [
@@ -64,8 +112,7 @@ export default function ProfilePageMobile() {
 
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
-  const tycTokenAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
+  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
@@ -182,15 +229,8 @@ export default function ProfilePageMobile() {
 
   useEffect(() => {
     if (playerData && username) {
-      const d = playerData as any;
-      setUserData({
-        username: username || 'Unknown',
-        address: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
-        gamesPlayed: Number(d.gamesPlayed || 0),
-        wins: Number(d.gamesWon || 0),
-        winRate: d.gamesPlayed > 0 ? ((Number(d.gamesWon) / Number(d.gamesPlayed)) * 100).toFixed(1) + '%' : '0%',
-        totalEarned: Number(d.totalEarned || 0),
-      });
+      const parsed = parseUserFromContract(playerData, username as string, walletAddress);
+      if (parsed) setUserData(parsed);
       setLoading(false);
     } else if (playerData === null && !loading) {
       setError('No player data found');
@@ -374,12 +414,17 @@ export default function ProfilePageMobile() {
               {userData.username}
             </h2>
             {displayName && <p className="text-cyan-300/80 text-xs mt-0.5">"{displayName}"</p>}
+            {userData.registeredAt > 0 && (
+              <p className="text-slate-500 text-[10px] mt-1">
+                Member since {new Date(userData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+              </p>
+            )}
             <button
               type="button"
               onClick={copyAddress}
               className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs w-full max-w-[260px] justify-center hover:border-cyan-500/20 hover:text-cyan-300/80 transition"
             >
-              <span className="font-mono truncate">{walletAddress}</span>
+              <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
               {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
             </button>
           </div>
@@ -399,29 +444,57 @@ export default function ProfilePageMobile() {
           ))}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-1 border border-white/10">
-            <div className="w-9 h-9 rounded-lg bg-cyan-500/15 flex items-center justify-center">
+        {/* Game stats — from contract User struct */}
+        <div>
+          <p className="text-[10px] font-semibold text-white/50 uppercase tracking-widest mb-2 flex items-center gap-2">
+            <span className="w-1 h-3 rounded-full bg-cyan-500" />
+            Game stats
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
               <BarChart2 className="w-4 h-4 text-cyan-400" />
+              <p className="text-[10px] text-white/50">Games</p>
+              <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
             </div>
-            <p className="text-[10px] text-white/50">Games</p>
-            <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
-          </div>
-          <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-1 border border-white/10">
-            <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center">
+            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
               <Crown className="w-4 h-4 text-amber-400" />
+              <p className="text-[10px] text-white/50">Wins</p>
+              <p className="text-sm font-bold text-amber-300">{userData.gamesWon}</p>
             </div>
-            <p className="text-[10px] text-white/50">Wins</p>
-            <p className="text-sm font-bold text-amber-300">{userData.wins}</p>
-            <p className="text-[10px] text-amber-400/70">{userData.winRate}</p>
+            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+              <Coins className="w-4 h-4 text-slate-400" />
+              <p className="text-[10px] text-white/50">Losses</p>
+              <p className="text-sm font-bold text-slate-300">{userData.gamesLost}</p>
+            </div>
+            <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+              <BarChart2 className="w-4 h-4 text-emerald-400" />
+              <p className="text-[10px] text-white/50">Win rate</p>
+              <p className="text-sm font-bold text-emerald-300">{userData.winRate}</p>
+            </div>
           </div>
-          <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-1 border border-white/10">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-              <Coins className="w-4 h-4 text-emerald-400" />
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+              <p className="text-[9px] text-white/50">Staked</p>
+              <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(userData.totalStaked)}</p>
             </div>
-            <p className="text-[10px] text-white/50">Earned</p>
-            <p className="text-sm font-bold text-emerald-300">{userData.totalEarned}</p>
+            <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+              <p className="text-[9px] text-white/50">Earned</p>
+              <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(userData.totalEarned)}</p>
+            </div>
+            <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+              <p className="text-[9px] text-white/50">Withdrawn</p>
+              <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(userData.totalWithdrawn)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+              <p className="text-[9px] text-white/50">Props bought</p>
+              <p className="text-sm font-bold text-cyan-300">{userData.propertiesBought}</p>
+            </div>
+            <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+              <p className="text-[9px] text-white/50">Props sold</p>
+              <p className="text-sm font-bold text-amber-300">{userData.propertiesSold}</p>
+            </div>
           </div>
         </div>
 

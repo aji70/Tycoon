@@ -11,7 +11,8 @@ import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfile } from '@/context/ProfileContext';
 
-import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 
@@ -41,6 +42,54 @@ const getPerkMetadata = (perk: number) => {
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
 const MAX_AVATAR_DIM = 512;
 
+/** Contract User struct: id, username, playerAddress, registeredAt, gamesPlayed, gamesWon, gamesLost, totalStaked, totalEarned, totalWithdrawn, propertiesbought, propertiesSold */
+function parseUserFromContract(data: unknown, username: string, walletAddress: string | undefined): {
+  username: string;
+  shortAddress: string;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  winRate: string;
+  totalStaked: number;
+  totalEarned: number;
+  totalWithdrawn: number;
+  propertiesBought: number;
+  propertiesSold: number;
+  registeredAt: number;
+} | null {
+  if (!data) return null;
+  const d = data as Record<string, unknown> | unknown[];
+  const gamesPlayed = Array.isArray(d) ? Number(d[4] ?? 0) : Number((d as Record<string, unknown>).gamesPlayed ?? 0);
+  const gamesWon = Array.isArray(d) ? Number(d[5] ?? 0) : Number((d as Record<string, unknown>).gamesWon ?? 0);
+  const gamesLost = Array.isArray(d) ? Number(d[6] ?? 0) : Number((d as Record<string, unknown>).gamesLost ?? 0);
+  const totalStaked = Array.isArray(d) ? Number(d[7] ?? 0) : Number((d as Record<string, unknown>).totalStaked ?? 0);
+  const totalEarned = Array.isArray(d) ? Number(d[8] ?? 0) : Number((d as Record<string, unknown>).totalEarned ?? 0);
+  const totalWithdrawn = Array.isArray(d) ? Number(d[9] ?? 0) : Number((d as Record<string, unknown>).totalWithdrawn ?? 0);
+  const propertiesBought = Array.isArray(d) ? Number(d[10] ?? 0) : Number((d as Record<string, unknown>).propertiesbought ?? 0);
+  const propertiesSold = Array.isArray(d) ? Number(d[11] ?? 0) : Number((d as Record<string, unknown>).propertiesSold ?? 0);
+  const registeredAt = Array.isArray(d) ? Number(d[3] ?? 0) : Number((d as Record<string, unknown>).registeredAt ?? 0);
+  return {
+    username: username || (Array.isArray(d) ? String(d[1] ?? '') : String((d as Record<string, unknown>).username ?? '')) || 'Unknown',
+    shortAddress: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
+    gamesPlayed,
+    gamesWon,
+    gamesLost,
+    winRate: gamesPlayed > 0 ? ((gamesWon / gamesPlayed) * 100).toFixed(1) + '%' : '0%',
+    totalStaked,
+    totalEarned,
+    totalWithdrawn,
+    propertiesBought,
+    propertiesSold,
+    registeredAt,
+  };
+}
+
+function formatStakeOrEarned(value: number): string {
+  if (value >= 1e18) return (value / 1e18).toFixed(2);
+  if (value >= 1e15) return (value / 1e18).toFixed(4);
+  return String(value);
+}
+
 export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
   const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
@@ -68,8 +117,7 @@ export default function Profile() {
 
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
-  const tycTokenAddress = TYC_TOKEN_ADDRESS[chainId as keyof typeof TYC_TOKEN_ADDRESS];
-  const usdcTokenAddress = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS];
+  const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
@@ -186,15 +234,10 @@ export default function Profile() {
 
   React.useEffect(() => {
     if (playerData && username) {
-      const d = playerData as any;
-      setUserData({
-        username: username || 'Unknown',
-        address: walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '',
-        gamesPlayed: Number(d.gamesPlayed || 0),
-        wins: Number(d.gamesWon || 0),
-        winRate: d.gamesPlayed > 0 ? ((Number(d.gamesWon) / Number(d.gamesPlayed)) * 100).toFixed(1) + '%' : '0%',
-        totalEarned: Number(d.totalEarned || 0),
-      });
+      const parsed = parseUserFromContract(playerData, username as string, walletAddress);
+      if (parsed) {
+        setUserData(parsed);
+      }
       setLoading(false);
     } else if (playerData === null && !loading) {
       setError('No player data found');
@@ -382,8 +425,13 @@ export default function Profile() {
                 {displayName && (
                   <p className="text-cyan-300/80 text-sm mt-1">"{displayName}"</p>
                 )}
+                {userData.registeredAt > 0 && (
+                  <p className="text-slate-500 text-xs mt-1">
+                    Member since {new Date(userData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
-                  <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{walletAddress}</span>
+                  <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{userData.shortAddress || walletAddress}</span>
                   <button
                     type="button"
                     onClick={copyAddress}
@@ -411,30 +459,82 @@ export default function Profile() {
           </div>
         </motion.section>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
-          {[
-            { icon: BarChart2, label: 'Games', value: userData.gamesPlayed, accent: 'cyan' },
-            { icon: Crown, label: 'Wins', value: `${userData.wins} (${userData.winRate})`, accent: 'amber', valueClass: 'text-amber-300' },
-            { icon: Coins, label: 'Earned', value: `${userData.totalEarned} BLOCK`, accent: 'emerald', valueClass: 'text-emerald-300' },
-          ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-            <motion.div
-              key={label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`profile-stat stat-${accent} rounded-2xl p-4 sm:p-5 flex items-center gap-4`}
-            >
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 stat-icon">
-                <Icon className="w-6 h-6" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                <p className={`font-bold text-lg truncate ${valueClass}`}>{value}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {/* Game stats — from contract User struct */}
+        <section className="mb-8">
+          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="w-1 h-4 rounded-full bg-cyan-500" />
+            Game stats
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            {[
+              { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
+              { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+              { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+              { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+            ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                  <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+            {[
+              { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
+              { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+              { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+            ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.05 }}
+                className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                  <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
+              { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+            ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                  <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
 
         {/* About */}
         <motion.section
@@ -613,6 +713,7 @@ export default function Profile() {
         .profile-page .stat-cyan .stat-icon { background: rgba(0, 240, 255, 0.12); color: rgb(34, 211, 238); }
         .profile-page .stat-amber .stat-icon { background: rgba(251, 191, 36, 0.12); color: rgb(251, 191, 36); }
         .profile-page .stat-emerald .stat-icon { background: rgba(52, 211, 153, 0.12); color: rgb(52, 211, 153); }
+        .profile-page .stat-slate .stat-icon { background: rgba(148, 163, 184, 0.12); color: rgb(148, 163, 184); }
         .profile-page .profile-card {
           background: rgba(15, 23, 42, 0.4);
           border: 1px solid rgba(255, 255, 255, 0.06);
