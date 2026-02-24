@@ -164,9 +164,9 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[60] max-h-[90vh] overflow-y-auto"
+            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[60] max-h-[90dvh] overflow-y-auto overscroll-contain"
           >
-            <div className="p-6 pb-10">
+            <div className="p-6 pb-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
               {/* Drag Handle */}
               <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
 
@@ -198,7 +198,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 )}
               </div>
 
-              {/* Navigation Links */}
+              {/* Navigation Links - Leaderboard always visible (MiniPay + all devices) */}
               <nav className="space-y-4 mb-10">
                 <Link
                   href="/"
@@ -207,6 +207,16 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 >
                   <House size={24} />
                   Home
+                </Link>
+
+                {/* Leaderboard: always visible so it shows on MiniPay and when connection is delayed */}
+                <Link
+                  href="/leaderboard"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
+                >
+                  <Trophy size={24} />
+                  Leaderboard
                 </Link>
 
                 {isConnected && (
@@ -227,15 +237,6 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     >
                       <ShoppingBag size={24} />
                       Shop
-                    </Link>
-
-                    <Link
-                      href="/leaderboard"
-                      onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
-                    >
-                      <Trophy size={24} />
-                      Leaderboard
                     </Link>
                   </>
                 )}
