@@ -100,7 +100,7 @@ export default function Profile() {
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
-  const [profileTab, setProfileTab] = useState<'about' | 'perks' | 'vouchers'>('about');
+  const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
@@ -460,87 +460,11 @@ export default function Profile() {
           </div>
         </motion.section>
 
-        {/* Game stats — from contract User struct */}
+        {/* Game stats | About you | My Perks | Reward Vouchers — one line of tabs, content below */}
         <section className="mb-8">
-          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 rounded-full bg-cyan-500" />
-            Game stats
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             {[
-              { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
-              { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
-              { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
-              { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
-            ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-              <motion.div
-                key={label}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                  <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            {[
-              { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
-              { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
-              { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
-            ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-              <motion.div
-                key={label}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.05 }}
-                className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                  <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
-              { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
-            ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-              <motion.div
-                key={label}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                  <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* About | My Perks | Reward Vouchers — tabs side by side, one content area */}
-        <section className="mb-8">
-          <div className="flex gap-2 mb-4">
-            {[
+              { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
               { id: 'about' as const, label: 'About you', icon: User },
               { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
               { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
@@ -549,7 +473,7 @@ export default function Profile() {
                 key={id}
                 type="button"
                 onClick={() => setProfileTab(id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all ${
+                className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all ${
                   profileTab === id
                     ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
                     : 'bg-white/5 border border-white/10 text-white/70 hover:border-white/20 hover:text-white/90'
@@ -565,6 +489,61 @@ export default function Profile() {
           </div>
 
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[280px] max-h-[60vh] overflow-y-auto">
+            {profileTab === 'stats' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
+                    { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+                    { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+                    { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                  ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                        <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                  {[
+                    { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
+                    { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                    { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                  ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                        <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
+                    { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                  ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                    <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                        <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
             {profileTab === 'about' && (
               <motion.div
                 initial={{ opacity: 0 }}
