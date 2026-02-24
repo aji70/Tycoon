@@ -10,6 +10,7 @@ router.post("/", userController.create);
 router.get("/", userController.findAll);
 // Leaderboard must be before /:id so "leaderboard" is not captured as id
 router.get("/leaderboard", userController.getLeaderboard);
+router.post("/sync-leaderboard", userController.syncLeaderboardFromChain);
 router.get("/by-address/:address", userController.findByAddress);
 router.get("/:id/property-stats", userController.getPropertyStats);
 router.get("/:id", userController.findById);

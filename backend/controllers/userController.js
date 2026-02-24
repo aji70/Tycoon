@@ -146,6 +146,68 @@ const userController = {
       res.status(500).json({ error: error.message });
     }
   },
+
+  /**
+   * POST /api/users/sync-leaderboard?chain=CELO
+   * Fetches each user's stats from the chain (getUser) and updates the DB.
+   * This backfills the leaderboard with full on-chain history so it's not "starting from now".
+   * Backend contract is configured for Celo only; other chains are no-ops.
+   */
+  async syncLeaderboardFromChain(req, res) {
+    try {
+      const { chain = "CELO" } = req.query;
+      const normalized = User.normalizeChain(chain);
+      if (!isContractConfigured()) {
+        return res.status(503).json({
+          error: "Contract not configured",
+          message: "Backend cannot read from chain. Set CELO_RPC_URL and TYCOON_CELO_CONTRACT_ADDRESS.",
+        });
+      }
+      if (normalized !== "CELO") {
+        return res.status(400).json({
+          error: "Only CELO supported for sync",
+          message: "Backend is configured for Celo only. Use ?chain=CELO to sync leaderboard from chain.",
+        });
+      }
+      const users = await User.findAllByChain(normalized, { limit: 500 });
+      let updated = 0;
+      let failed = 0;
+      for (const user of users) {
+        try {
+          const raw = await callContractRead("getUser", [user.username]);
+          const r = raw && (Array.isArray(raw) ? raw : [raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]]);
+          if (!r || r.length < 10) continue;
+          const gamesPlayed = Number(r[4] ?? 0);
+          const gameWon = Number(r[5] ?? 0);
+          const gameLost = Number(r[6] ?? 0);
+          const totalStaked = Number(r[7] ?? 0);
+          const totalEarned = Number(r[8] ?? 0);
+          const totalWithdrawn = Number(r[9] ?? 0);
+          await User.update(user.id, {
+            games_played: gamesPlayed,
+            game_won: gameWon,
+            game_lost: gameLost,
+            total_staked: totalStaked,
+            total_earned: totalEarned,
+            total_withdrawn: totalWithdrawn,
+          });
+          updated++;
+        } catch (err) {
+          failed++;
+        }
+      }
+      res.json({
+        message: "Leaderboard synced from chain",
+        chain: normalized,
+        usersProcessed: users.length,
+        updated,
+        failed,
+      });
+    } catch (error) {
+      console.error("Sync leaderboard error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
 };
 
 export default userController;

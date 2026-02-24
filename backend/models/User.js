@@ -52,6 +52,17 @@ const User = {
   },
 
   /**
+   * Get all users for a given chain (for syncing leaderboard from contract).
+   */
+  async findAllByChain(chain, { limit = 500 } = {}) {
+    const normalized = this.normalizeChain(chain);
+    return await db("users")
+      .where({ chain: normalized })
+      .select("id", "username", "address", "games_played", "game_won", "game_lost", "total_staked", "total_earned", "total_withdrawn")
+      .limit(Math.min(Number(limit) || 500, 1000));
+  },
+
+  /**
    * Update user
    */
   async update(id, userData) {
