@@ -100,6 +100,7 @@ export default function ProfilePageMobile() {
   const [error, setError] = useState<string | null>(null);
   const [sendAddress, setSendAddress] = useState('');
   const [sendingTokenId, setSendingTokenId] = useState<bigint | null>(null);
+  const [selectedPerkForTransfer, setSelectedPerkForTransfer] = useState<bigint | null>(null);
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
@@ -269,6 +270,7 @@ export default function ProfilePageMobile() {
       reset();
       setSendingTokenId(null);
       setRedeemingId(null);
+      setSelectedPerkForTransfer(null);
       tycBalance.refetch();
     }
   }, [txSuccess, txHash, reset, tycBalance]);
@@ -526,27 +528,38 @@ export default function ProfilePageMobile() {
             )}
             {profileTab === 'about' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/20 transition-colors">
-                    <User className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Nickname (optional)"
-                      value={localDisplayName}
-                      onChange={(e) => setLocalDisplayName(e.target.value)}
-                      onBlur={saveDisplayName}
-                      className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
-                    />
+                <p className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest mb-4">About you</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-white/70 mb-1.5">Display name</label>
+                    <div className="flex gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/30 transition-colors">
+                      <User className="w-4 h-4 text-cyan-400/80 shrink-0 mt-0.5" />
+                      <input
+                        type="text"
+                        placeholder="How should we call you?"
+                        value={localDisplayName}
+                        onChange={(e) => setLocalDisplayName(e.target.value)}
+                        onBlur={saveDisplayName}
+                        className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
+                      />
+                      <button type="button" onClick={saveDisplayName} className="shrink-0 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save</button>
+                    </div>
                   </div>
-                  <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/20 transition-colors">
-                    <textarea
-                      placeholder="Short bio (optional)"
-                      value={localBio}
-                      onChange={(e) => setLocalBio(e.target.value)}
-                      onBlur={saveBio}
-                      rows={2}
-                      className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none"
-                    />
+                  <div>
+                    <label className="block text-xs font-medium text-white/70 mb-1.5">Short bio</label>
+                    <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 focus-within:border-cyan-500/30 transition-colors">
+                      <textarea
+                        placeholder="A line or two about you."
+                        value={localBio}
+                        onChange={(e) => setLocalBio(e.target.value)}
+                        onBlur={saveBio}
+                        rows={3}
+                        className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none leading-relaxed"
+                      />
+                      <div className="flex justify-end mt-2">
+                        <button type="button" onClick={saveBio} className="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save bio</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -554,18 +567,6 @@ export default function ProfilePageMobile() {
 
             {profileTab === 'perks' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
-                {ownedCollectibles.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-[10px] text-white/50 mb-2">Transfer to</p>
-                    <input
-                      type="text"
-                      placeholder="0x0000...0000"
-                      value={sendAddress}
-                      onChange={(e) => setSendAddress(e.target.value.trim())}
-                      className="w-full px-3 py-2.5 bg-black/30 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs border border-white/10"
-                    />
-                  </div>
-                )}
                 {ownedCollectibles.length === 0 ? (
                   <div className="py-8 text-center">
                     <ShoppingBag className="w-10 h-10 text-purple-400/50 mx-auto mb-2" />
@@ -577,19 +578,51 @@ export default function ProfilePageMobile() {
                       <motion.div
                         key={item.tokenId.toString()}
                         whileTap={{ scale: 0.98 }}
-                        className="rounded-xl p-4 border border-white/10 text-center bg-black/20"
+                        className={`rounded-xl p-4 text-center border transition-all bg-black/20 ${
+                          selectedPerkForTransfer === item.tokenId ? 'border-purple-500/50 ring-2 ring-purple-500/20' : 'border-white/10'
+                        }`}
                       >
                         {item.icon}
                         <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
                         {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-[10px] mt-0.5">Tier {item.strength}</p>}
-                        <button
-                          onClick={() => handleSend(item.tokenId)}
-                          disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
-                          className="mt-3 w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-1 text-white"
-                        >
-                          {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                          {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? 'Sending...' : 'Send'}
-                        </button>
+                        {selectedPerkForTransfer === item.tokenId ? (
+                          <div className="mt-3 space-y-2 text-left">
+                            <p className="text-[10px] text-white/50 uppercase tracking-wider">Send to</p>
+                            <input
+                              type="text"
+                              placeholder="0x0000...0000"
+                              value={sendAddress}
+                              onChange={(e) => setSendAddress(e.target.value.trim())}
+                              className="w-full px-2.5 py-2 rounded-lg bg-black/40 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-[11px] border border-white/10"
+                            />
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => handleSend(item.tokenId)}
+                                disabled={!sendAddress || !/^0x[a-fA-F0-9]{40}$/i.test(sendAddress) || sendingTokenId === item.tokenId || isWriting || isConfirming}
+                                className="flex-1 py-2 rounded-lg font-medium text-[11px] bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-1 text-white"
+                              >
+                                {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                                {sendingTokenId === item.tokenId && (isWriting || isConfirming) ? '...' : 'Send'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPerkForTransfer(null)}
+                                className="px-2.5 py-2 rounded-lg font-medium text-[11px] bg-white/10 text-white/80"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPerkForTransfer(item.tokenId)}
+                            className="mt-3 w-full py-2 rounded-lg font-medium text-xs bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center gap-1 text-white"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            Transfer
+                          </button>
+                        )}
                       </motion.div>
                     ))}
                   </div>
