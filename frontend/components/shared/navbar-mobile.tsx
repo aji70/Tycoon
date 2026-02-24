@@ -232,7 +232,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     <Link
                       href="/leaderboard"
                       onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#FFD700] text-lg font-medium transition"
+                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
                     >
                       <Trophy size={24} />
                       Leaderboard

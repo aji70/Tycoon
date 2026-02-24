@@ -101,7 +101,7 @@ const NavBar = () => {
           {isConnected && (
             <Link
               href="/leaderboard"
-              className="w-[100px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#FFD700]"
+              className="w-[100px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
             >
               <Trophy className="w-[16px] h-[16px]" />
               <span className="text-[12px] font-[400] font-dmSans">Leaderboard</span>
