@@ -97,6 +97,7 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
     contract_game_id: game.contract_game_id,
     target_address: targetAddress,
     target_turn_count: targetTurnCount,
+    ...(remaining.length === 1 && { chain: game.chain || "BASE", player_user_ids: players.map((p) => p.user_id) }),
   };
 }
 
@@ -782,11 +783,16 @@ const gamePlayerController = {
 
       const remaining = await db("game_players").where({ game_id: game.id }).select("user_id");
       if (remaining.length === 1 && game.status === "RUNNING") {
+        const winnerId = remaining[0].user_id;
+        const playerUserIds = remaining.map((r) => r.user_id).concat(user.id);
         await Game.update(game.id, {
           status: "FINISHED",
-          winner_id: remaining[0].user_id,
-          next_player_id: remaining[0].user_id,
+          winner_id: winnerId,
+          next_player_id: winnerId,
         });
+        User.recordChainGameResult(game.chain || "BASE", winnerId, playerUserIds).catch((err) =>
+          logger.warn({ err: err?.message, gameId: game.id }, "recordChainGameResult failed")
+        );
         await invalidateGameById(game.id);
         const io = req.app.get("io");
         if (io && game.code) emitGameUpdate(io, game.code);
@@ -1523,6 +1529,12 @@ const gamePlayerController = {
             updated_at: new Date(),
           });
         await trx.commit();
+        if (winner && game.chain) {
+          const playerUserIds = players.map((p) => p.user_id);
+          User.recordChainGameResult(game.chain || "BASE", winner.user_id, playerUserIds).catch((err) =>
+            logger.warn({ err: err?.message, game_id }, "recordChainGameResult failed")
+          );
+        }
         // End AI game on contract so human gets consolation (guest or wallet when we have contract auth)
         if (game.contract_game_id && isContractConfigured()) {
           const eliminatedUser = await ensureUserHasContractPassword(db, eliminatedUserId) ||
@@ -1926,6 +1938,14 @@ const gamePlayerController = {
 
       await trx.commit();
 
+      if (removalResultForContract?.winner_user_id && removalResultForContract?.player_user_ids) {
+        User.recordChainGameResult(
+          removalResultForContract.chain || "BASE",
+          removalResultForContract.winner_user_id,
+          removalResultForContract.player_user_ids
+        ).catch((err) => logger.warn({ err: err?.message, game_id }, "recordChainGameResult failed"));
+      }
+
       // On-chain: remove player from game, then if game ended (1 winner left) end game on contract for winner
       if (removed && removalResultForContract && isContractConfigured()) {
         const { contract_game_id, target_address, target_turn_count, winner_user_id } = removalResultForContract;
@@ -2263,6 +2283,12 @@ const gamePlayerController = {
 
       await notifyGameUpdate(req, game_id);
       await trx.commit();
+
+      if (result.winner_user_id && result.player_user_ids) {
+        User.recordChainGameResult(result.chain || "BASE", result.winner_user_id, result.player_user_ids).catch((err) =>
+          logger.warn({ err: err?.message, game_id }, "recordChainGameResult failed")
+        );
+      }
 
       // On-chain: remove player, then if game ended (1 winner) end game on contract for winner
       if (isContractConfigured() && result.contract_game_id && result.target_address) {
