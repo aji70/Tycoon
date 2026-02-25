@@ -3,7 +3,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import { appChain } from "@/config";
 
 export type GuestUser = {
   id: number;
@@ -65,7 +64,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/guest-register", {
         username: username.trim(),
         password,
-        chain: appChain,
+        chain: "CELO",
       });
       const data = res?.data as any;
       if (data?.data?.token && data?.data?.user) {
