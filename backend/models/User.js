@@ -48,6 +48,20 @@ const User = {
   },
 
   /**
+   * Find by username case-insensitive within a given chain (for "username taken" checks per chain).
+   * Same username is allowed on different chains.
+   */
+  async findByUsernameIgnoreCaseInChain(username, chain) {
+    if (username == null || String(username).trim() === "") return null;
+    const normalizedChain = this.normalizeChain(chain);
+    const normalized = String(username).trim().toLowerCase();
+    return await db("users")
+      .where({ chain: normalizedChain })
+      .whereRaw("LOWER(TRIM(username)) = ?", [normalized])
+      .first();
+  },
+
+  /**
    * Get all users (optional limit/offset)
    */
   async findAll({ limit = 100, offset = 0 } = {}) {
