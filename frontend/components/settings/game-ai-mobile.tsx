@@ -225,11 +225,11 @@ export default function PlayWithAIMobile() {
               onClick={handlePlay}
               disabled={!canCreate || (!isGuest && isCreatePending)}
               className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
-                       bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
+                       bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
                        hover:brightness-110 active:scale-[0.98]
                        rounded-xl shadow-lg transition-all duration-300
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       border-2 border-white/20 text-white"
+                       border-2 border-[#00F0FF]/40"
             >
               {!isGuest && isCreatePending ? "SUMMONING..." : "START BATTLE"}
             </button>
