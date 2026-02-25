@@ -523,13 +523,12 @@ export default function GameSettings() {
             onClick={handlePlay}
             disabled={!canCreate || (!isGuest && (isCreatePending || ((approvePending || approveConfirming) && !isFreeGame)))}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
-                       bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-600
-                       hover:from-pink-600 hover:via-purple-600 hover:to-cyan-500
+                       bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
                        rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
                        transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                       border-4 border-white/20"
+                       border-4 border-[#00F0FF]/40"
           >
-            <span className="relative z-10 text-white drop-shadow-2xl">
+            <span className="relative z-10 drop-shadow-lg">
               {approvePending || approveConfirming
                 ? "APPROVING..."
                 : isCreatePending
