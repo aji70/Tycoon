@@ -16,10 +16,12 @@ function passwordToHash(password) {
   return ethers.keccak256(ethers.toUtf8Bytes(password));
 }
 
+const GUEST_CHAIN_OPTIONS = ["POLYGON", "CELO", "BASE"];
+
 /**
  * POST /auth/guest-register
- * Body: { username, password, chain? }
- * chain: optional - "POLYGON" | "CELO" | "BASE". If omitted, uses GUEST_CHAIN env or CELO.
+ * Body: { username, password, chain }
+ * chain: required - "POLYGON" | "CELO" | "BASE". Must be sent explicitly by the frontend.
  * Creates a new wallet, registers on-chain via registerPlayerFor, creates user with is_guest=true.
  */
 export async function guestRegister(req, res) {
@@ -28,9 +30,17 @@ export async function guestRegister(req, res) {
     if (!username || typeof username !== "string" || !password || typeof password !== "string") {
       return res.status(400).json({ success: false, message: "Username and password required" });
     }
+    if (bodyChain == null || String(bodyChain).trim() === "") {
+      return res.status(400).json({ success: false, message: "chain is required (POLYGON, CELO, or BASE)" });
+    }
     const trimmedUsername = username.trim();
     if (trimmedUsername.length < 2) {
       return res.status(400).json({ success: false, message: "Username too short" });
+    }
+
+    const normalizedChain = User.normalizeChain(bodyChain);
+    if (!GUEST_CHAIN_OPTIONS.includes(normalizedChain)) {
+      return res.status(400).json({ success: false, message: "chain must be POLYGON, CELO, or BASE" });
     }
 
     const existing = await User.findByUsernameIgnoreCase(trimmedUsername);
@@ -42,8 +52,7 @@ export async function guestRegister(req, res) {
     const playerAddress = await wallet.getAddress();
     const passwordHash = passwordToHash(password);
 
-    const chain = bodyChain || process.env.GUEST_CHAIN || "CELO";
-    const normalizedChain = User.normalizeChain(chain);
+    const chain = normalizedChain;
     await registerPlayerFor(playerAddress, trimmedUsername, passwordHash, normalizedChain);
     let userRecord;
     try {

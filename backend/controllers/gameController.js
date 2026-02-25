@@ -1016,19 +1016,40 @@ export const createAsGuest = async (req, res) => {
     const stakeAmount = 0n; // Guests: free games only
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
     const chainForCreate = User.normalizeChain(chain || "CELO");
+    const isAI = !!is_ai;
+    const numberOfAI = isAI ? Math.max(1, (number_of_players ?? 2) - 1) : 0;
 
-    const { gameId: onChainGameId } = await createGameByBackend(
-      user.address,
-      user.password_hash,
-      user.username,
-      gameType,
-      symbol || "hat",
-      number_of_players ?? 4,
-      code,
-      startingCash,
-      stakeAmount,
-      chainForCreate
-    );
+    // AI games must be created with createAIGameByBackend so on-chain game.ai is true (required for endAIGame).
+    // Use create-ai-as-guest for guest AI games; this branch only handles accidental is_ai on create-as-guest.
+    let onChainGameId;
+    if (isAI) {
+      const result = await createAIGameByBackend(
+        user.address,
+        user.password_hash,
+        user.username,
+        gameType,
+        symbol || "hat",
+        numberOfAI,
+        code,
+        startingCash,
+        chainForCreate
+      );
+      onChainGameId = result?.gameId;
+    } else {
+      const result = await createGameByBackend(
+        user.address,
+        user.password_hash,
+        user.username,
+        gameType,
+        symbol || "hat",
+        number_of_players ?? 4,
+        code,
+        startingCash,
+        stakeAmount,
+        chainForCreate
+      );
+      onChainGameId = result?.gameId;
+    }
 
     if (!onChainGameId) {
       return res.status(500).json({ success: false, message: "Contract did not return game ID" });
