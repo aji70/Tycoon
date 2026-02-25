@@ -167,6 +167,26 @@ app.get("/health", async (req, res) => {
   res.status(statusCode).json(health);
 });
 
+// Debug: which env keys are present (values not exposed). Use to verify Railway injects CELO_* etc.
+app.get("/api/config/env-check", (_req, res) => {
+  const keys = [
+    "CELO_RPC_URL",
+    "TYCOON_CELO_CONTRACT_ADDRESS",
+    "BACKEND_GAME_CONTROLLER_PRIVATE_KEY",
+    "BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY",
+    "POLYGON_RPC_URL",
+    "TYCOON_POLYGON_CONTRACT_ADDRESS",
+    "BACKEND_GAME_CONTROLLER_POLYGON_PRIVATE_KEY",
+    "BASE_RPC_URL",
+    "TYCOON_BASE_CONTRACT_ADDRESS",
+  ];
+  const present = {};
+  keys.forEach((k) => {
+    present[k] = typeof process.env[k] === "string" && process.env[k].trim().length > 0;
+  });
+  res.json({ envKeysPresent: present });
+});
+
 // Test endpoint: expose chain env vars for frontend config-test. ?chain=Polygon|Celo|Base (default Polygon).
 app.get("/api/config/test", async (req, res) => {
   const chain = (req.query.chain || "POLYGON").toString().toUpperCase();
