@@ -41,9 +41,9 @@ export async function guestRegister(req, res) {
     const playerAddress = await wallet.getAddress();
     const passwordHash = passwordToHash(password);
 
-    await registerPlayerFor(playerAddress, trimmedUsername, passwordHash);
-
-    const chain = process.env.GUEST_CHAIN || "BASE";
+    const chain = process.env.GUEST_CHAIN || "CELO";
+    const normalizedChain = User.normalizeChain(chain);
+    await registerPlayerFor(playerAddress, trimmedUsername, passwordHash, normalizedChain);
     let userRecord;
     try {
       userRecord = await User.create({

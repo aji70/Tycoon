@@ -157,16 +157,10 @@ const userController = {
     try {
       const { chain = "CELO" } = req.query;
       const normalized = User.normalizeChain(chain);
-      if (!isContractConfigured()) {
+      if (!isContractConfigured(normalized)) {
         return res.status(503).json({
           error: "Contract not configured",
-          message: "Backend cannot read from chain. Set CELO_RPC_URL and TYCOON_CELO_CONTRACT_ADDRESS.",
-        });
-      }
-      if (normalized !== "CELO") {
-        return res.status(400).json({
-          error: "Only CELO supported for sync",
-          message: "Backend is configured for Celo only. Use ?chain=CELO to sync leaderboard from chain.",
+          message: `Backend cannot read from chain ${normalized}. Set ${normalized}_RPC_URL and TYCOON_${normalized}_CONTRACT_ADDRESS.`,
         });
       }
       const users = await User.findAllByChain(normalized, { limit: 500 });
@@ -174,7 +168,7 @@ const userController = {
       let failed = 0;
       for (const user of users) {
         try {
-          const raw = await callContractRead("getUser", [user.username]);
+          const raw = await callContractRead("getUser", [user.username], normalized);
           const r = raw && (Array.isArray(raw) ? raw : [raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9]]);
           if (!r || r.length < 10) continue;
           const gamesPlayed = Number(r[4] ?? 0);

@@ -1,15 +1,15 @@
 /**
- * Tycoon contract interaction (Celo).
- * Requires BACKEND_GAME_CONTROLLER_PRIVATE_KEY to be set as game controller on the contract.
- * Used for: setTurnCount, removePlayerFromGame, transferPropertyOwnership.
- * Creates fresh provider/wallet per call to avoid stale env and ensure Railway env is used.
+ * Tycoon contract interaction (multi-chain: Celo, Polygon, Base).
+ * Requires per-chain env: RPC_URL, TYCOON_*_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY.
+ * Used for: setTurnCount, removePlayerFromGame, transferPropertyOwnership, createGameByBackend, etc.
+ * Creates fresh provider/wallet per call. Chain is optional; defaults to CELO for backward compatibility.
  *
  * Concurrency: All writes from the backend wallet are serialized via withTxQueue() so that
  * only one transaction is in flight at a time. This prevents nonce collisions when many
  * guests (or other backend-triggered actions) hit the API at once.
  */
-import { JsonRpcProvider, Wallet, Contract, Network } from "ethers";
-import { getCeloConfig } from "../config/celo.js";
+import { JsonRpcProvider, Wallet, Contract, Network, Interface } from "ethers";
+import { getChainConfig, isAnyChainConfigured } from "../config/chains.js";
 import logger from "../config/logger.js";
 
 /** Serialize backend wallet transactions to avoid nonce collisions under concurrent load. */
@@ -209,34 +209,39 @@ const TYCOON_ABI = [
   { type: "function", name: "drainContract", inputs: [], outputs: [], stateMutability: "nonpayable" },
 ];
 
-// Celo chain IDs: 42220 mainnet, 44787 Alfajores testnet
-const CELO_MAINNET_CHAIN_ID = 42220;
-const CELO_ALFAJORES_CHAIN_ID = 44787;
+/** Network name by chain for ethers Network (used for chainId only; provider uses rpcUrl). */
+const CHAIN_NAMES = { CELO: "celo", POLYGON: "polygon", BASE: "base" };
 
-function getContract() {
-  const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
+/**
+ * Get contract instance for a given chain. Defaults to CELO.
+ * @param {string} [chain] - "CELO" | "POLYGON" | "BASE" (or normalized name)
+ */
+function getContract(chain = "CELO") {
+  const { rpcUrl, contractAddress, privateKey, isConfigured, chainId } = getChainConfig(chain);
   if (!isConfigured) {
     throw new Error(
-      "Tycoon contract not configured: set CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, and BACKEND_GAME_CONTROLLER_PRIVATE_KEY"
+      `Tycoon contract not configured for ${chain}: set ${chain}_RPC_URL, TYCOON_${chain}_CONTRACT_ADDRESS, and BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY`
     );
   }
   const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
-  const network = new Network("celo", Number(process.env.CELO_CHAIN_ID) || CELO_MAINNET_CHAIN_ID);
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, chainId);
   const provider = new JsonRpcProvider(rpcUrl, network);
   const wallet = new Wallet(pk, provider);
   const contract = new Contract(contractAddress, TYCOON_ABI, wallet);
   return contract;
 }
 
-/** Test RPC connection and wallet; returns { ok, error } for debugging */
-export async function testContractConnection() {
+/** Test RPC connection and wallet for a chain; returns { ok, error } for debugging. Defaults to CELO. */
+export async function testContractConnection(chain = "CELO") {
   try {
-    const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
+    const { rpcUrl, contractAddress, privateKey, isConfigured, chainId } = getChainConfig(chain);
     if (!isConfigured) {
-      return { ok: false, error: "Env not configured (CELO_RPC_URL, TYCOON_CELO_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_PRIVATE_KEY)" };
+      return { ok: false, error: `Env not configured for ${chain} (RPC, TYCOON_*_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY)` };
     }
     const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
-    const network = new Network("celo", Number(process.env.CELO_CHAIN_ID) || CELO_MAINNET_CHAIN_ID);
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, chainId);
     const provider = new JsonRpcProvider(rpcUrl, network);
     const blockNumber = await provider.getBlockNumber();
     const wallet = new Wallet(pk, provider);
@@ -244,6 +249,7 @@ export async function testContractConnection() {
     const balance = await provider.getBalance(address);
     return {
       ok: true,
+      chain,
       blockNumber: Number(blockNumber),
       walletAddress: address,
       balance: balance.toString(),
@@ -262,9 +268,9 @@ export async function testContractConnection() {
  * @param {number|string} count - Turn count (e.g. 20)
  * @returns {Promise<{ hash: string }>} Transaction receipt / hash
  */
-export async function setTurnCount(gameId, playerAddress, count) {
+export async function setTurnCount(gameId, playerAddress, count, chain = "CELO") {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.setTurnCount(
       BigInt(gameId),
       playerAddress,
@@ -286,9 +292,9 @@ export async function setTurnCount(gameId, playerAddress, count) {
  * @param {number|string} turnCount - Turn count from your DB (for min-turns perk check)
  * @returns {Promise<{ hash: string, removed: boolean }>}
  */
-export async function removePlayerFromGame(gameId, playerAddress, turnCount) {
+export async function removePlayerFromGame(gameId, playerAddress, turnCount, chain = "CELO") {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.removePlayerFromGame(
       BigInt(gameId),
       playerAddress,
@@ -318,10 +324,11 @@ export async function removePlayerFromGame(gameId, playerAddress, turnCount) {
  */
 export async function transferPropertyOwnership(
   sellerUsername,
-  buyerUsername
+  buyerUsername,
+  chain = "CELO"
 ) {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.transferPropertyOwnership(
       sellerUsername,
       buyerUsername
@@ -345,9 +352,9 @@ export async function transferPropertyOwnership(
  * @param {string} username - Username
  * @param {string} passwordHash - keccak256 hash of password (0x-prefixed hex 32 bytes)
  */
-export async function registerPlayerFor(playerAddress, username, passwordHash) {
+export async function registerPlayerFor(playerAddress, username, passwordHash, chain = "CELO") {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.registerPlayerFor(playerAddress, username, passwordHash);
     const receipt = await tx.wait();
     logger.info({ playerAddress, username, hash: receipt?.hash }, "Tycoon registerPlayerFor tx");
@@ -358,6 +365,7 @@ export async function registerPlayerFor(playerAddress, username, passwordHash) {
 /**
  * Create game on behalf of a player (guest). Uses forPlayer with empty forUsername.
  * Returns gameId from GameCreated event.
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
  */
 export async function createGameByBackend(
   forPlayer,
@@ -368,10 +376,11 @@ export async function createGameByBackend(
   numberOfPlayers,
   code,
   startingBalance,
-  stakeAmount
+  stakeAmount,
+  chain = "CELO"
 ) {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.createGameByBackend(
       forPlayer,
       "", // forUsername
@@ -387,7 +396,7 @@ export async function createGameByBackend(
     const receipt = await tx.wait();
     let newGameId;
     try {
-      const iface = new ethers.Interface([
+      const iface = new Interface([
         "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
       ]);
       for (const log of receipt.logs || []) {
@@ -417,6 +426,7 @@ export async function createGameByBackend(
 
 /**
  * Join game on behalf of a player (guest).
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
  */
 export async function joinGameByBackend(
   forPlayer,
@@ -424,10 +434,11 @@ export async function joinGameByBackend(
   gameId,
   playerUsername,
   playerSymbol,
-  joinCode
+  joinCode,
+  chain = "CELO"
 ) {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.joinGameByBackend(
       forPlayer,
       "",
@@ -445,6 +456,7 @@ export async function joinGameByBackend(
 
 /**
  * Create AI game on behalf of a player (guest).
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
  */
 export async function createAIGameByBackend(
   forPlayer,
@@ -454,10 +466,11 @@ export async function createAIGameByBackend(
   playerSymbol,
   numberOfAI,
   code,
-  startingBalance
+  startingBalance,
+  chain = "CELO"
 ) {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.createAIGameByBackend(
       forPlayer,
       "",
@@ -472,7 +485,7 @@ export async function createAIGameByBackend(
     const receipt = await tx.wait();
     let newGameId;
     try {
-      const iface = new ethers.Interface([
+      const iface = new Interface([
         "event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp)",
       ]);
       for (const log of receipt.logs || []) {
@@ -502,10 +515,11 @@ export async function createAIGameByBackend(
 /**
  * End AI game on-chain on behalf of the human player (e.g. when game ends by time).
  * Requires the player's password hash (guests have it in DB). Idempotent if game already ended on-chain.
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
  */
-export async function endAIGameByBackend(forPlayer, forUsername, passwordHash, gameId, finalPosition, finalBalance, isWin) {
+export async function endAIGameByBackend(forPlayer, forUsername, passwordHash, gameId, finalPosition, finalBalance, isWin, chain = "CELO") {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.endAIGameByBackend(
       forPlayer,
       forUsername || "",
@@ -524,10 +538,11 @@ export async function endAIGameByBackend(forPlayer, forUsername, passwordHash, g
 /**
  * Exit game on-chain on behalf of a player (e.g. when multiplayer game ends and winner is the last one).
  * Requires the player's password hash (guests have it in DB). Ends the game and pays out the winner.
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
  */
-export async function exitGameByBackend(forPlayer, forUsername, passwordHash, gameId) {
+export async function exitGameByBackend(forPlayer, forUsername, passwordHash, gameId, chain = "CELO") {
   return withTxQueue(async () => {
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
     const tx = await tycoon.exitGameByBackend(
       forPlayer,
       forUsername || "",
@@ -541,10 +556,12 @@ export async function exitGameByBackend(forPlayer, forUsername, passwordHash, ga
 }
 
 /**
- * Whether backend contract integration is configured (env vars set).
+ * Whether backend contract integration is configured for the given chain.
+ * @param {string} [chain] - If omitted, returns true if any chain (CELO, POLYGON, BASE) is configured.
  */
-export function isContractConfigured() {
-  return getCeloConfig().isConfigured;
+export function isContractConfigured(chain) {
+  if (chain == null || String(chain).trim() === "") return isAnyChainConfigured();
+  return getChainConfig(chain).isConfigured;
 }
 
 const ALLOWED_READ_FNS = [
@@ -588,16 +605,17 @@ const ALLOWED_WRITE_FNS = [
 ];
 
 /**
- * Call a read-only contract function. Used by config-test for manual testing.
+ * Call a read-only contract function. Used by config-test and game lookups (e.g. getGameByCode).
  * @param {string} fn - Function name (must be in ALLOWED_READ_FNS)
  * @param {Array} params - Arguments array (strings converted where needed)
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE). Default CELO.
  * @returns {Promise<unknown>} Raw result (may be object, array, bigint, string, etc.)
  */
-export async function callContractRead(fn, params = []) {
+export async function callContractRead(fn, params = [], chain = "CELO") {
   if (!ALLOWED_READ_FNS.includes(fn)) {
     throw new Error(`Unknown read function: ${fn}. Allowed: ${ALLOWED_READ_FNS.join(", ")}`);
   }
-  const tycoon = getContract();
+  const tycoon = getContract(chain);
 
   // Normalize params by type
   const normalized = params.map((p, i) => {
@@ -685,12 +703,12 @@ function serializeContractResult(val) {
  * @param {Array} params - Arguments array (strings/numbers converted where needed)
  * @returns {Promise<{ hash: string; status?: number; blockNumber?: number }>}
  */
-export async function callContractWrite(fn, params = []) {
+export async function callContractWrite(fn, params = [], chain = "CELO") {
   return withTxQueue(async () => {
     if (!ALLOWED_WRITE_FNS.includes(fn)) {
       throw new Error(`Unknown write function: ${fn}. Allowed: ${ALLOWED_WRITE_FNS.join(", ")}`);
     }
-    const tycoon = getContract();
+    const tycoon = getContract(chain);
 
     const normalized = params.map((p) => {
       if (p === true || p === false) return p;

@@ -1,4 +1,6 @@
 import GameTrade from "../models/GameTrade.js";
+import Game from "../models/Game.js";
+import User from "../models/User.js";
 import db from "../config/database.js";
 import { transferPropertyOwnership, isContractConfigured } from "../services/tycoonContract.js";
 import {
@@ -110,10 +112,13 @@ const gameTradeController = {
       }
 
       // On-chain: record property transfers for each property in the trade (fire-and-forget)
-      if (isContractConfigured() && result?.success) {
+      if (result?.success) {
         (async () => {
           try {
             const trade = await GameTrade.findById(tradeId);
+            const game = trade?.game_id ? await Game.findById(trade.game_id) : null;
+            const chain = game ? User.normalizeChain(game.chain || "CELO") : "CELO";
+            if (!isContractConfigured(chain)) return;
             const items = await db("game_trade_items").where({ trade_id: tradeId });
             const propertyItems = items.filter((i) => i.type === "PROPERTY" || i.property_id);
             const sellerUsername = trade?.from_username ?? null;
@@ -121,7 +126,7 @@ const gameTradeController = {
 
             if (sellerUsername && buyerUsername && propertyItems.length > 0) {
               for (let i = 0; i < propertyItems.length; i++) {
-                await transferPropertyOwnership(sellerUsername, buyerUsername);
+                await transferPropertyOwnership(sellerUsername, buyerUsername, chain);
               }
             }
           } catch (err) {
