@@ -50,8 +50,8 @@ const HeroSection: React.FC = () => {
 
   const { data: contractGame } = useGetGameByCode(gameCode);
 
-  const [backendGame, setBackendGame] = useState<{ status: string } | null>(null);
-  const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string } | null>(null);
+  const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
+  const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
 
   useEffect(() => {
     if (!gameCode || typeof gameCode !== "string") {
@@ -63,7 +63,8 @@ const HeroSection: React.FC = () => {
       .get<ApiResponse>(`/games/code/${encodeURIComponent(gameCode.trim().toUpperCase())}`)
       .then((res) => {
         if (cancelled || !res?.data?.success || !res.data.data) return;
-        setBackendGame(res.data.data as { status: string });
+        const data = res.data.data as { status: string; is_ai?: boolean };
+        setBackendGame(data);
       })
       .catch(() => {
         if (!cancelled) setBackendGame(null);
@@ -73,7 +74,7 @@ const HeroSection: React.FC = () => {
     };
   }, [gameCode]);
 
-  // Guest: fetch "my games" so they can continue their last game
+  // Guest: fetch "my games" so they can continue their last game (include is_ai for routing)
   useEffect(() => {
     if (!guestUser || address) {
       setGuestLastGame(null);
@@ -84,9 +85,9 @@ const HeroSection: React.FC = () => {
       .get<ApiResponse>("/games/my-games", { params: { limit: 10 } })
       .then((res) => {
         if (cancelled || !res?.data?.success || !Array.isArray(res.data.data)) return;
-        const games = res.data.data as { code: string; status: string }[];
+        const games = res.data.data as { code: string; status: string; is_ai?: boolean }[];
         const active = games.find((g) => g.status === "RUNNING");
-        setGuestLastGame(active ? { code: active.code, status: active.status } : null);
+        setGuestLastGame(active ? { code: active.code, status: active.status, is_ai: active.is_ai } : null);
       })
       .catch(() => {
         if (!cancelled) setGuestLastGame(null);
@@ -117,7 +118,7 @@ const HeroSection: React.FC = () => {
     const fetchUser = async () => {
       try {
         const res = await apiClient.get<ApiResponse>(
-          `/users/by-address/${address}?chain=Base`
+          `/users/by-address/${address}?chain=Celo`
         );
 
         if (!isActive) return;
@@ -200,7 +201,7 @@ const HeroSection: React.FC = () => {
         const res = await apiClient.post<ApiResponse>("/users", {
           username: finalUsername,
           address,
-          chain: "Base",
+          chain: "Celo",
         });
 
         if (!res?.success) throw new Error("Failed to save user on backend");
@@ -253,6 +254,8 @@ const handleContinuePrevious = () => {
   if (guestUser && guestLastGame) {
     if (guestLastGame.status === "PENDING") {
       router.push(`/game-waiting?gameCode=${encodeURIComponent(guestLastGame.code)}`);
+    } else if (guestLastGame.is_ai) {
+      router.push(`/ai-play?gameCode=${encodeURIComponent(guestLastGame.code)}`);
     } else {
       router.push(`/game-play?gameCode=${encodeURIComponent(guestLastGame.code)}`);
     }
@@ -260,10 +263,12 @@ const handleContinuePrevious = () => {
   }
   if (!gameCode) return;
 
-  if (contractGame?.ai) {
-    router.push(`/ai-play?gameCode=${gameCode}`);
+  // Prefer backend is_ai (source of truth for our games); fall back to contract
+  const isAi = backendGame?.is_ai ?? contractGame?.ai;
+  if (isAi) {
+    router.push(`/ai-play?gameCode=${encodeURIComponent(gameCode)}`);
   } else {
-    router.push(`/game-play?gameCode=${gameCode}`);
+    router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
   }
 };
 
