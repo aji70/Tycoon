@@ -30,7 +30,7 @@ import { connectSocketRedis } from "./config/socketRedis.js";
 import logger from "./config/logger.js";
 import db from "./config/database.js";
 import redis from "./config/redis.js";
-import { getCeloConfig } from "./config/celo.js";
+import { getChainConfig } from "./config/chains.js";
 import { testContractConnection, callContractRead, callContractWrite } from "./services/tycoonContract.js";
 
 dotenv.config();
@@ -167,9 +167,11 @@ app.get("/health", async (req, res) => {
   res.status(statusCode).json(health);
 });
 
-// Test endpoint: expose Celo env vars for frontend display (read from backend).
+// Test endpoint: expose chain env vars for frontend config-test. ?chain=Polygon|Celo|Base (default Polygon).
 app.get("/api/config/test", async (req, res) => {
-  const { rpcUrl, contractAddress, privateKey, isConfigured } = getCeloConfig();
+  const chain = (req.query.chain || "POLYGON").toString().toUpperCase();
+  const norm = chain === "CELO" ? "CELO" : chain === "POLYGON" ? "POLYGON" : "BASE";
+  const { rpcUrl, contractAddress, privateKey, isConfigured } = getChainConfig(norm);
   const fullPk = req.query.full === "1" && process.env.NODE_ENV === "development";
   let pkDisplay = null;
   if (privateKey) {
@@ -180,10 +182,23 @@ app.get("/api/config/test", async (req, res) => {
       pkDisplay = len > 12 ? `${privateKey.slice(0, 6)}...${privateKey.slice(-4)}` : "***";
     }
   }
-  const result = { CELO_RPC_URL: rpcUrl || null, TYCOON_CELO_CONTRACT_ADDRESS: contractAddress || null, BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay, isConfigured: !!isConfigured };
+  const result = {
+    chain: norm,
+    isConfigured: !!isConfigured,
+    BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay,
+  };
+  if (norm === "CELO") {
+    result.CELO_RPC_URL = rpcUrl || null;
+    result.TYCOON_CELO_CONTRACT_ADDRESS = contractAddress || null;
+  } else if (norm === "POLYGON") {
+    result.POLYGON_RPC_URL = rpcUrl || null;
+    result.TYCOON_POLYGON_CONTRACT_ADDRESS = contractAddress || null;
+  } else {
+    result.BASE_RPC_URL = rpcUrl || null;
+    result.TYCOON_BASE_CONTRACT_ADDRESS = contractAddress || null;
+  }
   if (req.query.test_connection === "1") {
-    const chain = req.query.chain || "CELO";
-    result.connectionTest = await testContractConnection(chain);
+    result.connectionTest = await testContractConnection(norm);
   }
   res.json(result);
 });
