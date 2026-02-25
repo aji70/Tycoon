@@ -24,6 +24,13 @@ const User = {
   },
 
   /**
+   * Find by wallet address only (any chain). Use when address is unique (e.g. AI bots).
+   */
+  async findByAddressOnly(address) {
+    return await db("users").where({ address }).first();
+  },
+
+  /**
    * Find by username (exact match)
    */
   async findByUsername(username) {
