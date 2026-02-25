@@ -40,15 +40,16 @@ const AI_ADDRESSES = [
 const AI_SYMBOLS = ["car", "dog", "hat", "thimble", "wheelbarrow", "battleship", "boot", "iron", "top_hat"];
 
 /** Get or create a user for an AI bot (by index). Used so game_players can reference a user_id for AI. */
-async function getOrCreateAIUser(aiIndex) {
+async function getOrCreateAIUser(aiIndex, chain = "CELO") {
   const address = AI_ADDRESSES[aiIndex];
   if (!address) return null;
-  let user = await User.findByAddress(address);
-  if (!user) user = await User.findByAddress(address, "Base");
+  // Address is unique in users table; find by address only so we find AI user on any chain
+  const user = await User.findByAddressOnly(address);
   if (user) return user;
   const username = `AI_${aiIndex + 1}`;
+  const normalizedChain = User.normalizeChain(chain);
   try {
-    const created = await User.create({ address, username, chain: "BASE" });
+    const created = await User.create({ address, username, chain: normalizedChain });
     return created;
   } catch (err) {
     logger.warn({ err: err?.message, address, username }, "getOrCreateAIUser create failed");
@@ -1328,7 +1329,7 @@ export const createAIAsGuest = async (req, res) => {
     const humanSymbol = (symbol || "hat").toLowerCase();
     const availableSymbols = AI_SYMBOLS.filter((s) => s !== humanSymbol);
     for (let i = 0; i < numberOfAI; i++) {
-      const aiUser = await getOrCreateAIUser(i);
+      const aiUser = await getOrCreateAIUser(i, chainForAICreate);
       if (!aiUser) continue;
       const aiSymbol = availableSymbols[i % availableSymbols.length] || AI_SYMBOLS[i % AI_SYMBOLS.length];
       await GamePlayer.create({
@@ -1396,9 +1397,10 @@ export const addAIPlayers = async (req, res) => {
     const settings = await GameSetting.findByGameId(game.id);
     const startingCash = settings?.starting_cash ?? 1500;
 
+    const chainForAI = User.normalizeChain(game.chain || "CELO");
     const addedPlayers = [];
     for (let i = 0; i < ai_count; i++) {
-      const aiUser = await getOrCreateAIUser(i);
+      const aiUser = await getOrCreateAIUser(i, chainForAI);
       if (!aiUser) {
         logger.warn({ aiIndex: i }, "Failed to get or create AI user");
         continue;
