@@ -530,8 +530,8 @@ const payRent = async (
 const gamePlayerController = {
   async create(req, res) {
     try {
-      const { address, code } = req.body;
-      const user = await User.findByAddress(address);
+      const { address, code, chain } = req.body;
+      const user = await User.resolveUserByAddress(address, chain || "BASE");
       if (!user) {
         res.status(200).json({ success: false, message: "User not found" });
       }
@@ -570,13 +570,10 @@ const gamePlayerController = {
   },
   async join(req, res) {
     try {
-      const { address, code, symbol } = req.body;
+      const { address, code, symbol, chain } = req.body;
 
-      // find user (try default chain then "Base" — frontend creates users with chain "Base")
-      let user = await User.findByAddress(address);
-      if (!user) {
-        user = await User.findByAddress(address, "Base");
-      }
+      // find user (by primary address or linked wallet)
+      const user = await User.resolveUserByAddress(address, chain || "BASE");
       if (!user) {
         return res
           .status(404)
@@ -731,9 +728,8 @@ const gamePlayerController = {
   },
   async leave(req, res) {
     try {
-      const { address, code } = req.body;
-      let user = await User.findByAddress(address);
-      if (!user) user = await User.findByAddress(address, "Base");
+      const { address, code, chain } = req.body;
+      const user = await User.resolveUserByAddress(address, chain || "BASE");
       if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
       }
