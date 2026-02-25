@@ -18,12 +18,13 @@ function passwordToHash(password) {
 
 /**
  * POST /auth/guest-register
- * Body: { username, password }
+ * Body: { username, password, chain? }
+ * chain: optional - "POLYGON" | "CELO" | "BASE". If omitted, uses GUEST_CHAIN env or CELO.
  * Creates a new wallet, registers on-chain via registerPlayerFor, creates user with is_guest=true.
  */
 export async function guestRegister(req, res) {
   try {
-    const { username, password } = req.body;
+    const { username, password, chain: bodyChain } = req.body;
     if (!username || typeof username !== "string" || !password || typeof password !== "string") {
       return res.status(400).json({ success: false, message: "Username and password required" });
     }
@@ -41,7 +42,7 @@ export async function guestRegister(req, res) {
     const playerAddress = await wallet.getAddress();
     const passwordHash = passwordToHash(password);
 
-    const chain = process.env.GUEST_CHAIN || "CELO";
+    const chain = bodyChain || process.env.GUEST_CHAIN || "CELO";
     const normalizedChain = User.normalizeChain(chain);
     await registerPlayerFor(playerAddress, trimmedUsername, passwordHash, normalizedChain);
     let userRecord;
