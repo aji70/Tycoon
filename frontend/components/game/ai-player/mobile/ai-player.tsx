@@ -79,6 +79,7 @@ export default function MobileGamePlayers({
     requestCash,
     setRequestCash,
     endGameHook,
+    canClaimAIGameOnChain,
     openTrades,
     tradeRequests,
     closeAiTradePopup,
@@ -135,6 +136,13 @@ export default function MobileGamePlayers({
     );
 
     try {
+      if (!canClaimAIGameOnChain) {
+        toast.error(
+          "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Base or Celo).",
+          { id: toastId, duration: 8000 }
+        );
+        return;
+      }
       if (endGameHook.write) await endGameHook.write();
 
       toast.success(

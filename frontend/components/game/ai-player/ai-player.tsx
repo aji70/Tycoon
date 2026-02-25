@@ -83,6 +83,7 @@ export default function GamePlayers({
     requestCash,
     setRequestCash,
     endGameHook,
+    canClaimAIGameOnChain,
     openTrades,
     tradeRequests,
     closeAiTradePopup,
@@ -265,7 +266,16 @@ useEffect(() => {
     );
 
     try {
-      if (!isGuest && endGameHook.write) await endGameHook.write();
+      if (!isGuest) {
+        if (!canClaimAIGameOnChain) {
+          toast.error(
+            "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Base or Celo).",
+            { id: toastId, duration: 8000 }
+          );
+          return;
+        }
+        if (endGameHook.write) await endGameHook.write();
+      }
 
       toast.success(
         winner?.user_id === me?.user_id
