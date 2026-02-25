@@ -39,6 +39,12 @@ export function getContractErrorMessage(
     return "Insufficient balance or gas.";
   }
 
+  // Contract revert: AI game specific (wrong network or game type)
+  const errMsg = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
+  if (errMsg.includes("not an ai game") || errMsg.includes("only creator can end ai game")) {
+    return "This game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Base or Celo).";
+  }
+
   // Contract revert / execution reverted
   if (
     e?.cause?.name === "ExecutionRevertedError" ||

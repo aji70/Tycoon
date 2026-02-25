@@ -221,6 +221,16 @@ const endTime =
     endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
   );
 
+  // Only call endAIGame when on-chain game is actually AI (avoids "Not an AI game" when on wrong network)
+  const safeEndGame = useCallback(async () => {
+    if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
+      throw new Error(
+        "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Base or Celo)."
+      );
+    }
+    await endGame();
+  }, [contractGame, endGame]);
+
   const activeToasts = useRef<Set<string>>(new Set());
 
   // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
@@ -1286,7 +1296,7 @@ const endTime =
         currentGame={currentGame}
         isGuest={isGuest}
         isPending={endGamePending}
-        endGame={endGame}
+        endGame={safeEndGame}
         reset={endGameReset}
         onFinishGameByTime={onFinishGameByTime}
         setShowInsolvencyModal={setShowInsolvencyModal}

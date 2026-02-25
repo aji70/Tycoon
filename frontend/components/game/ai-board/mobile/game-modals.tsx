@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { CardModal } from "../../modals/cards";
 
 interface GameModalsProps {
@@ -130,7 +131,7 @@ const GameModals: React.FC<GameModalsProps> = ({
       );
     } catch (err: any) {
       toast.error(
-        err?.message || "Something went wrong — you can try again later",
+        getContractErrorMessage(err, "Something went wrong — you can try again later"),
         { id: toastId, duration: 8000 }
       );
     } finally {
@@ -166,7 +167,7 @@ const GameModals: React.FC<GameModalsProps> = ({
       window.location.href = "/";
     } catch (err: any) {
       toast.error(
-        err?.message || "Something went wrong — you can try again later",
+        getContractErrorMessage(err, "Something went wrong — you can try again later"),
         { id: toastId, duration: 8000 }
       );
       setClaimAndLeaveInProgress(false);

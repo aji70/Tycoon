@@ -54,6 +54,7 @@ export function useAiPlayerLogic({
 
   const { data: contractGame } = useGetGameByCode(game.code);
   const onChainGameId = contractGame?.id;
+  const canClaimAIGameOnChain = !!(contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai);
 
   const endGameHook = useEndAIGameAndClaim(
     onChainGameId ?? BigInt(0),
@@ -572,6 +573,7 @@ export function useAiPlayerLogic({
     // Contract / end game
     endGameHook,
     onChainGameId,
+    canClaimAIGameOnChain,
     // Trades
     openTrades,
     tradeRequests,
