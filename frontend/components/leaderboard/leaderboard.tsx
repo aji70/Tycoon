@@ -9,14 +9,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 
-/** Map chainId to backend chain name for leaderboard filter */
+/** Map chainId to backend chain name for leaderboard filter. Frontend is Celo-only. */
 function chainIdToLeaderboardChain(chainId: number): string {
   switch (chainId) {
-    case 8453:
-    case 84531:
-      return 'BASE';
     case 42220:
     case 44787:
+      return 'CELO';
+    case 8453:
+    case 84531:
       return 'CELO';
     case 137:
     case 80001:
