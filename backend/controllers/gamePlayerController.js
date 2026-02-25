@@ -598,10 +598,11 @@ const gamePlayerController = {
       // Wallet join: player must have joined on-chain first (frontend calls joinGame then this API).
       // Look up game by code (same as waiting room / guest flow) so we verify against the correct on-chain game.
       const gameCodeForContract = (code || game.code || "").trim().toUpperCase();
-      if (isContractConfigured() && gameCodeForContract) {
+      const chainForJoin = User.normalizeChain(game.chain || "CELO");
+      if (isContractConfigured(chainForJoin) && gameCodeForContract) {
         let contractGame;
         try {
-          contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
+          contractGame = await callContractRead("getGameByCode", [gameCodeForContract], chainForJoin);
         } catch (err) {
           const errMsg = err?.message || String(err);
           const notFound = /not found|Not found/i.test(errMsg);
@@ -616,7 +617,7 @@ const gamePlayerController = {
         const onChainGameId = contractGame?.id ?? contractGame?.[0];
         if (onChainGameId != null && onChainGameId !== "") {
           try {
-            const onChainPlayers = await callContractRead("getPlayersInGame", [onChainGameId]);
+            const onChainPlayers = await callContractRead("getPlayersInGame", [onChainGameId], chainForJoin);
             const addresses = toAddressArray(onChainPlayers);
             const normalizedJoin = String(address || "").toLowerCase();
             const isOnContract = addresses.some(
@@ -743,12 +744,13 @@ const gamePlayerController = {
 
       const playersBeforeLeave = await db("game_players").where({ game_id: game.id }).select("user_id");
       const willLeaveOneRemaining = playersBeforeLeave.length === 2 && game.status === "RUNNING";
+      const chainForLeave = User.normalizeChain(game.chain || "CELO");
 
-      if (willLeaveOneRemaining && isContractConfigured()) {
+      if (willLeaveOneRemaining && isContractConfigured(chainForLeave)) {
         let contractGameIdToUse = game.contract_game_id;
         if (!contractGameIdToUse && game.code) {
           try {
-            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()]);
+            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()], chainForLeave);
             const onChainId = contractGame?.id ?? contractGame?.[0];
             if (onChainId != null && onChainId !== "") {
               contractGameIdToUse = String(onChainId);
@@ -763,7 +765,7 @@ const gamePlayerController = {
           if (leaverAddress) {
             try {
               // Single call: contract removes leaver and, when joinedPlayers becomes 1, ends game and pays winner.
-              await removePlayerFromGame(contractGameIdToUse, leaverAddress, MAX_UINT256);
+              await removePlayerFromGame(contractGameIdToUse, leaverAddress, MAX_UINT256, chainForLeave);
             } catch (contractErr) {
               // Still remove player and set winner in DB so the game does not get stuck (e.g. contract "check balance" / USDC revert).
               logger.warn(
@@ -1536,8 +1538,9 @@ const gamePlayerController = {
           );
         }
         // End AI game on contract so human gets consolation (guest or wallet when we have contract auth)
-        if (game.contract_game_id && isContractConfigured()) {
-          const eliminatedUser = await ensureUserHasContractPassword(db, eliminatedUserId) ||
+        const chainForAI = User.normalizeChain(game.chain || "CELO");
+        if (game.contract_game_id && isContractConfigured(chainForAI)) {
+          const eliminatedUser = await ensureUserHasContractPassword(db, eliminatedUserId, chainForAI) ||
             (await db("users").where({ id: eliminatedUserId }).select("address", "username", "password_hash").first());
           if (eliminatedUser?.address && eliminatedUser?.password_hash) {
             endAIGameByBackend(
@@ -1547,7 +1550,8 @@ const gamePlayerController = {
               game.contract_game_id,
               Number(currentPlayerRow.position ?? 0),
               String(currentPlayerRow.balance ?? 0),
-              false
+              false,
+              chainForAI
             ).catch((err) => logger.warn({ err: err?.message, game_id }, "endAIGameByBackend (eliminated) failed"));
           }
         }
@@ -1947,13 +1951,14 @@ const gamePlayerController = {
       }
 
       // On-chain: remove player from game, then if game ended (1 winner left) end game on contract for winner
-      if (removed && removalResultForContract && isContractConfigured()) {
+      const chainForVote = User.normalizeChain(removalResultForContract?.chain || game.chain || "CELO");
+      if (removed && removalResultForContract && isContractConfigured(chainForVote)) {
         const { contract_game_id, target_address, target_turn_count, winner_user_id } = removalResultForContract;
         if (contract_game_id && target_address) {
-          removePlayerFromGame(contract_game_id, target_address, target_turn_count)
+          removePlayerFromGame(contract_game_id, target_address, target_turn_count, chainForVote)
             .then(async () => {
               if (!winner_user_id || !contract_game_id) return null;
-              const u = await ensureUserHasContractPassword(db, winner_user_id);
+              const u = await ensureUserHasContractPassword(db, winner_user_id, chainForVote);
               return u || (await db("users").where({ id: winner_user_id }).select("address", "username", "password_hash").first());
             })
             .then((winnerUser) => {
@@ -1962,7 +1967,8 @@ const gamePlayerController = {
                   winnerUser.address,
                   winnerUser.username || "",
                   winnerUser.password_hash,
-                  removalResultForContract.contract_game_id
+                  removalResultForContract.contract_game_id,
+                  chainForVote
                 );
               }
             })
@@ -2291,16 +2297,17 @@ const gamePlayerController = {
       }
 
       // On-chain: remove player, then if game ended (1 winner) end game on contract for winner
-      if (isContractConfigured() && result.contract_game_id && result.target_address) {
-        removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count)
+      const chainForInactive = User.normalizeChain(result.chain || "CELO");
+      if (isContractConfigured(chainForInactive) && result.contract_game_id && result.target_address) {
+        removePlayerFromGame(result.contract_game_id, result.target_address, result.target_turn_count, chainForInactive)
           .then(async () => {
             if (!result.winner_user_id || !result.contract_game_id) return null;
-            const u = await ensureUserHasContractPassword(db, result.winner_user_id);
+            const u = await ensureUserHasContractPassword(db, result.winner_user_id, chainForInactive);
             return u || (await db("users").where({ id: result.winner_user_id }).select("address", "username", "password_hash").first());
           })
           .then((winnerUser) => {
             if (winnerUser?.address && winnerUser?.password_hash && result.contract_game_id) {
-              return exitGameByBackend(winnerUser.address, winnerUser.username || "", winnerUser.password_hash, result.contract_game_id);
+              return exitGameByBackend(winnerUser.address, winnerUser.username || "", winnerUser.password_hash, result.contract_game_id, chainForInactive);
             }
           })
           .catch((err) => logger.warn({ err, target_user_id }, "Tycoon removePlayerFromGame / exitGameByBackend failed (inactive)"));

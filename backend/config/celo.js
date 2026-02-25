@@ -1,17 +1,10 @@
 /**
- * Celo & Tycoon contract config (env-based).
- * Used by services/tycoonContract.js for backend game controller actions.
+ * Celo Tycoon contract config (env-based).
+ * Delegates to multi-chain config for CELO. Kept for backward compatibility.
  */
-export function getCeloConfig() {
-  const rpcUrl = process.env.CELO_RPC_URL;
-  const contractAddress = process.env.TYCOON_CELO_CONTRACT_ADDRESS;
-  const privateKey = process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
+import { getChainConfig } from "./chains.js";
 
-  return {
-    rpcUrl,
-    contractAddress,
-    privateKey,
-    /** True if all required vars are set and backend can call the contract */
-    isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
-  };
+export function getCeloConfig() {
+  const { rpcUrl, contractAddress, privateKey, isConfigured } = getChainConfig("CELO");
+  return { rpcUrl, contractAddress, privateKey, isConfigured };
 }

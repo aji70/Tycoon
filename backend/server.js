@@ -182,24 +182,25 @@ app.get("/api/config/test", async (req, res) => {
   }
   const result = { CELO_RPC_URL: rpcUrl || null, TYCOON_CELO_CONTRACT_ADDRESS: contractAddress || null, BACKEND_GAME_CONTROLLER_PRIVATE_KEY: pkDisplay, isConfigured: !!isConfigured };
   if (req.query.test_connection === "1") {
-    result.connectionTest = await testContractConnection();
+    const chain = req.query.chain || "CELO";
+    result.connectionTest = await testContractConnection(chain);
   }
   res.json(result);
 });
 
-// Call contract read function (for config-test)
+// Call contract read/write (for config-test). Optional body.chain (CELO, POLYGON, BASE).
 app.post("/api/config/call-contract", async (req, res) => {
   try {
-    const { fn, params = [], write = false } = req.body || {};
+    const { fn, params = [], write = false, chain = "CELO" } = req.body || {};
     if (!fn || typeof fn !== "string") {
       return res.status(400).json({ success: false, error: "fn (string) required" });
     }
     const paramArr = Array.isArray(params) ? params : [params];
     if (write) {
-      const result = await callContractWrite(fn, paramArr);
+      const result = await callContractWrite(fn, paramArr, chain);
       res.json({ success: true, result });
     } else {
-      const result = await callContractRead(fn, paramArr);
+      const result = await callContractRead(fn, paramArr, chain);
       res.json({ success: true, result });
     }
   } catch (err) {

@@ -187,10 +187,11 @@ export async function finishGameByNetWorthAndNotify(io, game) {
   );
 
   let contractGameIdToUse = game.contract_game_id;
-  if (!game.is_ai && isContractConfigured() && game.code) {
+  const chainForContract = User.normalizeChain(game.chain || "CELO");
+  if (!game.is_ai && isContractConfigured(chainForContract) && game.code) {
     if (!contractGameIdToUse) {
       try {
-        const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()]);
+        const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()], chainForContract);
         const onChainId = contractGame?.id ?? contractGame?.[0];
         if (onChainId != null && onChainId !== "") {
           contractGameIdToUse = String(onChainId);
@@ -201,9 +202,9 @@ export async function finishGameByNetWorthAndNotify(io, game) {
       }
     }
   }
-  if (contractGameIdToUse && isContractConfigured()) {
+  if (contractGameIdToUse && isContractConfigured(chainForContract)) {
     if (game.is_ai) {
-      const creator = await ensureUserHasContractPassword(db, game.creator_id) ||
+      const creator = await ensureUserHasContractPassword(db, game.creator_id, chainForContract) ||
         (await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first());
       const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
       if (creator?.address && creator?.password_hash && humanGp) {
@@ -215,7 +216,8 @@ export async function finishGameByNetWorthAndNotify(io, game) {
           contractGameIdToUse,
           Number(humanGp.position ?? 0),
           String(humanGp.balance ?? 0),
-          isWin
+          isWin,
+          chainForContract
         ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed"));
       }
     } else {
@@ -230,7 +232,8 @@ export async function finishGameByNetWorthAndNotify(io, game) {
           await removePlayerFromGame(
             contractGameIdToUse,
             user.address,
-            turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256
+            turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256,
+            chainForContract
           );
         } catch (err) {
           logger.warn({ err: err?.message, gameId: game.id, user_id }, "finishGameByNetWorthAndNotify: removePlayerFromGame failed");
@@ -273,7 +276,10 @@ const gameController = {
         chain,
         id: contractGameId,
       } = req.body;
-      const user = await User.findByAddress(address);
+      const normalizedChain = User.normalizeChain(chain);
+      let user = await User.findByAddress(address, normalizedChain);
+      if (!user && normalizedChain !== "CELO") user = await User.findByAddress(address, "CELO");
+      if (!user && normalizedChain !== "BASE") user = await User.findByAddress(address, "BASE");
       if (!user) {
         return res
           .status(200)
@@ -518,11 +524,12 @@ const gameController = {
       );
 
       // We won the race — run contract removals. Catch errors so "Not in game" (another request removed them) doesn't fail us.
-      let contractGameIdToUse = game.contract_game_id;
-      if (!game.is_ai && isContractConfigured() && game.code) {
+  let contractGameIdToUse = game.contract_game_id;
+  const chainForContract = User.normalizeChain(game.chain || "CELO");
+  if (!game.is_ai && isContractConfigured(chainForContract) && game.code) {
         if (!contractGameIdToUse) {
           try {
-            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()]);
+            const contractGame = await callContractRead("getGameByCode", [(game.code || "").trim().toUpperCase()], chainForContract);
             const onChainId = contractGame?.id ?? contractGame?.[0];
             if (onChainId != null && onChainId !== "") {
               contractGameIdToUse = String(onChainId);
@@ -533,9 +540,9 @@ const gameController = {
           }
         }
       }
-      if (contractGameIdToUse && isContractConfigured()) {
+      if (contractGameIdToUse && isContractConfigured(chainForContract)) {
         if (game.is_ai) {
-          const creator = await ensureUserHasContractPassword(db, game.creator_id) ||
+          const creator = await ensureUserHasContractPassword(db, game.creator_id, chainForContract) ||
             (await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first());
           const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
           if (creator?.address && creator?.password_hash && humanGp) {
@@ -547,7 +554,8 @@ const gameController = {
               contractGameIdToUse,
               Number(humanGp.position ?? 0),
               String(humanGp.balance ?? 0),
-              isWin
+              isWin,
+              chainForContract
             ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
           }
         } else {
@@ -562,7 +570,8 @@ const gameController = {
               await removePlayerFromGame(
                 contractGameIdToUse,
                 user.address,
-                turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256
+                turnCount != null && turnCount >= 20 ? turnCount : MAX_UINT256,
+                chainForContract
               );
             } catch (err) {
               logger.warn(
@@ -774,7 +783,10 @@ export const create = async (req, res) => {
       duration,
       chain,
     } = req.body;
-    const user = await User.findByAddress(address);
+    const normalizedChain = User.normalizeChain(chain);
+    let user = await User.findByAddress(address, normalizedChain);
+    if (!user && normalizedChain !== "CELO") user = await User.findByAddress(address, "CELO");
+    if (!user && normalizedChain !== "BASE") user = await User.findByAddress(address, "BASE");
     if (!user) {
       return res
         .status(200)
@@ -1002,6 +1014,7 @@ export const createAsGuest = async (req, res) => {
     const startingCash = settings?.starting_cash ?? 1500;
     const stakeAmount = 0n; // Guests: free games only
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
+    const chainForCreate = User.normalizeChain(chain || "CELO");
 
     const { gameId: onChainGameId } = await createGameByBackend(
       user.address,
@@ -1012,7 +1025,8 @@ export const createAsGuest = async (req, res) => {
       number_of_players ?? 4,
       code,
       startingCash,
-      stakeAmount
+      stakeAmount,
+      chainForCreate
     );
 
     if (!onChainGameId) {
@@ -1114,9 +1128,10 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game code required" });
     }
 
+    const chainForJoin = User.normalizeChain(game.chain || "CELO");
     let contractGame;
     try {
-      contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
+      contractGame = await callContractRead("getGameByCode", [gameCodeForContract], chainForJoin);
     } catch (err) {
       const errMsg = err?.message || String(err);
       const notFound = /not found|Not found/i.test(errMsg);
@@ -1156,7 +1171,8 @@ export const joinAsGuest = async (req, res) => {
         onChainGameId,
         user.username,
         symbol || "car",
-        joinCode || gameCodeForContract
+        joinCode || gameCodeForContract,
+        chainForJoin
       );
     } catch (err) {
       const errMsg = err?.message || String(err);
@@ -1240,6 +1256,7 @@ export const createAIAsGuest = async (req, res) => {
 
     const startingCash = settings?.starting_cash ?? 1500;
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
+    const chainForAICreate = User.normalizeChain(chain || "CELO");
 
     const gameCodeForContract = (code || "").trim();
     const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
@@ -1250,13 +1267,14 @@ export const createAIAsGuest = async (req, res) => {
       symbol || "hat",
       numberOfAI,
       gameCodeForContract,
-      startingCash
+      startingCash,
+      chainForAICreate
     );
 
     let onChainGameId = onChainGameIdFromEvent;
     if (!onChainGameId && gameCodeForContract) {
       try {
-        const contractGame = await callContractRead("getGameByCode", [gameCodeForContract]);
+        const contractGame = await callContractRead("getGameByCode", [gameCodeForContract], chainForAICreate);
         const id = contractGame?.id ?? contractGame?.[0];
         if (id != null) onChainGameId = String(id);
       } catch (lookupErr) {

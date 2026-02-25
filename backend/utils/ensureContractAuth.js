@@ -3,9 +3,11 @@
  * (e.g. end AI game, exit game). Guests already have password_hash. Wallet users who
  * registered via the frontend (contract registerPlayer) are already on-chain without
  * a backend password; we can only add one if they're not yet registered on the contract.
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE) for contract calls. Default CELO.
  */
 import crypto from "crypto";
 import { ethers } from "ethers";
+import User from "../models/User.js";
 import logger from "../config/logger.js";
 import { callContractRead, registerPlayerFor, isContractConfigured } from "../services/tycoonContract.js";
 
@@ -21,25 +23,27 @@ function passwordToHash(password) {
  *
  * @param {object} db - Knex instance
  * @param {number} userId - users.id
+ * @param {string} [chain] - Chain (CELO, POLYGON, BASE) for contract. Default CELO.
  * @returns {Promise<{ address: string, username: string, password_hash: string } | null>}
  */
-export async function ensureUserHasContractPassword(db, userId) {
+export async function ensureUserHasContractPassword(db, userId, chain = "CELO") {
   const user = await db("users").where({ id: userId }).select("address", "username", "password_hash").first();
   if (!user?.address) return null;
   if (user.password_hash) return user;
 
-  if (!isContractConfigured()) return null;
+  const normalizedChain = User.normalizeChain(chain);
+  if (!isContractConfigured(normalizedChain)) return null;
   try {
-    const isRegistered = await callContractRead("registered", [user.address]);
+    const isRegistered = await callContractRead("registered", [user.address], normalizedChain);
     if (isRegistered) {
       // Already on contract (e.g. wallet user who used frontend registerPlayer) — we can't add a password
       return null;
     }
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = passwordToHash(secret);
-    await registerPlayerFor(user.address, user.username || user.address.slice(0, 10), passwordHash);
+    await registerPlayerFor(user.address, user.username || user.address.slice(0, 10), passwordHash, normalizedChain);
     await db("users").where({ id: userId }).update({ password_hash: passwordHash });
-    logger.info({ userId, address: user.address }, "Registered user on contract with backend password for future game-end");
+    logger.info({ userId, address: user.address, chain: normalizedChain }, "Registered user on contract with backend password for future game-end");
     return { ...user, password_hash: passwordHash };
   } catch (err) {
     logger.warn({ err: err?.message, userId }, "ensureUserHasContractPassword failed");

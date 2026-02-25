@@ -1,5 +1,7 @@
 import db from "../config/database.js";
+import Game from "../models/Game.js";
 import GameTradeRequest from "../models/GameTradeRequest.js";
+import User from "../models/User.js";
 import { safeJsonParse } from "../utils/string.js";
 import { transferPropertyOwnership, isContractConfigured } from "../services/tycoonContract.js";
 import {
@@ -253,14 +255,16 @@ export const GameTradeRequestController = {
         recordPropertyPurchase(player.user_id, propId, game_id, "trade").catch(() => {});
       }
 
-      if (isContractConfigured() && playerUsername && targetUsername) {
+      const game = await Game.findById(game_id);
+      const chainForTrade = game ? User.normalizeChain(game.chain || "CELO") : "CELO";
+      if (isContractConfigured(chainForTrade) && playerUsername && targetUsername) {
         (async () => {
           try {
             for (const _ of offeredProps) {
-              await transferPropertyOwnership(playerUsername, targetUsername);
+              await transferPropertyOwnership(playerUsername, targetUsername, chainForTrade);
             }
             for (const _ of requestedProps) {
-              await transferPropertyOwnership(targetUsername, playerUsername);
+              await transferPropertyOwnership(targetUsername, playerUsername, chainForTrade);
             }
           } catch (err) {
             logger.warn({ err, game_id }, "Tycoon transferPropertyOwnership failed (trade request accept)");
