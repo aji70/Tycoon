@@ -13,11 +13,12 @@ const userController = {
 
   async create(req, res) {
     try {
-      const { username } = req.body || {};
+      const { username, chain } = req.body || {};
       if (username != null && String(username).trim() !== "") {
-        const taken = await User.findByUsernameIgnoreCase(username);
+        const chainToCheck = chain || "CELO";
+        const taken = await User.findByUsernameIgnoreCaseInChain(username, chainToCheck);
         if (taken) {
-          return res.status(409).json({ error: "Username already taken", message: "Username already taken" });
+          return res.status(409).json({ error: "Username already taken", message: "Username already taken on this chain" });
         }
       }
       const user = await User.create(req.body);
@@ -89,9 +90,11 @@ const userController = {
     try {
       const { username } = req.body || {};
       if (username != null && String(username).trim() !== "") {
-        const taken = await User.findByUsernameIgnoreCase(username);
+        const existing = await User.findById(req.params.id);
+        const chainToCheck = existing?.chain || "BASE";
+        const taken = await User.findByUsernameIgnoreCaseInChain(username, chainToCheck);
         if (taken && Number(taken.id) !== Number(req.params.id)) {
-          return res.status(409).json({ error: "Username already taken", message: "Username already taken" });
+          return res.status(409).json({ error: "Username already taken", message: "Username already taken on this chain" });
         }
       }
       const user = await User.update(req.params.id, req.body);
