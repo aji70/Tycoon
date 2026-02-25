@@ -24,6 +24,7 @@ import chatsRoutes from "./routes/chats.js";
 import messagesRoutes from "./routes/messages.js";
 import analyticsRoutes from "./routes/analytics.js";
 import authRoutes from "./routes/auth.js";
+import tournamentsRoutes from "./routes/tournaments.js";
 
 import gamePerkController from "./controllers/gamePerkController.js";
 import { connectSocketRedis } from "./config/socketRedis.js";
@@ -261,6 +262,7 @@ app.use("/api/waitlist", waitlistsRoutes);
 app.use("/api/chats", chatsRoutes);
 app.use("/api/messages", messagesRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/tournaments", tournamentsRoutes);
 
 app.post("/api/perks/activate", gamePerkController.activatePerk);
 app.post("/api/perks/teleport", gamePerkController.teleport);

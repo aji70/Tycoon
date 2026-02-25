@@ -60,7 +60,7 @@ const userController = {
       return res.status(400).json({ error: "Address is required" });
     }
 
-    const user = await User.findByAddress(address, chain || null); // or default chain
+    const user = await User.resolveUserByAddress(address, chain || "BASE");
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });

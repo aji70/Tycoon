@@ -31,6 +31,42 @@ const User = {
   },
 
   /**
+   * Find user by linked_wallet_address and chain (for guest-linked wallet).
+   * Compares address case-insensitively (Ethereum addresses).
+   */
+  async findByLinkedWallet(address, chain) {
+    if (!address || !chain) return null;
+    const normalizedChain = this.normalizeChain(chain);
+    const addr = String(address).trim().toLowerCase();
+    const row = await db("users")
+      .where({ linked_wallet_chain: normalizedChain })
+      .whereRaw("LOWER(TRIM(linked_wallet_address)) = ?", [addr])
+      .first();
+    return row;
+  },
+
+  /**
+   * Resolve user by address: try primary (address, chain) then linked_wallet (address, chain).
+   * Falls back to other chains (CELO, BASE, POLYGON) if not found on given chain.
+   * Use this wherever we identify user by "connected wallet" (create game, join game, etc.).
+   */
+  async resolveUserByAddress(address, chain) {
+    if (!address) return null;
+    const normalizedChain = this.normalizeChain(chain);
+    const chainsToTry = [normalizedChain];
+    if (normalizedChain !== "CELO") chainsToTry.push("CELO");
+    if (normalizedChain !== "BASE") chainsToTry.push("BASE");
+    if (normalizedChain !== "POLYGON") chainsToTry.push("POLYGON");
+    for (const c of chainsToTry) {
+      let user = await this.findByAddress(address, c);
+      if (user) return user;
+      user = await this.findByLinkedWallet(address, c);
+      if (user) return user;
+    }
+    return null;
+  },
+
+  /**
    * Find by username (exact match)
    */
   async findByUsername(username) {
@@ -45,6 +81,26 @@ const User = {
     if (username == null || String(username).trim() === "") return null;
     const normalized = String(username).trim().toLowerCase();
     return await db("users").whereRaw("LOWER(TRIM(username)) = ?", [normalized]).first();
+  },
+
+  /**
+   * Find by email (for login with email). Email stored lowercase.
+   */
+  async findByEmail(email) {
+    if (!email || typeof email !== "string") return null;
+    const normalized = String(email).trim().toLowerCase();
+    return await db("users").whereRaw("LOWER(TRIM(email)) = ?", [normalized]).first();
+  },
+
+  /**
+   * Find by email verification token (for magic link).
+   */
+  async findByEmailVerificationToken(token) {
+    if (!token) return null;
+    return await db("users")
+      .where({ email_verification_token: token })
+      .where("email_verification_expires_at", ">", new Date())
+      .first();
   },
 
   /**
