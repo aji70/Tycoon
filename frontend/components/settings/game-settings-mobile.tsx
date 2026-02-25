@@ -528,10 +528,10 @@ export default function CreateGameMobile() {
             onClick={handlePlay}
             disabled={!canCreate || isStarting || (!isGuest && (isCreatePending || approvePending || approveConfirming))}
             className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
-                       bg-gradient-to-r from-cyan-600 via-purple-700 to-pink-600
+                       bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
                        hover:brightness-110 active:scale-[0.98]
                        rounded-xl shadow-lg transition-all duration-300
-                       disabled:opacity-60 disabled:cursor-not-allowed border-2 border-white/10 text-white"
+                       disabled:opacity-60 disabled:cursor-not-allowed border-2 border-[#00F0FF]/40"
           >
             {isStarting || (!isGuest && (approvePending || approveConfirming))
               ? "PROCESSING..."
