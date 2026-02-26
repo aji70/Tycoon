@@ -22,6 +22,16 @@ const ESCROW_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "registerForTournamentFor",
+    inputs: [
+      { name: "tournamentId", type: "uint256", internalType: "uint256" },
+      { name: "player", type: "address", internalType: "address" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
 ];
 
 function getEscrowContract(chain) {
@@ -67,6 +77,36 @@ export async function createTournamentOnChain(tournamentId, entryFeeWei, creator
     logger.info(
       { tournamentId, entryFeeWei: String(entryFeeWei), creator, chain, hash: receipt?.hash },
       "Escrow createTournament tx"
+    );
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Register a player for a free tournament on-chain. Backend calls on behalf of guests.
+ * Only works for tournaments with entryFee == 0. Only backend or owner can call.
+ * @param {number} tournamentId - DB tournament id (same id on-chain)
+ * @param {string} playerAddress - Player address (0x...)
+ * @param {string} chain - POLYGON | CELO | BASE
+ * @returns {Promise<{ hash: string } | null>} Receipt hash, or null if escrow not configured
+ */
+export async function registerForTournamentFor(tournamentId, playerAddress, chain) {
+  const escrow = getEscrowContract(chain);
+  if (!escrow) {
+    logger.info({ chain, tournamentId }, "Tournament escrow not configured for chain; skipping on-chain register");
+    return null;
+  }
+  return withTxQueue(async () => {
+    const player = playerAddress && playerAddress !== "0x0" ? playerAddress : null;
+    if (!player) {
+      logger.warn({ tournamentId, chain }, "registerForTournamentFor: no valid player address");
+      return null;
+    }
+    const tx = await escrow.registerForTournamentFor(BigInt(tournamentId), player);
+    const receipt = await tx.wait();
+    logger.info(
+      { tournamentId, player, chain, hash: receipt?.hash },
+      "Escrow registerForTournamentFor tx"
     );
     return { hash: receipt?.hash };
   });
