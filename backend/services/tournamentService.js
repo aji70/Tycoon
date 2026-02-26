@@ -103,7 +103,19 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     throw new Error("userId or address required");
   }
 
-  if (user.chain !== tournament.chain) throw new Error(`You need an account on ${tournament.chain} to join this tournament`);
+  const userChainNorm = User.normalizeChain(user.chain);
+  const tournamentChainNorm = User.normalizeChain(tournament.chain);
+  if (userChainNorm !== tournamentChainNorm) {
+    // User may have an account on the tournament's chain with the same address (e.g. Polygon-only app)
+    const userOnTournamentChain =
+      (await User.findByAddress(user.address, tournamentChainNorm)) ||
+      (await User.findByLinkedWallet(user.address, tournamentChainNorm));
+    if (userOnTournamentChain) {
+      user = userOnTournamentChain;
+    } else {
+      throw new Error(`You need an account on ${tournament.chain} to join this tournament`);
+    }
+  }
 
   const already = await TournamentEntry.hasEntry(tournamentId, { userId: user.id, address: user.address });
   if (already) throw new Error("Already registered for this tournament");
