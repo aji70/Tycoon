@@ -13,5 +13,6 @@ router.post("/", optionalAuth, tournamentController.create);
 router.post("/:id/register", optionalAuth, tournamentController.register);
 router.post("/:id/close-registration", tournamentController.closeRegistration);
 router.post("/:id/start-round/:roundIndex", tournamentController.startRound);
+router.post("/:id/matches/:matchId/start-now", requireAuth, tournamentController.requestMatchStart);
 
 export default router;
