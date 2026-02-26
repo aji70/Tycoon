@@ -235,7 +235,9 @@ export async function generateBracket(tournamentId, options = {}) {
 }
 
 /**
- * Create on-chain game + DB game for one match. Both players must have password_hash (guests or backend-actable).
+ * Create on-chain game + DB game for one match.
+ * - If both players have password_hash: backend creates game on contract and joins both.
+ * - Otherwise: create lobby game (DB only). Players go to lobby and create/join via wallet.
  */
 async function createMatchGame(tournamentId, matchId) {
   const match = await TournamentMatch.findById(matchId);
@@ -245,23 +247,16 @@ async function createMatchGame(tournamentId, matchId) {
 
   const tournament = await Tournament.findById(tournamentId);
   const chain = User.normalizeChain(tournament.chain);
-  if (!isContractConfigured(chain)) {
-    logger.warn({ tournamentId, matchId, chain }, "Tournament: contract not configured for chain");
-    return null;
-  }
-
   const entryA = match.slot_a_entry_id ? await TournamentEntry.findById(match.slot_a_entry_id) : null;
   const entryB = match.slot_b_entry_id ? await TournamentEntry.findById(match.slot_b_entry_id) : null;
   if (!entryA || !entryB) return null;
 
   const userA = await User.findById(entryA.user_id);
   const userB = await User.findById(entryB.user_id);
-  if (!userA?.password_hash || !userB?.password_hash) {
-    logger.warn(
-      { tournamentId, matchId, userA: !!userA?.password_hash, userB: !!userB?.password_hash },
-      "Tournament: both players need password_hash for backend join; skipping match"
-    );
-    return null;
+  const canBackendJoin = userA?.password_hash && userB?.password_hash && isContractConfigured(chain);
+
+  if (!canBackendJoin) {
+    return createLobbyGame(tournament, match, userA, userB, tournamentId, matchId);
   }
 
   const code = `T${tournamentId}-R${match.round_index}-M${match.match_index}`.toUpperCase();
@@ -358,6 +353,45 @@ async function createMatchGame(tournamentId, matchId) {
   });
 
   return { match, game };
+}
+
+/**
+ * Create lobby game (DB only, no contract). Players go to game-waiting and create/join via wallet.
+ */
+async function createLobbyGame(tournament, match, userA, userB, tournamentId, matchId) {
+  const code = `T${tournamentId}-R${match.round_index}-M${match.match_index}`.toUpperCase();
+  const creatorId = userA?.id ?? match.slot_a_entry_id;
+  const game = await Game.create({
+    code,
+    mode: "PRIVATE",
+    creator_id: creatorId,
+    next_player_id: creatorId,
+    number_of_players: 2,
+    status: "PENDING",
+    is_minipay: false,
+    is_ai: false,
+    chain: tournament.chain,
+    contract_game_id: null,
+  });
+  await Chat.create({ game_id: game.id, status: "open" });
+  await GameSetting.create({
+    game_id: game.id,
+    auction: true,
+    rent_in_prison: false,
+    mortgage: true,
+    even_build: true,
+    randomize_play_order: true,
+    starting_cash: DEFAULT_STARTING_CASH,
+  });
+  await TournamentMatch.update(matchId, {
+    game_id: game.id,
+    status: "AWAITING_PLAYERS",
+  });
+  logger.info(
+    { tournamentId, matchId, code, message: "Lobby game created; players join via game-waiting" },
+    "Tournament lobby game"
+  );
+  return { match: await TournamentMatch.findById(matchId), game };
 }
 
 /**
