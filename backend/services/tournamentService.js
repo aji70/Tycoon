@@ -57,23 +57,27 @@ export async function createTournament(data) {
   };
 
   const tournament = await Tournament.create(payload);
+
   if (isEscrowConfigured(normalizedChain)) {
-    try {
-      const creator = await User.findById(creator_id);
-      const creatorAddress =
-        (creator?.address && String(creator.address).trim()) ||
-        (creator?.linked_wallet_address && String(creator.linked_wallet_address).trim()) ||
-        "0x0000000000000000000000000000000000000000";
-      await createTournamentOnChain(
-        tournament.id,
-        tournament.entry_fee_wei ?? 0,
-        creatorAddress,
-        normalizedChain
+    User.findById(creator_id)
+      .then((creator) => {
+        const creatorAddress =
+          (creator?.address && String(creator.address).trim()) ||
+          (creator?.linked_wallet_address && String(creator.linked_wallet_address).trim()) ||
+          "0x0000000000000000000000000000000000000000";
+        return createTournamentOnChain(
+          tournament.id,
+          tournament.entry_fee_wei ?? 0,
+          creatorAddress,
+          normalizedChain
+        );
+      })
+      .then(() => logger.info({ tournamentId: tournament.id, chain: normalizedChain }, "Escrow createTournament succeeded"))
+      .catch((err) =>
+        logger.error({ err: err?.message, tournamentId: tournament.id, chain: normalizedChain }, "Escrow createTournament failed; tournament saved in DB only")
       );
-    } catch (err) {
-      logger.error({ err: err?.message, tournamentId: tournament.id, chain: normalizedChain }, "Escrow createTournament failed; tournament saved in DB only");
-    }
   }
+
   return tournament;
 }
 
