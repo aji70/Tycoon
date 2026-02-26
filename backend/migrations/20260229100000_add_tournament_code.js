@@ -1,13 +1,19 @@
 /**
  * Add unique code to tournaments for shareable URLs (not predictable IDs).
+ * Idempotent: skips adding column if it already exists, backfills only null codes.
  */
 export const up = async (knex) => {
-  await knex.schema.alterTable("tournaments", (table) => {
-    table.string("code", 12).nullable().unique();
-  });
-  const rows = await knex("tournaments").select("id");
+  const hasCode = await knex.schema.hasColumn("tournaments", "code");
+  if (!hasCode) {
+    await knex.schema.alterTable("tournaments", (table) => {
+      table.string("code", 12).nullable().unique();
+    });
+  }
+  const rows = await knex("tournaments").select("id", "code").whereNull("code");
+  if (rows.length === 0) return;
   const crypto = await import("crypto");
-  const used = new Set();
+  const existing = await knex("tournaments").select("code");
+  const used = new Set(existing.map((r) => r.code).filter(Boolean));
   for (const row of rows) {
     let code;
     do {
@@ -16,7 +22,6 @@ export const up = async (knex) => {
     used.add(code);
     await knex("tournaments").where({ id: row.id }).update({ code });
   }
-  // Codes are now set for all existing rows; new tournaments get code on create
 };
 
 export const down = async (knex) => {
