@@ -1149,6 +1149,14 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Already in game" });
     }
 
+    // Tournament lobby: game not created on-chain yet — avoid RPC call and return clear message
+    if (!game.contract_game_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Tournament match not ready yet. The first player must create the game with their wallet; then you can join as guest.",
+      });
+    }
+
     // Look up game on-chain by code (same as waiting room / wallet flow)
     const gameCodeForContract = (code || game.code || "").trim().toUpperCase();
     if (!gameCodeForContract) {
