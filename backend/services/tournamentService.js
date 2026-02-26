@@ -142,10 +142,14 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
   });
 }
 
+const START_WINDOW_MINUTES = 5;
+
 /**
  * Close registration and generate bracket. Pads to power of 2 with BYEs.
+ * @param {string} tournamentId
+ * @param {{ first_round_start_at?: string | Date }} options - Optional. first_round_start_at in ISO or Date; round 1 = +1 day, etc.
  */
-export async function generateBracket(tournamentId) {
+export async function generateBracket(tournamentId, options = {}) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new Error("Tournament not found");
   if (tournament.status !== "REGISTRATION_OPEN") throw new Error("Registration already closed");
@@ -160,11 +164,17 @@ export async function generateBracket(tournamentId) {
   await Tournament.update(tournamentId, { status: "BRACKET_LOCKED" });
 
   const numRounds = Math.log2(size);
+  let firstRoundStart = options.first_round_start_at ? new Date(options.first_round_start_at) : null;
+
   for (let r = 0; r < numRounds; r++) {
+    const scheduledStartAt = firstRoundStart
+      ? new Date(firstRoundStart.getTime() + r * 24 * 60 * 60 * 1000)
+      : null;
     await TournamentRound.create({
       tournament_id: tournamentId,
       round_index: r,
       status: r === 0 ? "PENDING" : "PENDING",
+      scheduled_start_at: scheduledStartAt,
     });
   }
 
@@ -408,7 +418,15 @@ export async function onGameFinished(gameId) {
     }
     if (updated) {
       const refreshed = await TournamentMatch.findById(next.id);
-      if (refreshed.slot_a_entry_id && refreshed.slot_b_entry_id && refreshed.status === "PENDING" && !refreshed.game_id) {
+      const nextRound = await TournamentRound.findByTournamentAndIndex(match.tournament_id, refreshed.round_index);
+      const useScheduledStart = nextRound?.scheduled_start_at != null;
+      if (
+        refreshed.slot_a_entry_id &&
+        refreshed.slot_b_entry_id &&
+        refreshed.status === "PENDING" &&
+        !refreshed.game_id &&
+        !useScheduledStart
+      ) {
         try {
           await createMatchGame(match.tournament_id, refreshed.id);
         } catch (err) {
@@ -494,4 +512,130 @@ export async function getLeaderboard(tournamentId, phase = "live") {
   }
 
   return { tournament_id: tournamentId, status: tournament.status, phase, entries: rows };
+}
+
+/**
+ * Get entry IDs that are players in this match (slot_a, slot_b). For 1v1 only.
+ */
+function getMatchEntryIds(match) {
+  const ids = [];
+  if (match.slot_a_entry_id) ids.push(match.slot_a_entry_id);
+  if (match.slot_b_entry_id) ids.push(match.slot_b_entry_id);
+  return ids;
+}
+
+/**
+ * Resolve forfeit when 5-min window has closed: 1 request = that entry wins; 0 = both forfeit (no winner).
+ */
+async function resolveForfeitForMatch(matchId) {
+  const match = await TournamentMatch.findById(matchId);
+  if (!match || match.game_id || match.status === "COMPLETED" || match.status === "BYE") return null;
+
+  const round = await TournamentRound.findByTournamentAndIndex(match.tournament_id, match.round_index);
+  if (!round?.scheduled_start_at) return null;
+  const scheduledAt = new Date(round.scheduled_start_at);
+  const windowEnd = new Date(scheduledAt.getTime() + START_WINDOW_MINUTES * 60 * 1000);
+  if (new Date() <= windowEnd) return null;
+
+  const rows = await db("tournament_match_start_requests")
+    .where({ match_id: matchId })
+    .orderBy("requested_at", "asc");
+  const requestedInWindow = rows.filter((r) => {
+    const t = new Date(r.requested_at);
+    return t >= scheduledAt && t <= windowEnd;
+  });
+  const uniqueEntryIds = [...new Set(requestedInWindow.map((r) => r.entry_id))];
+
+  if (uniqueEntryIds.length === 1) {
+    const winnerEntryId = uniqueEntryIds[0];
+    await TournamentMatch.update(matchId, { winner_entry_id: winnerEntryId, status: "COMPLETED" });
+    logger.info({ matchId, winnerEntryId }, "Tournament match forfeit: one player on time");
+    const match = await TournamentMatch.findById(matchId);
+    const nextRoundMatches = await TournamentMatch.findByTournamentAndRound(match.tournament_id, match.round_index + 1);
+    for (const next of nextRoundMatches || []) {
+      if (next.slot_a_prev_match_id === matchId) await TournamentMatch.update(next.id, { slot_a_entry_id: winnerEntryId });
+      if (next.slot_b_prev_match_id === matchId) await TournamentMatch.update(next.id, { slot_b_entry_id: winnerEntryId });
+    }
+    return { forfeit_win: true, winner_entry_id: winnerEntryId };
+  }
+  if (uniqueEntryIds.length === 0) {
+    await TournamentMatch.update(matchId, { status: "COMPLETED" });
+    logger.info({ matchId }, "Tournament match: no players on time, match closed");
+    return { forfeit_win: false };
+  }
+  return null;
+}
+
+/**
+ * Request to start a match ("Start now"). Only valid when current time is within round's 5-min window.
+ * If 2+ players have requested in window, creates game and returns redirect. If 1 after window closes, resolves forfeit.
+ * @returns {{ game_id, code, redirect_url } | { waiting: true } | { forfeit_win: true } | { forfeit_win: false } | { error: string }}
+ */
+export async function requestMatchStart(tournamentId, matchId, userId) {
+  const match = await TournamentMatch.findById(matchId);
+  if (!match || match.tournament_id !== Number(tournamentId)) throw new Error("Match not found");
+  if (match.status === "BYE" || match.status === "COMPLETED") throw new Error("Match not available");
+  if (match.game_id) {
+    const game = await Game.findById(match.game_id);
+    return { game_id: match.game_id, code: game?.code, redirect_url: `/game-play?gameCode=${game?.code || ""}` };
+  }
+
+  const entryIds = getMatchEntryIds(match);
+  const entry = await TournamentEntry.findByTournamentAndUser(tournamentId, userId);
+  if (!entry || !entryIds.includes(entry.id)) throw new Error("You are not in this match");
+
+  const round = await TournamentRound.findByTournamentAndIndex(tournamentId, match.round_index);
+  if (!round) throw new Error("Round not found");
+  const scheduledAt = round.scheduled_start_at ? new Date(round.scheduled_start_at) : null;
+  const windowEnd = scheduledAt ? new Date(scheduledAt.getTime() + START_WINDOW_MINUTES * 60 * 1000) : null;
+  const now = new Date();
+
+  if (scheduledAt && now < scheduledAt) throw new Error("Start window has not opened yet");
+  if (windowEnd && now > windowEnd) {
+    const resolved = await resolveForfeitForMatch(matchId);
+    if (resolved?.forfeit_win) return { forfeit_win: true };
+    if (resolved && !resolved.forfeit_win) return { forfeit_win: false };
+    throw new Error("Start window has closed");
+  }
+
+  const existing = await db("tournament_match_start_requests")
+    .where({ match_id: matchId, entry_id: entry.id })
+    .first();
+  if (existing) {
+    await db("tournament_match_start_requests")
+      .where({ match_id: matchId, entry_id: entry.id })
+      .update({ requested_at: now, updated_at: db.fn.now() });
+  } else {
+    await db("tournament_match_start_requests").insert({
+      match_id: matchId,
+      entry_id: entry.id,
+      requested_at: now,
+    });
+  }
+
+  const requests = await db("tournament_match_start_requests").where({ match_id: matchId });
+  const inWindow = scheduledAt && windowEnd
+    ? requests.filter((r) => { const t = new Date(r.requested_at); return t >= scheduledAt && t <= windowEnd; })
+    : requests;
+  const uniqueInWindow = [...new Set(inWindow.map((r) => r.entry_id))];
+
+  if (uniqueInWindow.length === 1) return { waiting: true };
+
+  if (uniqueInWindow.length >= 2) {
+    try {
+      await createMatchGame(tournamentId, matchId);
+      const updated = await TournamentMatch.findById(matchId);
+      const game = updated?.game_id ? await Game.findById(updated.game_id) : null;
+      return {
+        game_id: updated.game_id,
+        code: game?.code,
+        redirect_url: `/game-play?gameCode=${game?.code || ""}`,
+      };
+    } catch (err) {
+      logger.error({ err: err?.message, matchId }, "requestMatchStart createMatchGame failed");
+      throw err;
+    }
+  }
+
+  return { waiting: true };
 }

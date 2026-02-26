@@ -83,6 +83,7 @@ export async function getBracket(req, res) {
       rounds: rounds.map((r) => ({
         round_index: r.round_index,
         status: r.status,
+        scheduled_start_at: r.scheduled_start_at ?? null,
         matches: matches
           .filter((m) => m.round_index === r.round_index)
           .map((m) => ({
@@ -123,7 +124,8 @@ export async function getLeaderboard(req, res) {
 
 export async function closeRegistration(req, res) {
   try {
-    const result = await tournamentService.generateBracket(req.params.id);
+    const first_round_start_at = req.body?.first_round_start_at ?? null;
+    const result = await tournamentService.generateBracket(req.params.id, { first_round_start_at });
     return res.json({ success: true, data: result });
   } catch (err) {
     if (err?.message?.includes("not found")) return res.status(404).json({ success: false, message: err.message });
@@ -131,6 +133,23 @@ export async function closeRegistration(req, res) {
     if (err?.message?.includes("Need at least")) return res.status(400).json({ success: false, message: err.message });
     logger.error({ err: err?.message }, "tournament closeRegistration failed");
     return res.status(400).json({ success: false, message: err?.message || "Close registration failed" });
+  }
+}
+
+export async function requestMatchStart(req, res) {
+  try {
+    const tournamentId = req.params.id;
+    const matchId = req.params.matchId;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+    const result = await tournamentService.requestMatchStart(tournamentId, matchId, userId);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (err?.message?.includes("not found")) return res.status(404).json({ success: false, message: err.message });
+    if (err?.message?.includes("not in this match")) return res.status(403).json({ success: false, message: err.message });
+    if (err?.message?.includes("not opened") || err?.message?.includes("closed")) return res.status(400).json({ success: false, message: err.message });
+    logger.error({ err: err?.message }, "tournament requestMatchStart failed");
+    return res.status(400).json({ success: false, message: err?.message || "Start failed" });
   }
 }
 
