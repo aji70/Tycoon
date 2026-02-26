@@ -27,11 +27,13 @@ export function getChainConfig(chain) {
     const contractAddress = process.env.TYCOON_CELO_CONTRACT_ADDRESS;
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY;
     const chainId = Number(process.env.CELO_CHAIN_ID) || 42220;
+    const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ?? process.env.TOURNAMENT_ESCROW_CELO;
     return {
       rpcUrl,
       contractAddress,
       privateKey,
       chainId,
+      tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -41,11 +43,13 @@ export function getChainConfig(chain) {
     const contractAddress = process.env.TYCOON_POLYGON_CONTRACT_ADDRESS;
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_POLYGON_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
     const chainId = Number(process.env.POLYGON_CHAIN_ID) || 137;
+    const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ?? process.env.TOURNAMENT_ESCROW_POLYGON;
     return {
       rpcUrl,
       contractAddress,
       privateKey,
       chainId,
+      tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -55,11 +59,13 @@ export function getChainConfig(chain) {
     const contractAddress = process.env.TYCOON_BASE_CONTRACT_ADDRESS;
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_BASE_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
     const chainId = Number(process.env.BASE_CHAIN_ID) || 8453;
+    const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ?? process.env.TOURNAMENT_ESCROW_BASE;
     return {
       rpcUrl,
       contractAddress,
       privateKey,
       chainId,
+      tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -69,6 +75,7 @@ export function getChainConfig(chain) {
     contractAddress: undefined,
     privateKey: undefined,
     chainId: 0,
+    tournamentEscrowAddress: undefined,
     isConfigured: false,
   };
 }
