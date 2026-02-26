@@ -13,7 +13,7 @@ import GamePlayer from "../models/GamePlayer.js";
 import GameSetting from "../models/GameSetting.js";
 import Chat from "../models/Chat.js";
 import { createGameByBackend, joinGameByBackend, isContractConfigured } from "../services/tycoonContract.js";
-import { createTournamentOnChain, isEscrowConfigured } from "../services/tournamentEscrow.js";
+import { createTournamentOnChain, registerForTournamentFor, isEscrowConfigured } from "../services/tournamentEscrow.js";
 import logger from "../config/logger.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
@@ -131,13 +131,26 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     throw new Error("Entry fee payment required");
   }
 
+  let txHash = paymentTxHash;
+
+  // When no tx hash (e.g. guest) and free tournament, backend calls contract on behalf of the player
+  if (!txHash && Number(tournament.entry_fee_wei) === 0 && user?.address && isEscrowConfigured(tournamentChainNorm)) {
+    try {
+      const result = await registerForTournamentFor(Number(tournamentId), user.address, tournamentChainNorm);
+      if (result?.hash) txHash = result.hash;
+    } catch (err) {
+      logger.error({ err: err?.message, tournamentId, address: user.address }, "Escrow registerForTournamentFor failed");
+      throw new Error("Failed to register on-chain. Please try again.");
+    }
+  }
+
   return TournamentEntry.create({
     tournament_id: tournamentId,
     user_id: user.id,
     address: user.address,
     chain: user.chain,
     seed_order: count + 1,
-    payment_tx_hash: paymentTxHash || null,
+    payment_tx_hash: txHash || null,
     status: "CONFIRMED",
   });
 }
