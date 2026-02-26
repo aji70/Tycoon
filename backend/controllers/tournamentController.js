@@ -2,6 +2,7 @@
  * Tournament controller: create, list, get, register, bracket, leaderboard, close registration, start round.
  */
 import Tournament from "../models/Tournament.js";
+import User from "../models/User.js";
 import TournamentEntry from "../models/TournamentEntry.js";
 import TournamentMatch from "../models/TournamentMatch.js";
 import TournamentRound from "../models/TournamentRound.js";
@@ -40,9 +41,14 @@ export async function getById(req, res) {
 
 export async function create(req, res) {
   try {
-    const creatorId = req.user?.id || req.body.creator_id;
-    if (!creatorId) return res.status(401).json({ success: false, message: "Authentication required" });
-    const { chain, ...rest } = req.body;
+    let creatorId = req.user?.id || req.body.creator_id;
+    if (!creatorId && req.body.address) {
+      const chainForAddress = req.body.wallet_chain || req.body.chain || "POLYGON";
+      const user = await User.resolveUserByAddress(req.body.address, chainForAddress);
+      if (user) creatorId = user.id;
+    }
+    if (!creatorId) return res.status(401).json({ success: false, message: "Sign in or register your wallet (Profile) to create a tournament" });
+    const { chain, address, wallet_chain, ...rest } = req.body;
     if (chain == null || String(chain).trim() === "") {
       return res.status(400).json({ success: false, message: "chain is required (e.g. POLYGON, BASE, CELO)" });
     }
