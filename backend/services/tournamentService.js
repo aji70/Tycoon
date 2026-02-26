@@ -98,6 +98,17 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     if (!user) throw new Error("User not found");
   } else if (address) {
     user = await User.resolveUserByAddress(address, normalizedChain);
+    // Wallet-only users who completed on-chain registration: create minimal user
+    if (!user && paymentTxHash) {
+      try {
+        const addr = String(address).trim();
+        user = await User.create({ address: addr, username: addr, chain: normalizedChain });
+        logger.info({ address: addr, chain: normalizedChain }, "Created minimal user for tournament registration");
+      } catch (createErr) {
+        logger.error({ err: createErr?.message, address }, "Tournament register: create user failed");
+        throw new Error("User not found for this address on this chain");
+      }
+    }
     if (!user) throw new Error("User not found for this address on this chain");
   } else {
     throw new Error("userId or address required");
