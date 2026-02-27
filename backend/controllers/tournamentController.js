@@ -52,8 +52,14 @@ export async function create(req, res) {
     if (chain == null || String(chain).trim() === "") {
       return res.status(400).json({ success: false, message: "chain is required (e.g. POLYGON, BASE, CELO)" });
     }
-    const tournament = await tournamentService.createTournament({ ...rest, creator_id: creatorId, chain });
-    return res.status(201).json(tournament);
+    const result = await tournamentService.createTournament({ ...rest, creator_id: creatorId, chain });
+    // Response includes tournament plus on-chain status: created_on_chain, on_chain_error, on_chain_tx_hash
+    return res.status(201).json({
+      ...result,
+      created_on_chain: result.created_on_chain ?? false,
+      on_chain_error: result.on_chain_error ?? null,
+      on_chain_tx_hash: result.on_chain_tx_hash ?? null,
+    });
   } catch (err) {
     logger.error({ err: err?.message }, "tournament create failed");
     return res.status(400).json({ success: false, message: err?.message || "Create failed" });
