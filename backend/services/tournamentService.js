@@ -300,6 +300,13 @@ async function createMatchGame(tournamentId, matchId) {
   const prefByEntry = Object.fromEntries(
     (startRequests || []).map((r) => [r.entry_id, r.preferred_symbol])
   );
+
+  // When the organizer clicks "Create game" (startRound), there are no start_requests — create a lobby
+  // so both players (including the game creator) join and choose their symbols in the waiting room.
+  if (canBackendJoin && startRequests.length === 0) {
+    return createLobbyGame(tournament, match, userA, userB, tournamentId, matchId);
+  }
+
   let symbolA = TOURNAMENT_SYMBOLS.includes(prefByEntry[entryA.id]) ? prefByEntry[entryA.id] : TOURNAMENT_SYMBOLS[0];
   let symbolB = TOURNAMENT_SYMBOLS.includes(prefByEntry[entryB.id]) ? prefByEntry[entryB.id] : TOURNAMENT_SYMBOLS[1];
   if (symbolA === symbolB) {
