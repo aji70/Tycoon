@@ -27,8 +27,14 @@ export async function getById(req, res) {
     const entries = await TournamentEntry.findByTournament(req.params.id, { withUser: true });
     const rounds = await TournamentRound.findByTournament(req.params.id);
     const matches = await TournamentMatch.findByTournament(req.params.id);
+    const creator = tournament.creator_id ? await User.findById(tournament.creator_id) : null;
+    const creator_address =
+      creator?.address ||
+      creator?.linked_wallet_address ||
+      null;
     return res.json({
       ...tournament,
+      creator_address: creator_address || undefined,
       entries,
       rounds,
       matches,
