@@ -317,8 +317,81 @@ export const useAIAutoActions = ({
   const runAIPreTurn = useCallback(async () => {
     if (!isAITurn || !currentPlayer || !isAI) return;
 
+    // Ask Claude/external agent for a high-level strategy action before rolling.
+    let strategyAction: string | null = null;
+    try {
+      const slot = getAiSlotFromPlayer(currentPlayer);
+      const ownedProps = getOwnedProperties(currentPlayer).map((gp) => ({
+        ...gp,
+        prop: properties.find((p) => p.id === gp.property_id),
+      }));
+      const aiOwnedIds = ownedProps.map((gp) => gp.property_id);
+      const hasMonopoly = Object.values(COLOR_GROUPS).some((ids) =>
+        ids.every((id) => aiOwnedIds.includes(id))
+      );
+      const mortgaged = game_properties.some(
+        (gp) =>
+          gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase() &&
+          gp.mortgaged
+      );
+      const canUnmortgage = mortgaged && (currentPlayer.balance ?? 0) > 1200;
+      const canBuild = hasMonopoly && (currentPlayer.balance ?? 0) > 700;
+      const aiOwnedIdsSet = new Set(aiOwnedIds);
+      const humanOwnedIds =
+        me?.user_id != null
+          ? getOwnedProperties(me).map((gp) => gp.property_id)
+          : [];
+      const canSendTrade = Object.values(COLOR_GROUPS).some((ids) => {
+        const missing = ids.filter((id) => !aiOwnedIdsSet.has(id));
+        return (
+          missing.length === 1 && humanOwnedIds.includes(missing[0]!)
+        );
+      });
+
+      const agentRes = await apiClient.post<{
+        success?: boolean;
+        data?: { action?: string; reasoning?: string };
+        useBuiltIn?: boolean;
+      }>("/agent-registry/decision", {
+        gameId: game.id,
+        slot: slot ?? 2,
+        decisionType: "strategy",
+        context: {
+          myBalance: currentPlayer.balance ?? 0,
+          myProperties: ownedProps.map((o) => ({
+            ...(o.prop || {}),
+            ...o,
+          })),
+          opponents: (game.players ?? []).filter(
+            (p) => p.user_id !== currentPlayer.user_id
+          ),
+          inDebt: (currentPlayer.balance ?? 0) < 0,
+          hasMonopoly,
+          canUnmortgage,
+          canBuild,
+          canSendTrade,
+        },
+      });
+      if (
+        agentRes?.data?.success &&
+        agentRes.data.useBuiltIn === false &&
+        agentRes.data.data?.action
+      ) {
+        strategyAction = String(
+          agentRes.data.data.action
+        ).toLowerCase() as string;
+        if (agentRes.data.data.reasoning) {
+          toast(
+            `Claude strategy: ${strategyAction} — ${agentRes.data.data.reasoning}`
+          );
+        }
+      }
+    } catch (_) {
+      // If strategy agent fails, fall back to heuristic logic below.
+    }
+
     // Step 1: Liquidate if broke
-    if (currentPlayer.balance < 0) {
+    if (strategyAction === "liquidate" || currentPlayer.balance < 0) {
       await aiLiquidate();
       // After liquidation, roll to continue
       setTimeout(onRollDice, 1500);
@@ -326,7 +399,10 @@ export const useAIAutoActions = ({
     }
 
     // Step 2: Unmortgage if rich
-    if (currentPlayer.balance > 1200) {
+    if (
+      strategyAction === "unmortgage" ||
+      (!strategyAction && currentPlayer.balance > 1200)
+    ) {
       await aiUnmortgage();
     }
 
@@ -336,14 +412,19 @@ export const useAIAutoActions = ({
       ids.every((id) => aiOwnedIds.includes(id))
     );
 
-    if (hasMonopoly && currentPlayer.balance > 700) {
+    if (
+      strategyAction === "build" ||
+      (!strategyAction && hasMonopoly && currentPlayer.balance > 700)
+    ) {
       await aiBuildWithAgent();
       setTimeout(onRollDice, 1200);
       return;
     }
 
     // Step 4: Try to complete a monopoly via trade
-    await aiSendMonopolyTrade();
+    if (strategyAction === "proposetrade" || !strategyAction) {
+      await aiSendMonopolyTrade();
+    }
 
     // Step 5: Finally roll
     setTimeout(onRollDice, 1000);

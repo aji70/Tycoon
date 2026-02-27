@@ -140,6 +140,46 @@ Respond ONLY with JSON:
 }`;
 }
 
+function buildStrategyPrompt(context) {
+  const {
+    myBalance = 0,
+    myProperties = [],
+    opponents = [],
+    inDebt = false,
+    hasMonopoly = false,
+    canUnmortgage = false,
+    canBuild = false,
+    canSendTrade = false,
+  } = context || {};
+  const monopolies = getMonopolies(myProperties || []);
+  return `You're an expert Monopoly strategist. Decide what this AI should do BEFORE rolling.
+
+ALLOWED ACTIONS (pick ONE):
+- "liquidate"    (sell houses / mortgage to fix negative balance)
+- "unmortgage"   (redeem high-value mortgaged properties)
+- "build"        (build houses/hotels on strong monopolies)
+- "proposeTrade" (send a trade offer to improve monopolies)
+- "roll"         (skip strategy and just roll the dice)
+
+CURRENT STATUS:
+- Balance: $${myBalance}
+- In debt (balance < 0): ${inDebt ? "YES" : "NO"}
+- Monopolies: ${monopolies.join(", ") || "None"}
+- Has at least one full monopoly: ${hasMonopoly ? "YES" : "NO"}
+- Can unmortgage good properties now: ${canUnmortgage ? "YES" : "NO"}
+- Can build on monopolies now: ${canBuild ? "YES" : "NO"}
+- Has a near-complete color set where a trade might finish a monopoly: ${canSendTrade ? "YES" : "NO"}
+
+OPPONENTS:
+${(opponents || []).map((o) => `- ${o.username ?? "Opponent"}: $${o.balance ?? 0}`).join("\n")}
+
+Respond ONLY with JSON:
+{
+  "action": "liquidate" | "unmortgage" | "build" | "proposeTrade" | "roll",
+  "reasoning": "max 50 words explaining the choice"
+}`;
+}
+
 /**
  * Get a decision from the internal LLM agent.
  * @param {number} gameId
@@ -172,7 +212,9 @@ async function getDecision(gameId, slot, decisionType, context) {
       fallback = { action: "wait", reasoning: "No API", confidence: 0 };
       break;
     case "strategy":
-      return { action: "wait", reasoning: "Strategy handled by turn flow.", confidence: 1 };
+      prompt = buildStrategyPrompt(context);
+      fallback = { action: "roll", reasoning: "No API", confidence: 0 };
+      break;
     default:
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
   }
