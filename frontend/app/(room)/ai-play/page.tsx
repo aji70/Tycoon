@@ -8,6 +8,7 @@ import GamePlayersMobile from "@/components/game/ai-player/mobile/ai-player";
 import { apiClient } from "@/lib/api";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -177,6 +178,9 @@ export default function GamePlayPage() {
     }
   }, [game?.id, game?.is_ai, game?.status, gameCode, queryClient, refetchGame]);
 
+  const finishByTimeGuard = usePreventDoubleSubmit();
+  const onFinishGameByTime = useCallback(() => finishByTimeGuard.submit(() => finishGameByTime()), [finishGameByTime, finishByTimeGuard]);
+
   // Don't allow multiplayer game codes on AI page — redirect to multiplayer board
   useEffect(() => {
     if (!game || !gameCode) return;
@@ -244,7 +248,7 @@ export default function GamePlayPage() {
               game_properties={game_properties}
               me={me}
               isGuest={isGuest}
-              onFinishGameByTime={finishGameByTime}
+              onFinishGameByTime={onFinishGameByTime}
               onViewTrades={() => {
                 setActiveTab("players");
                 setFocusTrades(true);
@@ -324,7 +328,7 @@ export default function GamePlayPage() {
           game_properties={game_properties}
           me={me}
           isGuest={isGuest}
-          onFinishGameByTime={finishGameByTime}
+          onFinishGameByTime={onFinishGameByTime}
           onViewTrades={() => setFocusTrades(true)}
         />
       </div>

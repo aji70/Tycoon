@@ -62,6 +62,12 @@ type CenterAreaProps = {
   onToggleAiTips?: () => void;
   aiTipText?: string | null;
   aiTipLoading?: boolean;
+  /** Prevent double-tap on buy/skip (backend call in progress) */
+  buyPending?: boolean;
+  /** Prevent double-tap on jail actions (pay/use card/stay) */
+  jailSubmitting?: boolean;
+  /** Prevent double-tap on vote end by net worth */
+  voteEndByNetWorthSubmitting?: boolean;
 };
 
 export default function CenterArea({
@@ -107,6 +113,9 @@ export default function CenterArea({
   onToggleAiTips,
   aiTipText = null,
   aiTipLoading = false,
+  buyPending = false,
+  jailSubmitting = false,
+  voteEndByNetWorthSubmitting = false,
 }: CenterAreaProps) {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
 
@@ -119,7 +128,7 @@ export default function CenterArea({
             if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
             if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
           }}
-          disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+          disabled={endByNetWorthLoading || voteEndByNetWorthSubmitting || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
           className="fixed top-4 left-4 lg:top-[116px] z-50 flex items-center justify-center w-10 h-10 rounded-full bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
           title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
           aria-label="Vote to end game by net worth"
@@ -288,20 +297,21 @@ export default function CenterArea({
             {onPayToLeaveJail && (
               <button
                 onClick={onPayToLeaveJail}
-                disabled={!canPayToLeaveJail}
+                disabled={!canPayToLeaveJail || jailSubmitting}
                 className={`px-4 py-2 rounded-lg font-medium border transition-all ${
-                  canPayToLeaveJail
+                  canPayToLeaveJail && !jailSubmitting
                     ? "bg-amber-600/80 text-white border-amber-500 hover:bg-amber-500/90"
                     : "bg-gray-600 text-gray-400 border-gray-500 cursor-not-allowed"
                 }`}
               >
-                Pay $50
+                {jailSubmitting ? "…" : "Pay $50"}
               </button>
             )}
             {onUseGetOutOfJailFree && hasChanceJailCard && (
               <button
                 onClick={() => onUseGetOutOfJailFree("chance")}
-                className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 hover:bg-orange-500/90 transition-all"
+                disabled={jailSubmitting}
+                className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 hover:bg-orange-500/90 transition-all disabled:opacity-60"
               >
                 Use Chance Card
               </button>
@@ -309,7 +319,8 @@ export default function CenterArea({
             {onUseGetOutOfJailFree && hasCommunityChestJailCard && (
               <button
                 onClick={() => onUseGetOutOfJailFree("community_chest")}
-                className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 hover:bg-blue-500/90 transition-all"
+                disabled={jailSubmitting}
+                className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 hover:bg-blue-500/90 transition-all disabled:opacity-60"
               >
                 Use Community Chest Card
               </button>
@@ -317,7 +328,8 @@ export default function CenterArea({
             {onStayInJail && (
               <button
                 onClick={onStayInJail}
-                className="px-4 py-2 rounded-lg font-medium bg-gray-600 text-white border border-gray-500 hover:bg-gray-500/90 transition-all"
+                disabled={jailSubmitting}
+                className="px-4 py-2 rounded-lg font-medium bg-gray-600 text-white border border-gray-500 hover:bg-gray-500/90 transition-all disabled:opacity-60"
               >
                 Stay in Jail
               </button>
@@ -334,20 +346,21 @@ export default function CenterArea({
             {onPayToLeaveJail && (
               <button
                 onClick={onPayToLeaveJail}
-                disabled={!canPayToLeaveJail}
+                disabled={!canPayToLeaveJail || jailSubmitting}
                 className={`px-4 py-2 rounded-lg font-medium border transition-all ${
-                  canPayToLeaveJail
+                  canPayToLeaveJail && !jailSubmitting
                     ? "bg-amber-600/80 text-white border-amber-500 hover:bg-amber-500/90"
                     : "bg-gray-600 text-gray-400 border-gray-500 cursor-not-allowed"
                 }`}
               >
-                Pay $50
+                {jailSubmitting ? "…" : "Pay $50"}
               </button>
             )}
             {onUseGetOutOfJailFree && hasChanceJailCard && (
               <button
                 onClick={() => onUseGetOutOfJailFree("chance")}
-                className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 hover:bg-orange-500/90 transition-all"
+                disabled={jailSubmitting}
+                className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 hover:bg-orange-500/90 transition-all disabled:opacity-60"
               >
                 Use Chance Card
               </button>
@@ -355,7 +368,8 @@ export default function CenterArea({
             {onUseGetOutOfJailFree && hasCommunityChestJailCard && (
               <button
                 onClick={() => onUseGetOutOfJailFree("community_chest")}
-                className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 hover:bg-blue-500/90 transition-all"
+                disabled={jailSubmitting}
+                className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 hover:bg-blue-500/90 transition-all disabled:opacity-60"
               >
                 Use Community Chest Card
               </button>
@@ -421,18 +435,19 @@ export default function CenterArea({
           <div className="flex gap-4 flex-wrap justify-center">
             <button
               onClick={onBuyProperty}
-              disabled={currentProperty.price != null && currentPlayerBalance < currentProperty.price}
+              disabled={(currentProperty.price != null && currentPlayerBalance < currentProperty.price) || buyPending}
               className={`px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
-                currentProperty.price != null && currentPlayerBalance < currentProperty.price
+                (currentProperty.price != null && currentPlayerBalance < currentProperty.price) || buyPending
                   ? "opacity-50 cursor-not-allowed"
                   : ""
               }`}
             >
-              Buy for ${currentProperty.price}
+              {buyPending ? "Buying…" : `Buy for $${currentProperty.price}`}
             </button>
             <button
               onClick={onSkipBuy}
-              className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+              disabled={buyPending}
+              className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-60"
             >
               Skip
             </button>

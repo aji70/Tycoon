@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api";
 import { Game, Player, Property } from "@/types/game";
 import { toast } from "react-hot-toast";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 
 interface ActionButtonsProps {
   isMyTurn: boolean;
@@ -33,6 +34,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   landedPositionThisTurn,
   showToast,
 }) => {
+  const endTurnGuard = usePreventDoubleSubmit();
+  const buyGuard = usePreventDoubleSubmit();
+
   const END_TURN = async () => {
     if (!currentPlayer || !me) return;
     try {
@@ -46,6 +50,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       showToast("Failed to end turn", "error");
     }
   };
+
+  const onEndTurn = () => endTurnGuard.submit(() => END_TURN());
 
   const BUY_PROPERTY = async () => {
     if (!currentPlayer?.position || !justLandedProperty?.price || !me) {
@@ -76,6 +82,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
     }
   };
 
+  const onBuy = () => buyGuard.submit(() => BUY_PROPERTY());
+
   return (
     <div className="w-full max-w-[95vw] flex flex-col items-center p-4 gap-6">
       {/* Roll Button */}
@@ -85,7 +93,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           disabled={isRolling}
           className="w-[80vw] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl"
         >
-          {isRolling ? "Rolling..." : "Roll Dice"}
+          {isRolling ? "Rolling…" : "Roll Dice"}
         </button>
       )}
 
@@ -103,19 +111,22 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             <p className="text-sm text-gray-300">Price: ${justLandedProperty.price?.toLocaleString()}</p>
             <div className="flex gap-4 w-full justify-center">
               <button
-                onClick={BUY_PROPERTY}
-                className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+                onClick={onBuy}
+                disabled={buyGuard.isSubmitting}
+                className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-full hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-60"
               >
-                Buy
+                {buyGuard.isSubmitting ? "Buying…" : "Buy"}
               </button>
               <button
                 onClick={() => {
+                  if (buyGuard.isSubmitting) return;
                   showToast("Skipped purchase");
                   setBuyPrompted(false);
                   landedPositionThisTurn.current = null;
-                  setTimeout(END_TURN, 800);
+                  setTimeout(() => onEndTurn(), 800);
                 }}
-                className="flex-1 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+                disabled={buyGuard.isSubmitting}
+                className="flex-1 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-60"
               >
                 Skip
               </button>

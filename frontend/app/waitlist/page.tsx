@@ -5,12 +5,14 @@ import { motion } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Mail, Wallet, Sparkles, AtSign } from "lucide-react";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 
 const WaitlistForm = () => {
   const [email, setEmail] = useState("");
   const [wallet, setWallet] = useState("");
   const [telegram, setTelegram] = useState(""); // User types username WITHOUT @
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitGuard = usePreventDoubleSubmit();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,25 +42,26 @@ const WaitlistForm = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    await submitGuard.submit(async () => {
+      setIsSubmitting(true);
+      try {
+        await apiClient.post("/waitlist", {
+          email_address: email,
+          wallet_address: wallet,
+          telegram_username: telegram ? `@${telegram.trim()}` : null,
+        });
 
-    try {
-      await apiClient.post("/waitlist", {
-        email_address: email,
-        wallet_address: wallet,
-        telegram_username: telegram ? `@${telegram.trim()}` : null,
-      });
-
-      toast.success("Successfully joined the Tycoon waitlist! 🎉");
-      setEmail("");
-      setWallet("");
-      setTelegram("");
-    } catch (error: any) {
-      console.error("Waitlist submission failed:", error);
-      toast.error(error?.response?.data?.message || "Failed to join waitlist. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+        toast.success("Successfully joined the Tycoon waitlist! 🎉");
+        setEmail("");
+        setWallet("");
+        setTelegram("");
+      } catch (error: any) {
+        console.error("Waitlist submission failed:", error);
+        toast.error(error?.response?.data?.message || "Failed to join waitlist. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    });
   };
 
   return (
@@ -140,7 +143,7 @@ const WaitlistForm = () => {
             {/* Submit */}
             <motion.button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || submitGuard.isSubmitting}
               whileHover={{ scale: isSubmitting ? 1 : 1.04 }}
               whileTap={{ scale: isSubmitting ? 1 : 0.96 }}
               className="w-full py-5 mt-8 bg-gradient-to-r from-cyan-500 to-teal-600 text-white font-bold text-xl rounded-2xl shadow-xl shadow-cyan-500/40 hover:shadow-cyan-500/60 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-300"

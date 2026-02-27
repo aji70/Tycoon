@@ -53,6 +53,10 @@ type CenterAreaProps = {
   onToggleAiTips?: () => void;
   aiTipText?: string | null;
   aiTipLoading?: boolean;
+  /** Prevent double-tap on buy/skip (backend call in progress) */
+  buyPending?: boolean;
+  /** Prevent double-tap on jail actions (pay/use card/stay) */
+  jailSubmitting?: boolean;
 };
 
 export default function CenterArea({
@@ -92,6 +96,8 @@ export default function CenterArea({
   onToggleAiTips,
   aiTipText = null,
   aiTipLoading = false,
+  buyPending = false,
+  jailSubmitting = false,
 }: CenterAreaProps) {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
 
@@ -162,24 +168,24 @@ export default function CenterArea({
             {onPayToLeaveJail && (
               <button
                 onClick={onPayToLeaveJail}
-                disabled={!canPayToLeaveJail}
-                className={`px-4 py-2 rounded-lg font-medium border ${canPayToLeaveJail ? "bg-amber-600/80 text-white border-amber-500" : "bg-gray-600 text-gray-400 border-gray-500"}`}
+                disabled={!canPayToLeaveJail || jailSubmitting}
+                className={`px-4 py-2 rounded-lg font-medium border ${canPayToLeaveJail && !jailSubmitting ? "bg-amber-600/80 text-white border-amber-500" : "bg-gray-600 text-gray-400 border-gray-500"}`}
               >
-                Pay $50
+                {jailSubmitting ? "…" : "Pay $50"}
               </button>
             )}
             {onUseGetOutOfJailFree && hasChanceJailCard && (
-              <button onClick={() => onUseGetOutOfJailFree("chance")} className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500">
+              <button onClick={() => onUseGetOutOfJailFree("chance")} disabled={jailSubmitting} className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 disabled:opacity-60">
                 Use Chance Card
               </button>
             )}
             {onUseGetOutOfJailFree && hasCommunityChestJailCard && (
-              <button onClick={() => onUseGetOutOfJailFree("community_chest")} className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500">
+              <button onClick={() => onUseGetOutOfJailFree("community_chest")} disabled={jailSubmitting} className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 disabled:opacity-60">
                 Use Community Chest Card
               </button>
             )}
             {onStayInJail && (
-              <button onClick={onStayInJail} className="px-4 py-2 rounded-lg font-medium bg-gray-600 text-white border border-gray-500">
+              <button onClick={onStayInJail} disabled={jailSubmitting} className="px-4 py-2 rounded-lg font-medium bg-gray-600 text-white border border-gray-500 disabled:opacity-60">
                 Stay in Jail
               </button>
             )}
@@ -193,19 +199,19 @@ export default function CenterArea({
           {onPayToLeaveJail && (
             <button
               onClick={onPayToLeaveJail}
-              disabled={!canPayToLeaveJail}
-              className={`px-4 py-2 rounded-lg font-medium border ${canPayToLeaveJail ? "bg-amber-600/80 text-white border-amber-500" : "bg-gray-600 text-gray-400 border-gray-500"}`}
+              disabled={!canPayToLeaveJail || jailSubmitting}
+              className={`px-4 py-2 rounded-lg font-medium border ${canPayToLeaveJail && !jailSubmitting ? "bg-amber-600/80 text-white border-amber-500" : "bg-gray-600 text-gray-400 border-gray-500"}`}
             >
-              Pay $50
+              {jailSubmitting ? "…" : "Pay $50"}
             </button>
           )}
           {onUseGetOutOfJailFree && hasChanceJailCard && (
-            <button onClick={() => onUseGetOutOfJailFree("chance")} className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500">
+            <button onClick={() => onUseGetOutOfJailFree("chance")} disabled={jailSubmitting} className="px-4 py-2 rounded-lg font-medium bg-orange-600/80 text-white border border-orange-500 disabled:opacity-60">
               Chance Card
             </button>
           )}
           {onUseGetOutOfJailFree && hasCommunityChestJailCard && (
-            <button onClick={() => onUseGetOutOfJailFree("community_chest")} className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500">
+            <button onClick={() => onUseGetOutOfJailFree("community_chest")} disabled={jailSubmitting} className="px-4 py-2 rounded-lg font-medium bg-blue-600/80 text-white border border-blue-500 disabled:opacity-60">
               CC Card
             </button>
           )}
@@ -317,18 +323,19 @@ export default function CenterArea({
           <div className="flex gap-4 flex-wrap justify-center">
             <button
               onClick={onBuyProperty}
-              disabled={currentProperty.price != null && currentPlayerBalance < currentProperty.price}
+              disabled={(currentProperty.price != null && currentPlayerBalance < currentProperty.price) || buyPending}
               className={`px-6 py-3 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold rounded-full hover:from-cyan-600 hover:to-cyan-700 transform hover:scale-110 active:scale-95 transition-all shadow-lg ${
-                currentProperty.price != null && currentPlayerBalance < currentProperty.price
+                (currentProperty.price != null && currentPlayerBalance < currentProperty.price) || buyPending
                   ? "opacity-50 cursor-not-allowed"
                   : ""
               }`}
             >
-              Buy for ${currentProperty.price}
+              {buyPending ? "Buying…" : `Buy for $${currentProperty.price}`}
             </button>
             <button
               onClick={onSkipBuy}
-              className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg"
+              disabled={buyPending}
+              className="px-6 py-3 bg-gray-600 text-white font-bold rounded-full hover:bg-gray-700 transform hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-60"
             >
               Skip
             </button>
