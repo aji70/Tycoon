@@ -177,17 +177,16 @@ async function getDecision(gameId, slot, decisionType, context) {
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
   try {
-    const message = await anthropic.messages.create({
+    const createPromise = anthropic.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
       messages: [{ role: "user", content: prompt }],
-      signal: controller.signal,
     });
-    clearTimeout(timeout);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
+    );
+    const message = await Promise.race([createPromise, timeoutPromise]);
 
     const text =
       message.content &&
@@ -205,7 +204,6 @@ async function getDecision(gameId, slot, decisionType, context) {
     if (parsed.propertyId != null) out.propertyId = Number(parsed.propertyId);
     return out;
   } catch (err) {
-    clearTimeout(timeout);
     console.error("[internalAgent] LLM request failed:", err.message);
     return null;
   }
