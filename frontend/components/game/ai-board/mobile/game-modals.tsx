@@ -9,7 +9,6 @@ import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { CardModal } from "../../modals/cards";
-import { useGiveERC8004Feedback } from "@/context/ContractProvider";
 
 interface GameModalsProps {
   winner: Player | null;
@@ -73,11 +72,6 @@ const GameModals: React.FC<GameModalsProps> = ({
 }) => {
   const chainId = useChainId();
   const { open: openAppKit } = useAppKit();
-  const { giveFeedback: giveERC8004Feedback } = useGiveERC8004Feedback();
-  const erc8004AgentId =
-    typeof process.env.NEXT_PUBLIC_ERC8004_AGENT_ID !== "undefined" && process.env.NEXT_PUBLIC_ERC8004_AGENT_ID !== ""
-      ? BigInt(process.env.NEXT_PUBLIC_ERC8004_AGENT_ID)
-      : null;
 
   const handleRaiseFunds = () => {
     setShowInsolvencyModal(false);
@@ -143,11 +137,9 @@ const GameModals: React.FC<GameModalsProps> = ({
         isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      if (erc8004AgentId != null && chainId === CELO_CHAIN_ID) {
-        try {
-          await giveERC8004Feedback(erc8004AgentId, isHumanWinner ? 0 : 100);
-        } catch (_) {}
-      }
+      try {
+        await apiClient.post(`/games/${currentGame.id}/erc8004-feedback`);
+      } catch (_) {}
     } catch (err: any) {
       const msg = String(err?.message ?? "").toLowerCase();
       if ((msg.includes("isn't an ai game") || msg.includes("not an ai game")) && chainId !== CELO_CHAIN_ID) {
@@ -189,11 +181,9 @@ const GameModals: React.FC<GameModalsProps> = ({
         isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
         { id: toastId, duration: 5000 }
       );
-      if (erc8004AgentId != null && chainId === CELO_CHAIN_ID) {
-        try {
-          await giveERC8004Feedback(erc8004AgentId, isHumanWinner ? 0 : 100);
-        } catch (_) {}
-      }
+      try {
+        await apiClient.post(`/games/${currentGame.id}/erc8004-feedback`);
+      } catch (_) {}
       window.location.href = "/";
     } catch (err: any) {
       const msg = String(err?.message ?? "").toLowerCase();
@@ -210,7 +200,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     } finally {
       reset();
     }
-  }, [winner?.user_id, me?.user_id, isGuest, endGame, onFinishGameByTime, reset, chainId, openAppKit, erc8004AgentId, giveERC8004Feedback]);
+  }, [winner?.user_id, me?.user_id, isGuest, currentGame?.id, endGame, onFinishGameByTime, reset, chainId, openAppKit]);
 
   return (
     <>

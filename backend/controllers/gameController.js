@@ -26,6 +26,7 @@ import {
 } from "../services/tycoonContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
+import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
 
 // AI bot addresses (must match frontend) — used to create DB players for guest AI games so we have 2+ players from the start.
 const AI_ADDRESSES = [
@@ -695,6 +696,34 @@ const gameController = {
     } catch (error) {
       logger.error({ err: error }, "finishByTime error");
       return res.status(500).json({ success: false, message: error?.message || "Failed to finish game by time" });
+    }
+  },
+
+  /**
+   * POST: Submit ERC-8004 reputation feedback for an AI game (backend signs; user does not).
+   * Call after claim. Idempotent: safe to call multiple times.
+   */
+  async submitErc8004Feedback(req, res) {
+    try {
+      const game = await Game.findById(req.params.id);
+      if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+      if (game.status !== "FINISHED" || !game.is_ai) {
+        return res.status(200).json({ success: true, skipped: true, message: "Not an AI game or not finished" });
+      }
+      const agentId = process.env.ERC8004_AGENT_ID;
+      if (!agentId || String(agentId).trim() === "") {
+        return res.status(200).json({ success: true, skipped: true, message: "ERC8004_AGENT_ID not set" });
+      }
+      const humanUserId = game.creator_id;
+      const score = game.winner_id === humanUserId ? 0 : 100;
+      const result = await submitErc8004FeedbackTx(agentId, score);
+      if (result.success) {
+        return res.status(200).json({ success: true, hash: result.hash });
+      }
+      return res.status(200).json({ success: true, skipped: true, error: result.error });
+    } catch (error) {
+      logger.warn({ err: error, gameId: req.params.id }, "submitErc8004Feedback error");
+      return res.status(200).json({ success: true, skipped: true, message: error?.message || "Feedback failed" });
     }
   },
 
