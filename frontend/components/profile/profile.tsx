@@ -10,6 +10,8 @@ import { formatUnits, type Address, type Abi } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfile } from '@/context/ProfileContext';
+import { useGuestAuthOptional } from '@/context/GuestAuthContext';
+import AccountLinkWallet from '@/components/auth/AccountLinkWallet';
 
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { useRewardTokenAddresses } from '@/context/ContractProvider';
@@ -93,6 +95,7 @@ function formatStakeOrEarned(value: number): string {
 export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
   const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
+  const { guestUser } = useGuestAuthOptional() ?? {};
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -344,6 +347,26 @@ export default function Profile() {
   };
 
   if (!isConnected || loading || error || !userData) {
+    if (guestUser && !isConnected) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
+          <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
+            <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between max-w-5xl">
+              <Link href="/" className="flex items-center gap-2 text-cyan-300/90 hover:text-cyan-200 transition text-sm font-medium">
+                <span className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">←</span>
+                Back
+              </Link>
+              <h1 className="text-lg font-semibold text-white/90 tracking-tight">My Profile</h1>
+              <div className="w-20" />
+            </div>
+          </header>
+          <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl">
+            <p className="text-white/80 mb-4">Logged in as <strong>{guestUser.username}</strong> (guest). Connect your wallet to link it to this account.</p>
+            <AccountLinkWallet />
+          </main>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center">
         <div className="text-center space-y-6">
@@ -387,6 +410,9 @@ export default function Profile() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-5xl">
+        <section className="mb-6">
+          <AccountLinkWallet />
+        </section>
         {/* Hero card — focal point */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
@@ -451,7 +477,7 @@ export default function Profile() {
                 {[
                   { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
                   { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
-                  { label: 'Celo', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
+                  { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
                     <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>

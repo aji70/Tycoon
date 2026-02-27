@@ -31,6 +31,7 @@ Monopoly-style game and reward system implemented in Solidity. The codebase cons
 |------------------------|-------------------------------------------------------------------------|
 | `TycoonRewardSystem`   | Vouchers, collectibles, shop, redeem, burn-for-perk.                    |
 | `Tycoon`               | Users, games (create/join/leave/exit/remove), stakes, payouts.         |
+| `TycoonTournamentEscrow` | Tournament entry fees + prize pool in USDC; finalize payouts to winners. |
 | `TycoonLib`            | Shared enums, structs, validation, payout math.                        |
 | `TycoonToken`          | Test/mock ERC-20 (TYC / USDC).                                         |
 
@@ -134,6 +135,37 @@ Manages players, games, stakes, and payouts.
 
 ---
 
+## TycoonTournamentEscrow
+
+Holds USDC for tournament **entry fees** and **prize pools**. Tournament IDs match backend DB (`uint256`). Only owner or `backend` can create, lock, finalize, or cancel.
+
+### Main Functions
+
+| Function | Access | Description |
+|----------|--------|-------------|
+| `createTournament(tournamentId, entryFee, creator)` | Backend/Owner | Create or reconfigure; `entryFee` in USDC (0 = free), `creator` = prize funder address. |
+| `fundPrizePool(tournamentId, amount)` | Anyone | Deposit USDC as prize pool (approve first). |
+| `registerForTournament(tournamentId)` | Anyone | Pay entry fee (USDC); must approve first. Free if `entryFee == 0`. |
+| `lockTournament(tournamentId)` | Backend/Owner | Lock so no more deposits. |
+| `finalizeTournament(tournamentId, recipients[], amounts[])` | Backend/Owner | Send USDC to winners; total must not exceed pool. |
+| `cancelTournament(tournamentId)` | Backend/Owner | Refund all entry fees; prize pool refund via `refundPrizeToCreator`. |
+| `refundPrizeToCreator(tournamentId)` | Owner | After cancel, return prize pool to creator. |
+
+### View
+
+- `tournaments(tournamentId)` — entryFee, prizePoolDeposited, totalEntryFees, status, creator.
+- `entryPaid(tournamentId, player)` — amount user paid.
+- `getEntrants(tournamentId)` — list of addresses who registered.
+- `tournamentPool(tournamentId)` — total USDC (entry fees + prize pool).
+
+### Status Flow
+
+`None` → `Open` (create) → `Locked` (lock) → `Finalized` (payouts) or `Cancelled` (refunds).
+
+See **TOURNAMENT_ESCROW.md** for deployment and backend integration.
+
+---
+
 ## Deployment & Setup
 
 1. Deploy **TycoonToken** (or use existing TYC and USDC).
@@ -142,6 +174,7 @@ Manages players, games, stakes, and payouts.
 4. Call `rewardSystem.setBackendMinter(address(tycoon))` so Tycoon can mint on register, AI end, and placement.
 5. Call `tycoon.setBackendGameController(backendWallet)` for vote-out, setTurnCount, and property stats.
 6. (Optional) `tycoon.setMinTurnsForPerks(20)` and `tycoon.setMinStake(...)`.
+7. **Tournament escrow:** Deploy **TycoonTournamentEscrow**(usdcAddress, owner). Call `setBackend(backendWallet)` so backend can create/lock/finalize/cancel.
 
 ---
 

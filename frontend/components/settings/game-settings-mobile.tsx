@@ -306,9 +306,12 @@ export default function CreateGameMobile() {
             <House className="w-5 h-5" />
             <span className="font-bold text-sm">BACK</span>
           </button>
-          <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            CREATE
-          </h1>
+          <div>
+            <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+              CREATE
+            </h1>
+            <p className="text-[10px] text-cyan-400/80">Human vs human. AI: use Play vs AI.</p>
+          </div>
           <div className="w-14" />
         </div>
       </div>

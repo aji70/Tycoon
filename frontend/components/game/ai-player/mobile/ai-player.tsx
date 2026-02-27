@@ -14,6 +14,9 @@ import { TradeModal } from "../../modals/trade-mobile";
 import { useAiPlayerLogic } from "../useAiPlayerLogic";
 import { isAIPlayer } from "@/utils/gameUtils";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { useChainId } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
+import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
 
 interface GamePlayersProps {
   game: Game;
@@ -104,6 +107,10 @@ export default function MobileGamePlayers({
     aiMortgageProperties,
   } = logic;
 
+  const chainId = useChainId();
+  const { open: openAppKit } = useAppKit();
+  const CELO_CHAIN_ID = 42220;
+
   const totalActiveTrades = openTrades.length + tradeRequests.length;
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setSectionOpen((prev) => ({ ...prev, trades: !prev.trades })), []);
@@ -137,10 +144,15 @@ export default function MobileGamePlayers({
 
     try {
       if (!canClaimAIGameOnChain) {
-        toast.error(
-          "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Base or Celo).",
-          { id: toastId, duration: 8000 }
-        );
+        if (chainId !== CELO_CHAIN_ID) {
+          toast.dismiss(toastId);
+          showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
+        } else {
+          toast.error(
+            "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo).",
+            { id: toastId, duration: 8000 }
+          );
+        }
         return;
       }
       if (endGameHook.write) await endGameHook.write();

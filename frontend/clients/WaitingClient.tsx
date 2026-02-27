@@ -2,10 +2,15 @@
 
 import React, { Suspense } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useIsRegistered } from "@/context/ContractProvider";
 import { Loader2, AlertCircle } from "lucide-react";
+
+/** Tournament match codes (e.g. T7-R0-M0) — players are already in the tournament, skip wallet registration gate. */
+function isTournamentMatchCode(code: string | null): boolean {
+  return /^T\d+-R\d+-M\d+$/i.test((code ?? "").trim());
+}
 
 // Dynamically import components to avoid SSR issues
 const GameWaiting = dynamic(() => import("@/components/settings/game-waiting"), {
@@ -67,20 +72,24 @@ function NotRegisteredScreen() {
 export default function GameWaitingClient() {
   const { address } = useAccount();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const gameCode = searchParams.get("gameCode") ?? "";
 
   const {
     data: isUserRegistered,
     isLoading: isRegisteredLoading,
   } = useIsRegistered(address);
 
-  // While checking registration status
-  if (isRegisteredLoading) {
-    return <RegistrationLoading />;
-  }
+  const isTournamentLobby = isTournamentMatchCode(gameCode);
 
-  // User is not registered → block access
-  if (isUserRegistered === false) {
-    return <NotRegisteredScreen />;
+  // Skip registration check for tournament match lobby (players already in tournament)
+  if (!isTournamentLobby) {
+    if (isRegisteredLoading) {
+      return <RegistrationLoading />;
+    }
+    if (isUserRegistered === false) {
+      return <NotRegisteredScreen />;
+    }
   }
 
   // User is registered → proceed to lobby with Suspense loading

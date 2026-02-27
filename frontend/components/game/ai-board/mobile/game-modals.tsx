@@ -2,6 +2,9 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
+import { useChainId } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
+import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -39,6 +42,8 @@ interface GameModalsProps {
   showToast: (message: string, type?: "success" | "error" | "default") => void;
 }
 
+const CELO_CHAIN_ID = 42220;
+
 const GameModals: React.FC<GameModalsProps> = ({
   winner,
   showExitPrompt,
@@ -65,6 +70,9 @@ const GameModals: React.FC<GameModalsProps> = ({
   fetchUpdatedGame,
   showToast,
 }) => {
+  const chainId = useChainId();
+  const { open: openAppKit } = useAppKit();
+
   const handleRaiseFunds = () => {
     setShowInsolvencyModal(false);
     setIsRaisingFunds(true);
@@ -130,10 +138,16 @@ const GameModals: React.FC<GameModalsProps> = ({
         { id: toastId, duration: 5000 }
       );
     } catch (err: any) {
-      toast.error(
-        getContractErrorMessage(err, "Something went wrong — you can try again later"),
-        { id: toastId, duration: 8000 }
-      );
+      const msg = String(err?.message ?? "").toLowerCase();
+      if ((msg.includes("isn't an ai game") || msg.includes("not an ai game")) && chainId !== CELO_CHAIN_ID) {
+        toast.dismiss(toastId);
+        showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
+      } else {
+        toast.error(
+          getContractErrorMessage(err, "Something went wrong — you can try again later"),
+          { id: toastId, duration: 8000 }
+        );
+      }
     } finally {
       reset();
     }
@@ -166,15 +180,21 @@ const GameModals: React.FC<GameModalsProps> = ({
       );
       window.location.href = "/";
     } catch (err: any) {
-      toast.error(
-        getContractErrorMessage(err, "Something went wrong — you can try again later"),
-        { id: toastId, duration: 8000 }
-      );
+      const msg = String(err?.message ?? "").toLowerCase();
+      if ((msg.includes("isn't an ai game") || msg.includes("not an ai game")) && chainId !== CELO_CHAIN_ID) {
+        toast.dismiss(toastId);
+        showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
+      } else {
+        toast.error(
+          getContractErrorMessage(err, "Something went wrong — you can try again later"),
+          { id: toastId, duration: 8000 }
+        );
+      }
       setClaimAndLeaveInProgress(false);
     } finally {
       reset();
     }
-  }, [winner?.user_id, me?.user_id, isGuest, endGame, onFinishGameByTime, reset]);
+  }, [winner?.user_id, me?.user_id, isGuest, endGame, onFinishGameByTime, reset, chainId, openAppKit]);
 
   return (
     <>

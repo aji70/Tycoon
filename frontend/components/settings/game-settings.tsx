@@ -290,9 +290,12 @@ export default function GameSettings() {
             <House className="w-6 h-6 group-hover:-translate-x-1 transition" />
             <span className="font-bold text-lg">BACK</span>
           </button>
-          <h1 className="text-5xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            CREATE GAME
-          </h1>
+          <div>
+            <h1 className="text-5xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+              CREATE GAME
+            </h1>
+            <p className="text-sm text-cyan-400/80 mt-1">Human vs human. For AI games use Play vs AI.</p>
+          </div>
           <div className="w-24" />
         </div>
 

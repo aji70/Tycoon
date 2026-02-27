@@ -2,7 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Settings,
+  Eye,
+  Send,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+} from "lucide-react";
 import { apiClient } from "@/lib/api";
+import EscrowAdminSection from "@/components/admin/EscrowAdminSection";
 
 const CHAINS = ["POLYGON", "CELO", "BASE"] as const;
 type ChainKey = (typeof CHAINS)[number];
@@ -109,6 +122,8 @@ export default function ConfigTestPage() {
   const [loading, setLoading] = useState(true);
   const [callResult, setCallResult] = useState<{ fn: string; result?: unknown; error?: string } | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, Record<string, string>>>({});
+  const [readOpen, setReadOpen] = useState(true);
+  const [writeOpen, setWriteOpen] = useState(false);
 
   const fetchConfig = useCallback(async (ch: ChainKey) => {
     setLoading(true);
@@ -172,22 +187,35 @@ export default function ConfigTestPage() {
   const contractAddress = data ? (data[contractKey as keyof ConfigTest] as string | null) : null;
   const pkDisplay = data?.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ?? null;
 
+  const inputClass =
+    "min-w-[120px] rounded-xl border border-gray-600/50 bg-gray-800/80 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition";
+  const btnRead =
+    "inline-flex items-center gap-1.5 rounded-xl bg-amber-600/90 hover:bg-amber-500 px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50";
+  const btnWrite =
+    "inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition disabled:opacity-50";
+
   if (loading && !data) {
     return (
-      <main className="min-h-screen w-full bg-[#010F10] flex items-center justify-center">
-        <p className="text-[#00F0FF] font-medium">Loading config…</p>
+      <main className="min-h-screen w-full bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+          <p className="text-gray-400 font-medium">Loading config…</p>
+        </div>
       </main>
     );
   }
 
   if (error && !data) {
     return (
-      <main className="min-h-screen w-full bg-[#010F10] p-6 flex flex-col items-center justify-center gap-4">
-        <p className="text-red-400">{error}</p>
+      <main className="min-h-screen w-full bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] p-6 flex flex-col items-center justify-center gap-6">
+        <div className="flex items-center gap-2 text-red-400">
+          <AlertCircle className="w-6 h-6" />
+          <span>{error}</span>
+        </div>
         <button
           type="button"
           onClick={() => fetchConfig(chain)}
-          className="rounded-lg bg-[#00F0FF]/20 px-4 py-2 text-[#00F0FF] hover:bg-[#00F0FF]/30"
+          className="rounded-xl bg-cyan-600/80 hover:bg-cyan-500 px-6 py-3 font-medium text-white transition"
         >
           Retry
         </button>
@@ -196,162 +224,276 @@ export default function ConfigTestPage() {
   }
 
   return (
-    <main className="min-h-screen w-full bg-[#010F10] text-[#F0F7F7] p-4 md:p-6">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="font-orbitron text-2xl font-bold text-[#00F0FF]">Config &amp; contract test</h1>
+    <main className="min-h-screen w-full bg-gradient-to-br from-[#0a0f1a] via-[#0d141f] to-[#0f1a27] text-white py-8 px-4 md:px-8">
+      <div className="mx-auto max-w-4xl space-y-8">
+        <motion.header
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-wrap items-center justify-between gap-4"
+        >
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Config & Contract Test
+            </h1>
+            <p className="mt-1 text-gray-400">Backend config, escrow, and Tycoon contract calls</p>
+          </div>
           <Link
             href="/"
-            className="rounded-lg border border-[#00F0FF]/50 bg-[#0A1A1B]/80 px-4 py-2 text-sm font-medium text-[#00F0FF] hover:bg-[#00F0FF]/10 transition"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-600/50 bg-gray-800/50 px-4 py-2.5 text-sm font-medium text-gray-300 hover:bg-gray-700/50 hover:text-white transition"
           >
-            ← Back to home
+            <ArrowLeft className="w-4 h-4" />
+            Back to home
           </Link>
-        </div>
+        </motion.header>
 
-        <div className="rounded-xl border border-[#00F0FF]/30 bg-[#0A1A1B]/80 p-4 backdrop-blur-sm">
-          <p className="text-sm text-[#B0BFC0]">
-            <strong className="text-[#00F0FF]/90">Backend users:</strong> Same username and same wallet address are allowed on different chains (unique per chain). Registration and lookups are scoped by chain.
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-2xl border border-gray-700/50 bg-gray-900/50 p-6"
+        >
+          <p className="text-sm text-gray-400">
+            <strong className="text-cyan-400/90">Backend users:</strong> Same username and wallet are allowed on different chains (unique per chain). Registration and lookups are scoped by chain.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="rounded-xl border border-[#00F0FF]/30 bg-[#0A1A1B]/80 p-4 backdrop-blur-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-[#00F0FF]/80">Chain</span>
-            <div className="flex gap-2">
-              {CHAINS.map((ch) => (
-                <button
-                  key={ch}
-                  type="button"
-                  onClick={() => setChain(ch)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                    chain === ch
-                      ? "bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/50"
-                      : "bg-black/30 text-[#B0BFC0] border border-[#00F0FF]/20 hover:border-[#00F0FF]/40"
-                  }`}
-                >
-                  {ch}
-                </button>
-              ))}
+        {/* Chain & connection */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="rounded-2xl border border-gray-700/50 bg-gray-900/50 p-6 md:p-8"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 rounded-xl bg-cyan-900/40 border border-cyan-500/30">
+              <Settings className="w-6 h-6 text-cyan-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Chain & connection</h2>
+              <p className="text-sm text-gray-400">Select chain and view backend config</p>
             </div>
           </div>
-          <div className="space-y-3">
-            <div>
-              <span className="text-xs text-[#00F0FF]/80">{rpcKey}</span>
-              <code className="mt-1 block break-all rounded bg-black/40 px-3 py-2 text-sm text-[#F0F7F7]">
-                {rpcUrl ?? "(not set)"}
-              </code>
+          <div className="flex flex-wrap gap-3 mb-6">
+            {CHAINS.map((ch) => (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => setChain(ch)}
+                className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+                  chain === ch
+                    ? "bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-lg"
+                    : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-white border border-gray-600/50"
+                }`}
+              >
+                {ch}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="rounded-xl bg-gray-800/40 p-4 border border-gray-700/50">
+              <p className="text-xs font-medium uppercase tracking-wider text-cyan-400/80 mb-1">{rpcKey}</p>
+              <code className="block break-all text-sm text-gray-300 font-mono">{rpcUrl ?? "(not set)"}</code>
             </div>
-            <div>
-              <span className="text-xs text-[#00F0FF]/80">{contractKey}</span>
-              <code className="mt-1 block break-all rounded bg-black/40 px-3 py-2 text-sm text-[#F0F7F7]">
-                {contractAddress ?? "(not set)"}
-              </code>
+            <div className="rounded-xl bg-gray-800/40 p-4 border border-gray-700/50">
+              <p className="text-xs font-medium uppercase tracking-wider text-cyan-400/80 mb-1">{contractKey}</p>
+              <code className="block break-all text-sm text-gray-300 font-mono">{contractAddress ?? "(not set)"}</code>
             </div>
-            <div>
-              <span className="text-xs text-[#00F0FF]/80">BACKEND_GAME_CONTROLLER_PRIVATE_KEY</span>
-              <code className="mt-1 block break-all rounded bg-black/40 px-3 py-2 text-sm text-[#F0F7F7]">
+            <div className="rounded-xl bg-gray-800/40 p-4 border border-gray-700/50 md:col-span-2">
+              <p className="text-xs font-medium uppercase tracking-wider text-cyan-400/80 mb-1">BACKEND_GAME_CONTROLLER_PRIVATE_KEY</p>
+              <code className="block text-sm text-gray-400 font-mono">
                 {pkDisplay != null && pkDisplay !== "" ? (pkDisplay.length > 12 ? `${pkDisplay.slice(0, 6)}…${pkDisplay.slice(-4)}` : "••••••••") : "(not set)"}
               </code>
             </div>
           </div>
           {data?.connectionTest && (
-            <div className="mt-4 border-t border-[#00F0FF]/20 pt-4">
-              <span className="text-xs font-medium uppercase tracking-wider text-[#00F0FF]/80">Connection test</span>
+            <div className={`flex items-center gap-3 p-4 rounded-xl border ${data.connectionTest.ok ? "bg-emerald-900/20 border-emerald-600/40" : "bg-red-900/20 border-red-600/40"}`}>
               {data.connectionTest.ok ? (
-                <div className="mt-2 space-y-1 text-sm text-emerald-400">
-                  <p>OK — Block: {data.connectionTest.blockNumber}, Wallet: {data.connectionTest.walletAddress?.slice(0, 10)}…</p>
-                  <p>Balance: {data.connectionTest.balance} wei</p>
-                </div>
+                <>
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+                  <div className="text-sm">
+                    <p className="text-emerald-300 font-medium">Connection OK</p>
+                    <p className="text-gray-400 mt-0.5">Block #{data.connectionTest.blockNumber} · Wallet {data.connectionTest.walletAddress?.slice(0, 10)}… · Balance {data.connectionTest.balance} wei</p>
+                  </div>
+                </>
               ) : (
-                <p className="mt-2 text-sm text-red-400">{data.connectionTest.error}</p>
+                <>
+                  <AlertCircle className="w-6 h-6 text-red-400 shrink-0" />
+                  <p className="text-red-300 text-sm">{data.connectionTest.error}</p>
+                </>
               )}
             </div>
           )}
-        </div>
+        </motion.section>
 
-        <section className="rounded-xl border border-amber-500/30 bg-[#0A1A1B]/80 p-4 backdrop-blur-sm">
-          <h2 className="mb-2 font-orbitron text-lg font-semibold text-amber-400/90">Contract read functions</h2>
-          <p className="mb-4 text-xs text-[#B0BFC0]">Call read-only contract functions for chain: <strong>{chain}</strong></p>
-          <div className="space-y-4">
-            {READ_FUNCTIONS.map((spec) => (
-              <div key={spec.fn} className="rounded-lg bg-black/20 p-3">
-                <div className="flex flex-wrap items-end gap-2">
-                  <span className="font-mono text-sm text-amber-400">{spec.fn}</span>
-                  {spec.params.map((p) => (
-                    <input
-                      key={p.name}
-                      type="text"
-                      placeholder={p.placeholder}
-                      value={(paramValues[spec.fn] ?? {})[p.name] ?? ""}
-                      onChange={(e) => setParam(spec.fn, p.name, e.target.value)}
-                      className="min-w-[120px] rounded border border-[#00F0FF]/30 bg-black/40 px-2 py-1 text-sm focus:border-[#00F0FF]/60 focus:outline-none"
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => handleCall(spec.fn, spec.params, false)}
-                    className="rounded bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500"
-                  >
-                    Call
-                  </button>
-                </div>
-                {callResult?.fn === spec.fn && (
-                  <div className="mt-2 overflow-x-auto rounded bg-black/40 p-2 font-mono text-sm">
-                    {callResult.error ? (
-                      <span className="text-red-400">{callResult.error}</span>
-                    ) : (
-                      <pre className="whitespace-pre-wrap break-all text-emerald-400">
-                        {JSON.stringify(callResult.result, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+        <EscrowAdminSection />
 
-        <section className="rounded-xl border border-red-500/30 bg-[#0A1A1B]/80 p-4 backdrop-blur-sm">
-          <h2 className="mb-2 font-orbitron text-lg font-semibold text-red-400/90">Contract write functions</h2>
-          <p className="mb-4 text-xs text-amber-200/80">Sends real transactions (gas). Uses chain: <strong>{chain}</strong></p>
-          <div className="space-y-4">
-            {WRITE_FUNCTIONS.map((spec) => (
-              <div key={spec.fn} className="rounded-lg border border-amber-900/50 bg-black/20 p-3">
-                <div className="flex flex-wrap items-end gap-2">
-                  <span className="font-mono text-sm text-amber-400">{spec.fn}</span>
-                  {spec.params.map((p) => (
-                    <input
-                      key={p.name}
-                      type="text"
-                      placeholder={p.placeholder}
-                      value={(paramValues[spec.fn] ?? {})[p.name] ?? ""}
-                      onChange={(e) => setParam(spec.fn, p.name, e.target.value)}
-                      className="min-w-[120px] rounded border border-[#00F0FF]/30 bg-black/40 px-2 py-1 text-sm focus:border-[#00F0FF]/60 focus:outline-none"
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => handleCall(spec.fn, spec.params, true)}
-                    className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
-                  >
-                    Send
-                  </button>
-                </div>
-                {callResult?.fn === spec.fn && (
-                  <div className="mt-2 overflow-x-auto rounded bg-black/40 p-2 font-mono text-sm">
-                    {callResult.error ? (
-                      <span className="text-red-400">{callResult.error}</span>
-                    ) : (
-                      <pre className="whitespace-pre-wrap break-all text-emerald-400">
-                        {JSON.stringify(callResult.result, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                )}
+        {/* Tycoon read */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="rounded-2xl border border-gray-700/50 bg-gray-900/50 overflow-hidden"
+        >
+          <button
+            type="button"
+            onClick={() => setReadOpen((o) => !o)}
+            className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-800/30 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-900/40 border border-amber-500/30">
+                <Eye className="w-5 h-5 text-amber-400" />
               </div>
-            ))}
-          </div>
-        </section>
+              <div>
+                <h2 className="text-xl font-bold text-white">Tycoon read functions</h2>
+                <p className="text-sm text-gray-400">Read-only · chain: {chain}</p>
+              </div>
+            </div>
+            {readOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+          </button>
+          <AnimatePresence>
+            {readOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border-t border-gray-700/50"
+              >
+                <div className="p-6 space-y-4">
+                  {READ_FUNCTIONS.map((spec) => (
+                    <div key={spec.fn} className="rounded-xl bg-gray-800/40 p-4 border border-gray-700/50">
+                      <div className="flex flex-wrap items-end gap-2">
+                        <span className="font-mono text-sm font-medium text-amber-400/90">{spec.fn}</span>
+                        {spec.params.map((p) => (
+                          <input
+                            key={p.name}
+                            type="text"
+                            placeholder={p.placeholder}
+                            value={(paramValues[spec.fn] ?? {})[p.name] ?? ""}
+                            onChange={(e) => setParam(spec.fn, p.name, e.target.value)}
+                            className={inputClass}
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => handleCall(spec.fn, spec.params, false)}
+                          className={btnRead}
+                        >
+                          <Cpu className="w-4 h-4" /> Call
+                        </button>
+                      </div>
+                      <AnimatePresence>
+                        {callResult?.fn === spec.fn && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="mt-3 rounded-lg bg-gray-900/60 p-3 overflow-x-auto"
+                          >
+                            {callResult.error ? (
+                              <p className="text-red-400 text-sm flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                {callResult.error}
+                              </p>
+                            ) : (
+                              <pre className="font-mono text-sm text-emerald-400 whitespace-pre-wrap break-all">
+                                {JSON.stringify(callResult.result, null, 2)}
+                              </pre>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.section>
+
+        {/* Tycoon write */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="rounded-2xl border border-gray-700/50 bg-gray-900/50 overflow-hidden"
+        >
+          <button
+            type="button"
+            onClick={() => setWriteOpen((o) => !o)}
+            className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-800/30 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-900/40 border border-rose-500/30">
+                <Send className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Tycoon write functions</h2>
+                <p className="text-sm text-amber-200/80">Sends real transactions (gas) · chain: {chain}</p>
+              </div>
+            </div>
+            {writeOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+          </button>
+          <AnimatePresence>
+            {writeOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border-t border-gray-700/50"
+              >
+                <div className="p-6 space-y-4">
+                  {WRITE_FUNCTIONS.map((spec) => (
+                    <div key={spec.fn} className="rounded-xl bg-gray-800/40 p-4 border border-rose-900/30">
+                      <div className="flex flex-wrap items-end gap-2">
+                        <span className="font-mono text-sm font-medium text-rose-400/90">{spec.fn}</span>
+                        {spec.params.map((p) => (
+                          <input
+                            key={p.name}
+                            type="text"
+                            placeholder={p.placeholder}
+                            value={(paramValues[spec.fn] ?? {})[p.name] ?? ""}
+                            onChange={(e) => setParam(spec.fn, p.name, e.target.value)}
+                            className={inputClass}
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => handleCall(spec.fn, spec.params, true)}
+                          className={btnWrite}
+                        >
+                          <Send className="w-4 h-4" /> Send
+                        </button>
+                      </div>
+                      <AnimatePresence>
+                        {callResult?.fn === spec.fn && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="mt-3 rounded-lg bg-gray-900/60 p-3 overflow-x-auto"
+                          >
+                            {callResult.error ? (
+                              <p className="text-red-400 text-sm flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                {callResult.error}
+                              </p>
+                            ) : (
+                              <pre className="font-mono text-sm text-emerald-400 whitespace-pre-wrap break-all">
+                                {JSON.stringify(callResult.result, null, 2)}
+                              </pre>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.section>
       </div>
     </main>
   );

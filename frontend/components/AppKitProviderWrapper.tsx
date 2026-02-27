@@ -8,7 +8,7 @@ import { celo } from '@reown/appkit/networks';
 
 const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || '912f9a3279905a7dd417a7bf68e04209';
 
-// Celo only (Base support paused)
+// Celo only
 const wagmiAdapter = new WagmiAdapter({
   networks: [celo],
   projectId,

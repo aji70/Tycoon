@@ -2,7 +2,7 @@
 import { Address } from 'viem';
 import { celo } from 'wagmi/chains';
 
-// This frontend is Celo-only. A separate Polygon frontend uses the same backend.
+// This frontend is Celo-only.
 export const TYCOON_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO as Address,
 };
@@ -22,5 +22,9 @@ export const AI_AGENT_REGISTRY_ADDRESSES: Record<number, Address | undefined> = 
   [celo.id]: process.env.NEXT_PUBLIC_CELO_AI_REGISTRY as Address,
 };
 
-// constants/contracts.ts
-export const MINIPAY_CHAIN_IDS = [42220]; // Celo Mainnet & Alfajores
+/** Tournament escrow (entry fees + prize pool). ABI: context/abi/TycoonTournamentEscrow.json */
+export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW as Address | undefined,
+};
+
+export const MINIPAY_CHAIN_IDS = [42220]; // Celo Mainnet

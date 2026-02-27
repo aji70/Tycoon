@@ -45,7 +45,9 @@ export default function GamePlayPage() {
 
   useEffect(() => {
     const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
-    if (code && code.length === 6) setGameCode(code);
+    const trimmed = typeof code === "string" ? code.trim() : "";
+    // Accept standard 6-char codes and tournament codes (e.g. T7-R0-M0)
+    if (trimmed) setGameCode(trimmed.toUpperCase());
   }, [searchParams]);
 
   const {
@@ -82,9 +84,15 @@ export default function GamePlayPage() {
         queryClient.invalidateQueries({ queryKey: ["game_properties"] });
       }
     };
+    const onGameStarted = () => {
+      refetchGame();
+      queryClient.invalidateQueries({ queryKey: ["game_properties"] });
+    };
     socketService.onGameUpdate(onGameUpdate);
+    socketService.onGameStarted(onGameStarted);
     return () => {
       socketService.removeListener("game-update", onGameUpdate);
+      socketService.removeListener("game-started", onGameStarted);
       socketService.leaveGameRoom(gameCode);
     };
   }, [gameCode, queryClient, refetchGame]);
@@ -148,6 +156,53 @@ export default function GamePlayPage() {
   const [activeTab, setActiveTab] = useState<'board' | 'players' | 'chat'>('board');
   const [focusTrades, setFocusTrades] = useState(false);
   const [lastReadMessageCount, setLastReadMessageCount] = useState(0);
+  const [requestStartLoading, setRequestStartLoading] = useState(false);
+
+  /** Tournament: all players must click "Start now" within 30s to start the game. */
+  const READY_WINDOW_SECONDS = 30;
+  const isWaitingForStart =
+    game?.status === "PENDING" &&
+    game?.ready_window_opens_at &&
+    game?.players?.length >= (game?.number_of_players ?? 0);
+  const readyOpensAt = game?.ready_window_opens_at ? new Date(game.ready_window_opens_at).getTime() : 0;
+  const readyClosesAt = readyOpensAt + READY_WINDOW_SECONDS * 1000;
+  const [readySecondsLeft, setReadySecondsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isWaitingForStart || !readyOpensAt) {
+      setReadySecondsLeft(null);
+      return;
+    }
+    const tick = () => {
+      const now = Date.now();
+      if (now >= readyClosesAt) {
+        setReadySecondsLeft(0);
+        return;
+      }
+      setReadySecondsLeft(Math.ceil((readyClosesAt - now) / 1000));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isWaitingForStart, readyOpensAt, readyClosesAt]);
+
+  const requestStart = useCallback(async () => {
+    if (!game?.id || requestStartLoading) return;
+    setRequestStartLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse>(`/games/${game.id}/request-start`);
+      const data = res.data as { success?: boolean; started?: boolean; message?: string };
+      if (data?.started) {
+        await refetchGame();
+      }
+      if (data?.message) toast.success(data.message);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      const msg = err?.response?.data?.message || err?.message || "Failed to request start";
+      toast.error(msg);
+    } finally {
+      setRequestStartLoading(false);
+    }
+  }, [game?.id, requestStartLoading, refetchGame]);
 
   /** Backend finishes game (assigns winner) before modals show; then refetch so UI sees FINISHED. */
   const finishGameByTime = useCallback(async () => {
@@ -208,6 +263,29 @@ export default function GamePlayPage() {
 
     return (
       <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10] pt-[calc(80px+env(safe-area-inset-top,0px))]" >
+        {isWaitingForStart && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pt-[80px]">
+            <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-6 mx-4 max-w-sm text-center shadow-xl">
+              <h2 className="text-lg font-semibold text-white mb-2">All players have joined</h2>
+              <p className="text-gray-300 text-sm mb-3">
+                Click &quot;Start now&quot; to begin. All players must click within the window.
+              </p>
+              {readySecondsLeft !== null && (
+                <p className="text-cyan-400 font-mono text-xl mb-4">
+                  {readySecondsLeft > 0 ? `${readySecondsLeft}s left` : "Window closed"}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={requestStart}
+                disabled={requestStartLoading || readySecondsLeft === 0}
+                className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors"
+              >
+                {requestStartLoading ? "..." : "Start now"}
+              </button>
+            </div>
+          </div>
+        )}
         {/* Persistent countdown so finish-by-time fires even when user is on players/chat tab */}
         {game?.duration && Number(game.duration) > 0 && (
           <div className="shrink-0 flex justify-center py-2">
@@ -288,6 +366,29 @@ export default function GamePlayPage() {
 
   return game && !propertiesLoading && !gamePropertiesLoading ? (
     <main className="w-full h-screen max-h-screen overflow-hidden relative flex flex-row lg:gap-2 lg:[gap:28px]">
+      {isWaitingForStart && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-8 max-w-md text-center shadow-xl">
+            <h2 className="text-xl font-semibold text-white mb-2">All players have joined</h2>
+            <p className="text-gray-300 mb-4">
+              Click &quot;Start now&quot; to begin. All players must click within the window.
+            </p>
+            {readySecondsLeft !== null && (
+              <p className="text-cyan-400 font-mono text-2xl mb-6">
+                {readySecondsLeft > 0 ? `${readySecondsLeft}s left` : "Window closed"}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={requestStart}
+              disabled={requestStartLoading || readySecondsLeft === 0}
+              className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors"
+            >
+              {requestStartLoading ? "..." : "Start now"}
+            </button>
+          </div>
+        </div>
+      )}
       <GamePlayers
         game={game}
         properties={properties}

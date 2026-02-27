@@ -20,7 +20,7 @@ function chainIdToBackendChain(chainId: number): 'POLYGON' | 'CELO' | 'BASE' {
 }
 
 export const defaultNetwork = networks[0]
-export const appChain = chainIdToBackendChain(defaultNetwork?.id ?? 137)
+export const appChain = chainIdToBackendChain(defaultNetwork?.id ?? 42220)
 
 //Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({

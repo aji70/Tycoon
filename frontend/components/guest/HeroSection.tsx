@@ -235,6 +235,33 @@ const HeroSection: React.FC = () => {
         return;
       }
 
+      // Backend may fail with "username already exists" or "user already registered" — user is still registered on-chain; treat as success if we can load them
+      const isAlreadyExists =
+        err?.status === 409 ||
+        err?.response?.status === 409 ||
+        /already exists|already registered|username.*taken|user.*exists/i.test(err?.message ?? "");
+
+      if (isAlreadyExists) {
+        try {
+          const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
+          if (res?.success && res?.data) {
+            setUser(res.data as UserType);
+            setLocalRegistered(true);
+            setLocalUsername(finalUsername);
+            toast.update(toastId, {
+              render: "Welcome to Tycoon!",
+              type: "success",
+              isLoading: false,
+              autoClose: 4000,
+            });
+            router.refresh();
+            return;
+          }
+        } catch (_) {
+          // fall through to generic error
+        }
+      }
+
       let message = "Registration failed. Try again.";
       if (err?.shortMessage) message = err.shortMessage;
       if (err?.message?.includes("insufficient funds")) message = "Insufficient gas funds";

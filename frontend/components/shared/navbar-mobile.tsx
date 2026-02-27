@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
@@ -217,6 +217,15 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 >
                   <Trophy size={24} />
                   Leaderboard
+                </Link>
+
+                <Link
+                  href="/tournaments"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
+                >
+                  <Swords size={24} />
+                  Tournaments
                 </Link>
 
                 {isConnected && (
