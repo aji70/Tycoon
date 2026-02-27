@@ -906,13 +906,6 @@ const MobileGameLayout = ({
         showToast={showToast}
       />
 
-      {/* <CardModal
-        isOpen={showCardModal}
-        onClose={() => setShowCardModal(false)}
-        card={cardData}
-        playerName={cardPlayerName}
-      /> */}
-
       <BankruptcyModal
         isOpen={showBankruptcyModal}
         tokensAwarded={0.5}

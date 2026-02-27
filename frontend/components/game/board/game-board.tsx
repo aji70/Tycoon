@@ -438,12 +438,12 @@ const Board = ({
       </AnimatePresence>
 
       {/* Modals */}
-      {/* <CardModal
+      <CardModal
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
         card={cardData}
         playerName={cardPlayerName}
-      /> */}
+      />
 
       <BankruptcyModal
         isOpen={showBankruptcyModal}

@@ -281,11 +281,13 @@ const payRent = async (
         };
       }
 
-      // If you pass Go on a move (wrap from high to low), collect $200 (not when sent to jail)
+      // If you pass Go on a move (wrap from high to low), collect $200 (not when sent to jail).
+      // Skip when moving TO Go (position 0): "Advance to Go (Collect $200)" already credits $200, so do not add it twice.
       if (
         position !== new_position &&
         position < new_position &&
-        position !== 10
+        position !== 10 &&
+        position !== 0
       ) {
         const goBonus = 200;
         rent = {
