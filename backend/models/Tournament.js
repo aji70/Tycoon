@@ -16,8 +16,10 @@ const Tournament = {
       attempts += 1;
     }
     const { code: _c, ...rest } = data || {};
-    const [id] = await db("tournaments").insert({ ...rest, code });
-    return this.findById(id);
+    await db("tournaments").insert({ ...rest, code });
+    const created = await this.findByCode(code);
+    if (!created) throw new Error("Tournament create: failed to read back created row");
+    return created;
   },
 
   async findById(id) {
