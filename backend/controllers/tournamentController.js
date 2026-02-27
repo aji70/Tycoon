@@ -160,7 +160,8 @@ export async function requestMatchStart(req, res) {
     const matchId = req.params.matchId;
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
-    const result = await tournamentService.requestMatchStart(tournamentId, matchId, userId);
+    const preferredSymbol = req.body?.symbol ?? null;
+    const result = await tournamentService.requestMatchStart(tournamentId, matchId, userId, preferredSymbol);
     return res.json({ success: true, data: result });
   } catch (err) {
     if (err?.message?.includes("not found")) return res.status(404).json({ success: false, message: err.message });
