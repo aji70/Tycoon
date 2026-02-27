@@ -702,73 +702,47 @@ const endTime =
     fetchEndByNetWorthStatus();
   }, [currentGame?.id, isUntimed, fetchEndByNetWorthStatus, currentGame?.history?.length]);
 
-  // When any player lands on Chance/CC, show card popup for everyone
-  // COMMENTED OUT: Card modal disabled
-  // const prevHistoryLength = useRef(currentGame?.history?.length ?? 0);
-  // useEffect(() => {
-  //   const history = currentGame?.history ?? [];
-  //   if (history.length <= prevHistoryLength.current) return;
+  // When any player (human or AI) lands on Chance/CC, show card modal for everyone
+  const lastShownCardHistoryIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    const history = currentGame?.history ?? [];
+    if (history.length === 0) return;
 
-  //   // API returns history newest first (created_at desc)
-  //   // Check the new entries (recent additions) to find card draws
-  //   const newEntries = history.slice(0, history.length - prevHistoryLength.current);
-  //   prevHistoryLength.current = history.length;
+    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
+    for (const entry of history) {
+      const h = typeof entry === "object" && entry !== null ? entry as { id?: number; comment?: string; player_name?: string } : null;
+      if (!h?.comment) continue;
+      const match = h.comment.match(cardRegex);
+      if (!match || !match[2]) continue;
 
-  //   // Search through new entries to find a card draw
-  //   for (const newEntry of newEntries) {
-  //     const comment =
-  //       typeof newEntry === "string"
-  //         ? newEntry
-  //         : (newEntry as { comment?: string })?.comment ?? "";
-  //     const playerName =
-  //       typeof newEntry === "object" && newEntry !== null && "player_name" in newEntry
-  //         ? String((newEntry as { player_name?: string }).player_name ?? "Player")
-  //         : "";
+      const id = h.id ?? 0;
+      if (lastShownCardHistoryIdRef.current === id) break;
 
-  //     // Match patterns like "drew chance: ..." or "PlayerName drew Chance: ..."
-  //     // The backend format is: "drew chance: [card instruction]" or "drew community chest: [card instruction]"
-  //     // Capture everything after the colon - the card instruction text
-  //     const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
-  //     const match = comment.match(cardRegex);
-      
-  //     if (!match || !match[2]) continue; // Not a card entry or no text, check next
+      const [, typeStr, text] = match;
+      const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
+      if (!cardText) continue;
 
-  //     const [, typeStr, text] = match;
-  //     // Remove any trailing "[Rolled X]" or similar patterns, but keep the card text
-  //     const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
-  //     if (!cardText) {
-  //       console.warn("Card modal: Empty card text extracted from comment:", comment);
-  //       continue; // Empty card text, skip
-  //     }
-      
-  //     const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
-  //     const displayName = playerName.trim() || "Player";
+      lastShownCardHistoryIdRef.current = id;
+      const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+      const lowerText = cardText.toLowerCase();
+      const isGood =
+        lowerText.includes("collect") ||
+        lowerText.includes("receive") ||
+        lowerText.includes("advance") ||
+        lowerText.includes("get out of jail") ||
+        lowerText.includes("matures") ||
+        lowerText.includes("refund") ||
+        lowerText.includes("prize") ||
+        lowerText.includes("inherit");
+      const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+      const effect = effectMatch ? effectMatch[0] : undefined;
 
-  //     const lowerText = cardText.toLowerCase();
-  //     const isGood =
-  //       lowerText.includes("collect") ||
-  //       lowerText.includes("receive") ||
-  //       lowerText.includes("advance") ||
-  //       lowerText.includes("get out of jail") ||
-  //       lowerText.includes("matures") ||
-  //       lowerText.includes("refund") ||
-  //       lowerText.includes("prize") ||
-  //       lowerText.includes("inherit");
-
-  //     const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
-  //     const effect = effectMatch ? effectMatch[0] : undefined;
-
-  //     console.log("Card modal: Setting card data:", { type, text: cardText, effect, isGood, playerName: displayName });
-  //     setCardData({ type, text: cardText, effect, isGood });
-  //     setCardPlayerName(displayName);
-  //     setShowCardModal(true);
-
-  //     // Extended timer to account for two-stage animation:
-  //     // Stage 1: "drew" message (7 seconds) + Stage 2: card content (8 seconds) = 15 seconds total
-  //     const timer = setTimeout(() => setShowCardModal(false), 15000);
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [currentGame?.history]);
+      setCardData({ type, text: cardText, effect, isGood });
+      setCardPlayerName(String(h.player_name ?? "").trim() || "Player");
+      setShowCardModal(true);
+      break;
+    }
+  }, [currentGame?.history]);
 
   useMobileAiLogic({
     game,
