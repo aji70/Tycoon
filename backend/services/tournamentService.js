@@ -823,7 +823,7 @@ export async function requestMatchStart(tournamentId, matchId, userId) {
   if (match.status === "BYE" || match.status === "COMPLETED") throw new Error("Match not available");
   if (match.game_id) {
     const game = await Game.findById(match.game_id);
-    return { game_id: match.game_id, code: game?.code, redirect_url: `/game-play?gameCode=${game?.code || ""}` };
+    return { game_id: match.game_id, code: game?.code, redirect_url: `/game-waiting?gameCode=${game?.code || ""}` };
   }
 
   const entryIds = getMatchEntryIds(match);
@@ -875,7 +875,7 @@ export async function requestMatchStart(tournamentId, matchId, userId) {
       return {
         game_id: updated.game_id,
         code: game?.code,
-        redirect_url: `/game-play?gameCode=${game?.code || ""}`,
+        redirect_url: `/game-waiting?gameCode=${game?.code || ""}`,
       };
     } catch (err) {
       logger.error({ err: err?.message, matchId }, "requestMatchStart createMatchGame failed");
