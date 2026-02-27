@@ -38,6 +38,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 
 interface GameCreateResponse {
   data?: {
@@ -116,6 +117,8 @@ export default function CreateGameMobile() {
     BigInt(settings.startingCash),
     stakeAmount
   );
+
+  const playGuard = usePreventDoubleSubmit();
 
   const handleStakeSelect = (value: number) => {
     if (isFreeGame) return;
@@ -528,8 +531,8 @@ export default function CreateGameMobile() {
         {/* CREATE BUTTON */}
         <div className="pt-4 pb-6">
           <button
-            onClick={handlePlay}
-            disabled={!canCreate || isStarting || (!isGuest && (isCreatePending || approvePending || approveConfirming))}
+            onClick={() => playGuard.submit(() => handlePlay())}
+            disabled={!canCreate || playGuard.isSubmitting || isStarting || (!isGuest && (isCreatePending || approvePending || approveConfirming))}
             className="w-full py-4 text-lg font-orbitron font-bold tracking-wide
                        bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
                        hover:brightness-110 active:scale-[0.98]

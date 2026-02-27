@@ -38,6 +38,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, MINIPAY_CHAIN_IDS } from "@/constants/contracts";
 import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 
 interface GameCreateResponse {
   data?: {
@@ -114,6 +115,8 @@ export default function GameSettings() {
     BigInt(settings.startingCash),
     stakeAmount
   );
+
+  const playGuard = usePreventDoubleSubmit();
 
   const handleStakeSelect = (value: number) => {
     if (isFreeGame) return;
@@ -523,8 +526,8 @@ export default function GameSettings() {
         {/* Create Button */}
         <div className="flex justify-center mt-12">
           <button
-            onClick={handlePlay}
-            disabled={!canCreate || (!isGuest && (isCreatePending || ((approvePending || approveConfirming) && !isFreeGame)))}
+            onClick={() => playGuard.submit(() => handlePlay())}
+            disabled={!canCreate || playGuard.isSubmitting || (!isGuest && (isCreatePending || ((approvePending || approveConfirming) && !isFreeGame)))}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
                        bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]
                        rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
@@ -532,7 +535,9 @@ export default function GameSettings() {
                        border-4 border-[#00F0FF]/40"
           >
             <span className="relative z-10 drop-shadow-lg">
-              {approvePending || approveConfirming
+              {playGuard.isSubmitting
+                ? "CREATING..."
+                : approvePending || approveConfirming
                 ? "APPROVING..."
                 : isCreatePending
                 ? "CREATING..."

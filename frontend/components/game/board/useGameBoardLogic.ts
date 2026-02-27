@@ -22,6 +22,7 @@ import {
   MONOPOLY_STATS,
 } from "../constants";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 
 /** Convert dice total (2–12) to die1+die2 for display when we only have the total (e.g. opponent's roll from API). */
@@ -90,6 +91,9 @@ export function useGameBoardLogic({
   const landedPositionThisTurn = useRef<number | null>(null);
   const [landedPosition, setLandedPosition] = useState<number | null>(null);
   const turnEndInProgress = useRef(false);
+  const buyGuard = usePreventDoubleSubmit();
+  const jailGuard = usePreventDoubleSubmit();
+  const voteEndByNetWorthGuard = usePreventDoubleSubmit();
   const lastToastMessage = useRef<string | null>(null);
   const recordTimeoutCalledForTurn = useRef<number | null>(null);
   const timeLeftFrozenAtRollRef = useRef<number | null>(null);
@@ -992,7 +996,8 @@ export function useGameBoardLogic({
     developmentStage,
     isPropertyMortgaged,
     handleRollDice: () => ROLL_DICE(),
-    handleBuyProperty: () => BUY_PROPERTY(),
+    handleBuyProperty: () => buyGuard.submit(() => BUY_PROPERTY()),
+    buyPending: buyGuard.isSubmitting,
     handleSkipBuy,
     handleBankruptcy,
     handleDevelopment,
@@ -1014,8 +1019,9 @@ export function useGameBoardLogic({
     fetchVoteStatus,
     isUntimed,
     endByNetWorthStatus,
-    voteEndByNetWorth,
+    voteEndByNetWorth: () => voteEndByNetWorthGuard.submit(() => voteEndByNetWorth()),
     endByNetWorthLoading,
+    voteEndByNetWorthSubmitting: voteEndByNetWorthGuard.isSubmitting,
     turnEndScheduled,
     touchActivity,
     timeoutPopupPlayer,
@@ -1029,8 +1035,9 @@ export function useGameBoardLogic({
     canPayToLeaveJail,
     hasChanceJailCard,
     hasCommunityChestJailCard,
-    payToLeaveJail,
-    useGetOutOfJailFree,
-    stayInJail,
+    payToLeaveJail: () => jailGuard.submit(() => payToLeaveJail()),
+    useGetOutOfJailFree: (cardType: "chance" | "community_chest") => jailGuard.submit(() => useGetOutOfJailFree(cardType)),
+    stayInJail: () => jailGuard.submit(() => stayInJail()),
+    jailSubmitting: jailGuard.isSubmitting,
   };
 }

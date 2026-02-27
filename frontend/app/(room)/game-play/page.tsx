@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { useAccount } from "wagmi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -217,6 +218,9 @@ export default function GamePlayPage() {
     }
   }, [game?.id, game?.status, refetchGame]);
 
+  const finishByTimeGuard = usePreventDoubleSubmit();
+  const onFinishByTime = useCallback(() => finishByTimeGuard.submit(() => finishGameByTime()), [finishGameByTime, finishByTimeGuard]);
+
   const gameId = game?.code ?? game?.id ?? "";
   const { data: messages = [] } = useQuery({
     queryKey: ["messages", gameId],
@@ -289,7 +293,7 @@ export default function GamePlayPage() {
         {/* Persistent countdown so finish-by-time fires even when user is on players/chat tab */}
         {game?.duration && Number(game.duration) > 0 && (
           <div className="shrink-0 flex justify-center py-2">
-            <GameDurationCountdown game={game} compact onTimeUp={finishGameByTime} />
+            <GameDurationCountdown game={game} compact onTimeUp={onFinishByTime} />
           </div>
         )}
         <div className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} ${activeTab !== 'chat' ? 'pb-20' : ''}`}>
@@ -301,7 +305,7 @@ export default function GamePlayPage() {
               me={me}
               myAddress={myAddress ?? undefined}
               onGameUpdated={() => refetchGame()}
-              onFinishByTime={finishGameByTime}
+              onFinishByTime={onFinishByTime}
               onViewTrades={() => {
                 setActiveTab('players');
                 setFocusTrades(true);
@@ -404,7 +408,7 @@ export default function GamePlayPage() {
           game_properties={game_properties}
           me={me}
           onGameUpdated={() => refetchGame()}
-          onFinishByTime={finishGameByTime}
+          onFinishByTime={onFinishByTime}
         />
       </div>
       <GameRoom game={game} me={me} />

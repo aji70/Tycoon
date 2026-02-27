@@ -34,6 +34,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, Crown, Trophy, Wallet, HeartHandshake } from "lucide-react";
 import { usePropertyActions } from "@/hooks/usePropertyActions";
 import { useGameTrades } from "@/hooks/useGameTrades";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import TradeAlertPill from "../TradeAlertPill";
 import { GameDurationCountdown } from "../GameDurationCountdown";
 
@@ -273,6 +274,9 @@ const {
   BigInt(endGameCandidate.balance),
   endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
 );
+
+  const buyGuard = usePreventDoubleSubmit();
+  const jailGuard = usePreventDoubleSubmit();
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;
@@ -1470,7 +1474,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
 
   const handleRollDice = () => ROLL_DICE(false);
-  const handleBuyProperty = () => BUY_PROPERTY(false);
+  const handleBuyProperty = () => buyGuard.submit(() => BUY_PROPERTY(false));
   const handleSkipBuy = () => {
     setTurnEndScheduled(true);
     setBuyPrompted(false);
@@ -1547,7 +1551,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onBuyProperty={handleBuyProperty}
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
-              isPending={false}
+              isPending={endGamePending}
+              buyPending={buyGuard.isSubmitting}
+              jailSubmitting={jailGuard.isSubmitting}
               timerSlot={game?.duration && Number(game.duration) > 0 ? (
                 <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
               ) : null}
@@ -1557,9 +1563,9 @@ const endTurnAfterSpecialMove = useCallback(() => {
               canPayToLeaveJail={canPayToLeaveJail}
               hasChanceJailCard={hasChanceJailCard}
               hasCommunityChestJailCard={hasCommunityChestJailCard}
-              onPayToLeaveJail={handlePayToLeaveJail}
-              onUseGetOutOfJailFree={handleUseGetOutOfJailFree}
-              onStayInJail={handleStayInJail}
+              onPayToLeaveJail={() => jailGuard.submit(() => handlePayToLeaveJail())}
+              onUseGetOutOfJailFree={(cardType) => jailGuard.submit(() => handleUseGetOutOfJailFree(cardType))}
+              onStayInJail={() => jailGuard.submit(() => handleStayInJail())}
               turnEndScheduled={turnEndScheduled}
               isUntimed={isUntimed}
               endByNetWorthStatus={endByNetWorthStatus}
