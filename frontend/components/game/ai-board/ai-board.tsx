@@ -47,7 +47,7 @@ function totalToDice(total: number): { die1: number; die2: number; total: number
 }
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { isAIPlayer } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
 
 const calculateBuyScore = (
   property: Property,
@@ -1201,21 +1201,101 @@ const endTurnAfterSpecialMove = useCallback(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty || buyScore === null) return;
 
     const timer = setTimeout(async () => {
-      const shouldBuy =
-        buyScore >= 72 &&
-        (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
+      const slot = getAiSlotFromPlayer(currentPlayer);
+      const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids) =>
+        ids.includes(justLandedProperty.id)
+      ) ?? [];
+      const ownedInGroup = groupIds.filter((id) =>
+        game_properties.some(
+          (gp) => gp.property_id === id && gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
+        )
+      ).length;
+      const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+      const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
+
+      let shouldBuy: boolean;
+      try {
+        const agentRes = await apiClient.post<{
+          success?: boolean;
+          data?: { action?: string; reasoning?: string };
+          useBuiltIn?: boolean;
+        }>("/agent-registry/decision", {
+          gameId: game.id,
+          slot: slot ?? 2,
+          decisionType: "property",
+          context: {
+            myBalance: currentPlayer.balance ?? 0,
+            myProperties: game_properties
+              .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
+              .map((gp) => ({
+                ...properties.find((p) => p.id === gp.property_id),
+                ...gp,
+              })),
+            opponents: (game.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
+            landedProperty: {
+              ...justLandedProperty,
+              completesMonopoly,
+              landingRank,
+            },
+          },
+        });
+        if (
+          agentRes?.data?.success &&
+          agentRes.data.useBuiltIn === false &&
+          agentRes.data.data?.action
+        ) {
+          shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
+          if (agentRes.data.data.reasoning) {
+            showToast(
+              shouldBuy
+                ? `AI bought ${justLandedProperty.name}: ${agentRes.data.data.reasoning}`
+                : `AI passed on ${justLandedProperty.name}: ${agentRes.data.data.reasoning}`,
+              shouldBuy ? "success" : "default"
+            );
+          }
+        } else {
+          shouldBuy =
+            buyScore >= 72 &&
+            (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
+          if (shouldBuy) {
+            showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
+          } else {
+            showToast(`AI passed on ${justLandedProperty.name} (score: ${buyScore}%)`, "default");
+          }
+        }
+      } catch (_) {
+        shouldBuy =
+          buyScore >= 72 &&
+          (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
+        if (shouldBuy) {
+          showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
+        } else {
+          showToast(`AI passed on ${justLandedProperty.name} (score: ${buyScore}%)`, "default");
+        }
+      }
 
       if (shouldBuy) {
-        showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
         await BUY_PROPERTY(true);
       } else {
-        showToast(`AI passed on ${justLandedProperty.name} (score: ${buyScore}%)`, "default");
         setTimeout(END_TURN, 900);
       }
     }, 900);
 
     return () => clearTimeout(timer);
-  }, [isAITurn, buyPrompted, currentPlayer, justLandedProperty, buyScore, BUY_PROPERTY, END_TURN, showToast]);
+  }, [
+    isAITurn,
+    buyPrompted,
+    currentPlayer,
+    justLandedProperty,
+    buyScore,
+    BUY_PROPERTY,
+    END_TURN,
+    showToast,
+    game.id,
+    game.players,
+    game_properties,
+    properties,
+  ]);
 
   useEffect(() => {
     if (actionLock || isRolling || buyPrompted || !roll) return;
