@@ -2,3 +2,17 @@
 PokerBot-main/
 pokerbot-main/
 payCrypt_v2-master/
+
+# --- Sensitive / secrets (do not commit) ---
+.env
+.env.*
+!.env.example
+*.env.local
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+*.pem
+**/secrets/
+**/.secrets

@@ -22,7 +22,7 @@ import { apiClient } from "@/lib/api";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode, useGiveERC8004Feedback } from "@/context/ContractProvider";
 import { useChainId } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
@@ -247,7 +247,11 @@ const {
   BigInt(endGameCandidate.balance),
   endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
 );
-  
+
+const { giveFeedback: giveERC8004Feedback } = useGiveERC8004Feedback();
+const erc8004AgentId = typeof process.env.NEXT_PUBLIC_ERC8004_AGENT_ID !== "undefined" && process.env.NEXT_PUBLIC_ERC8004_AGENT_ID !== ""
+  ? BigInt(process.env.NEXT_PUBLIC_ERC8004_AGENT_ID)
+  : null;
 
   const buyScore = useMemo(() => {
     if (!isAITurn || !buyPrompted || !currentPlayer || !justLandedProperty) return null;
@@ -331,13 +335,20 @@ const {
         }
       }
       toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      if (erc8004AgentId != null && chainId === CELO_CHAIN_ID) {
+        try {
+          await giveERC8004Feedback(erc8004AgentId, isHumanWinner ? 0 : 100);
+        } catch (_) {
+          // ERC-8004 feedback is best-effort; don't block or annoy user
+        }
+      }
       // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
     } finally {
       endGameReset();
     }
-  }, [winner?.user_id, me?.user_id, onFinishGameByTime, endGame, endGameReset, contractGame, chainId, openAppKit]);
+  }, [winner?.user_id, me?.user_id, onFinishGameByTime, endGame, endGameReset, contractGame, chainId, openAppKit, erc8004AgentId, giveERC8004Feedback]);
 
   const handleClaimAndGoHome = useCallback(async () => {
     setClaimAndLeaveInProgress(true);
@@ -368,6 +379,13 @@ const {
         }
       }
       toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      if (erc8004AgentId != null && chainId === CELO_CHAIN_ID) {
+        try {
+          await giveERC8004Feedback(erc8004AgentId, isHumanWinner ? 0 : 100);
+        } catch (_) {
+          // ERC-8004 feedback is best-effort
+        }
+      }
       window.location.href = "/";
     } catch (err: any) {
       toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
@@ -375,7 +393,7 @@ const {
     } finally {
       endGameReset();
     }
-  }, [winner?.user_id, me?.user_id, isGuest, onFinishGameByTime, endGame, endGameReset, contractGame, chainId, openAppKit]);
+  }, [winner?.user_id, me?.user_id, isGuest, onFinishGameByTime, endGame, endGameReset, contractGame, chainId, openAppKit, erc8004AgentId, giveERC8004Feedback]);
 
   // Sync players
   useEffect(() => {

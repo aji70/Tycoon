@@ -85,6 +85,18 @@ Host the file at an HTTPS or IPFS URL and set that as the token’s `agentURI` i
 - **Sybil:** Reputation can be gamed by many accounts. The spec suggests filtering by reviewer (e.g. `clientAddresses`) and building off-chain aggregation; we use `tag1 = "tycoon"` so Tycoon-specific reputation can be queried and weighted by your own logic (e.g. only count feedback from accounts with many games).
 - **Optional:** If registries are not set in Tycoon, behavior is unchanged; no extra gas or dependency.
 
+## Implemented: Reputation feedback after AI game
+
+- **Frontend:** When a human claims (endAIGame) after an AI game, the app calls the ERC-8004 Reputation Registry `giveFeedback(agentId, score, 0, "tycoon", "gameResult", "", "", 0)` if `NEXT_PUBLIC_ERC8004_AGENT_ID` is set and the wallet is on Celo. Score: 100 if the human lost (AI was strong), 0 if the human won.
+- **Hook:** `useGiveERC8004Feedback()` in `ContractProvider`; used in desktop ai-board and mobile game-modals.
+- **Constants:** `ERC8004_REPUTATION_REGISTRY_ADDRESSES` in `frontend/constants/contracts.ts` (Celo mainnet default: `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63`).
+
+## One-time: Register your agent (Identity Registry)
+
+1. Create a registration JSON (see `backend/scripts/tycoon-ai-registration.example.json`), host it at a public URL or IPFS.
+2. Run: `AGENT_URI="https://..." CELO_RPC_URL="https://rpc.ankr.com/celo" ERC8004_REGISTRANT_PRIVATE_KEY="0x..." node backend/scripts/register-erc8004-agent.js`
+3. Set the printed `agentId` in the frontend as `NEXT_PUBLIC_ERC8004_AGENT_ID`.
+
 ## Summary
 
 - **Identity:** Each Tycoon AI slot (2–8) can map to one ERC-8004 agentId (ERC-721 NFT) on Celo, giving a persistent, discoverable identity.  

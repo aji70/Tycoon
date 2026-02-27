@@ -13,8 +13,9 @@ import { Address } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES } from '@/constants/contracts';
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
+import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -512,6 +513,34 @@ export function useRegisteredAIAgents() {
     isLoading: isLoadingIds || isLoadingAgents,
     isSupported: !!registryAddress,
   };
+}
+
+/**
+ * Submit reputation feedback for an ERC-8004 agent after an AI game.
+ * Call after endAIGame (claim) succeeds. Human's wallet pays gas on Celo.
+ * Requires NEXT_PUBLIC_ERC8004_AGENT_ID to be set; no-op if not set or not on Celo.
+ */
+export function useGiveERC8004Feedback() {
+  const chainId = useChainId();
+  const registryAddress = ERC8004_REPUTATION_REGISTRY_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, reset } = useWriteContract();
+
+  const giveFeedback = useCallback(
+    async (agentId: bigint | number, score: number) => {
+      if (!registryAddress) return;
+      const id = typeof agentId === 'number' ? BigInt(agentId) : agentId;
+      // giveFeedback(agentId, value int128, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash)
+      await writeContractAsync({
+        address: registryAddress,
+        abi: ERC8004ReputationABI as never,
+        functionName: 'giveFeedback',
+        args: [id, BigInt(score), 0, 'tycoon', 'gameResult', '', '', '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`],
+      });
+    },
+    [writeContractAsync, registryAddress]
+  );
+
+  return { giveFeedback, isPending, error: writeError, reset };
 }
 
 export function useExitGame(gameId: bigint) {
