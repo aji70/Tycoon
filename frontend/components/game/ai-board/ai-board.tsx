@@ -148,6 +148,30 @@ const AiBoard = ({
   const [isSpecialMove, setIsSpecialMove] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
 
+  const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on";
+  const [aiTipsOn, setAiTipsOn] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(AI_TIPS_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [aiTipText, setAiTipText] = useState<string | null>(null);
+  const [aiTipLoading, setAiTipLoading] = useState(false);
+  const lastTipPropertyIdRef = useRef<number | null>(null);
+
+  const toggleAiTips = useCallback(() => {
+    setAiTipsOn((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(AI_TIPS_STORAGE_KEY, String(next));
+      } catch {}
+      if (!next) setAiTipText(null);
+      return next;
+    });
+  }, []);
+
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{
     type: "chance" | "community";
@@ -1153,6 +1177,61 @@ const endTurnAfterSpecialMove = useCallback(() => {
     showToast
   ]);
 
+  useEffect(() => {
+    if (!buyPrompted) {
+      setAiTipText(null);
+      lastTipPropertyIdRef.current = null;
+    }
+  }, [buyPrompted]);
+
+  useEffect(() => {
+    if (!aiTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !currentPlayer || currentPlayer?.user_id !== me?.user_id) return;
+    const propId = justLandedProperty.id;
+    if (lastTipPropertyIdRef.current === propId) return;
+    lastTipPropertyIdRef.current = propId;
+    setAiTipLoading(true);
+    const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
+    const ownedInGroup = groupIds.filter((id) =>
+      game_properties.some(
+        (gp) => gp.property_id === id && gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
+      )
+    ).length;
+    const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+    const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
+    apiClient
+      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean }>("/agent-registry/decision", {
+        gameId: game.id,
+        slot: 1,
+        decisionType: "tip",
+        context: {
+          myBalance: currentPlayer.balance ?? 0,
+          myProperties: game_properties
+            .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (game.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
+          situation: "buy_property",
+          property: { ...justLandedProperty, completesMonopoly, landingRank },
+        },
+      })
+      .then((res) => {
+        const text = res?.data?.data?.reasoning ?? null;
+        if (text) setAiTipText(text);
+      })
+      .catch(() => setAiTipText(null))
+      .finally(() => setAiTipLoading(false));
+  }, [
+    aiTipsOn,
+    isMyTurn,
+    buyPrompted,
+    justLandedProperty,
+    currentPlayer,
+    me?.user_id,
+    game.id,
+    game.players,
+    game_properties,
+    properties,
+  ]);
+
   // COMMENTED OUT: Card modal disabled
   // useEffect(() => {
   //   const history = game.history ?? [];
@@ -1415,6 +1494,8 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const handleSkipBuy = () => {
     setTurnEndScheduled(true);
     setBuyPrompted(false);
+    setAiTipText(null);
+    lastTipPropertyIdRef.current = null;
     landedPositionThisTurn.current = null;
     setTimeout(END_TURN, 900);
   };
@@ -1505,6 +1586,10 @@ const endTurnAfterSpecialMove = useCallback(() => {
               endByNetWorthLoading={endByNetWorthLoading}
               onVoteEndByNetWorth={voteEndByNetWorth}
               me={me}
+              aiTipsOn={aiTipsOn}
+              onToggleAiTips={toggleAiTips}
+              aiTipText={aiTipText}
+              aiTipLoading={aiTipLoading}
             />
 
             {properties.map((square) => {
