@@ -14,7 +14,8 @@
         "migrate:status": "knex migrate:status",
         "seed": "knex seed:run",
         "seed:make": "knex seed:make",
-        "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run"
+        "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
+    "register-erc8004-agent": "node -r dotenv/config scripts/register-erc8004-agent.js"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.78.0",

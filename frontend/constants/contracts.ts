@@ -28,3 +28,9 @@ export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = 
 };
 
 export const MINIPAY_CHAIN_IDS = [42220]; // Celo Mainnet
+
+/** ERC-8004 Agent Trust Protocol (Celo). See https://docs.celo.org/build-on-celo/build-with-ai/8004 */
+export const ERC8004_REPUTATION_REGISTRY_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: (process.env.NEXT_PUBLIC_ERC8004_REPUTATION as Address) || ('0x8004BAa17C55a88189AE136b182e5fdA19dE9b63' as Address),
+};
+export const ERC8004_IDENTITY_REGISTRY_ADDRESS = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as Address;

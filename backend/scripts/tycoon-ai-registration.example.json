@@ -1,0 +1,9 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Tycoon AI",
+  "description": "Monopoly-style AI opponent on Tycoon. Play against an agent that evaluates game state and makes strategic decisions.",
+  "image": "",
+  "active": true,
+  "services": [],
+  "supportedTrust": ["reputation"]
+}
