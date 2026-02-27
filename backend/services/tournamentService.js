@@ -98,8 +98,10 @@ export async function registerPlayer(tournamentId, { userId, address, chain }, p
     if (!user) throw new Error("User not found");
   } else if (address) {
     user = await User.resolveUserByAddress(address, normalizedChain);
-    // Wallet-only users who completed on-chain registration: create minimal user
-    if (!user && paymentTxHash) {
+    // Wallet-only or guest without prior User: create minimal user when we have proof
+    // (paymentTxHash = paid on-chain; or free tournament = backend will call registerForTournamentFor)
+    const isFree = Number(tournament.entry_fee_wei) === 0;
+    if (!user && (paymentTxHash || isFree)) {
       try {
         const addr = String(address).trim();
         user = await User.create({ address: addr, username: addr, chain: normalizedChain });
