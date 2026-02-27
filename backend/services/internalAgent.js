@@ -180,11 +180,52 @@ Respond ONLY with JSON:
 }`;
 }
 
+function buildTipPrompt(context) {
+  const { myBalance = 0, myProperties = [], opponents = [], situation = "buy_property", property: landedProperty = {} } = context;
+  const monopolies = getMonopolies(myProperties || []);
+  if (situation === "buy_property" && landedProperty && Object.keys(landedProperty).length > 0) {
+    return `You are helping a human Monopoly player. They just landed on a property and must decide whether to buy or skip.
+
+PROPERTY: ${landedProperty.name ?? "Unknown"}
+- Price: $${landedProperty.price ?? 0}
+- Color: ${landedProperty.color ?? "—"}
+- Would complete a monopoly for them: ${landedProperty.completesMonopoly ? "YES" : "No"}
+- Landing frequency rank: #${landedProperty.landingRank ?? "?"} (lower = more landed on)
+
+THEIR STATUS:
+- Balance: $${myBalance}
+- After buying: $${myBalance - (landedProperty.price || 0)}
+- Properties owned: ${(myProperties || []).length}
+- Complete monopolies: ${monopolies.join(", ") || "None"}
+
+OPPONENTS:
+${(opponents || []).map((o) => `- ${o.username ?? "Opponent"}: $${o.balance ?? 0}`).join("\n")}
+
+Give ONE short, friendly tactical tip (1–2 sentences) to help them decide. Don't be patronizing. Do not tell them to "buy" or "skip" explicitly unless it's clear—focus on the reasoning (e.g. "Completes your orange set" or "Keep cash for rent"). Output ONLY valid JSON:
+{
+  "action": "ok",
+  "reasoning": "your tip text here"
+}`;
+  }
+  return `You are helping a human Monopoly player during their turn.
+
+THEIR STATUS:
+- Balance: $${myBalance}
+- Properties: ${(myProperties || []).length}
+- Monopolies: ${monopolies.join(", ") || "None"}
+
+Give ONE short, friendly tip (1 sentence) for their situation. Be encouraging. Output ONLY valid JSON:
+{
+  "action": "ok",
+  "reasoning": "your tip text here"
+}`;
+}
+
 /**
  * Get a decision from the internal LLM agent.
  * @param {number} gameId
  * @param {number} slot
- * @param {string} decisionType - "property" | "trade" | "building" | "strategy"
+ * @param {string} decisionType - "property" | "trade" | "building" | "strategy" | "tip"
  * @param {object} context - game context (myBalance, myProperties, opponents, landedProperty, tradeOffer, gameState, etc.)
  * @returns {Promise<{ action: string, propertyId?: number, reasoning?: string, confidence?: number } | null>}
  */
@@ -214,6 +255,10 @@ async function getDecision(gameId, slot, decisionType, context) {
     case "strategy":
       prompt = buildStrategyPrompt(context);
       fallback = { action: "roll", reasoning: "No API", confidence: 0 };
+      break;
+    case "tip":
+      prompt = buildTipPrompt(context);
+      fallback = { action: "ok", reasoning: "Consider cash flow and completing color sets." };
       break;
     default:
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
