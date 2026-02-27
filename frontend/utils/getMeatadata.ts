@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
 const baseUrl = isProduction
-  ? "https://blockopoly.vercel.app/"
+  ? "https://base-monopoly.vercel.app/"
   : `http://localhost:${process.env.PORT || 3000}`;
 
 const titleTemplate = "%s | Decentralized Monopoly Game";
@@ -29,11 +29,11 @@ export const getMetadata = ({
   const imageUrl = `${baseUrl}${imageRelativePath}`;
 
   return {
-    generator: "Blockopoly",
-    applicationName: "Blockopoly",
+    generator: "Tycoon",
+    applicationName: "Tycoon",
     referrer: "origin-when-cross-origin",
     keywords: [
-      "blockopoly",
+      "tycoon",
       "monopoly",
       "onchain game",
       "starknet",
@@ -47,8 +47,8 @@ export const getMetadata = ({
       "buy sell trade properties",
       "onchain monopoly game",
     ],
-    creator: "Blockopoly Team",
-    publisher: "SignorDev",
+    creator: "Tycoon Team",
+    publisher: "Ajidokwu",
     metadataBase: new URL(baseUrl),
     manifest: `${baseUrl}/manifest.json`,
     alternates: {
@@ -78,17 +78,17 @@ export const getMetadata = ({
         template: titleTemplate,
       },
       description:
-        "Blockopoly is a fully on-chain, decentralized version of the classic Monopoly game, built on Starknet using Dojo. This version leverages ZK-Rollups for scalability and Cairo smart contracts to ensure a seamless, trustless gaming experience. Players can buy, sell, and trade digital properties securely, with game logic enforced entirely on-chain.",
+        "Tycoon is a fully on-chain, decentralized version of the classic Monopoly game, built on Starknet using Dojo. This version leverages ZK-Rollups for scalability and Cairo smart contracts to ensure a seamless, trustless gaming experience. Players can buy, sell, and trade digital properties securely, with game logic enforced entirely on-chain.",
       images: [
         {
           url: imageUrl,
-          alt: "Blockopoly - Monopoly Game Onchain",
+          alt: "Tycoon - Monopoly Game Onchain",
         },
       ],
       type: "website",
-      siteName: "Blockopoly",
+      siteName: "Tycoon",
       locale: "en_US",
-      url: "https://blockopoly.vercel.app/",
+      url: "https://base-monopoly.vercel.app/",
     },
     twitter: {
       card: "summary_large_image", // Ensures Twitter uses a large image for the preview
@@ -97,12 +97,12 @@ export const getMetadata = ({
         template: titleTemplate,
       },
       description:
-        "Blockopoly is a fully on-chain, decentralized version of the classic Monopoly game, built on Starknet using Dojo. This version leverages ZK-Rollups for scalability and Cairo smart contracts to ensure a seamless, trustless gaming experience. Players can buy, sell, and trade digital properties securely, with game logic enforced entirely on-chain. #Starknet #Dojo #Blockopoly #OnchainGames #Cartridge",
-      creator: "@Blockopoly",
+        "Tycoon is a fully on-chain, decentralized version of the classic Monopoly game, built on Starknet using Dojo. This version leverages ZK-Rollups for scalability and Cairo smart contracts to ensure a seamless, trustless gaming experience. Players can buy, sell, and trade digital properties securely, with game logic enforced entirely on-chain. #Starknet #Dojo #Tycoon #OnchainGames #Cartridge",
+      creator: "@Tycoon",
       images: [
         {
           url: imageUrl,
-          alt: "Blockopoly - Monopoly Game Onchain",
+          alt: "Tycoon - Monopoly Game Onchain",
         },
       ],
     },
