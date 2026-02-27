@@ -1,10 +1,15 @@
 /**
  * Celo Agent Registry & Decision Adapter
  * Optional overlay: when an AI slot is backed by a registered agent, we ask it for decisions;
- * otherwise existing built-in logic is used (no functions discarded).
+ * otherwise for AI games we use the internal LLM agent (assess state, think, decide); if that
+ * is disabled or fails, existing built-in logic is used.
  */
 
+import Game from "../models/Game.js";
+import internalAgent from "./internalAgent.js";
+
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
+const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
 
 // In-memory: slot -> { agentId, callbackUrl, chainId?, name? }
 // Keys: "slot_2", "slot_3", ... or "game_123_slot_2" for game-specific binding
@@ -62,6 +67,7 @@ function getAgentForSlot(gameId, slot) {
 
 /**
  * Ask the agent for a decision. Returns decision object or null (use built-in logic).
+ * Order: 1) registered external agent, 2) internal LLM agent for AI games, 3) null → built-in rules.
  * @param {number} gameId
  * @param {number} slot - AI slot 2-8
  * @param {string} decisionType - "property" | "trade" | "building" | "strategy"
@@ -71,7 +77,8 @@ function getAgentForSlot(gameId, slot) {
 async function getAIDecision(gameId, slot, decisionType, context) {
   const agent = getAgentForSlot(gameId, slot);
   console.log("[agentRegistry] getAIDecision:", { gameId, slot, hasAgent: !!agent, agentUrl: agent?.callbackUrl });
-  if (!agent) return null;
+
+  if (agent) {
 
   const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const deadline = new Date(Date.now() + AGENT_REQUEST_TIMEOUT_MS).toISOString();
@@ -118,6 +125,30 @@ async function getAIDecision(gameId, slot, decisionType, context) {
     console.error("[agentRegistry] Agent decision request failed:", err.message);
     return null;
   }
+  }
+
+  // No external agent: use internal LLM agent for AI games (one logical agent per game)
+  if (USE_INTERNAL_AGENT) {
+    try {
+      const game = await Game.findById(Number(gameId));
+      if (game && game.is_ai) {
+        const decision = await internalAgent.getDecision(
+          Number(gameId),
+          Number(slot),
+          decisionType,
+          context || {}
+        );
+        if (decision) {
+          console.log("[agentRegistry] Using internal AI agent for game", gameId);
+          return decision;
+        }
+      }
+    } catch (err) {
+      console.warn("[agentRegistry] Internal agent fallback failed:", err.message);
+    }
+  }
+
+  return null;
 }
 
 export default {

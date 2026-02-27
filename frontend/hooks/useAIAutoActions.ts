@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import { ApiResponse } from "@/types/api";
+import { getAiSlotFromPlayer } from "@/utils/gameUtils";
 
 interface UseAIAutoActionsProps {
   game: Game;
@@ -164,6 +165,54 @@ export const useAIAutoActions = ({
     }
   }, [game.id, game_properties, properties, currentPlayer]);
 
+  // Ask agent (internal or external) for building decision; fallback to rule-based aiBuildHouses
+  const aiBuildWithAgent = useCallback(async () => {
+    if (!currentPlayer || currentPlayer.balance < 300) return;
+    const slot = getAiSlotFromPlayer(currentPlayer);
+    const myProps = game_properties
+      .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
+      .map((gp) => ({
+        ...properties.find((p) => p.id === gp.property_id),
+        ...gp,
+      }));
+    try {
+      const agentRes = await apiClient.post<{
+        success?: boolean;
+        data?: { action?: string; propertyId?: number; reasoning?: string };
+        useBuiltIn?: boolean;
+      }>("/agent-registry/decision", {
+        gameId: game.id,
+        slot: slot ?? 2,
+        decisionType: "building",
+        context: {
+          myBalance: currentPlayer.balance ?? 0,
+          myProperties: myProps,
+          opponents: (game.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
+        },
+      });
+      if (
+        agentRes?.data?.success &&
+        agentRes.data.useBuiltIn === false &&
+        agentRes.data.data?.action?.toLowerCase() === "build" &&
+        agentRes.data.data.propertyId
+      ) {
+        const prop = properties.find((p) => p.id === agentRes.data!.data!.propertyId);
+        if (prop) {
+          await apiClient.post("/game-properties/development", {
+            game_id: game.id,
+            user_id: currentPlayer.user_id,
+            property_id: agentRes.data.data.propertyId,
+          });
+          toast(`AI built on ${prop.name}!`);
+        }
+        return;
+      }
+    } catch (_) {
+      /* fallback to built-in */
+    }
+    await aiBuildHouses();
+  }, [game.id, game.players, game_properties, properties, currentPlayer, aiBuildHouses]);
+
   // 3. Unmortgage valuable properties when rich
   const aiUnmortgage = useCallback(async () => {
     if (!currentPlayer || currentPlayer.balance < 1000) return;
@@ -288,7 +337,7 @@ export const useAIAutoActions = ({
     );
 
     if (hasMonopoly && currentPlayer.balance > 700) {
-      await aiBuildHouses();
+      await aiBuildWithAgent();
       setTimeout(onRollDice, 1200);
       return;
     }
@@ -304,7 +353,7 @@ export const useAIAutoActions = ({
     isAI,
     aiLiquidate,
     aiUnmortgage,
-    aiBuildHouses,
+    aiBuildWithAgent,
     aiSendMonopolyTrade,
     onRollDice,
   ]);

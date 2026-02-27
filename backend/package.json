@@ -17,6 +17,7 @@
         "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.78.0",
         "@socket.io/redis-adapter": "^8.3.0",
         "bcrypt": "^5.1.0",
         "cors": "^2.8.5",

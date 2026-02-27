@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { ApiResponse } from "@/types/api";
-import { isAIPlayer } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "./constants";
 
 interface UseMobileAiLogicParams {
@@ -172,10 +172,52 @@ export function useMobileAiLogic({
       )?.length || 0;
     const completesMonopoly =
       groupSize > 0 && ownedInGroup === groupSize - 1;
-    const goodLandingRank =
-      (MONOPOLY_STATS.landingRank[justLandedProperty.id] ?? 99) <= 15;
-    const affordable = balance >= price + 200;
-    const shouldBuy = completesMonopoly || (goodLandingRank && affordable);
+    const landingRank = MONOPOLY_STATS.landingRank[justLandedProperty.id] ?? 99;
+
+    let shouldBuy: boolean;
+    try {
+      const slot = getAiSlotFromPlayer(currentPlayer);
+      const agentRes = await apiClient.post<{
+        success?: boolean;
+        data?: { action?: string };
+        useBuiltIn?: boolean;
+      }>("/agent-registry/decision", {
+        gameId: currentGame.id,
+        slot: slot ?? 2,
+        decisionType: "property",
+        context: {
+          myBalance: balance,
+          myProperties: currentGameProperties
+            .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
+            .map((gp) => ({
+              ...properties.find((p) => p.id === gp.property_id),
+              ...gp,
+            })),
+          opponents: players.filter((p) => p.user_id !== currentPlayer.user_id),
+          landedProperty: {
+            ...justLandedProperty,
+            completesMonopoly,
+            landingRank,
+          },
+        },
+      });
+      if (
+        agentRes?.data?.success &&
+        agentRes.data.useBuiltIn === false &&
+        agentRes.data.data?.action
+      ) {
+        shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
+      } else {
+        const goodLandingRank = landingRank <= 15;
+        const affordable = balance >= price + 200;
+        shouldBuy = completesMonopoly || (goodLandingRank && affordable);
+      }
+    } catch (_) {
+      const goodLandingRank = landingRank <= 15;
+      const affordable = balance >= price + 200;
+      shouldBuy = completesMonopoly || (goodLandingRank && affordable);
+    }
+
     if (shouldBuy) {
       try {
         await apiClient.post("/game-properties/buy", {
@@ -195,6 +237,8 @@ export function useMobileAiLogic({
     currentPlayer,
     currentGameProperties,
     currentGame.id,
+    players,
+    properties,
     fetchUpdatedGame,
     getPlayerOwnedProperties,
     landedPositionRef,
