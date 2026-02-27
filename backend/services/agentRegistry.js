@@ -127,11 +127,12 @@ async function getAIDecision(gameId, slot, decisionType, context) {
   }
   }
 
-  // No external agent: use internal LLM agent for AI games (one logical agent per game)
+  // No external agent: use internal LLM agent for AI games (one logical agent per game), or for "tip" in any game
   if (USE_INTERNAL_AGENT) {
     try {
       const game = await Game.findById(Number(gameId));
-      if (game && game.is_ai) {
+      const useInternal = game && (game.is_ai || decisionType === "tip");
+      if (useInternal) {
         const decision = await internalAgent.getDecision(
           Number(gameId),
           Number(slot),
