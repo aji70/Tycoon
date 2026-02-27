@@ -95,7 +95,8 @@ export function useGameBoardLogic({
   const timeLeftFrozenAtRollRef = useRef<number | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const prevHistoryLength = useRef(game?.history?.length ?? 0);
-  const lastShownCardHistoryIdRef = useRef<number | null>(null);
+  /** Top history id we've seen; used to only show card modal when a NEW card is drawn (not on load/return). */
+  const lastTopHistoryIdRef = useRef<number | null>(null);
 
   const INACTIVITY_SECONDS = 30;
   const TURN_TOTAL_SECONDS = 120;
@@ -163,46 +164,48 @@ export function useGameBoardLogic({
     lastActivityRef.current = Date.now();
   }, [currentPlayerId]);
 
-  // When any player lands on Chance/CC, show card modal for everyone (newest card draw only)
+  // When a NEW card is drawn (history grows), show card modal. Don't show on initial load or when returning to the page.
   useEffect(() => {
     const history = game?.history ?? [];
     if (history.length === 0) return;
 
-    // API returns history newest first (created_at desc). Find the most recent card draw we haven't shown yet.
-    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
-    for (const entry of history) {
-      const h = typeof entry === "object" && entry !== null ? entry as { id?: number; comment?: string; player_name?: string } : null;
-      if (!h?.comment) continue;
-      const match = h.comment.match(cardRegex);
-      if (!match || !match[2]) continue;
+    const first = typeof history[0] === "object" && history[0] !== null ? history[0] as { id?: number; comment?: string; player_name?: string } : null;
+    const topId = first?.id ?? 0;
 
-      const id = h.id ?? 0;
-      if (lastShownCardHistoryIdRef.current === id) break;
-
-      const [, typeStr, text] = match;
-      const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
-      if (!cardText) continue;
-
-      lastShownCardHistoryIdRef.current = id;
-      const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
-      const lowerText = cardText.toLowerCase();
-      const isGood =
-        lowerText.includes("collect") ||
-        lowerText.includes("receive") ||
-        lowerText.includes("advance") ||
-        lowerText.includes("get out of jail") ||
-        lowerText.includes("matures") ||
-        lowerText.includes("refund") ||
-        lowerText.includes("prize") ||
-        lowerText.includes("inherit");
-      const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
-      const effect = effectMatch ? effectMatch[0] : undefined;
-
-      setCardData({ type, text: cardText, effect, isGood });
-      setCardPlayerName(String(h.player_name ?? "").trim() || "Player");
-      setShowCardModal(true);
-      break;
+    if (lastTopHistoryIdRef.current === null) {
+      lastTopHistoryIdRef.current = topId;
+      return;
     }
+    if (topId === lastTopHistoryIdRef.current) return;
+
+    lastTopHistoryIdRef.current = topId;
+    if (!first?.comment) return;
+
+    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
+    const match = first.comment.match(cardRegex);
+    if (!match || !match[2]) return;
+
+    const [, typeStr, text] = match;
+    const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
+    if (!cardText) return;
+
+    const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+    const lowerText = cardText.toLowerCase();
+    const isGood =
+      lowerText.includes("collect") ||
+      lowerText.includes("receive") ||
+      lowerText.includes("advance") ||
+      lowerText.includes("get out of jail") ||
+      lowerText.includes("matures") ||
+      lowerText.includes("refund") ||
+      lowerText.includes("prize") ||
+      lowerText.includes("inherit");
+    const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+    const effect = effectMatch ? effectMatch[0] : undefined;
+
+    setCardData({ type, text: cardText, effect, isGood });
+    setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
+    setShowCardModal(true);
   }, [game?.history]);
 
   const touchActivity = useCallback(() => {
