@@ -145,6 +145,7 @@ export function useMobileAiLogic({
     ]
   );
 
+  const aiPropertyDecisionKeyRef = useRef<string | null>(null);
   const handleAiBuyDecision = useCallback(async () => {
     if (
       !isAITurn ||
@@ -153,6 +154,9 @@ export function useMobileAiLogic({
       !currentPlayer
     )
       return;
+    const key = `${currentPlayer.user_id}-${justLandedProperty.id}`;
+    if (aiPropertyDecisionKeyRef.current === key) return;
+    aiPropertyDecisionKeyRef.current = key;
     const isOwned = currentGameProperties.some(
       (gp) => gp.property_id === justLandedProperty.id
     );
@@ -230,6 +234,7 @@ export function useMobileAiLogic({
         console.error("AI purchase failed", err);
       }
     }
+    aiPropertyDecisionKeyRef.current = null;
     landedPositionRef.current = null;
   }, [
     isAITurn,
