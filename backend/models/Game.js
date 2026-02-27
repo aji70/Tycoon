@@ -37,7 +37,9 @@ const Game = {
   // -------------------------
 
   async findByCode(code) {
-    return db("games").where({ code }).first();
+    if (code == null || String(code).trim() === "") return null;
+    const normalized = String(code).trim().toUpperCase();
+    return db("games").where({ code: normalized }).first();
   },
 
   async findByWinner(userId, { limit = 50, offset = 0 } = {}) {
