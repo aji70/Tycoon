@@ -1,6 +1,7 @@
 /**
- * ERC-8004 Reputation: submit giveFeedback on Celo using the backend wallet.
- * Used so the user does not have to sign a second tx (claim + feedback); backend does feedback.
+ * ERC-8004 Reputation: submit giveFeedback on Celo using a backend wallet.
+ * The contract disallows "self feedback" (the agent owner cannot submit feedback for their own agent).
+ * Use ERC8004_FEEDBACK_PRIVATE_KEY for a wallet that is NOT the agent owner; otherwise feedback will fail.
  */
 
 import { Contract, JsonRpcProvider, Wallet } from "ethers";
@@ -17,6 +18,8 @@ const CELO_REPUTATION_ADDRESS =
 
 /**
  * Submit one reputation feedback for the Tycoon AI agent on Celo.
+ * Uses ERC8004_FEEDBACK_PRIVATE_KEY if set (must not be the agent owner, or you get "self feedback not allowed").
+ * Otherwise uses Celo game controller key (will fail if that wallet registered the agent).
  * @param {bigint | number | string} agentId - ERC-8004 agent id (from registration)
  * @param {number} score - 0 = human won, 100 = AI won
  * @returns {Promise<{ success: boolean, hash?: string, error?: string }>}
@@ -27,10 +30,17 @@ export async function submitErc8004Feedback(agentId, score) {
     return { success: false, error: "ERC8004_AGENT_ID not set" };
   }
 
-  const { rpcUrl, privateKey, isConfigured } = getChainConfig("CELO");
-  if (!isConfigured || !rpcUrl || !privateKey) {
+  const celoConfig = getChainConfig("CELO");
+  const { rpcUrl, privateKey: controllerKey } = celoConfig;
+  if (!celoConfig.isConfigured || !rpcUrl) {
     logger.debug("[erc8004Feedback] Celo not configured; skipping feedback");
     return { success: false, error: "Celo not configured" };
+  }
+
+  const privateKey = process.env.ERC8004_FEEDBACK_PRIVATE_KEY ?? controllerKey;
+  if (!privateKey) {
+    logger.debug("[erc8004Feedback] No wallet for feedback; set ERC8004_FEEDBACK_PRIVATE_KEY (must not be agent owner)");
+    return { success: false, error: "No feedback wallet configured" };
   }
 
   const registryAddress = CELO_REPUTATION_ADDRESS;
