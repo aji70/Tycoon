@@ -16,3 +16,4 @@ frontend/.env.*.local
 *.pem
 **/secrets/
 **/.secrets
+ENV_SETUP.md
