@@ -1266,8 +1266,13 @@ const endTurnAfterSpecialMove = useCallback(() => {
           if (agentRes.data.data.reasoning) {
             showToast(
               shouldBuy
-                ? `AI bought ${justLandedProperty.name}: ${agentRes.data.data.reasoning}`
-                : `AI passed on ${justLandedProperty.name}: ${agentRes.data.data.reasoning}`,
+                ? `Claude: AI bought ${justLandedProperty.name} — ${agentRes.data.data.reasoning}`
+                : `Claude: AI passed on ${justLandedProperty.name} — ${agentRes.data.data.reasoning}`,
+              shouldBuy ? "success" : "default"
+            );
+          } else {
+            showToast(
+              shouldBuy ? `Claude: AI bought ${justLandedProperty.name}` : `Claude: AI passed on ${justLandedProperty.name}`,
               shouldBuy ? "success" : "default"
             );
           }
