@@ -11,6 +11,7 @@ import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "@/context/SocketContext";
+import { TournamentProvider } from "@/context/TournamentContext";
 import { Toaster } from "react-hot-toast";
 import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
@@ -63,6 +64,7 @@ export default async function RootLayout({
         <ContextProvider cookies={cookies}>
           <TycoonProvider>
             <GuestAuthProvider>
+            <TournamentProvider>
             <AppKitProviderWrapper>
               {/* SocketProvider commented out as in your code */}
               {/* <SocketProvider serverUrl="https://base-monopoly-production.up.railway.app/api"> */}
@@ -97,6 +99,7 @@ export default async function RootLayout({
               
               {/* </SocketProvider> */}
             </AppKitProviderWrapper>
+            </TournamentProvider>
             </GuestAuthProvider>
           </TycoonProvider>
         </ContextProvider>

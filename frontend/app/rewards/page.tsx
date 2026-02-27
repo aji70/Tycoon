@@ -21,6 +21,7 @@ import {
   Ticket,
   Star,
   Gamepad2,
+  Shield,
 } from 'lucide-react';
 
 import {
@@ -30,6 +31,7 @@ import {
 } from '@/components/rewards/rewardsConstants';
 import { AnimatedCounter } from '@/components/rewards/AnimatedCounter';
 import { useRewardsAdmin } from './useRewardsAdmin';
+import EscrowAdminSection from '@/components/admin/EscrowAdminSection';
 
 export default function RewardAdminPanel() {
   const {
@@ -146,7 +148,7 @@ export default function RewardAdminPanel() {
         </motion.div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-10">
-          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'funds'] as const).map((section) => (
+          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'escrow', 'funds'] as const).map((section) => (
             <button
               key={section}
               onClick={() => setActiveSection(section)}
@@ -161,8 +163,9 @@ export default function RewardAdminPanel() {
               {section === 'stock' && <Package className="w-5 h-5" />}
               {section === 'manage' && <Edit2 className="w-5 h-5" />}
               {section === 'tycoon' && <Gamepad2 className="w-5 h-5" />}
+              {section === 'escrow' && <Shield className="w-5 h-5" />}
               {section === 'funds' && <Wallet className="w-5 h-5" />}
-              {section === 'tycoon' ? 'Game Contract' : section.charAt(0).toUpperCase() + section.slice(1)}
+              {section === 'tycoon' ? 'Game Contract' : section === 'escrow' ? 'Tournament Escrow' : section.charAt(0).toUpperCase() + section.slice(1)}
             </button>
           ))}
         </div>
@@ -515,6 +518,12 @@ export default function RewardAdminPanel() {
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'escrow' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto">
+            <EscrowAdminSection />
           </motion.div>
         )}
 

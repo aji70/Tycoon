@@ -40,7 +40,7 @@ export interface Game {
   code: string;
   mode: "PUBLIC" | "PRIVATE";
   creator_id: number;
-  status: "WAITING" | "RUNNING" | "FINISHED" | "CANCELLED";
+  status: "PENDING" | "WAITING" | "RUNNING" | "FINISHED" | "CANCELLED";
   winner_id: number | null;
   number_of_players: number;
   next_player_id: number | null;
@@ -49,6 +49,10 @@ export interface Game {
   updated_at: string;
   /** Set when status becomes RUNNING (e.g. all players joined). Game timing starts from this. */
   started_at?: string | null;
+  /** When the 30s "Start now" window opens for tournament games (PENDING until all click within 30s). */
+  ready_window_opens_at?: string | null;
+  /** On-chain Tycoon game id (bigint as string). Used for endAIGame / setTurnCount / removePlayerFromGame. */
+  contract_game_id?: string | null;
   is_ai?: boolean;
   /** When game ends by time: { user_id: position } where 1 = winner. */
   placements?: Record<number, number>;

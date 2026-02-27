@@ -12,15 +12,15 @@ import TycoonABI from '@/context/abi/tycoonabi.json';
 /** Map chainId to backend chain name for leaderboard filter. Frontend is Celo-only. */
 function chainIdToLeaderboardChain(chainId: number): string {
   switch (chainId) {
+    case 137:
+    case 80001:
+      return 'POLYGON';
     case 42220:
     case 44787:
       return 'CELO';
     case 8453:
     case 84531:
-      return 'CELO';
-    case 137:
-    case 80001:
-      return 'POLYGON';
+      return 'BASE';
     default:
       return 'CELO';
   }

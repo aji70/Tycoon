@@ -14,4 +14,4 @@ for (let i = 1; i <= 8; i++) {
   console.log(`AI_PLAYER_${i}_PRIVATE_KEY=${pk}`);
   console.log(`# AI_PLAYER_${i} address: ${account.address}\n`);
 }
-console.log('# CELO_RPC_URL=https://alfajores-forno.celo-testnet.org');
+console.log('# CELO_RPC_URL=https://alfajores-forno.celo-testnet.org  (or https://forno.celo.org for mainnet)');

@@ -1,0 +1,243 @@
+"use client";
+
+import React, { useState } from "react";
+import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { Link2, Unlink, LogIn, Loader2, Mail } from "lucide-react";
+
+/** Chain id to backend chain name */
+function chainIdToBackendChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
+  return "CELO";
+}
+
+export default function AccountLinkWallet() {
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { signMessageAsync } = useSignMessage();
+  const auth = useGuestAuthOptional();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+
+  const guestUser = auth?.guestUser ?? null;
+  const chain = chainIdToBackendChain(chainId);
+
+  const handleLinkWallet = async () => {
+    if (!address || !guestUser?.is_guest || !auth?.linkWallet) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const message = `Link Tycoon account: ${guestUser.username}`;
+      const signature = await signMessageAsync({ message });
+      const res = await auth.linkWallet({
+        walletAddress: address,
+        chain,
+        message,
+        signature,
+      });
+      if (res.success) setError(null);
+      else setError(res.message ?? "Link failed");
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to sign or link");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnlinkWallet = async () => {
+    if (!auth?.unlinkWallet) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await auth.unlinkWallet();
+      if (!res.success) setError(res.message ?? "Unlink failed");
+    } catch (e) {
+      setError((e as Error)?.message ?? "Unlink failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoginByWallet = async () => {
+    if (!address || !auth?.loginByWallet) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const message = `Sign in to Tycoon at ${Date.now()}`;
+      const signature = await signMessageAsync({ message });
+      const res = await auth.loginByWallet({
+        address,
+        chain,
+        message,
+        signature,
+      });
+      if (res.success) setError(null);
+      else setError(res.message ?? "Sign in failed");
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-[#0E282A] bg-[#011112]/80 p-5 space-y-3">
+      <h3 className="text-base font-semibold text-cyan-400">Account & login</h3>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      {/* Guest: Link / Unlink wallet */}
+      {guestUser?.is_guest && (
+        <>
+          {guestUser.linked_wallet_address ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-white/80">
+                Wallet linked: {guestUser.linked_wallet_address.slice(0, 6)}...{guestUser.linked_wallet_address.slice(-4)}
+              </p>
+              <button
+                type="button"
+                onClick={handleUnlinkWallet}
+                disabled={loading}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 text-sm font-medium hover:bg-amber-500/30 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink className="w-4 h-4" />}
+                Unlink wallet
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-white/70">
+              Link your wallet to use the same account when you connect (staked games, same stats).
+            </p>
+          )}
+          {!guestUser.linked_wallet_address && isConnected && address && (
+            <button
+              type="button"
+              onClick={handleLinkWallet}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+              Link this wallet
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Wallet connected but no session: Sign in with wallet */}
+      {!guestUser && isConnected && address && auth?.loginByWallet && (
+        <div>
+          <p className="text-sm text-white/70 mb-2">Get a session so you can use the app without keeping the wallet connected.</p>
+          <button
+            type="button"
+            onClick={handleLoginByWallet}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+            Sign in with wallet
+          </button>
+        </div>
+      )}
+
+      {!guestUser && !isConnected && (
+        <p className="text-sm text-white/50">Connect a wallet to link it or sign in.</p>
+      )}
+
+      {/* Connect email (when logged in) */}
+      {guestUser && auth?.connectEmail && (
+        <div className="pt-3 border-t border-white/10">
+          {guestUser.email_verified ? (
+            <p className="text-sm text-emerald-400/90">Email connected and verified.</p>
+          ) : guestUser.email ? (
+            <p className="text-sm text-white/70">Email added. Check your inbox for the verification link.</p>
+          ) : (
+            <>
+              <p className="text-sm text-white/70 mb-2">Add an email to log in from any device.</p>
+              <form
+                className="flex flex-wrap gap-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!email.trim() || !emailPassword) return;
+                  setEmailLoading(true);
+                  setError(null);
+                  const res = await auth.connectEmail(email.trim(), emailPassword);
+                  setEmailLoading(false);
+                  if (!res.success) setError(res.message ?? "Failed");
+                }}
+              >
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 min-w-[140px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={emailPassword}
+                  onChange={(e) => setEmailPassword(e.target.value)}
+                  className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={emailLoading}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50"
+                >
+                  {emailLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  Connect email
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Login with email (when not logged in) */}
+      {!guestUser && auth?.loginEmail && (
+        <div className="pt-3 border-t border-white/10">
+          <p className="text-sm text-white/70 mb-2">Already have an email connected? Log in here.</p>
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!email.trim() || !emailPassword) return;
+              setEmailLoading(true);
+              setError(null);
+              const res = await auth.loginEmail(email.trim(), emailPassword);
+              setEmailLoading(false);
+              if (!res.success) setError(res.message ?? "Login failed");
+            }}
+          >
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="flex-1 min-w-[140px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={emailLoading}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50"
+            >
+              {emailLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+              Login with email
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}

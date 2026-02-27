@@ -30,6 +30,11 @@ const SOCKET_URL =
 const COPY_FEEDBACK_MS = 2000;
 export const USDC_DECIMALS = 6;
 
+/** Tournament match codes (e.g. T7-R0-M0). Skip contract read until game has contract_game_id to avoid RPC quota. */
+function isTournamentMatchCode(code: string): boolean {
+  return /^T\d+-R\d+-M\d+$/i.test(code);
+}
+
 export function useWaitingRoom() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,11 +56,15 @@ export function useWaitingRoom() {
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
+  const tournamentLobby = isTournamentMatchCode(gameCode);
+  const gameHasContract = !!(game && (game as Game & { contract_game_id?: string | null }).contract_game_id);
+  const enableContractRead = !!gameCode && (!tournamentLobby || gameHasContract);
+
   const {
     data: contractGame,
     isLoading: contractGameLoading,
     error: contractGameErrorRaw,
-  } = useGetGameByCode(gameCode, { enabled: !!gameCode });
+  } = useGetGameByCode(gameCode, { enabled: enableContractRead });
 
   // Filter out "Not found" errors - these are expected when game doesn't exist on-chain yet
   const contractGameError = useMemo(() => {
@@ -378,14 +387,16 @@ export function useWaitingRoom() {
       return;
     }
 
-    // No wallet and not signed in as guest: direct to sign in as guest (free) or connect wallet (staked)
+    // No wallet and not signed in as guest
     const hasWalletOrGuest = !!address || !!guestUser;
     if (!hasWalletOrGuest) {
       const isFree = stakePerPlayer === BigInt(0);
       setError(
-        isFree
-          ? "Sign in as guest to join this free game. Go to Join Room and sign in as guest, then return here."
-          : "Connect a wallet or sign in as guest to join. Staked games require a connected wallet."
+        tournamentLobby
+          ? "Connect your wallet to join this tournament match, or sign in as guest (Join Room)."
+          : isFree
+            ? "Sign in as guest to join this free game. Go to Join Room and sign in as guest, then return here."
+            : "Connect a wallet or sign in as guest to join. Staked games require a connected wallet."
       );
       return;
     }
@@ -440,7 +451,11 @@ export function useWaitingRoom() {
     }
 
     if (contractId == null || Number(contractId) === 0) {
-      setError("Game not found on-chain. Make sure you're on the correct network, or the game may still be creating.");
+      setError(
+        tournamentLobby
+          ? "Tournament match not ready yet. The first player needs to create the game with their wallet; then you can join."
+          : "Game not found on-chain. Make sure you're on the correct network, or the game may still be creating."
+      );
       setActionLoading(false);
       toast.dismiss(toastId);
       return;
@@ -526,6 +541,7 @@ export function useWaitingRoom() {
     usdcAllowance,
     approveUSDC,
     publicClient,
+    tournamentLobby,
   ]);
 
   const handleLeaveGame = useCallback(async () => {

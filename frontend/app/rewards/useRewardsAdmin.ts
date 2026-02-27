@@ -37,7 +37,7 @@ import {
   INITIAL_COLLECTIBLES,
 } from "@/components/rewards/rewardsConstants";
 
-export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon";
+export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon" | "escrow";
 
 export interface RewardsAdminState {
   activeSection: RewardsSection;
