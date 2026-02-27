@@ -42,11 +42,22 @@ const Tournament = {
   },
 
   async findAll({ limit = 50, offset = 0, status = null, chain = null, prize_source = null } = {}) {
-    const query = db("tournaments").select("*").orderBy("created_at", "desc").limit(limit).offset(offset);
-    if (status) query.where("status", status);
-    if (chain) query.where("chain", chain);
-    if (prize_source) query.where("prize_source", prize_source);
-    return query;
+    const query = db("tournaments")
+      .select(
+        "tournaments.*",
+        db.raw("(SELECT COUNT(*) FROM tournament_entries WHERE tournament_entries.tournament_id = tournaments.id) AS participant_count")
+      )
+      .orderBy("created_at", "desc")
+      .limit(limit)
+      .offset(offset);
+    if (status) query.where("tournaments.status", status);
+    if (chain) query.where("tournaments.chain", chain);
+    if (prize_source) query.where("tournaments.prize_source", prize_source);
+    const rows = await query;
+    return rows.map((r) => ({
+      ...r,
+      participant_count: r.participant_count != null ? Number(r.participant_count) : 0,
+    }));
   },
 
   async update(id, data) {
