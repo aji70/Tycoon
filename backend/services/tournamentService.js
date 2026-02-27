@@ -18,6 +18,12 @@ import logger from "../config/logger.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
+const GAME_READY_WINDOW_SECONDS = 30;
+
+/** Tournament game code pattern (e.g. T7-R0-M0). Used to detect tournament games for "all ready" flow. */
+function isTournamentGameCode(code) {
+  return code && /^T\d+-R\d+-M\d+$/i.test(String(code).trim());
+}
 
 /**
  * Create a tournament. prize_source: NO_POOL | ENTRY_FEE_POOL | CREATOR_FUNDED.
@@ -287,13 +293,22 @@ async function createMatchGame(tournamentId, matchId) {
   const userB = await User.findById(entryB.user_id);
   const canBackendJoin = userA?.password_hash && userB?.password_hash && isContractConfigured(chain);
 
-  if (!canBackendJoin) {
-    return createLobbyGame(tournament, match, userA, userB, tournamentId, matchId);
-  }
-
   const code = `T${tournamentId}-R${match.round_index}-M${match.match_index}`.toUpperCase();
   const symbolA = TOURNAMENT_SYMBOLS[0];
   const symbolB = TOURNAMENT_SYMBOLS[1];
+
+  // If contract not configured, create DB-only lobby (players create/join via wallet).
+  if (!isContractConfigured(chain)) {
+    return createLobbyGame(tournament, match, userA, userB, tournamentId, matchId);
+  }
+
+  // Create game on-chain. If both players have password_hash, backend joins both; otherwise creator only (if creator has password_hash), second joins via lobby.
+  if (!canBackendJoin && userA?.password_hash) {
+    return createTournamentGameOnChainLobby(tournament, match, userA, userB, tournamentId, matchId, code, symbolA, symbolB);
+  }
+  if (!canBackendJoin) {
+    return createLobbyGame(tournament, match, userA, userB, tournamentId, matchId);
+  }
 
   let result;
   try {
@@ -332,17 +347,20 @@ async function createMatchGame(tournamentId, matchId) {
     throw err;
   }
 
+  // Tournament: game stays PENDING until all players click "Start now" within 30s on the board.
+  const now = new Date();
   const game = await Game.create({
     code,
     mode: "PRIVATE",
     creator_id: userA.id,
     next_player_id: userA.id,
     number_of_players: 2,
-    status: "RUNNING",
+    status: "PENDING",
     is_minipay: false,
     is_ai: false,
     chain: tournament.chain,
     contract_game_id: String(contractGameId),
+    ready_window_opens_at: now,
   });
 
   await Chat.create({ game_id: game.id, status: "open" });
@@ -385,6 +403,79 @@ async function createMatchGame(tournamentId, matchId) {
   });
 
   return { match, game };
+}
+
+/**
+ * Create tournament game on-chain with creator only; second player joins via lobby (game-waiting).
+ */
+async function createTournamentGameOnChainLobby(tournament, match, userA, userB, tournamentId, matchId, code, symbolA, symbolB) {
+  const chain = User.normalizeChain(tournament.chain);
+  let result;
+  try {
+    result = await createGameByBackend(
+      userA.address,
+      userA.password_hash || "",
+      userA.username,
+      "PRIVATE",
+      symbolA,
+      2,
+      code,
+      DEFAULT_STARTING_CASH,
+      0n,
+      chain
+    );
+  } catch (err) {
+    logger.error({ err: err?.message, tournamentId, matchId }, "Tournament createGameByBackend (creator only) failed");
+    throw err;
+  }
+  const contractGameId = result?.gameId;
+  if (!contractGameId) throw new Error("Contract did not return game ID");
+
+  const creatorId = userA?.id ?? match.slot_a_entry_id;
+  const game = await Game.create({
+    code,
+    mode: "PRIVATE",
+    creator_id: creatorId,
+    next_player_id: creatorId,
+    number_of_players: 2,
+    status: "PENDING",
+    is_minipay: false,
+    is_ai: false,
+    chain: tournament.chain,
+    contract_game_id: String(contractGameId),
+  });
+  await Chat.create({ game_id: game.id, status: "open" });
+  await GameSetting.create({
+    game_id: game.id,
+    auction: true,
+    rent_in_prison: false,
+    mortgage: true,
+    even_build: true,
+    randomize_play_order: true,
+    starting_cash: DEFAULT_STARTING_CASH,
+  });
+  await GamePlayer.create({
+    game_id: game.id,
+    user_id: userA.id,
+    address: userA.address,
+    balance: DEFAULT_STARTING_CASH,
+    position: 0,
+    turn_order: 1,
+    symbol: symbolA,
+    chance_jail_card: false,
+    community_chest_jail_card: false,
+  });
+
+  await TournamentMatch.update(matchId, {
+    game_id: game.id,
+    contract_game_id: String(contractGameId),
+    status: "AWAITING_PLAYERS",
+  });
+  logger.info(
+    { tournamentId, matchId, code, message: "Tournament game created on-chain; second player joins via game-waiting" },
+    "Tournament lobby (on-chain)"
+  );
+  return { match: await TournamentMatch.findById(matchId), game };
 }
 
 /**

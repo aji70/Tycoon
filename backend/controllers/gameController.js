@@ -39,6 +39,8 @@ const AI_ADDRESSES = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
 ];
 const AI_SYMBOLS = ["car", "dog", "hat", "thimble", "wheelbarrow", "battleship", "boot", "iron", "top_hat"];
+/** Seconds within which all players must click "Start now" on the board for a tournament game to start. */
+const GAME_READY_WINDOW_SECONDS = 30;
 
 /** Get or create a user for an AI bot (by index). Used so game_players can reference a user_id for AI. */
 async function getOrCreateAIUser(aiIndex, chain = "CELO") {
@@ -430,6 +432,85 @@ const gameController = {
       res.json({ success: true, message: "Game deleted" });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });
+    }
+  },
+
+  /**
+   * POST: Record that the current user clicked "Start now" for a tournament game.
+   * Game must be PENDING with ready_window_opens_at set. When all players have requested within 30s, game becomes RUNNING.
+   */
+  async requestStart(req, res) {
+    try {
+      const gameId = Number(req.params.id);
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+
+      const game = await Game.findById(gameId);
+      if (!game) return res.status(404).json({ success: false, message: "Game not found" });
+      if (game.status !== "PENDING") {
+        return res.status(400).json({ success: false, message: "Game is not waiting for start" });
+      }
+      const opensAt = game.ready_window_opens_at ? new Date(game.ready_window_opens_at) : null;
+      if (!opensAt) return res.status(400).json({ success: false, message: "Start window not open" });
+
+      const windowEnd = new Date(opensAt.getTime() + GAME_READY_WINDOW_SECONDS * 1000);
+      const now = new Date();
+      if (now < opensAt) return res.status(400).json({ success: false, message: "Start window has not opened yet" });
+      if (now > windowEnd) return res.status(400).json({ success: false, message: "Start window has closed" });
+
+      const players = await GamePlayer.findByGameId(game.id);
+      const isInGame = players.some((p) => p.user_id === userId);
+      if (!isInGame) return res.status(403).json({ success: false, message: "You are not in this game" });
+
+      const existing = await db("game_start_requests").where({ game_id: game.id, user_id: userId }).first();
+      if (existing) {
+        await db("game_start_requests").where({ game_id: game.id, user_id: userId }).update({
+          requested_at: now,
+          updated_at: db.fn.now(),
+        });
+      } else {
+        await db("game_start_requests").insert({
+          game_id: game.id,
+          user_id: userId,
+          requested_at: now,
+        });
+      }
+
+      const requests = await db("game_start_requests").where({ game_id: game.id });
+      const inWindow = requests.filter((r) => {
+        const t = new Date(r.requested_at);
+        return t >= opensAt && t <= windowEnd;
+      });
+      const uniqueUserIds = [...new Set(inWindow.map((r) => r.user_id))];
+
+      if (uniqueUserIds.length >= game.number_of_players) {
+        await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+        await invalidateGameById(game.id);
+        const updatedGame = await Game.findById(game.id);
+        if (updatedGame?.next_player_id) {
+          await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
+        }
+        const io = req.app.get("io");
+        if (io && game.code) {
+          emitGameUpdate(io, game.code);
+          io.to(game.code).emit("game-started", { game: updatedGame });
+        }
+        return res.status(200).json({
+          success: true,
+          started: true,
+          message: "Game started",
+          data: { game: updatedGame },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        started: false,
+        message: `Waiting for ${game.number_of_players - uniqueUserIds.length} more player(s) to click Start now`,
+      });
+    } catch (error) {
+      logger.error({ err: error }, "requestStart error");
+      return res.status(500).json({ success: false, message: error?.message || "Failed to request start" });
     }
   },
 

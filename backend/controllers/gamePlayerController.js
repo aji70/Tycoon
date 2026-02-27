@@ -703,12 +703,19 @@ const gamePlayerController = {
       }
 
       if (updatedPlayers.length >= game.number_of_players) {
-        await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+        const isTournamentGame = /^T\d+-R\d+-M\d+$/i.test(String(game.code || "").trim());
+        if (isTournamentGame) {
+          // Tournament: game stays PENDING until all players click "Start now" within 30s on the board.
+          await Game.update(game.id, { ready_window_opens_at: db.fn.now() });
+        } else {
+          await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+          const updatedGame = await Game.findByCode(game.code);
+          if (updatedGame?.next_player_id) {
+            await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
+          }
+        }
         await invalidateGameById(game.id);
         const updatedGame = await Game.findByCode(game.code);
-        if (updatedGame?.next_player_id) {
-          await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
-        }
         const playersWithTurnStart = await GamePlayer.findByGameId(game.id);
         if (io) {
           emitGameUpdate(io, game.code);
