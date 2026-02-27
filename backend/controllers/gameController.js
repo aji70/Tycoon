@@ -704,7 +704,9 @@ const gameController = {
 
   async findByCode(req, res) {
     try {
-      const code = req.params.code;
+      const rawCode = req.params.code;
+      const code = rawCode != null ? String(rawCode).trim().toUpperCase() : "";
+      if (!code) return res.status(404).json({ error: "Game not found" });
       const cached = await getCachedGameByCode(code);
       if (cached) {
         return res.json({
