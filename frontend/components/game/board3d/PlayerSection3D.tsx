@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -25,6 +25,10 @@ interface PlayerSection3DProps {
   isLoading?: boolean;
   /** When property clicked in My Empire, opens PropertyDetailModal3D (same as board square) */
   onPropertySelect?: (property: Property, gameProperty?: GameProperty) => void;
+  /** When true, open the Trade section (e.g. from TradeAlertPill) */
+  openTradeSection?: boolean;
+  /** Called after opening trade section so parent can reset openTradeSection */
+  onTradeSectionOpened?: () => void;
 }
 
 export default function PlayerSection3D({
@@ -38,10 +42,19 @@ export default function PlayerSection3D({
   isAITurn,
   isLoading = false,
   onPropertySelect,
+  openTradeSection = false,
+  onTradeSectionOpened,
 }: PlayerSection3DProps) {
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
   const [showPlayers, setShowPlayers] = useState(true);
+
+  useEffect(() => {
+    if (openTradeSection) {
+      setShowTrade(true);
+      onTradeSectionOpened?.();
+    }
+  }, [openTradeSection, onTradeSectionOpened]);
 
   const logic = useAiPlayerLogic({
     game,

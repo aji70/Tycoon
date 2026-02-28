@@ -16,6 +16,14 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION } from "@/components/game/constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
+import { useChainId } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
+import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
+import { useGameTrades } from "@/hooks/useGameTrades";
+import TradeAlertPill from "@/components/game/TradeAlertPill";
+import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Toaster, toast } from "react-hot-toast";
 import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
@@ -24,7 +32,7 @@ import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Trophy, Sparkles, HeartHandshake, Loader2 } from "lucide-react";
+import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 
@@ -250,10 +258,33 @@ export default function Board3DDemoPage() {
   } | null>(null);
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
+  const [endGameCandidate, setEndGameCandidate] = useState<{
+    winner: Player | null;
+    position: number;
+    balance: bigint;
+    validWin: boolean;
+  }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
+  const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
+  const timeUpHandledRef = useRef(false);
+  const [viewTradesRequested, setViewTradesRequested] = useState(false);
+  const [showPerksModal, setShowPerksModal] = useState(false);
+  const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d";
+  const [aiTipsOn, setAiTipsOn] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(AI_TIPS_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [aiTipText, setAiTipText] = useState<string | null>(null);
+  const [aiTipLoading, setAiTipLoading] = useState(false);
+  const lastTipPropertyIdRef = useRef<number | null>(null);
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
+  const isGuest = !!guestUser;
   const gameTimeUp = game?.status === "FINISHED" || gameTimeUpLocal;
   const meInJail = !!(me && Number(me.position) === JAIL_POSITION && me.in_jail);
   const canPayToLeaveJail = meInJail && (me?.balance ?? 0) >= 50;
@@ -339,6 +370,32 @@ export default function Board3DDemoPage() {
   const turnEndInProgressRef = useRef(false);
   const landedPositionThisTurnRef = useRef<number | null>(null);
   const hasScheduledTurnEndRef = useRef(false);
+
+  const CELO_CHAIN_ID = 42220;
+  const { data: contractGame } = useGetGameByCode(game?.code ?? "");
+  const chainId = useChainId();
+  const { open: openAppKit } = useAppKit();
+  const onChainGameId =
+    contractGame?.id ??
+    (game?.contract_game_id != null && game?.contract_game_id !== "" ? BigInt(game.contract_game_id) : undefined);
+  const endGameFinalPosition = endGameCandidate.winner ? 1 : 2;
+  const {
+    write: endGame,
+    isPending: endGamePending,
+    reset: endGameReset,
+  } = useEndAIGameAndClaim(
+    onChainGameId ?? BigInt(0),
+    endGameFinalPosition,
+    endGameCandidate.balance,
+    endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
+  );
+  const { tradeRequests: incomingTrades } = useGameTrades({
+    gameId: game?.id,
+    myUserId: me?.user_id,
+    players: livePlayers,
+  });
+  const buyGuard = usePreventDoubleSubmit();
+  const jailGuard = usePreventDoubleSubmit();
 
   const players = isLiveGame ? livePlayers : mockPlayers;
   const positions = useMemo(() => {
@@ -720,6 +777,101 @@ export default function Board3DDemoPage() {
     }
   }, [currentPlayerId, game?.id, refetchGame]);
 
+  const triggerLandingLogic = useCallback(
+    (newPosition: number, isSpecial = false) => {
+      if (landedPositionThisTurnRef.current !== null) return;
+      landedPositionThisTurnRef.current = newPosition;
+      setLandedPositionForBuy(newPosition);
+      if (me?.user_id != null) {
+        setLiveMovementOverride((prev) => ({ ...prev, [me.user_id]: newPosition }));
+      }
+      setTimeout(() => {
+        const square = properties.find((p) => p.id === newPosition);
+        if (square?.price != null) {
+          const isOwned = gameProperties.some((gp) => gp.property_id === newPosition);
+          const action = PROPERTY_ACTION(newPosition);
+          if (!isOwned && action && ["land", "railway", "utility"].includes(action)) {
+            setBuyPrompted(true);
+          }
+        }
+      }, 300);
+    },
+    [properties, gameProperties, me?.user_id]
+  );
+
+  const endTurnAfterSpecialMove = useCallback(() => {
+    setBuyPrompted(false);
+    setLandedPositionForBuy(null);
+    landedPositionThisTurnRef.current = null;
+    setTimeout(END_TURN, 800);
+  }, [END_TURN]);
+
+  const toggleAiTips = useCallback(() => {
+    setAiTipsOn((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(AI_TIPS_STORAGE_KEY, String(next));
+      } catch {}
+      if (!next) setAiTipText(null);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!buyPrompted) {
+      setAiTipText(null);
+      lastTipPropertyIdRef.current = null;
+    }
+  }, [buyPrompted]);
+
+  useEffect(() => {
+    if (!aiTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !currentPlayer || currentPlayer?.user_id !== me?.user_id) return;
+    const propId = justLandedProperty.id;
+    if (lastTipPropertyIdRef.current === propId) return;
+    lastTipPropertyIdRef.current = propId;
+    setAiTipLoading(true);
+    const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
+    const ownedInGroup = groupIds.filter((id) =>
+      gameProperties.some(
+        (gp) => gp.property_id === id && gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
+      )
+    ).length;
+    const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+    const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
+    apiClient
+      .post<{ success?: boolean; data?: { reasoning?: string } }>("/agent-registry/decision", {
+        gameId: game?.id,
+        slot: 1,
+        decisionType: "tip",
+        context: {
+          myBalance: currentPlayer.balance ?? 0,
+          myProperties: gameProperties
+            .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (game?.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
+          situation: "buy_property",
+          property: { ...justLandedProperty, completesMonopoly, landingRank },
+        },
+      })
+      .then((res) => {
+        const text = res?.data?.data?.reasoning ?? null;
+        if (text) setAiTipText(text);
+      })
+      .catch(() => setAiTipText(null))
+      .finally(() => setAiTipLoading(false));
+  }, [
+    aiTipsOn,
+    isMyTurn,
+    buyPrompted,
+    justLandedProperty,
+    currentPlayer,
+    me?.user_id,
+    game?.id,
+    game?.players,
+    gameProperties,
+    properties,
+  ]);
+
   // Auto-end turn when movement is done and no buy/jail choice (matches 2D; avoids turn break on Chance/CC)
   useEffect(() => {
     if (!isLiveGame || !isMyTurn || !lastRollResultLive || buyPrompted || jailChoiceRequired || rollingDice) {
@@ -1079,8 +1231,13 @@ export default function Board3DDemoPage() {
 
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me) return;
+    toast("Declaring bankruptcy...", { icon: "…" });
     try {
-      const opponent = players.find((p) => p.user_id !== me.user_id);
+      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai) {
+        setEndGameCandidate({ winner: null, position: 2, balance: BigInt(me?.balance ?? 0), validWin: true });
+        await endGame();
+      }
+      const opponent = livePlayers.find((p) => p.user_id !== me.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
         winner_id: opponent?.user_id ?? null,
@@ -1090,7 +1247,7 @@ export default function Board3DDemoPage() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, players]);
+  }, [game?.id, me, livePlayers, isGuest, contractGame, endGame]);
 
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
@@ -1170,30 +1327,89 @@ export default function Board3DDemoPage() {
   }, [game?.history]);
 
   useEffect(() => {
-    if (game?.status !== "FINISHED") return;
-    const winnerId = game.winner_id ?? game?.players?.[0]?.user_id;
-    const w = game?.players?.find((p) => p.user_id === winnerId) ?? game?.players?.[0] ?? null;
-    setWinner(w ?? null);
-  }, [game?.status, game?.winner_id, game?.players]);
+    if (!game || game.status !== "FINISHED" || game.winner_id == null) return;
+    const winnerPlayer = livePlayers.find((p) => p.user_id === game.winner_id) ?? (me?.user_id === game.winner_id ? me : null);
+    if (!winnerPlayer) return;
+    setWinner(winnerPlayer);
+    const turnCount = winnerPlayer.turn_count ?? 0;
+    const validWin = turnCount >= 20;
+    setEndGameCandidate({
+      winner: winnerPlayer,
+      position: winnerPlayer.position ?? 0,
+      balance: BigInt(winnerPlayer.balance ?? 0),
+      validWin,
+    });
+  }, [game?.status, game?.winner_id, livePlayers, me]);
 
   const handleGameTimeUp = useCallback(async () => {
-    if (!game?.id || game?.status !== "RUNNING") return;
+    if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
+    timeUpHandledRef.current = true;
     setGameTimeUpLocal(true);
     try {
-      const res = await apiClient.post<{ data?: { winner_id: number; game?: { players?: Player[] } } }>(`/games/${game.id}/finish-by-time`);
+      const res = await apiClient.post<{
+        success?: boolean;
+        data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean };
+      }>(`/games/${game!.id}/finish-by-time`);
       const data = res?.data?.data;
       const winnerId = data?.winner_id;
       if (winnerId != null) {
         const updatedPlayers = data?.game?.players ?? game?.players ?? [];
         const winnerPlayer = updatedPlayers.find((p: Player) => p.user_id === winnerId) ?? null;
         setWinner(winnerPlayer);
+        const myPosition = me?.position ?? 0;
+        const myBalance = BigInt(me?.balance ?? 0);
+        const validWin = data?.valid_win !== false;
+        if (winnerId === me?.user_id) {
+          setEndGameCandidate({ winner: me!, position: myPosition, balance: myBalance, validWin });
+        } else {
+          setEndGameCandidate({ winner: null, position: myPosition, balance: myBalance, validWin: true });
+        }
       }
       await refetchGame();
     } catch (e) {
       console.error("Finish by time failed:", e);
+      timeUpHandledRef.current = false;
       setGameTimeUpLocal(false);
     }
-  }, [game?.id, game?.status, game?.players, refetchGame]);
+  }, [game?.id, game?.status, game?.players, me, refetchGame]);
+
+  const handleClaimAndGoHome = useCallback(async () => {
+    setClaimAndLeaveInProgress(true);
+    const isHumanWinner = winner?.user_id === me?.user_id;
+    try {
+      if (!isGuest) {
+        if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
+          if (chainId !== CELO_CHAIN_ID) {
+            showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
+          } else {
+            toast.error(
+              "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo)."
+            );
+          }
+          setClaimAndLeaveInProgress(false);
+          return;
+        }
+        await endGame();
+      }
+      try {
+        await refetchGame();
+      } catch (_) {
+        /* ignore */
+      }
+      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      try {
+        await apiClient.post(`/games/${game?.id}/erc8004-feedback`);
+      } catch (_) {
+        /* best-effort */
+      }
+      window.location.href = "/";
+    } catch (err) {
+      toast.error(getContractErrorMessage(err as Error, "Something went wrong — try again later"));
+      setClaimAndLeaveInProgress(false);
+    } finally {
+      endGameReset?.();
+    }
+  }, [winner?.user_id, me?.user_id, isGuest, game?.id, refetchGame, endGame, endGameReset, contractGame, chainId, openAppKit, guestUser]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
@@ -1201,6 +1417,15 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
+      {/* Trade notification — fixed top right */}
+      {isLiveGame && (
+        <div className="fixed top-4 right-6 z-40">
+          <TradeAlertPill
+            incomingCount={incomingTrades?.length ?? 0}
+            onViewTrades={() => setViewTradesRequested(true)}
+          />
+        </div>
+      )}
       {/* End game by net worth — confirm modal */}
       <AnimatePresence>
         {showEndByNetWorthConfirm && (
@@ -1253,8 +1478,61 @@ export default function Board3DDemoPage() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar: End game by net worth (untimed) + Players + My Empire + Trade — sticky so it stays visible when scrolling */}
+      {/* Perks / collectibles modal */}
+      <AnimatePresence>
+        {showPerksModal && game && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowPerksModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-violet-500/30 bg-slate-900 shadow-2xl"
+            >
+              <button
+                type="button"
+                onClick={() => setShowPerksModal(false)}
+                className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="p-4 overflow-y-auto max-h-[90vh]">
+                <CollectibleInventoryBar
+                  game={game}
+                  game_properties={gameProperties}
+                  isMyTurn={isMyTurn}
+                  ROLL_DICE={playerCanRoll ? handleRollForLive : undefined}
+                  END_TURN={END_TURN}
+                  triggerSpecialLanding={triggerLandingLogic}
+                  endTurnAfterSpecial={endTurnAfterSpecialMove}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar: End game by net worth (untimed) + Perks + Players + My Empire + Trade — sticky so it stays visible when scrolling */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
+        {/* Perks (collectibles) — above player section */}
+        {isLiveGame && game && (
+          <button
+            type="button"
+            onClick={() => setShowPerksModal(true)}
+            className="w-full py-2.5 px-3 rounded-xl text-sm font-semibold bg-violet-600/90 border border-violet-400/60 text-white hover:bg-violet-500 transition-colors shrink-0 flex items-center justify-center gap-2"
+            aria-label="Perks & collectibles"
+          >
+            <Sparkles className="w-4 h-4" />
+            Perks
+          </button>
+        )}
         {/* End game by net worth — above player section, fixed in sidebar column */}
         {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
           <button
@@ -1264,11 +1542,11 @@ export default function Board3DDemoPage() {
               if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
             }}
             disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-            className="w-full py-2.5 px-3 rounded-xl text-sm font-semibold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0 flex items-center justify-center"
+            className="w-10 h-10 shrink-0 rounded-xl text-lg font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
             title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
             aria-label="Vote to end game by net worth"
           >
-            <span className="text-xl font-bold leading-none">×</span>
+            ×
           </button>
         )}
         {gameCode && gameLoading ? (
@@ -1293,6 +1571,8 @@ export default function Board3DDemoPage() {
               setSelectedProperty(prop);
               setSelectedGameProperty(gp ?? undefined);
             }}
+            openTradeSection={viewTradesRequested}
+            onTradeSectionOpened={() => setViewTradesRequested(false)}
           />
         ) : (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -1429,21 +1709,41 @@ export default function Board3DDemoPage() {
             <p className="text-slate-300 text-sm mb-4">
               ${justLandedProperty.price?.toLocaleString()} — Buy or skip?
             </p>
+            {aiTipsOn && (
+              <div className="mb-4 p-3 rounded-lg bg-cyan-900/30 border border-cyan-500/30 text-left">
+                <p className="text-xs text-cyan-300/90 mb-1">AI tip</p>
+                {aiTipLoading ? (
+                  <p className="text-sm text-slate-400">Thinking…</p>
+                ) : aiTipText ? (
+                  <p className="text-sm text-slate-200">{aiTipText}</p>
+                ) : null}
+              </div>
+            )}
             <div className="flex gap-3">
               <button
-                onClick={handleBuy}
-                disabled={(me?.balance ?? 0) < (justLandedProperty.price ?? 0)}
+                onClick={() => buyGuard.submit(handleBuy)}
+                disabled={(me?.balance ?? 0) < (justLandedProperty.price ?? 0) || buyGuard.isSubmitting}
                 className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold"
               >
-                Buy
+                {buyGuard.isSubmitting ? "…" : "Buy"}
               </button>
               <button
                 onClick={handleSkip}
+                disabled={buyGuard.isSubmitting}
                 className="flex-1 py-3 rounded-xl bg-slate-600 hover:bg-slate-500 text-white font-bold"
               >
                 Skip
               </button>
             </div>
+            <label className="flex items-center gap-2 mt-3 text-sm text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiTipsOn}
+                onChange={toggleAiTips}
+                className="rounded border-slate-500"
+              />
+              AI tips
+            </label>
           </motion.div>
         </div>
       )}
@@ -1460,17 +1760,17 @@ export default function Board3DDemoPage() {
             <p className="text-slate-400 text-sm mb-4">Pay $50, use a Get Out of Jail Free card, or roll for doubles.</p>
             <div className="flex flex-col gap-2">
               {canPayToLeaveJail && (
-                <button onClick={handlePayToLeaveJail} className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold">
-                  Pay $50
+                <button onClick={() => jailGuard.submit(handlePayToLeaveJail)} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold">
+                  {jailGuard.isSubmitting ? "…" : "Pay $50"}
                 </button>
               )}
               {hasChanceJailCard && (
-                <button onClick={() => handleUseGetOutOfJailFree("chance")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                <button onClick={() => jailGuard.submit(() => handleUseGetOutOfJailFree("chance"))} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
                   Use Chance Get Out of Jail Free
                 </button>
               )}
               {hasCommunityChestJailCard && (
-                <button onClick={() => handleUseGetOutOfJailFree("community_chest")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                <button onClick={() => jailGuard.submit(() => handleUseGetOutOfJailFree("community_chest"))} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
                   Use Community Chest Get Out of Jail Free
                 </button>
               )}
@@ -1493,22 +1793,22 @@ export default function Board3DDemoPage() {
             <h3 className="text-lg font-bold text-slate-200 mb-2">No doubles — stay in jail or pay</h3>
             <div className="flex flex-col gap-2">
               {canPayToLeaveJail && (
-                <button onClick={handlePayToLeaveJail} className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold">
-                  Pay $50
+                <button onClick={() => jailGuard.submit(handlePayToLeaveJail)} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold">
+                  {jailGuard.isSubmitting ? "…" : "Pay $50"}
                 </button>
               )}
               {hasChanceJailCard && (
-                <button onClick={() => handleUseGetOutOfJailFree("chance")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                <button onClick={() => jailGuard.submit(() => handleUseGetOutOfJailFree("chance"))} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
                   Use Chance Get Out of Jail Free
                 </button>
               )}
               {hasCommunityChestJailCard && (
-                <button onClick={() => handleUseGetOutOfJailFree("community_chest")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                <button onClick={() => jailGuard.submit(() => handleUseGetOutOfJailFree("community_chest"))} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
                   Use Community Chest Get Out of Jail Free
                 </button>
               )}
-              <button onClick={handleStayInJail} className="w-full py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold">
-                Stay in jail
+              <button onClick={() => jailGuard.submit(handleStayInJail)} disabled={jailGuard.isSubmitting} className="w-full py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold">
+                {jailGuard.isSubmitting ? "…" : "Stay in jail"}
               </button>
             </div>
           </motion.div>
@@ -1561,9 +1861,20 @@ export default function Board3DDemoPage() {
                 <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
                 <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
                 <p className="text-slate-200 mb-6">You had the highest net worth when time ran out.</p>
-                <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
-                  Go home
-                </Link>
+                {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
+                  <button
+                    type="button"
+                    onClick={handleClaimAndGoHome}
+                    disabled={claimAndLeaveInProgress || endGamePending}
+                    className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
+                  >
+                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                  </button>
+                ) : (
+                  <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
+                    Go home
+                  </Link>
+                )}
               </motion.div>
             ) : (
               <motion.div
@@ -1576,9 +1887,20 @@ export default function Board3DDemoPage() {
                 <p className="text-xl text-white mb-4">{winner.username} <span className="text-amber-400">wins</span></p>
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
                 <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
-                <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
-                  Go home
-                </Link>
+                {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
+                  <button
+                    type="button"
+                    onClick={handleClaimAndGoHome}
+                    disabled={claimAndLeaveInProgress || endGamePending}
+                    className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
+                  >
+                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                  </button>
+                ) : (
+                  <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
+                    Go home
+                  </Link>
+                )}
               </motion.div>
             )}
           </motion.div>
