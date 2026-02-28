@@ -22,7 +22,7 @@ import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
-import PropertyDetailModal from "@/components/game/ai-board/mobile/PropertyDetailModal";
+import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2 } from "lucide-react";
@@ -1138,7 +1138,7 @@ export default function Board3DDemoPage() {
       />
 
       {selectedProperty && (
-        <PropertyDetailModal
+        <PropertyDetailModal3D
           property={selectedProperty}
           gameProperty={selectedGameProperty}
           players={players}

@@ -133,6 +133,37 @@ function SquareTile({
       )
     : null;
 
+  // Owner badge: always visible on property squares so user can see ownership at a glance
+  const ownerBadge =
+    square.type === "property"
+      ? createElement(
+          Html,
+          {
+            position: [x, 0.02, z + size * 0.35] as [number, number, number],
+            center: true,
+            distanceFactor: 18,
+            style: {
+              fontSize: "9px",
+              fontWeight: 600,
+              color: owner ? "#fbbf24" : "#22c55e",
+              textShadow: "0 0 4px #000, 0 1px 3px #000",
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              maxWidth: "80px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              pointerEvents: "none",
+              userSelect: "none",
+              background: owner ? "rgba(251,191,36,0.2)" : "rgba(34,197,94,0.2)",
+              padding: "2px 6px",
+              borderRadius: "6px",
+              border: owner ? "1px solid rgba(251,191,36,0.5)" : "1px solid rgba(34,197,94,0.5)",
+            },
+          },
+          owner ?? "Available"
+        )
+      : null;
+
   const ground = createElement(
     "mesh",
     { position: [x, 0.005, z] as [number, number, number], rotation: rotFlat, receiveShadow: true },
@@ -155,7 +186,7 @@ function SquareTile({
       // GO: archway / start gate
       const pillar = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.15, 0.35, 0.15] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));
       const arch = createElement("mesh", { position: [x, 0.42, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.75, 0.12, 0.2] }), createElement("meshStandardMaterial", { color: 0x2ecc71 }));
-      return createElement("group", groupProps, ground, pillar, arch, nameLabel);
+      return createElement("group", groupProps, ground, pillar, arch, nameLabel, ownerBadge);
     }
     if (id === 10) {
       // Jail: prison building with vertical bars (no text)
@@ -167,13 +198,13 @@ function SquareTile({
       for (let b = -2; b <= 2; b++) {
         bars.push(createElement("mesh", { key: b, position: [x + b * 0.14, 0.18, z + size * 0.32] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [barW, barH, barW] }), createElement("meshStandardMaterial", { color: 0x2c3e50 })));
       }
-      return createElement("group", groupProps, ground, jailBase, roof, ...bars, nameLabel);
+      return createElement("group", groupProps, ground, jailBase, roof, ...bars, nameLabel, ownerBadge);
     }
     if (id === 20) {
       // Free Parking: empty with simple post and sign (no text)
       const post = createElement("mesh", { position: [x, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.22, 0.06] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
       const sign = createElement("mesh", { position: [x, 0.26, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.08, 0.04] }), createElement("meshStandardMaterial", { color: 0x3498db }));
-      return createElement("group", groupProps, ground, post, sign, nameLabel);
+      return createElement("group", groupProps, ground, post, sign, nameLabel, ownerBadge);
     }
     if (id === 30) {
       // Go to Jail: heavy prison gate, bars, red arch – clearly jail, no text
@@ -186,7 +217,7 @@ function SquareTile({
       for (let b = -2; b <= 2; b++) {
         goBars.push(createElement("mesh", { key: b, position: [x + b * 0.14, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [barW, 0.42, 0.08] }), createElement("meshStandardMaterial", { color: 0x4a4a4a })));
       }
-      return createElement("group", groupProps, ground, base, gateL, gateR, arch, ...goBars, nameLabel);
+      return createElement("group", groupProps, ground, base, gateL, gateR, arch, ...goBars, nameLabel, ownerBadge);
     }
   }
 
@@ -199,7 +230,7 @@ function SquareTile({
     const engine = createElement("mesh", { position: [x - size * 0.2, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.22, 0.12, 0.18] }), createElement("meshStandardMaterial", { color: 0xc0392b }));
     const chimney = createElement("mesh", { position: [x - size * 0.2, 0.24, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.12, 0.06] }), createElement("meshStandardMaterial", { color: 0x4a4a4a }));
     const carriage = createElement("mesh", { position: [x + size * 0.15, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.2, 0.1, 0.16] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
-    return createElement("group", groupProps, ground, platform, station, awning, engine, chimney, carriage, nameLabel);
+    return createElement("group", groupProps, ground, platform, station, awning, engine, chimney, carriage, nameLabel, ownerBadge);
   }
 
   // ---- UTILITIES: Electric Company (12) vs Water Works (28) ----
@@ -228,13 +259,13 @@ function SquareTile({
         },
         "Electric"
       );
-      return createElement("group", groupProps, ground, building, transformer, poleL, poleR, electricLabel, nameLabel);
+      return createElement("group", groupProps, ground, building, transformer, poleL, poleR, electricLabel, nameLabel, ownerBadge);
     }
     // Water Works (28): water tower
     const towerLegs = createElement("mesh", { position: [x, 0.08, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [0.06, 0.08, 0.12, 6] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
     const tank = createElement("mesh", { position: [x, 0.28, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [size * 0.35, size * 0.35, 0.12, 12] }), createElement("meshStandardMaterial", { color: 0x3498db }));
     const dome = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("sphereGeometry", { args: [size * 0.32, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
-    return createElement("group", groupProps, ground, towerLegs, tank, dome, nameLabel);
+    return createElement("group", groupProps, ground, towerLegs, tank, dome, nameLabel, ownerBadge);
   }
 
   // ---- CHANCE: standing card with ? label ----
@@ -258,7 +289,7 @@ function SquareTile({
       },
       "?"
     );
-    return createElement("group", groupProps, ground, stand, card, chanceLabel, nameLabel);
+    return createElement("group", groupProps, ground, stand, card, chanceLabel, nameLabel, ownerBadge);
   }
 
   // ---- COMMUNITY CHEST: clean treasure chest, no text ----
@@ -269,7 +300,7 @@ function SquareTile({
     const bandC = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.045, 0.04] }), createElement("meshStandardMaterial", { color: 0xd4a574 }));
     const lid = createElement("mesh", { position: [x, 0.3, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.06, size * 0.38] }), createElement("meshStandardMaterial", { color: 0x229954, roughness: 0.6 }));
     const lock = createElement("mesh", { position: [x, 0.1, z + size * 0.19] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.08, 0.06, 0.02] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
-    return createElement("group", groupProps, ground, pad, body, bandH, bandC, lid, lock, nameLabel);
+    return createElement("group", groupProps, ground, pad, body, bandH, bandC, lid, lock, nameLabel, ownerBadge);
   }
 
   // ---- TAX: tax office only (no text) ----
@@ -356,7 +387,8 @@ function SquareTile({
     roofSlant,
     roofSlant2,
     ...developmentMeshes,
-    nameLabel
+    nameLabel,
+    ownerBadge
   );
 }
 
@@ -408,6 +440,18 @@ function BoardCenter() {
 
 const DICE_ROLL_MS = 1400;
 const DICE_SIZE = 0.6;
+const PIP_RADIUS = 0.05;
+const PIP_COLOR = 0x1a1a1a;
+
+/** Pip positions per face value (1-6). Standard layout: 1 center, 2 diagonal, 3 L, 4 corners, 5 corners+center, 6 two rows. */
+const DICE_PIPS: [number, number][][] = [
+  [[0, 0]], // 1: center
+  [[-0.25, 0.25], [0.25, -0.25]], // 2: diagonal
+  [[-0.25, 0.25], [0, 0], [0.25, -0.25]], // 3
+  [[-0.25, 0.25], [0.25, 0.25], [-0.25, -0.25], [0.25, -0.25]], // 4: corners
+  [[-0.25, 0.25], [0.25, 0.25], [0, 0], [-0.25, -0.25], [0.25, -0.25]], // 5
+  [[-0.25, 0.25], [0.25, 0.25], [-0.25, 0], [0.25, 0], [-0.25, -0.25], [0.25, -0.25]], // 6
+];
 
 function RollingDice({
   die1,
@@ -420,14 +464,15 @@ function RollingDice({
 }) {
   const startTime = useRef(Date.now());
   const completed = useRef(false);
-  const mesh1Ref = useRef<THREE.Mesh>(null);
-  const mesh2Ref = useRef<THREE.Mesh>(null);
+  const mesh1Ref = useRef<THREE.Group>(null);
+  const mesh2Ref = useRef<THREE.Group>(null);
 
   useFrame(() => {
     if (completed.current) return;
     const elapsed = Date.now() - (startTime.current ?? 0);
     const r1 = DICE_TOP_ROTATIONS[Math.max(0, Math.min(5, die1 - 1))];
     const r2 = DICE_TOP_ROTATIONS[Math.max(0, Math.min(5, die2 - 1))];
+    const spin = (elapsed / DICE_ROLL_MS) * Math.PI * 10;
     if (elapsed >= DICE_ROLL_MS) {
       completed.current = true;
       if (mesh1Ref.current) mesh1Ref.current.rotation.set(r1[0], r1[1], r1[2]);
@@ -435,18 +480,49 @@ function RollingDice({
       onComplete();
       return;
     }
-    const spin = (elapsed / DICE_ROLL_MS) * Math.PI * 10;
     if (mesh1Ref.current) mesh1Ref.current.rotation.set(r1[0] + spin * 0.7, r1[1] + spin * 1.2, r1[2] + spin * 0.6);
     if (mesh2Ref.current) mesh2Ref.current.rotation.set(r2[0] + spin * 0.9, r2[1] + spin * 0.5, r2[2] + spin * 1.1);
   });
 
-  const mat = createElement("meshStandardMaterial", { color: 0xf5f5f5, roughness: 0.35, metalness: 0.1 });
+  const pipMat = createElement("meshStandardMaterial", { color: PIP_COLOR, roughness: 0.8, metalness: 0 });
+  const pipGeo = createElement("sphereGeometry", { args: [PIP_RADIUS, 8, 6] });
+  const mat = createElement("meshStandardMaterial", { color: 0xf8f8f8, roughness: 0.3, metalness: 0.08 });
   const geo = createElement("boxGeometry", { args: [DICE_SIZE, DICE_SIZE, DICE_SIZE] });
+
+  const makePipsForDie = () => {
+    const half = DICE_SIZE / 2;
+    const faceOff = half + PIP_RADIUS * 1.1;
+    const out: ReturnType<typeof createElement>[] = [];
+    const faceValues = [1, 6, 5, 2, 3, 4];
+    const faces: { axis: "x" | "y" | "z"; sign: number }[] = [
+      { axis: "y", sign: 1 }, { axis: "y", sign: -1 }, { axis: "x", sign: 1 },
+      { axis: "x", sign: -1 }, { axis: "z", sign: 1 }, { axis: "z", sign: -1 },
+    ];
+    faces.forEach(({ axis, sign }, faceIdx) => {
+      const positions = DICE_PIPS[faceValues[faceIdx] - 1];
+      const off = faceOff * sign;
+      positions.forEach(([u, v], i) => {
+        let x = 0, y = 0, z = 0;
+        if (axis === "y") { x = u * half; y = off; z = v * half; }
+        else if (axis === "x") { x = off; y = u * half; z = v * half; }
+        else { x = u * half; y = v * half; z = off; }
+        out.push(createElement("mesh", { key: `p${faceIdx}-${i}`, position: [x, y, z] as [number, number, number], castShadow: true }, pipGeo, pipMat));
+      });
+    });
+    return out;
+  };
+
   return createElement(
     "group",
     { position: [0, 0.35, 0] as [number, number, number] },
-    createElement("mesh", { ref: mesh1Ref, position: [-DICE_SIZE * 1.2, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat),
-    createElement("mesh", { ref: mesh2Ref, position: [DICE_SIZE * 1.2, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat)
+    createElement("group", { ref: mesh1Ref, position: [-DICE_SIZE * 1.2, 0, 0] as [number, number, number] },
+      createElement("mesh", { castShadow: true, receiveShadow: true }, geo, mat),
+      ...makePipsForDie()
+    ),
+    createElement("group", { ref: mesh2Ref, position: [DICE_SIZE * 1.2, 0, 0] as [number, number, number] },
+      createElement("mesh", { castShadow: true, receiveShadow: true }, geo, mat),
+      ...makePipsForDie()
+    )
   );
 }
 
