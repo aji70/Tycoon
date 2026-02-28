@@ -25,6 +25,18 @@ export default function TradeSection3D({
 }: TradeSection3DProps) {
   const totalActive = openTrades.length + tradeRequests.length;
 
+  const handleClearAllOutgoing = () => {
+    if (openTrades.length === 0) return;
+    if (!confirm("Decline and cancel ALL your active trade offers? This cannot be undone.")) return;
+    openTrades.forEach((trade) => onTradeAction(trade.id, "declined"));
+  };
+
+  const handleDeclineAllIncoming = () => {
+    if (tradeRequests.length === 0) return;
+    if (!confirm(`Decline ALL ${tradeRequests.length} incoming trade request(s)?`)) return;
+    tradeRequests.forEach((trade) => onTradeAction(trade.id, "declined"));
+  };
+
   const renderTrade = (trade: any, isIncoming: boolean) => {
     const offeredProps = properties.filter((p) => trade.offer_properties?.includes(p.id));
     const requestedProps = properties.filter((p) => trade.requested_properties?.includes(p.id));
@@ -119,9 +131,17 @@ export default function TradeSection3D({
           >
             {tradeRequests.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider mb-1.5">
-                  Incoming
-                </p>
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider">
+                    Incoming
+                  </p>
+                  <button
+                    onClick={handleDeclineAllIncoming}
+                    className="px-2 py-1 rounded text-[10px] font-bold bg-red-700/80 hover:bg-red-600 text-white"
+                  >
+                    Decline All
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {tradeRequests.map((t) => renderTrade(t, true))}
                 </div>
@@ -129,9 +149,17 @@ export default function TradeSection3D({
             )}
             {openTrades.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider mb-1.5">
-                  Outgoing
-                </p>
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider">
+                    Outgoing
+                  </p>
+                  <button
+                    onClick={handleClearAllOutgoing}
+                    className="px-2 py-1 rounded text-[10px] font-bold bg-amber-700/80 hover:bg-amber-600 text-black"
+                  >
+                    Cancel All
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {openTrades.map((t) => renderTrade(t, false))}
                 </div>
