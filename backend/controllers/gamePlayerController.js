@@ -999,9 +999,12 @@ const gamePlayerController = {
           });
 
         await insertPlayHistory({ jail: true });
-        // Decline all pending trades proposed to this player (they rolled without responding)
+        // Decline all pending trades (incoming and outgoing) — player rolled without responding / is moving on
         await trx("game_trade_requests")
           .where({ game_id, target_player_id: user_id, status: "pending" })
+          .update({ status: "declined", updated_at: now });
+        await trx("game_trade_requests")
+          .where({ game_id, player_id: user_id, status: "pending" })
           .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
@@ -1098,9 +1101,12 @@ const gamePlayerController = {
           });
         }
 
-        // Decline all pending trades proposed to this player (they rolled without responding)
+        // Decline all pending trades (incoming and outgoing) — player rolled without responding / is moving on
         await trx("game_trade_requests")
           .where({ game_id, target_player_id: user_id, status: "pending" })
+          .update({ status: "declined", updated_at: now });
+        await trx("game_trade_requests")
+          .where({ game_id, player_id: user_id, status: "pending" })
           .update({ status: "declined", updated_at: now });
 
         await trx.commit();
@@ -1129,9 +1135,12 @@ const gamePlayerController = {
           { stayed_in_jail: true },
           "You are still in jail"
         );
-        // Decline all pending trades proposed to this player (they rolled without responding)
+        // Decline all pending trades (incoming and outgoing) — player rolled without responding
         await trx("game_trade_requests")
           .where({ game_id, target_player_id: user_id, status: "pending" })
+          .update({ status: "declined", updated_at: now });
+        await trx("game_trade_requests")
+          .where({ game_id, player_id: user_id, status: "pending" })
           .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
