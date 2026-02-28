@@ -6,7 +6,7 @@ import { OrbitControls, Html } from "@react-three/drei";
 import ActionLog from "@/components/game/ai-board/action-log";
 import type { Game } from "@/types/game";
 import * as THREE from "three";
-import { getPosition3D, getPosition3DFromGrid } from "./positions";
+import { getPosition3D, getPosition3DFromGrid, positionToGrid } from "./positions";
 import { getSquareName } from "./squareNames";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import type { Property } from "@/types/game";
@@ -99,6 +99,10 @@ function SquareTile({
   // Use backend grid when available (matches 2D board); else fall back to id-based layout
   const hasGrid = typeof square.grid_row === "number" && typeof square.grid_col === "number" && square.grid_row >= 1 && square.grid_row <= 11 && square.grid_col >= 1 && square.grid_col <= 11;
   const [x, , z] = hasGrid ? getPosition3DFromGrid(square.grid_row, square.grid_col) : getPosition3D(square.id);
+  const gridCol = hasGrid ? square.grid_col! : positionToGrid(square.id).grid_col;
+  const isLeftRow = gridCol === 1;
+  const isRightRow = gridCol === 11;
+  const labelRotate = isLeftRow ? "90deg" : isRightRow ? "-90deg" : undefined;
   const size = 0.9;
   const displayName = square.name || getSquareName(square.id);
   const ownerSuffix = owner ? ` — Owner: ${owner}` : "";
@@ -109,7 +113,7 @@ function SquareTile({
   const id = square.id;
   const { group, index: groupIndex } = getGroupIndex(id);
 
-  // Label: only visible on hover; higher for corner buildings (Jail, Go to Jail)
+  // Label: only visible on hover; higher for corner buildings (Jail, Go to Jail). Left/right rows rotated 90° so text runs along edge.
   const labelY = type === "corner" && (id === 10 || id === 30) ? 0.18 : 0.07;
   const nameLabel = hovered
     ? createElement(
@@ -133,13 +137,14 @@ function SquareTile({
             background: "rgba(0,0,0,0.75)",
             padding: "4px 8px",
             borderRadius: "4px",
+            ...(labelRotate ? { transform: `rotate(${labelRotate})` } : {}),
           },
         },
         displayName + ownerSuffix
       )
     : null;
 
-  // Owner badge: only show when property has an owner (no badge for unowned)
+  // Owner badge: only show when property has an owner (no badge for unowned). Left/right rows rotated 90°.
   const ownerBadge =
     square.type === "property" && owner
       ? createElement(
@@ -164,6 +169,7 @@ function SquareTile({
               padding: "2px 6px",
               borderRadius: "6px",
               border: "1px solid rgba(251,191,36,0.5)",
+              ...(labelRotate ? { transform: `rotate(${labelRotate})` } : {}),
             },
           },
           owner

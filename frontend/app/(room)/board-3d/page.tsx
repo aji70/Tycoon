@@ -1201,23 +1201,6 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
-      {/* End game by net worth — untimed games only (same as 2D board) */}
-      {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
-        <button
-          type="button"
-          onClick={() => {
-            if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
-            if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
-          }}
-          disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-          className="fixed top-4 left-4 lg:top-[72px] z-[100] flex items-center justify-center w-10 h-10 rounded-full bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
-          aria-label="Vote to end game by net worth"
-        >
-          <span className="text-xl font-bold leading-none">×</span>
-        </button>
-      )}
-
       {/* End game by net worth — confirm modal */}
       <AnimatePresence>
         {showEndByNetWorthConfirm && (
@@ -1270,8 +1253,26 @@ export default function Board3DDemoPage() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar: Players + My Empire + Trade — sticky so it stays visible when scrolling */}
+      {/* Sidebar: End game by net worth (untimed) + Players + My Empire + Trade — sticky so it stays visible when scrolling */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
+        {/* End game by net worth — above player section, fixed in sidebar column */}
+        {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+          <button
+            type="button"
+            onClick={() => {
+              if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+              if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+            }}
+            disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+            className="w-full py-2.5 px-3 rounded-xl text-sm font-semibold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
+            title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+            aria-label="Vote to end game by net worth"
+          >
+            {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
+              ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`
+              : "End game by net worth · " + endByNetWorthStatus.vote_count + "/" + endByNetWorthStatus.required_votes}
+          </button>
+        )}
         {gameCode && gameLoading ? (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-slate-900/80 shadow-xl">
             <div className="p-6 flex flex-col items-center justify-center gap-4">
