@@ -102,7 +102,7 @@ function SquareTile({
   const gridCol = hasGrid ? square.grid_col! : positionToGrid(square.id).grid_col;
   const isLeftRow = gridCol === 1;
   const isRightRow = gridCol === 11;
-  const labelRotate = isLeftRow ? "90deg" : isRightRow ? "-90deg" : undefined;
+  const labelRotate = isLeftRow ? "-90deg" : isRightRow ? "90deg" : undefined;
   const size = 0.9;
   const displayName = square.name || getSquareName(square.id);
   const ownerSuffix = owner ? ` — Owner: ${owner}` : "";

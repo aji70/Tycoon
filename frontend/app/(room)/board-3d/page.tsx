@@ -1264,13 +1264,11 @@ export default function Board3DDemoPage() {
               if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
             }}
             disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-            className="w-full py-2.5 px-3 rounded-xl text-sm font-semibold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
+            className="w-full py-2.5 px-3 rounded-xl text-sm font-semibold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0 flex items-center justify-center"
             title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
             aria-label="Vote to end game by net worth"
           >
-            {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)
-              ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`
-              : "End game by net worth · " + endByNetWorthStatus.vote_count + "/" + endByNetWorthStatus.required_votes}
+            <span className="text-xl font-bold leading-none">×</span>
           </button>
         )}
         {gameCode && gameLoading ? (
