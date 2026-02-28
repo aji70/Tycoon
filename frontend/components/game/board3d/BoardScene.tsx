@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useMemo, useState, createElement, Fragment } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { getPosition3D, getPosition3DFromGrid } from "./positions";
@@ -35,6 +35,10 @@ type BoardSceneProps = {
   /** When set, show 3D dice roll animation then call onDiceComplete. */
   rollingDice?: { die1: number; die2: number } | null;
   onDiceComplete?: () => void;
+  /** After roll, show this result in the center (die1 + die2 = total). */
+  lastRollResult?: { die1: number; die2: number; total: number } | null;
+  /** Called when user clicks the center Roll button (demo). */
+  onRoll?: () => void;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -347,8 +351,28 @@ function BoardTiles({ properties, developmentByPropertyId }: { properties: Prope
   );
 }
 
+/** Center of board: decal with /bb.jpg (same as 2D board center). */
+function BoardCenter() {
+  const texture = useLoader(THREE.TextureLoader, "/bb.jpg");
+  const size = 7;
+  return createElement(
+    "mesh",
+    {
+      position: [0, 0.012, 0] as [number, number, number],
+      rotation: [-Math.PI / 2, 0, 0] as [number, number, number],
+      receiveShadow: true,
+    },
+    createElement("planeGeometry", { args: [size, size] }),
+    createElement("meshBasicMaterial", {
+      map: texture,
+      transparent: true,
+      opacity: 0.92,
+    })
+  );
+}
+
 const DICE_ROLL_MS = 1400;
-const DICE_SIZE = 0.25;
+const DICE_SIZE = 0.6;
 
 function RollingDice({
   die1,
@@ -385,9 +409,70 @@ function RollingDice({
   const geo = createElement("boxGeometry", { args: [DICE_SIZE, DICE_SIZE, DICE_SIZE] });
   return createElement(
     "group",
-    { position: [0, 2.5, 0] as [number, number, number] },
-    createElement("mesh", { ref: mesh1Ref, position: [-DICE_SIZE * 1.3, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat),
-    createElement("mesh", { ref: mesh2Ref, position: [DICE_SIZE * 1.3, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat)
+    { position: [0, 0.35, 0] as [number, number, number] },
+    createElement("mesh", { ref: mesh1Ref, position: [-DICE_SIZE * 1.2, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat),
+    createElement("mesh", { ref: mesh2Ref, position: [DICE_SIZE * 1.2, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat)
+  );
+}
+
+function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: number } }) {
+  return createElement(
+    Html,
+    {
+      position: [0, 1.35, 0] as [number, number, number],
+      center: true,
+      distanceFactor: 7,
+      style: {
+        pointerEvents: "none",
+        userSelect: "none",
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "14px",
+        fontSize: "48px",
+        fontWeight: 800,
+        color: "#fff",
+        textShadow: "0 0 12px #000, 0 2px 6px #000",
+        whiteSpace: "nowrap",
+      },
+    },
+    createElement("span", { style: { color: "#22d3ee" } }, String(roll.die1)),
+    createElement("span", { style: { color: "#fff" } }, "+"),
+    createElement("span", { style: { color: "#f472b6" } }, String(roll.die2)),
+    createElement("span", { style: { color: "#fff" } }, "="),
+    createElement("span", { style: { color: "#fbbf24" } }, String(roll.total))
+  );
+}
+
+function CenterRollButton({ onRoll, disabled }: { onRoll: () => void; disabled: boolean }) {
+  return createElement(
+    Html,
+    {
+      position: [0, 0.02, 0] as [number, number, number],
+      center: true,
+      distanceFactor: 9,
+      style: { pointerEvents: "auto" },
+    },
+    createElement("button", {
+      type: "button",
+      onClick: onRoll,
+      disabled,
+      style: {
+        padding: "10px 22px",
+        fontSize: "15px",
+        fontWeight: 700,
+        color: "#0f172a",
+        background: "linear-gradient(180deg, #67e8f9 0%, #22d3ee 50%, #06b6d4 100%)",
+        border: "2px solid #0e7490",
+        borderRadius: "10px",
+        boxShadow: "0 4px 0 #0e7490, 0 6px 16px rgba(0,0,0,0.35)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        opacity: disabled ? 0.6 : 1,
+      },
+    }, "Roll")
   );
 }
 
@@ -464,6 +549,8 @@ export default function BoardScene({
   developmentByPropertyId,
   rollingDice,
   onDiceComplete,
+  lastRollResult,
+  onRoll,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -506,6 +593,7 @@ export default function BoardScene({
       createElement("meshStandardMaterial", { color: "#0a1516" })
     ),
     createElement(BoardTiles, { properties, developmentByPropertyId }),
+    createElement(BoardCenter),
     rollingDice && onDiceComplete
       ? createElement(RollingDice, {
           key: "dice",
@@ -514,6 +602,8 @@ export default function BoardScene({
           onComplete: onDiceComplete,
         })
       : null,
+    lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult }) : null,
+    onRoll ? createElement(CenterRollButton, { key: "roll-btn", onRoll, disabled: !!rollingDice }) : null,
     ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, symbol }) =>
       createElement(PlayerToken, {
         key: player.user_id,
