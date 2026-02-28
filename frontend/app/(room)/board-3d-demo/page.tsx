@@ -260,14 +260,19 @@ export default function Board3DDemoPage() {
 
   const [liveMovementOverride, setLiveMovementOverride] = useState<Record<number, number>>({});
   const rollingForPlayerIdRef = useRef<number | null>(null);
+  const rolledForPlayerIdRef = useRef<number | null>(null);
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
 
   const currentPlayer = useMemo(() => {
     if (!game?.players || currentPlayerId == null) return null;
     return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
   }, [game?.players, currentPlayerId]);
-  const isAITurn =
-    !!currentPlayer && !!me && currentPlayer.user_id !== me.user_id && isAIPlayer(currentPlayer);
+  // AI turn only when current player is an AI *and* not the human (matches 2D: never auto-roll for me)
+  const isAITurn = useMemo(() => {
+    if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
+    if (me != null && currentPlayer.user_id === me.user_id) return false;
+    return true;
+  }, [currentPlayer, me]);
   const liveDevelopmentByPropertyId = useMemo(() => {
     const out: Record<number, number> = {};
     gameProperties.forEach((gp) => {
@@ -532,6 +537,7 @@ export default function Board3DDemoPage() {
         return;
       }
       landedPositionThisTurnRef.current = newPos;
+      rolledForPlayerIdRef.current = playerId;
       await refetchGame();
       const square = properties.find((p) => p.id === newPos);
       const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
@@ -734,6 +740,7 @@ export default function Board3DDemoPage() {
 
   useEffect(() => {
     setStrategyRanThisTurn(false);
+    rolledForPlayerIdRef.current = null;
   }, [currentPlayerId]);
 
   useEffect(() => {
@@ -744,14 +751,17 @@ export default function Board3DDemoPage() {
 
   useEffect(() => {
     if (!isLiveGame || !isAITurn || !strategyRanThisTurn || rollingDice || !currentPlayerId || !currentPlayer) return;
+    if (me != null && currentPlayerId === me.user_id) return;
+    if (rolledForPlayerIdRef.current === currentPlayerId) return;
     const t = setTimeout(() => {
+      if (me != null && currentPlayerId === me.user_id) return;
       const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
       pendingRollRef.current = value;
       rollingForPlayerIdRef.current = currentPlayerId;
       setRollingDice({ die1: value.die1, die2: value.die2 });
     }, 1500);
     return () => clearTimeout(t);
-  }, [isLiveGame, isAITurn, strategyRanThisTurn, rollingDice, currentPlayerId, currentPlayer]);
+  }, [isLiveGame, isAITurn, strategyRanThisTurn, rollingDice, currentPlayerId, currentPlayer, me]);
 
   useEffect(() => {
     const history = game?.history ?? [];
