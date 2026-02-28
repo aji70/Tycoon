@@ -325,6 +325,10 @@ export default function Board3DDemoPage() {
     game_properties: gameProperties,
     properties,
     game: game ?? ({} as Game),
+    refetchGame: async () => {
+      const res = await refetchGame();
+      return res?.data;
+    },
   });
 
   const liveDevelopmentByPropertyId = useMemo(() => {
