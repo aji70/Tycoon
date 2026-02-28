@@ -114,20 +114,27 @@ export default function PropertyDetailModal3D({
                     : "Bank"}
                 </span>
               </div>
-              {gameProperty?.development != null &&
-                gameProperty.development > 0 && (
-                  <div className="flex justify-between text-slate-200">
-                    <span className="text-slate-400">Buildings</span>
-                    <span className="font-semibold text-cyan-300">
-                      {gameProperty.development === 5
-                        ? "Hotel"
-                        : `${gameProperty.development} House(s)`}
-                    </span>
-                  </div>
-                )}
+              <div className="flex justify-between text-slate-200">
+                <span className="text-slate-400">Houses</span>
+                <span className="font-semibold text-cyan-300">
+                  {gameProperty?.development === 5
+                    ? "Hotel"
+                    : gameProperty?.development != null && gameProperty.development > 0
+                      ? `${gameProperty.development} house${gameProperty.development === 1 ? "" : "s"}`
+                      : "0 houses"}
+                </span>
+              </div>
+              {gameProperty && (
+                <div className="flex justify-between text-slate-200">
+                  <span className="text-slate-400">Mortgage</span>
+                  <span className={`font-semibold ${gameProperty.mortgaged ? "text-red-400" : "text-emerald-400"}`}>
+                    {gameProperty.mortgaged ? "Mortgaged" : "Not mortgaged"}
+                  </span>
+                </div>
+              )}
               {gameProperty?.mortgaged && (
-                <div className="text-red-400 font-bold text-center mt-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30">
-                  MORTGAGED
+                <div className="text-red-400 font-bold text-center mt-2 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-sm">
+                  No rent while mortgaged
                 </div>
               )}
             </div>
