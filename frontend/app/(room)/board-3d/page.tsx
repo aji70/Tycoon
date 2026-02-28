@@ -330,6 +330,7 @@ export default function Board3DDemoPage() {
   const lastTopHistoryIdRef = useRef<number | null>(null);
   const turnEndInProgressRef = useRef(false);
   const landedPositionThisTurnRef = useRef<number | null>(null);
+  const hasScheduledTurnEndRef = useRef(false);
 
   const players = isLiveGame ? livePlayers : mockPlayers;
   const positions = useMemo(() => {
@@ -653,6 +654,25 @@ export default function Board3DDemoPage() {
     }
   }, [currentPlayerId, game?.id, refetchGame]);
 
+  // Auto-end turn when movement is done and no buy/jail choice (matches 2D; avoids turn break on Chance/CC)
+  useEffect(() => {
+    if (!isLiveGame || !isMyTurn || !lastRollResultLive || buyPrompted || jailChoiceRequired || rollingDice) {
+      hasScheduledTurnEndRef.current = false;
+      return;
+    }
+    if (hasScheduledTurnEndRef.current) return;
+    hasScheduledTurnEndRef.current = true;
+    setTurnEndScheduled(true);
+    const timer = setTimeout(() => {
+      END_TURN();
+      hasScheduledTurnEndRef.current = false;
+    }, 1500);
+    return () => {
+      clearTimeout(timer);
+      hasScheduledTurnEndRef.current = false;
+    };
+  }, [isLiveGame, isMyTurn, lastRollResultLive, buyPrompted, jailChoiceRequired, rollingDice, END_TURN]);
+
   const runMovementAnimation = useCallback(
     async (playerId: number, currentPos: number, totalSteps: number) => {
       if (totalSteps <= 0) return;
@@ -712,10 +732,7 @@ export default function Board3DDemoPage() {
       const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
       const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
       if (needBuyPrompt) setBuyPrompted(true);
-      else if (!rolledDouble) {
-        setTurnEndScheduled(true);
-        setTimeout(() => END_TURN(), 1200);
-      }
+      // Don't call END_TURN here — let the useEffect below handle auto end (matches 2D; avoids turn break on Chance/CC)
     } catch (err) {
       setLiveMovementOverride((prev) => {
         const next = { ...prev };
@@ -727,7 +744,7 @@ export default function Board3DDemoPage() {
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
-  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, END_TURN, runMovementAnimation]);
+  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, runMovementAnimation]);
 
   const calculateBuyScore = useCallback(
     (property: Property, player: Player, gameProps: GameProperty[], allProperties: Property[]): number => {
@@ -1210,17 +1227,9 @@ export default function Board3DDemoPage() {
             </button>
           </div>
         )}
-        {(isLiveGame && !isMyTurn && currentPlayerId != null) || (isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING") ? (
+        {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" ? (
           <div className="flex flex-col items-center gap-2 mb-2">
-            {isLiveGame && !isMyTurn && currentPlayerId != null && (
-              <span className="text-amber-400 text-sm flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin inline" />
-                AI thinking...
-              </span>
-            )}
-            {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" && (
-              <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
-            )}
+            <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
           </div>
         ) : null}
         {gameCode && gameError ? (
@@ -1258,6 +1267,7 @@ export default function Board3DDemoPage() {
                   lastRollResult={lastRollResultToShow}
                   onRoll={showRollUi ? onRollClick : undefined}
                   history={historyToShow}
+                  aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
                 />
               </Canvas>
             </div>

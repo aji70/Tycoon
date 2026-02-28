@@ -47,6 +47,8 @@ type BoardSceneProps = {
   onRoll?: () => void;
   /** Action log history — renders below roll button in center */
   history?: Game["history"];
+  /** When true, show "AI is thinking" in center just above the dice result */
+  aiThinking?: boolean;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -530,6 +532,30 @@ function RollingDice({
   );
 }
 
+function AiThinkingLabel() {
+  return createElement(
+    Html,
+    {
+      position: [0, 1.95, 0] as [number, number, number],
+      center: true,
+      distanceFactor: 7,
+      style: {
+        pointerEvents: "none",
+        userSelect: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: "18px",
+        fontWeight: 600,
+        color: "#fbbf24",
+        textShadow: "0 0 8px #000, 0 1px 4px #000",
+        whiteSpace: "nowrap",
+      },
+    },
+    "AI is thinking..."
+  );
+}
+
 function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: number } }) {
   return createElement(
     Html,
@@ -690,6 +716,7 @@ export default function BoardScene({
   lastRollResult,
   onRoll,
   history,
+  aiThinking,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -746,6 +773,7 @@ export default function BoardScene({
           onComplete: onDiceComplete,
         })
       : null,
+    aiThinking ? createElement(AiThinkingLabel, { key: "ai-thinking" }) : null,
     lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult }) : null,
     onRoll ? createElement(CenterRollButton, { key: "roll-btn", onRoll, disabled: !!rollingDice }) : null,
     history ? createElement(CenterActionLog, { key: "action-log", history }) : null,
