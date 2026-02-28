@@ -7,7 +7,7 @@ import { getPlayerSymbol } from "@/lib/types/symbol";
 import { getSquareName } from "./squareNames";
 import MyEmpire3D from "./MyEmpire3D";
 import TradeSection3D from "./TradeSection3D";
-import { AiResponsePopup } from "../modals/ai-response";
+import AiResponseModal3D from "./AiResponseModal3D";
 import { TradeModal } from "../modals/trade";
 import { useAiPlayerLogic } from "../ai-player/useAiPlayerLogic";
 import { Loader2 } from "lucide-react";
@@ -218,7 +218,7 @@ export default function PlayerSection3D({
 
       {/* Modals — PropertyDetailModal3D is rendered by parent (board page) when property selected from My Empire */}
       <AnimatePresence>
-        <AiResponsePopup
+        <AiResponseModal3D
           popup={aiResponsePopup}
           properties={properties}
           onClose={() => setAiResponsePopup(null)}
