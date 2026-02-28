@@ -571,12 +571,12 @@ function CenterActionLog({ history }: { history?: Game["history"] }) {
       style: {
         pointerEvents: "auto",
         width: "340px",
-        maxHeight: "100px",
+        maxHeight: "300px",
       },
     },
     createElement(ActionLog, {
       history,
-      className: "!mt-0 !h-24 !max-h-24 !rounded-lg !border-2 !border-cyan-500/40 !bg-slate-900/95",
+      className: "!mt-0 !h-44 !max-h-44 !min-h-[180px] !rounded-lg !border-2 !border-cyan-500/40 !bg-slate-900/95",
     })
   );
 }
