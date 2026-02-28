@@ -9,6 +9,7 @@ import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
+import { PROPERTY_ACTION } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
 import ActionLog from "@/components/game/ai-board/action-log";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -16,7 +17,12 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION } from "@/components/game/constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { toast } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
+import { CardModal } from "@/components/game/modals/cards";
+import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
+import { motion, AnimatePresence } from "framer-motion";
+import { Crown, Trophy, Sparkles, HeartHandshake, Loader2 } from "lucide-react";
+import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -223,8 +229,12 @@ export default function Board3DDemoPage() {
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
-  const gameTimeUp = game?.status === "FINISHED";
-  const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp;
+  const gameTimeUp = game?.status === "FINISHED" || gameTimeUpLocal;
+  const meInJail = !!(me && Number(me.position) === JAIL_POSITION && me.in_jail);
+  const canPayToLeaveJail = meInJail && (me?.balance ?? 0) >= 50;
+  const hasChanceJailCard = (me?.chance_jail_card ?? 0) >= 1;
+  const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
+  const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp && !turnEndScheduled && !buyPrompted && !(meInJail && jailChoiceRequired);
 
   const livePlayers = useMemo(() => game?.players ?? [], [game?.players]);
   const liveAnimatedPositions = useMemo(() => {
@@ -242,6 +252,17 @@ export default function Board3DDemoPage() {
     return out;
   }, [gameProperties]);
 
+  const justLandedProperty = useMemo(() => {
+    const pos = landedPositionForBuy ?? me?.position;
+    if (pos == null) return null;
+    const square = properties.find((p) => p.id === pos);
+    if (!square || square.price == null) return null;
+    const isOwned = gameProperties.some((gp) => gp.property_id === pos);
+    const action = PROPERTY_ACTION(pos);
+    const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+    return !isOwned && isBuyableType ? square : null;
+  }, [me?.position, properties, gameProperties]);
+
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
   const [lastRollResult, setLastRollResult] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
@@ -252,6 +273,20 @@ export default function Board3DDemoPage() {
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
   const moveStartPositionsRef = useRef<Record<number, number>>({});
   const historyIdRef = useRef(0);
+
+  const [buyPrompted, setBuyPrompted] = useState(false);
+  const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
+  const [turnEndScheduled, setTurnEndScheduled] = useState(false);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
+  const [cardPlayerName, setCardPlayerName] = useState("");
+  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [gameTimeUpLocal, setGameTimeUpLocal] = useState(false);
+  const lastTopHistoryIdRef = useRef<number | null>(null);
+  const turnEndInProgressRef = useRef(false);
+  const landedPositionThisTurnRef = useRef<number | null>(null);
+  const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
 
   const players = isLiveGame ? livePlayers : mockPlayers;
   const positions = isLiveGame ? liveAnimatedPositions : animatedPositions;
@@ -300,6 +335,27 @@ export default function Board3DDemoPage() {
     }
   }, []);
 
+  const END_TURN = useCallback(async () => {
+    if (currentPlayerId == null || !game?.id || turnEndInProgressRef.current) return;
+    turnEndInProgressRef.current = true;
+    try {
+      await apiClient.post("/game-players/end-turn", {
+        user_id: currentPlayerId,
+        game_id: game.id,
+      });
+      setBuyPrompted(false);
+      setTurnEndScheduled(false);
+      setJailChoiceRequired(false);
+      setLandedPositionForBuy(null);
+      landedPositionThisTurnRef.current = null;
+      await refetchGame();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end turn"));
+    } finally {
+      turnEndInProgressRef.current = false;
+    }
+  }, [currentPlayerId, game?.id, refetchGame]);
+
   const handleDiceCompleteForLive = useCallback(async () => {
     const value = pendingRollRef.current;
     if (!game?.id || !me) {
@@ -311,22 +367,35 @@ export default function Board3DDemoPage() {
     const rolledDouble = value.die1 === value.die2;
     const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
     try {
-      await apiClient.post<{ data?: { still_in_jail?: boolean } }>("/game-players/change-position", {
+      const res = await apiClient.post<{ data?: { still_in_jail?: boolean } }>("/game-players/change-position", {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
         rolled: value.total,
         is_double: rolledDouble,
       });
+      const data = res?.data?.data ?? (res as any)?.data;
+      if (data?.still_in_jail) {
+        setJailChoiceRequired(true);
+      }
       setLastRollResultLive(value);
+      landedPositionThisTurnRef.current = newPos;
       await refetchGame();
       setLastRollResultLive(null);
+      setLandedPositionForBuy(newPos);
+      const square = properties.find((p) => p.id === newPos);
+      const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
+      const action = PROPERTY_ACTION(newPos);
+      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
+      if (needBuyPrompt) setBuyPrompted(true);
+      else if (!rolledDouble) setTimeout(() => END_TURN(), 1200);
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Roll failed"));
     } finally {
       setRollingDice(null);
     }
-  }, [game?.id, me, refetchGame]);
+  }, [game?.id, me, refetchGame, properties, gameProperties, END_TURN]);
 
   const onRollClick = useCallback(() => {
     if (isLiveGame && playerCanRoll) handleRollForLive();
@@ -337,6 +406,88 @@ export default function Board3DDemoPage() {
     if (isLiveGame) handleDiceCompleteForLive();
     else handleDiceComplete();
   }, [isLiveGame, handleDiceCompleteForLive, handleDiceComplete]);
+
+  const handleBuy = useCallback(async () => {
+    if (!game?.id || !me || !justLandedProperty) return;
+    try {
+      await apiClient.post("/game-properties/buy", {
+        user_id: me.user_id,
+        game_id: game.id,
+        property_id: justLandedProperty.id,
+      });
+      toast.success(`You bought ${justLandedProperty.name}!`);
+      setBuyPrompted(false);
+      setLandedPositionForBuy(null);
+      landedPositionThisTurnRef.current = null;
+      await refetchGame();
+      setTimeout(() => END_TURN(), 800);
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Purchase failed"));
+    }
+  }, [game?.id, me, justLandedProperty, refetchGame, END_TURN]);
+
+  const handleSkip = useCallback(() => {
+    setTurnEndScheduled(true);
+    setBuyPrompted(false);
+    setLandedPositionForBuy(null);
+    landedPositionThisTurnRef.current = null;
+    setTimeout(() => END_TURN(), 900);
+  }, [END_TURN]);
+
+  const handlePayToLeaveJail = useCallback(async () => {
+    if (!me || !game?.id) return;
+    try {
+      await apiClient.post("/game-players/pay-to-leave-jail", { game_id: game.id, user_id: me.user_id });
+      setJailChoiceRequired(false);
+      toast.success("Paid $50. You may now roll.");
+      await refetchGame();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Pay jail fine failed"));
+    }
+  }, [me, game?.id, refetchGame]);
+
+  const handleUseGetOutOfJailFree = useCallback(async (cardType: "chance" | "community_chest") => {
+    if (!me || !game?.id) return;
+    try {
+      await apiClient.post("/game-players/use-get-out-of-jail-free", {
+        game_id: game.id,
+        user_id: me.user_id,
+        card_type: cardType,
+      });
+      setJailChoiceRequired(false);
+      toast.success("Used Get Out of Jail Free. You may now roll.");
+      await refetchGame();
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Use card failed"));
+    }
+  }, [me, game?.id, refetchGame]);
+
+  const handleStayInJail = useCallback(async () => {
+    if (!me || !game?.id) return;
+    try {
+      await apiClient.post("/game-players/stay-in-jail", { user_id: me.user_id, game_id: game.id });
+      setJailChoiceRequired(false);
+      await refetchGame();
+      setTimeout(() => END_TURN(), 500);
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Stay in jail failed"));
+    }
+  }, [me, game?.id, refetchGame, END_TURN]);
+
+  const handleDeclareBankruptcy = useCallback(async () => {
+    if (!game?.id || !me) return;
+    try {
+      const opponent = players.find((p) => p.user_id !== me.user_id);
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: opponent?.user_id ?? null,
+      });
+      toast.error("Game over! You have declared bankruptcy.");
+      setShowBankruptcyModal(true);
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to end game"));
+    }
+  }, [game?.id, me, players]);
 
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
@@ -353,6 +504,68 @@ export default function Board3DDemoPage() {
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    const history = game?.history ?? [];
+    if (history.length === 0) return;
+    const first = typeof history[0] === "object" && history[0] !== null ? history[0] as { id?: number; comment?: string; player_name?: string } : null;
+    const topId = first?.id ?? 0;
+    if (lastTopHistoryIdRef.current === null) {
+      lastTopHistoryIdRef.current = topId;
+      return;
+    }
+    if (topId === lastTopHistoryIdRef.current) return;
+    lastTopHistoryIdRef.current = topId;
+    if (!first?.comment) return;
+    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
+    const match = first.comment.match(cardRegex);
+    if (!match || !match[2]) return;
+    const [, typeStr, text] = match;
+    const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
+    if (!cardText) return;
+    const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
+    const lowerText = cardText.toLowerCase();
+    const isGood =
+      lowerText.includes("collect") ||
+      lowerText.includes("receive") ||
+      lowerText.includes("advance") ||
+      lowerText.includes("get out of jail") ||
+      lowerText.includes("matures") ||
+      lowerText.includes("refund") ||
+      lowerText.includes("prize") ||
+      lowerText.includes("inherit");
+    const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+    const effect = effectMatch ? effectMatch[0] : undefined;
+    setCardData({ type, text: cardText, effect, isGood });
+    setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
+    setShowCardModal(true);
+  }, [game?.history]);
+
+  useEffect(() => {
+    if (game?.status !== "FINISHED") return;
+    const winnerId = (game as { winner_id?: number }).winner_id ?? game?.players?.[0]?.user_id;
+    const w = game?.players?.find((p) => p.user_id === winnerId) ?? game?.players?.[0] ?? null;
+    setWinner(w ?? null);
+  }, [game?.status, game?.winner_id, game?.players]);
+
+  const handleGameTimeUp = useCallback(async () => {
+    if (!game?.id || game?.status !== "RUNNING") return;
+    setGameTimeUpLocal(true);
+    try {
+      const res = await apiClient.post<{ data?: { winner_id: number; game?: { players?: Player[] } } }>(`/games/${game.id}/finish-by-time`);
+      const data = res?.data?.data;
+      const winnerId = data?.winner_id;
+      if (winnerId != null) {
+        const updatedPlayers = data?.game?.players ?? game?.players ?? [];
+        const winnerPlayer = updatedPlayers.find((p: Player) => p.user_id === winnerId) ?? null;
+        setWinner(winnerPlayer);
+      }
+      await refetchGame();
+    } catch (e) {
+      console.error("Finish by time failed:", e);
+      setGameTimeUpLocal(false);
+    }
+  }, [game?.id, game?.status, game?.players, refetchGame]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
   const lastRollFromHistory = useMemo(() => {
@@ -383,7 +596,7 @@ export default function Board3DDemoPage() {
             <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto">
               {players.map((p) => {
                 const pos = positions[p.user_id] ?? p.position ?? 0;
-                const isMe = !isLiveGame ? p.user_id === 1 : false;
+                const isMe = isLiveGame ? (me != null && p.user_id === me.user_id) : p.user_id === 1;
                 return (
                   <div
                     key={p.user_id}
