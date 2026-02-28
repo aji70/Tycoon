@@ -3,6 +3,8 @@
 import { useRef, useMemo, useState, createElement, Fragment } from "react";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
+import ActionLog from "@/components/game/ai-board/action-log";
+import type { Game } from "@/types/game";
 import * as THREE from "three";
 import { getPosition3D, getPosition3DFromGrid } from "./positions";
 import { getSquareName } from "./squareNames";
@@ -43,6 +45,8 @@ type BoardSceneProps = {
   lastRollResult?: { die1: number; die2: number; total: number } | null;
   /** Called when user clicks the center Roll button (demo). */
   onRoll?: () => void;
+  /** Action log history — renders below roll button in center */
+  history?: Game["history"];
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -556,6 +560,27 @@ function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: 
   );
 }
 
+function CenterActionLog({ history }: { history?: Game["history"] }) {
+  if (history == null) return null;
+  return createElement(
+    Html,
+    {
+      position: [0, -2, 0] as [number, number, number],
+      center: true,
+      distanceFactor: 8,
+      style: {
+        pointerEvents: "auto",
+        width: "340px",
+        maxHeight: "100px",
+      },
+    },
+    createElement(ActionLog, {
+      history,
+      className: "!mt-0 !h-24 !max-h-24 !rounded-lg !border-2 !border-cyan-500/40 !bg-slate-900/95",
+    })
+  );
+}
+
 function CenterRollButton({ onRoll, disabled }: { onRoll: () => void; disabled: boolean }) {
   return createElement(
     Html,
@@ -664,6 +689,7 @@ export default function BoardScene({
   onDiceComplete,
   lastRollResult,
   onRoll,
+  history,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -722,6 +748,7 @@ export default function BoardScene({
       : null,
     lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult }) : null,
     onRoll ? createElement(CenterRollButton, { key: "roll-btn", onRoll, disabled: !!rollingDice }) : null,
+    history ? createElement(CenterActionLog, { key: "action-log", history }) : null,
     ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, symbol }) =>
       createElement(PlayerToken, {
         key: player.user_id,

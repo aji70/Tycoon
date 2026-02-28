@@ -11,7 +11,6 @@ import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
-import ActionLog from "@/components/game/ai-board/action-log";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
@@ -910,7 +909,14 @@ export default function Board3DDemoPage() {
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
       {/* Sidebar: Players + My Empire + Trade (live) or Players only (demo) */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5">
-        {isLiveGame && game ? (
+        {gameCode && gameLoading ? (
+          <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-slate-900/80 shadow-xl">
+            <div className="p-6 flex flex-col items-center justify-center gap-4">
+              <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+              <p className="text-amber-200/90 text-sm font-medium">Loading players…</p>
+            </div>
+          </div>
+        ) : isLiveGame && game ? (
           <PlayerSection3D
             game={game}
             properties={properties}
@@ -920,6 +926,7 @@ export default function Board3DDemoPage() {
             currentPlayer={currentPlayer}
             positions={positions}
             isAITurn={isAITurn}
+            isLoading={false}
           />
         ) : (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -1019,15 +1026,9 @@ export default function Board3DDemoPage() {
                   onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
                   lastRollResult={lastRollResultToShow}
                   onRoll={showRollUi ? onRollClick : undefined}
+                  history={historyToShow}
                 />
               </Canvas>
-              {/* ActionLog below roll button in center of board */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-md max-h-24 overflow-y-auto bg-slate-900/95 backdrop-blur-sm border border-cyan-500/40 rounded-xl shadow-xl">
-                <ActionLog
-                  history={historyToShow}
-                  className="!mt-0 !rounded-lg !border-0 !bg-transparent !shadow-none"
-                />
-              </div>
             </div>
             <button
               type="button"
