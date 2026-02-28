@@ -156,7 +156,7 @@ export default function AiPlay3DPage() {
         </p>
         <div className="flex flex-col gap-4 w-full max-w-xs">
           <Link
-            href="/play-ai"
+            href="/play-ai-3d"
             className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#00FFAA] to-[#00F0FF] text-black font-semibold text-center hover:opacity-90"
           >
             Create AI game
