@@ -907,8 +907,8 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
-      {/* Sidebar: Players + My Empire + Trade (live) or Players only (demo) */}
-      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5">
+      {/* Sidebar: Players + My Empire + Trade — sticky so it stays visible when scrolling */}
+      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
         {gameCode && gameLoading ? (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-slate-900/80 shadow-xl">
             <div className="p-6 flex flex-col items-center justify-center gap-4">
@@ -927,6 +927,10 @@ export default function Board3DDemoPage() {
             positions={positions}
             isAITurn={isAITurn}
             isLoading={false}
+            onPropertySelect={(prop, gp) => {
+              setSelectedProperty(prop);
+              setSelectedGameProperty(gp ?? undefined);
+            }}
           />
         ) : (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
