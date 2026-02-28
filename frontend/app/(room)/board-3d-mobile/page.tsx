@@ -136,20 +136,20 @@ export default function Board3DMobilePage() {
         </Link>
       </header>
 
-      {/* Board area: fills remaining space, landscape-optimized (behaves like desktop 3D) */}
-      <main className="flex-1 min-h-0 flex flex-col items-center justify-center p-2 w-full">
+      {/* Board area: fills remaining space so the 3D board uses the whole screen */}
+      <main className="flex-1 min-h-0 flex flex-col w-full p-1 sm:p-2">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-slate-400">
             <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
             <p className="text-sm">Loading board…</p>
           </div>
         ) : (
-          <div className="w-full h-full min-h-0 max-w-[1200px] rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl [&_canvas]:!w-full [&_canvas]:!h-full">
+          <div className="flex-1 min-h-0 w-full rounded-lg overflow-hidden border border-cyan-500/30 shadow-2xl flex">
             <Canvas
               camera={{ position: [0, 12, 12], fov: 45 }}
               shadows
               gl={{ antialias: true, alpha: false }}
-              className="w-full h-full"
+              style={{ width: "100%", height: "100%", minHeight: 0 }}
             >
               <BoardScene
                 properties={properties}
