@@ -683,7 +683,7 @@ export default function Board3DDemoPage() {
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
-      const res = await apiClient.post<{ data?: { still_in_jail?: boolean } }>("/game-players/change-position", {
+      const res = await apiClient.post<{ data?: { still_in_jail?: boolean; new_position?: number } }>("/game-players/change-position", {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
@@ -695,18 +695,20 @@ export default function Board3DDemoPage() {
         setJailChoiceRequired(true);
       }
       setLastRollResultLive(value);
-      landedPositionThisTurnRef.current = newPos;
-      await refetchGame();
+      const finalPosition = data?.new_position != null ? data.new_position : newPos;
+      landedPositionThisTurnRef.current = finalPosition;
+      const [_, gpRes] = await Promise.all([refetchGame(), refetchGameProperties()]);
+      const freshGameProperties = (gpRes?.data as GameProperty[] | undefined) ?? gameProperties;
       setLiveMovementOverride((prev) => {
         const next = { ...prev };
-        delete next[me.user_id];
+        if (finalPosition !== newPos) next[me.user_id] = finalPosition;
+        else delete next[me.user_id];
         return next;
       });
-      // Keep lastRollResultLive visible — don't clear until turn ends
-      setLandedPositionForBuy(newPos);
-      const square = properties.find((p) => p.id === newPos);
-      const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
-      const action = PROPERTY_ACTION(newPos);
+      setLandedPositionForBuy(finalPosition);
+      const square = properties.find((p) => p.id === finalPosition);
+      const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
+      const action = PROPERTY_ACTION(finalPosition);
       const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
       const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
       if (needBuyPrompt) setBuyPrompted(true);
@@ -725,7 +727,7 @@ export default function Board3DDemoPage() {
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
-  }, [game?.id, me, refetchGame, properties, gameProperties, END_TURN, runMovementAnimation]);
+  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, END_TURN, runMovementAnimation]);
 
   const calculateBuyScore = useCallback(
     (property: Property, player: Player, gameProps: GameProperty[], allProperties: Property[]): number => {
