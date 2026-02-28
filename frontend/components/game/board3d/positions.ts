@@ -1,7 +1,8 @@
 /**
  * Maps Monopoly-style board position (0–39) to 3D world coordinates.
- * Board is a loop: bottom (0–9) → left (10–19) → top (20–29) → right (30–39).
+ * Layout: top row (0–9) → left (10–19) → bottom row (20–29, right to left) → right (30–39).
  * Y is up; one unit per square; center of board at (0, 0, 0).
+ * Top row is at +Z, bottom row at -Z; bottom row runs right to left (20 right, 29 left).
  */
 const SIDE = 10; // 10 squares per side (including corner)
 const HALF = (SIDE - 1) / 2; // 4.5, so board runs -4.5 to 4.5
@@ -12,21 +13,21 @@ export function getPosition3D(positionIndex: number): [number, number, number] {
   let pz = 0;
 
   if (i <= 9) {
-    // Bottom row: right to left. 0 = GO (right), 9 = corner (left)
+    // Top row: 0 = GO (right), 9 = corner (left), right to left
     px = HALF - i;
-    pz = -HALF;
-  } else if (i <= 19) {
-    // Left side: bottom to top. 10 = same corner as 9, 20 = top-left
-    px = -HALF;
-    pz = -HALF + (i - 10);
-  } else if (i <= 29) {
-    // Top row: left to right. 20 = corner, 29 = near top-right
-    px = -HALF + (i - 20);
     pz = HALF;
+  } else if (i <= 19) {
+    // Left side: top to bottom. 10 next to 9, 19 next to 20
+    px = -HALF;
+    pz = HALF - (i - 10);
+  } else if (i <= 29) {
+    // Bottom row: right to left. 20 = right, 29 = left
+    px = HALF - (i - 20);
+    pz = -HALF;
   } else {
-    // Right side: top to bottom. 30 = top-right, 39 = near GO
+    // Right side: bottom to top. 30 next to 29, 39 next to 0
     px = HALF;
-    pz = HALF - (i - 30);
+    pz = -HALF + (i - 30);
   }
 
   return [px, 0, pz];
