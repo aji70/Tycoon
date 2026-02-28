@@ -358,8 +358,6 @@ const GameBoard3DView = ({
                 onToggleAiTips={toggleAiTips}
                 aiTipText={aiTipText}
                 aiTipLoading={aiTipLoading}
-                jailSubmitting={logic.jailSubmitting}
-                voteEndByNetWorthSubmitting={logic.voteEndByNetWorthSubmitting}
               />
             </div>
           </div>
