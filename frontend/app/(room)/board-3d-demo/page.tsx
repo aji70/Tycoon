@@ -22,6 +22,8 @@ import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
+import PropertyDetailModal from "@/components/game/ai-board/mobile/PropertyDetailModal";
+import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2 } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
@@ -239,6 +241,8 @@ export default function Board3DDemoPage() {
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
@@ -281,6 +285,19 @@ export default function Board3DDemoPage() {
     return out;
   }, [gameProperties]);
 
+  const ownerByPropertyId = useMemo(() => {
+    const out: Record<number, string> = {};
+    gameProperties.forEach((gp) => {
+      if (gp.address) {
+        const owner = livePlayers.find(
+          (p) => p.address?.toLowerCase() === gp.address?.toLowerCase()
+        );
+        if (owner?.username) out[gp.property_id] = owner.username;
+      }
+    });
+    return out;
+  }, [gameProperties, livePlayers]);
+
   const justLandedProperty = useMemo(() => {
     const pos = landedPositionForBuy ?? me?.position;
     if (pos == null) return null;
@@ -317,6 +334,49 @@ export default function Board3DDemoPage() {
   }, [isLiveGame, animatedPositions, liveAnimatedPositions, liveMovementOverride, livePlayers]);
   const developmentByPropertyId = isLiveGame ? liveDevelopmentByPropertyId : demoDevelopmentByPropertyId;
   const showRollUi = !isLiveGame || (playerCanRoll && !(meInJail && !jailChoiceRequired));
+
+  const showToast = useCallback((message: string, type?: "success" | "error" | "default") => {
+    if (type === "success") toast.success(message);
+    else if (type === "error") toast.error(message);
+    else toast(message);
+  }, []);
+
+  const getCurrentRent = useCallback(
+    (prop: Property, gp: GameProperty | undefined): number => {
+      if (!gp || !gp.address) return prop.rent_site_only ?? 0;
+      if (gp.mortgaged) return 0;
+      if (gp.development === 5) return prop.rent_hotel ?? 0;
+      switch (gp.development ?? 0) {
+        case 1: return prop.rent_one_house ?? 0;
+        case 2: return prop.rent_two_houses ?? 0;
+        case 3: return prop.rent_three_houses ?? 0;
+        case 4: return prop.rent_four_houses ?? 0;
+        default: return prop.rent_site_only ?? 0;
+      }
+    },
+    []
+  );
+
+  const fetchUpdatedGame = useCallback(async () => {
+    await refetchGame();
+  }, [refetchGame]);
+
+  const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
+    game?.id ?? 0,
+    me?.user_id,
+    isMyTurn,
+    fetchUpdatedGame,
+    showToast
+  );
+
+  const handlePropertyClick = useCallback(
+    (square: Property) => {
+      const gp = gameProperties.find((g) => g.property_id === square.id);
+      setSelectedProperty(square);
+      setSelectedGameProperty(gp);
+    },
+    [gameProperties]
+  );
 
   const handleRoll = useCallback(() => {
     if (rollingDice) return;
@@ -420,17 +480,17 @@ export default function Board3DDemoPage() {
         is_double: rolledDouble,
       });
       const data = res?.data?.data ?? (res as any)?.data;
-      setLiveMovementOverride((prev) => {
-        const next = { ...prev };
-        delete next[me.user_id];
-        return next;
-      });
       if (data?.still_in_jail) {
         setJailChoiceRequired(true);
       }
       setLastRollResultLive(value);
       landedPositionThisTurnRef.current = newPos;
       await refetchGame();
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[me.user_id];
+        return next;
+      });
       setLastRollResultLive(null);
       setLandedPositionForBuy(newPos);
       const square = properties.find((p) => p.id === newPos);
@@ -523,11 +583,6 @@ export default function Board3DDemoPage() {
         is_double: rolledDouble,
       });
       const data = res?.data?.data ?? (res as any)?.data;
-      setLiveMovementOverride((prev) => {
-        const next = { ...prev };
-        delete next[playerId];
-        return next;
-      });
       if (data?.still_in_jail) {
         await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: game.id });
         await refetchGame();
@@ -539,6 +594,11 @@ export default function Board3DDemoPage() {
       landedPositionThisTurnRef.current = newPos;
       rolledForPlayerIdRef.current = playerId;
       await refetchGame();
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
       const square = properties.find((p) => p.id === newPos);
       const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
       const action = PROPERTY_ACTION(newPos);
@@ -960,6 +1020,8 @@ export default function Board3DDemoPage() {
                 animatedPositions={positions}
                 currentPlayerId={isLiveGame ? currentPlayerId : 1}
                 developmentByPropertyId={developmentByPropertyId}
+                ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
+                onSquareClick={handlePropertyClick}
                 rollingDice={rollingDice ?? undefined}
                 onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
                 lastRollResult={lastRollResultToShow}
@@ -1074,6 +1136,25 @@ export default function Board3DDemoPage() {
         card={cardData}
         playerName={cardPlayerName}
       />
+
+      {selectedProperty && (
+        <PropertyDetailModal
+          property={selectedProperty}
+          gameProperty={selectedGameProperty}
+          players={players}
+          me={me}
+          isMyTurn={isMyTurn}
+          getCurrentRent={getCurrentRent}
+          onClose={() => {
+            setSelectedProperty(null);
+            setSelectedGameProperty(undefined);
+          }}
+          onBuild={handleBuild}
+          onSellBuilding={handleSellBuilding}
+          onMortgageToggle={handleMortgageToggle}
+          onSellToBank={handleSellToBank}
+        />
+      )}
 
       <AnimatePresence>
         {winner && gameTimeUp && (
