@@ -4,20 +4,26 @@ import { useRef, useMemo, useState, createElement, Fragment } from "react";
 import { useFrame } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
-import { getPosition3D, getPosition3DFromGrid, getTokenOffset } from "./positions";
+import { getPosition3D, getPosition3DFromGrid } from "./positions";
 import { getSquareName } from "./squareNames";
+import { getPlayerSymbol } from "@/lib/types/symbol";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
 
 // Use createElement for R3F primitives so SWC/Next.js build accepts them (lowercase mesh/group etc.)
 
-const TOKEN_COLORS = ["#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#f87171", "#60a5fa", "#c084fc"];
-function getTokenColor(playerIndex: number): string {
-  return TOKEN_COLORS[playerIndex % TOKEN_COLORS.length];
-}
-
 /** 0 = no houses, 1-4 = house count, 5 = hotel. Only for developable properties (standard color groups). */
 export type DevelopmentByPropertyId = Record<number, number>;
+
+/** Rotation (Euler) to show dice value 1–6 on top (Y+). */
+const DICE_TOP_ROTATIONS: [number, number, number][] = [
+  [0, 0, 0],           // 1
+  [Math.PI / 2, 0, 0], // 2
+  [0, 0, -Math.PI / 2], // 3
+  [0, 0, Math.PI / 2],  // 4
+  [-Math.PI / 2, 0, 0], // 5
+  [Math.PI, 0, 0],     // 6
+];
 
 type BoardSceneProps = {
   properties: Property[];
@@ -26,6 +32,9 @@ type BoardSceneProps = {
   currentPlayerId: number | null;
   /** Optional: override development per property id for demo (0-4 houses, 5 = hotel). */
   developmentByPropertyId?: DevelopmentByPropertyId;
+  /** When set, show 3D dice roll animation then call onDiceComplete. */
+  rollingDice?: { die1: number; die2: number } | null;
+  onDiceComplete?: () => void;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -338,43 +347,112 @@ function BoardTiles({ properties, developmentByPropertyId }: { properties: Prope
   );
 }
 
+const DICE_ROLL_MS = 1400;
+const DICE_SIZE = 0.25;
+
+function RollingDice({
+  die1,
+  die2,
+  onComplete,
+}: {
+  die1: number;
+  die2: number;
+  onComplete: () => void;
+}) {
+  const startTime = useRef(Date.now());
+  const completed = useRef(false);
+  const mesh1Ref = useRef<THREE.Mesh>(null);
+  const mesh2Ref = useRef<THREE.Mesh>(null);
+
+  useFrame(() => {
+    if (completed.current) return;
+    const elapsed = Date.now() - (startTime.current ?? 0);
+    const r1 = DICE_TOP_ROTATIONS[Math.max(0, Math.min(5, die1 - 1))];
+    const r2 = DICE_TOP_ROTATIONS[Math.max(0, Math.min(5, die2 - 1))];
+    if (elapsed >= DICE_ROLL_MS) {
+      completed.current = true;
+      if (mesh1Ref.current) mesh1Ref.current.rotation.set(r1[0], r1[1], r1[2]);
+      if (mesh2Ref.current) mesh2Ref.current.rotation.set(r2[0], r2[1], r2[2]);
+      onComplete();
+      return;
+    }
+    const spin = (elapsed / DICE_ROLL_MS) * Math.PI * 10;
+    if (mesh1Ref.current) mesh1Ref.current.rotation.set(r1[0] + spin * 0.7, r1[1] + spin * 1.2, r1[2] + spin * 0.6);
+    if (mesh2Ref.current) mesh2Ref.current.rotation.set(r2[0] + spin * 0.9, r2[1] + spin * 0.5, r2[2] + spin * 1.1);
+  });
+
+  const mat = createElement("meshStandardMaterial", { color: 0xf5f5f5, roughness: 0.35, metalness: 0.1 });
+  const geo = createElement("boxGeometry", { args: [DICE_SIZE, DICE_SIZE, DICE_SIZE] });
+  return createElement(
+    "group",
+    { position: [0, 2.5, 0] as [number, number, number] },
+    createElement("mesh", { ref: mesh1Ref, position: [-DICE_SIZE * 1.3, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat),
+    createElement("mesh", { ref: mesh2Ref, position: [DICE_SIZE * 1.3, 0, 0] as [number, number, number], castShadow: true, receiveShadow: true }, geo, mat)
+  );
+}
+
 function PlayerToken({
   positionIndex,
   playerIndex,
   totalOnSquare,
-  color,
+  symbol,
   isCurrent,
 }: {
   positionIndex: number;
   playerIndex: number;
   totalOnSquare: number;
-  color: string;
+  symbol: string;
   isCurrent: boolean;
 }) {
   const [x, , z] = getPosition3D(positionIndex);
-  const [ox, , oz] = getTokenOffset(playerIndex, totalOnSquare);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const [r, g, b] = hexToRgb(color);
+  const groupRef = useRef<THREE.Group>(null);
+  const emoji = getPlayerSymbol(symbol) ?? "🎲";
 
   useFrame(() => {
-    if (meshRef.current && isCurrent) {
-      meshRef.current.position.y = 0.15 + Math.sin(Date.now() * 0.003) * 0.03;
+    if (groupRef.current && isCurrent) {
+      groupRef.current.position.y = 0.02 + Math.sin(Date.now() * 0.003) * 0.04;
     }
   });
 
   return createElement(
-    "mesh",
+    "group",
     {
-      ref: meshRef,
-      position: [x + ox, 0.15, z + oz] as [number, number, number],
-      castShadow: true,
-      receiveShadow: true,
+      ref: groupRef,
+      position: [x, 0.02, z] as [number, number, number],
     },
-    createElement("cylinderGeometry", { args: [0.12, 0.14, 0.2, 16] }),
-    createElement("meshStandardMaterial", {
-      color: new THREE.Color(r, g, b),
-      emissive: isCurrent ? new THREE.Color(r * 0.5, g * 0.5, b * 0.5) : undefined,
-    })
+    createElement(
+      Html,
+      {
+        center: true,
+        distanceFactor: 10,
+        sprite: true,
+        style: {
+          fontSize: "28px",
+          lineHeight: 1,
+          pointerEvents: "none",
+          userSelect: "none",
+          filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.9))",
+          transform: isCurrent ? "scale(1.2)" : "scale(1)",
+        },
+      },
+      createElement(
+        "span",
+        {
+          style: {
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "40px",
+            height: "40px",
+            borderRadius: "50%",
+            background: isCurrent ? "rgba(34, 211, 238, 0.4)" : "rgba(0,0,0,0.55)",
+            border: isCurrent ? "3px solid #22d3ee" : "2px solid rgba(255,255,255,0.5)",
+            boxShadow: isCurrent ? "0 0 14px rgba(34, 211, 238, 0.7)" : "0 2px 10px rgba(0,0,0,0.6)",
+          },
+        },
+        emoji
+      )
+    )
   );
 }
 
@@ -384,6 +462,8 @@ export default function BoardScene({
   animatedPositions,
   currentPlayerId,
   developmentByPropertyId,
+  rollingDice,
+  onDiceComplete,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -397,7 +477,7 @@ export default function BoardScene({
       const totalOnSquare = counts[pos] ?? 1;
       const idxOnSquare = nextIdx[pos] ?? 0;
       nextIdx[pos] = idxOnSquare + 1;
-      return { player, pos, idxOnSquare, totalOnSquare, color: getTokenColor(i) };
+      return { player, pos, idxOnSquare, totalOnSquare, symbol: player.symbol ?? "hat" };
     });
   }, [players, animatedPositions]);
 
@@ -426,13 +506,21 @@ export default function BoardScene({
       createElement("meshStandardMaterial", { color: "#0a1516" })
     ),
     createElement(BoardTiles, { properties, developmentByPropertyId }),
-    ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, color }) =>
+    rollingDice && onDiceComplete
+      ? createElement(RollingDice, {
+          key: "dice",
+          die1: rollingDice.die1,
+          die2: rollingDice.die2,
+          onComplete: onDiceComplete,
+        })
+      : null,
+    ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, symbol }) =>
       createElement(PlayerToken, {
         key: player.user_id,
         positionIndex: pos,
         playerIndex: idxOnSquare,
         totalOnSquare,
-        color,
+        symbol,
         isCurrent: currentPlayerId === player.user_id,
       })
     ),

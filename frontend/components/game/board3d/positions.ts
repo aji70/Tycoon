@@ -21,30 +21,21 @@ export function getPosition3DFromGrid(grid_row: number, grid_col: number): [numb
   return [px, 0, pz];
 }
 
-export function getPosition3D(positionIndex: number): [number, number, number] {
+/**
+ * Map board position index (0–39) to grid row/col used by tiles.
+ * Matches buildMockProperties / backend so tokens align with tile centers.
+ */
+export function positionToGrid(positionIndex: number): { grid_row: number; grid_col: number } {
   const i = ((positionIndex % 40) + 40) % 40;
-  let px = 0;
-  let pz = 0;
+  if (i <= 9) return { grid_row: 11, grid_col: 11 - i };
+  if (i <= 19) return { grid_row: 11 - (i - 10), grid_col: 1 };
+  if (i <= 29) return { grid_row: 1, grid_col: (i - 20) + 1 };
+  return { grid_row: (i - 30) + 1, grid_col: 11 };
+}
 
-  if (i <= 9) {
-    // Top row: 0 = GO (right), 9 = corner (left), right to left
-    px = HALF - i;
-    pz = HALF;
-  } else if (i <= 19) {
-    // Left side: top to bottom. 10 next to 9, 19 next to 20
-    px = -HALF;
-    pz = HALF - (i - 10);
-  } else if (i <= 29) {
-    // Bottom row: right to left. 20 = right, 29 = left
-    px = HALF - (i - 20);
-    pz = -HALF;
-  } else {
-    // Right side: bottom to top. 30 next to 29, 39 next to 0
-    px = HALF;
-    pz = -HALF + (i - 30);
-  }
-
-  return [px, 0, pz];
+export function getPosition3D(positionIndex: number): [number, number, number] {
+  const { grid_row, grid_col } = positionToGrid(positionIndex);
+  return getPosition3DFromGrid(grid_row, grid_col);
 }
 
 /** Token offset so multiple players on same square are slightly spread (e.g. in a line). */
