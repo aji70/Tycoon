@@ -63,9 +63,15 @@ interface GameCreateResponse {
   id?: string | number;
 }
 
-export function useAIGameCreate() {
+export interface UseAIGameCreateOptions {
+  /** When true, redirect to 3D board (ai-play-3d) after creating the game. */
+  redirectTo3D?: boolean;
+}
+
+export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const router = useRouter();
   const { address } = useAccount();
+  const redirectTo3D = options?.redirectTo3D ?? false;
   const { caipNetwork } = useAppKitNetwork();
   const guestAuth = useGuestAuthOptional();
   const isGuest = !!guestAuth?.guestUser;
@@ -148,7 +154,7 @@ export function useAIGameCreate() {
           isLoading: false,
           autoClose: 5000,
         });
-        router.push(`/ai-play?gameCode=${gameCode}`);
+        router.push(redirectTo3D ? `/ai-play-3d?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
       } catch (err: any) {
         const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
         toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
@@ -240,7 +246,7 @@ export function useAIGameCreate() {
         autoClose: 5000,
       });
 
-      router.push(`/ai-play?gameCode=${gameCode}`);
+      router.push(redirectTo3D ? `/ai-play-3d?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
       console.error("handlePlay error:", err);
       const message = getContractErrorMessage(err, "Something went wrong. Please try again.");

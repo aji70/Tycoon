@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import type { Property, Player, History } from "@/types/game";
+import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
 import ActionLog from "@/components/game/ai-board/action-log";
 import { getPlayerSymbol } from "@/lib/types/symbol";
@@ -172,11 +174,53 @@ const initialPositions: Record<number, number> = Object.fromEntries(
 );
 
 /**
- * UI-only 3D board demo. Fetches properties from backend (same as 2D boards) for names and layout.
- * Route: /board-3d-demo
+ * 3D board demo. With ?gameCode=XXX loads that game from backend (players, positions, development).
+ * Without gameCode uses mock data. Route: /board-3d-demo or /board-3d-demo?gameCode=ABC123
  */
 export default function Board3DDemoPage() {
+  const searchParams = useSearchParams();
+  const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
+
   const { properties, isLoading, fromApi } = useBoardProperties();
+  const { data: game, isLoading: gameLoading } = useQuery<Game>({
+    queryKey: ["game", gameCode ?? ""],
+    queryFn: async () => {
+      if (!gameCode) throw new Error("No code");
+      const res = await apiClient.get<ApiResponse>(`/games/code/${gameCode}`);
+      if (!res.data?.success) throw new Error("Game not found");
+      return res.data.data;
+    },
+    enabled: !!gameCode && gameCode.length === 6,
+    refetchInterval: gameCode ? 5000 : false,
+  });
+  const { data: gameProperties = [] } = useQuery<GameProperty[]>({
+    queryKey: ["game_properties", game?.id],
+    queryFn: async () => {
+      if (!game?.id) return [];
+      const res = await apiClient.get<ApiResponse>(`/game-properties/game/${game.id}`);
+      return res.data?.success ? res.data.data : [];
+    },
+    enabled: !!game?.id,
+  });
+
+  const isLiveGame = !!gameCode && !!game;
+  const livePlayers = useMemo(() => game?.players ?? [], [game?.players]);
+  const liveAnimatedPositions = useMemo(() => {
+    const out: Record<number, number> = {};
+    livePlayers.forEach((p) => {
+      out[p.user_id] = p.position ?? 0;
+    });
+    return out;
+  }, [livePlayers]);
+  const liveDevelopmentByPropertyId = useMemo(() => {
+    const out: Record<number, number> = {};
+    gameProperties.forEach((gp) => {
+      out[gp.property_id] = gp.development ?? 0;
+    });
+    return out;
+  }, [gameProperties]);
+  const currentPlayerId = game?.next_player_id ?? null;
+
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
   const [lastRollResult, setLastRollResult] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
@@ -186,6 +230,11 @@ export default function Board3DDemoPage() {
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
   const moveStartPositionsRef = useRef<Record<number, number>>({});
   const historyIdRef = useRef(0);
+
+  const players = isLiveGame ? livePlayers : mockPlayers;
+  const positions = isLiveGame ? liveAnimatedPositions : animatedPositions;
+  const developmentByPropertyId = isLiveGame ? liveDevelopmentByPropertyId : demoDevelopmentByPropertyId;
+  const showRollUi = !isLiveGame;
 
   const handleRoll = useCallback(() => {
     if (rollingDice) return;

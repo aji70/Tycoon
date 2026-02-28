@@ -20,14 +20,8 @@ import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 
-export interface PlayWithAIProps {
-  /** When true, after creating a game redirect to 3D board (ai-play-3d). */
-  redirectTo3D?: boolean;
-  /** Visual theme: "3d" applies gamified 3D board styling. */
-  theme?: "default" | "3d";
-}
-
-export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: PlayWithAIProps = {}) {
+/** 3D-only AI game settings: same functionality as game-ai but redirects to ai-play-3d and uses gamified 3D theme. */
+export default function PlayWithAI3D() {
   const router = useRouter();
   const {
     settings,
@@ -40,61 +34,44 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
     registeredAgents,
     agentsLoading,
     registrySupported,
-  } = useAIGameCreate({ redirectTo3D });
+  } = useAIGameCreate({ redirectTo3D: true });
 
   if (!isGuest && isRegisteredLoading) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-settings bg-cover">
-        <p className="text-[#00F0FF] text-4xl font-orbitron animate-pulse tracking-wider">
+      <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-amber-950/20">
+        <p className="text-amber-400 text-4xl font-orbitron animate-pulse tracking-wider">
           LOADING ARENA...
         </p>
       </div>
     );
   }
 
-  const is3D = theme === "3d";
-  const wrapperClass = is3D
-    ? "min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 flex items-center justify-center p-6"
-    : "min-h-screen bg-settings bg-cover bg-fixed flex items-center justify-center p-6";
-  const cardClass = is3D
-    ? "w-full max-w-5xl bg-slate-900/95 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 shadow-2xl shadow-amber-900/20 p-8 md:p-12"
-    : "w-full max-w-5xl bg-black/80 backdrop-blur-3xl rounded-3xl border border-cyan-500/30 shadow-2xl p-8 md:p-12";
-  const titleClass = is3D
-    ? "text-5xl font-orbitron font-extrabold bg-gradient-to-r from-amber-400 via-amber-300 to-cyan-400 bg-clip-text text-transparent drop-shadow-lg"
-    : "text-5xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent";
-  const backClass = is3D
-    ? "flex items-center gap-3 text-amber-400 hover:text-amber-300 transition group"
-    : "flex items-center gap-3 text-cyan-400 hover:text-cyan-300 transition group";
-
   return (
-    <div className={wrapperClass}>
-      <div className={cardClass}>
-        {/* Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 flex items-center justify-center p-6">
+      <div className="w-full max-w-5xl bg-slate-900/95 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 shadow-2xl shadow-amber-900/20 p-8 md:p-12">
         <div className="flex justify-between items-center mb-12">
           <button
             onClick={() => router.push("/")}
-            className={backClass}
+            className="flex items-center gap-3 text-amber-400 hover:text-amber-300 transition group"
           >
             <House className="w-6 h-6 group-hover:-translate-x-1 transition" />
             <span className="font-bold text-lg">BACK</span>
           </button>
-          <h1 className={titleClass}>
-            {is3D ? "AI DUEL · 3D" : "AI DUEL"}
+          <h1 className="text-5xl font-orbitron font-extrabold bg-gradient-to-r from-amber-400 via-amber-300 to-cyan-400 bg-clip-text text-transparent drop-shadow-lg">
+            AI DUEL · 3D
           </h1>
           <div className="w-24" />
         </div>
 
-        {/* Main Grid - Desktop layout */}
         <div className="grid lg:grid-cols-3 gap-8 mb-10">
-          {/* Column 1 */}
           <div className="space-y-6">
-            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-cyan-500/30">
+            <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 rounded-2xl p-6 border border-amber-500/30">
               <div className="flex items-center gap-3 mb-4">
-                <FaUser className="w-7 h-7 text-cyan-400" />
-                <h3 className="text-xl font-bold text-cyan-300">Your Piece</h3>
+                <FaUser className="w-7 h-7 text-amber-400" />
+                <h3 className="text-xl font-bold text-amber-300">Your Piece</h3>
               </div>
               <Select value={settings.symbol} onValueChange={(v) => setSettings((p) => ({ ...p, symbol: v }))}>
-                <SelectTrigger className="h-14 bg-black/60 border-cyan-500/40 text-white">
+                <SelectTrigger className="h-14 bg-slate-800/80 border-amber-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -105,16 +82,16 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
               </Select>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-purple-500/30">
+            <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-amber-500/30">
               <div className="flex items-center gap-3 mb-4">
-                <FaRobot className="w-7 h-7 text-purple-400" />
-                <h3 className="text-xl font-bold text-purple-300">AI Opponents</h3>
+                <FaRobot className="w-7 h-7 text-amber-400" />
+                <h3 className="text-xl font-bold text-amber-300">AI Opponents</h3>
               </div>
               <Select
                 value={settings.aiCount.toString()}
                 onValueChange={(v) => setSettings((p) => ({ ...p, aiCount: +v }))}
               >
-                <SelectTrigger className="h-14 bg-black/60 border-purple-500/40 text-white">
+                <SelectTrigger className="h-14 bg-slate-800/80 border-amber-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -124,36 +101,35 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 </SelectContent>
               </Select>
               {registrySupported && registeredAgents.length > 0 && (
-                <p className="mt-2 text-xs text-purple-300/80 flex items-center gap-1">
+                <p className="mt-2 text-xs text-amber-300/80 flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   {registeredAgents.length} verified on-chain
                 </p>
               )}
             </div>
 
-            <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-2xl p-6 border border-red-500/30">
+            <div className="bg-gradient-to-br from-red-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
               <div className="flex items-center gap-3 mb-4">
-                <FaBrain className="w-7 h-7 text-red-400" />
-                <h3 className="text-xl font-bold text-red-300">AI Difficulty</h3>
+                <FaBrain className="w-7 h-7 text-amber-400" />
+                <h3 className="text-xl font-bold text-amber-300">AI Difficulty</h3>
               </div>
               <Select
                 value={settings.aiDifficulty}
                 onValueChange={(v) => setSettings((p) => ({ ...p, aiDifficulty: v as any }))}
               >
-                <SelectTrigger className="h-14 bg-black/60 border-red-500/40 text-white">
+                <SelectTrigger className="h-14 bg-slate-800/80 border-amber-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="easy">Easy</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="boss" className="text-pink-400 font-bold">BOSS MODE</SelectItem>
+                  <SelectItem value="boss" className="text-amber-400 font-bold">BOSS MODE</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Column 2 */}
           <div className="bg-gradient-to-br from-amber-900/40 to-orange-900/40 rounded-2xl p-6 border border-amber-500/30">
             <div className="flex items-center gap-3 mb-4">
               <FaCoins className="w-7 h-7 text-amber-400" />
@@ -163,7 +139,7 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
               value={settings.startingCash.toString()}
               onValueChange={(v) => setSettings((p) => ({ ...p, startingCash: +v }))}
             >
-              <SelectTrigger className="h-14 bg-black/60 border-amber-500/40 text-white">
+              <SelectTrigger className="h-14 bg-slate-800/80 border-amber-500/40 text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -176,14 +152,14 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
             </Select>
             <div className="mt-8">
               <div className="flex items-center gap-3 mb-4">
-                <FaBrain className="w-7 h-7 text-indigo-400" />
-                <h3 className="text-xl font-bold text-indigo-300">Game Duration</h3>
+                <FaBrain className="w-7 h-7 text-amber-400" />
+                <h3 className="text-xl font-bold text-amber-300">Game Duration</h3>
               </div>
               <Select
                 value={settings.duration.toString()}
                 onValueChange={(v) => setSettings((p) => ({ ...p, duration: +v }))}
               >
-                <SelectTrigger className="h-14 bg-black/60 border-indigo-500/40 text-white">
+                <SelectTrigger className="h-14 bg-slate-800/80 border-amber-500/40 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -199,26 +175,25 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
             </div>
           </div>
 
-          {/* Column 3 */}
           <div className="space-y-6">
             {registrySupported && registeredAgents.length > 0 && !agentsLoading && (
-              <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-2xl p-6 border border-emerald-500/30">
+              <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 rounded-2xl p-6 border border-amber-500/30">
                 <div className="flex items-center gap-3 mb-3">
-                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
-                  <h3 className="text-lg font-bold text-emerald-300">Registered AI Agents</h3>
+                  <ShieldCheck className="w-6 h-6 text-amber-400" />
+                  <h3 className="text-lg font-bold text-amber-300">Registered AI Agents</h3>
                 </div>
                 <ul className="space-y-2 max-h-32 overflow-y-auto">
                   {registeredAgents.map((a) => (
-                    <li key={a.tokenId} className="text-sm text-gray-300 flex justify-between items-center gap-2">
+                    <li key={a.tokenId} className="text-sm text-slate-300 flex justify-between items-center gap-2">
                       <span className="font-medium text-white truncate">{a.name}</span>
-                      <span className="text-emerald-400/90 shrink-0">{a.playStyle}</span>
+                      <span className="text-amber-400/90 shrink-0">{a.playStyle}</span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-            <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30 h-full">
-              <h3 className="text-xl font-bold text-cyan-400 mb-5 text-center">House Rules</h3>
+            <div className="bg-slate-800/60 rounded-2xl p-6 border border-amber-500/30 h-full">
+              <h3 className="text-xl font-bold text-amber-400 mb-5 text-center">House Rules</h3>
               <div className="space-y-4">
                 {[
                   { icon: RiAuctionFill, label: "Auction Unsold Properties", key: "auction" },
@@ -229,8 +204,8 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 ].map((item) => (
                   <div key={item.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <item.icon className="w-5 h-5 text-cyan-400" />
-                      <span className="text-gray-300 text-sm">{item.label}</span>
+                      <item.icon className="w-5 h-5 text-amber-400" />
+                      <span className="text-slate-300 text-sm">{item.label}</span>
                     </div>
                     <Switch
                       checked={settings[item.key as keyof typeof settings] as boolean}
@@ -247,14 +222,10 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
           <button
             onClick={handlePlay}
             disabled={!canCreate || (!isGuest && isCreatePending)}
-            className={
-              is3D
-                ? "relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-400/60 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
-                : "relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10] rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-4 border-[#00F0FF]/40"
-            }
+            className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-400/60 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
           >
             <span className="relative z-10 drop-shadow-lg">
-              {isCreatePending ? "SUMMONING..." : is3D ? "LAUNCH 3D BATTLE" : "START BATTLE"}
+              {isCreatePending ? "SUMMONING..." : "LAUNCH 3D BATTLE"}
             </span>
           </button>
         </div>
