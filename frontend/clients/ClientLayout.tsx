@@ -4,6 +4,7 @@ import { useMediaQuery } from "@/components/useMediaQuery"; // Your custom hook
 import NavBar from "@/components/shared/navbar";
 import NavBarMobile from "@/components/shared/navbar-mobile";
 import { ReactNode, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts"; // Adjust path if needed
 import { ProfileProvider } from "@/context/ProfileContext";
 
@@ -15,6 +16,8 @@ interface ClientLayoutProps {
 export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   const [isClient, setIsClient] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const pathname = usePathname();
+  const isBoard3DMobile = pathname === "/board-3d-mobile";
 
   // Hydration safety: Wait for client mount before rendering dynamic content
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   return (
     <ProfileProvider>
       <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-        {isMobile ? <NavBarMobile /> : <NavBar />}
+        {isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />}
         {children}
       </div>
     </ProfileProvider>
