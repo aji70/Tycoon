@@ -20,7 +20,7 @@ import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 
-/** 3D-only AI game settings (mobile): redirects to ai-play-3d, gamified 3D theme. */
+/** AI game settings (mobile): redirects to ai-play-3d with a gamey, sweet theme. */
 export default function PlayWithAI3DMobile() {
   const router = useRouter();
   const {
@@ -39,8 +39,8 @@ export default function PlayWithAI3DMobile() {
   if (!isGuest && isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-amber-950/20">
-        <p className="text-amber-400 text-3xl font-orbitron animate-pulse text-center px-6">
-          LOADING ARENA...
+        <p className="text-amber-400 text-xl font-medium animate-pulse text-center px-6">
+          Getting ready...
         </p>
       </div>
     );
@@ -55,10 +55,10 @@ export default function PlayWithAI3DMobile() {
             className="flex items-center gap-2 text-amber-400 hover:text-amber-300 transition group"
           >
             <House className="w-5 h-5 group-hover:-translate-x-1 transition" />
-            <span className="font-bold text-sm">BACK</span>
+            <span className="font-bold text-sm">Back</span>
           </button>
-          <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-amber-400 to-cyan-400 bg-clip-text text-transparent">
-            AI DUEL · 3D
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-cyan-400 bg-clip-text text-transparent">
+            Play vs AI
           </h1>
           <div className="w-14" />
         </div>
@@ -225,9 +225,9 @@ export default function PlayWithAI3DMobile() {
             <button
               onClick={handlePlay}
               disabled={!canCreate || (!isGuest && isCreatePending)}
-              className="w-full py-4 text-lg font-orbitron font-bold tracking-wide rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-400/60 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
+              className="w-full py-4 text-lg font-bold rounded-xl shadow-md hover:brightness-110 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-400/50 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
             >
-              {!isGuest && isCreatePending ? "SUMMONING..." : "LAUNCH 3D BATTLE"}
+              {!isGuest && isCreatePending ? "Getting ready..." : "Let's Play!"}
             </button>
           </div>
         </div>

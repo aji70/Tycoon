@@ -20,7 +20,7 @@ import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
 import { useAIGameCreate } from "@/hooks/useAIGameCreate";
 
-/** 3D-only AI game settings: same functionality as game-ai but redirects to ai-play-3d and uses gamified 3D theme. */
+/** AI game settings: same functionality as game-ai but redirects to ai-play-3d with a gamey, sweet theme. */
 export default function PlayWithAI3D() {
   const router = useRouter();
   const {
@@ -39,8 +39,8 @@ export default function PlayWithAI3D() {
   if (!isGuest && isRegisteredLoading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-amber-950/20">
-        <p className="text-amber-400 text-4xl font-orbitron animate-pulse tracking-wider">
-          LOADING ARENA...
+        <p className="text-amber-400 text-2xl font-medium animate-pulse">
+          Getting ready...
         </p>
       </div>
     );
@@ -48,17 +48,17 @@ export default function PlayWithAI3D() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 flex items-center justify-center p-6">
-      <div className="w-full max-w-5xl bg-slate-900/95 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 shadow-2xl shadow-amber-900/20 p-8 md:p-12">
+      <div className="w-full max-w-5xl bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-amber-500/30 shadow-lg p-8 md:p-12">
         <div className="flex justify-between items-center mb-12">
           <button
             onClick={() => router.push("/")}
             className="flex items-center gap-3 text-amber-400 hover:text-amber-300 transition group"
           >
             <House className="w-6 h-6 group-hover:-translate-x-1 transition" />
-            <span className="font-bold text-lg">BACK</span>
+            <span className="font-bold text-lg">Back</span>
           </button>
-          <h1 className="text-5xl font-orbitron font-extrabold bg-gradient-to-r from-amber-400 via-amber-300 to-cyan-400 bg-clip-text text-transparent drop-shadow-lg">
-            AI DUEL · 3D
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-amber-400 via-amber-300 to-cyan-400 bg-clip-text text-transparent">
+            Play vs AI
           </h1>
           <div className="w-24" />
         </div>
@@ -222,11 +222,9 @@ export default function PlayWithAI3D() {
           <button
             onClick={handlePlay}
             disabled={!canCreate || (!isGuest && isCreatePending)}
-            className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-400/60 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
+            className="px-20 py-5 text-2xl font-bold rounded-2xl shadow-md hover:brightness-110 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-amber-400/50 bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900"
           >
-            <span className="relative z-10 drop-shadow-lg">
-              {isCreatePending ? "SUMMONING..." : "LAUNCH 3D BATTLE"}
-            </span>
+            {isCreatePending ? "Getting ready..." : "Let's Play!"}
           </button>
         </div>
       </div>
