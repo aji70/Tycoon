@@ -27,7 +27,7 @@ import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2 } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
-import AiPlayer from "@/components/game/ai-player/ai-player";
+import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -911,14 +911,14 @@ export default function Board3DDemoPage() {
       {/* Sidebar: Players + My Empire + Trade (live) or Players only (demo) */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5">
         {isLiveGame && game ? (
-          <AiPlayer
+          <PlayerSection3D
             game={game}
             properties={properties}
             game_properties={gameProperties}
             my_properties={my_properties}
             me={me}
             currentPlayer={currentPlayer}
-            roll={lastRollResultToShow}
+            positions={positions}
             isAITurn={isAITurn}
           />
         ) : (
@@ -1021,11 +1021,11 @@ export default function Board3DDemoPage() {
                   onRoll={showRollUi ? onRollClick : undefined}
                 />
               </Canvas>
-              {/* ActionLog under roll button (like 2D center area) */}
-              <div className="absolute bottom-0 left-0 right-0 max-h-24 overflow-y-auto bg-slate-900/90 backdrop-blur-sm border-t border-cyan-500/30 rounded-b-xl">
+              {/* ActionLog below roll button in center of board */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-md max-h-24 overflow-y-auto bg-slate-900/95 backdrop-blur-sm border border-cyan-500/40 rounded-xl shadow-xl">
                 <ActionLog
                   history={historyToShow}
-                  className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
+                  className="!mt-0 !rounded-lg !border-0 !bg-transparent !shadow-none"
                 />
               </div>
             </div>
