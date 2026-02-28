@@ -227,6 +227,17 @@ export default function Board3DDemoPage() {
     return game.players.find((p: Player) => p.address?.toLowerCase() === myAddress.toLowerCase()) ?? null;
   }, [game?.players, address, guestUser?.address]);
 
+  const [buyPrompted, setBuyPrompted] = useState(false);
+  const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
+  const [turnEndScheduled, setTurnEndScheduled] = useState(false);
+  const [gameTimeUpLocal, setGameTimeUpLocal] = useState(false);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
+  const [cardPlayerName, setCardPlayerName] = useState("");
+  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
+  const [winner, setWinner] = useState<Player | null>(null);
+  const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
+
   const currentPlayerId = game?.next_player_id ?? null;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
   const gameTimeUp = game?.status === "FINISHED" || gameTimeUpLocal;
@@ -261,7 +272,7 @@ export default function Board3DDemoPage() {
     const action = PROPERTY_ACTION(pos);
     const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
     return !isOwned && isBuyableType ? square : null;
-  }, [me?.position, properties, gameProperties]);
+  }, [landedPositionForBuy, me?.position, properties, gameProperties]);
 
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
   const [lastRollResult, setLastRollResult] = useState<{ die1: number; die2: number; total: number } | null>(null);
@@ -273,25 +284,14 @@ export default function Board3DDemoPage() {
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
   const moveStartPositionsRef = useRef<Record<number, number>>({});
   const historyIdRef = useRef(0);
-
-  const [buyPrompted, setBuyPrompted] = useState(false);
-  const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
-  const [turnEndScheduled, setTurnEndScheduled] = useState(false);
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
-  const [cardPlayerName, setCardPlayerName] = useState("");
-  const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
-  const [winner, setWinner] = useState<Player | null>(null);
-  const [gameTimeUpLocal, setGameTimeUpLocal] = useState(false);
   const lastTopHistoryIdRef = useRef<number | null>(null);
   const turnEndInProgressRef = useRef(false);
   const landedPositionThisTurnRef = useRef<number | null>(null);
-  const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
 
   const players = isLiveGame ? livePlayers : mockPlayers;
   const positions = isLiveGame ? liveAnimatedPositions : animatedPositions;
   const developmentByPropertyId = isLiveGame ? liveDevelopmentByPropertyId : demoDevelopmentByPropertyId;
-  const showRollUi = !isLiveGame || playerCanRoll;
+  const showRollUi = !isLiveGame || (playerCanRoll && !(meInJail && !jailChoiceRequired));
 
   const handleRoll = useCallback(() => {
     if (rollingDice) return;
@@ -543,7 +543,7 @@ export default function Board3DDemoPage() {
 
   useEffect(() => {
     if (game?.status !== "FINISHED") return;
-    const winnerId = (game as { winner_id?: number }).winner_id ?? game?.players?.[0]?.user_id;
+    const winnerId = game.winner_id ?? game?.players?.[0]?.user_id;
     const w = game?.players?.find((p) => p.user_id === winnerId) ?? game?.players?.[0] ?? null;
     setWinner(w ?? null);
   }, [game?.status, game?.winner_id, game?.players]);
@@ -654,6 +654,17 @@ export default function Board3DDemoPage() {
             </span>
           )}
           <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
+          {isLiveGame && !isMyTurn && currentPlayerId != null && (
+            <span className="text-amber-400 text-sm mt-2 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin inline" />
+              AI thinking...
+            </span>
+          )}
+          {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" && (
+            <span className="block mt-2">
+              <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
+            </span>
+          )}
         </p>
         <div className="flex items-center gap-3 mt-3">
           <button
@@ -700,6 +711,172 @@ export default function Board3DDemoPage() {
           </div>
         )}
       </div>
+
+      {/* Buy / Skip overlay (live game) */}
+      {isLiveGame && buyPrompted && justLandedProperty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-2xl border-2 border-amber-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
+          >
+            <h3 className="text-lg font-bold text-amber-200 mb-2">You landed on {justLandedProperty.name}</h3>
+            <p className="text-slate-300 text-sm mb-4">
+              ${justLandedProperty.price?.toLocaleString()} — Buy or skip?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleBuy}
+                disabled={(me?.balance ?? 0) < (justLandedProperty.price ?? 0)}
+                className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold"
+              >
+                Buy
+              </button>
+              <button
+                onClick={handleSkip}
+                className="flex-1 py-3 rounded-xl bg-slate-600 hover:bg-slate-500 text-white font-bold"
+              >
+                Skip
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Jail: before roll — Pay $50 / Use card / Roll */}
+      {isLiveGame && isMyTurn && meInJail && !jailChoiceRequired && !rollingDice && !lastRollResultLive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-2xl border-2 border-slate-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
+          >
+            <h3 className="text-lg font-bold text-slate-200 mb-2">You&apos;re in jail</h3>
+            <p className="text-slate-400 text-sm mb-4">Pay $50, use a Get Out of Jail Free card, or roll for doubles.</p>
+            <div className="flex flex-col gap-2">
+              {canPayToLeaveJail && (
+                <button onClick={handlePayToLeaveJail} className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold">
+                  Pay $50
+                </button>
+              )}
+              {hasChanceJailCard && (
+                <button onClick={() => handleUseGetOutOfJailFree("chance")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                  Use Chance Get Out of Jail Free
+                </button>
+              )}
+              {hasCommunityChestJailCard && (
+                <button onClick={() => handleUseGetOutOfJailFree("community_chest")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                  Use Community Chest Get Out of Jail Free
+                </button>
+              )}
+              <button onClick={handleRollForLive} className="w-full py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold">
+                Roll for doubles
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Jail: after roll (no doubles) — Pay / Use card / Stay */}
+      {isLiveGame && isMyTurn && jailChoiceRequired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-2xl border-2 border-slate-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
+          >
+            <h3 className="text-lg font-bold text-slate-200 mb-2">No doubles — stay in jail or pay</h3>
+            <div className="flex flex-col gap-2">
+              {canPayToLeaveJail && (
+                <button onClick={handlePayToLeaveJail} className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold">
+                  Pay $50
+                </button>
+              )}
+              {hasChanceJailCard && (
+                <button onClick={() => handleUseGetOutOfJailFree("chance")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                  Use Chance Get Out of Jail Free
+                </button>
+              )}
+              {hasCommunityChestJailCard && (
+                <button onClick={() => handleUseGetOutOfJailFree("community_chest")} className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold">
+                  Use Community Chest Get Out of Jail Free
+                </button>
+              )}
+              <button onClick={handleStayInJail} className="w-full py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold">
+                Stay in jail
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      <CardModal
+        isOpen={showCardModal}
+        onClose={() => setShowCardModal(false)}
+        card={cardData}
+        playerName={cardPlayerName}
+      />
+
+      <AnimatePresence>
+        {winner && gameTimeUp && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[100] p-4"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
+            {winner.user_id === me?.user_id ? (
+              <motion.div
+                initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-cyan-400/50 bg-gradient-to-b from-indigo-900/95 to-slate-950/95 shadow-2xl text-center p-8"
+              >
+                <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
+                <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
+                <p className="text-slate-200 mb-6">You had the highest net worth when time ran out.</p>
+                <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
+                  Go home
+                </Link>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-slate-500/50 bg-gradient-to-b from-slate-900/95 to-black/95 shadow-2xl text-center p-8"
+              >
+                <Trophy className="w-16 h-16 mx-auto text-amber-400 mb-4" />
+                <h1 className="text-2xl font-bold text-slate-200 mb-2">Time&apos;s up</h1>
+                <p className="text-xl text-white mb-4">{winner.username} <span className="text-amber-400">wins</span></p>
+                <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
+                <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
+                <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
+                  Go home
+                </Link>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <BankruptcyModal
+        isOpen={showBankruptcyModal}
+        onReturnHome={() => (window.location.href = "/")}
+        tokensAwarded={0.5}
+      />
+
+      {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+          <button
+            onClick={handleDeclareBankruptcy}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold"
+          >
+            Declare bankruptcy
+          </button>
+        </div>
+      )}
+
+      <Toaster position="top-center" />
     </div>
   );
 }
