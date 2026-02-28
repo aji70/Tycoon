@@ -38,7 +38,8 @@ export default function AiResponseModal3D({ popup, properties, onClose }: AiResp
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+      className="fixed inset-0 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+      style={{ zIndex: 2147483647 }}
       onClick={onClose}
     >
       <motion.div
