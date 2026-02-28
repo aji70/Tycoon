@@ -243,8 +243,16 @@ export default function Board3DDemoPage() {
   const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
+  const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{
+    vote_count: number;
+    required_votes: number;
+    voters: Array<{ user_id: number; username: string }>;
+  } | null>(null);
+  const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
+  const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
 
   const currentPlayerId = game?.next_player_id ?? null;
+  const isUntimed = !game?.duration || Number(game.duration) === 0;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
   const gameTimeUp = game?.status === "FINISHED" || gameTimeUpLocal;
   const meInJail = !!(me && Number(me.position) === JAIL_POSITION && me.in_jail);
@@ -370,6 +378,64 @@ export default function Board3DDemoPage() {
     await refetchGame();
     await refetchGameProperties();
   }, [refetchGame, refetchGameProperties]);
+
+  const fetchEndByNetWorthStatus = useCallback(async () => {
+    if (!game?.id || !isUntimed) return;
+    try {
+      const res = await apiClient.post<ApiResponse & { data?: { vote_count: number; required_votes: number; voters?: Array<{ user_id: number; username: string }> } }>(
+        "/game-players/end-by-networth-status",
+        { game_id: game.id }
+      );
+      if (res?.data?.success && res.data.data) {
+        setEndByNetWorthStatus({
+          vote_count: res.data.data.vote_count,
+          required_votes: res.data.data.required_votes,
+          voters: res.data.data.voters ?? [],
+        });
+      } else {
+        setEndByNetWorthStatus(null);
+      }
+    } catch {
+      setEndByNetWorthStatus(null);
+    }
+  }, [game?.id, isUntimed]);
+
+  const voteEndByNetWorth = useCallback(async () => {
+    if (!me?.user_id || !game?.id || !isUntimed) return;
+    setEndByNetWorthLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse & { data?: { vote_count: number; required_votes: number; voters?: Array<{ user_id: number; username: string }>; all_voted?: boolean } }>(
+        "/game-players/vote-end-by-networth",
+        { game_id: game.id, user_id: me.user_id }
+      );
+      if (res?.data?.success && res.data.data) {
+        const data = res.data.data;
+        setEndByNetWorthStatus({
+          vote_count: data.vote_count,
+          required_votes: data.required_votes,
+          voters: data.voters ?? [],
+        });
+        if (data.all_voted) {
+          toast.success("Game ended by net worth");
+          await refetchGame();
+        } else {
+          toast.success(`${data.vote_count}/${data.required_votes} voted to end by net worth`);
+        }
+      }
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to vote"));
+    } finally {
+      setEndByNetWorthLoading(false);
+    }
+  }, [game?.id, game?.players, me?.user_id, isUntimed, refetchGame]);
+
+  useEffect(() => {
+    if (!isUntimed || !game?.id) {
+      setEndByNetWorthStatus(null);
+      return;
+    }
+    fetchEndByNetWorthStatus();
+  }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
 
   const handleAiStrategy = useCallback(async () => {
     if (!currentPlayer || !isAITurn || strategyRanThisTurn || !game || !isLiveGame) return;
@@ -1135,6 +1201,75 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
+      {/* End game by net worth — untimed games only (same as 2D board) */}
+      {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+        <button
+          type="button"
+          onClick={() => {
+            if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+            if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+          }}
+          disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+          className="fixed top-4 left-4 lg:top-[72px] z-[100] flex items-center justify-center w-10 h-10 rounded-full bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+          aria-label="Vote to end game by net worth"
+        >
+          <span className="text-xl font-bold leading-none">×</span>
+        </button>
+      )}
+
+      {/* End game by net worth — confirm modal */}
+      <AnimatePresence>
+        {showEndByNetWorthConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowEndByNetWorthConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-900/30 p-6 max-w-sm w-full"
+            >
+              <button
+                type="button"
+                onClick={() => setShowEndByNetWorthConfirm(false)}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-cyan-300 hover:text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                aria-label="Close"
+              >
+                <span className="text-xl leading-none">×</span>
+              </button>
+              <p className="text-lg font-semibold text-cyan-100 mb-1 pr-8">End game by net worth?</p>
+              <p className="text-sm text-cyan-200/80 mb-6">The game will end and the player with the highest net worth will win.</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEndByNetWorthConfirm(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-cyan-200 hover:text-cyan-100 border border-cyan-500/40 hover:bg-cyan-500/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    voteEndByNetWorth();
+                    setShowEndByNetWorthConfirm(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-cyan-600/90 text-white hover:bg-cyan-500 border border-cyan-400/50 transition-colors"
+                >
+                  Yes, vote to end
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar: Players + My Empire + Trade — sticky so it stays visible when scrolling */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
         {gameCode && gameLoading ? (
