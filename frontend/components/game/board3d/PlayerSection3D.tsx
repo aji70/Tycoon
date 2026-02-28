@@ -7,7 +7,6 @@ import { getPlayerSymbol } from "@/lib/types/symbol";
 import { getSquareName } from "./squareNames";
 import MyEmpire3D from "./MyEmpire3D";
 import TradeSection3D from "./TradeSection3D";
-import { PropertyActionModal } from "../modals/property-action";
 import { AiResponsePopup } from "../modals/ai-response";
 import { TradeModal } from "../modals/trade";
 import { useAiPlayerLogic } from "../ai-player/useAiPlayerLogic";
@@ -24,6 +23,8 @@ interface PlayerSection3DProps {
   isAITurn: boolean;
   /** When true, show loading state — no dummy players */
   isLoading?: boolean;
+  /** When property clicked in My Empire, opens PropertyDetailModal3D (same as board square) */
+  onPropertySelect?: (property: Property, gameProperty?: GameProperty) => void;
 }
 
 export default function PlayerSection3D({
@@ -36,6 +37,7 @@ export default function PlayerSection3D({
   positions,
   isAITurn,
   isLoading = false,
+  onPropertySelect,
 }: PlayerSection3DProps) {
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -58,8 +60,6 @@ export default function PlayerSection3D({
     setCounterModal,
     aiResponsePopup,
     setAiResponsePopup,
-    selectedProperty,
-    setSelectedProperty,
     offerProperties,
     requestProperties,
     offerCash,
@@ -78,16 +78,18 @@ export default function PlayerSection3D({
     handleCreateTrade,
     handleTradeAction,
     submitCounterTrade,
-    handleDevelopment,
-    handleDowngrade,
-    handleMortgage,
-    handleUnmortgage,
   } = logic;
 
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const togglePlayers = useCallback(() => setShowPlayers((p) => !p), []);
-  const onPropertyClick = useCallback((prop: Property) => setSelectedProperty(prop), []);
+  const onPropertyClick = useCallback(
+    (prop: Property) => {
+      const gp = game_properties.find((g) => g.property_id === prop.id);
+      onPropertySelect?.(prop, gp);
+    },
+    [game_properties, onPropertySelect]
+  );
 
   if (isLoading) {
     return (
@@ -214,17 +216,8 @@ export default function PlayerSection3D({
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Modals — PropertyDetailModal3D is rendered by parent (board page) when property selected from My Empire */}
       <AnimatePresence>
-        <PropertyActionModal
-          property={selectedProperty}
-          onClose={() => setSelectedProperty(null)}
-          onDevelop={handleDevelopment}
-          onDowngrade={handleDowngrade}
-          onMortgage={handleMortgage}
-          onUnmortgage={handleUnmortgage}
-        />
-
         <AiResponsePopup
           popup={aiResponsePopup}
           properties={properties}
