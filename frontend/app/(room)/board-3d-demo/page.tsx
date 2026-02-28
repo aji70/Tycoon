@@ -1,6 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
@@ -14,7 +17,24 @@ const BoardScene = dynamic(
   { ssr: false }
 );
 
-// Classic Monopoly-style 40 squares with correct types for 3D shapes
+// Same as 2D boards: fetch properties from backend for names and grid layout
+function useBoardProperties() {
+  const { data: apiProperties = [], isLoading, isError } = useQuery<Property[]>({
+    queryKey: ["properties"],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse>("/properties");
+      return res.data?.success ? res.data.data : [];
+    },
+    staleTime: Infinity,
+  });
+
+  if (apiProperties.length >= 40) {
+    return { properties: [...apiProperties].sort((a, b) => a.id - b.id), isLoading: false, fromApi: true };
+  }
+  return { properties: buildMockProperties(), isLoading, fromApi: false };
+}
+
+// Fallback when API fails or returns no data (same structure as backend: id, name, type, grid_row, grid_col)
 function buildMockProperties(): Property[] {
   const positions: ("top" | "bottom" | "left" | "right")[] = [];
   for (let i = 0; i < 40; i++) {
@@ -25,19 +45,19 @@ function buildMockProperties(): Property[] {
   }
 
   const squares: { id: number; type: Property["type"]; color: string }[] = [
-    { id: 0, type: "corner", color: "#2ecc71" },           // GO
-    { id: 1, type: "property", color: "#8B4513" },        // Mediterranean
+    { id: 0, type: "corner", color: "#2ecc71" },
+    { id: 1, type: "property", color: "#8B4513" },
     { id: 2, type: "community_chest", color: "#8B4513" },
     { id: 3, type: "property", color: "#8B4513" },
     { id: 4, type: "income_tax", color: "#fff" },
-    { id: 5, type: "property", color: "railroad" },      // Railroad
+    { id: 5, type: "property", color: "railroad" },
     { id: 6, type: "property", color: "#87CEEB" },
     { id: 7, type: "chance", color: "#87CEEB" },
     { id: 8, type: "property", color: "#87CEEB" },
     { id: 9, type: "property", color: "#87CEEB" },
-    { id: 10, type: "corner", color: "#7f8c8d" },         // Jail
+    { id: 10, type: "corner", color: "#7f8c8d" },
     { id: 11, type: "property", color: "#FF69B4" },
-    { id: 12, type: "property", color: "utility" },      // Electric
+    { id: 12, type: "property", color: "utility" },
     { id: 13, type: "property", color: "#FF69B4" },
     { id: 14, type: "property", color: "#FF69B4" },
     { id: 15, type: "property", color: "railroad" },
@@ -45,7 +65,7 @@ function buildMockProperties(): Property[] {
     { id: 17, type: "community_chest", color: "#FFA500" },
     { id: 18, type: "property", color: "#FFA500" },
     { id: 19, type: "property", color: "#FFA500" },
-    { id: 20, type: "corner", color: "#3498db" },        // Free Parking
+    { id: 20, type: "corner", color: "#3498db" },
     { id: 21, type: "property", color: "#FF0000" },
     { id: 22, type: "chance", color: "#FF0000" },
     { id: 23, type: "property", color: "#FF0000" },
@@ -53,9 +73,9 @@ function buildMockProperties(): Property[] {
     { id: 25, type: "property", color: "railroad" },
     { id: 26, type: "property", color: "#FFD700" },
     { id: 27, type: "property", color: "#FFD700" },
-    { id: 28, type: "property", color: "utility" },      // Water
+    { id: 28, type: "property", color: "utility" },
     { id: 29, type: "property", color: "#FFD700" },
-    { id: 30, type: "corner", color: "#e74c3c" },        // Go to Jail
+    { id: 30, type: "corner", color: "#e74c3c" },
     { id: 31, type: "property", color: "#228B22" },
     { id: 32, type: "property", color: "#228B22" },
     { id: 33, type: "community_chest", color: "#228B22" },
@@ -94,33 +114,41 @@ function buildMockPlayers(): Player[] {
   ];
 }
 
-const mockProperties = buildMockProperties();
 const mockPlayers = buildMockPlayers();
 const mockAnimatedPositions: Record<number, number> = { 1: 5, 2: 12 };
 const mockCurrentPlayerId = 1;
 
 /**
- * UI-only 3D board demo. No game logic, no API.
+ * UI-only 3D board demo. Fetches properties from backend (same as 2D boards) for names and layout.
  * Route: /board-3d-demo
  */
 export default function Board3DDemoPage() {
+  const { properties, isLoading, fromApi } = useBoardProperties();
+
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center p-4">
-      <p className="text-cyan-400 text-sm mb-4">3D board (UI only — drag to rotate, scroll to zoom)</p>
-      <div className="w-full max-w-[800px] aspect-square rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl">
-        <Canvas
-          camera={{ position: [0, 12, 12], fov: 45 }}
-          shadows
-          gl={{ antialias: true, alpha: false }}
-        >
-          <BoardScene
-            properties={mockProperties}
-            players={mockPlayers}
-            animatedPositions={mockAnimatedPositions}
-            currentPlayerId={mockCurrentPlayerId}
-          />
-        </Canvas>
-      </div>
+      <p className="text-cyan-400 text-sm mb-4">
+        3D board (UI only — drag to rotate, scroll to zoom)
+        {fromApi ? " · Names from backend" : " · Using fallback names"}
+      </p>
+      {isLoading ? (
+        <p className="text-slate-400">Loading board...</p>
+      ) : (
+        <div className="w-full max-w-[800px] aspect-square rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl">
+          <Canvas
+            camera={{ position: [0, 12, 12], fov: 45 }}
+            shadows
+            gl={{ antialias: true, alpha: false }}
+          >
+            <BoardScene
+              properties={properties}
+              players={mockPlayers}
+              animatedPositions={mockAnimatedPositions}
+              currentPlayerId={mockCurrentPlayerId}
+            />
+          </Canvas>
+        </div>
+      )}
     </div>
   );
 }

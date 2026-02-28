@@ -4,7 +4,7 @@ import { useRef, useMemo, createElement, Fragment } from "react";
 import { useFrame } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
-import { getPosition3D, getTokenOffset } from "./positions";
+import { getPosition3D, getPosition3DFromGrid, getTokenOffset } from "./positions";
 import { getSquareName } from "./squareNames";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
@@ -57,7 +57,9 @@ function getGroupIndex(id: number): { group: string; index: number } {
 
 /** Ground tile + 3D structure; Monopoly-style groups and realistic buildings */
 function SquareTile({ square }: { square: Property }) {
-  const [x, , z] = getPosition3D(square.id);
+  // Use backend grid when available (matches 2D board); else fall back to id-based layout
+  const hasGrid = typeof square.grid_row === "number" && typeof square.grid_col === "number" && square.grid_row >= 1 && square.grid_row <= 11 && square.grid_col >= 1 && square.grid_col <= 11;
+  const [x, , z] = hasGrid ? getPosition3DFromGrid(square.grid_row, square.grid_col) : getPosition3D(square.id);
   const size = 0.9;
   const displayName = square.name || getSquareName(square.id);
   const [r, g, b] = square.color && /^#?[0-9A-Fa-f]{6}$/.test(square.color) ? hexToRgb(square.color) : [0.3, 0.35, 0.4];
@@ -67,11 +69,12 @@ function SquareTile({ square }: { square: Property }) {
   const id = square.id;
   const { group, index: groupIndex } = getGroupIndex(id);
 
-  // Label at base of tile (ground-level sign), not on the roof
+  // Label: higher for corner buildings (Jail, Go to Jail) so they stay visible above the structure
+  const labelY = type === "corner" && (id === 10 || id === 30) ? 0.18 : 0.07;
   const nameLabel = createElement(
     Html,
     {
-      position: [x, 0.07, z] as [number, number, number],
+      position: [x, labelY, z] as [number, number, number],
       center: true,
       distanceFactor: 12,
       style: {
