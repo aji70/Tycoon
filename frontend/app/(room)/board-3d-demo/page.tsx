@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
@@ -106,17 +107,45 @@ function buildMockProperties(): Property[] {
   })) as Property[];
 }
 
-// Mock 2 players at different positions
+const SYMBOLS = ["hat", "car", "ship", "dog", "shoe", "thimble", "wheelbarrow", "boot"];
+
+// 8 dummy players spread around the board; user_id 1 = "Me" (current player)
 function buildMockPlayers(): Player[] {
-  return [
-    { user_id: 1, address: "0x1", balance: 1500, position: 5, symbol: "hat", username: "Player 1", rolls: 0, turn_order: 0, joined_date: "", chance_jail_card: 0, community_chest_jail_card: 0, circle: 0, in_jail: false, in_jail_rolls: 0 } as Player,
-    { user_id: 2, address: "0x2", balance: 1500, position: 12, symbol: "car", username: "Player 2", rolls: 0, turn_order: 1, joined_date: "", chance_jail_card: 0, community_chest_jail_card: 0, circle: 0, in_jail: false, in_jail_rolls: 0 } as Player,
-  ];
+  const positions = [0, 5, 10, 15, 20, 25, 30, 35];
+  return Array.from({ length: 8 }, (_, i) => ({
+    user_id: i + 1,
+    address: `0x${i + 1}`,
+    balance: 1500,
+    position: positions[i],
+    symbol: SYMBOLS[i],
+    username: i === 0 ? "Me" : `Player ${i + 1}`,
+    rolls: 0,
+    turn_order: i,
+    joined_date: "",
+    chance_jail_card: 0,
+    community_chest_jail_card: 0,
+    circle: 0,
+    in_jail: false,
+    in_jail_rolls: 0,
+  })) as Player[];
 }
 
 const mockPlayers = buildMockPlayers();
-const mockAnimatedPositions: Record<number, number> = { 1: 5, 2: 12 };
-const mockCurrentPlayerId = 1;
+
+// Demo: show developable property with 0, 1, 2, 3, 4 houses and hotel (first 6 color-group properties)
+const demoDevelopmentByPropertyId: Record<number, number> = {
+  1: 0,  // 0 houses
+  3: 1,  // 1 house
+  6: 2,  // 2 houses
+  8: 3,  // 3 houses
+  9: 4,  // 4 houses
+  11: 5, // hotel
+};
+
+/** Initial positions: 8 players spread around the board */
+const initialPositions: Record<number, number> = Object.fromEntries(
+  mockPlayers.map((p, i) => [p.user_id, [0, 5, 10, 15, 20, 25, 30, 35][i]])
+);
 
 /**
  * UI-only 3D board demo. Fetches properties from backend (same as 2D boards) for names and layout.
@@ -124,18 +153,46 @@ const mockCurrentPlayerId = 1;
  */
 export default function Board3DDemoPage() {
   const { properties, isLoading, fromApi } = useBoardProperties();
+  const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
+  const [lastRoll, setLastRoll] = useState<number | null>(null);
+
+  const handleRoll = useCallback(() => {
+    const d1 = 1 + Math.floor(Math.random() * 6);
+    const d2 = 1 + Math.floor(Math.random() * 6);
+    const total = d1 + d2;
+    setLastRoll(total);
+    setAnimatedPositions((prev) => {
+      const next: Record<number, number> = {};
+      mockPlayers.forEach((p) => {
+        const current = prev[p.user_id] ?? p.position;
+        next[p.user_id] = (current + total) % 40;
+      });
+      return next;
+    });
+  }, []);
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center p-4">
-      <p className="text-cyan-400 text-sm mb-4">
+      <p className="text-cyan-400 text-sm mb-2">
         3D board (UI only — drag to rotate, scroll to zoom)
         {fromApi ? " · Names from backend" : " · Using fallback names"}
         <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
+        <span className="text-emerald-400/90 text-xs block mt-1">Development demo: Mediterranean (0) → Baltic (1) → Oriental (2) → Vermont (3) → Connecticut (4) → St. Charles (hotel)</span>
       </p>
+      <button
+        type="button"
+        onClick={handleRoll}
+        className="mt-3 px-6 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold transition-colors shadow-lg"
+      >
+        Roll
+      </button>
+      {lastRoll !== null && (
+        <p className="text-cyan-300/90 text-sm mt-2">Last roll: {lastRoll} — all players advanced</p>
+      )}
       {isLoading ? (
-        <p className="text-slate-400">Loading board...</p>
+        <p className="text-slate-400 mt-4">Loading board...</p>
       ) : (
-        <div className="w-full max-w-[800px] aspect-square rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl">
+        <div className="w-full max-w-[800px] aspect-square rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl mt-4">
           <Canvas
             camera={{ position: [0, 12, 12], fov: 45 }}
             shadows
@@ -144,8 +201,9 @@ export default function Board3DDemoPage() {
             <BoardScene
               properties={properties}
               players={mockPlayers}
-              animatedPositions={mockAnimatedPositions}
-              currentPlayerId={mockCurrentPlayerId}
+              animatedPositions={animatedPositions}
+              currentPlayerId={1}
+              developmentByPropertyId={demoDevelopmentByPropertyId}
             />
           </Canvas>
         </div>
