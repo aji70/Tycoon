@@ -5,12 +5,18 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
 import ActionLog from "@/components/game/ai-board/action-log";
 import { getPlayerSymbol } from "@/lib/types/symbol";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getDiceValues } from "@/components/game/constants";
+import { JAIL_POSITION } from "@/components/game/constants";
+import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { toast } from "react-hot-toast";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -181,8 +187,12 @@ export default function Board3DDemoPage() {
   const searchParams = useSearchParams();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
 
+  const { address } = useAccount();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+
   const { properties, isLoading, fromApi } = useBoardProperties();
-  const { data: game, isLoading: gameLoading, isError: gameError } = useQuery<Game>({
+  const { data: game, isLoading: gameLoading, isError: gameError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
       if (!gameCode) throw new Error("No code");
@@ -204,6 +214,18 @@ export default function Board3DDemoPage() {
   });
 
   const isLiveGame = !!gameCode && !!game;
+
+  const me = useMemo<Player | null>(() => {
+    const myAddress = guestUser?.address ?? address;
+    if (!game?.players || !myAddress) return null;
+    return game.players.find((p: Player) => p.address?.toLowerCase() === myAddress.toLowerCase()) ?? null;
+  }, [game?.players, address, guestUser?.address]);
+
+  const currentPlayerId = game?.next_player_id ?? null;
+  const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
+  const gameTimeUp = game?.status === "FINISHED";
+  const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp;
+
   const livePlayers = useMemo(() => game?.players ?? [], [game?.players]);
   const liveAnimatedPositions = useMemo(() => {
     const out: Record<number, number> = {};
@@ -219,10 +241,10 @@ export default function Board3DDemoPage() {
     });
     return out;
   }, [gameProperties]);
-  const currentPlayerId = game?.next_player_id ?? null;
 
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
   const [lastRollResult, setLastRollResult] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [demoHistory, setDemoHistory] = useState<History[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -234,16 +256,21 @@ export default function Board3DDemoPage() {
   const players = isLiveGame ? livePlayers : mockPlayers;
   const positions = isLiveGame ? liveAnimatedPositions : animatedPositions;
   const developmentByPropertyId = isLiveGame ? liveDevelopmentByPropertyId : demoDevelopmentByPropertyId;
-  const showRollUi = !isLiveGame;
+  const showRollUi = !isLiveGame || playerCanRoll;
 
   const handleRoll = useCallback(() => {
     if (rollingDice) return;
-    const d1 = 1 + Math.floor(Math.random() * 6);
-    const d2 = 1 + Math.floor(Math.random() * 6);
-    const total = d1 + d2;
-    pendingRollRef.current = { die1: d1, die2: d2, total };
-    setRollingDice({ die1: d1, die2: d2 });
+    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    pendingRollRef.current = value;
+    setRollingDice({ die1: value.die1, die2: value.die2 });
   }, [rollingDice]);
+
+  const handleRollForLive = useCallback(() => {
+    if (rollingDice || !game || !me) return;
+    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    pendingRollRef.current = value;
+    setRollingDice({ die1: value.die1, die2: value.die2 });
+  }, [rollingDice, game, me]);
 
   const handleDiceComplete = useCallback(() => {
     const { die1, die2, total } = pendingRollRef.current;
@@ -273,6 +300,44 @@ export default function Board3DDemoPage() {
     }
   }, []);
 
+  const handleDiceCompleteForLive = useCallback(async () => {
+    const value = pendingRollRef.current;
+    if (!game?.id || !me) {
+      setRollingDice(null);
+      return;
+    }
+    const currentPos = me.position ?? 0;
+    const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
+    const rolledDouble = value.die1 === value.die2;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
+    try {
+      await apiClient.post<{ data?: { still_in_jail?: boolean } }>("/game-players/change-position", {
+        user_id: me.user_id,
+        game_id: game.id,
+        position: newPos,
+        rolled: value.total,
+        is_double: rolledDouble,
+      });
+      setLastRollResultLive(value);
+      await refetchGame();
+      setLastRollResultLive(null);
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Roll failed"));
+    } finally {
+      setRollingDice(null);
+    }
+  }, [game?.id, me, refetchGame]);
+
+  const onRollClick = useCallback(() => {
+    if (isLiveGame && playerCanRoll) handleRollForLive();
+    else if (!isLiveGame) handleRoll();
+  }, [isLiveGame, playerCanRoll, handleRollForLive, handleRoll]);
+
+  const onDiceCompleteClick = useCallback(() => {
+    if (isLiveGame) handleDiceCompleteForLive();
+    else handleDiceComplete();
+  }, [isLiveGame, handleDiceCompleteForLive, handleDiceComplete]);
+
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
     if (!el) return;
@@ -298,6 +363,8 @@ export default function Board3DDemoPage() {
     const d1 = Math.min(6, Math.max(1, Math.floor(rolled / 2)));
     return { die1: d1, die2: rolled - d1, total: rolled };
   }, [isLiveGame, game?.history]);
+
+  const lastRollResultToShow = isLiveGame ? (lastRollResultLive ?? lastRollFromHistory) : lastRollResult;
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
@@ -412,9 +479,9 @@ export default function Board3DDemoPage() {
                 currentPlayerId={isLiveGame ? currentPlayerId : 1}
                 developmentByPropertyId={developmentByPropertyId}
                 rollingDice={showRollUi ? rollingDice : undefined}
-                onDiceComplete={showRollUi ? handleDiceComplete : undefined}
-                lastRollResult={showRollUi ? lastRollResult : lastRollFromHistory}
-                onRoll={showRollUi ? handleRoll : undefined}
+                onDiceComplete={showRollUi ? onDiceCompleteClick : undefined}
+                lastRollResult={lastRollResultToShow}
+                onRoll={showRollUi ? onRollClick : undefined}
               />
             </Canvas>
           </div>
