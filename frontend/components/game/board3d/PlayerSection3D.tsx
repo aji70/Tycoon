@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { getSquareName } from "./squareNames";
-import { MyEmpire } from "../ai-player/my-empire";
-import { TradeSection } from "../ai-player/trade-section";
+import MyEmpire3D from "./MyEmpire3D";
+import TradeSection3D from "./TradeSection3D";
 import { PropertyActionModal } from "../modals/property-action";
 import { AiResponsePopup } from "../modals/ai-response";
 import { TradeModal } from "../modals/trade";
 import { useAiPlayerLogic } from "../ai-player/useAiPlayerLogic";
+import { Loader2 } from "lucide-react";
 
 interface PlayerSection3DProps {
   game: Game;
@@ -21,9 +22,10 @@ interface PlayerSection3DProps {
   currentPlayer: Player | null;
   positions: Record<number, number>;
   isAITurn: boolean;
+  /** When true, show loading state — no dummy players */
+  isLoading?: boolean;
 }
 
-/** 3D board–styled sidebar: Players, My Empire, Trade (amber/slate/cyan) */
 export default function PlayerSection3D({
   game,
   properties,
@@ -33,6 +35,7 @@ export default function PlayerSection3D({
   currentPlayer,
   positions,
   isAITurn,
+  isLoading = false,
 }: PlayerSection3DProps) {
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -67,7 +70,6 @@ export default function PlayerSection3D({
     setRequestCash,
     openTrades,
     tradeRequests,
-    refreshTrades,
     resetTradeFields,
     toggleSelect,
     startTrade,
@@ -85,15 +87,30 @@ export default function PlayerSection3D({
   const toggleEmpire = useCallback(() => setShowEmpire((p) => !p), []);
   const toggleTrade = useCallback(() => setShowTrade((p) => !p), []);
   const togglePlayers = useCallback(() => setShowPlayers((p) => !p), []);
+  const onPropertyClick = useCallback((prop: Property) => setSelectedProperty(prop), []);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-slate-900/80 shadow-xl">
+          <div className="p-6 flex flex-col items-center justify-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+            <p className="text-amber-200/90 text-sm font-medium">Loading players…</p>
+            <p className="text-slate-500 text-xs">Game data incoming</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Players panel — 3D board style */}
+      {/* Players — 3D board style */}
       <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
         <div className="absolute inset-0 rounded-2xl border border-amber-400/20 pointer-events-none" />
         <button
           onClick={togglePlayers}
-          className="w-full px-4 py-3 bg-gradient-to-r from-amber-900/40 to-amber-800/30 border-b-2 border-amber-500/40 flex justify-between items-center"
+          className="w-full px-4 py-3 bg-gradient-to-r from-amber-900/40 to-amber-800/30 border-b-2 border-amber-500/40 flex justify-between items-center hover:bg-amber-900/50 transition"
         >
           <h3 className="text-base font-black text-amber-200 tracking-widest uppercase drop-shadow-sm flex items-center gap-2">
             <span className="text-lg">🎲</span> Players
@@ -101,7 +118,7 @@ export default function PlayerSection3D({
           </h3>
           <motion.span
             animate={{ rotate: showPlayers ? 180 : 0 }}
-            className="text-amber-300 text-xl"
+            className="text-amber-300 text-lg transition"
           >
             ▼
           </motion.span>
@@ -112,9 +129,10 @@ export default function PlayerSection3D({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
               className="overflow-hidden"
             >
-              <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto">
+              <div className="p-3 space-y-2 max-h-56 overflow-y-auto">
                 {sortedPlayers.map((p) => {
                   const pos = positions[p.user_id] ?? p.position ?? 0;
                   const isMe = me != null && p.user_id === me.user_id;
@@ -124,14 +142,14 @@ export default function PlayerSection3D({
                   return (
                     <div
                       key={p.user_id}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-xl border-2 transition-all ${
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all ${
                         isMe || isCurrent
                           ? "bg-amber-500/25 border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
                           : "bg-slate-800/60 border-slate-600/50 hover:border-slate-500/70"
                       }`}
                     >
                       <span
-                        className={`flex items-center justify-center w-10 h-10 rounded-full text-2xl shrink-0 ${
+                        className={`flex items-center justify-center w-9 h-9 rounded-full text-xl shrink-0 ${
                           isMe || isCurrent ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
                         }`}
                         title={p.symbol ?? ""}
@@ -151,7 +169,7 @@ export default function PlayerSection3D({
                       {canTrade && (
                         <button
                           onClick={() => startTrade(p)}
-                          className="shrink-0 px-2 py-1 text-xs font-bold rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white"
+                          className="shrink-0 px-2.5 py-1 text-[10px] font-bold rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white uppercase tracking-wide"
                         >
                           Trade
                         </button>
@@ -165,33 +183,33 @@ export default function PlayerSection3D({
         </AnimatePresence>
       </div>
 
-      {/* My Empire — 3D board style (cyan/slate) */}
+      {/* My Empire */}
       <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
         <div className="absolute inset-0 rounded-2xl border border-cyan-400/20 pointer-events-none" />
-        <div className="p-4">
-          <MyEmpire
+        <div className="px-4 py-3 bg-gradient-to-r from-cyan-900/40 to-cyan-800/30 border-b-2 border-cyan-500/40">
+          <MyEmpire3D
             showEmpire={showEmpire}
             toggleEmpire={toggleEmpire}
             my_properties={my_properties}
             properties={properties}
             game_properties={game_properties}
-            setSelectedProperty={setSelectedProperty}
+            onPropertyClick={onPropertyClick}
           />
         </div>
       </div>
 
-      {/* Trade section — 3D board style */}
+      {/* Active Trades */}
       <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
         <div className="absolute inset-0 rounded-2xl border border-cyan-400/20 pointer-events-none" />
-        <div className="p-4">
-          <TradeSection
+        <div className="px-4 py-3 bg-gradient-to-r from-cyan-900/40 to-cyan-800/30 border-b-2 border-cyan-500/40">
+          <TradeSection3D
             showTrade={showTrade}
             toggleTrade={toggleTrade}
             openTrades={openTrades}
             tradeRequests={tradeRequests}
             properties={properties}
             game={game}
-            handleTradeAction={handleTradeAction}
+            onTradeAction={handleTradeAction}
           />
         </div>
       </div>
