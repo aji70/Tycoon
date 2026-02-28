@@ -95,7 +95,7 @@ function SquareTile({
   const [x, , z] = hasGrid ? getPosition3DFromGrid(square.grid_row, square.grid_col) : getPosition3D(square.id);
   const size = 0.9;
   const displayName = square.name || getSquareName(square.id);
-  const ownerSuffix = owner ? ` — Owner: ${owner}` : (square.type === "property" && square.price != null ? " — Available" : "");
+  const ownerSuffix = owner ? ` — Owner: ${owner}` : "";
   const [r, g, b] = square.color && /^#?[0-9A-Fa-f]{6}$/.test(square.color) ? hexToRgb(square.color) : [0.3, 0.35, 0.4];
   const color = new THREE.Color(r, g, b);
   const rotFlat = [-Math.PI / 2, 0, 0] as [number, number, number];
@@ -133,9 +133,9 @@ function SquareTile({
       )
     : null;
 
-  // Owner badge: always visible on property squares so user can see ownership at a glance
+  // Owner badge: only show when property has an owner (no badge for unowned)
   const ownerBadge =
-    square.type === "property"
+    square.type === "property" && owner
       ? createElement(
           Html,
           {
@@ -145,7 +145,7 @@ function SquareTile({
             style: {
               fontSize: "9px",
               fontWeight: 600,
-              color: owner ? "#fbbf24" : "#22c55e",
+              color: "#fbbf24",
               textShadow: "0 0 4px #000, 0 1px 3px #000",
               textAlign: "center",
               whiteSpace: "nowrap",
@@ -154,13 +154,13 @@ function SquareTile({
               textOverflow: "ellipsis",
               pointerEvents: "none",
               userSelect: "none",
-              background: owner ? "rgba(251,191,36,0.2)" : "rgba(34,197,94,0.2)",
+              background: "rgba(251,191,36,0.2)",
               padding: "2px 6px",
               borderRadius: "6px",
-              border: owner ? "1px solid rgba(251,191,36,0.5)" : "1px solid rgba(34,197,94,0.5)",
+              border: "1px solid rgba(251,191,36,0.5)",
             },
           },
-          owner ?? "Available"
+          owner
         )
       : null;
 
