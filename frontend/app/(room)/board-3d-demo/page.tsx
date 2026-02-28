@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
@@ -107,7 +107,8 @@ function buildMockProperties(): Property[] {
   })) as Property[];
 }
 
-const SYMBOLS = ["hat", "car", "ship", "dog", "shoe", "thimble", "wheelbarrow", "boot"];
+// Game tokens from lib/types/symbol: hat, car, dog, thimble, iron, battleship, boot, wheelbarrow
+const SYMBOLS = ["hat", "car", "dog", "thimble", "iron", "battleship", "boot", "wheelbarrow"];
 
 // 8 dummy players spread around the board; user_id 1 = "Me" (current player)
 function buildMockPlayers(): Player[] {
@@ -155,12 +156,23 @@ export default function Board3DDemoPage() {
   const { properties, isLoading, fromApi } = useBoardProperties();
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
+  const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
+  const pendingTotalRef = useRef<number>(0);
 
   const handleRoll = useCallback(() => {
+    if (rollingDice) return;
     const d1 = 1 + Math.floor(Math.random() * 6);
     const d2 = 1 + Math.floor(Math.random() * 6);
     const total = d1 + d2;
+    pendingTotalRef.current = total;
     setLastRoll(total);
+    setRollingDice({ die1: d1, die2: d2 });
+  }, [rollingDice]);
+
+  const handleDiceComplete = useCallback(() => {
+    const total = pendingTotalRef.current;
     setAnimatedPositions((prev) => {
       const next: Record<number, number> = {};
       mockPlayers.forEach((p) => {
@@ -169,45 +181,84 @@ export default function Board3DDemoPage() {
       });
       return next;
     });
+    setRollingDice(null);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = fullscreenRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center p-4">
-      <p className="text-cyan-400 text-sm mb-2">
-        3D board (UI only — drag to rotate, scroll to zoom)
-        {fromApi ? " · Names from backend" : " · Using fallback names"}
-        <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
-        <span className="text-emerald-400/90 text-xs block mt-1">Development demo: Mediterranean (0) → Baltic (1) → Oriental (2) → Vermont (3) → Connecticut (4) → St. Charles (hotel)</span>
-      </p>
-      <button
-        type="button"
-        onClick={handleRoll}
-        className="mt-3 px-6 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold transition-colors shadow-lg"
+      <div
+        ref={fullscreenRef}
+        className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0"
       >
-        Roll
-      </button>
-      {lastRoll !== null && (
-        <p className="text-cyan-300/90 text-sm mt-2">Last roll: {lastRoll} — all players advanced</p>
-      )}
-      {isLoading ? (
-        <p className="text-slate-400 mt-4">Loading board...</p>
-      ) : (
-        <div className="w-full max-w-[800px] aspect-square rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl mt-4">
-          <Canvas
-            camera={{ position: [0, 12, 12], fov: 45 }}
-            shadows
-            gl={{ antialias: true, alpha: false }}
+        <p className="text-cyan-400 text-sm mb-2">
+          3D board (UI only — drag to rotate, scroll to zoom)
+          {fromApi ? " · Names from backend" : " · Using fallback names"}
+          <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
+          <span className="text-emerald-400/90 text-xs block mt-1">Development demo: Mediterranean (0) → Baltic (1) → Oriental (2) → Vermont (3) → Connecticut (4) → St. Charles (hotel)</span>
+        </p>
+        <div className="flex items-center gap-3 mt-3">
+          <button
+            type="button"
+            onClick={handleRoll}
+            disabled={!!rollingDice}
+            className="px-6 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-semibold transition-colors shadow-lg"
           >
-            <BoardScene
-              properties={properties}
-              players={mockPlayers}
-              animatedPositions={animatedPositions}
-              currentPlayerId={1}
-              developmentByPropertyId={demoDevelopmentByPropertyId}
-            />
-          </Canvas>
+            {rollingDice ? "Rolling…" : "Roll"}
+          </button>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium transition-colors border border-slate-500"
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          </button>
         </div>
-      )}
+        {lastRoll !== null && (
+          <p className="text-cyan-300/90 text-sm mt-2">Last roll: {lastRoll} — all players advanced</p>
+        )}
+        {isLoading ? (
+          <p className="text-slate-400 mt-4">Loading board...</p>
+        ) : (
+          <div
+            className={`mt-4 rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl ${
+              isFullscreen ? "flex-1 w-full min-h-0 max-w-4xl" : "w-full max-w-[800px] aspect-square"
+            }`}
+          >
+            <Canvas
+              camera={{ position: [0, 12, 12], fov: 45 }}
+              shadows
+              gl={{ antialias: true, alpha: false }}
+            >
+              <BoardScene
+                properties={properties}
+                players={mockPlayers}
+                animatedPositions={animatedPositions}
+                currentPlayerId={1}
+                developmentByPropertyId={demoDevelopmentByPropertyId}
+                rollingDice={rollingDice}
+                onDiceComplete={handleDiceComplete}
+              />
+            </Canvas>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
