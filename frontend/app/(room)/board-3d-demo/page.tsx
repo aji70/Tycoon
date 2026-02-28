@@ -130,6 +130,7 @@ export default function Board3DDemoPage() {
       <p className="text-cyan-400 text-sm mb-4">
         3D board (UI only — drag to rotate, scroll to zoom)
         {fromApi ? " · Names from backend" : " · Using fallback names"}
+        <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
       </p>
       {isLoading ? (
         <p className="text-slate-400">Loading board...</p>
