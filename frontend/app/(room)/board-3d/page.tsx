@@ -213,7 +213,7 @@ export default function Board3DDemoPage() {
     enabled: !!gameCode && gameCode.length === 6,
     refetchInterval: gameCode ? 5000 : false,
   });
-  const { data: gameProperties = [] } = useQuery<GameProperty[]>({
+  const { data: gameProperties = [], refetch: refetchGameProperties } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
     queryFn: async () => {
       if (!game?.id) return [];
@@ -367,7 +367,8 @@ export default function Board3DDemoPage() {
 
   const fetchUpdatedGame = useCallback(async () => {
     await refetchGame();
-  }, [refetchGame]);
+    await refetchGameProperties();
+  }, [refetchGame, refetchGameProperties]);
 
   const handleAiStrategy = useCallback(async () => {
     if (!currentPlayer || !isAITurn || strategyRanThisTurn || !game || !isLiveGame) return;
@@ -1386,6 +1387,7 @@ export default function Board3DDemoPage() {
           onClose={() => {
             setSelectedProperty(null);
             setSelectedGameProperty(undefined);
+            fetchUpdatedGame();
           }}
           onBuild={handleBuild}
           onSellBuilding={handleSellBuilding}
