@@ -963,28 +963,20 @@ export default function Board3DDemoPage() {
         ref={fullscreenRef}
         className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0"
       >
-        <p className="text-cyan-400 text-sm mb-2">
-          3D board — drag to rotate, scroll to zoom
-          {fromApi ? " · Names from backend" : " · Using fallback names"}
-          {isLiveGame && gameCode && (
-            <span className="text-amber-400 block mt-1">
-              Live game: {gameCode} · <Link href={`/ai-play?gameCode=${encodeURIComponent(gameCode)}`} className="underline hover:no-underline">Play full game (2D)</Link>
-            </span>
-          )}
-          <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
-          {isLiveGame && !isMyTurn && currentPlayerId != null && (
-            <span className="text-amber-400 text-sm mt-2 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin inline" />
-              AI thinking...
-            </span>
-          )}
-          {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" && (
-            <span className="block mt-2">
+        {(isLiveGame && !isMyTurn && currentPlayerId != null) || (isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING") ? (
+          <div className="flex flex-col items-center gap-2 mb-2">
+            {isLiveGame && !isMyTurn && currentPlayerId != null && (
+              <span className="text-amber-400 text-sm flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin inline" />
+                AI thinking...
+              </span>
+            )}
+            {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" && (
               <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
-            </span>
-          )}
-        </p>
-        <div className="flex items-center gap-3 mt-3">
+            )}
+          </div>
+        ) : null}
+        <div className="flex items-center gap-3 mt-2">
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -1005,8 +997,8 @@ export default function Board3DDemoPage() {
           <p className="text-slate-400 mt-4">{gameCode ? "Loading game..." : "Loading board..."}</p>
         ) : (
           <div
-            className={`mt-4 rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl ${
-              isFullscreen ? "flex-1 w-full min-h-0 max-w-4xl" : "w-full max-w-[800px] aspect-square"
+            className={`rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl ${
+              isFullscreen ? "flex-1 w-full min-h-0 max-w-6xl" : "w-full max-w-[1200px] aspect-square mt-2"
             }`}
           >
             <Canvas
