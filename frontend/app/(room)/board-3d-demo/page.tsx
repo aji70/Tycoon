@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
+import { getSquareName } from "@/components/game/board3d/squareNames";
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -68,7 +69,7 @@ function buildMockProperties(): Property[] {
 
   return squares.map((s, idx) => ({
     ...s,
-    name: `Square ${s.id}`,
+    name: getSquareName(s.id),
     group_id: Math.floor(s.id / 10),
     position: positions[idx],
     grid_row: s.id <= 9 ? 11 : s.id <= 19 ? 11 - (s.id - 10) : s.id <= 29 ? 1 : (s.id - 30) + 1,

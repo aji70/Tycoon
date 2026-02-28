@@ -2,9 +2,10 @@
 
 import { useRef, useMemo, createElement, Fragment } from "react";
 import { useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { getPosition3D, getTokenOffset } from "./positions";
+import { getSquareName } from "./squareNames";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
 
@@ -58,12 +59,37 @@ function getGroupIndex(id: number): { group: string; index: number } {
 function SquareTile({ square }: { square: Property }) {
   const [x, , z] = getPosition3D(square.id);
   const size = 0.9;
+  const displayName = square.name || getSquareName(square.id);
   const [r, g, b] = square.color && /^#?[0-9A-Fa-f]{6}$/.test(square.color) ? hexToRgb(square.color) : [0.3, 0.35, 0.4];
   const color = new THREE.Color(r, g, b);
   const rotFlat = [-Math.PI / 2, 0, 0] as [number, number, number];
   const type = square.type;
   const id = square.id;
   const { group, index: groupIndex } = getGroupIndex(id);
+
+  // Label at base of tile (ground-level sign), not on the roof
+  const nameLabel = createElement(
+    Html,
+    {
+      position: [x, 0.07, z] as [number, number, number],
+      center: true,
+      distanceFactor: 12,
+      style: {
+        fontSize: "9px",
+        fontWeight: 700,
+        color: "#fff",
+        textShadow: "0 0 4px #000, 0 1px 2px #000",
+        textAlign: "center",
+        whiteSpace: "nowrap",
+        maxWidth: "75px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        pointerEvents: "none",
+        userSelect: "none",
+      },
+    },
+    displayName
+  );
 
   const ground = createElement(
     "mesh",
@@ -79,25 +105,25 @@ function SquareTile({ square }: { square: Property }) {
       // GO: archway / start gate
       const pillar = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.15, 0.35, 0.15] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));
       const arch = createElement("mesh", { position: [x, 0.42, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.75, 0.12, 0.2] }), createElement("meshStandardMaterial", { color: 0x2ecc71 }));
-      return createElement("group", { key: square.id }, ground, pillar, arch);
+      return createElement("group", { key: square.id }, ground, pillar, arch, nameLabel);
     }
     if (id === 10) {
       // Jail: building with bars
       const jail = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.65, 0.4, size * 0.65] }), createElement("meshStandardMaterial", { color: 0x95a5a6 }));
       const roof = createElement("mesh", { position: [x, 0.48, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.72, 0.06, size * 0.72] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
-      return createElement("group", { key: square.id }, ground, jail, roof);
+      return createElement("group", { key: square.id }, ground, jail, roof, nameLabel);
     }
     if (id === 20) {
       // Free Parking: park / garden with small structure
       const kiosk = createElement("mesh", { position: [x, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.4, 0.2, size * 0.4] }), createElement("meshStandardMaterial", { color: 0x3498db }));
       const canopy = createElement("mesh", { position: [x, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.04, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
-      return createElement("group", { key: square.id }, ground, kiosk, canopy);
+      return createElement("group", { key: square.id }, ground, kiosk, canopy, nameLabel);
     }
     if (id === 30) {
       // Go to Jail: jail door / gate
       const gate = createElement("mesh", { position: [x, 0.25, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.45, 0.12] }), createElement("meshStandardMaterial", { color: 0xc0392b }));
       const roof = createElement("mesh", { position: [x, 0.52, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.7, 0.06, 0.2] }), createElement("meshStandardMaterial", { color: 0x922b21 }));
-      return createElement("group", { key: square.id }, ground, gate, roof);
+      return createElement("group", { key: square.id }, ground, gate, roof, nameLabel);
     }
   }
 
@@ -107,7 +133,7 @@ function SquareTile({ square }: { square: Property }) {
     const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x34495e }));
     const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
     const awning = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.9, 0.04, size * 0.35] }), createElement("meshStandardMaterial", { color: 0x1a252f }));
-    return createElement("group", { key: square.id }, ground, platform, station, awning);
+    return createElement("group", { key: square.id }, ground, platform, station, awning, nameLabel);
   }
 
   // ---- UTILITIES: small industrial building ----
@@ -115,14 +141,14 @@ function SquareTile({ square }: { square: Property }) {
     const building = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.3, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x16a085 }));
     const roof = createElement("mesh", { position: [x, 0.36, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.06, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x0e6655 }));
     const chimney = createElement("mesh", { position: [x + size * 0.2, 0.45, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.08, 0.15, 0.08] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
-    return createElement("group", { key: square.id }, ground, building, roof, chimney);
+    return createElement("group", { key: square.id }, ground, building, roof, chimney, nameLabel);
   }
 
   // ---- CHANCE: card kiosk ----
   if (type === "chance") {
     const stand = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.35, 0.1, size * 0.35] }), createElement("meshStandardMaterial", { color: 0xb7950b }));
     const card = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.32, size * 0.45, 0.03] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
-    return createElement("group", { key: square.id }, ground, stand, card);
+    return createElement("group", { key: square.id }, ground, stand, card, nameLabel);
   }
 
   // ---- COMMUNITY CHEST: chest kiosk ----
@@ -130,7 +156,7 @@ function SquareTile({ square }: { square: Property }) {
     const stand = createElement("mesh", { position: [x, 0.05, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x1e8449 }));
     const chest = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, size * 0.35, size * 0.4] }), createElement("meshStandardMaterial", { color: 0x229954 }));
     const lid = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.48, 0.04, size * 0.42] }), createElement("meshStandardMaterial", { color: 0x1e8449 }));
-    return createElement("group", { key: square.id }, ground, stand, chest, lid);
+    return createElement("group", { key: square.id }, ground, stand, chest, lid, nameLabel);
   }
 
   // ---- TAX: bank / treasury (classical building) ----
@@ -138,7 +164,7 @@ function SquareTile({ square }: { square: Property }) {
     const steps = createElement("mesh", { position: [x, 0.04, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.7, 0.06, size * 0.7] }), createElement("meshStandardMaterial", { color: 0x5b2c6f }));
     const building = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.28, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x6c3483 }));
     const roof = createElement("mesh", { position: [x, 0.36, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.68, 0.06, size * 0.68] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
-    return createElement("group", { key: square.id }, ground, steps, building, roof);
+    return createElement("group", { key: square.id }, ground, steps, building, roof, nameLabel);
   }
 
   // ---- PROPERTIES: terraced buildings by color group, pitched roof ----
@@ -173,7 +199,7 @@ function SquareTile({ square }: { square: Property }) {
     createElement("boxGeometry", { args: [size * 0.72, roofH, roofW] }),
     createElement("meshStandardMaterial", { color: 0x5d4037, roughness: 0.85 })
   );
-  return createElement("group", { key: square.id }, ground, body, roofSlant, roofSlant2);
+  return createElement("group", { key: square.id }, ground, body, roofSlant, roofSlant2, nameLabel);
 }
 
 function BoardTiles({ properties }: { properties: Property[] }) {
