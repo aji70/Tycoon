@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, createElement, Fragment } from "react";
 import { useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { getPosition3D, getTokenOffset } from "./positions";
 import type { Property } from "@/types/game";
 import type { Player } from "@/types/game";
+
+// Use createElement for R3F primitives so SWC/Next.js build accepts them (lowercase mesh/group etc.)
 
 const TOKEN_COLORS = ["#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#f87171", "#60a5fa", "#c084fc"];
 function getTokenColor(playerIndex: number): string {
@@ -31,21 +33,20 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 function BoardTiles({ properties }: { properties: Property[] }) {
-  return (
-    <group>
-      {properties.map((square) => {
-        const [x, , z] = getPosition3D(square.id);
-        const isCorner = square.type === "corner";
-        const size = isCorner ? 0.9 : 0.9;
-        const [r, g, b] = square.color ? hexToRgb(square.color) : [0.2, 0.25, 0.3];
-        return (
-          <mesh key={square.id} position={[x, 0.01, z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[size, size]} />
-            <meshStandardMaterial color={new THREE.Color(r, g, b)} />
-          </mesh>
-        );
-      })}
-    </group>
+  return createElement(
+    "group",
+    null,
+    ...properties.map((square) => {
+      const [x, , z] = getPosition3D(square.id);
+      const size = 0.9;
+      const [r, g, b] = square.color ? hexToRgb(square.color) : [0.2, 0.25, 0.3];
+      return createElement(
+        "mesh",
+        { key: square.id, position: [x, 0.01, z] as [number, number, number], rotation: [-Math.PI / 2, 0, 0] as [number, number, number] },
+        createElement("planeGeometry", { args: [size, size] }),
+        createElement("meshStandardMaterial", { color: new THREE.Color(r, g, b) })
+      );
+    })
   );
 }
 
@@ -67,25 +68,25 @@ function PlayerToken({
   const meshRef = useRef<THREE.Mesh>(null);
   const [r, g, b] = hexToRgb(color);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (meshRef.current && isCurrent) {
       meshRef.current.position.y = 0.15 + Math.sin(Date.now() * 0.003) * 0.03;
     }
   });
 
-  return (
-    <mesh
-      ref={meshRef}
-      position={[x + ox, 0.15, z + oz]}
-      castShadow
-      receiveShadow
-    >
-      <cylinderGeometry args={[0.12, 0.14, 0.2, 16]} />
-      <meshStandardMaterial
-        color={new THREE.Color(r, g, b)}
-        emissive={isCurrent ? new THREE.Color(r * 0.5, g * 0.5, b * 0.5)}
-      />
-    </mesh>
+  return createElement(
+    "mesh",
+    {
+      ref: meshRef,
+      position: [x + ox, 0.15, z + oz] as [number, number, number],
+      castShadow: true,
+      receiveShadow: true,
+    },
+    createElement("cylinderGeometry", { args: [0.12, 0.14, 0.2, 16] }),
+    createElement("meshStandardMaterial", {
+      color: new THREE.Color(r, g, b),
+      emissive: isCurrent ? new THREE.Color(r * 0.5, g * 0.5, b * 0.5) : undefined,
+    })
   );
 }
 
@@ -111,39 +112,47 @@ export default function BoardScene({
     });
   }, [players, animatedPositions]);
 
-  return (
-    <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 10, 5]} intensity={1} castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[-5, 5, -5]} intensity={0.3} />
-
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <planeGeometry args={[12, 12]} />
-        <meshStandardMaterial color="#0a1516" />
-      </mesh>
-
-      <BoardTiles properties={properties} />
-
-      {playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, color }) => {
-        return (
-          <PlayerToken
-            key={player.user_id}
-            positionIndex={pos}
-            playerIndex={idxOnSquare}
-            totalOnSquare={totalOnSquare}
-            color={color}
-            isCurrent={currentPlayerId === player.user_id}
-          />
-        );
-      })}
-
-      <OrbitControls
-        enablePan={true}
-        enableZoom={true}
-        minDistance={8}
-        maxDistance={25}
-        maxPolarAngle={Math.PI / 2 - 0.1}
-      />
-    </>
+  return createElement(
+    Fragment,
+    null,
+    createElement("ambientLight", { intensity: 0.6 }),
+    createElement("directionalLight", {
+      position: [5, 10, 5] as [number, number, number],
+      intensity: 1,
+      castShadow: true,
+      "shadow-mapSize": [1024, 1024],
+    }),
+    createElement("directionalLight", {
+      position: [-5, 5, -5] as [number, number, number],
+      intensity: 0.3,
+    }),
+    createElement(
+      "mesh",
+      {
+        rotation: [-Math.PI / 2, 0, 0] as [number, number, number],
+        position: [0, -0.02, 0] as [number, number, number],
+        receiveShadow: true,
+      },
+      createElement("planeGeometry", { args: [12, 12] }),
+      createElement("meshStandardMaterial", { color: "#0a1516" })
+    ),
+    createElement(BoardTiles, { properties }),
+    ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, color }) =>
+      createElement(PlayerToken, {
+        key: player.user_id,
+        positionIndex: pos,
+        playerIndex: idxOnSquare,
+        totalOnSquare,
+        color,
+        isCurrent: currentPlayerId === player.user_id,
+      })
+    ),
+    createElement(OrbitControls, {
+      enablePan: true,
+      enableZoom: true,
+      minDistance: 8,
+      maxDistance: 25,
+      maxPolarAngle: Math.PI / 2 - 0.1,
+    })
   );
 }
