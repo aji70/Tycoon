@@ -12,12 +12,12 @@ const GRID_SIZE = 11;
 const CELL = (2 * HALF) / (GRID_SIZE - 1); // ~0.9
 
 /**
- * Position from backend grid (same layout as 2D board).
- * Use this when property has grid_row / grid_col from API.
+ * Position from backend grid. Vertically flipped: 2D top row (grid_row 1) is 3D bottom, 2D bottom row (grid_row 11) is 3D top.
+ * So "Go to Jail" (top row) appears at the bottom; GO row appears at the top.
  */
 export function getPosition3DFromGrid(grid_row: number, grid_col: number): [number, number, number] {
   const px = (grid_col - 1) * CELL - HALF;
-  const pz = HALF - (grid_row - 1) * CELL;
+  const pz = (grid_row - 1) * CELL - HALF; // flipped: row 1 → bottom (-HALF), row 11 → top (+HALF)
   return [px, 0, pz];
 }
 
