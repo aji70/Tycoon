@@ -31,6 +31,7 @@ import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
+import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
@@ -316,6 +317,16 @@ export default function Board3DDemoPage() {
     if (me != null && currentPlayer.user_id === me.user_id) return false;
     return true;
   }, [currentPlayer, me]);
+
+  // AI with negative balance: run liquidation then bankruptcy (same as 2D AI board); blocks rolling until resolved
+  useAiBankruptcy({
+    isAITurn: isLiveGame && isAITurn,
+    currentPlayer: isLiveGame ? currentPlayer : null,
+    game_properties: gameProperties,
+    properties,
+    game: game ?? ({} as Game),
+  });
+
   const liveDevelopmentByPropertyId = useMemo(() => {
     const out: Record<number, number> = {};
     gameProperties.forEach((gp) => {
@@ -1280,6 +1291,9 @@ export default function Board3DDemoPage() {
     if (!isLiveGame || !isAITurn || !strategyRanThisTurn || rollingDice || !currentPlayerId || !currentPlayer) return;
     if (me != null && currentPlayerId === me.user_id) return;
     if (rolledForPlayerIdRef.current === currentPlayerId) return;
+    // Do not roll for AI when they have negative balance — useAiBankruptcy will liquidate / bankrupt first
+    const balance = currentPlayer.balance != null ? Number(currentPlayer.balance) : 0;
+    if (balance < 0) return;
     const t = setTimeout(() => {
       if (me != null && currentPlayerId === me.user_id) return;
       const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };

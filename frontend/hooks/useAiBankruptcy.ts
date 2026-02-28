@@ -97,6 +97,7 @@ export function useAiBankruptcy({
   // AI: Handle liquidation + possible bankruptcy
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
+    if (!game?.id || !game?.code) return;
 
     const handleAiLiquidationAndPossibleBankruptcy = async () => {
       toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
