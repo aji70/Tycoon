@@ -767,6 +767,13 @@ export default function Board3DDemoPage() {
       const roi = baseRent / price;
       if (roi > 0.14) score += 30;
       else if (roi > 0.1) score += 15;
+      if (group && group.length <= 3) {
+        const opponentOwns = group.filter((id: number) => {
+          const gp = gameProps.find((g) => g.property_id === id);
+          return gp && gp.address !== player.address && gp.address != null;
+        }).length;
+        if (opponentOwns === group.length - 1) score += 70;
+      }
       return Math.max(0, Math.min(95, score));
     },
     [gameProperties, properties]
@@ -807,7 +814,10 @@ export default function Board3DDemoPage() {
       setLastRollResultLive(value);
       landedPositionThisTurnRef.current = newPos;
       rolledForPlayerIdRef.current = playerId;
-      await refetchGame();
+      const refetchResult = await refetchGame();
+      const updatedGame = refetchResult?.data;
+      const updatedPlayer = updatedGame?.players?.find((p: Player) => p.user_id === playerId) ?? currentPlayer;
+      const balanceAfterMove = updatedPlayer?.balance ?? currentPlayer.balance ?? 0;
       setLiveMovementOverride((prev) => {
         const next = { ...prev };
         delete next[playerId];
@@ -820,7 +830,8 @@ export default function Board3DDemoPage() {
       const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
 
       if (needBuyPrompt && square) {
-        const buyScore = calculateBuyScore(square, currentPlayer, gameProperties, properties);
+        const playerForScore = { ...currentPlayer, balance: balanceAfterMove };
+        const buyScore = calculateBuyScore(square, playerForScore, gameProperties, properties);
         let shouldBuy: boolean;
         try {
           const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
@@ -841,7 +852,7 @@ export default function Board3DDemoPage() {
             slot,
             decisionType: "property",
             context: {
-              myBalance: currentPlayer.balance ?? 0,
+              myBalance: balanceAfterMove,
               myProperties: gameProperties
                 .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
                 .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
@@ -856,10 +867,10 @@ export default function Board3DDemoPage() {
           ) {
             shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
           } else {
-            shouldBuy = buyScore >= 72 && (currentPlayer.balance ?? 0) > (square.price ?? 0) * 1.8;
+            shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
           }
         } catch {
-          shouldBuy = buyScore >= 72 && (currentPlayer.balance ?? 0) > (square.price ?? 0) * 1.8;
+          shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
         }
         if (shouldBuy) {
           await apiClient.post("/game-properties/buy", {
