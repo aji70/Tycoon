@@ -948,14 +948,6 @@ export default function Board3DDemoPage() {
             </div>
           </div>
         </div>
-
-        {/* Action Log — game-style frame */}
-        <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
-          <ActionLog
-            history={historyToShow}
-            className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
-          />
-        </div>
       </div>
 
       {/* Board area */}
@@ -976,16 +968,6 @@ export default function Board3DDemoPage() {
             )}
           </div>
         ) : null}
-        <div className="flex items-center gap-3 mt-2">
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium transition-colors border border-slate-500"
-            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-          >
-            {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-          </button>
-        </div>
         {gameCode && gameError ? (
           <div className="mt-4 text-center">
             <p className="text-amber-400 mb-2">Game not found: {gameCode}</p>
@@ -996,37 +978,53 @@ export default function Board3DDemoPage() {
         ) : isLoading || (gameCode && gameLoading) ? (
           <p className="text-slate-400 mt-4">{gameCode ? "Loading game..." : "Loading board..."}</p>
         ) : (
-          <div
-            className={`rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl ${
-              isFullscreen ? "flex-1 w-full min-h-0 max-w-6xl" : "w-full max-w-[1200px] aspect-square mt-2"
-            }`}
-          >
-            <Canvas
-              camera={{ position: [0, 12, 12], fov: 45 }}
-              shadows
-              gl={{ antialias: true, alpha: false }}
+          <div className="flex flex-col items-center w-full max-w-[1200px] flex-1 min-h-0">
+            <div
+              className={`rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl w-full ${
+                isFullscreen ? "flex-1 min-h-0" : "aspect-square max-w-[1200px]"
+              }`}
             >
-              <BoardScene
-                properties={properties}
-                players={players}
-                animatedPositions={positions}
-                currentPlayerId={isLiveGame ? currentPlayerId : 1}
-                developmentByPropertyId={developmentByPropertyId}
-                ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
-                onSquareClick={handlePropertyClick}
-                rollingDice={rollingDice ?? undefined}
-                onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
-                lastRollResult={lastRollResultToShow}
-                onRoll={showRollUi ? onRollClick : undefined}
+              <Canvas
+                camera={{ position: [0, 12, 12], fov: 45 }}
+                shadows
+                gl={{ antialias: true, alpha: false }}
+              >
+                <BoardScene
+                  properties={properties}
+                  players={players}
+                  animatedPositions={positions}
+                  currentPlayerId={isLiveGame ? currentPlayerId : 1}
+                  developmentByPropertyId={developmentByPropertyId}
+                  ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
+                  onSquareClick={handlePropertyClick}
+                  rollingDice={rollingDice ?? undefined}
+                  onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
+                  lastRollResult={lastRollResultToShow}
+                  onRoll={showRollUi ? onRollClick : undefined}
+                />
+              </Canvas>
+            </div>
+            <div className={`w-full ${isFullscreen ? "max-h-32 flex-shrink-0" : "max-h-24 mt-2"} overflow-hidden rounded-xl border border-cyan-500/30 bg-slate-900/90`}>
+              <ActionLog
+                history={historyToShow}
+                className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
               />
-            </Canvas>
+            </div>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="mt-3 px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium transition-colors border border-slate-500"
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            >
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </button>
           </div>
         )}
       </div>
 
       {/* Buy / Skip overlay (live game) */}
       {isLiveGame && buyPrompted && justLandedProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1057,7 +1055,7 @@ export default function Board3DDemoPage() {
 
       {/* Jail: before roll — Pay $50 / Use card / Roll */}
       {isLiveGame && isMyTurn && meInJail && !jailChoiceRequired && !rollingDice && !lastRollResultLive && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1091,7 +1089,7 @@ export default function Board3DDemoPage() {
 
       {/* Jail: after roll (no doubles) — Pay / Use card / Stay */}
       {isLiveGame && isMyTurn && jailChoiceRequired && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
