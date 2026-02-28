@@ -154,7 +154,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           isLoading: false,
           autoClose: 5000,
         });
-        router.push(redirectTo3D ? `/ai-play-3d?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
+        router.push(redirectTo3D ? `/board-3d-demo?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
       } catch (err: any) {
         const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
         toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
@@ -246,7 +246,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         autoClose: 5000,
       });
 
-      router.push(redirectTo3D ? `/ai-play-3d?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
+      router.push(redirectTo3D ? `/board-3d-demo?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
       console.error("handlePlay error:", err);
       const message = getContractErrorMessage(err, "Something went wrong. Please try again.");

@@ -182,7 +182,7 @@ export default function Board3DDemoPage() {
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
 
   const { properties, isLoading, fromApi } = useBoardProperties();
-  const { data: game, isLoading: gameLoading } = useQuery<Game>({
+  const { data: game, isLoading: gameLoading, isError: gameError } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
       if (!gameCode) throw new Error("No code");
@@ -289,6 +289,16 @@ export default function Board3DDemoPage() {
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
+  const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
+  const lastRollFromHistory = useMemo(() => {
+    if (!isLiveGame || !game?.history?.length) return null;
+    const last = game.history[game.history.length - 1];
+    const rolled = last?.rolled ?? 0;
+    if (rolled < 2 || rolled > 12) return null;
+    const d1 = Math.min(6, Math.max(1, Math.floor(rolled / 2)));
+    return { die1: d1, die2: rolled - d1, total: rolled };
+  }, [isLiveGame, game?.history]);
+
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
       {/* Players & Action Log sidebar — game-style panels */}
@@ -300,35 +310,36 @@ export default function Board3DDemoPage() {
             <div className="px-4 py-3 bg-gradient-to-r from-amber-900/40 to-amber-800/30 border-b-2 border-amber-500/40">
               <h3 className="text-base font-black text-amber-200 tracking-widest uppercase drop-shadow-sm flex items-center gap-2">
                 <span className="text-lg">🎲</span> Players
+                {isLiveGame && <span className="text-xs font-normal text-amber-400/90">Live</span>}
               </h3>
             </div>
             <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto">
-              {mockPlayers.map((p) => {
-                const pos = animatedPositions[p.user_id] ?? p.position;
-                const isMe = p.user_id === 1;
+              {players.map((p) => {
+                const pos = positions[p.user_id] ?? p.position ?? 0;
+                const isMe = !isLiveGame ? p.user_id === 1 : false;
                 return (
                   <div
                     key={p.user_id}
                     className={`flex items-center gap-3 px-3 py-2 rounded-xl border-2 transition-all ${
-                      isMe
+                      isMe || (isLiveGame && currentPlayerId === p.user_id)
                         ? "bg-amber-500/25 border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
                         : "bg-slate-800/60 border-slate-600/50 hover:border-slate-500/70"
                     }`}
                   >
                     <span
                       className={`flex items-center justify-center w-10 h-10 rounded-full text-2xl shrink-0 ${
-                        isMe ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
+                        isMe || (isLiveGame && currentPlayerId === p.user_id) ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
                       }`}
-                      title={p.symbol}
+                      title={p.symbol ?? ""}
                     >
                       {getPlayerSymbol(p.symbol)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold truncate ${isMe ? "text-amber-100" : "text-slate-200"}`}>
-                        {p.username}
+                      <p className={`text-sm font-bold truncate ${isMe || (isLiveGame && currentPlayerId === p.user_id) ? "text-amber-100" : "text-slate-200"}`}>
+                        {p.username ?? `Player ${p.user_id}`}
                       </p>
                       <p className="text-xs text-slate-400 truncate">
-                        <span className="text-emerald-400 font-semibold">${p.balance}</span>
+                        <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
                         <span className="text-slate-500 mx-1">·</span>
                         {getSquareName(pos)}
                       </p>
@@ -343,7 +354,7 @@ export default function Board3DDemoPage() {
         {/* Action Log — game-style frame */}
         <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
           <ActionLog
-            history={demoHistory}
+            history={historyToShow}
             className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
           />
         </div>
@@ -357,6 +368,11 @@ export default function Board3DDemoPage() {
         <p className="text-cyan-400 text-sm mb-2">
           3D board — drag to rotate, scroll to zoom
           {fromApi ? " · Names from backend" : " · Using fallback names"}
+          {isLiveGame && gameCode && (
+            <span className="text-amber-400 block mt-1">
+              Live game: {gameCode} · <Link href={`/ai-play?gameCode=${encodeURIComponent(gameCode)}`} className="underline hover:no-underline">Play full game (2D)</Link>
+            </span>
+          )}
           <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
         </p>
         <div className="flex items-center gap-3 mt-3">
@@ -369,8 +385,15 @@ export default function Board3DDemoPage() {
             {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           </button>
         </div>
-        {isLoading ? (
-          <p className="text-slate-400 mt-4">Loading board...</p>
+        {gameCode && gameError ? (
+          <div className="mt-4 text-center">
+            <p className="text-amber-400 mb-2">Game not found: {gameCode}</p>
+            <Link href="/board-3d-demo" className="text-cyan-400 underline hover:no-underline">Demo without game</Link>
+            <span className="text-slate-500 mx-2">·</span>
+            <Link href="/play-ai-3d" className="text-cyan-400 underline hover:no-underline">Create AI game</Link>
+          </div>
+        ) : isLoading || (gameCode && gameLoading) ? (
+          <p className="text-slate-400 mt-4">{gameCode ? "Loading game..." : "Loading board..."}</p>
         ) : (
           <div
             className={`mt-4 rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl ${
@@ -384,14 +407,14 @@ export default function Board3DDemoPage() {
             >
               <BoardScene
                 properties={properties}
-                players={mockPlayers}
-                animatedPositions={animatedPositions}
-                currentPlayerId={1}
-                developmentByPropertyId={demoDevelopmentByPropertyId}
-                rollingDice={rollingDice}
-                onDiceComplete={handleDiceComplete}
-                lastRollResult={lastRollResult}
-                onRoll={handleRoll}
+                players={players}
+                animatedPositions={positions}
+                currentPlayerId={isLiveGame ? currentPlayerId : 1}
+                developmentByPropertyId={developmentByPropertyId}
+                rollingDice={showRollUi ? rollingDice : undefined}
+                onDiceComplete={showRollUi ? handleDiceComplete : undefined}
+                lastRollResult={showRollUi ? lastRollResult : lastRollFromHistory}
+                onRoll={showRollUi ? handleRoll : undefined}
               />
             </Canvas>
           </div>
