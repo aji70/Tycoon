@@ -372,8 +372,6 @@ export default function Board3DDemoPage() {
   const handleAiStrategy = useCallback(async () => {
     if (!currentPlayer || !isAITurn || strategyRanThisTurn || !game || !isLiveGame) return;
 
-    showToast(`${currentPlayer.username} is thinking... 🧠`, "default");
-
     const getPlayerOwnedProperties = (playerAddress: string | undefined, game_props: GameProperty[], props: Property[]) => {
       if (!playerAddress) return [];
       return game_props
@@ -484,10 +482,7 @@ export default function Board3DDemoPage() {
         let offerProperties: number[] = [];
         if ((currentPlayer.balance ?? 0) < cashOffer + 300) {
           const toOffer = getPropertyToOffer(currentPlayer.address!, [opp.group]);
-          if (toOffer) {
-            offerProperties = [toOffer.prop.id];
-            showToast(`AI offering ${toOffer.prop.name} in deal`, "default");
-          }
+          if (toOffer) offerProperties = [toOffer.prop.id];
         }
 
         const payload = {
@@ -503,7 +498,6 @@ export default function Board3DDemoPage() {
         try {
           const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
           if (res?.data?.success) {
-            showToast(`AI offered $${cashOffer}${offerProperties.length ? " + property" : ""} for ${missing.name}`, "default");
             maxTradeAttempts--;
 
             if (isAIPlayer(targetPlayer)) {
@@ -511,14 +505,10 @@ export default function Board3DDemoPage() {
               const favorability = calculateTradeFavorability({ ...payload, requested_amount: 0 }, targetPlayer.address!);
               if (favorability >= 50) {
                 await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
-                showToast(`${targetPlayer.username} accepted deal! 🤝`, "success");
                 await refetchGame();
               } else {
                 await apiClient.post("/game-trade-requests/decline", { id: res.data.data.id });
-                showToast(`${targetPlayer.username} declined`, "default");
               }
-            } else {
-              showToast(`Trade proposed to ${targetPlayer.username}`, "default");
             }
           }
         } catch (err) {
@@ -555,7 +545,6 @@ export default function Board3DDemoPage() {
               user_id: player.user_id,
               property_id: gp.property_id,
             });
-            showToast(`AI built on ${prop.name} (${groupName})`, "success");
             await new Promise((r) => setTimeout(r, 600));
             break;
           } catch (err) {
@@ -568,7 +557,6 @@ export default function Board3DDemoPage() {
 
     await handleAiBuilding(currentPlayer);
     setStrategyRanThisTurn(true);
-    showToast(`${currentPlayer.username} ready to roll`, "default");
   }, [
     game,
     properties,
@@ -578,7 +566,6 @@ export default function Board3DDemoPage() {
     isAITurn,
     strategyRanThisTurn,
     isLiveGame,
-    showToast,
     refetchGame,
   ]);
 
@@ -817,6 +804,7 @@ export default function Board3DDemoPage() {
         setTimeout(() => END_TURN(), 500);
         return;
       }
+      setLastRollResultLive(value);
       landedPositionThisTurnRef.current = newPos;
       rolledForPlayerIdRef.current = playerId;
       await refetchGame();
@@ -879,7 +867,6 @@ export default function Board3DDemoPage() {
             game_id: game.id,
             property_id: square.id,
           });
-          toast.success(`AI bought ${square.name}!`);
         }
         await refetchGame();
         setTimeout(() => END_TURN(), 900);
@@ -1112,16 +1099,8 @@ export default function Board3DDemoPage() {
   }, [game?.id, game?.status, game?.players, refetchGame]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
-  const lastRollFromHistory = useMemo(() => {
-    if (!isLiveGame || !game?.history?.length) return null;
-    const last = game.history[game.history.length - 1];
-    const rolled = last?.rolled ?? 0;
-    if (rolled < 2 || rolled > 12) return null;
-    const d1 = Math.min(6, Math.max(1, Math.floor(rolled / 2)));
-    return { die1: d1, die2: rolled - d1, total: rolled };
-  }, [isLiveGame, game?.history]);
-
-  const lastRollResultToShow = isLiveGame ? (lastRollResultLive ?? lastRollFromHistory) : lastRollResult;
+  // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
+  const lastRollResultToShow = isLiveGame ? lastRollResultLive : lastRollResult;
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
