@@ -189,10 +189,30 @@ function SquareTile({
   if (type === "corner") {
     const baseY = 0.02;
     if (id === 0) {
-      // GO: archway / start gate
-      const pillar = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.15, 0.35, 0.15] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));
-      const arch = createElement("mesh", { position: [x, 0.42, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.75, 0.12, 0.2] }), createElement("meshStandardMaterial", { color: 0x2ecc71 }));
-      return createElement("group", groupProps, ground, pillar, arch, nameLabel, ownerBadge);
+      // GO: property-style sign with visible "GO" + arrow (like a named property)
+      const signPost = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.22, 0.06] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));
+      const signBoard = createElement("mesh", { position: [x, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.65, 0.1, 0.04] }), createElement("meshStandardMaterial", { color: 0x2ecc71 }));
+      const goSignLabel = createElement(
+        Html,
+        {
+          position: [x, 0.28, z] as [number, number, number],
+          center: true,
+          distanceFactor: 12,
+          style: {
+            fontSize: "14px",
+            fontWeight: 800,
+            color: "#fff",
+            textShadow: "0 0 8px #000, 0 2px 4px #000",
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            userSelect: "none",
+            letterSpacing: "0.08em",
+          },
+        },
+        "GO →"
+      );
+      return createElement("group", groupProps, ground, signPost, signBoard, goSignLabel, nameLabel, ownerBadge);
     }
     if (id === 10) {
       // Jail: prison building with vertical bars (no text)
