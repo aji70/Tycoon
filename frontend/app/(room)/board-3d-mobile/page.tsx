@@ -105,10 +105,13 @@ function buildMockProperties(): Property[] {
   })) as Property[];
 }
 
+/** Board height as % of viewport — same as before nav bar was removed (72.9%). */
+const BOARD_HEIGHT_PCT = 72.9;
+
 /**
  * Minimal mobile 3D board — properties only, landscape-first.
  * Route: /board-3d-mobile (no gameCode; skeletal UI to score arrangement).
- * No page nav bar; global hamburger only. Board fills the viewport.
+ * No page nav bar; global hamburger only. Board uses same % of screen as before.
  */
 export default function Board3DMobilePage() {
   const { properties, isLoading } = useBoardProperties();
@@ -121,7 +124,7 @@ export default function Board3DMobilePage() {
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Board fills full viewport — hamburger from ClientLayout is the only nav */}
+      {/* Board: same percentage of viewport as before (no full bleed) */}
       <main
         className="w-full relative overflow-hidden"
         style={{
@@ -129,7 +132,7 @@ export default function Board3DMobilePage() {
           top: 0,
           left: 0,
           right: 0,
-          bottom: 0,
+          height: `${BOARD_HEIGHT_PCT}%`,
         }}
       >
         {isLoading ? (
