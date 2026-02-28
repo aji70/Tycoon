@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -109,7 +108,7 @@ function buildMockProperties(): Property[] {
 /**
  * Minimal mobile 3D board — properties only, landscape-first.
  * Route: /board-3d-mobile (no gameCode; skeletal UI to score arrangement).
- * Layout: one slim top bar, board fills the rest of the viewport (no box, full-bleed).
+ * No page nav bar; global hamburger only. Board fills the viewport.
  */
 export default function Board3DMobilePage() {
   const { properties, isLoading } = useBoardProperties();
@@ -117,39 +116,20 @@ export default function Board3DMobilePage() {
   const emptyPlayers = useMemo(() => [], []);
   const emptyPositions = useMemo(() => ({}), []);
 
-  const HEADER_H = 40; // px — fixed so main height can be calc(100% - HEADER_H)
-
   return (
     <div
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Single slim top bar — fixed height so board area is exactly the rest */}
-      <header
-        className="flex items-center justify-between gap-2 px-3 border-b border-slate-600/50 bg-slate-900/80 z-10"
-        style={{ height: HEADER_H }}
-      >
-        <span className="landscape:hidden text-amber-200/90 text-xs">↻ Rotate</span>
-        <h1 className="text-sm font-bold text-slate-200 truncate flex-1 text-center landscape:text-left">
-          Mobile 3D
-        </h1>
-        <Link
-          href="/board-3d"
-          className="text-cyan-400 text-xs font-medium active:underline shrink-0"
-        >
-          Desktop
-        </Link>
-      </header>
-
-      {/* Board: 90% of height below header (10% reduced) */}
+      {/* Board fills full viewport — hamburger from ClientLayout is the only nav */}
       <main
         className="w-full relative overflow-hidden"
         style={{
           position: "absolute",
-          top: HEADER_H,
+          top: 0,
           left: 0,
           right: 0,
-          height: `calc((100dvh - ${HEADER_H}px) * 0.729)`,
+          bottom: 0,
         }}
       >
         {isLoading ? (
