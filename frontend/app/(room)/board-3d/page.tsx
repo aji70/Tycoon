@@ -1417,15 +1417,6 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
-      {/* Trade notification — fixed top right */}
-      {isLiveGame && (
-        <div className="fixed top-4 right-6 z-40">
-          <TradeAlertPill
-            incomingCount={incomingTrades?.length ?? 0}
-            onViewTrades={() => setViewTradesRequested(true)}
-          />
-        </div>
-      )}
       {/* End game by net worth — confirm modal */}
       <AnimatePresence>
         {showEndByNetWorthConfirm && (
@@ -1485,25 +1476,40 @@ export default function Board3DDemoPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
             onClick={() => setShowPerksModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0, y: 8 }}
+              transition={{ type: "spring", damping: 26, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-violet-500/30 bg-slate-900 shadow-2xl"
+              className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-violet-400/40 bg-gradient-to-b from-slate-900 via-violet-950/30 to-slate-900 shadow-2xl shadow-violet-950/50 ring-1 ring-white/5"
             >
-              <button
-                type="button"
-                onClick={() => setShowPerksModal(false)}
-                className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="p-4 overflow-y-auto max-h-[90vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between shrink-0 px-5 py-4 bg-gradient-to-r from-violet-900/80 via-fuchsia-900/40 to-violet-900/80 border-b border-violet-500/30">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-500/30 border border-violet-400/40">
+                    <Sparkles className="w-5 h-5 text-violet-200" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white tracking-tight">Perks & collectibles</h2>
+                    <p className="text-xs text-violet-200/80">Use perks to boost your game</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPerksModal(false)}
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-violet-200/90 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {/* Content */}
+              <div className="overflow-y-auto max-h-[calc(88vh-5.5rem)] p-5 bg-slate-900/50">
                 <CollectibleInventoryBar
                   game={game}
                   game_properties={gameProperties}
@@ -1519,35 +1525,39 @@ export default function Board3DDemoPage() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar: End game by net worth (untimed) + Perks + Players + My Empire + Trade — sticky so it stays visible when scrolling */}
+      {/* Sidebar: Perks + End game by net worth (untimed) inline, then Players + My Empire + Trade — sticky so it stays visible when scrolling */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
-        {/* Perks (collectibles) — above player section */}
+        {/* Perks and X (end by net worth) — inline above player section */}
         {isLiveGame && game && (
-          <button
-            type="button"
-            onClick={() => setShowPerksModal(true)}
-            className="w-full py-2.5 px-3 rounded-xl text-sm font-semibold bg-violet-600/90 border border-violet-400/60 text-white hover:bg-violet-500 transition-colors shrink-0 flex items-center justify-center gap-2"
-            aria-label="Perks & collectibles"
-          >
-            <Sparkles className="w-4 h-4" />
-            Perks
-          </button>
-        )}
-        {/* End game by net worth — above player section, fixed in sidebar column */}
-        {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
-          <button
-            type="button"
-            onClick={() => {
-              if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
-              if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
-            }}
-            disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-            className="w-10 h-10 shrink-0 rounded-xl text-lg font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
-            title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
-            aria-label="Vote to end game by net worth"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowPerksModal(true)}
+              className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center bg-violet-600/90 border border-violet-400/60 text-white hover:bg-violet-500 transition-colors"
+              aria-label="Perks & collectibles"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+            {isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+                  if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+                }}
+                disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+                className="w-10 h-10 shrink-0 rounded-xl text-lg font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
+                title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+                aria-label="Vote to end game by net worth"
+              >
+                ×
+              </button>
+            )}
+            <TradeAlertPill
+              incomingCount={incomingTrades?.length ?? 0}
+              onViewTrades={() => setViewTradesRequested(true)}
+            />
+          </div>
         )}
         {gameCode && gameLoading ? (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-slate-900/80 shadow-xl">
