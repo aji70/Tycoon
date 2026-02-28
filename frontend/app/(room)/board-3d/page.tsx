@@ -659,6 +659,7 @@ export default function Board3DDemoPage() {
       await refetchGame();
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end turn"));
+      setTurnEndScheduled(false);
     } finally {
       turnEndInProgressRef.current = false;
     }
@@ -721,7 +722,10 @@ export default function Board3DDemoPage() {
       const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
       const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
       if (needBuyPrompt) setBuyPrompted(true);
-      else if (!rolledDouble) setTimeout(() => END_TURN(), 1200);
+      else if (!rolledDouble) {
+        setTurnEndScheduled(true);
+        setTimeout(() => END_TURN(), 1200);
+      }
     } catch (err) {
       setLiveMovementOverride((prev) => {
         const next = { ...prev };
@@ -1198,6 +1202,21 @@ export default function Board3DDemoPage() {
         ref={fullscreenRef}
         className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0"
       >
+        {/* Live game: End Turn button when human has rolled and can pass (manual fallback if auto-end fails) */}
+        {isLiveGame && isMyTurn && lastRollResultLive && !buyPrompted && !jailChoiceRequired && !rollingDice && (
+          <div className="mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setTurnEndScheduled(true);
+                END_TURN();
+              }}
+              className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-lg border border-amber-500/50"
+            >
+              End Turn
+            </button>
+          </div>
+        )}
         {(isLiveGame && !isMyTurn && currentPlayerId != null) || (isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING") ? (
           <div className="flex flex-col items-center gap-2 mb-2">
             {isLiveGame && !isMyTurn && currentPlayerId != null && (
