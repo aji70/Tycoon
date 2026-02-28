@@ -196,6 +196,7 @@ function SquareTile({
         Html,
         {
           position: [x, 0.28, z] as [number, number, number],
+          rotation: [0, Math.PI, 0] as [number, number, number],
           center: true,
           distanceFactor: 12,
           style: {
@@ -215,7 +216,7 @@ function SquareTile({
       return createElement("group", groupProps, ground, signPost, signBoard, goSignLabel, nameLabel, ownerBadge);
     }
     if (id === 10) {
-      // Jail: prison building with vertical bars (no text)
+      // Jail: prison building with vertical bars + visible "Jail" label
       const jailBase = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.7, 0.32, size * 0.7] }), createElement("meshStandardMaterial", { color: 0x5d6d7e }));
       const roof = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.76, 0.06, size * 0.76] }), createElement("meshStandardMaterial", { color: 0x4a4a4a }));
       const barW = 0.03;
@@ -224,7 +225,27 @@ function SquareTile({
       for (let b = -2; b <= 2; b++) {
         bars.push(createElement("mesh", { key: b, position: [x + b * 0.14, 0.18, z + size * 0.32] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [barW, barH, barW] }), createElement("meshStandardMaterial", { color: 0x2c3e50 })));
       }
-      return createElement("group", groupProps, ground, jailBase, roof, ...bars, nameLabel, ownerBadge);
+      const jailTextLabel = createElement(
+        Html,
+        {
+          position: [x, 0.28, z] as [number, number, number],
+          center: true,
+          distanceFactor: 12,
+          style: {
+            fontSize: "12px",
+            fontWeight: 800,
+            color: "#fff",
+            textShadow: "0 0 8px #000, 0 2px 4px #000",
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            userSelect: "none",
+            letterSpacing: "0.05em",
+          },
+        },
+        "Jail"
+      );
+      return createElement("group", groupProps, ground, jailBase, roof, ...bars, jailTextLabel, nameLabel, ownerBadge);
     }
     if (id === 20) {
       // Free Parking: empty with simple post and sign (no text)
@@ -329,12 +350,32 @@ function SquareTile({
     return createElement("group", groupProps, ground, pad, body, bandH, bandC, lid, lock, nameLabel, ownerBadge);
   }
 
-  // ---- TAX: tax office only (no text) ----
+  // ---- TAX: tax office + dollar sign label ----
   if (type === "luxury_tax" || type === "income_tax") {
     const steps = createElement("mesh", { position: [x, 0.03, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.65, 0.04, size * 0.65] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
     const building = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.28, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x5b2c6f }));
     const roof = createElement("mesh", { position: [x, 0.34, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.05, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
-    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, nameLabel);
+    const taxAmount = id === 4 ? "$200" : "$100"; // Income Tax $200, Luxury Tax $100
+    const taxLabel = createElement(
+      Html,
+      {
+        position: [x, 0.22, z] as [number, number, number],
+        center: true,
+        distanceFactor: 12,
+        style: {
+          fontSize: "13px",
+          fontWeight: 800,
+          color: "#fff",
+          textShadow: "0 0 8px #000, 0 2px 4px #000",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          userSelect: "none",
+        },
+      },
+      taxAmount
+    );
+    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, taxLabel, nameLabel);
   }
 
   // ---- PROPERTIES: terraced buildings by color group, pitched roof + houses/hotel ----
