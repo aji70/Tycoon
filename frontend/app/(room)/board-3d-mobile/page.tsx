@@ -141,10 +141,16 @@ export default function Board3DMobilePage() {
         </Link>
       </header>
 
-      {/* Board: explicit height = viewport minus header (no flex — fixes mobile ~20% height bug) */}
+      {/* Board: 90% of height below header (10% reduced) */}
       <main
         className="w-full relative overflow-hidden"
-        style={{ position: "absolute", top: HEADER_H, left: 0, right: 0, bottom: 0 }}
+        style={{
+          position: "absolute",
+          top: HEADER_H,
+          left: 0,
+          right: 0,
+          height: `calc((100dvh - ${HEADER_H}px) * 0.9)`,
+        }}
       >
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
