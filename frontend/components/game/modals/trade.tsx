@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Property } from "@/types/game";
 
@@ -58,8 +59,6 @@ const PropertyCard = ({
 );
 
 export const TradeModal: React.FC<TradeModalProps> = (props) => {
-  if (!props.open) return null;
-
   const {
     title,
     onClose,
@@ -79,6 +78,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     targetPlayerAddress,
   } = props;
 
+  if (!props.open) return null;
+
   const targetOwnedProps = useMemo(() => {
     if (!targetPlayerAddress) return [];
     const ownedGameProps = game_properties.filter(
@@ -89,7 +90,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     );
   }, [game_properties, properties, targetPlayerAddress]);
 
-  return (
+  const modalContent = (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -211,4 +212,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
       </motion.div>
     </motion.div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modalContent, document.body)
+    : modalContent;
 };
