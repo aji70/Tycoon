@@ -1260,7 +1260,7 @@ export default function Board3DDemoPage() {
 
       {/* Buy / Skip overlay (live game) */}
       {isLiveGame && buyPrompted && justLandedProperty && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1291,7 +1291,7 @@ export default function Board3DDemoPage() {
 
       {/* Jail: before roll — Pay $50 / Use card / Roll */}
       {isLiveGame && isMyTurn && meInJail && !jailChoiceRequired && !rollingDice && !lastRollResultLive && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1325,7 +1325,7 @@ export default function Board3DDemoPage() {
 
       {/* Jail: after roll (no doubles) — Pay / Use card / Stay */}
       {isLiveGame && isMyTurn && jailChoiceRequired && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1388,7 +1388,7 @@ export default function Board3DDemoPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[100] p-4"
+            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[99999] p-4"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
             {winner.user_id === me?.user_id ? (
