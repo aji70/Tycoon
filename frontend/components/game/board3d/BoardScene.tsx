@@ -16,11 +16,16 @@ function getTokenColor(playerIndex: number): string {
   return TOKEN_COLORS[playerIndex % TOKEN_COLORS.length];
 }
 
+/** 0 = no houses, 1-4 = house count, 5 = hotel. Only for developable properties (standard color groups). */
+export type DevelopmentByPropertyId = Record<number, number>;
+
 type BoardSceneProps = {
   properties: Property[];
   players: Player[];
   animatedPositions: Record<number, number>; // playerId -> position index
   currentPlayerId: number | null;
+  /** Optional: override development per property id for demo (0-4 houses, 5 = hotel). */
+  developmentByPropertyId?: DevelopmentByPropertyId;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -56,7 +61,7 @@ function getGroupIndex(id: number): { group: string; index: number } {
 }
 
 /** Ground tile + 3D structure; Monopoly-style groups and realistic buildings. Names show only on hover. */
-function SquareTile({ square }: { square: Property }) {
+function SquareTile({ square, development = 0 }: { square: Property; development?: number }) {
   const [hovered, setHovered] = useState(false);
   // Use backend grid when available (matches 2D board); else fall back to id-based layout
   const hasGrid = typeof square.grid_row === "number" && typeof square.grid_col === "number" && square.grid_row >= 1 && square.grid_row <= 11 && square.grid_col >= 1 && square.grid_col <= 11;
@@ -164,12 +169,30 @@ function SquareTile({ square }: { square: Property }) {
   // ---- UTILITIES: Electric Company (12) vs Water Works (28) ----
   if (square.color === "utility" || [12, 28].includes(id)) {
     if (id === 12) {
-      // Electric Company: substation with transformer and poles
+      // Electric Company: substation with transformer, poles, and "Electric" label
       const building = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.22, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
       const transformer = createElement("mesh", { position: [x, 0.32, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.35, size * 0.35, size * 0.3] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
       const poleL = createElement("mesh", { position: [x - size * 0.35, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.04, 0.35, 0.04] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
       const poleR = createElement("mesh", { position: [x + size * 0.35, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.04, 0.35, 0.04] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
-      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, building, transformer, poleL, poleR, nameLabel);
+      const electricLabel = createElement(
+        Html,
+        {
+          position: [x, 0.18, z] as [number, number, number],
+          center: true,
+          distanceFactor: 12,
+          style: {
+            fontSize: "11px",
+            fontWeight: 700,
+            color: "#f4d03f",
+            textShadow: "0 0 4px #000, 0 1px 3px #000",
+            pointerEvents: "none",
+            userSelect: "none",
+            whiteSpace: "nowrap",
+          },
+        },
+        "Electric"
+      );
+      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, building, transformer, poleL, poleR, electricLabel, nameLabel);
     }
     // Water Works (28): water tower
     const towerLegs = createElement("mesh", { position: [x, 0.08, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [0.06, 0.08, 0.12, 6] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
@@ -178,11 +201,28 @@ function SquareTile({ square }: { square: Property }) {
     return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, towerLegs, tank, dome, nameLabel);
   }
 
-  // ---- CHANCE: standing card only (no text) ----
+  // ---- CHANCE: standing card with ? label ----
   if (type === "chance") {
     const stand = createElement("mesh", { position: [x, 0.05, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.3, 0.08, size * 0.3] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
     const card = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.28, size * 0.5, 0.02] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
-    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, stand, card, nameLabel);
+    const chanceLabel = createElement(
+      Html,
+      {
+        position: [x, 0.22, z] as [number, number, number],
+        center: true,
+        distanceFactor: 12,
+        style: {
+          fontSize: "28px",
+          fontWeight: 800,
+          color: "#1a1a1a",
+          textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+          pointerEvents: "none",
+          userSelect: "none",
+        },
+      },
+      "?"
+    );
+    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, stand, card, chanceLabel, nameLabel);
   }
 
   // ---- COMMUNITY CHEST: clean treasure chest, no text ----
@@ -204,7 +244,7 @@ function SquareTile({ square }: { square: Property }) {
     return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, nameLabel);
   }
 
-  // ---- PROPERTIES: terraced buildings by color group, pitched roof ----
+  // ---- PROPERTIES: terraced buildings by color group, pitched roof + houses/hotel ----
   const groupHeight = { brown: 0.14, lightblue: 0.16, pink: 0.18, orange: 0.2, red: 0.22, yellow: 0.2, green: 0.24, darkblue: 0.26 }[group] ?? 0.18;
   const bodyH = groupHeight * 0.65;
   const roofH = groupHeight * 0.35;
@@ -236,14 +276,65 @@ function SquareTile({ square }: { square: Property }) {
     createElement("boxGeometry", { args: [size * 0.72, roofH, roofW] }),
     createElement("meshStandardMaterial", { color: 0x5d4037, roughness: 0.85 })
   );
-  return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, body, roofSlant, roofSlant2, nameLabel);
+
+  // Development: 0 = none, 1-4 = houses (small green boxes on roof), 5 = hotel (one red taller building)
+  const houseColor = 0x27ae60; // green
+  const hotelColor = 0xc0392b; // red
+  const baseY = 0.02 + bodyH + roofH;
+  const developmentMeshes: ReturnType<typeof createElement>[] = [];
+  if (development >= 5) {
+    // Hotel: single taller building replacing houses
+    const hotelH = 0.2;
+    const hotelBox = createElement(
+      "mesh",
+      { position: [x, baseY + hotelH / 2, z] as [number, number, number], castShadow: true },
+      createElement("boxGeometry", { args: [size * 0.35, hotelH, size * 0.35] }),
+      createElement("meshStandardMaterial", { color: hotelColor, roughness: 0.7 })
+    );
+    developmentMeshes.push(hotelBox);
+  } else if (development >= 1 && development <= 4) {
+    // 1-4 houses: small boxes in a 2x2 layout (1 = one, 2 = two, etc.)
+    const houseH = 0.08;
+    const houseW = size * 0.2;
+    const gap = 0.04;
+    const positions: [number, number][] = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+    for (let i = 0; i < development; i++) {
+      const [sx, sz] = positions[i];
+      const hx = x + sx * (houseW / 2 + gap / 2);
+      const hz = z + sz * (houseW / 2 + gap / 2);
+      const house = createElement(
+        "mesh",
+        { position: [hx, baseY + houseH / 2, hz] as [number, number, number], castShadow: true },
+        createElement("boxGeometry", { args: [houseW, houseH, houseW] }),
+        createElement("meshStandardMaterial", { color: houseColor, roughness: 0.75 })
+      );
+      developmentMeshes.push(house);
+    }
+  }
+
+  return createElement(
+    "group",
+    { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) },
+    ground,
+    body,
+    roofSlant,
+    roofSlant2,
+    ...developmentMeshes,
+    nameLabel
+  );
 }
 
-function BoardTiles({ properties }: { properties: Property[] }) {
+function BoardTiles({ properties, developmentByPropertyId }: { properties: Property[]; developmentByPropertyId?: DevelopmentByPropertyId }) {
   return createElement(
     "group",
     null,
-    ...properties.map((square) => createElement(SquareTile, { key: square.id, square }))
+    ...properties.map((square) =>
+      createElement(SquareTile, {
+        key: square.id,
+        square,
+        development: developmentByPropertyId?.[square.id] ?? 0,
+      })
+    )
   );
 }
 
@@ -292,6 +383,7 @@ export default function BoardScene({
   players,
   animatedPositions,
   currentPlayerId,
+  developmentByPropertyId,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -333,7 +425,7 @@ export default function BoardScene({
       createElement("planeGeometry", { args: [12, 12] }),
       createElement("meshStandardMaterial", { color: "#0a1516" })
     ),
-    createElement(BoardTiles, { properties }),
+    createElement(BoardTiles, { properties, developmentByPropertyId }),
     ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, color }) =>
       createElement(PlayerToken, {
         key: player.user_id,
