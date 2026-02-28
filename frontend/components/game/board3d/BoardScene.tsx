@@ -565,7 +565,7 @@ function CenterActionLog({ history }: { history?: Game["history"] }) {
   return createElement(
     Html,
     {
-      position: [0, -2, 0] as [number, number, number],
+      position: [0, -2.5, 0] as [number, number, number],
       center: true,
       distanceFactor: 8,
       style: {
