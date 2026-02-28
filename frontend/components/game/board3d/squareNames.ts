@@ -48,3 +48,12 @@ export const BOARD_SQUARE_NAMES: Record<number, string> = {
 export function getSquareName(id: number, fallback?: string): string {
   return BOARD_SQUARE_NAMES[id] ?? fallback ?? `Square ${id}`;
 }
+
+/** Prefer backend property name when available; fall back to classic name */
+export function getSquareNameFromProperties(
+  properties: { id: number; name?: string }[],
+  id: number
+): string {
+  const prop = properties.find((p) => p.id === id);
+  return prop?.name ?? getSquareName(id);
+}

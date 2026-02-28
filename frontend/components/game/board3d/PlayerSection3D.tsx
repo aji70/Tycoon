@@ -4,7 +4,7 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import { getPlayerSymbol } from "@/lib/types/symbol";
-import { getSquareName } from "./squareNames";
+import { getSquareNameFromProperties } from "./squareNames";
 import MyEmpire3D from "./MyEmpire3D";
 import TradeSection3D from "./TradeSection3D";
 import AiResponseModal3D from "./AiResponseModal3D";
@@ -165,7 +165,7 @@ export default function PlayerSection3D({
                         <p className="text-xs text-slate-400 truncate">
                           <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
                           <span className="text-slate-500 mx-1">·</span>
-                          {getSquareName(pos)}
+                          {getSquareNameFromProperties(properties, pos)}
                         </p>
                       </div>
                       {canTrade && (

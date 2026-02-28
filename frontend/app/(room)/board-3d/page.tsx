@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
-import { getSquareName } from "@/components/game/board3d/squareNames";
+import { getSquareName, getSquareNameFromProperties } from "@/components/game/board3d/squareNames";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
@@ -441,6 +441,7 @@ export default function Board3DDemoPage() {
       setTurnEndScheduled(false);
       setJailChoiceRequired(false);
       setLandedPositionForBuy(null);
+      setLastRollResultLive(null);
       landedPositionThisTurnRef.current = null;
       await refetchGame();
     } catch (err) {
@@ -499,7 +500,7 @@ export default function Board3DDemoPage() {
         delete next[me.user_id];
         return next;
       });
-      setLastRollResultLive(null);
+      // Keep lastRollResultLive visible — don't clear until turn ends
       setLandedPositionForBuy(newPos);
       const square = properties.find((p) => p.id === newPos);
       const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
@@ -967,7 +968,7 @@ export default function Board3DDemoPage() {
                         <p className="text-xs text-slate-400 truncate">
                           <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
                           <span className="text-slate-500 mx-1">·</span>
-                          {getSquareName(pos)}
+                          {getSquareNameFromProperties(properties, pos)}
                         </p>
                       </div>
                     </div>
