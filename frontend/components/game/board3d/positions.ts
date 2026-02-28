@@ -7,6 +7,20 @@
 const SIDE = 10; // 10 squares per side (including corner)
 const HALF = (SIDE - 1) / 2; // 4.5, so board runs -4.5 to 4.5
 
+/** 2D board uses 11×11 grid: grid_row 1 = top, 11 = bottom; grid_col 1 = left, 11 = right. */
+const GRID_SIZE = 11;
+const CELL = (2 * HALF) / (GRID_SIZE - 1); // ~0.9
+
+/**
+ * Position from backend grid (same layout as 2D board).
+ * Use this when property has grid_row / grid_col from API.
+ */
+export function getPosition3DFromGrid(grid_row: number, grid_col: number): [number, number, number] {
+  const px = (grid_col - 1) * CELL - HALF;
+  const pz = HALF - (grid_row - 1) * CELL;
+  return [px, 0, pz];
+}
+
 export function getPosition3D(positionIndex: number): [number, number, number] {
   const i = ((positionIndex % 40) + 40) % 40;
   let px = 0;
