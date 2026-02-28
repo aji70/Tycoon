@@ -192,7 +192,7 @@ const initialPositions: Record<number, number> = Object.fromEntries(
 
 /**
  * 3D board demo. With ?gameCode=XXX loads that game from backend (players, positions, development).
- * Without gameCode uses mock data. Route: /board-3d-demo or /board-3d-demo?gameCode=ABC123
+ * Without gameCode uses mock data. Route: /board-3d or /board-3d?gameCode=ABC123
  */
 export default function Board3DDemoPage() {
   const searchParams = useSearchParams();
@@ -989,7 +989,7 @@ export default function Board3DDemoPage() {
         {gameCode && gameError ? (
           <div className="mt-4 text-center">
             <p className="text-amber-400 mb-2">Game not found: {gameCode}</p>
-            <Link href="/board-3d-demo" className="text-cyan-400 underline hover:no-underline">Demo without game</Link>
+            <Link href="/board-3d" className="text-cyan-400 underline hover:no-underline">Board without game</Link>
             <span className="text-slate-500 mx-2">·</span>
             <Link href="/play-ai-3d" className="text-cyan-400 underline hover:no-underline">Create AI game</Link>
           </div>
