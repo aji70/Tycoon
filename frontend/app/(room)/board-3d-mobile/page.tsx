@@ -149,7 +149,7 @@ export default function Board3DMobilePage() {
           top: HEADER_H,
           left: 0,
           right: 0,
-          height: `calc((100dvh - ${HEADER_H}px) * 0.9)`,
+          height: `calc((100dvh - ${HEADER_H}px) * 0.81)`,
         }}
       >
         {isLoading ? (
