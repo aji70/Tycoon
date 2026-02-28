@@ -109,6 +109,7 @@ function buildMockProperties(): Property[] {
 /**
  * Minimal mobile 3D board — properties only, landscape-first.
  * Route: /board-3d-mobile (no gameCode; skeletal UI to score arrangement).
+ * Layout: one slim top bar, board fills the rest of the viewport (no box, full-bleed).
  */
 export default function Board3DMobilePage() {
   const { properties, isLoading } = useBoardProperties();
@@ -117,39 +118,47 @@ export default function Board3DMobilePage() {
   const emptyPositions = useMemo(() => ({}), []);
 
   return (
-    <div className="w-full min-h-screen min-h-[100dvh] bg-[#010F10] flex flex-col landscape:min-h-0 landscape:h-[100dvh]">
-      {/* Portrait: prompt to rotate for best experience */}
-      <div className="landscape:hidden flex items-center justify-center gap-2 py-2 px-3 bg-amber-900/40 border-b border-amber-500/30 text-amber-200 text-sm shrink-0">
-        <span className="opacity-90">↻ Rotate to landscape for best view</span>
-      </div>
-
-      {/* Header: minimal */}
-      <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-600/50 bg-slate-900/60 shrink-0">
-        <h1 className="text-base font-bold text-slate-200 truncate">
-          Mobile 3D · Properties
+    <div
+      className="fixed inset-0 w-full bg-[#010F10] flex flex-col overflow-hidden"
+      style={{ height: "100dvh" }}
+    >
+      {/* Single slim top bar */}
+      <header className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-600/50 bg-slate-900/80 shrink-0 z-10">
+        <span className="landscape:hidden text-amber-200/90 text-xs">↻ Rotate</span>
+        <h1 className="text-sm font-bold text-slate-200 truncate flex-1 text-center landscape:text-left">
+          Mobile 3D
         </h1>
         <Link
           href="/board-3d"
-          className="text-cyan-400 text-sm font-medium hover:text-cyan-300 active:underline shrink-0"
+          className="text-cyan-400 text-xs font-medium active:underline shrink-0"
         >
-          Desktop 3D
+          Desktop
         </Link>
       </header>
 
-      {/* Board area: fills remaining space so the 3D board uses the whole screen */}
-      <main className="flex-1 min-h-0 flex flex-col w-full p-1 sm:p-2">
+      {/* Board fills all space below the bar — absolute so it has definite size on mobile */}
+      <main className="flex-1 min-h-0 w-full relative overflow-hidden">
         {isLoading ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-slate-400">
+          <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
             <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
             <p className="text-sm">Loading board…</p>
           </div>
         ) : (
-          <div className="flex-1 min-h-0 w-full rounded-lg overflow-hidden border border-cyan-500/30 shadow-2xl flex">
+          <div
+            className="absolute inset-0 w-full h-full overflow-hidden"
+            style={{ touchAction: "none" }}
+          >
             <Canvas
               camera={{ position: [0, 12, 12], fov: 45 }}
               shadows
               gl={{ antialias: true, alpha: false }}
-              style={{ width: "100%", height: "100%", minHeight: 0 }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                display: "block",
+              }}
             >
               <BoardScene
                 properties={properties}
