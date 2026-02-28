@@ -266,7 +266,8 @@ export default function Board3DDemoPage() {
     if (!game?.players || currentPlayerId == null) return null;
     return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
   }, [game?.players, currentPlayerId]);
-  const isAITurn = !!currentPlayer && isAIPlayer(currentPlayer);
+  const isAITurn =
+    !!currentPlayer && !!me && currentPlayer.user_id !== me.user_id && isAIPlayer(currentPlayer);
   const liveDevelopmentByPropertyId = useMemo(() => {
     const out: Record<number, number> = {};
     gameProperties.forEach((gp) => {
