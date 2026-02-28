@@ -70,15 +70,21 @@ export default function PropertyDetailModal3D({
           }}
         >
           <div
-            className={`h-20 border-b-2 border-amber-500/30 ${PROPERTY_COLOR_CLASS[property.color || ""] ?? "bg-gray-600"}`}
-          />
-          <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-200 font-bold text-sm">
-            ${property.price}
+            className={`h-20 border-b-2 border-amber-500/30 relative ${PROPERTY_COLOR_CLASS[property.color || ""] ?? "bg-gray-600"}`}
+          >
+            <button
+              onClick={onClose}
+              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 border border-amber-400/50 flex items-center justify-center text-amber-100 font-bold text-lg transition"
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
           <div className="p-6 pt-4">
-            <h2 className="text-2xl font-bold text-center mb-5 text-amber-100 drop-shadow-sm">
+            <h2 className="text-2xl font-bold text-center mb-1 text-amber-100 drop-shadow-sm">
               {property.name}
             </h2>
+            <p className="text-center text-amber-300/90 text-sm mb-4">${property.price}</p>
 
             <div className="space-y-3 text-sm">
               <div className="flex justify-between text-slate-200">
