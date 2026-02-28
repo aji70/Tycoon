@@ -235,7 +235,7 @@ export default function AiPlay3DPage() {
           roll={null}
           isAITurn={isAITurn}
           focusTrades={false}
-          onViewTrades={() => {}}
+          onViewedTrades={() => {}}
           isGuest={isGuest}
         />
       </div>

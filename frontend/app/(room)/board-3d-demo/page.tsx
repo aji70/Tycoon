@@ -5,9 +5,32 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import type { Property } from "@/types/game";
-import type { Player } from "@/types/game";
+import type { Property, Player, History } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
+import ActionLog from "@/components/game/ai-board/action-log";
+import { getPlayerSymbol } from "@/lib/types/symbol";
+
+const MOVE_ANIMATION_MS_PER_SQUARE = 250;
+
+function makeHistoryEntry(id: number, player_name: string, comment: string, rolled: number): History {
+  return {
+    id,
+    game_id: 0,
+    game_player_id: 0,
+    rolled,
+    old_position: null,
+    new_position: 0,
+    action: "",
+    amount: 0,
+    extra: { description: "" },
+    comment,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    active: 1,
+    player_symbol: "hat",
+    player_name,
+  };
+}
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -155,33 +178,50 @@ const initialPositions: Record<number, number> = Object.fromEntries(
 export default function Board3DDemoPage() {
   const { properties, isLoading, fromApi } = useBoardProperties();
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
-  const [lastRoll, setLastRoll] = useState<number | null>(null);
+  const [lastRollResult, setLastRollResult] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
+  const [demoHistory, setDemoHistory] = useState<History[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fullscreenRef = useRef<HTMLDivElement>(null);
-  const pendingTotalRef = useRef<number>(0);
+  const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
+  const moveStartPositionsRef = useRef<Record<number, number>>({});
+  const historyIdRef = useRef(0);
 
   const handleRoll = useCallback(() => {
     if (rollingDice) return;
     const d1 = 1 + Math.floor(Math.random() * 6);
     const d2 = 1 + Math.floor(Math.random() * 6);
     const total = d1 + d2;
-    pendingTotalRef.current = total;
-    setLastRoll(total);
+    pendingRollRef.current = { die1: d1, die2: d2, total };
     setRollingDice({ die1: d1, die2: d2 });
   }, [rollingDice]);
 
   const handleDiceComplete = useCallback(() => {
-    const total = pendingTotalRef.current;
-    setAnimatedPositions((prev) => {
-      const next: Record<number, number> = {};
-      mockPlayers.forEach((p) => {
-        const current = prev[p.user_id] ?? p.position;
-        next[p.user_id] = (current + total) % 40;
-      });
-      return next;
-    });
+    const { die1, die2, total } = pendingRollRef.current;
+    setLastRollResult({ die1, die2, total });
     setRollingDice(null);
+    historyIdRef.current += 1;
+    setDemoHistory((prev) => [
+      ...prev,
+      makeHistoryEntry(historyIdRef.current, "Me", `rolled ${die1} + ${die2} = ${total}; all players advanced`, total),
+    ]);
+    setAnimatedPositions((prev) => {
+      moveStartPositionsRef.current = { ...prev };
+      return prev;
+    });
+    for (let step = 1; step <= total; step++) {
+      setTimeout(() => {
+        setAnimatedPositions(() => {
+          const start = moveStartPositionsRef.current;
+          const next: Record<number, number> = {};
+          mockPlayers.forEach((p) => {
+            const from = start[p.user_id] ?? p.position;
+            next[p.user_id] = (from + step) % 40;
+          });
+          return next;
+        });
+      }, step * MOVE_ANIMATION_MS_PER_SQUARE);
+    }
   }, []);
 
   const toggleFullscreen = useCallback(() => {
@@ -201,26 +241,76 @@ export default function Board3DDemoPage() {
   }, []);
 
   return (
-    <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center p-4">
+    <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
+      {/* Players & Action Log sidebar — game-style panels */}
+      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5">
+        {/* Players panel */}
+        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <div className="absolute inset-0 rounded-2xl border border-amber-400/20 pointer-events-none" />
+          <div className="relative">
+            <div className="px-4 py-3 bg-gradient-to-r from-amber-900/40 to-amber-800/30 border-b-2 border-amber-500/40">
+              <h3 className="text-base font-black text-amber-200 tracking-widest uppercase drop-shadow-sm flex items-center gap-2">
+                <span className="text-lg">🎲</span> Players
+              </h3>
+            </div>
+            <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto">
+              {mockPlayers.map((p) => {
+                const pos = animatedPositions[p.user_id] ?? p.position;
+                const isMe = p.user_id === 1;
+                return (
+                  <div
+                    key={p.user_id}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl border-2 transition-all ${
+                      isMe
+                        ? "bg-amber-500/25 border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                        : "bg-slate-800/60 border-slate-600/50 hover:border-slate-500/70"
+                    }`}
+                  >
+                    <span
+                      className={`flex items-center justify-center w-10 h-10 rounded-full text-2xl shrink-0 ${
+                        isMe ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
+                      }`}
+                      title={p.symbol}
+                    >
+                      {getPlayerSymbol(p.symbol)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold truncate ${isMe ? "text-amber-100" : "text-slate-200"}`}>
+                        {p.username}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        <span className="text-emerald-400 font-semibold">${p.balance}</span>
+                        <span className="text-slate-500 mx-1">·</span>
+                        {getSquareName(pos)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Action Log — game-style frame */}
+        <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <ActionLog
+            history={demoHistory}
+            className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
+          />
+        </div>
+      </div>
+
+      {/* Board area */}
       <div
         ref={fullscreenRef}
-        className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0"
+        className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0"
       >
         <p className="text-cyan-400 text-sm mb-2">
-          3D board (UI only — drag to rotate, scroll to zoom)
+          3D board — drag to rotate, scroll to zoom
           {fromApi ? " · Names from backend" : " · Using fallback names"}
           <span className="text-slate-500 block mt-1">Hover a square to see its name</span>
-          <span className="text-emerald-400/90 text-xs block mt-1">Development demo: Mediterranean (0) → Baltic (1) → Oriental (2) → Vermont (3) → Connecticut (4) → St. Charles (hotel)</span>
         </p>
         <div className="flex items-center gap-3 mt-3">
-          <button
-            type="button"
-            onClick={handleRoll}
-            disabled={!!rollingDice}
-            className="px-6 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-semibold transition-colors shadow-lg"
-          >
-            {rollingDice ? "Rolling…" : "Roll"}
-          </button>
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -230,9 +320,6 @@ export default function Board3DDemoPage() {
             {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           </button>
         </div>
-        {lastRoll !== null && (
-          <p className="text-cyan-300/90 text-sm mt-2">Last roll: {lastRoll} — all players advanced</p>
-        )}
         {isLoading ? (
           <p className="text-slate-400 mt-4">Loading board...</p>
         ) : (
@@ -254,6 +341,8 @@ export default function Board3DDemoPage() {
                 developmentByPropertyId={demoDevelopmentByPropertyId}
                 rollingDice={rollingDice}
                 onDiceComplete={handleDiceComplete}
+                lastRollResult={lastRollResult}
+                onRoll={handleRoll}
               />
             </Canvas>
           </div>

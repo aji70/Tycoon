@@ -4,6 +4,7 @@ import { Game } from "@/types/game";
 
 type ActionLogProps = {
   history: Game["history"];
+  className?: string;
 };
 
 /** Dedupe entries: remove duplicates where same comment appears for different players (e.g., rent payments create entries for both payer and receiver). */
@@ -43,7 +44,7 @@ function dedupeHistory(history: Game["history"]): Game["history"] {
   return out;
 }
 
-export default function ActionLog({ history }: ActionLogProps) {
+export default function ActionLog({ history, className = "" }: ActionLogProps) {
   const logRef = useRef<HTMLDivElement>(null);
   const deduped = useMemo(() => dedupeHistory(history), [history]);
 
@@ -56,7 +57,7 @@ export default function ActionLog({ history }: ActionLogProps) {
   return (
     <div
       ref={logRef}
-      className="mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48"
+      className={`mt-6 w-full max-w-md bg-gray-900/95 backdrop-blur-md rounded-xl border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col h-48 ${className}`.trim()}
     >
       <div className="p-3 border-b border-cyan-500/20 bg-gray-800/80">
         <h3 className="text-sm font-bold text-cyan-300 tracking-wider">Action Log</h3>
