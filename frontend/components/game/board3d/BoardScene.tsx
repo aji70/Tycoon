@@ -117,62 +117,90 @@ function SquareTile({ square }: { square: Property }) {
       return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, pillar, arch, nameLabel);
     }
     if (id === 10) {
-      // Jail: building with bars
-      const jail = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.65, 0.4, size * 0.65] }), createElement("meshStandardMaterial", { color: 0x95a5a6 }));
-      const roof = createElement("mesh", { position: [x, 0.48, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.72, 0.06, size * 0.72] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
-      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, jail, roof, nameLabel);
+      // Jail: prison building with vertical bars (no text)
+      const jailBase = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.7, 0.32, size * 0.7] }), createElement("meshStandardMaterial", { color: 0x5d6d7e }));
+      const roof = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.76, 0.06, size * 0.76] }), createElement("meshStandardMaterial", { color: 0x4a4a4a }));
+      const barW = 0.03;
+      const barH = 0.28;
+      const bars = [];
+      for (let b = -2; b <= 2; b++) {
+        bars.push(createElement("mesh", { key: b, position: [x + b * 0.14, 0.18, z + size * 0.32] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [barW, barH, barW] }), createElement("meshStandardMaterial", { color: 0x2c3e50 })));
+      }
+      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, jailBase, roof, ...bars, nameLabel);
     }
     if (id === 20) {
-      // Free Parking: park / garden with small structure
-      const kiosk = createElement("mesh", { position: [x, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.4, 0.2, size * 0.4] }), createElement("meshStandardMaterial", { color: 0x3498db }));
-      const canopy = createElement("mesh", { position: [x, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.04, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
-      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, kiosk, canopy, nameLabel);
+      // Free Parking: empty with simple post and sign (no text)
+      const post = createElement("mesh", { position: [x, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.22, 0.06] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
+      const sign = createElement("mesh", { position: [x, 0.26, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.08, 0.04] }), createElement("meshStandardMaterial", { color: 0x3498db }));
+      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, post, sign, nameLabel);
     }
     if (id === 30) {
-      // Go to Jail: jail door / gate
-      const gate = createElement("mesh", { position: [x, 0.25, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.45, 0.12] }), createElement("meshStandardMaterial", { color: 0xc0392b }));
-      const roof = createElement("mesh", { position: [x, 0.52, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.7, 0.06, 0.2] }), createElement("meshStandardMaterial", { color: 0x922b21 }));
-      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, gate, roof, nameLabel);
+      // Go to Jail: heavy prison gate, bars, red arch – clearly jail, no text
+      const base = createElement("mesh", { position: [x, 0.08, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.75, 0.1, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x3d3d3d }));
+      const gateL = createElement("mesh", { position: [x - size * 0.22, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.12, 0.5, 0.12] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
+      const gateR = createElement("mesh", { position: [x + size * 0.22, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.12, 0.5, 0.12] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
+      const arch = createElement("mesh", { position: [x, 0.52, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.1, 0.14] }), createElement("meshStandardMaterial", { color: 0xc0392b }));
+      const barW = 0.022;
+      const goBars = [];
+      for (let b = -2; b <= 2; b++) {
+        goBars.push(createElement("mesh", { key: b, position: [x + b * 0.14, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [barW, 0.42, 0.08] }), createElement("meshStandardMaterial", { color: 0x4a4a4a })));
+      }
+      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, base, gateL, gateR, arch, ...goBars, nameLabel);
     }
   }
 
-  // ---- RAILROADS: station with platform and awning ----
+  // ---- RAILROADS: station (light) + colored awning + train (red engine, blue carriage) ----
   const isRailroad = square.color === "railroad" || [5, 15, 25, 35].includes(id);
   if (isRailroad) {
-    const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x34495e }));
-    const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
-    const awning = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.9, 0.04, size * 0.35] }), createElement("meshStandardMaterial", { color: 0x1a252f }));
-    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, platform, station, awning, nameLabel);
+    const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
+    const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0xd5d8dc }));
+    const awning = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.9, 0.04, size * 0.35] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));
+    const engine = createElement("mesh", { position: [x - size * 0.2, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.22, 0.12, 0.18] }), createElement("meshStandardMaterial", { color: 0xc0392b }));
+    const chimney = createElement("mesh", { position: [x - size * 0.2, 0.24, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.06, 0.12, 0.06] }), createElement("meshStandardMaterial", { color: 0x4a4a4a }));
+    const carriage = createElement("mesh", { position: [x + size * 0.15, 0.12, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.2, 0.1, 0.16] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
+    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, platform, station, awning, engine, chimney, carriage, nameLabel);
   }
 
-  // ---- UTILITIES: small industrial building ----
+  // ---- UTILITIES: Electric Company (12) vs Water Works (28) ----
   if (square.color === "utility" || [12, 28].includes(id)) {
-    const building = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.3, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x16a085 }));
-    const roof = createElement("mesh", { position: [x, 0.36, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.06, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x0e6655 }));
-    const chimney = createElement("mesh", { position: [x + size * 0.2, 0.45, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.08, 0.15, 0.08] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
-    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, building, roof, chimney, nameLabel);
+    if (id === 12) {
+      // Electric Company: substation with transformer and poles
+      const building = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.22, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
+      const transformer = createElement("mesh", { position: [x, 0.32, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.35, size * 0.35, size * 0.3] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
+      const poleL = createElement("mesh", { position: [x - size * 0.35, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.04, 0.35, 0.04] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
+      const poleR = createElement("mesh", { position: [x + size * 0.35, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.04, 0.35, 0.04] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
+      return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, building, transformer, poleL, poleR, nameLabel);
+    }
+    // Water Works (28): water tower
+    const towerLegs = createElement("mesh", { position: [x, 0.08, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [0.06, 0.08, 0.12, 6] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
+    const tank = createElement("mesh", { position: [x, 0.28, z] as [number, number, number], castShadow: true }, createElement("cylinderGeometry", { args: [size * 0.35, size * 0.35, 0.12, 12] }), createElement("meshStandardMaterial", { color: 0x3498db }));
+    const dome = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("sphereGeometry", { args: [size * 0.32, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2] }), createElement("meshStandardMaterial", { color: 0x2980b9 }));
+    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, towerLegs, tank, dome, nameLabel);
   }
 
-  // ---- CHANCE: card kiosk ----
+  // ---- CHANCE: standing card only (no text) ----
   if (type === "chance") {
-    const stand = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.35, 0.1, size * 0.35] }), createElement("meshStandardMaterial", { color: 0xb7950b }));
-    const card = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.32, size * 0.45, 0.03] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
+    const stand = createElement("mesh", { position: [x, 0.05, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.3, 0.08, size * 0.3] }), createElement("meshStandardMaterial", { color: 0x5d4037 }));
+    const card = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.28, size * 0.5, 0.02] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
     return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, stand, card, nameLabel);
   }
 
-  // ---- COMMUNITY CHEST: chest kiosk ----
+  // ---- COMMUNITY CHEST: clean treasure chest, no text ----
   if (type === "community_chest") {
-    const stand = createElement("mesh", { position: [x, 0.05, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x1e8449 }));
-    const chest = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, size * 0.35, size * 0.4] }), createElement("meshStandardMaterial", { color: 0x229954 }));
-    const lid = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.48, 0.04, size * 0.42] }), createElement("meshStandardMaterial", { color: 0x1e8449 }));
-    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, stand, chest, lid, nameLabel);
+    const pad = createElement("mesh", { position: [x, 0.02, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.025, size * 0.45] }), createElement("meshStandardMaterial", { color: 0x3e2723 }));
+    const body = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.48, size * 0.24, size * 0.36] }), createElement("meshStandardMaterial", { color: 0x1e8449, roughness: 0.6 }));
+    const bandH = createElement("mesh", { position: [x, 0.14, z + size * 0.2] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.045, 0.04] }), createElement("meshStandardMaterial", { color: 0xd4a574 }));
+    const bandC = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.045, 0.04] }), createElement("meshStandardMaterial", { color: 0xd4a574 }));
+    const lid = createElement("mesh", { position: [x, 0.3, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.06, size * 0.38] }), createElement("meshStandardMaterial", { color: 0x229954, roughness: 0.6 }));
+    const lock = createElement("mesh", { position: [x, 0.1, z + size * 0.19] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.08, 0.06, 0.02] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
+    return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, pad, body, bandH, bandC, lid, lock, nameLabel);
   }
 
-  // ---- TAX: bank / treasury (classical building) ----
+  // ---- TAX: tax office only (no text) ----
   if (type === "luxury_tax" || type === "income_tax") {
-    const steps = createElement("mesh", { position: [x, 0.04, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.7, 0.06, size * 0.7] }), createElement("meshStandardMaterial", { color: 0x5b2c6f }));
-    const building = createElement("mesh", { position: [x, 0.2, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.28, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x6c3483 }));
-    const roof = createElement("mesh", { position: [x, 0.36, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.68, 0.06, size * 0.68] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
+    const steps = createElement("mesh", { position: [x, 0.03, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.65, 0.04, size * 0.65] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
+    const building = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.28, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x5b2c6f }));
+    const roof = createElement("mesh", { position: [x, 0.34, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.05, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
     return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, nameLabel);
   }
 
