@@ -117,13 +117,18 @@ export default function Board3DMobilePage() {
   const emptyPlayers = useMemo(() => [], []);
   const emptyPositions = useMemo(() => ({}), []);
 
+  const HEADER_H = 40; // px — fixed so main height can be calc(100% - HEADER_H)
+
   return (
     <div
-      className="fixed inset-0 w-full bg-[#010F10] flex flex-col overflow-hidden"
+      className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Single slim top bar */}
-      <header className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-600/50 bg-slate-900/80 shrink-0 z-10">
+      {/* Single slim top bar — fixed height so board area is exactly the rest */}
+      <header
+        className="flex items-center justify-between gap-2 px-3 border-b border-slate-600/50 bg-slate-900/80 z-10"
+        style={{ height: HEADER_H }}
+      >
         <span className="landscape:hidden text-amber-200/90 text-xs">↻ Rotate</span>
         <h1 className="text-sm font-bold text-slate-200 truncate flex-1 text-center landscape:text-left">
           Mobile 3D
@@ -136,8 +141,11 @@ export default function Board3DMobilePage() {
         </Link>
       </header>
 
-      {/* Board fills all space below the bar — absolute so it has definite size on mobile */}
-      <main className="flex-1 min-h-0 w-full relative overflow-hidden">
+      {/* Board: explicit height = viewport minus header (no flex — fixes mobile ~20% height bug) */}
+      <main
+        className="w-full relative overflow-hidden"
+        style={{ position: "absolute", top: HEADER_H, left: 0, right: 0, bottom: 0 }}
+      >
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
             <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
