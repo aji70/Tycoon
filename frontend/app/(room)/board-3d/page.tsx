@@ -1661,6 +1661,8 @@ export default function Board3DDemoPage() {
             <p className="text-amber-400 mb-2">Game not found: {gameCode}</p>
             <Link href="/board-3d" className="text-cyan-400 underline hover:no-underline">Board without game</Link>
             <span className="text-slate-500 mx-2">·</span>
+            <Link href="/board-3d-mobile" className="text-cyan-400 underline hover:no-underline">Mobile 3D</Link>
+            <span className="text-slate-500 mx-2">·</span>
             <Link href="/play-ai-3d" className="text-cyan-400 underline hover:no-underline">Create AI game</Link>
           </div>
         ) : isLoading || (gameCode && gameLoading) ? (
