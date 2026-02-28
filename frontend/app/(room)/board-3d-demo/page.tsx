@@ -27,6 +27,7 @@ import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2 } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
+import AiPlayer from "@/components/game/ai-player/ai-player";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -297,6 +298,14 @@ export default function Board3DDemoPage() {
     });
     return out;
   }, [gameProperties, livePlayers]);
+
+  const my_properties = useMemo(() => {
+    if (!me?.address) return [];
+    const myIds = gameProperties
+      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+      .map((gp) => gp.property_id);
+    return properties.filter((p) => myIds.includes(p.id));
+  }, [me?.address, gameProperties, properties]);
 
   const justLandedProperty = useMemo(() => {
     const pos = landedPositionForBuy ?? me?.position;
@@ -899,55 +908,64 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
-      {/* Players & Action Log sidebar — game-style panels */}
+      {/* Sidebar: Players + My Empire + Trade (live) or Players only (demo) */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5">
-        {/* Players panel */}
-        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
-          <div className="absolute inset-0 rounded-2xl border border-amber-400/20 pointer-events-none" />
-          <div className="relative">
-            <div className="px-4 py-3 bg-gradient-to-r from-amber-900/40 to-amber-800/30 border-b-2 border-amber-500/40">
-              <h3 className="text-base font-black text-amber-200 tracking-widest uppercase drop-shadow-sm flex items-center gap-2">
-                <span className="text-lg">🎲</span> Players
-                {isLiveGame && <span className="text-xs font-normal text-amber-400/90">Live</span>}
-              </h3>
-            </div>
-            <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto">
-              {players.map((p) => {
-                const pos = positions[p.user_id] ?? p.position ?? 0;
-                const isMe = isLiveGame ? (me != null && p.user_id === me.user_id) : p.user_id === 1;
-                return (
-                  <div
-                    key={p.user_id}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-xl border-2 transition-all ${
-                      isMe || (isLiveGame && currentPlayerId === p.user_id)
-                        ? "bg-amber-500/25 border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
-                        : "bg-slate-800/60 border-slate-600/50 hover:border-slate-500/70"
-                    }`}
-                  >
-                    <span
-                      className={`flex items-center justify-center w-10 h-10 rounded-full text-2xl shrink-0 ${
-                        isMe || (isLiveGame && currentPlayerId === p.user_id) ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
+        {isLiveGame && game ? (
+          <AiPlayer
+            game={game}
+            properties={properties}
+            game_properties={gameProperties}
+            my_properties={my_properties}
+            me={me}
+            currentPlayer={currentPlayer}
+            roll={lastRollResultToShow}
+            isAITurn={isAITurn}
+          />
+        ) : (
+          <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.15),inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="absolute inset-0 rounded-2xl border border-amber-400/20 pointer-events-none" />
+            <div className="relative">
+              <div className="px-4 py-3 bg-gradient-to-r from-amber-900/40 to-amber-800/30 border-b-2 border-amber-500/40">
+                <h3 className="text-base font-black text-amber-200 tracking-widest uppercase drop-shadow-sm flex items-center gap-2">
+                  <span className="text-lg">🎲</span> Players
+                </h3>
+              </div>
+              <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto">
+                {players.map((p) => {
+                  const pos = positions[p.user_id] ?? p.position ?? 0;
+                  const isMe = p.user_id === 1;
+                  return (
+                    <div
+                      key={p.user_id}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl border-2 transition-all ${
+                        isMe ? "bg-amber-500/25 border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]" : "bg-slate-800/60 border-slate-600/50 hover:border-slate-500/70"
                       }`}
-                      title={p.symbol ?? ""}
                     >
-                      {getPlayerSymbol(p.symbol)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold truncate ${isMe || (isLiveGame && currentPlayerId === p.user_id) ? "text-amber-100" : "text-slate-200"}`}>
-                        {p.username ?? `Player ${p.user_id}`}
-                      </p>
-                      <p className="text-xs text-slate-400 truncate">
-                        <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
-                        <span className="text-slate-500 mx-1">·</span>
-                        {getSquareName(pos)}
-                      </p>
+                      <span
+                        className={`flex items-center justify-center w-10 h-10 rounded-full text-2xl shrink-0 ${
+                          isMe ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
+                        }`}
+                        title={p.symbol ?? ""}
+                      >
+                        {getPlayerSymbol(p.symbol)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold truncate ${isMe ? "text-amber-100" : "text-slate-200"}`}>
+                          {p.username ?? `Player ${p.user_id}`}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
+                          <span className="text-slate-500 mx-1">·</span>
+                          {getSquareName(pos)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Board area */}
@@ -980,7 +998,7 @@ export default function Board3DDemoPage() {
         ) : (
           <div className="flex flex-col items-center w-full max-w-[1200px] flex-1 min-h-0">
             <div
-              className={`rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl w-full ${
+              className={`rounded-xl overflow-hidden border border-cyan-500/30 shadow-2xl w-full relative ${
                 isFullscreen ? "flex-1 min-h-0" : "aspect-square max-w-[1200px]"
               }`}
             >
@@ -1003,12 +1021,13 @@ export default function Board3DDemoPage() {
                   onRoll={showRollUi ? onRollClick : undefined}
                 />
               </Canvas>
-            </div>
-            <div className={`w-full ${isFullscreen ? "max-h-32 flex-shrink-0" : "max-h-24 mt-2"} overflow-hidden rounded-xl border border-cyan-500/30 bg-slate-900/90`}>
-              <ActionLog
-                history={historyToShow}
-                className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
-              />
+              {/* ActionLog under roll button (like 2D center area) */}
+              <div className="absolute bottom-0 left-0 right-0 max-h-24 overflow-y-auto bg-slate-900/90 backdrop-blur-sm border-t border-cyan-500/30 rounded-b-xl">
+                <ActionLog
+                  history={historyToShow}
+                  className="!mt-0 !rounded-none !border-0 !bg-transparent !shadow-none"
+                />
+              </div>
             </div>
             <button
               type="button"
