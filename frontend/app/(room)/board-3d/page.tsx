@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -207,7 +207,7 @@ const initialPositions: Record<number, number> = Object.fromEntries(
  * 3D board demo. With ?gameCode=XXX loads that game from backend (players, positions, development).
  * Without gameCode uses mock data. Route: /board-3d or /board-3d?gameCode=ABC123
  */
-export default function Board3DDemoPage() {
+function Board3DPageContent() {
   const searchParams = useSearchParams();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
 
@@ -469,7 +469,7 @@ export default function Board3DDemoPage() {
           case 3:
           case 4:
           case 7: {
-            const res = await apiClient.post<{ data?: { success?: boolean } }>("/perks/activate", {
+            const res = await apiClient.post<ApiResponse>("/perks/activate", {
               game_id: game.id,
               perk_id: perk,
             });
@@ -2187,5 +2187,22 @@ export default function Board3DDemoPage() {
 
       <Toaster position="top-center" />
     </div>
+  );
+}
+
+export default function Board3DDemoPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#010F10] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-amber-400" />
+            <p className="text-slate-400">Loading board…</p>
+          </div>
+        </div>
+      }
+    >
+      <Board3DPageContent />
+    </Suspense>
   );
 }
