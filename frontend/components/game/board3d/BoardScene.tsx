@@ -211,7 +211,7 @@ function SquareTile({
             letterSpacing: "0.08em",
           },
         },
-        "GO →"
+        "GO"
       );
       return createElement("group", groupProps, ground, signPost, signBoard, goSignLabel, nameLabel, ownerBadge);
     }
@@ -254,7 +254,7 @@ function SquareTile({
       return createElement("group", groupProps, ground, post, sign, nameLabel, ownerBadge);
     }
     if (id === 30) {
-      // Go to Jail: heavy prison gate, bars, red arch – clearly jail, no text
+      // Go to Jail: heavy prison gate, bars, red arch + short label
       const base = createElement("mesh", { position: [x, 0.08, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.75, 0.1, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x3d3d3d }));
       const gateL = createElement("mesh", { position: [x - size * 0.22, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.12, 0.5, 0.12] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
       const gateR = createElement("mesh", { position: [x + size * 0.22, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.12, 0.5, 0.12] }), createElement("meshStandardMaterial", { color: 0x2c3e50 }));
@@ -264,7 +264,27 @@ function SquareTile({
       for (let b = -2; b <= 2; b++) {
         goBars.push(createElement("mesh", { key: b, position: [x + b * 0.14, 0.28, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [barW, 0.42, 0.08] }), createElement("meshStandardMaterial", { color: 0x4a4a4a })));
       }
-      return createElement("group", groupProps, ground, base, gateL, gateR, arch, ...goBars, nameLabel, ownerBadge);
+      const goToJailLabel = createElement(
+        Html,
+        {
+          position: [x, 0.32, z] as [number, number, number],
+          center: true,
+          distanceFactor: 12,
+          style: {
+            fontSize: "11px",
+            fontWeight: 800,
+            color: "#fff",
+            textShadow: "0 0 8px #000, 0 2px 4px #000",
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            userSelect: "none",
+            letterSpacing: "0.02em",
+          },
+        },
+        "Go 2 Jail"
+      );
+      return createElement("group", groupProps, ground, base, gateL, gateR, arch, ...goBars, goToJailLabel, nameLabel, ownerBadge);
     }
   }
 
@@ -339,7 +359,7 @@ function SquareTile({
     return createElement("group", groupProps, ground, stand, card, chanceLabel, nameLabel, ownerBadge);
   }
 
-  // ---- COMMUNITY CHEST: clean treasure chest, no text ----
+  // ---- COMMUNITY CHEST: clean treasure chest + "Chest" label ----
   if (type === "community_chest") {
     const pad = createElement("mesh", { position: [x, 0.02, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.025, size * 0.45] }), createElement("meshStandardMaterial", { color: 0x3e2723 }));
     const body = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.48, size * 0.24, size * 0.36] }), createElement("meshStandardMaterial", { color: 0x1e8449, roughness: 0.6 }));
@@ -347,7 +367,27 @@ function SquareTile({
     const bandC = createElement("mesh", { position: [x, 0.14, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.045, 0.04] }), createElement("meshStandardMaterial", { color: 0xd4a574 }));
     const lid = createElement("mesh", { position: [x, 0.3, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.5, 0.06, size * 0.38] }), createElement("meshStandardMaterial", { color: 0x229954, roughness: 0.6 }));
     const lock = createElement("mesh", { position: [x, 0.1, z + size * 0.19] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [0.08, 0.06, 0.02] }), createElement("meshStandardMaterial", { color: 0xf1c40f }));
-    return createElement("group", groupProps, ground, pad, body, bandH, bandC, lid, lock, nameLabel, ownerBadge);
+    const chestLabel = createElement(
+      Html,
+      {
+        position: [x, 0.22, z] as [number, number, number],
+        center: true,
+        distanceFactor: 12,
+        style: {
+          fontSize: "12px",
+          fontWeight: 800,
+          color: "#fff",
+          textShadow: "0 0 8px #000, 0 2px 4px #000",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          userSelect: "none",
+          letterSpacing: "0.03em",
+        },
+      },
+      "Chest"
+    );
+    return createElement("group", groupProps, ground, pad, body, bandH, bandC, lid, lock, chestLabel, nameLabel, ownerBadge);
   }
 
   // ---- TAX: tax office + dollar sign label ----
@@ -355,7 +395,6 @@ function SquareTile({
     const steps = createElement("mesh", { position: [x, 0.03, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.65, 0.04, size * 0.65] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
     const building = createElement("mesh", { position: [x, 0.18, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.55, 0.28, size * 0.55] }), createElement("meshStandardMaterial", { color: 0x5b2c6f }));
     const roof = createElement("mesh", { position: [x, 0.34, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.6, 0.05, size * 0.6] }), createElement("meshStandardMaterial", { color: 0x4a235a }));
-    const taxAmount = id === 4 ? "$200" : "$100"; // Income Tax $200, Luxury Tax $100
     const taxLabel = createElement(
       Html,
       {
@@ -363,7 +402,7 @@ function SquareTile({
         center: true,
         distanceFactor: 12,
         style: {
-          fontSize: "13px",
+          fontSize: "14px",
           fontWeight: 800,
           color: "#fff",
           textShadow: "0 0 8px #000, 0 2px 4px #000",
@@ -373,7 +412,7 @@ function SquareTile({
           userSelect: "none",
         },
       },
-      taxAmount
+      "$"
     );
     return createElement("group", { key: square.id, onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }, ground, steps, building, roof, taxLabel, nameLabel);
   }
