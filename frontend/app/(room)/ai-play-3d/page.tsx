@@ -9,6 +9,7 @@ import { ApiResponse } from "@/types/api";
 import { Game, GameProperty, Player, Property } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { useMediaQuery } from "@/components/useMediaQuery";
 import AiBoard from "@/components/game/ai-board/ai-board";
 import GamePlayers from "@/components/game/ai-player/ai-player";
 import { useIsRegistered } from "@/context/ContractProvider";
@@ -23,6 +24,7 @@ import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 export default function AiPlay3DPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [gameCode, setGameCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const { address } = useAccount();
@@ -221,7 +223,18 @@ export default function AiPlay3DPage() {
     );
   }
 
-  // AI game: 3D board
+  // Mobile: use the dedicated mobile 3D board (board-3d-mobile) so layout matches
+  if (isMobile && gameCode) {
+    router.replace(`/board-3d-mobile?gameCode=${encodeURIComponent(gameCode)}`);
+    return (
+      <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
+        <Loader2 className="w-12 h-12 animate-spin" />
+        <p className="text-xl">Opening mobile 3D board…</p>
+      </div>
+    );
+  }
+
+  // AI game: 3D board (desktop)
   return (
     <main className="w-full h-screen overflow-hidden relative flex flex-row bg-[#010F10] lg:gap-4 p-4">
       <div className="hidden lg:block w-80 flex-shrink-0">

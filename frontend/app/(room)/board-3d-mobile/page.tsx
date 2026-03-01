@@ -27,6 +27,7 @@ import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
+import ActionLog from "@/components/game/ai-board/action-log";
 import Mobile3DGameUI from "@/components/game/board3d/Mobile3DGameUI";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake } from "lucide-react";
@@ -1282,6 +1283,22 @@ export default function Board3DMobilePage() {
         />
       )}
 
+      {/* Fixed action log (not floating in 3D) — only when we have a live game and history */}
+      {isLiveGame && historyToShow && historyToShow.length > 0 && (
+        <div
+          className="fixed left-2 right-2 z-30 overflow-hidden rounded-lg border-2 border-cyan-500/40 bg-slate-900/95 shadow-lg"
+          style={{
+            top: isLiveGame && game && !isUntimed && game.duration ? "2.75rem" : "0.5rem",
+            maxHeight: "140px",
+          }}
+        >
+          <ActionLog
+            history={historyToShow}
+            className="!mt-0 !h-32 !max-h-32 !min-h-0 !rounded-lg !border-0 !bg-transparent"
+          />
+        </div>
+      )}
+
       <main
         className="w-full relative overflow-hidden"
         style={{
@@ -1329,6 +1346,7 @@ export default function Board3DMobilePage() {
                 lastRollResult={lastRollResultToShow}
                 onRoll={showRollUi ? onRollClick : undefined}
                 history={historyToShow}
+                hideCenterActionLog={true}
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
               />
             </Canvas>
