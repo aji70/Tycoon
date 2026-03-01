@@ -9,7 +9,20 @@ import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
-export default function JoinRoom(): JSX.Element {
+interface JoinRoomProps {
+  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
+  redirectToBoard?: string;
+  /** When game is PENDING, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d. */
+  redirectToWaiting?: string;
+  /** "Create new game" link (default: /game-settings). e.g. /game-settings-3d for 3D. */
+  redirectCreateNew?: string;
+}
+
+export default function JoinRoom({
+  redirectToBoard = "/game-play",
+  redirectToWaiting = "/game-waiting",
+  redirectCreateNew = "/game-settings",
+}: JoinRoomProps = {}): JSX.Element {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
@@ -143,13 +156,13 @@ export default function JoinRoom(): JSX.Element {
         );
 
         if (isPlayerInGame) {
-          router.push(`/game-play?gameCode=${encodeURIComponent(normalizedCode)}`);
+          router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(normalizedCode)}`);
         } else {
           throw new Error("This game has already started and you are not a player.");
         }
       } else if (game.status === "PENDING") {
         // Game waiting — go to waiting room (sign in as guest or connect wallet there to join)
-        router.push(`/game-waiting?gameCode=${encodeURIComponent(normalizedCode)}`);
+        router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(normalizedCode)}`);
       } else {
         throw new Error("This game is no longer active.");
       }
@@ -163,24 +176,24 @@ export default function JoinRoom(): JSX.Element {
   const handleContinueGame = useCallback(
     (game: Game) => {
       if (game.status === "RUNNING") {
-        router.push(`/game-play?gameCode=${encodeURIComponent(game.code)}`);
+        router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(game.code)}`);
       } else if (game.status === "PENDING") {
-        router.push(`/game-waiting?gameCode=${encodeURIComponent(game.code)}`);
+        router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
       }
     },
-    [router]
+    [router, redirectToBoard, redirectToWaiting]
   );
 
   const handleJoinPublicGame = useCallback(
     (game: Game) => {
       if (game.status === "PENDING") {
-        router.push(`/game-waiting?gameCode=${encodeURIComponent(game.code)}`);
+        router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(game.code)}`);
       }
     },
-    [router]
+    [router, redirectToWaiting]
   );
 
-  const handleCreateNew = () => router.push("/game-settings");
+  const handleCreateNew = () => router.push(redirectCreateNew);
 
   return (
     <section className="w-full min-h-screen bg-settings bg-cover bg-fixed bg-center bg-[#010F10]">

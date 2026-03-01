@@ -51,7 +51,12 @@ interface GameCreateResponse {
 const USDC_DECIMALS = 6;
 const stakePresets = [1, 5, 10, 25, 50, 100];
 
-export default function GameSettings() {
+interface GameSettingsProps {
+  /** After creating game, redirect to this waiting room (default: /game-waiting). e.g. /game-waiting-3d for 3D. */
+  redirectToWaitingRoom?: string;
+}
+
+export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }: GameSettingsProps = {}) {
   const router = useRouter();
   const { address } = useAccount();
   const wagmiChainId = useChainId();
@@ -168,7 +173,7 @@ export default function GameSettings() {
           type: "success",
           isLoading: false,
           autoClose: 5000,
-          onClose: () => router.push(`/game-waiting?gameCode=${gameCode}`),
+          onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
         });
       } catch (err: any) {
         const msg = err?.response?.data?.message || err?.message || "Failed to create game";
@@ -254,7 +259,7 @@ export default function GameSettings() {
         type: "success",
         isLoading: false,
         autoClose: 5000,
-        onClose: () => router.push(`/game-waiting?gameCode=${gameCode}`),
+        onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
       });
     } catch (err: any) {
       console.error("Create game error:", err);

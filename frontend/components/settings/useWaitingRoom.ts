@@ -35,7 +35,13 @@ function isTournamentMatchCode(code: string): boolean {
   return /^T\d+-R\d+-M\d+$/i.test(code);
 }
 
-export function useWaitingRoom() {
+export interface UseWaitingRoomOptions {
+  /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D board. */
+  redirectToBoard?: string;
+}
+
+export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
+  const { redirectToBoard = "/game-play" } = options;
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawGameCode = searchParams.get("gameCode") ?? "";
@@ -285,7 +291,7 @@ export function useWaitingRoom() {
         const gameData = res.data.data;
 
         if (gameData.status === "RUNNING") {
-          router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
+          router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(gameCode)}`);
           return;
         }
 
@@ -302,7 +308,7 @@ export function useWaitingRoom() {
             status: "RUNNING",
           });
           if (updateRes?.data?.success)
-            router.push(`/game-play?gameCode=${gameCode}`);
+            router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(gameCode)}`);
         }
       } catch (err: unknown) {
         if (!mountedRef.current) return;
