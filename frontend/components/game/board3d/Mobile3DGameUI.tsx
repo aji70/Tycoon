@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Bell, Users, X, Landmark, MessageCircle } from "lucide-react";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
-import PerksBar from "./PerksBar";
 import MyEmpire3D from "./MyEmpire3D";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
@@ -80,18 +79,19 @@ export default function Mobile3DGameUI({
 
   return (
     <>
-      {/* Bottom bar: Perks, My Empire, Trades, Players, and optional Chat — all in one row */}
+      {/* Bottom bar: Perks, Empire, Trades, Players, optional Chat — all same-style buttons in one row */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-between gap-1 sm:gap-2 px-1 sm:px-3 py-2 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
+        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-between gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="flex items-center justify-center min-w-0 flex-1 shrink">
-          <PerksBar
-            onOpenModal={() => setShowPerksModal(true)}
-            onUsePerk={onUsePerk}
-            className="!flex-row !flex-wrap !gap-1 !items-center"
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowPerksModal(true)}
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition shrink-0"
+        >
+          <Sparkles className="w-5 h-5" />
+          <span className="text-xs font-medium">Perks</span>
+        </button>
         <button
           type="button"
           onClick={() => setShowEmpireModal(true)}
