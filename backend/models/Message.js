@@ -8,12 +8,20 @@ const Message = {
       (await db("games").where({ id: gameIdOrCode }).first()) ??
       (await db("games").where({ code: String(gameIdOrCode) }).first());
     if (game && game.status === "RUNNING") {
-      let game_player = await db("game_players")
-        .where({ game_id: game.id, id: messageData.player_id })
-        .first();
-      if (!game_player && messageData.user_id != null) {
+      const playerIdRaw = messageData.player_id;
+      const userIdRaw = messageData.user_id;
+      const playerIdNum = playerIdRaw != null && playerIdRaw !== "" ? Number(playerIdRaw) : NaN;
+      const userIdNum = userIdRaw != null && userIdRaw !== "" ? Number(userIdRaw) : NaN;
+
+      let game_player = null;
+      if (Number.isInteger(playerIdNum) && playerIdNum > 0) {
         game_player = await db("game_players")
-          .where({ game_id: game.id, user_id: messageData.user_id })
+          .where({ game_id: game.id, id: playerIdNum })
+          .first();
+      }
+      if (!game_player && Number.isInteger(userIdNum) && userIdNum > 0) {
+        game_player = await db("game_players")
+          .where({ game_id: game.id, user_id: userIdNum })
           .first();
       }
       if (game_player) {

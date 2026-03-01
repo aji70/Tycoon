@@ -72,7 +72,8 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   const queryClient = useQueryClient();
 
   const playerId = me?.id != null ? String(me.id) : "";
-  const canSend = !!playerId;
+  const userId = me?.user_id != null ? me.user_id : undefined;
+  const canSend = !!(gameId && (playerId || (userId != null && userId > 0)));
 
   const hasGameId = !!gameId && String(gameId).trim().length > 0;
   const { data: messages = [], isLoading } = useQuery<Message[]>({
@@ -89,7 +90,7 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !gameId || !playerId || sending) return;
+    if (!newMessage.trim() || !gameId || (!playerId && userId == null) || sending) return;
 
     setSending(true);
     const trimmed = newMessage.trim();
@@ -115,8 +116,8 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
     try {
       await apiClient.post("/messages", {
         game_id: gameId,
-        player_id: playerId,
-        user_id: me?.user_id ?? undefined,
+        ...(playerId ? { player_id: playerId } : {}),
+        ...(userId != null && userId > 0 ? { user_id: userId } : {}),
         body: bodyToSend,
       });
       queryClient.invalidateQueries({ queryKey: ["messages", gameId] });
