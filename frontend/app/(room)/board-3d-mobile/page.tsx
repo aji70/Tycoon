@@ -1403,6 +1403,19 @@ export default function Board3DMobilePage() {
           isolation: "isolate",
         }}
       >
+        {/* Roll result overlay — die1 + die2 = total (visible on mobile) */}
+        {lastRollResultLive && !rollingDice && (
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900/90 border-2 border-cyan-500/50 shadow-xl"
+            aria-live="polite"
+          >
+            <span className="text-cyan-400 font-bold text-xl">{lastRollResultLive.die1}</span>
+            <span className="text-slate-400 font-medium">+</span>
+            <span className="text-pink-400 font-bold text-xl">{lastRollResultLive.die2}</span>
+            <span className="text-slate-400 font-medium">=</span>
+            <span className="text-amber-400 font-bold text-2xl">{lastRollResultLive.total}</span>
+          </div>
+        )}
         {isLoading || (gameCode && gameLoading) ? (
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
             <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />

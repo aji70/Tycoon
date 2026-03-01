@@ -622,7 +622,7 @@ function RollingDice({
 
   return createElement(
     "group",
-    { position: [0, 0.35, 0] as [number, number, number] },
+    { position: [0, 0.7, 0] as [number, number, number] },
     createElement("group", { ref: mesh1Ref, position: [-DICE_SIZE * 1.2, 0, 0] as [number, number, number] },
       createElement("mesh", { castShadow: true, receiveShadow: true }, geo, mat),
       ...makePipsForDie()
@@ -662,7 +662,7 @@ function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: 
   return createElement(
     Html,
     {
-      position: [0, 1.35, 0] as [number, number, number],
+      position: [0, 1.65, 0] as [number, number, number],
       center: true,
       distanceFactor: 7,
       style: {
@@ -713,7 +713,7 @@ function CenterRollButton({ onRoll, disabled }: { onRoll: () => void; disabled: 
   return createElement(
     Html,
     {
-      position: [0, 0.02, 0] as [number, number, number],
+      position: [0, -0.15, 0] as [number, number, number],
       center: true,
       distanceFactor: 9,
       style: { pointerEvents: "auto" },
