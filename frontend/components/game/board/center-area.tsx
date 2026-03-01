@@ -68,6 +68,8 @@ type CenterAreaProps = {
   jailSubmitting?: boolean;
   /** Prevent double-tap on vote end by net worth */
   voteEndByNetWorthSubmitting?: boolean;
+  /** When true (e.g. 3D board overlay), no background/box — just controls */
+  transparentOverlay?: boolean;
 };
 
 export default function CenterArea({
@@ -116,6 +118,7 @@ export default function CenterArea({
   buyPending = false,
   jailSubmitting = false,
   voteEndByNetWorthSubmitting = false,
+  transparentOverlay = false,
 }: CenterAreaProps) {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
 
@@ -137,12 +140,17 @@ export default function CenterArea({
         </button>
       )}
 
-    <div className="col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
-      style={{
-    backgroundImage: `url(/bb.jpg)`,
-    backgroundSize: 'cover',    // ← usually good to add
-    backgroundPosition: 'center',
-  }}
+    <div
+      className={
+        transparentOverlay
+          ? "flex flex-col justify-center items-center p-4 relative overflow-hidden min-w-0"
+          : "col-start-2 col-span-9 row-start-2 row-span-9 bg-[#010F10] flex flex-col justify-center items-center p-4 relative overflow-hidden"
+      }
+      style={transparentOverlay ? undefined : {
+        backgroundImage: `url(/bb.jpg)`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
     >
       {/* Dice Animation */}
       <DiceAnimation isRolling={isRolling} roll={roll} />

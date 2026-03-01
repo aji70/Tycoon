@@ -335,6 +335,7 @@ const GameBoard3DView = ({
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div className="pointer-events-auto w-full h-full max-w-[420px] max-h-[420px] flex items-center justify-center mx-auto">
               <CenterArea
+                transparentOverlay
                 isMyTurn={isMyTurn}
                 me={me}
                 game={game}
