@@ -1319,6 +1319,145 @@ const gamePlayerController = {
   },
 
   /**
+   * POST /game-players/three-doubles-to-jail
+   * Body: { game_id, user_id }
+   * Player rolled doubles three times in a row — send to jail (position 10), end turn.
+   */
+  async threeDoublesToJail(req, res) {
+    const trx = await db.transaction();
+    const JAIL_POSITION = 10;
+    const now = new Date();
+
+    try {
+      const { game_id, user_id } = req.body;
+      if (!game_id || !user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Missing game_id or user_id",
+        });
+      }
+
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Game is not in progress",
+        });
+      }
+      if (game.next_player_id !== user_id) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "It is not your turn",
+        });
+      }
+
+      const game_player = await trx("game_players")
+        .where({ game_id, user_id })
+        .forUpdate()
+        .first();
+      if (!game_player) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Player not found in game" });
+      }
+
+      // Prevent double rolls in same round (they already rolled 3 times client-side; we're recording the outcome)
+      if (Number(game_player.rolls || 0) >= 1) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "You already rolled this round.",
+        });
+      }
+
+      // Send to jail: position 10, in_jail true, count as having rolled this round
+      await trx("game_players")
+        .where({ id: game_player.id })
+        .update({
+          position: JAIL_POSITION,
+          in_jail: true,
+          in_jail_rolls: 0,
+          rolls: 1,
+          updated_at: now,
+        });
+
+      // History
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: game_player.id,
+        rolled: 12,
+        old_position: Number(game_player.position || 0),
+        new_position: JAIL_POSITION,
+        action: "three_doubles_jail",
+        amount: 0,
+        extra: JSON.stringify({ description: "Three doubles! Go to jail." }),
+        comment: "Three doubles! Go to jail.",
+        active: 1,
+        created_at: now,
+      });
+
+      // Decline incoming trades for this player
+      await trx("game_trade_requests")
+        .where({ game_id, target_player_id: user_id, status: "pending" })
+        .update({ status: "declined", updated_at: now });
+
+      // Advance to next player (same as endTurn)
+      const players = await trx("game_players")
+        .where({ game_id })
+        .forUpdate()
+        .orderBy("turn_order", "asc");
+      const currentIdx = players.findIndex((p) => p.user_id === user_id);
+      const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
+      const next_player = players[nextIdx];
+
+      await trx("game_players")
+        .where({ game_id, user_id })
+        .update({ rolled: null, updated_at: now });
+
+      await trx("games").where({ id: game_id }).update({
+        next_player_id: next_player.user_id,
+        updated_at: now,
+      });
+
+      const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+      await trx("game_players")
+        .where({ game_id, user_id: next_player.user_id })
+        .update({ turn_start: turnStartSeconds, updated_at: now });
+
+      const allRolled = players.every((p) =>
+        p.user_id === user_id ? true : Number(p.rolls || 0) >= 1
+      );
+      if (allRolled) {
+        await trx("game_players").where({ game_id }).update({ rolls: 0 });
+      }
+
+      await trx.commit();
+      await notifyGameUpdate(req, game_id);
+      return res.json({
+        success: true,
+        message: "Three doubles! Go to jail.",
+      });
+    } catch (error) {
+      try {
+        await trx.rollback();
+      } catch (e) {
+        /* ignore */
+      }
+      logger.error({ err: error }, "threeDoublesToJail error");
+      return res.status(500).json({
+        success: false,
+        message: error?.message || "Internal server error",
+      });
+    }
+  },
+
+  /**
    * POST /game-players/pay-to-leave-jail
    * Body: { game_id, user_id }
    * Pay $50 to leave jail before rolling. Player stays at position 10 but can then roll and move.

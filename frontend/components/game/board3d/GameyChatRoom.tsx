@@ -74,12 +74,14 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   const playerId = me?.id != null ? String(me.id) : "";
   const canSend = !!playerId;
 
+  const hasGameId = !!gameId && String(gameId).trim().length > 0;
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["messages", gameId],
     queryFn: () => fetchMessages(gameId),
-    refetchInterval: POLLING_INTERVAL,
-    refetchOnWindowFocus: true,
+    refetchInterval: hasGameId ? POLLING_INTERVAL : false,
+    refetchOnWindowFocus: hasGameId,
     staleTime: 2000,
+    enabled: hasGameId,
   });
 
   useEffect(() => {
@@ -157,6 +159,14 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
           <div className="flex flex-col items-center justify-center h-full min-h-[140px] gap-3">
             <div className="w-10 h-10 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
             <span className="text-sm text-amber-400/80 font-medium">Loading messages...</span>
+          </div>
+        ) : !hasGameId ? (
+          <div className="flex flex-col items-center justify-center h-full min-h-[180px] text-center px-6">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center mb-4 shadow-lg shadow-amber-500/10">
+              <MessageCircle className="w-8 h-8 text-amber-400/80" />
+            </div>
+            <p className="text-amber-100 font-semibold text-lg">Tavern Chat</p>
+            <p className="text-amber-400/70 text-sm mt-1.5">Join or create a game to chat with players.</p>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[180px] text-center px-6">
