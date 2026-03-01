@@ -34,7 +34,7 @@ const Mobile3DGameUI = dynamic(
 );
 import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Trophy, HeartHandshake, MessageCircle, X } from "lucide-react";
+import { Crown, Trophy, HeartHandshake, X } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 
 const Canvas = dynamic(
@@ -1937,6 +1937,7 @@ export default function Board3DMobilePage() {
         onEndTurn={END_TURN}
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
+        onOpenChat={isMultiplayer ? () => setChatOpen(true) : undefined}
       />
 
       {/* End game by net worth — confirm modal */}
@@ -2319,23 +2320,7 @@ export default function Board3DMobilePage() {
         tokensAwarded={0.5}
       />
 
-      {/* Bottom navbar: Chat button — opens Tavern Chat panel */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-[100] flex items-center justify-center border-t border-amber-500/20 bg-[#0a1214]/98 backdrop-blur-md"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)", minHeight: "3.5rem" }}
-      >
-        <button
-          type="button"
-          onClick={() => setChatOpen(true)}
-          className="flex flex-1 max-w-xs flex-col items-center justify-center py-3 gap-1 text-amber-400 hover:text-amber-300 transition-colors"
-          aria-label="Open chat"
-        >
-          <MessageCircle className="w-6 h-6" />
-          <span className="text-xs font-semibold tracking-wide">Chat</span>
-        </button>
-      </nav>
-
-      {/* Tavern chat slide-up panel — opened from bottom nav */}
+      {/* Tavern chat slide-up panel — opened from bottom bar Chat button */}
       <AnimatePresence>
         {chatOpen && (
           <motion.div
