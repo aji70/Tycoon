@@ -736,17 +736,16 @@ export default function Board3DMobilePage() {
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
-      const res = await apiClient.post<{ data?: { still_in_jail?: boolean; new_position?: number } }>(
-        "/game-players/change-position",
-        {
-          user_id: me.user_id,
-          game_id: game.id,
-          position: newPos,
-          rolled: value.total,
-          is_double: rolledDouble,
-        }
-      );
-      const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number } })?.data;
+      const res = await apiClient.post<{
+        data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property };
+      }>("/game-players/change-position", {
+        user_id: me.user_id,
+        game_id: game.id,
+        position: newPos,
+        rolled: value.total,
+        is_double: rolledDouble,
+      });
+      const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property } })?.data;
       if (data?.still_in_jail) {
         setJailChoiceRequired(true);
       }
@@ -761,13 +760,17 @@ export default function Board3DMobilePage() {
         return next;
       });
       setLandedPositionForBuy(finalPosition);
-      const square = properties.find((p) => p.id === finalPosition);
-      const freshGameProperties = gameProperties;
-      const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
-      const action = PROPERTY_ACTION(finalPosition);
-      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-      if (needBuyPrompt) setBuyPrompted(true);
+      if (data?.requires_buy && data?.property_for_buy) {
+        setBuyPrompted(true);
+      } else {
+        const square = properties.find((p) => p.id === finalPosition);
+        const freshGameProperties = gameProperties;
+        const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
+        const action = PROPERTY_ACTION(finalPosition);
+        const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+        const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
+        if (needBuyPrompt) setBuyPrompted(true);
+      }
     } catch (err) {
       setLiveMovementOverride((prev) => {
         const next = { ...prev };
