@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from "react";
+import Link from "next/link";
 import { useAccount, useChainId, useReadContract, useReadContracts } from "wagmi";
 import type { Address, Abi } from "viem";
 import { Zap, Crown, Coins, Sparkles, Gem, Shield } from "lucide-react";
@@ -125,15 +126,23 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
 
   if (!address || perks.length === 0) {
     return (
-      <button
-        type="button"
-        onClick={onOpenModal}
-        className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-500/40 bg-violet-950/30 text-violet-200/80 hover:bg-violet-900/40 hover:border-violet-400/50 transition-colors text-sm font-medium ${className}`}
-        aria-label="View perks"
-      >
-        <Sparkles className="w-4 h-4" />
-        <span>Perks</span>
-      </button>
+      <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+        <button
+          type="button"
+          onClick={onOpenModal}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-500/40 bg-violet-950/30 text-violet-200/80 hover:bg-violet-900/40 hover:border-violet-400/50 transition-colors text-sm font-medium"
+          aria-label="View perks"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Perks</span>
+        </button>
+        <Link
+          href="/game-shop"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-500/40 bg-violet-950/30 text-violet-200/80 hover:bg-violet-900/40 hover:border-violet-400/50 transition-colors text-sm font-medium"
+        >
+          Shop
+        </Link>
+      </div>
     );
   }
 
@@ -141,19 +150,15 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
     <div
       className={`flex flex-col gap-2 ${className}`}
       role="region"
-      aria-label="Boost bar – your perks"
+      aria-label="Perks bar"
     >
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-violet-200/90 uppercase tracking-wider shrink-0">
-          Boost
-        </span>
-        <button
-          type="button"
-          onClick={onOpenModal}
-          className="text-[10px] text-violet-400 hover:text-violet-200 underline underline-offset-1 shrink-0"
+      <div className="flex items-center gap-2 flex-wrap">
+        <Link
+          href="/game-shop"
+          className="text-xs font-medium text-violet-400 hover:text-violet-200 underline underline-offset-1 shrink-0"
         >
-          View all
-        </button>
+          Shop
+        </Link>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {perksGrouped.map(({ perk, count, tokenId, strength }) => (
