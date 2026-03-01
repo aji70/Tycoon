@@ -18,12 +18,10 @@ import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
-import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
-import { useGetGameByCode, useEndAIGameAndClaim, useRewardBurnCollectible } from "@/context/ContractProvider";
+import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
-import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
-import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
+import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
@@ -255,7 +253,6 @@ export default function Board3DMobilePage() {
   } | null>(null);
   const { burn: burnCollectible, isSuccess: burnSuccess } = useRewardBurnCollectible();
   const [liveMovementOverride, setLiveMovementOverride] = useState<Record<number, number>>({});
-  const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [endGameCandidate, setEndGameCandidate] = useState<{
@@ -316,19 +313,6 @@ export default function Board3DMobilePage() {
   }, [game?.id, requestStartLoading, refetchGame]);
   const startGuard = usePreventDoubleSubmit();
 
-  const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d_mobile";
-  const [aiTipsOn, setAiTipsOn] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(AI_TIPS_STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [aiTipText, setAiTipText] = useState<string | null>(null);
-  const [aiTipLoading, setAiTipLoading] = useState(false);
-  const lastTipPropertyIdRef = useRef<number | null>(null);
-
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const fullscreenRef = useRef<HTMLDivElement>(null);
@@ -374,24 +358,6 @@ export default function Board3DMobilePage() {
     if (!game?.players || currentPlayerId == null) return null;
     return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
   }, [game?.players, currentPlayerId]);
-
-  const isAITurn = useMemo(() => {
-    if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
-    if (me != null && currentPlayer.user_id === me.user_id) return false;
-    return true;
-  }, [currentPlayer, me]);
-
-  useAiBankruptcy({
-    isAITurn: isLiveGame && isAITurn,
-    currentPlayer: isLiveGame ? currentPlayer : null,
-    game_properties: gameProperties,
-    properties,
-    game: game ?? ({} as Game),
-    refetchGame: async () => {
-      const res = await refetchGame();
-      return res?.data;
-    },
-  });
 
   const liveDevelopmentByPropertyId = useMemo(() => {
     const out: Record<number, number> = {};
@@ -619,240 +585,6 @@ export default function Board3DMobilePage() {
     },
     []
   );
-
-  const handleAiStrategy = useCallback(async () => {
-    if (!currentPlayer || !isAITurn || strategyRanThisTurn || !game || !isLiveGame) return;
-
-    const getPlayerOwnedProperties = (
-      playerAddress: string | undefined,
-      game_props: GameProperty[],
-      props: Property[]
-    ) => {
-      if (!playerAddress) return [];
-      return game_props
-        .filter((gp) => gp.address?.toLowerCase() === playerAddress.toLowerCase())
-        .map((gp) => ({ gp, prop: props.find((p) => p.id === gp.property_id)! }))
-        .filter((item) => !!item.prop);
-    };
-
-    const getCompleteMonopolies = (
-      playerAddress: string | undefined,
-      game_props: GameProperty[],
-      props: Property[]
-    ) => {
-      const owned = getPlayerOwnedProperties(playerAddress, game_props, props);
-      const monopolies: string[] = [];
-      Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-        if (groupName === "railroad" || groupName === "utility") return;
-        const ownedInGroup = owned.filter((o) => ids.includes(o.prop.id));
-        if (ownedInGroup.length === ids.length) {
-          const allUnmortgaged = ownedInGroup.every((o) => !o.gp.mortgaged);
-          if (allUnmortgaged) monopolies.push(groupName);
-        }
-      });
-      return monopolies.sort((a, b) => BUILD_PRIORITY.indexOf(a) - BUILD_PRIORITY.indexOf(b));
-    };
-
-    const getNearCompleteOpportunities = (
-      playerAddress: string | undefined,
-      game_props: GameProperty[],
-      props: Property[],
-      plrs: Player[]
-    ) => {
-      const owned = getPlayerOwnedProperties(playerAddress, game_props, props);
-      const opportunities: {
-        group: string;
-        needs: number;
-        missing: { id: number; name: string; ownerAddress: string | null; ownerName: string }[];
-      }[] = [];
-      Object.entries(MONOPOLY_STATS.colorGroups).forEach(([groupName, ids]) => {
-        if (groupName === "railroad" || groupName === "utility") return;
-        const ownedCount = owned.filter((o) => ids.includes(o.prop.id)).length;
-        const needs = ids.length - ownedCount;
-        if (needs === 1 || needs === 2) {
-          const missing = ids
-            .filter((id) => !owned.some((o) => o.prop.id === id))
-            .map((id) => {
-              const gp = game_props.find((g) => g.property_id === id);
-              const prop = props.find((p) => p.id === id)!;
-              const ownerName = gp?.address
-                ? plrs.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase())?.username ??
-                  gp.address.slice(0, 8)
-                : "Bank";
-              return { id, name: prop.name, ownerAddress: gp?.address ?? null, ownerName };
-            });
-          opportunities.push({ group: groupName, needs, missing });
-        }
-      });
-      return opportunities.sort((a, b) => {
-        if (a.needs !== b.needs) return a.needs - b.needs;
-        return BUILD_PRIORITY.indexOf(a.group) - BUILD_PRIORITY.indexOf(b.group);
-      });
-    };
-
-    const calculateTradeFavorability = (
-      trade: {
-        offer_properties: number[];
-        offer_amount: number;
-        requested_properties: number[];
-        requested_amount: number;
-      },
-      receiverAddress: string
-    ) => {
-      let score = 0;
-      score += trade.offer_amount - trade.requested_amount;
-      trade.requested_properties.forEach((id) => {
-        const prop = properties.find((p) => p.id === id);
-        if (!prop) return;
-        score += prop.price || 0;
-        const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(id));
-        if (group && !["railroad", "utility"].includes(prop.color!)) {
-          const currentOwned = group.filter(
-            (gid) => gameProperties.find((gp) => gp.property_id === gid && gp.address === receiverAddress)
-          ).length;
-          if (currentOwned === group.length - 1) score += 300;
-          else if (currentOwned === group.length - 2) score += 120;
-        }
-      });
-      trade.offer_properties.forEach((id) => {
-        const prop = properties.find((p) => p.id === id);
-        if (!prop) return;
-        score -= (prop.price || 0) * 1.3;
-      });
-      return score;
-    };
-
-    const calculateFairCashOffer = (propertyId: number, completesSet: boolean, basePrice: number) =>
-      completesSet ? Math.floor(basePrice * 1.6) : Math.floor(basePrice * 1.3);
-
-    const getPropertyToOffer = (playerAddress: string, excludeGroups: string[]) => {
-      const owned = getPlayerOwnedProperties(playerAddress, gameProperties, properties);
-      const candidates = owned.filter((o) => {
-        const group = Object.keys(MONOPOLY_STATS.colorGroups).find((g) =>
-          MONOPOLY_STATS.colorGroups[g as keyof typeof MONOPOLY_STATS.colorGroups].includes(o.prop.id)
-        );
-        if (!group || excludeGroups.includes(group)) return false;
-        if ((o.gp.development ?? 0) > 0) return false;
-        return true;
-      });
-      if (candidates.length === 0) return null;
-      candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
-      return candidates[0];
-    };
-
-    const opportunities = getNearCompleteOpportunities(
-      currentPlayer.address ?? undefined,
-      gameProperties,
-      properties,
-      livePlayers
-    );
-    let maxTradeAttempts = 1;
-
-    for (const opp of opportunities) {
-      if (maxTradeAttempts <= 0) break;
-      for (const missing of opp.missing) {
-        if (!missing.ownerAddress || missing.ownerAddress === "bank") continue;
-        const targetPlayer = livePlayers.find(
-          (p) => p.address?.toLowerCase() === missing.ownerAddress?.toLowerCase()
-        );
-        if (!targetPlayer) continue;
-
-        const basePrice = properties.find((p) => p.id === missing.id)?.price ?? 200;
-        const cashOffer = calculateFairCashOffer(missing.id, opp.needs === 1, basePrice);
-
-        let offerProperties: number[] = [];
-        if ((currentPlayer.balance ?? 0) < cashOffer + 300) {
-          const toOffer = getPropertyToOffer(currentPlayer.address!, [opp.group]);
-          if (toOffer) offerProperties = [toOffer.prop.id];
-        }
-
-        const payload = {
-          game_id: game.id,
-          player_id: currentPlayer.user_id,
-          target_player_id: targetPlayer.user_id,
-          offer_properties: offerProperties,
-          offer_amount: cashOffer,
-          requested_properties: [missing.id],
-          requested_amount: 0,
-        };
-
-        try {
-          const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
-          if (res?.data?.success) {
-            maxTradeAttempts--;
-            if (isAIPlayer(targetPlayer)) {
-              await new Promise((r) => setTimeout(r, 800));
-              const favorability = calculateTradeFavorability(
-                { ...payload, requested_amount: 0 },
-                targetPlayer.address!
-              );
-              if (favorability >= 50) {
-                await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
-                await refetchGame();
-              } else {
-                await apiClient.post("/game-trade-requests/decline", { id: res.data.data.id });
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Trade failed", err);
-        }
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-    }
-
-    const handleAiBuilding = async (player: Player) => {
-      if (!player.address) return;
-      const monopolies = getCompleteMonopolies(player.address, gameProperties, properties);
-      if (monopolies.length === 0) return;
-
-      for (const groupName of monopolies) {
-        const ids = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-        const groupGps = gameProperties.filter(
-          (gp) => ids.includes(gp.property_id) && gp.address === player.address
-        );
-        const developments = groupGps.map((gp) => gp.development ?? 0);
-        const minHouses = Math.min(...developments);
-        const maxHouses = Math.max(...developments);
-
-        if (maxHouses > minHouses + 1 || minHouses >= 5) continue;
-        const prop = properties.find((p) => ids.includes(p.id))!;
-        const houseCost = prop.cost_of_house ?? 0;
-        if (houseCost === 0) continue;
-
-        const affordable = Math.floor((player.balance ?? 0) / houseCost);
-        if (affordable < ids.length) continue;
-
-        for (const gp of groupGps.filter((g) => (g.development ?? 0) === minHouses)) {
-          try {
-            await apiClient.post("/game-properties/development", {
-              game_id: game.id,
-              user_id: player.user_id,
-              property_id: gp.property_id,
-            });
-            await new Promise((r) => setTimeout(r, 600));
-            break;
-          } catch (err) {
-            console.error("Build failed", err);
-            break;
-          }
-        }
-      }
-    };
-
-    await handleAiBuilding(currentPlayer);
-    setStrategyRanThisTurn(true);
-  }, [
-    game,
-    properties,
-    gameProperties,
-    livePlayers,
-    currentPlayer,
-    isAITurn,
-    strategyRanThisTurn,
-    isLiveGame,
-    refetchGame,
-  ]);
 
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     game?.id ?? 0,
@@ -1141,156 +873,14 @@ export default function Board3DMobilePage() {
     END_TURN,
   ]);
 
-  const handleDiceCompleteForAI = useCallback(async () => {
-    const value = pendingRollRef.current;
-    if (!game?.id || !currentPlayer) {
-      setRollingDice(null);
-      rollingForPlayerIdRef.current = null;
-      return;
-    }
-    const playerId = currentPlayer.user_id;
-    const currentPos = currentPlayer.position ?? 0;
-    const isInJail = !!(currentPlayer.in_jail && currentPos === JAIL_POSITION);
-    const rolledDouble = value.die1 === value.die2;
-    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
-    const totalSteps = isInJail && !rolledDouble ? 0 : value.total;
-
-    try {
-      await runMovementAnimation(playerId, currentPos, totalSteps);
-      const res = await apiClient.post<{ data?: { still_in_jail?: boolean } }>(
-        "/game-players/change-position",
-        {
-          user_id: playerId,
-          game_id: game.id,
-          position: newPos,
-          rolled: value.total,
-          is_double: rolledDouble,
-        }
-      );
-      const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean } })?.data;
-      if (data?.still_in_jail) {
-        await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: game.id });
-        await refetchGame();
-        setRollingDice(null);
-        rollingForPlayerIdRef.current = null;
-        setTimeout(() => END_TURN(), 500);
-        return;
-      }
-      setLastRollResultLive(value);
-      landedPositionThisTurnRef.current = newPos;
-      rolledForPlayerIdRef.current = playerId;
-      const refetchResult = await refetchGame();
-      const updatedGame = refetchResult?.data;
-      const updatedPlayer =
-        updatedGame?.players?.find((p: Player) => p.user_id === playerId) ?? currentPlayer;
-      const balanceAfterMove = updatedPlayer?.balance ?? currentPlayer.balance ?? 0;
-      setLiveMovementOverride((prev) => {
-        const next = { ...prev };
-        delete next[playerId];
-        return next;
-      });
-      const square = properties.find((p) => p.id === newPos);
-      const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
-      const action = PROPERTY_ACTION(newPos);
-      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-
-      if (needBuyPrompt && square) {
-        const playerForScore = { ...currentPlayer, balance: balanceAfterMove };
-        const buyScore = calculateBuyScore(square, playerForScore, gameProperties, properties);
-        let shouldBuy: boolean;
-        try {
-          const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
-          const groupIds =
-            Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => ids.includes(square.id)) ?? [];
-          const ownedInGroup = groupIds.filter((id: number) =>
-            gameProperties.some(
-              (gp) =>
-                gp.property_id === id &&
-                gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
-            )
-          ).length;
-          const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
-          const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[square.id] ?? 99;
-          const agentRes = await apiClient.post<{
-            success?: boolean;
-            data?: { action?: string; reasoning?: string };
-            useBuiltIn?: boolean;
-          }>("/agent-registry/decision", {
-            gameId: game.id,
-            slot,
-            decisionType: "property",
-            context: {
-              myBalance: balanceAfterMove,
-              myProperties: gameProperties
-                .filter(
-                  (gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
-                )
-                .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
-              opponents: (game.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
-              landedProperty: { ...square, completesMonopoly, landingRank },
-            },
-          });
-          if (
-            agentRes?.data?.success &&
-            agentRes.data.useBuiltIn === false &&
-            agentRes.data.data?.action
-          ) {
-            shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
-          } else {
-            shouldBuy =
-              buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
-          }
-        } catch {
-          shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
-        }
-        if (shouldBuy) {
-          await apiClient.post("/game-properties/buy", {
-            user_id: playerId,
-            game_id: game.id,
-            property_id: square.id,
-          });
-        }
-        await refetchGame();
-        setTimeout(() => END_TURN(), 900);
-      } else {
-        setTimeout(() => END_TURN(), 1000);
-      }
-    } catch (err) {
-      setLiveMovementOverride((prev) => {
-        const next = { ...prev };
-        delete next[currentPlayer.user_id];
-        return next;
-      });
-      toast.error(getContractErrorMessage(err, "AI move failed"));
-      setTimeout(() => END_TURN(), 500);
-    } finally {
-      setRollingDice(null);
-      rollingForPlayerIdRef.current = null;
-    }
-  }, [
-    game,
-    currentPlayer,
-    refetchGame,
-    properties,
-    gameProperties,
-    runMovementAnimation,
-    calculateBuyScore,
-    END_TURN,
-  ]);
-
   const onRollClick = useCallback(() => {
     if (isLiveGame && playerCanRoll) handleRollForLive();
   }, [isLiveGame, playerCanRoll, handleRollForLive]);
 
   const onDiceCompleteClick = useCallback(() => {
     if (!isLiveGame) return;
-    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
-      handleDiceCompleteForAI();
-    } else {
-      handleDiceCompleteForLive();
-    }
-  }, [isLiveGame, handleDiceCompleteForLive, handleDiceCompleteForAI, me]);
+    handleDiceCompleteForLive();
+  }, [isLiveGame, handleDiceCompleteForLive]);
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
@@ -1371,17 +961,6 @@ export default function Board3DMobilePage() {
     }
   }, []);
 
-  const toggleAiTips = useCallback(() => {
-    setAiTipsOn((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(AI_TIPS_STORAGE_KEY, String(next));
-      } catch {}
-      if (!next) setAiTipText(null);
-      return next;
-    });
-  }, []);
-
   const getCurrentRent = useCallback(
     (prop: Property, gp: GameProperty | undefined): number => {
       if (!gp || !gp.address) return prop.rent_site_only ?? 0;
@@ -1431,41 +1010,6 @@ export default function Board3DMobilePage() {
     landedPositionThisTurnRef.current = null;
     setTimeout(END_TURN, 800);
   }, [END_TURN]);
-
-  useEffect(() => {
-    setStrategyRanThisTurn(false);
-    rolledForPlayerIdRef.current = null;
-  }, [currentPlayerId]);
-
-  useEffect(() => {
-    if (!isAITurn || !currentPlayer || strategyRanThisTurn || !isLiveGame) return;
-    const t = setTimeout(handleAiStrategy, 1000);
-    return () => clearTimeout(t);
-  }, [isAITurn, currentPlayer, strategyRanThisTurn, isLiveGame, handleAiStrategy]);
-
-  useEffect(() => {
-    if (
-      !isLiveGame ||
-      !isAITurn ||
-      !strategyRanThisTurn ||
-      rollingDice ||
-      !currentPlayerId ||
-      !currentPlayer
-    )
-      return;
-    if (me != null && currentPlayerId === me.user_id) return;
-    if (rolledForPlayerIdRef.current === currentPlayerId) return;
-    const balance = currentPlayer.balance != null ? Number(currentPlayer.balance) : 0;
-    if (balance < 0) return;
-    const t = setTimeout(() => {
-      if (me != null && currentPlayerId === me.user_id) return;
-      const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
-      pendingRollRef.current = value;
-      rollingForPlayerIdRef.current = currentPlayerId;
-      setRollingDice({ die1: value.die1, die2: value.die2 });
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [isLiveGame, isAITurn, strategyRanThisTurn, rollingDice, currentPlayerId, currentPlayer, me]);
 
   useEffect(() => {
     if (!isLiveGame || !isMyTurn || !lastRollResultLive || buyPrompted || jailChoiceRequired || rollingDice) {
@@ -1530,70 +1074,6 @@ export default function Board3DMobilePage() {
   }, []);
 
   useEffect(() => {
-    if (!buyPrompted) {
-      setAiTipText(null);
-      lastTipPropertyIdRef.current = null;
-    }
-  }, [buyPrompted]);
-
-  useEffect(() => {
-    if (
-      !aiTipsOn ||
-      !isMyTurn ||
-      !buyPrompted ||
-      !justLandedProperty ||
-      !currentPlayer ||
-      currentPlayer?.user_id !== me?.user_id
-    )
-      return;
-    const propId = justLandedProperty.id;
-    if (lastTipPropertyIdRef.current === propId) return;
-    lastTipPropertyIdRef.current = propId;
-    setAiTipLoading(true);
-    const groupIds =
-      Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
-    const ownedInGroup = groupIds.filter((id) =>
-      gameProperties.some(
-        (gp) => gp.property_id === id && gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
-      )
-    ).length;
-    const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
-    const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
-    apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string } }>("/agent-registry/decision", {
-        gameId: game?.id,
-        slot: 1,
-        decisionType: "tip",
-        context: {
-          myBalance: currentPlayer.balance ?? 0,
-          myProperties: gameProperties
-            .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
-            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
-          opponents: (game?.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
-          situation: "buy_property",
-          property: { ...justLandedProperty, completesMonopoly, landingRank },
-        },
-      })
-      .then((res) => {
-        const text = res?.data?.data?.reasoning ?? null;
-        if (text) setAiTipText(text);
-      })
-      .catch(() => setAiTipText(null))
-      .finally(() => setAiTipLoading(false));
-  }, [
-    aiTipsOn,
-    isMyTurn,
-    buyPrompted,
-    justLandedProperty,
-    currentPlayer,
-    me?.user_id,
-    game?.id,
-    game?.players,
-    gameProperties,
-    properties,
-  ]);
-
-  useEffect(() => {
     if (!game || game.status !== "FINISHED" || game.winner_id == null) return;
     const winnerPlayer =
       livePlayers.find((p) => p.user_id === game.winner_id) ??
@@ -1647,37 +1127,10 @@ export default function Board3DMobilePage() {
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
-  const { data: contractGame } = useGetGameByCode(game?.code ?? "");
-  const endGameFinalPosition = endGameCandidate.winner ? 1 : 2;
-  const onChainGameId =
-    contractGame?.id ??
-    (game?.contract_game_id != null && game?.contract_game_id !== ""
-      ? BigInt(game.contract_game_id)
-      : undefined);
-  const {
-    write: endGame,
-    isPending: endGamePending,
-    reset: endGameReset,
-  } = useEndAIGameAndClaim(
-    onChainGameId ?? BigInt(0),
-    endGameFinalPosition,
-    endGameCandidate.balance,
-    endGameCandidate.winner ? endGameCandidate.validWin !== false : false
-  );
-
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me) return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
-      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai) {
-        setEndGameCandidate({
-          winner: null,
-          position: 2,
-          balance: BigInt(me?.balance ?? 0),
-          validWin: true,
-        });
-        await endGame();
-      }
       const opponent = livePlayers.find((p) => p.user_id !== me.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
@@ -1688,50 +1141,14 @@ export default function Board3DMobilePage() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, livePlayers, isGuest, contractGame, endGame]);
+  }, [game?.id, me, livePlayers]);
 
-  const handleClaimAndGoHome = useCallback(async () => {
+  const handleGoHomeAfterGame = useCallback(() => {
     setClaimAndLeaveInProgress(true);
-    const isHumanWinner = winner?.user_id === me?.user_id;
-    try {
-      if (!isGuest) {
-        if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
-          toast.error(
-            "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo)."
-          );
-          setClaimAndLeaveInProgress(false);
-          return;
-        }
-        await endGame();
-      }
-      try {
-        await refetchGame();
-      } catch (_) {
-        /* ignore */
-      }
-      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
-      try {
-        await apiClient.post(`/games/${game?.id}/erc8004-feedback`);
-      } catch (_) {
-        /* best-effort */
-      }
-      window.location.href = "/";
-    } catch (err) {
-      toast.error(getContractErrorMessage(err as Error, "Something went wrong — try again later"));
-      setClaimAndLeaveInProgress(false);
-    } finally {
-      endGameReset?.();
-    }
-  }, [
-    winner?.user_id,
-    me?.user_id,
-    isGuest,
-    game?.id,
-    refetchGame,
-    endGame,
-    endGameReset,
-    contractGame,
-  ]);
+    const isWinner = winner?.user_id === me?.user_id;
+    toast.success(isWinner ? "Game over — you won! 🎉" : "Game over. Thanks for playing!");
+    window.location.href = "/";
+  }, [winner?.user_id, me?.user_id]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
   const lastRollResultToShow = lastRollResultLive;
@@ -1919,7 +1336,7 @@ export default function Board3DMobilePage() {
         me={me ?? null}
         currentPlayer={currentPlayer ?? null}
         positions={positions}
-        isAITurn={isAITurn}
+        isAITurn={false}
         isLoading={!!gameCode && gameLoading}
         onPropertySelect={(prop: Property, gp?: GameProperty) => {
           setSelectedProperty(prop);
@@ -2057,16 +1474,6 @@ export default function Board3DMobilePage() {
             <p className="text-slate-300 text-sm mb-4">
               ${justLandedProperty.price?.toLocaleString()} — Buy or skip?
             </p>
-            {aiTipsOn && (
-              <div className="mb-4 p-3 rounded-lg bg-cyan-900/30 border border-cyan-500/30 text-left">
-                <p className="text-xs text-cyan-300/90 mb-1">AI tip</p>
-                {aiTipLoading ? (
-                  <p className="text-sm text-slate-400">Thinking…</p>
-                ) : aiTipText ? (
-                  <p className="text-sm text-slate-200">{aiTipText}</p>
-                ) : null}
-              </div>
-            )}
             <div className="flex gap-3">
               <button
                 onClick={() => buyGuard.submit(handleBuy)}
@@ -2083,15 +1490,6 @@ export default function Board3DMobilePage() {
                 Skip
               </button>
             </div>
-            <label className="flex items-center gap-2 mt-3 text-sm text-slate-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={aiTipsOn}
-                onChange={toggleAiTips}
-                className="rounded border-slate-500"
-              />
-              AI tips
-            </label>
           </motion.div>
         </div>
       )}
@@ -2260,23 +1658,14 @@ export default function Board3DMobilePage() {
                 <p className="text-slate-200 mb-6">
                   You had the highest net worth when time ran out.
                 </p>
-                {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
-                  <button
-                    type="button"
-                    onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
-                    className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
-                  >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
-                  </button>
-                ) : (
-                  <Link
-                    href="/"
-                    className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold"
-                  >
-                    Go home
-                  </Link>
-                )}
+                <button
+                  type="button"
+                  onClick={handleGoHomeAfterGame}
+                  disabled={claimAndLeaveInProgress}
+                  className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
+                >
+                  {claimAndLeaveInProgress ? "Leaving…" : "Go home"}
+                </button>
               </motion.div>
             ) : (
               <motion.div
@@ -2291,23 +1680,14 @@ export default function Board3DMobilePage() {
                 </p>
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
                 <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
-                {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
-                  <button
-                    type="button"
-                    onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
-                    className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
-                  >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
-                  </button>
-                ) : (
-                  <Link
-                    href="/"
-                    className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
-                  >
-                    Go home
-                  </Link>
-                )}
+                <button
+                  type="button"
+                  onClick={handleGoHomeAfterGame}
+                  disabled={claimAndLeaveInProgress}
+                  className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
+                >
+                  {claimAndLeaveInProgress ? "Leaving…" : "Go home"}
+                </button>
               </motion.div>
             )}
           </motion.div>
