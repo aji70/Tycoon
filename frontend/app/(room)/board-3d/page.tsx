@@ -1652,8 +1652,18 @@ export default function Board3DDemoPage() {
       {/* Board area */}
       <div
         ref={fullscreenRef}
-        className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0"
+        className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0 relative"
       >
+        {/* Live game: balance (visible in fullscreen so user can see their cash) */}
+        {isLiveGame && me && (
+          <div
+            className="absolute top-3 left-3 z-[100] px-4 py-2 rounded-xl bg-slate-800/95 border border-cyan-500/50 text-cyan-200 font-bold shadow-lg"
+            style={{ zIndex: 2147483646 }}
+          >
+            Balance: ${Number(me.balance ?? 0).toLocaleString()}
+          </div>
+        )}
+
         {/* Live game: End Turn button when human has rolled and can pass (manual fallback if auto-end fails) */}
         {isLiveGame && isMyTurn && lastRollResultLive && !buyPrompted && !jailChoiceRequired && !rollingDice && (
           <div className="mb-2">
