@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
@@ -159,6 +159,7 @@ const BOARD_HEIGHT_PCT = 65.6; /* 10% smaller than 72.9 so board fits screen */
 
 export default function Board3DMobilePage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
 
   const { address } = useAccount();
@@ -167,12 +168,12 @@ export default function Board3DMobilePage() {
   const isGuest = !!guestUser;
 
   const { properties, isLoading } = useBoardProperties();
-  const { data: game, isLoading: gameLoading, isError: gameError, refetch: refetchGame } = useQuery<Game>({
+  const { data: game, isLoading: gameLoading, isError: gameError, error: gameQueryError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
       if (!gameCode) throw new Error("No code");
       const res = await apiClient.get<ApiResponse>(`/games/code/${gameCode}`);
-      if (!res.data?.success) throw new Error("Game not found");
+      if (!res.data?.success) throw new Error((res.data as { error?: string })?.error ?? (res.data as { message?: string })?.message ?? "Game not found");
       return res.data.data;
     },
     enabled: !!gameCode && gameCode.length === 6,
@@ -228,6 +229,13 @@ export default function Board3DMobilePage() {
     validWin: boolean;
   }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
   const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
+  const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{
+    vote_count: number;
+    required_votes: number;
+    voters: Array<{ user_id: number; username: string }>;
+  } | null>(null);
+  const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
+  const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
 
   const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d_mobile";
   const [aiTipsOn, setAiTipsOn] = useState(() => {
@@ -404,6 +412,64 @@ export default function Board3DMobilePage() {
       turnEndInProgressRef.current = false;
     }
   }, [currentPlayerId, game?.id, refetchGame]);
+
+  const fetchEndByNetWorthStatus = useCallback(async () => {
+    if (!game?.id || !isUntimed) return;
+    try {
+      const res = await apiClient.post<ApiResponse & { data?: { vote_count: number; required_votes: number; voters?: Array<{ user_id: number; username: string }> } }>(
+        "/game-players/end-by-networth-status",
+        { game_id: game.id }
+      );
+      if (res?.data?.success && res.data.data) {
+        setEndByNetWorthStatus({
+          vote_count: res.data.data.vote_count,
+          required_votes: res.data.data.required_votes,
+          voters: res.data.data.voters ?? [],
+        });
+      } else {
+        setEndByNetWorthStatus(null);
+      }
+    } catch {
+      setEndByNetWorthStatus(null);
+    }
+  }, [game?.id, isUntimed]);
+
+  const voteEndByNetWorth = useCallback(async () => {
+    if (!me?.user_id || !game?.id || !isUntimed) return;
+    setEndByNetWorthLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse & { data?: { vote_count: number; required_votes: number; voters?: Array<{ user_id: number; username: string }>; all_voted?: boolean } }>(
+        "/game-players/vote-end-by-networth",
+        { game_id: game.id, user_id: me.user_id }
+      );
+      if (res?.data?.success && res.data.data) {
+        const data = res.data.data;
+        setEndByNetWorthStatus({
+          vote_count: data.vote_count,
+          required_votes: data.required_votes,
+          voters: data.voters ?? [],
+        });
+        if (data.all_voted) {
+          toast.success("Game ended by net worth");
+          await fetchUpdatedGame();
+        } else {
+          toast.success(`${data.vote_count}/${data.required_votes} voted to end by net worth`);
+        }
+      }
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Failed to vote"));
+    } finally {
+      setEndByNetWorthLoading(false);
+    }
+  }, [game?.id, me?.user_id, isUntimed, fetchUpdatedGame]);
+
+  useEffect(() => {
+    if (!isUntimed || !game?.id) {
+      setEndByNetWorthStatus(null);
+      return;
+    }
+    fetchEndByNetWorthStatus();
+  }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
 
   const runMovementAnimation = useCallback(
     async (playerId: number, currentPos: number, totalSteps: number) => {
@@ -1551,6 +1617,17 @@ export default function Board3DMobilePage() {
   const players = isLiveGame ? livePlayers : [];
   const emptyPlayers = useMemo(() => [], []);
 
+  const gameEnded = gameError && (gameQueryError as Error)?.message === "Game ended";
+  if (gameEnded) {
+    return (
+      <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
+        <h2 className="text-2xl font-bold text-cyan-400 mb-2">Game over</h2>
+        <p className="text-gray-400 mb-6">This game has ended.</p>
+        <button onClick={() => router.push("/")} className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all">Go home</button>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={fullscreenRef}
@@ -1565,6 +1642,20 @@ export default function Board3DMobilePage() {
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
             <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} compact className="text-slate-200 text-xs shrink-0" />
+          )}
+          {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+            <button
+              type="button"
+              onClick={() => {
+                if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+                if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+              }}
+              disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+              className="px-2 py-1.5 rounded-md text-xs font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 shrink-0 disabled:opacity-50 disabled:pointer-events-none"
+              title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+            >
+              {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+            </button>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -1703,6 +1794,59 @@ export default function Board3DMobilePage() {
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
       />
+
+      {/* End game by net worth — confirm modal */}
+      <AnimatePresence>
+        {showEndByNetWorthConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            onClick={() => setShowEndByNetWorthConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+            >
+              <button
+                type="button"
+                onClick={() => setShowEndByNetWorthConfirm(false)}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-cyan-300 hover:text-cyan-100 hover:bg-cyan-500/20"
+                aria-label="Close"
+              >
+                <span className="text-xl leading-none">×</span>
+              </button>
+              <p className="text-lg font-semibold text-cyan-100 mb-1 pr-8">End game by net worth?</p>
+              <p className="text-sm text-cyan-200/80 mb-6">The game will end and the player with the highest net worth will win.</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEndByNetWorthConfirm(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-cyan-200 hover:text-cyan-100 border border-cyan-500/40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    voteEndByNetWorth();
+                    setShowEndByNetWorthConfirm(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-cyan-600/90 text-white hover:bg-cyan-500 border border-cyan-400/50"
+                >
+                  Yes, vote to end
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Confirm use perk from bar (burn + apply) */}
       <AnimatePresence>
