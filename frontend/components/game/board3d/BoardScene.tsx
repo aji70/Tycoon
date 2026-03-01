@@ -761,6 +761,7 @@ function PlayerToken({
   symbol,
   isCurrent,
   smallTokens = false,
+  properties = [],
 }: {
   positionIndex: number;
   playerIndex: number;
@@ -768,9 +769,19 @@ function PlayerToken({
   symbol: string;
   isCurrent: boolean;
   smallTokens?: boolean;
+  properties?: Property[];
 }) {
-  // Always use tile center (no offset) so the token stays in the center of the square
-  const [x, , z] = getPosition3D(positionIndex);
+  // Use same grid as the tile so token is exactly centered on the square (critical for edge squares on mobile)
+  const square = properties.find((p) => p.id === positionIndex);
+  const hasGrid =
+    square &&
+    typeof square.grid_row === "number" &&
+    typeof square.grid_col === "number" &&
+    square.grid_row >= 1 &&
+    square.grid_row <= 11 &&
+    square.grid_col >= 1 &&
+    square.grid_col <= 11;
+  const [x, , z] = hasGrid ? getPosition3DFromGrid(square.grid_row, square.grid_col) : getPosition3D(positionIndex);
   const groupRef = useRef<THREE.Group>(null);
   const emoji = getPlayerSymbol(symbol) ?? "🎲";
   const size = smallTokens ? 24 : 40;
@@ -911,6 +922,7 @@ export default function BoardScene({
         symbol,
         isCurrent: currentPlayerId === player.user_id,
         smallTokens,
+        properties,
       })
     ),
     createElement(OrbitControls, {

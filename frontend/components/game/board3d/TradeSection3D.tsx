@@ -31,10 +31,12 @@ export default function TradeSection3D({
     openTrades.forEach((trade) => onTradeAction(trade.id, "declined"));
   };
 
-  const handleDeclineAllIncoming = () => {
-    if (tradeRequests.length === 0) return;
-    if (!confirm(`Decline ALL ${tradeRequests.length} incoming trade request(s)?`)) return;
+  const handleDeclineAll = () => {
+    const total = tradeRequests.length + openTrades.length;
+    if (total === 0) return;
+    if (!confirm(`Decline and cancel ALL ${total} trade(s)? This will clear both incoming and your outgoing offers.`)) return;
     tradeRequests.forEach((trade) => onTradeAction(trade.id, "declined"));
+    openTrades.forEach((trade) => onTradeAction(trade.id, "declined"));
   };
 
   const renderTrade = (trade: any, isIncoming: boolean) => {
@@ -129,19 +131,19 @@ export default function TradeSection3D({
             transition={{ duration: 0.25 }}
             className="overflow-hidden space-y-3"
           >
+            {totalActive > 0 && (
+              <div className="flex justify-end mb-1.5">
+                <button
+                  onClick={handleDeclineAll}
+                  className="px-2 py-1 rounded text-[10px] font-bold bg-red-700/80 hover:bg-red-600 text-white"
+                >
+                  Decline All
+                </button>
+              </div>
+            )}
             {tradeRequests.length > 0 && (
               <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <p className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider">
-                    Incoming
-                  </p>
-                  <button
-                    onClick={handleDeclineAllIncoming}
-                    className="px-2 py-1 rounded text-[10px] font-bold bg-red-700/80 hover:bg-red-600 text-white"
-                  >
-                    Decline All
-                  </button>
-                </div>
+                <p className="text-[10px] font-bold text-cyan-400/90 uppercase tracking-wider mb-1.5">Incoming</p>
                 <div className="space-y-2">
                   {tradeRequests.map((t) => renderTrade(t, true))}
                 </div>
