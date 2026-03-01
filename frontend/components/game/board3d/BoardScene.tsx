@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useMemo, useState, createElement, Fragment } from "react";
-import { useFrame, useLoader } from "@react-three/fiber";
+import { useRef, useMemo, useState, useEffect, createElement, Fragment } from "react";
+import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import ActionLog from "@/components/game/ai-board/action-log";
 import type { Game } from "@/types/game";
@@ -53,8 +53,12 @@ type BoardSceneProps = {
   aiThinking?: boolean;
   /** When true, hide persistent owner badges on tiles (e.g. mobile for a cleaner board; ownership still shown on tap in tooltip) */
   hideOwnerBadges?: boolean;
+  /** When set, show owner badge as symbol (emoji) per property instead of name — e.g. for mobile */
+  ownerSymbolByPropertyId?: Record<number, string>;
   /** When true, use smaller player tokens (e.g. mobile) */
   smallTokens?: boolean;
+  /** When this number changes, reset camera and controls to default view */
+  resetViewTrigger?: number;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -94,12 +98,14 @@ function SquareTile({
   square,
   development = 0,
   owner = null,
+  ownerSymbol = null,
   onClick,
   hideOwnerBadge = false,
 }: {
   square: Property;
   development?: number;
   owner?: string | null;
+  ownerSymbol?: string | null;
   onClick?: () => void;
   hideOwnerBadge?: boolean;
 }) {
@@ -151,38 +157,58 @@ function SquareTile({
       )
     : null;
 
-  // Owner badge: only show when property has an owner (no badge for unowned). Hidden on mobile for cleaner board.
-  // Keep owner badge horizontal on all sides (no vertical/tilted text on top or bottom row).
-  const ownerBadge =
-    !hideOwnerBadge && square.type === "property" && owner
-      ? createElement(
-          Html,
-          {
-            position: [x, 0.02, z + size * 0.35] as [number, number, number],
-            center: true,
-            distanceFactor: 18,
-            transform: false,
-            style: {
-              fontSize: "9px",
-              fontWeight: 600,
-              color: "#fbbf24",
-              textShadow: "0 0 4px #000, 0 1px 3px #000",
-              textAlign: "center",
-              whiteSpace: "nowrap",
-              maxWidth: "80px",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              pointerEvents: "none",
-              userSelect: "none",
-              background: "rgba(251,191,36,0.2)",
-              padding: "2px 6px",
-              borderRadius: "6px",
-              border: "1px solid rgba(251,191,36,0.5)",
-            },
-          },
-          owner
-        )
-      : null;
+  // Owner badge: show owner name, or when ownerSymbol is set (e.g. mobile) show a small flag with symbol only.
+  const hasOwner = !hideOwnerBadge && square.type === "property" && (owner || ownerSymbol);
+  const badgeContent = ownerSymbol
+    ? (getPlayerSymbol(ownerSymbol) ?? "🏠")
+    : owner;
+  const ownerBadge = hasOwner && badgeContent
+    ? createElement(
+        Html,
+        {
+          position: [x, 0.02, z + size * 0.35] as [number, number, number],
+          center: true,
+          distanceFactor: 18,
+          transform: false,
+          style: ownerSymbol
+            ? {
+                fontSize: "14px",
+                lineHeight: 1,
+                textAlign: "center",
+                pointerEvents: "none",
+                userSelect: "none",
+                background: "rgba(251,191,36,0.35)",
+                padding: "2px 4px",
+                borderRadius: "4px",
+                border: "1px solid rgba(251,191,36,0.6)",
+                boxShadow: "0 0 6px rgba(0,0,0,0.5)",
+                minWidth: "22px",
+                minHeight: "22px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }
+            : {
+                fontSize: "9px",
+                fontWeight: 600,
+                color: "#fbbf24",
+                textShadow: "0 0 4px #000, 0 1px 3px #000",
+                textAlign: "center",
+                whiteSpace: "nowrap",
+                maxWidth: "80px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                pointerEvents: "none",
+                userSelect: "none",
+                background: "rgba(251,191,36,0.2)",
+                padding: "2px 6px",
+                borderRadius: "6px",
+                border: "1px solid rgba(251,191,36,0.5)",
+              },
+        },
+        badgeContent
+      )
+    : null;
 
   const ground = createElement(
     "mesh",
@@ -516,12 +542,14 @@ function BoardTiles({
   properties,
   developmentByPropertyId,
   ownerByPropertyId,
+  ownerSymbolByPropertyId,
   onSquareClick,
   hideOwnerBadges = false,
 }: {
   properties: Property[];
   developmentByPropertyId?: DevelopmentByPropertyId;
   ownerByPropertyId?: Record<number, string>;
+  ownerSymbolByPropertyId?: Record<number, string>;
   onSquareClick?: (square: Property) => void;
   hideOwnerBadges?: boolean;
 }) {
@@ -534,6 +562,7 @@ function BoardTiles({
         square,
         development: developmentByPropertyId?.[square.id] ?? 0,
         owner: ownerByPropertyId?.[square.id] ?? null,
+        ownerSymbol: ownerSymbolByPropertyId?.[square.id] ?? null,
         onClick: onSquareClick ? () => onSquareClick(square) : undefined,
         hideOwnerBadge: hideOwnerBadges,
       })
@@ -852,7 +881,18 @@ export default function BoardScene({
   aiThinking,
   hideOwnerBadges = false,
   smallTokens = false,
+  resetViewTrigger = 0,
+  ownerSymbolByPropertyId,
 }: BoardSceneProps) {
+  const camera = useThree((s) => s.camera);
+  const controlsRef = useRef<any>(null);
+  useEffect(() => {
+    if (resetViewTrigger > 0 && controlsRef.current) {
+      camera.position.set(0, 12, 12);
+      controlsRef.current.target.set(0, 0, 0);
+    }
+  }, [resetViewTrigger, camera]);
+
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
     players.forEach((p) => {
@@ -897,6 +937,7 @@ export default function BoardScene({
       properties,
       developmentByPropertyId,
       ownerByPropertyId,
+      ownerSymbolByPropertyId,
       onSquareClick,
       hideOwnerBadges,
     }),
@@ -926,6 +967,7 @@ export default function BoardScene({
       })
     ),
     createElement(OrbitControls, {
+      ref: controlsRef,
       enablePan: true,
       enableZoom: true,
       minDistance: 8,
