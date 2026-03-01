@@ -221,6 +221,21 @@ const gamePropertyController = {
         updated_at: db.fn.now(),
       });
 
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: -Number(property.price),
+        extra: null,
+        comment: `bought ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
       await trx.commit();
 
       // Stats: record property purchase (bank)
@@ -418,6 +433,23 @@ const gamePropertyController = {
         .where({ id: game_property.id })
         .increment("development", 1);
 
+      const newDev = Number(game_property.development || 0) + 1;
+      const buildLabel = newDev === 5 ? "built a hotel on" : "built a house on";
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: -Number(property.cost_of_house),
+        extra: null,
+        comment: `${buildLabel} ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
       await trx.commit();
       return res
         .status(200)
@@ -531,6 +563,21 @@ const gamePropertyController = {
       await trx("game_properties")
         .where({ id: game_property.id })
         .decrement("development", 1);
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: Number(property.cost_of_house) / 2,
+        extra: null,
+        comment: `sold a building on ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
 
       await trx.commit();
       return res
