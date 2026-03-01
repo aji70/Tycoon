@@ -1,15 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useWaitingRoom } from "./useWaitingRoom";
 import GameRoomLoading from "./game-room-loading";
 import { Copy, Home, Users } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 const REDIRECT_TO_BOARD = "/board-3d-multi";
+const COPY_FEEDBACK_MS = 2000;
 
 /**
- * Minimal 3D game waiting room. New file – does not edit the main game-waiting.
- * Uses same useWaitingRoom logic; redirects to board-3d-multi when game starts.
+ * 3D game waiting room. Uses same useWaitingRoom logic; redirects to board-3d-multi when game starts.
  */
 export default function GameWaiting3DLobby(): React.ReactElement {
   const {
@@ -32,8 +33,6 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     handleJoinGame,
     handleLeaveGame,
     handleGoHome,
-    handleCopyLink,
-    copySuccess,
     guestCannotJoinStaked,
     getPlayerSymbolData,
     symbols,
@@ -42,6 +41,37 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     joinError,
     contractGameError,
   } = useWaitingRoom({ redirectToBoard: REDIRECT_TO_BOARD });
+
+  const gameUrl3d = useMemo(() => {
+    if (!gameCode) return "";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/game-waiting-3d?gameCode=${encodeURIComponent(gameCode)}`;
+  }, [gameCode]);
+
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const handleCopyLink = useCallback(async () => {
+    if (!gameUrl3d) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(gameUrl3d);
+      } else {
+        const el = document.createElement("textarea");
+        el.value = gameUrl3d;
+        el.setAttribute("readonly", "");
+        el.style.position = "absolute";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+      setCopySuccess("Link copied!");
+      const t = window.setTimeout(() => setCopySuccess(null), COPY_FEEDBACK_MS);
+      return () => clearTimeout(t);
+    } catch {
+      setCopySuccess("Copy failed");
+    }
+  }, [gameUrl3d]);
 
   if (loading || contractGameLoading) {
     return <GameRoomLoading variant="waiting" />;
@@ -79,24 +109,60 @@ export default function GameWaiting3DLobby(): React.ReactElement {
           When everyone is in, the game starts and you’ll open the 3D board.
         </p>
 
-        {/* Code + copy */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <span className="font-mono text-2xl font-bold text-cyan-300 tracking-widest">
-            {gameCode}
+        {/* QR code + game code */}
+        <div className="flex flex-col items-center gap-4 mb-6 p-4 rounded-xl bg-slate-800/60 border border-cyan-500/30">
+          <span className="text-[10px] font-semibold text-cyan-400 tracking-widest uppercase">
+            Scan to join
           </span>
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            disabled={actionLoading}
-            className="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition"
-            title="Copy link"
-          >
-            <Copy className="w-5 h-5" />
-          </button>
+          {gameUrl3d ? (
+            <div className="p-2.5 rounded-xl bg-white border border-cyan-500/40">
+              <QRCodeSVG
+                value={gameUrl3d}
+                size={160}
+                level="M"
+                bgColor="#ffffff"
+                fgColor="#0E282A"
+                marginSize={1}
+              />
+            </div>
+          ) : (
+            <div className="w-[160px] h-[160px] rounded-xl bg-slate-700 animate-pulse" />
+          )}
+          <div className="text-center">
+            <p className="text-[10px] font-semibold text-slate-500 tracking-wider uppercase mb-1">
+              Game code
+            </p>
+            <p className="font-mono text-2xl font-bold text-cyan-300 tracking-widest">
+              {gameCode}
+            </p>
+          </div>
         </div>
-        {copySuccess && (
-          <p className="text-emerald-400 text-sm text-center mb-4">{copySuccess}</p>
-        )}
+
+        {/* Copy link */}
+        <div className="space-y-2 mb-6">
+          <p className="text-xs font-medium text-slate-400 text-center">Share link</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={gameUrl3d}
+              aria-label="Join game URL"
+              className="flex-1 min-w-0 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-200 text-sm font-mono truncate focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              disabled={actionLoading || !gameUrl3d}
+              className="shrink-0 p-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition disabled:opacity-50 disabled:pointer-events-none"
+              title="Copy link"
+            >
+              <Copy className="w-5 h-5" />
+            </button>
+          </div>
+          {copySuccess && (
+            <p className="text-emerald-400 text-sm text-center">{copySuccess}</p>
+          )}
+        </div>
 
         {/* Players */}
         <div className="flex items-center justify-center gap-2 mb-6">

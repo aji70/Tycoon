@@ -7,6 +7,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts"; // Adjust path if needed
 import { ProfileProvider } from "@/context/ProfileContext";
+import AuthGuard from "@/components/auth/AuthGuard";
 
 interface ClientLayoutProps {
   children: ReactNode;
@@ -37,7 +38,7 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
     <ProfileProvider>
       <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
         {isMobile ? <NavBarMobile minimal={isBoard3DMobile} /> : <NavBar />}
-        {children}
+        <AuthGuard>{children}</AuthGuard>
       </div>
     </ProfileProvider>
   );
