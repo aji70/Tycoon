@@ -2,7 +2,7 @@
 
 import GameBoard3DView from "@/components/game/board/game-board-3d";
 import GameRoom from "@/components/game/game-room";
-import GamePlayers from "@/components/game/ai-player/ai-player";
+import { Multiplayer3DPlayerSection } from "@/components/game/multiplayer-3d-player/PlayerSection";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
@@ -300,9 +300,9 @@ export default function Board3DMultiPage() {
         </div>
       )}
 
-      {/* Left: same as ai-play-3d */}
+      {/* Left: same player section as AI 3D (with perks) */}
       <div className="hidden lg:block w-80 flex-shrink-0">
-        <GamePlayers
+        <Multiplayer3DPlayerSection
           game={game}
           properties={properties}
           game_properties={game_properties}

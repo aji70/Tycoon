@@ -2,7 +2,7 @@
 
 import GameBoard3DView from "@/components/game/board/game-board-3d";
 import GameRoom from "@/components/game/game-room";
-import MobileGamePlayers from "@/components/game/ai-player/mobile/ai-player";
+import { Multiplayer3DPlayerSectionMobile } from "@/components/game/multiplayer-3d-player/PlayerSectionMobile";
 import { Users, MessageCircle } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -378,7 +378,7 @@ export default function Board3DMultiMobilePage() {
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
-            <MobileGamePlayers
+            <Multiplayer3DPlayerSectionMobile
               game={game}
               properties={properties}
               game_properties={game_properties}

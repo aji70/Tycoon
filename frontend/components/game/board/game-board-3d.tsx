@@ -5,11 +5,9 @@ import Link from "next/link";
 import { Toaster, toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
-import CenterArea from "./center-area";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
-import { GameDurationCountdown } from "../GameDurationCountdown";
 import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameBoardLogic } from "./useGameBoardLogic";
@@ -199,26 +197,6 @@ const GameBoard3DView = ({
     properties,
   ]);
 
-  const [gameTimeUp, setGameTimeUp] = useState(false);
-  const timeUpHandledRef = useRef(false);
-
-  const handleGameTimeUp = useCallback(async () => {
-    if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
-    timeUpHandledRef.current = true;
-    setGameTimeUp(true);
-    try {
-      await apiClient.post(`/games/${game.id}/finish-by-time`);
-      await onFinishByTime?.();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string; message?: string } }; message?: string };
-      console.error("Finish by time failed:", e);
-      timeUpHandledRef.current = false;
-      setGameTimeUp(false);
-      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Could not end game. Please try again.";
-      toast.error(msg);
-    }
-  }, [game?.id, game?.status, onFinishByTime]);
-
   return (
     <div
       className={
@@ -332,58 +310,6 @@ const GameBoard3DView = ({
             currentPlayerId={currentPlayerId}
             className="absolute inset-0 w-full h-full"
           />
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="pointer-events-auto w-full h-full max-w-[420px] max-h-[420px] flex items-center justify-center mx-auto">
-              <CenterArea
-                transparentOverlay
-                isMyTurn={isMyTurn}
-                me={me}
-                game={game}
-                gameTimeUp={gameTimeUp}
-                playerCanRoll={playerCanRoll}
-                isRolling={isRolling}
-                roll={displayRoll}
-                currentPlayer={currentPlayer}
-                buyPrompted={buyPrompted}
-                currentProperty={justLandedProperty || currentProperty}
-                currentPlayerBalance={currentPlayer?.balance ?? 0}
-                history={game.history ?? []}
-                onRollDice={handleRollDice}
-                onBuyProperty={handleBuyProperty}
-                onSkipBuy={handleSkipBuy}
-                onDeclareBankruptcy={() => setShowBankruptcyModal(true)}
-                isPending={false}
-                timerSlot={game?.duration && Number(game.duration) > 0 ? <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} /> : null}
-                turnTimeLeft={turnTimeLeft}
-                voteablePlayers={voteablePlayersList}
-                voteStatuses={voteStatuses}
-                votingLoading={votingLoading}
-                onVoteToRemove={voteToRemove}
-                removablePlayers={players.filter((p: Player) => p.user_id !== me?.user_id && (p.consecutive_timeouts ?? 0) >= 3)}
-                onRemoveInactive={removeInactive}
-                isUntimed={logic.isUntimed}
-                endByNetWorthStatus={logic.endByNetWorthStatus}
-                endByNetWorthLoading={logic.endByNetWorthLoading}
-                onVoteEndByNetWorth={logic.voteEndByNetWorth}
-                voteEndByNetWorthSubmitting={logic.voteEndByNetWorthSubmitting}
-                turnEndScheduled={logic.turnEndScheduled}
-                meInJail={logic.meInJail}
-                jailChoiceRequired={logic.jailChoiceRequired}
-                canPayToLeaveJail={logic.canPayToLeaveJail}
-                hasChanceJailCard={logic.hasChanceJailCard}
-                hasCommunityChestJailCard={logic.hasCommunityChestJailCard}
-                onPayToLeaveJail={logic.payToLeaveJail}
-                onUseGetOutOfJailFree={logic.useGetOutOfJailFree}
-                onStayInJail={logic.stayInJail}
-                jailSubmitting={logic.jailSubmitting}
-                buyPending={logic.buyPending}
-                aiTipsOn={aiTipsOn}
-                onToggleAiTips={toggleAiTips}
-                aiTipText={aiTipText}
-                aiTipLoading={aiTipLoading}
-              />
-            </div>
-          </div>
           <Link
             href={`/game-play?gameCode=${encodeURIComponent(game.code)}`}
             className="absolute top-2 right-2 z-10 px-3 py-1.5 rounded-lg bg-slate-800/90 text-cyan-300 text-sm border border-cyan-500/50 hover:bg-slate-700 pointer-events-auto"
