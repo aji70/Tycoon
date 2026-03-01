@@ -436,6 +436,21 @@ function Board3DPageContent() {
     []
   );
 
+  const handleRoll = useCallback(() => {
+    if (rollingDice) return;
+    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    pendingRollRef.current = value;
+    setRollingDice({ die1: value.die1, die2: value.die2 });
+  }, [rollingDice]);
+
+  const handleRollForLive = useCallback(() => {
+    if (rollingDice || !game || !me) return;
+    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    pendingRollRef.current = value;
+    rollingForPlayerIdRef.current = me.user_id;
+    setRollingDice({ die1: value.die1, die2: value.die2 });
+  }, [rollingDice, game, me]);
+
   useEffect(() => {
     if (!burnSuccess || !pendingBarPerk || !game?.id || !me) return;
 
@@ -857,21 +872,6 @@ function Board3DPageContent() {
     },
     [gameProperties]
   );
-
-  const handleRoll = useCallback(() => {
-    if (rollingDice) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
-    pendingRollRef.current = value;
-    setRollingDice({ die1: value.die1, die2: value.die2 });
-  }, [rollingDice]);
-
-  const handleRollForLive = useCallback(() => {
-    if (rollingDice || !game || !me) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
-    pendingRollRef.current = value;
-    rollingForPlayerIdRef.current = me.user_id;
-    setRollingDice({ die1: value.die1, die2: value.die2 });
-  }, [rollingDice, game, me]);
 
   const handleDiceComplete = useCallback(() => {
     const { die1, die2, total } = pendingRollRef.current;
