@@ -2009,8 +2009,13 @@ export default function Board3DDemoPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      burnCollectible(pendingBarPerk.tokenId);
+                    onClick={async () => {
+                      try {
+                        await burnCollectible(pendingBarPerk.tokenId);
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Burn failed");
+                        setPendingBarPerk(null);
+                      }
                     }}
                     className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition"
                   >

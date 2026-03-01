@@ -57,16 +57,15 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
 
   const ownedCount = Number(ownedCountRaw ?? 0);
 
-  const tokenCalls = useMemo(
-    () =>
-      Array.from({ length: ownedCount }, (_, i) => ({
-        address: contractAddress!,
-        abi: RewardABI as Abi,
-        functionName: "tokenOfOwnerByIndex" as const,
-        args: [address!, BigInt(i)],
-      })),
-    [contractAddress, address, ownedCount]
-  );
+  const tokenCalls = useMemo(() => {
+    if (!contractAddress || !address || ownedCount <= 0) return [];
+    return Array.from({ length: ownedCount }, (_, i) => ({
+      address: contractAddress,
+      abi: RewardABI as Abi,
+      functionName: "tokenOfOwnerByIndex" as const,
+      args: [address, BigInt(i)],
+    }));
+  }, [contractAddress, address, ownedCount]);
 
   const { data: tokenResults } = useReadContracts({
     contracts: tokenCalls,
@@ -78,16 +77,15 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
       ?.map((r) => (r.status === "success" ? (r.result as bigint) : null))
       .filter((id): id is bigint => id !== null && id >= COLLECTIBLE_ID_START) ?? [];
 
-  const infoCalls = useMemo(
-    () =>
-      ownedTokenIds.map((id) => ({
-        address: contractAddress!,
-        abi: RewardABI as Abi,
-        functionName: "getCollectibleInfo" as const,
-        args: [id],
-      })),
-    [contractAddress, ownedTokenIds]
-  );
+  const infoCalls = useMemo(() => {
+    if (!contractAddress || ownedTokenIds.length === 0) return [];
+    return ownedTokenIds.map((id) => ({
+      address: contractAddress,
+      abi: RewardABI as Abi,
+      functionName: "getCollectibleInfo" as const,
+      args: [id],
+    }));
+  }, [contractAddress, ownedTokenIds]);
 
   const { data: infoResults } = useReadContracts({
     contracts: infoCalls,
@@ -95,14 +93,17 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
   });
 
   const perks = useMemo(() => {
-    if (!infoResults) return [];
+    if (!infoResults || infoResults.length !== ownedTokenIds.length) return [];
     return infoResults
       .map((res, i) => {
         if (res?.status !== "success") return null;
+        const tokenId = ownedTokenIds[i];
+        if (tokenId == null || tokenId < COLLECTIBLE_ID_START) return null;
         const arr = res.result as [bigint, bigint?, ...unknown[]];
-        const perk = Number(arr[0]);
-        const strength = arr[1] != null ? Number(arr[1]) : 1;
-        return { perk, tokenId: ownedTokenIds[i], strength };
+        const perk = Number(arr?.[0]);
+        if (Number.isNaN(perk) || perk < 1 || perk > 10) return null;
+        const strength = arr?.[1] != null ? Number(arr[1]) : 1;
+        return { perk, tokenId, strength };
       })
       .filter((c): c is { perk: number; tokenId: bigint; strength: number } => c !== null);
   }, [infoResults, ownedTokenIds]);
