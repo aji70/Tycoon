@@ -1664,6 +1664,19 @@ export default function Board3DDemoPage() {
           </div>
         )}
 
+        {/* Fullscreen button — top right so user can toggle without scrolling */}
+        {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="absolute top-3 right-3 z-[100] px-4 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 font-medium shadow-lg"
+            style={{ zIndex: 2147483646 }}
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          </button>
+        )}
+
         {/* Live game: End Turn button when human has rolled and can pass (manual fallback if auto-end fails) */}
         {isLiveGame && isMyTurn && lastRollResultLive && !buyPrompted && !jailChoiceRequired && !rollingDice && (
           <div className="mb-2">
@@ -1725,14 +1738,6 @@ export default function Board3DDemoPage() {
                 />
               </Canvas>
             </div>
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              className="mt-3 px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium transition-colors border border-slate-500"
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
-              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            </button>
           </div>
         )}
 
@@ -1853,14 +1858,15 @@ export default function Board3DDemoPage() {
           </motion.div>
         </div>
       )}
-      </div>
 
-      <CardModal
-        isOpen={showCardModal}
-        onClose={() => setShowCardModal(false)}
-        card={cardData}
-        playerName={cardPlayerName}
-      />
+        {/* Chance / Community Chest card modal — inside fullscreen so it shows in fullscreen mode */}
+        <CardModal
+          isOpen={showCardModal}
+          onClose={() => setShowCardModal(false)}
+          card={cardData}
+          playerName={cardPlayerName}
+        />
+      </div>
 
       {selectedProperty && (
         <PropertyDetailModal3D
