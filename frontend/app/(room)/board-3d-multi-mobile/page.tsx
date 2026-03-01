@@ -272,7 +272,7 @@ export default function Board3DMobilePage() {
   } | null>(null);
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<"board" | "chat">("board");
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Multiplayer: "Start now" ready window
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -1836,27 +1836,6 @@ export default function Board3DMobilePage() {
         )}
       </div>
 
-      {/* Content: board view or chat tab */}
-      {activeTab === "chat" ? (
-        <div
-          className="absolute left-0 right-0 flex flex-col overflow-hidden"
-          style={{
-            top: "calc(2.5rem + env(safe-area-inset-top, 0px))",
-            bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))",
-            zIndex: 5,
-          }}
-        >
-          <div className="flex-1 min-h-0 p-2">
-            <GameyChatRoom
-              gameId={gameCode ?? game?.code ?? ""}
-              me={me}
-              isMobile
-              showHeader={true}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <main
         className="w-full relative overflow-hidden"
         style={{
@@ -1867,7 +1846,6 @@ export default function Board3DMobilePage() {
           height: `calc(${BOARD_HEIGHT_PCT}% - 2.5rem - env(safe-area-inset-top, 0px))`,
           zIndex: 0,
           isolation: "isolate",
-          display: activeTab === "board" ? "block" : "none",
         }}
       >
         {isLoading || (gameCode && gameLoading) ? (
@@ -1918,7 +1896,7 @@ export default function Board3DMobilePage() {
       </main>
 
       {/* Action log — between board and bottom bar */}
-      {activeTab === "board" && isLiveGame && (
+      {isLiveGame && (
         <div
           className="absolute left-2 right-2 z-10 flex flex-col"
           style={{
@@ -1933,8 +1911,7 @@ export default function Board3DMobilePage() {
         </div>
       )}
 
-      {activeTab === "board" && (
-        <Mobile3DGameUI
+      <Mobile3DGameUI
           game={game ?? null}
         properties={properties}
         game_properties={gameProperties}
@@ -1960,8 +1937,7 @@ export default function Board3DMobilePage() {
         onEndTurn={END_TURN}
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
-        />
-      )}
+      />
 
       {/* End game by net worth — confirm modal */}
       <AnimatePresence>
@@ -2343,34 +2319,59 @@ export default function Board3DMobilePage() {
         tokensAwarded={0.5}
       />
 
-      {/* Bottom navbar: Board | Chat — always visible on multiplayer mobile */}
+      {/* Bottom navbar: Chat button — opens Tavern Chat panel */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-[100] flex items-center justify-around h-14 border-t border-amber-500/20 bg-[#0a1214]/98 backdrop-blur-md"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed bottom-0 left-0 right-0 z-[100] flex items-center justify-center border-t border-amber-500/20 bg-[#0a1214]/98 backdrop-blur-md"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)", minHeight: "3.5rem" }}
       >
         <button
           type="button"
-          onClick={() => setActiveTab("board")}
-          className={`flex flex-1 flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
-            activeTab === "board" ? "text-amber-400" : "text-slate-500"
-          }`}
-          aria-label="Board"
+          onClick={() => setChatOpen(true)}
+          className="flex flex-1 max-w-xs flex-col items-center justify-center py-3 gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+          aria-label="Open chat"
         >
-          <span className="text-xl leading-none" aria-hidden>🎲</span>
-          <span className="text-xs font-semibold tracking-wide">Board</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("chat")}
-          className={`flex flex-1 flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
-            activeTab === "chat" ? "text-amber-400" : "text-slate-500"
-          }`}
-          aria-label="Chat"
-        >
-          <MessageCircle className="w-5 h-5" />
+          <MessageCircle className="w-6 h-6" />
           <span className="text-xs font-semibold tracking-wide">Chat</span>
         </button>
       </nav>
+
+      {/* Tavern chat slide-up panel — opened from bottom nav */}
+      <AnimatePresence>
+        {chatOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2147483645] flex flex-col bg-black/60 backdrop-blur-sm"
+            style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+            onClick={() => setChatOpen(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="flex-1 min-h-0 flex flex-col mt-auto rounded-t-2xl overflow-hidden border-t border-amber-500/30 bg-[#0a1214] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30">
+                <h3 className="font-bold text-amber-100 text-sm uppercase tracking-wide">Tavern Chat</h3>
+                <button
+                  type="button"
+                  onClick={() => setChatOpen(false)}
+                  className="p-2 rounded-lg text-amber-400/80 hover:text-amber-200 hover:bg-amber-500/20 transition-colors"
+                  aria-label="Close chat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40">

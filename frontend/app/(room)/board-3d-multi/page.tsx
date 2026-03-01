@@ -2240,9 +2240,12 @@ function Board3DPageContent() {
         )}
       </div>
 
-      {/* Tavern chat sidebar — always visible on multiplayer desktop board */}
-      <aside className="hidden lg:flex flex-col w-80 xl:w-[22rem] flex-shrink-0 min-h-0 h-full border-l border-amber-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden">
-        <div className="flex-1 min-h-0 p-2">
+      {/* Spacer so board doesn't sit under fixed chat sidebar */}
+      <div className="hidden lg:block w-72 flex-shrink-0" aria-hidden="true" />
+
+      {/* Tavern chat — fixed, same height as player section (Perks → Trade) */}
+      <aside className="hidden lg:flex flex-col w-72 fixed right-4 top-[100px] z-20 max-h-[calc(100vh-100px-1rem)] border border-amber-500/20 rounded-xl bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden shadow-xl">
+        <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
           <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} />
         </div>
       </aside>
