@@ -110,6 +110,8 @@ function SquareTile({
   const type = square.type;
   const id = square.id;
   const { group, index: groupIndex } = getGroupIndex(id);
+  // Top row (20–29) and bottom row (0–9): vertical text so it doesn't encroach on adjacent properties.
+  const isTopOrBottomRow = id <= 9 || (id >= 20 && id <= 29);
 
   // Label: only visible on hover; higher for corner buildings (Jail, Go to Jail).
   const labelY = type === "corner" && (id === 10 || id === 30) ? 0.18 : 0.07;
@@ -126,8 +128,10 @@ function SquareTile({
             color: "#fff",
             textShadow: "0 0 6px #000, 0 2px 4px #000",
             textAlign: "center",
-            whiteSpace: "nowrap",
-            maxWidth: "140px",
+            whiteSpace: isTopOrBottomRow ? "normal" : "nowrap",
+            writingMode: isTopOrBottomRow ? "vertical-rl" : undefined,
+            textOrientation: isTopOrBottomRow ? "mixed" : undefined,
+            maxWidth: isTopOrBottomRow ? "60px" : "140px",
             overflow: "hidden",
             textOverflow: "ellipsis",
             pointerEvents: "none",
@@ -156,8 +160,10 @@ function SquareTile({
               color: "#fbbf24",
               textShadow: "0 0 4px #000, 0 1px 3px #000",
               textAlign: "center",
-              whiteSpace: "nowrap",
-              maxWidth: "80px",
+              whiteSpace: isTopOrBottomRow ? "normal" : "nowrap",
+              writingMode: isTopOrBottomRow ? "vertical-rl" : undefined,
+              textOrientation: isTopOrBottomRow ? "mixed" : undefined,
+              maxWidth: isTopOrBottomRow ? "40px" : "80px",
               overflow: "hidden",
               textOverflow: "ellipsis",
               pointerEvents: "none",
@@ -622,7 +628,7 @@ function RollingDice({
 
   return createElement(
     "group",
-    { position: [0, 0.7, 0] as [number, number, number] },
+    { position: [0, 1.0, 0] as [number, number, number] },
     createElement("group", { ref: mesh1Ref, position: [-DICE_SIZE * 1.2, 0, 0] as [number, number, number] },
       createElement("mesh", { castShadow: true, receiveShadow: true }, geo, mat),
       ...makePipsForDie()
@@ -662,7 +668,7 @@ function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: 
   return createElement(
     Html,
     {
-      position: [0, 1.65, 0] as [number, number, number],
+      position: [0, 2.1, 0] as [number, number, number],
       center: true,
       distanceFactor: 7,
       style: {
@@ -713,7 +719,7 @@ function CenterRollButton({ onRoll, disabled }: { onRoll: () => void; disabled: 
   return createElement(
     Html,
     {
-      position: [0, -0.15, 0] as [number, number, number],
+      position: [0, -0.5, 0] as [number, number, number],
       center: true,
       distanceFactor: 9,
       style: { pointerEvents: "auto" },
