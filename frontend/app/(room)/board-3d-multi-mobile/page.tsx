@@ -3,7 +3,7 @@
 import GameBoard3DView from "@/components/game/board/game-board-3d";
 import GameRoom from "@/components/game/game-room";
 import MobileGamePlayers from "@/components/game/ai-player/mobile/ai-player";
-import { LayoutGrid, Users, MessageCircle } from "lucide-react";
+import { Users, MessageCircle } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
@@ -152,7 +152,8 @@ export default function Board3DMultiMobilePage() {
       .sort((a, b) => a.id - b.id);
   }, [game_properties, properties, myAddress]);
 
-  const [activeTab, setActiveTab] = useState<"board" | "players" | "chat">("board");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [playersOpen, setPlayersOpen] = useState(false);
   const [focusTrades, setFocusTrades] = useState(false);
   const [lastReadMessageCount, setLastReadMessageCount] = useState(0);
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -219,13 +220,13 @@ export default function Board3DMultiMobilePage() {
     refetchInterval: 4000,
     staleTime: 2000,
   });
-  const unreadCount = activeTab !== "chat" ? Math.max(0, (messages as unknown[]).length - lastReadMessageCount) : 0;
+  const unreadCount = !chatOpen ? Math.max(0, (messages as unknown[]).length - lastReadMessageCount) : 0;
 
   useEffect(() => {
-    if (activeTab === "chat" && Array.isArray(messages)) {
+    if (chatOpen && Array.isArray(messages)) {
       setLastReadMessageCount((messages as unknown[]).length);
     }
-  }, [activeTab, (messages as unknown[]).length]);
+  }, [chatOpen, (messages as unknown[]).length]);
 
   if (gameLoading) {
     return (
@@ -276,7 +277,7 @@ export default function Board3DMultiMobilePage() {
   }
 
   return (
-    <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10] mt-[100px]">
+    <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10] mt-[100px] relative">
       {isWaitingForStart && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pt-[80px]">
           <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-6 mx-4 max-w-sm text-center shadow-xl">
@@ -307,75 +308,91 @@ export default function Board3DMultiMobilePage() {
         </div>
       )}
 
-      <div
-        className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === "chat" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden"} ${activeTab !== "chat" ? "pb-20" : ""}`}
+      {/* Single view: 3D board only (same as AI 3D mobile), no tab bar */}
+      <div className="flex-1 min-h-0 w-full flex flex-col">
+        <GameBoard3DView
+          game={game}
+          properties={properties}
+          game_properties={game_properties}
+          me={me}
+          onGameUpdated={() => refetchGame()}
+          onFinishByTime={onFinishByTime}
+          embedded
+        />
+      </div>
+
+      {/* Only addition: Chat — floating button that opens overlay */}
+      <button
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-[#010F10]/95 backdrop-blur-xl border border-[#003B3E] flex items-center justify-center shadow-2xl text-[#00F0FF] hover:scale-105 transition-transform"
+        aria-label="Open chat"
       >
-        {activeTab === "board" && (
-          <div className="flex-1 min-h-0 w-full flex flex-col">
-            <GameBoard3DView
+        <span className="relative">
+          <MessageCircle size={28} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] rounded-full bg-[#00F0FF] text-[#010F10] text-xs font-bold flex items-center justify-center">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </span>
+      </button>
+
+      {/* Players — same as AI 3D mobile (access to My Empire, Trades); floating button */}
+      <button
+        onClick={() => setPlayersOpen(true)}
+        className="fixed bottom-6 right-24 z-40 w-14 h-14 rounded-full bg-[#010F10]/95 backdrop-blur-xl border border-[#003B3E] flex items-center justify-center shadow-2xl text-[#00F0FF] hover:scale-105 transition-transform"
+        aria-label="Open players"
+      >
+        <Users size={28} />
+      </button>
+
+      {/* Chat overlay — only addition */}
+      {chatOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#010F10]" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-[#003B3E]">
+            <h3 className="font-orbitron font-semibold text-[#00F0FF]">Chat</h3>
+            <button
+              onClick={() => setChatOpen(false)}
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              aria-label="Close chat"
+            >
+              <span className="text-xl leading-none">×</span>
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <GameRoom game={game} me={me} isMobile />
+          </div>
+        </div>
+      )}
+
+      {/* Players overlay — same panel as AI, just opened via button */}
+      {playersOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#010F10]" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+          <div className="flex-shrink-0 flex items-center justify-end px-4 py-3 border-b border-[#003B3E]">
+            <button
+              onClick={() => setPlayersOpen(false)}
+              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+              aria-label="Close players"
+            >
+              <span className="text-xl leading-none">×</span>
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <MobileGamePlayers
               game={game}
               properties={properties}
               game_properties={game_properties}
+              my_properties={my_properties}
               me={me}
-              onGameUpdated={() => refetchGame()}
-              onFinishByTime={onFinishByTime}
-              embedded
+              currentPlayer={currentPlayer}
+              roll={null}
+              isAITurn={false}
+              focusTrades={focusTrades}
+              onViewedTrades={() => setFocusTrades(false)}
             />
           </div>
-        )}
-        {activeTab === "players" && (
-          <MobileGamePlayers
-            game={game}
-            properties={properties}
-            game_properties={game_properties}
-            my_properties={my_properties}
-            me={me}
-            currentPlayer={currentPlayer}
-            roll={null}
-            isAITurn={false}
-            focusTrades={focusTrades}
-            onViewedTrades={() => setFocusTrades(false)}
-          />
-        )}
-        {activeTab === "chat" && <GameRoom game={game} me={me} isMobile />}
-      </div>
-
-      <nav className="fixed bottom-0 left-0 right-0 h-20 pb-safe bg-[#010F10]/95 backdrop-blur-xl border-t border-[#003B3E] flex items-center justify-around z-50 shadow-2xl">
-        <button
-          onClick={() => setActiveTab("board")}
-          className={`flex flex-col items-center justify-center flex-1 py-3 transition-all ${
-            activeTab === "board" ? "text-[#00F0FF] scale-110" : "text-gray-500"
-          }`}
-        >
-          <LayoutGrid size={26} />
-          <span className="text-xs mt-1 font-orbitron">Board</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("players")}
-          className={`flex flex-col items-center justify-center flex-1 py-3 transition-all ${
-            activeTab === "players" ? "text-[#00F0FF] scale-110" : "text-gray-500"
-          }`}
-        >
-          <Users size={26} />
-          <span className="text-xs mt-1 font-orbitron">Players</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("chat")}
-          className={`relative flex flex-col items-center justify-center flex-1 py-3 transition-all ${
-            activeTab === "chat" ? "text-[#00F0FF] scale-110" : "text-gray-500"
-          }`}
-        >
-          <span className="relative inline-block">
-            <MessageCircle size={26} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#00F0FF] text-[#010F10] text-xs font-bold flex items-center justify-center">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
-          </span>
-          <span className="text-xs mt-1 font-orbitron">Chat</span>
-        </button>
-      </nav>
+        </div>
+      )}
     </main>
   );
 }
