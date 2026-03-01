@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Bell, Users, X, Landmark } from "lucide-react";
+import { Sparkles, Bell, Users, X, Landmark, MessageCircle } from "lucide-react";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
 import PerksBar from "./PerksBar";
@@ -33,6 +33,8 @@ interface Mobile3DGameUIProps {
   onEndTurn: () => void;
   triggerSpecialLanding?: (position: number, isSpecial?: boolean) => void;
   endTurnAfterSpecial?: () => void;
+  /** When set, shows a Chat button in the bottom bar (e.g. multiplayer). */
+  onOpenChat?: () => void;
 }
 
 export default function Mobile3DGameUI({
@@ -58,6 +60,7 @@ export default function Mobile3DGameUI({
   onEndTurn,
   triggerSpecialLanding,
   endTurnAfterSpecial,
+  onOpenChat,
 }: Mobile3DGameUIProps) {
   const hasGame = !!game;
 
@@ -77,12 +80,12 @@ export default function Mobile3DGameUI({
 
   return (
     <>
-      {/* Bottom bar: Perks, My Empire, Trades, Players */}
+      {/* Bottom bar: Perks, My Empire, Trades, Players, and optional Chat — all in one row */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-center gap-2 sm:gap-4 px-2 sm:px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
+        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-between gap-1 sm:gap-2 px-1 sm:px-3 py-2 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="flex items-center justify-center min-w-0 flex-1">
+        <div className="flex items-center justify-center min-w-0 flex-1 shrink">
           <PerksBar
             onOpenModal={() => setShowPerksModal(true)}
             onUsePerk={onUsePerk}
@@ -92,7 +95,7 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={() => setShowEmpireModal(true)}
-          className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0"
         >
           <Landmark className="w-5 h-5" />
           <span className="text-xs font-medium">Empire</span>
@@ -100,7 +103,7 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={openBellModal}
-          className="relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0"
+          className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0"
         >
           <Bell className="w-5 h-5" />
           <span className="text-xs font-medium">Trades</span>
@@ -113,11 +116,22 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={openPlayerModal}
-          className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0"
         >
           <Users className="w-5 h-5" />
           <span className="text-xs font-medium">Players</span>
         </button>
+        {onOpenChat && (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/80 hover:bg-amber-400/90 text-amber-100 transition shrink-0"
+            aria-label="Open chat"
+          >
+            <MessageCircle className="w-5 h-5" />
+            <span className="text-xs font-medium">Chat</span>
+          </button>
+        )}
       </div>
 
       {/* My Empire modal */}
