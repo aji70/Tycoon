@@ -72,9 +72,9 @@ export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
 
   return (
     <>
-      {/* Notification bar */}
+      {/* Notification bar — Perks · Trade · Players (always on top so it’s visible) */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-40 flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/95 backdrop-blur-md border-t border-slate-600/50"
+        className="fixed left-0 right-0 bottom-0 z-[100] flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
         <button
@@ -122,14 +122,14 @@ export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setInternalPlayerModalOpen(false)}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-black/60 z-[110]"
             />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
+              className="fixed inset-x-0 bottom-0 z-[110] rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
               style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
@@ -180,14 +180,14 @@ export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowPerksModal(false)}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-black/60 z-[110]"
             />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
+              className="fixed inset-x-0 bottom-0 z-[110] rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
               style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">

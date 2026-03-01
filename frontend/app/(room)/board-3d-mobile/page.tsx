@@ -27,7 +27,6 @@ import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
-import ActionLog from "@/components/game/ai-board/action-log";
 import Mobile3DGameUI from "@/components/game/board3d/Mobile3DGameUI";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake } from "lucide-react";
@@ -1281,22 +1280,6 @@ export default function Board3DMobilePage() {
           onTimeUp={handleGameTimeUp}
           className="fixed top-2 left-1/2 -translate-x-1/2 z-30 text-slate-200 text-sm bg-slate-800/90 px-3 py-1.5 rounded-lg"
         />
-      )}
-
-      {/* Fixed action log (not floating in 3D) — only when we have a live game and history */}
-      {isLiveGame && historyToShow && historyToShow.length > 0 && (
-        <div
-          className="fixed left-2 right-2 z-30 overflow-hidden rounded-lg border-2 border-cyan-500/40 bg-slate-900/95 shadow-lg"
-          style={{
-            top: isLiveGame && game && !isUntimed && game.duration ? "2.75rem" : "0.5rem",
-            maxHeight: "140px",
-          }}
-        >
-          <ActionLog
-            history={historyToShow}
-            className="!mt-0 !h-32 !max-h-32 !min-h-0 !rounded-lg !border-0 !bg-transparent"
-          />
-        </div>
       )}
 
       <main
