@@ -2320,15 +2320,18 @@ export default function Board3DMobilePage() {
         tokensAwarded={0.5}
       />
 
-      {/* Tavern chat slide-up panel — opened from bottom bar Chat button */}
+      {/* Tavern chat slide-up panel — opened from bottom bar Chat button; inset from bottom so nav bar stays visible */}
       <AnimatePresence>
         {chatOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2147483645] flex flex-col bg-black/60 backdrop-blur-sm"
-            style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+            className="fixed left-0 right-0 top-0 z-[2147483645] flex flex-col bg-black/60 backdrop-blur-sm"
+            style={{
+              paddingTop: "env(safe-area-inset-top)",
+              bottom: "calc(56px + max(0.75rem, env(safe-area-inset-bottom)))",
+            }}
             onClick={() => setChatOpen(false)}
           >
             <motion.div

@@ -10,6 +10,8 @@ const Message = {
     if (game && game.status === "RUNNING") {
       const playerIdRaw = messageData.player_id;
       const userIdRaw = messageData.user_id;
+      const addressRaw = messageData.address != null && String(messageData.address).trim() !== "" ? String(messageData.address).trim() : null;
+
       const playerIdNum = playerIdRaw != null && playerIdRaw !== "" ? Number(playerIdRaw) : NaN;
       const userIdNum = userIdRaw != null && userIdRaw !== "" ? Number(userIdRaw) : NaN;
 
@@ -22,6 +24,12 @@ const Message = {
       if (!game_player && Number.isInteger(userIdNum) && userIdNum > 0) {
         game_player = await db("game_players")
           .where({ game_id: game.id, user_id: userIdNum })
+          .first();
+      }
+      if (!game_player && addressRaw) {
+        game_player = await db("game_players")
+          .where({ game_id: game.id })
+          .whereRaw("LOWER(address) = ?", [addressRaw.toLowerCase()])
           .first();
       }
       if (game_player) {

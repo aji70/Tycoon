@@ -73,7 +73,8 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
 
   const playerId = me?.id != null ? String(me.id) : "";
   const userId = me?.user_id != null ? me.user_id : undefined;
-  const canSend = !!(gameId && (playerId || (userId != null && userId > 0)));
+  const userAddress = me?.address != null && String(me.address).trim() !== "" ? String(me.address).trim() : undefined;
+  const canSend = !!(gameId && me && (playerId || (typeof userId === "number") || userAddress));
 
   const hasGameId = !!gameId && String(gameId).trim().length > 0;
   const { data: messages = [], isLoading } = useQuery<Message[]>({
@@ -90,7 +91,8 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !gameId || (!playerId && userId == null) || sending) return;
+    const canSendNow = gameId && me && (playerId || typeof userId === "number" || userAddress);
+    if (!newMessage.trim() || !canSendNow || sending) return;
 
     setSending(true);
     const trimmed = newMessage.trim();
@@ -114,12 +116,17 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
     ]);
 
     try {
-      await apiClient.post("/messages", {
-        game_id: gameId,
-        ...(playerId ? { player_id: playerId } : {}),
-        ...(userId != null && userId > 0 ? { user_id: userId } : {}),
-        body: bodyToSend,
-      });
+      const payload: {
+        game_id: string | number;
+        body: string;
+        player_id?: string;
+        user_id?: number;
+        address?: string;
+      } = { game_id: gameId, body: bodyToSend };
+      if (playerId) payload.player_id = playerId;
+      if (typeof userId === "number") payload.user_id = userId;
+      if (userAddress) payload.address = userAddress;
+      await apiClient.post("/messages", payload);
       queryClient.invalidateQueries({ queryKey: ["messages", gameId] });
     } catch (err: unknown) {
       queryClient.setQueryData<Message[]>(["messages", gameId], (old = []) =>
