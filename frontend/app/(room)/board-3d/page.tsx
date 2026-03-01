@@ -394,6 +394,8 @@ function Board3DPageContent() {
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
+  const doublesCountRef = useRef(0);
+  const runningTotalRef = useRef(0);
   const moveStartPositionsRef = useRef<Record<number, number>>({});
   const historyIdRef = useRef(0);
   const lastTopHistoryIdRef = useRef<number | null>(null);
@@ -440,18 +442,26 @@ function Board3DPageContent() {
 
   const handleRoll = useCallback(() => {
     if (rollingDice) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    const value = getDiceValues();
     pendingRollRef.current = value;
     setRollingDice({ die1: value.die1, die2: value.die2 });
   }, [rollingDice]);
 
   const handleRollForLive = useCallback(() => {
     if (rollingDice || !game || !me) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    const value = getDiceValues();
     pendingRollRef.current = value;
     rollingForPlayerIdRef.current = me.user_id;
     setRollingDice({ die1: value.die1, die2: value.die2 });
   }, [rollingDice, game, me]);
+
+  // Reset doubles-accumulation when it's no longer our turn
+  useEffect(() => {
+    if (!isMyTurn) {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
+    }
+  }, [isMyTurn]);
 
   useEffect(() => {
     if (!burnSuccess || !pendingBarPerk || !game?.id || !me) return;
@@ -1065,8 +1075,42 @@ function Board3DPageContent() {
     const currentPos = me.position ?? 0;
     const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
     const rolledDouble = value.die1 === value.die2;
-    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
-    const totalSteps = (isInJail && !rolledDouble) ? 0 : value.total;
+
+    // Not in jail: doubles = roll again (accumulate); three consecutive doubles = go to jail
+    if (!isInJail && rolledDouble) {
+      doublesCountRef.current += 1;
+      if (doublesCountRef.current >= 3) {
+        try {
+          await apiClient.post("/game-players/three-doubles-to-jail", {
+            game_id: game.id,
+            user_id: me.user_id,
+          });
+          toast.success("Three doubles! Go to jail.");
+          await refetchGame();
+          END_TURN();
+        } catch (err) {
+          toast.error(getContractErrorMessage(err as Error, "Failed to process three doubles"));
+        } finally {
+          doublesCountRef.current = 0;
+          runningTotalRef.current = 0;
+          setRollingDice(null);
+          rollingForPlayerIdRef.current = null;
+        }
+        return;
+      }
+      runningTotalRef.current += value.total;
+      setLastRollResultLive(value);
+      toast.success("Doubles! Roll again.");
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+
+    // Not in jail and not doubles, or in jail: use (possibly accumulated) total for this move
+    const totalMove = isInJail ? (rolledDouble ? value.total : 0) : runningTotalRef.current + value.total;
+    if (!isInJail) runningTotalRef.current += value.total;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + totalMove) % 40;
+    const totalSteps = (isInJail && !rolledDouble) ? 0 : totalMove;
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
@@ -1082,8 +1126,8 @@ function Board3DPageContent() {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
-        rolled: value.total,
-        is_double: rolledDouble,
+        rolled: totalMove,
+        is_double: isInJail ? rolledDouble : false,
       });
       const data = res?.data?.data ?? (res as any)?.data;
       if (data?.still_in_jail) {
@@ -1146,10 +1190,12 @@ function Board3DPageContent() {
       });
       toast.error(getContractErrorMessage(err, "Roll failed"));
     } finally {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
-  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, runMovementAnimation]);
+  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, runMovementAnimation, END_TURN]);
 
   const calculateBuyScore = useCallback(
     (property: Property, player: Player, gameProps: GameProperty[], allProperties: Property[]): number => {

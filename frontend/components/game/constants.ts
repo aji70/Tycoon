@@ -86,9 +86,8 @@ export const MONOPOLY_STATS = {
   },
 };
 
-export function getDiceValues(): { die1: number; die2: number; total: number } | null {
+export function getDiceValues(): { die1: number; die2: number; total: number } {
   const die1 = Math.floor(Math.random() * 6) + 1;
   const die2 = Math.floor(Math.random() * 6) + 1;
-  const total = die1 + die2;
-  return total === 12 ? null : { die1, die2, total };
+  return { die1, die2, total: die1 + die2 };
 }

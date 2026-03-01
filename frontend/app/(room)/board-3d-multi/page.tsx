@@ -394,6 +394,8 @@ function Board3DPageContent() {
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
+  const doublesCountRef = useRef(0);
+  const runningTotalRef = useRef(0);
   const moveStartPositionsRef = useRef<Record<number, number>>({});
   const historyIdRef = useRef(0);
   const lastTopHistoryIdRef = useRef<number | null>(null);
@@ -447,11 +449,18 @@ function Board3DPageContent() {
 
   const handleRollForLive = useCallback(() => {
     if (rollingDice || !game || !me) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    const value = getDiceValues();
     pendingRollRef.current = value;
     rollingForPlayerIdRef.current = me.user_id;
     setRollingDice({ die1: value.die1, die2: value.die2 });
   }, [rollingDice, game, me]);
+
+  useEffect(() => {
+    if (!isMyTurn) {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
+    }
+  }, [isMyTurn]);
 
   useEffect(() => {
     if (!burnSuccess || !pendingBarPerk || !game?.id || !me) return;
@@ -1065,8 +1074,40 @@ function Board3DPageContent() {
     const currentPos = me.position ?? 0;
     const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
     const rolledDouble = value.die1 === value.die2;
-    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
-    const totalSteps = (isInJail && !rolledDouble) ? 0 : value.total;
+
+    if (!isInJail && rolledDouble) {
+      doublesCountRef.current += 1;
+      if (doublesCountRef.current >= 3) {
+        try {
+          await apiClient.post("/game-players/three-doubles-to-jail", {
+            game_id: game.id,
+            user_id: me.user_id,
+          });
+          toast.success("Three doubles! Go to jail.");
+          await refetchGame();
+          END_TURN();
+        } catch (err) {
+          toast.error(getContractErrorMessage(err as Error, "Failed to process three doubles"));
+        } finally {
+          doublesCountRef.current = 0;
+          runningTotalRef.current = 0;
+          setRollingDice(null);
+          rollingForPlayerIdRef.current = null;
+        }
+        return;
+      }
+      runningTotalRef.current += value.total;
+      setLastRollResultLive(value);
+      toast.success("Doubles! Roll again.");
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+
+    const totalMove = isInJail ? (rolledDouble ? value.total : 0) : runningTotalRef.current + value.total;
+    if (!isInJail) runningTotalRef.current += value.total;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + totalMove) % 40;
+    const totalSteps = (isInJail && !rolledDouble) ? 0 : totalMove;
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
@@ -1082,8 +1123,8 @@ function Board3DPageContent() {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
-        rolled: value.total,
-        is_double: rolledDouble,
+        rolled: totalMove,
+        is_double: isInJail ? rolledDouble : false,
       });
       const data = res?.data?.data ?? (res as any)?.data;
       if (data?.still_in_jail) {
@@ -1146,10 +1187,12 @@ function Board3DPageContent() {
       });
       toast.error(getContractErrorMessage(err, "Roll failed"));
     } finally {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
-  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, runMovementAnimation]);
+  }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, runMovementAnimation, END_TURN]);
 
   const calculateBuyScore = useCallback(
     (property: Property, player: Player, gameProps: GameProperty[], allProperties: Property[]): number => {
@@ -2197,14 +2240,12 @@ function Board3DPageContent() {
         )}
       </div>
 
-      {/* Multiplayer: Tavern chat sidebar (desktop only) */}
-      {isLiveGame && game && game.is_ai === false && gameCode && (
-        <aside className="hidden lg:flex flex-col w-80 xl:w-[22rem] flex-shrink-0 min-h-0 h-full border-l border-amber-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden">
-          <div className="flex-1 min-h-0 p-2">
-            <GameyChatRoom gameId={gameCode} me={me} isMobile={false} showHeader={true} />
-          </div>
-        </aside>
-      )}
+      {/* Tavern chat sidebar — always visible on multiplayer desktop board */}
+      <aside className="hidden lg:flex flex-col w-80 xl:w-[22rem] flex-shrink-0 min-h-0 h-full border-l border-amber-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden">
+        <div className="flex-1 min-h-0 p-2">
+          <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} />
+        </div>
+      </aside>
       </div>
 
       <Toaster position="top-center" />

@@ -337,6 +337,8 @@ export default function Board3DMobilePage() {
   const rollingForPlayerIdRef = useRef<number | null>(null);
   const rolledForPlayerIdRef = useRef<number | null>(null);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
+  const doublesCountRef = useRef(0);
+  const runningTotalRef = useRef(0);
   const landedPositionThisTurnRef = useRef<number | null>(null);
   const hasScheduledTurnEndRef = useRef(false);
   const turnEndInProgressRef = useRef(false);
@@ -871,11 +873,18 @@ export default function Board3DMobilePage() {
 
   const handleRollForLive = useCallback(() => {
     if (rollingDice || !game || !me) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    const value = getDiceValues();
     pendingRollRef.current = value;
     rollingForPlayerIdRef.current = me.user_id;
     setRollingDice({ die1: value.die1, die2: value.die2 });
   }, [rollingDice, game, me]);
+
+  useEffect(() => {
+    if (!isMyTurn) {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
+    }
+  }, [isMyTurn]);
 
   const handleUsePerkFromBar = useCallback(
     (tokenId: bigint, perk: number, _strength: number, name: string) => {
@@ -1006,8 +1015,40 @@ export default function Board3DMobilePage() {
     const currentPos = me.position ?? 0;
     const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
     const rolledDouble = value.die1 === value.die2;
-    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
-    const totalSteps = isInJail && !rolledDouble ? 0 : value.total;
+
+    if (!isInJail && rolledDouble) {
+      doublesCountRef.current += 1;
+      if (doublesCountRef.current >= 3) {
+        try {
+          await apiClient.post("/game-players/three-doubles-to-jail", {
+            game_id: game.id,
+            user_id: me.user_id,
+          });
+          toast.success("Three doubles! Go to jail.");
+          await refetchGame();
+          END_TURN();
+        } catch (err) {
+          toast.error(getContractErrorMessage(err as Error, "Failed to process three doubles"));
+        } finally {
+          doublesCountRef.current = 0;
+          runningTotalRef.current = 0;
+          setRollingDice(null);
+          rollingForPlayerIdRef.current = null;
+        }
+        return;
+      }
+      runningTotalRef.current += value.total;
+      setLastRollResultLive(value);
+      toast.success("Doubles! Roll again.");
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+
+    const totalMove = isInJail ? (rolledDouble ? value.total : 0) : runningTotalRef.current + value.total;
+    if (!isInJail) runningTotalRef.current += value.total;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + totalMove) % 40;
+    const totalSteps = isInJail && !rolledDouble ? 0 : totalMove;
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
@@ -1023,8 +1064,8 @@ export default function Board3DMobilePage() {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
-        rolled: value.total,
-        is_double: rolledDouble,
+        rolled: totalMove,
+        is_double: isInJail ? rolledDouble : false,
       });
       const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property; card?: { instruction?: string; display_instruction?: string } } })?.data;
       if (data?.still_in_jail) {
@@ -1084,6 +1125,8 @@ export default function Board3DMobilePage() {
       });
       toast.error(getContractErrorMessage(err, "Roll failed"));
     } finally {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
@@ -1095,6 +1138,7 @@ export default function Board3DMobilePage() {
     properties,
     gameProperties,
     runMovementAnimation,
+    END_TURN,
   ]);
 
   const handleDiceCompleteForAI = useCallback(async () => {

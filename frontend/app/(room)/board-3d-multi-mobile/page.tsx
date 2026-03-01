@@ -272,7 +272,7 @@ export default function Board3DMobilePage() {
   } | null>(null);
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"board" | "chat">("board");
 
   // Multiplayer: "Start now" ready window
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -337,6 +337,8 @@ export default function Board3DMobilePage() {
   const rollingForPlayerIdRef = useRef<number | null>(null);
   const rolledForPlayerIdRef = useRef<number | null>(null);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
+  const doublesCountRef = useRef(0);
+  const runningTotalRef = useRef(0);
   const landedPositionThisTurnRef = useRef<number | null>(null);
   const hasScheduledTurnEndRef = useRef(false);
   const turnEndInProgressRef = useRef(false);
@@ -871,11 +873,18 @@ export default function Board3DMobilePage() {
 
   const handleRollForLive = useCallback(() => {
     if (rollingDice || !game || !me) return;
-    const value = getDiceValues() ?? { die1: 6, die2: 6, total: 12 };
+    const value = getDiceValues();
     pendingRollRef.current = value;
     rollingForPlayerIdRef.current = me.user_id;
     setRollingDice({ die1: value.die1, die2: value.die2 });
   }, [rollingDice, game, me]);
+
+  useEffect(() => {
+    if (!isMyTurn) {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
+    }
+  }, [isMyTurn]);
 
   const handleUsePerkFromBar = useCallback(
     (tokenId: bigint, perk: number, _strength: number, name: string) => {
@@ -1006,8 +1015,40 @@ export default function Board3DMobilePage() {
     const currentPos = me.position ?? 0;
     const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
     const rolledDouble = value.die1 === value.die2;
-    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
-    const totalSteps = isInJail && !rolledDouble ? 0 : value.total;
+
+    if (!isInJail && rolledDouble) {
+      doublesCountRef.current += 1;
+      if (doublesCountRef.current >= 3) {
+        try {
+          await apiClient.post("/game-players/three-doubles-to-jail", {
+            game_id: game.id,
+            user_id: me.user_id,
+          });
+          toast.success("Three doubles! Go to jail.");
+          await refetchGame();
+          END_TURN();
+        } catch (err) {
+          toast.error(getContractErrorMessage(err as Error, "Failed to process three doubles"));
+        } finally {
+          doublesCountRef.current = 0;
+          runningTotalRef.current = 0;
+          setRollingDice(null);
+          rollingForPlayerIdRef.current = null;
+        }
+        return;
+      }
+      runningTotalRef.current += value.total;
+      setLastRollResultLive(value);
+      toast.success("Doubles! Roll again.");
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+
+    const totalMove = isInJail ? (rolledDouble ? value.total : 0) : runningTotalRef.current + value.total;
+    if (!isInJail) runningTotalRef.current += value.total;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + totalMove) % 40;
+    const totalSteps = isInJail && !rolledDouble ? 0 : totalMove;
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
@@ -1023,8 +1064,8 @@ export default function Board3DMobilePage() {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
-        rolled: value.total,
-        is_double: rolledDouble,
+        rolled: totalMove,
+        is_double: isInJail ? rolledDouble : false,
       });
       const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property; card?: { instruction?: string; display_instruction?: string } } })?.data;
       if (data?.still_in_jail) {
@@ -1084,6 +1125,8 @@ export default function Board3DMobilePage() {
       });
       toast.error(getContractErrorMessage(err, "Roll failed"));
     } finally {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
@@ -1095,6 +1138,7 @@ export default function Board3DMobilePage() {
     properties,
     gameProperties,
     runMovementAnimation,
+    END_TURN,
   ]);
 
   const handleDiceCompleteForAI = useCallback(async () => {
@@ -1790,19 +1834,28 @@ export default function Board3DMobilePage() {
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
-        {isLiveGame && isMultiplayer && gameCode && (
-          <button
-            type="button"
-            onClick={() => setChatOpen(true)}
-            className="px-2 py-1.5 rounded-md bg-amber-600/80 hover:bg-amber-500/90 border border-amber-400/40 text-amber-100 text-xs font-semibold shrink-0 flex items-center gap-1"
-            title="Open Tavern Chat"
-            aria-label="Open chat"
-          >
-            <MessageCircle className="w-3.5 h-3.5" />
-            Chat
-          </button>
-        )}
       </div>
+
+      {/* Content: board view or chat tab */}
+      {activeTab === "chat" ? (
+        <div
+          className="absolute left-0 right-0 flex flex-col overflow-hidden"
+          style={{
+            top: "calc(2.5rem + env(safe-area-inset-top, 0px))",
+            bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))",
+            zIndex: 5,
+          }}
+        >
+          <div className="flex-1 min-h-0 p-2">
+            <GameyChatRoom
+              gameId={gameCode ?? game?.code ?? ""}
+              me={me}
+              isMobile
+              showHeader={true}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <main
         className="w-full relative overflow-hidden"
@@ -1814,6 +1867,7 @@ export default function Board3DMobilePage() {
           height: `calc(${BOARD_HEIGHT_PCT}% - 2.5rem - env(safe-area-inset-top, 0px))`,
           zIndex: 0,
           isolation: "isolate",
+          display: activeTab === "board" ? "block" : "none",
         }}
       >
         {isLoading || (gameCode && gameLoading) ? (
@@ -1864,7 +1918,7 @@ export default function Board3DMobilePage() {
       </main>
 
       {/* Action log — between board and bottom bar */}
-      {isLiveGame && (
+      {activeTab === "board" && isLiveGame && (
         <div
           className="absolute left-2 right-2 z-10 flex flex-col"
           style={{
@@ -1879,8 +1933,9 @@ export default function Board3DMobilePage() {
         </div>
       )}
 
-      <Mobile3DGameUI
-        game={game ?? null}
+      {activeTab === "board" && (
+        <Mobile3DGameUI
+          game={game ?? null}
         properties={properties}
         game_properties={gameProperties}
         my_properties={my_properties}
@@ -1905,7 +1960,8 @@ export default function Board3DMobilePage() {
         onEndTurn={END_TURN}
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
-      />
+        />
+      )}
 
       {/* End game by net worth — confirm modal */}
       <AnimatePresence>
@@ -2287,43 +2343,34 @@ export default function Board3DMobilePage() {
         tokensAwarded={0.5}
       />
 
-      {/* Multiplayer: Tavern chat slide-up panel (mobile) */}
-      <AnimatePresence>
-        {chatOpen && isLiveGame && isMultiplayer && gameCode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2147483645] flex flex-col bg-black/60 backdrop-blur-sm"
-            style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-            onClick={() => setChatOpen(false)}
-          >
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="flex-1 min-h-0 flex flex-col mt-auto rounded-t-2xl overflow-hidden border-t border-amber-500/30 bg-[#0a1214] shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30">
-                <h3 className="font-bold text-amber-100 text-sm uppercase tracking-wide">Tavern Chat</h3>
-                <button
-                  type="button"
-                  onClick={() => setChatOpen(false)}
-                  className="p-2 rounded-lg text-amber-400/80 hover:text-amber-200 hover:bg-amber-500/20 transition-colors"
-                  aria-label="Close chat"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <GameyChatRoom gameId={gameCode} me={me} isMobile showHeader={false} />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Bottom navbar: Board | Chat — always visible on multiplayer mobile */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[100] flex items-center justify-around h-14 border-t border-amber-500/20 bg-[#0a1214]/98 backdrop-blur-md"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("board")}
+          className={`flex flex-1 flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
+            activeTab === "board" ? "text-amber-400" : "text-slate-500"
+          }`}
+          aria-label="Board"
+        >
+          <span className="text-xl leading-none" aria-hidden>🎲</span>
+          <span className="text-xs font-semibold tracking-wide">Board</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("chat")}
+          className={`flex flex-1 flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
+            activeTab === "chat" ? "text-amber-400" : "text-slate-500"
+          }`}
+          aria-label="Chat"
+        >
+          <MessageCircle className="w-5 h-5" />
+          <span className="text-xs font-semibold tracking-wide">Chat</span>
+        </button>
+      </nav>
 
       {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40">

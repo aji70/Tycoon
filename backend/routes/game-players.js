@@ -22,6 +22,7 @@ router.get("/game/:gameId", gamePlayerController.findByGame);
 router.get("/user/:userId", gamePlayerController.findByUser);
 
 router.post("/change-position", gamePlayerController.changePosition);
+router.post("/three-doubles-to-jail", gamePlayerController.threeDoublesToJail);
 router.post("/pay-to-leave-jail", gamePlayerController.payToLeaveJail);
 router.post("/stay-in-jail", gamePlayerController.stayInJail);
 router.post("/use-get-out-of-jail-free", gamePlayerController.useGetOutOfJailFree);
