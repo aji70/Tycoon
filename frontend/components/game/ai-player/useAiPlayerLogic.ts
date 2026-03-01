@@ -140,7 +140,8 @@ export function useAiPlayerLogic({
         resetTradeFields();
         refreshTrades();
 
-        if (isAI) {
+        // AI-only: auto-respond to trade; never run in multiplayer
+        if (game.is_ai !== false && isAI) {
           const sentTrade = {
             ...payload,
             id: res.data?.data?.id || Date.now(),
@@ -234,6 +235,7 @@ export function useAiPlayerLogic({
     me,
     tradeModal.target,
     game.id,
+    game.is_ai,
     game.players,
     game_properties,
     offerProperties,

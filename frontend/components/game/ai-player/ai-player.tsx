@@ -131,8 +131,9 @@ export default function GamePlayers({
     }
   }, [focusTrades, onViewedTrades]);
 
+// AI-only: never run in multiplayer (game.is_ai === false)
 useEffect(() => {
-  if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
+  if (game.is_ai === false || !isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
 
   const handleAiLiquidationAndPossibleBankruptcy = async () => {
     toast(`${currentPlayer.username} cannot pay — attempting to raise funds...`);
@@ -243,7 +244,7 @@ useEffect(() => {
   };
 
   handleAiLiquidationAndPossibleBankruptcy();
-}, [isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
+}, [game.is_ai, isAITurn, currentPlayer?.balance, currentPlayer, game_properties, game.id, game.code, game.players]);
  
 
 // Only show winner when backend has marked the game FINISHED (same as mobile).
