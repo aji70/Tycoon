@@ -1,8 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Property } from "@/types/game";
+import { X } from "lucide-react";
+
+type DeleteConfirmMode = "outgoing" | "all" | null;
 
 interface TradeSection3DProps {
   showTrade: boolean;
@@ -24,19 +27,27 @@ export default function TradeSection3D({
   onTradeAction,
 }: TradeSection3DProps) {
   const totalActive = openTrades.length + tradeRequests.length;
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmMode>(null);
 
   const handleClearAllOutgoing = () => {
     if (openTrades.length === 0) return;
-    if (!confirm("Delete ALL your active trade offers? This cannot be undone.")) return;
-    openTrades.forEach((trade) => onTradeAction(trade.id, "delete"));
+    setDeleteConfirm("outgoing");
   };
 
   const handleDeleteAll = () => {
     const total = tradeRequests.length + openTrades.length;
     if (total === 0) return;
-    if (!confirm(`Delete ALL ${total} trade(s)? This will decline and remove both incoming and outgoing trades. This cannot be undone.`)) return;
-    tradeRequests.forEach((trade) => onTradeAction(trade.id, "delete"));
-    openTrades.forEach((trade) => onTradeAction(trade.id, "delete"));
+    setDeleteConfirm("all");
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm === "outgoing") {
+      openTrades.forEach((trade) => onTradeAction(trade.id, "delete"));
+    } else if (deleteConfirm === "all") {
+      tradeRequests.forEach((trade) => onTradeAction(trade.id, "delete"));
+      openTrades.forEach((trade) => onTradeAction(trade.id, "delete"));
+    }
+    setDeleteConfirm(null);
   };
 
   const renderTrade = (trade: any, isIncoming: boolean) => {
@@ -173,6 +184,65 @@ export default function TradeSection3D({
                 <p className="text-slate-600 text-xs mt-1">Use Trade on a player to propose</p>
               </div>
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* In-app delete confirmation modal — stays inside fullscreen so it doesn't exit fullscreen */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm z-[2147483647]"
+            onClick={() => setDeleteConfirm(null)}
+            style={{ position: "fixed" }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-xl border border-cyan-500/40 bg-slate-900 p-5 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-cyan-200">
+                  {deleteConfirm === "outgoing"
+                    ? "Delete all outgoing?"
+                    : "Delete all trades?"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm text-slate-300 mb-5">
+                {deleteConfirm === "outgoing"
+                  ? "Delete ALL your active trade offers? This cannot be undone."
+                  : `Delete ALL ${tradeRequests.length + openTrades.length} trade(s)? This will decline and remove both incoming and outgoing trades. This cannot be undone.`}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm(null)}
+                  className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-colors"
+                >
+                  Delete all
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
