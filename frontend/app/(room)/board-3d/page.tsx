@@ -377,6 +377,7 @@ export default function Board3DDemoPage() {
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [demoHistory, setDemoHistory] = useState<History[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
   const moveStartPositionsRef = useRef<Record<number, number>>({});
@@ -1658,27 +1659,39 @@ export default function Board3DDemoPage() {
       <div
         className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0 relative"
       >
-        {/* Live game: balance (visible only in fullscreen so user can see their cash) */}
-        {isLiveGame && me && isFullscreen && (
+        {/* Balance — visible in normal and fullscreen */}
+        {isLiveGame && me && (
           <div
             className="absolute top-3 left-3 z-[100] px-4 py-2 rounded-xl bg-slate-800/95 border border-cyan-500/50 text-cyan-200 font-bold shadow-lg"
             style={{ zIndex: 2147483646 }}
           >
-            Balance: ${Number(me.balance ?? 0).toLocaleString()}
+            ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
 
-        {/* Fullscreen button — top right so user can toggle without scrolling */}
+        {/* Reset view + Fullscreen — visible in normal and fullscreen */}
         {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="absolute top-3 right-3 z-[100] px-4 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 font-medium shadow-lg"
+          <div
+            className="absolute top-3 right-3 z-[100] flex items-center gap-2"
             style={{ zIndex: 2147483646 }}
-            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
-            {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-          </button>
+            <button
+              type="button"
+              onClick={() => setResetViewTrigger((t) => t + 1)}
+              className="px-4 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 font-medium shadow-lg"
+              title="Reset board view to default"
+            >
+              Reset view
+            </button>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="px-4 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 font-medium shadow-lg"
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            >
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </button>
+          </div>
         )}
 
         {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" ? (
@@ -1724,6 +1737,7 @@ export default function Board3DDemoPage() {
                   onRoll={showRollUi ? onRollClick : undefined}
                   history={historyToShow}
                   aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
+                  resetViewTrigger={resetViewTrigger}
                 />
               </Canvas>
             </div>

@@ -232,6 +232,7 @@ export default function Board3DMobilePage() {
   const lastTipPropertyIdRef = useRef<number | null>(null);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const fullscreenRef = useRef<HTMLDivElement>(null);
 
   const timeUpHandledRef = useRef(false);
@@ -306,6 +307,17 @@ export default function Board3DMobilePage() {
       if (gp.address) {
         const owner = livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase());
         if (owner?.username) out[gp.property_id] = owner.username;
+      }
+    });
+    return out;
+  }, [gameProperties, livePlayers]);
+
+  const ownerSymbolByPropertyId = useMemo(() => {
+    const out: Record<number, string> = {};
+    gameProperties.forEach((gp) => {
+      if (gp.address) {
+        const owner = livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase());
+        if (owner?.symbol) out[gp.property_id] = owner.symbol;
       }
     });
     return out;
@@ -1384,13 +1396,13 @@ export default function Board3DMobilePage() {
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Balance — always visible, including fullscreen */}
+      {/* Balance — visible in normal and fullscreen */}
       {isLiveGame && me && (
         <div
-          className="fixed left-3 z-[100] px-3 py-1.5 rounded-lg bg-slate-800/95 border border-slate-500/60 text-amber-200 text-sm font-bold shadow-lg"
-          style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
+          className="fixed left-3 z-[100] px-3 py-2 rounded-xl bg-slate-800/95 border border-cyan-500/50 text-cyan-200 text-sm font-bold shadow-lg"
+          style={{ top: "max(0.5rem, env(safe-area-inset-top))", zIndex: 2147483646 }}
         >
-          ${(me.balance ?? 0).toLocaleString()}
+          ${Number(me.balance ?? 0).toLocaleString()}
         </div>
       )}
 
@@ -1444,6 +1456,7 @@ export default function Board3DMobilePage() {
                 currentPlayerId={isLiveGame ? currentPlayerId : null}
                 developmentByPropertyId={liveDevelopmentByPropertyId}
                 ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
+                ownerSymbolByPropertyId={isLiveGame ? ownerSymbolByPropertyId : undefined}
                 onSquareClick={handlePropertyClick}
                 rollingDice={rollingDice ?? undefined}
                 onDiceComplete={isLiveGame ? onDiceCompleteClick : undefined}
@@ -1451,9 +1464,10 @@ export default function Board3DMobilePage() {
                 onRoll={showRollUi ? onRollClick : undefined}
                 history={historyToShow}
                 hideCenterActionLog={true}
-                hideOwnerBadges={true}
+                hideOwnerBadges={false}
                 smallTokens={true}
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
+                resetViewTrigger={resetViewTrigger}
               />
             </Canvas>
           </div>
@@ -1476,17 +1490,31 @@ export default function Board3DMobilePage() {
         </div>
       )}
 
-      {/* Fullscreen button */}
+      {/* Reset view + Fullscreen — visible in normal and fullscreen */}
       {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="absolute top-12 right-3 z-[100] px-3 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 text-sm font-medium shadow-lg"
-          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        <div
+          className="absolute top-2 right-3 z-[100] flex items-center gap-2"
+          style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
         >
-          {isFullscreen ? "Exit" : "Fullscreen"}
-        </button>
+          <button
+            type="button"
+            onClick={() => setResetViewTrigger((t) => t + 1)}
+            className="px-3 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 text-sm font-medium shadow-lg"
+            title="Reset board view to default"
+            aria-label="Reset board view"
+          >
+            Reset view
+          </button>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="px-3 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 text-sm font-medium shadow-lg"
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? "Exit" : "Fullscreen"}
+          </button>
+        </div>
       )}
 
       <Mobile3DGameUI
