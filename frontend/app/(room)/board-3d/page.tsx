@@ -1480,30 +1480,30 @@ export default function Board3DDemoPage() {
       >
       {/* Sidebar: Perks + X + notification bell + Players — fixed on desktop so it never scrolls out */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 fixed left-4 top-[100px] z-20 max-h-[calc(100vh-100px-1rem)] overflow-y-auto">
-        {/* Boost bar (perks) + X (end by net worth) + notification bell — inline above player section */}
+        {/* Boost bar (perks) on its own line; X + notification bell on the next line */}
         {isLiveGame && game && (
           <div className="flex flex-col gap-3 shrink-0">
+            <PerksBar onOpenModal={() => setShowPerksModal(true)} className="shrink-0" />
             <div className="flex items-center gap-2 flex-wrap">
-              <PerksBar onOpenModal={() => setShowPerksModal(true)} className="shrink-0" />
-            {isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
-                  if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
-                }}
-                disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-                className="w-10 h-10 shrink-0 rounded-xl text-lg font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
-                title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
-                aria-label="Vote to end game by net worth"
-              >
-                ×
-              </button>
-            )}
-            <TradeAlertPill
-              incomingCount={incomingTrades?.length ?? 0}
-              onViewTrades={() => setViewTradesRequested(true)}
-            />
+              {isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+                    if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+                  }}
+                  disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+                  className="w-10 h-10 shrink-0 rounded-xl text-lg font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 hover:border-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center"
+                  title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End game by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+                  aria-label="Vote to end game by net worth"
+                >
+                  ×
+                </button>
+              )}
+              <TradeAlertPill
+                incomingCount={incomingTrades?.length ?? 0}
+                onViewTrades={() => setViewTradesRequested(true)}
+              />
             </div>
           </div>
         )}
