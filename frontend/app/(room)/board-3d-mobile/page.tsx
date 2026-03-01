@@ -34,7 +34,8 @@ const Mobile3DGameUI = dynamic(
 );
 import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Trophy, HeartHandshake } from "lucide-react";
+import { Crown, Trophy, HeartHandshake, MessageCircle, X } from "lucide-react";
+import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -271,6 +272,7 @@ export default function Board3DMobilePage() {
   } | null>(null);
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Multiplayer: "Start now" ready window
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -1788,6 +1790,18 @@ export default function Board3DMobilePage() {
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
+        {isLiveGame && isMultiplayer && gameCode && (
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            className="px-2 py-1.5 rounded-md bg-amber-600/80 hover:bg-amber-500/90 border border-amber-400/40 text-amber-100 text-xs font-semibold shrink-0 flex items-center gap-1"
+            title="Open Tavern Chat"
+            aria-label="Open chat"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            Chat
+          </button>
+        )}
       </div>
 
       <main
@@ -2272,6 +2286,44 @@ export default function Board3DMobilePage() {
         onReturnHome={() => (window.location.href = "/")}
         tokensAwarded={0.5}
       />
+
+      {/* Multiplayer: Tavern chat slide-up panel (mobile) */}
+      <AnimatePresence>
+        {chatOpen && isLiveGame && isMultiplayer && gameCode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2147483645] flex flex-col bg-black/60 backdrop-blur-sm"
+            style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+            onClick={() => setChatOpen(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="flex-1 min-h-0 flex flex-col mt-auto rounded-t-2xl overflow-hidden border-t border-amber-500/30 bg-[#0a1214] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30">
+                <h3 className="font-bold text-amber-100 text-sm uppercase tracking-wide">Tavern Chat</h3>
+                <button
+                  type="button"
+                  onClick={() => setChatOpen(false)}
+                  className="p-2 rounded-lg text-amber-400/80 hover:text-amber-200 hover:bg-amber-500/20 transition-colors"
+                  aria-label="Close chat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <GameyChatRoom gameId={gameCode} me={me} isMobile showHeader={false} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40">
