@@ -150,6 +150,7 @@ function SquareTile({
     : null;
 
   // Owner badge: only show when property has an owner (no badge for unowned). Hidden on mobile for cleaner board.
+  // Keep owner badge horizontal on all sides (no vertical/tilted text on top or bottom row).
   const ownerBadge =
     !hideOwnerBadge && square.type === "property" && owner
       ? createElement(
@@ -158,16 +159,15 @@ function SquareTile({
             position: [x, 0.02, z + size * 0.35] as [number, number, number],
             center: true,
             distanceFactor: 18,
+            transform: false,
             style: {
               fontSize: "9px",
               fontWeight: 600,
               color: "#fbbf24",
               textShadow: "0 0 4px #000, 0 1px 3px #000",
               textAlign: "center",
-              whiteSpace: isTopOrBottomRow ? "normal" : "nowrap",
-              writingMode: isTopOrBottomRow ? "vertical-rl" : undefined,
-              textOrientation: isTopOrBottomRow ? "mixed" : undefined,
-              maxWidth: isTopOrBottomRow ? "40px" : "80px",
+              whiteSpace: "nowrap",
+              maxWidth: "80px",
               overflow: "hidden",
               textOverflow: "ellipsis",
               pointerEvents: "none",
