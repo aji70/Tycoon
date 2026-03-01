@@ -1634,62 +1634,58 @@ export default function Board3DMobilePage() {
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Top bar: time left · reset · exit · balance (one line) */}
+      {/* Top bar: all game controls start from the left; right side left clear for main nav hamburger */}
       <div
-        className="fixed left-0 right-0 z-[100] flex items-center justify-between gap-1.5 px-2 py-1.5 bg-slate-800/95 border-b border-slate-600/50"
+        className="fixed left-0 right-0 z-[100] flex items-center justify-start gap-1.5 pl-2 pr-16 py-1.5 bg-slate-800/95 border-b border-slate-600/50"
         style={{ top: 0, paddingTop: "max(0.375rem, env(safe-area-inset-top))", zIndex: 2147483646 }}
       >
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
-            <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} compact className="text-slate-200 text-xs shrink-0" />
-          )}
-          {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+        {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
+          <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} compact className="text-slate-200 text-xs shrink-0" />
+        )}
+        {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
+          <button
+            type="button"
+            onClick={() => {
+              if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
+              if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
+            }}
+            disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
+            className="px-2 py-1.5 rounded-md text-xs font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 shrink-0 disabled:opacity-50 disabled:pointer-events-none"
+            title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+          >
+            {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+          </button>
+        )}
+        {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
+          <>
             <button
               type="button"
-              onClick={() => {
-                if (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id)) return;
-                if (!endByNetWorthLoading) setShowEndByNetWorthConfirm(true);
-              }}
-              disabled={endByNetWorthLoading || (endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ?? false)}
-              className="px-2 py-1.5 rounded-md text-xs font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 shrink-0 disabled:opacity-50 disabled:pointer-events-none"
-              title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+              onClick={() => setResetViewTrigger((t) => t + 1)}
+              className="px-2 py-1.5 rounded-md bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-200 text-xs font-medium shrink-0"
+              title="Reset board view"
+              aria-label="Reset view"
             >
-              {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+              Reset
             </button>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
-            <>
-              <button
-                type="button"
-                onClick={() => setResetViewTrigger((t) => t + 1)}
-                className="px-2 py-1.5 rounded-md bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-200 text-xs font-medium"
-                title="Reset board view"
-                aria-label="Reset view"
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className="px-2 py-1.5 rounded-md bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-200 text-xs font-medium"
-                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-              >
-                {isFullscreen ? "Exit" : "FS"}
-              </button>
-            </>
-          )}
-          {isLiveGame && me && (
-            <div
-              className="px-2 py-1.5 rounded-md bg-slate-700/90 border border-cyan-500/40 text-cyan-200 text-xs font-bold shrink-0"
-              title={`Balance: $${Number(me.balance ?? 0).toLocaleString()}`}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="px-2 py-1.5 rounded-md bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-200 text-xs font-medium shrink-0"
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
-              ${Number(me.balance ?? 0).toLocaleString()}
-            </div>
-          )}
-        </div>
+              {isFullscreen ? "Exit" : "FS"}
+            </button>
+          </>
+        )}
+        {isLiveGame && me && (
+          <div
+            className="px-2 py-1.5 rounded-md bg-slate-700/90 border border-cyan-500/40 text-cyan-200 text-xs font-bold shrink-0"
+            title={`Balance: $${Number(me.balance ?? 0).toLocaleString()}`}
+          >
+            ${Number(me.balance ?? 0).toLocaleString()}
+          </div>
+        )}
       </div>
 
       <main

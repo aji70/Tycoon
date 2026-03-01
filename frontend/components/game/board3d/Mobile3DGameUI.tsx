@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Bell, Users, X } from "lucide-react";
+import { Sparkles, Bell, Users, X, Landmark } from "lucide-react";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
 import PerksBar from "./PerksBar";
+import MyEmpire3D from "./MyEmpire3D";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
 interface Mobile3DGameUIProps {
@@ -61,6 +62,7 @@ export default function Mobile3DGameUI({
   const hasGame = !!game;
 
   const [internalPlayerModalOpen, setInternalPlayerModalOpen] = useState(false);
+  const [showEmpireModal, setShowEmpireModal] = useState(false);
 
   // Bell: open modal with Trade tab selected (viewTradesRequested=true)
   const openBellModal = () => {
@@ -75,7 +77,7 @@ export default function Mobile3DGameUI({
 
   return (
     <>
-      {/* Bottom bar: Perks (bar or button), Bell (Trades), Players */}
+      {/* Bottom bar: Perks, My Empire, Trades, Players */}
       <div
         className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-center gap-2 sm:gap-4 px-2 sm:px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
@@ -89,8 +91,16 @@ export default function Mobile3DGameUI({
         </div>
         <button
           type="button"
+          onClick={() => setShowEmpireModal(true)}
+          className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0"
+        >
+          <Landmark className="w-5 h-5" />
+          <span className="text-xs font-medium">Empire</span>
+        </button>
+        <button
+          type="button"
           onClick={openBellModal}
-          className="relative flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition"
+          className="relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0"
         >
           <Bell className="w-5 h-5" />
           <span className="text-xs font-medium">Trades</span>
@@ -103,12 +113,68 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={openPlayerModal}
-          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition"
+          className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0"
         >
           <Users className="w-5 h-5" />
           <span className="text-xs font-medium">Players</span>
         </button>
       </div>
+
+      {/* My Empire modal */}
+      <AnimatePresence>
+        {showEmpireModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEmpireModal(false)}
+              className="fixed inset-0 bg-black/60 z-[9999]"
+              style={{ transform: "translateZ(0)" }}
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
+              style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
+                <h2 className="text-lg font-bold text-amber-200 flex items-center gap-2">
+                  <Landmark className="w-5 h-5" />
+                  My Empire
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowEmpireModal(false)}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {hasGame && game && onPropertySelect ? (
+                  <MyEmpire3D
+                    showEmpire={true}
+                    toggleEmpire={() => {}}
+                    my_properties={my_properties}
+                    properties={properties}
+                    game_properties={game_properties}
+                    onPropertyClick={(prop) => {
+                      const gp = game_properties.find((g) => g.property_id === prop.id);
+                      onPropertySelect(prop, gp);
+                    }}
+                  />
+                ) : (
+                  <p className="text-slate-500 text-sm py-4">Join a game to see your properties.</p>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Player/Game modal: Bell opens with Trade tab, Players opens with Players tab */}
       <AnimatePresence>
