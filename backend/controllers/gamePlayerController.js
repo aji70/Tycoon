@@ -319,7 +319,8 @@ const payRent = async (
           chanceCard = { ...chanceCard, display_instruction: displayInstruction };
         }
       }
-      comment = `drew ${typeName}: ${displayInstruction}`;
+      const fallbackText = displayInstruction || card.instruction || "Card drawn";
+      comment = `drew ${typeName}: ${fallbackText}`;
     };
 
     let game_property = null;

@@ -66,17 +66,25 @@ export default function ActionLog({ history }: ActionLogProps) {
           <p className="text-center text-gray-500 text-xs italic py-8">No actions yet</p>
         ) : (
           deduped.map((h, i) => {
-            const name = typeof h === "object" && h !== null && "player_name" in h ? (h as { player_name?: string }).player_name : "";
-            const comment = typeof h === "object" && h !== null && "comment" in h ? (h as { comment?: string }).comment : String(h ?? "");
-            const rolled = typeof h === "object" && h !== null && "rolled" in h ? (h as { rolled?: number }).rolled : undefined;
+            const isObj = typeof h === "object" && h !== null;
+            const name = isObj && "player_name" in h ? String((h as { player_name?: string }).player_name ?? "") : "";
+            const rawComment = isObj && "comment" in h ? (h as { comment?: string | null }).comment : undefined;
+            const comment = rawComment != null && String(rawComment).trim() !== "" ? String(rawComment) : (isObj && "extra" in h ? (() => {
+              const ex = (h as { extra?: unknown }).extra;
+              if (ex && typeof ex === "object" && "description" in ex) return String((ex as { description?: string }).description ?? "—");
+              if (typeof ex === "string") try { const p = JSON.parse(ex); return (p?.description && String(p.description)) || "—"; } catch { return "—"; }
+              return "—";
+            })() : String(h ?? "—"));
+            const rolled = isObj && "rolled" in h ? (h as { rolled?: number }).rolled : undefined;
+            const key = isObj && "id" in h && typeof (h as { id?: number }).id === "number" ? (h as { id: number }).id : `log-${i}`;
             return (
               <motion.p
-                key={`${h && typeof h === "object" && "id" in h ? (h as { id?: number }).id : i}-${name}-${(comment ?? "").slice(0, 30)}`}
+                key={key}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-xs text-gray-300"
               >
-                <span className="font-medium text-cyan-200">{name}</span> {comment}
+                <span className="font-medium text-cyan-200">{name || "—"}</span> {comment}
                 {rolled != null && <span className="text-cyan-400 font-bold ml-1">[Rolled {rolled}]</span>}
               </motion.p>
             );
