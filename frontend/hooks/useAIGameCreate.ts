@@ -9,6 +9,7 @@ import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
+import { useMediaQuery } from "@/components/useMediaQuery";
 import {
   useIsRegistered,
   useGetUsername,
@@ -71,8 +72,10 @@ export interface UseAIGameCreateOptions {
 export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const router = useRouter();
   const { address } = useAccount();
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const redirectTo3D = options?.redirectTo3D ?? false;
   const { caipNetwork } = useAppKitNetwork();
+  const board3DUrl = redirectTo3D ? (isMobile ? `/board-3d-mobile?gameCode=` : `/board-3d?gameCode=`) : null;
   const guestAuth = useGuestAuthOptional();
   const isGuest = !!guestAuth?.guestUser;
 
@@ -154,7 +157,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           isLoading: false,
           autoClose: 5000,
         });
-        router.push(redirectTo3D ? `/board-3d?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
+        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/ai-play?gameCode=${gameCode}`);
       } catch (err: any) {
         const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
         toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
@@ -246,7 +249,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         autoClose: 5000,
       });
 
-      router.push(redirectTo3D ? `/board-3d?gameCode=${gameCode}` : `/ai-play?gameCode=${gameCode}`);
+      router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
       console.error("handlePlay error:", err);
       const message = getContractErrorMessage(err, "Something went wrong. Please try again.");
