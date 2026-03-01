@@ -2,21 +2,79 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Bell, Users, X, Building2, Handshake } from "lucide-react";
+import { Sparkles, Bell, Users, X } from "lucide-react";
+import type { Game, GameProperty, Player, Property } from "@/types/game";
+import PlayerSection3D from "./PlayerSection3D";
+import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
-/** Skeletal UI only: notification bar + player modal (Players / My Empire / Trade) + perks modal. No game logic. */
-export default function Mobile3DGameUI() {
-  const [showPlayerModal, setShowPlayerModal] = useState(false);
-  const [showPerksModal, setShowPerksModal] = useState(false);
-  const [playerModalTab, setPlayerModalTab] = useState<"players" | "empire" | "trade">("players");
+export interface Mobile3DGameUIProps {
+  game?: Game | null;
+  properties?: Property[];
+  game_properties?: GameProperty[];
+  my_properties?: Property[];
+  me?: Player | null;
+  currentPlayer?: Player | null;
+  positions?: Record<number, number>;
+  isAITurn?: boolean;
+  isLoading?: boolean;
+  onPropertySelect?: (property: Property, gameProperty?: GameProperty) => void;
+  viewTradesRequested?: boolean;
+  onViewTrades?: () => void;
+  onTradeSectionOpened?: () => void;
+  incomingTradeCount?: number;
+  showPerksModal?: boolean;
+  setShowPerksModal?: (v: boolean) => void;
+  isMyTurn?: boolean;
+  onRollDice?: () => void;
+  onEndTurn?: () => void;
+  triggerSpecialLanding?: (position: number, isSpecial?: boolean) => void;
+  endTurnAfterSpecial?: () => void;
+}
 
-  const incomingTradeCount = 0; // placeholder
+export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
+  const {
+    game,
+    properties = [],
+    game_properties = [],
+    my_properties = [],
+    me,
+    currentPlayer,
+    positions = {},
+    isAITurn = false,
+    isLoading = false,
+    onPropertySelect,
+    viewTradesRequested = false,
+    onViewTrades,
+    onTradeSectionOpened,
+    incomingTradeCount = 0,
+    showPerksModal: controlledPerksOpen,
+    setShowPerksModal: setControlledPerksOpen,
+    isMyTurn = false,
+    onRollDice,
+    onEndTurn,
+    triggerSpecialLanding,
+    endTurnAfterSpecial,
+  } = props;
+
+  const [internalPlayerModalOpen, setInternalPlayerModalOpen] = useState(false);
+  const [internalPerksOpen, setInternalPerksOpen] = useState(false);
+
+  const showPerksModal = controlledPerksOpen ?? internalPerksOpen;
+  const setShowPerksModal = setControlledPerksOpen ?? setInternalPerksOpen;
+  const showPlayerModal = internalPlayerModalOpen;
+
+  const hasGame = !!game && !isLoading;
+
+  const openPlayerModal = (tab?: "players" | "empire" | "trade") => {
+    if (viewTradesRequested && onTradeSectionOpened) onTradeSectionOpened();
+    setInternalPlayerModalOpen(true);
+  };
 
   return (
     <>
-      {/* Notification bar — fixed at bottom, above board */}
+      {/* Notification bar */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-40 flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/95 backdrop-blur-md border-t border-slate-600/50 safe-area-pb"
+        className="fixed left-0 right-0 bottom-0 z-40 flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/95 backdrop-blur-md border-t border-slate-600/50"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
         <button
@@ -31,8 +89,8 @@ export default function Mobile3DGameUI() {
         <button
           type="button"
           onClick={() => {
-            setPlayerModalTab("trade");
-            setShowPlayerModal(true);
+            onViewTrades?.();
+            openPlayerModal();
           }}
           className="relative w-12 h-12 rounded-xl flex items-center justify-center border border-violet-500/50 bg-gradient-to-br from-violet-800/95 to-fuchsia-800/95 text-violet-200 hover:border-violet-400/60 transition-colors"
           aria-label="Trade"
@@ -47,10 +105,7 @@ export default function Mobile3DGameUI() {
 
         <button
           type="button"
-          onClick={() => {
-            setPlayerModalTab("players");
-            setShowPlayerModal(true);
-          }}
+          onClick={() => openPlayerModal()}
           className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-600/90 border border-amber-400/60 text-white hover:bg-amber-500 transition-colors"
           aria-label="Players"
         >
@@ -58,7 +113,7 @@ export default function Mobile3DGameUI() {
         </button>
       </div>
 
-      {/* Player modal — bottom sheet: Players | My Empire | Trade (skeletal) */}
+      {/* Player modal: PlayerSection3D when game exists, else placeholder */}
       <AnimatePresence>
         {showPlayerModal && (
           <>
@@ -66,7 +121,7 @@ export default function Mobile3DGameUI() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowPlayerModal(false)}
+              onClick={() => setInternalPlayerModalOpen(false)}
               className="fixed inset-0 bg-black/60 z-50"
             />
             <motion.div
@@ -81,67 +136,33 @@ export default function Mobile3DGameUI() {
                 <h2 className="text-lg font-bold text-amber-200">Game</h2>
                 <button
                   type="button"
-                  onClick={() => setShowPlayerModal(false)}
+                  onClick={() => setInternalPlayerModalOpen(false)}
                   className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-slate-600/50 shrink-0">
-                {(
-                  [
-                    { id: "players" as const, label: "Players", icon: Users },
-                    { id: "empire" as const, label: "My Empire", icon: Building2 },
-                    { id: "trade" as const, label: "Trade", icon: Handshake },
-                  ] as const
-                ).map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setPlayerModalTab(id)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
-                      playerModalTab === id
-                        ? "text-amber-400 border-b-2 border-amber-400 bg-amber-500/10"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4">
-                {playerModalTab === "players" && (
-                  <div className="space-y-2">
-                    <p className="text-slate-500 text-sm">Players list (placeholder)</p>
-                    {[1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 border-slate-600/50 bg-slate-800/60"
-                      >
-                        <div className="w-9 h-9 rounded-full bg-slate-700" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-200 truncate">Player {i}</p>
-                          <p className="text-xs text-slate-400">$0 · —</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {playerModalTab === "empire" && (
-                  <div>
-                    <p className="text-slate-500 text-sm">My Empire (placeholder)</p>
-                    <p className="text-slate-600 text-xs mt-1">Your properties will appear here.</p>
-                  </div>
-                )}
-                {playerModalTab === "trade" && (
-                  <div>
-                    <p className="text-slate-500 text-sm">Trade (placeholder)</p>
-                    <p className="text-slate-600 text-xs mt-1">Incoming and active trades will appear here.</p>
+              <div className="flex-1 overflow-y-auto p-3">
+                {hasGame && game ? (
+                  <PlayerSection3D
+                    game={game}
+                    properties={properties}
+                    game_properties={game_properties}
+                    my_properties={my_properties}
+                    me={me ?? null}
+                    currentPlayer={currentPlayer ?? null}
+                    positions={positions}
+                    isAITurn={isAITurn}
+                    isLoading={false}
+                    onPropertySelect={onPropertySelect}
+                    openTradeSection={viewTradesRequested}
+                    onTradeSectionOpened={onTradeSectionOpened}
+                  />
+                ) : (
+                  <div className="space-y-2 py-4">
+                    <p className="text-slate-500 text-sm">Join a game to see players, your empire, and trades.</p>
+                    <p className="text-slate-600 text-xs">Use a game link with ?gameCode=XXXXXX</p>
                   </div>
                 )}
               </div>
@@ -150,7 +171,7 @@ export default function Mobile3DGameUI() {
         )}
       </AnimatePresence>
 
-      {/* Perks modal — placeholder */}
+      {/* Perks modal: CollectibleInventoryBar when game exists, else placeholder */}
       <AnimatePresence>
         {showPerksModal && (
           <>
@@ -169,7 +190,7 @@ export default function Mobile3DGameUI() {
               className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
               style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
                 <h2 className="text-lg font-bold text-violet-200 flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
                   Perks & collectibles
@@ -184,8 +205,22 @@ export default function Mobile3DGameUI() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
-                <p className="text-slate-500 text-sm">Perks content (placeholder)</p>
-                <p className="text-slate-600 text-xs mt-1">Collectibles and perks will appear here when in a game.</p>
+                {hasGame && game && onRollDice ? (
+                  <CollectibleInventoryBar
+                    game={game}
+                    game_properties={game_properties}
+                    isMyTurn={isMyTurn}
+                    ROLL_DICE={onRollDice}
+                    END_TURN={onEndTurn}
+                    triggerSpecialLanding={triggerSpecialLanding}
+                    endTurnAfterSpecial={endTurnAfterSpecial}
+                  />
+                ) : (
+                  <>
+                    <p className="text-slate-500 text-sm">Perks content</p>
+                    <p className="text-slate-600 text-xs mt-1">Join a game to use collectibles and perks.</p>
+                  </>
+                )}
               </div>
             </motion.div>
           </>
