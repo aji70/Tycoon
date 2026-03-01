@@ -1543,6 +1543,11 @@ export default function Board3DDemoPage() {
         )}
       </AnimatePresence>
 
+      {/* Wrapper for fullscreen: sidebar + board so both stay visible in fullscreen mode */}
+      <div
+        ref={fullscreenRef}
+        className={`flex flex-row gap-4 flex-1 min-w-0 min-h-0 overflow-hidden ${isFullscreen ? "p-4 bg-[#010F10]" : ""}`}
+      >
       {/* Sidebar: Perks + End game by net worth (untimed) inline, then Players + My Empire + Trade — sticky so it stays visible when scrolling */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
         {/* Perks and X (end by net worth) — inline above player section */}
@@ -1651,7 +1656,6 @@ export default function Board3DDemoPage() {
 
       {/* Board area */}
       <div
-        ref={fullscreenRef}
         className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0 relative"
       >
         {/* Live game: balance (visible only in fullscreen so user can see their cash) */}
@@ -1851,6 +1855,7 @@ export default function Board3DDemoPage() {
           card={cardData}
           playerName={cardPlayerName}
         />
+      </div>
       </div>
 
       {selectedProperty && (

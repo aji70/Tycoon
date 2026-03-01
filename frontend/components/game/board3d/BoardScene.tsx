@@ -53,6 +53,8 @@ type BoardSceneProps = {
   aiThinking?: boolean;
   /** When true, hide persistent owner badges on tiles (e.g. mobile for a cleaner board; ownership still shown on tap in tooltip) */
   hideOwnerBadges?: boolean;
+  /** When true, use smaller player tokens (e.g. mobile) */
+  smallTokens?: boolean;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -755,20 +757,24 @@ function CenterRollButton({ onRoll, disabled }: { onRoll: () => void; disabled: 
 
 function PlayerToken({
   positionIndex,
-  playerIndex,
   totalOnSquare,
   symbol,
   isCurrent,
+  smallTokens = false,
 }: {
   positionIndex: number;
   playerIndex: number;
   totalOnSquare: number;
   symbol: string;
   isCurrent: boolean;
+  smallTokens?: boolean;
 }) {
+  // Always use tile center (no offset) so the token stays in the center of the square
   const [x, , z] = getPosition3D(positionIndex);
   const groupRef = useRef<THREE.Group>(null);
   const emoji = getPlayerSymbol(symbol) ?? "🎲";
+  const size = smallTokens ? 24 : 40;
+  const fontSize = smallTokens ? "18px" : "28px";
 
   useFrame(() => {
     if (groupRef.current && isCurrent) {
@@ -789,7 +795,7 @@ function PlayerToken({
         distanceFactor: 10,
         sprite: true,
         style: {
-          fontSize: "28px",
+          fontSize,
           lineHeight: 1,
           pointerEvents: "none",
           userSelect: "none",
@@ -804,8 +810,8 @@ function PlayerToken({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: "40px",
-            height: "40px",
+            width: `${size}px`,
+            height: `${size}px`,
             borderRadius: "50%",
             background: isCurrent ? "rgba(34, 211, 238, 0.4)" : "rgba(0,0,0,0.55)",
             border: isCurrent ? "3px solid #22d3ee" : "2px solid rgba(255,255,255,0.5)",
@@ -834,6 +840,7 @@ export default function BoardScene({
   hideCenterActionLog = false,
   aiThinking,
   hideOwnerBadges = false,
+  smallTokens = false,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -903,6 +910,7 @@ export default function BoardScene({
         totalOnSquare,
         symbol,
         isCurrent: currentPlayerId === player.user_id,
+        smallTokens,
       })
     ),
     createElement(OrbitControls, {
