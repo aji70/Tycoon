@@ -1399,33 +1399,58 @@ export default function Board3DMobilePage() {
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Balance — visible in normal and fullscreen */}
-      {isLiveGame && me && (
-        <div
-          className="fixed left-3 z-[100] px-3 py-2 rounded-xl bg-slate-800/95 border border-cyan-500/50 text-cyan-200 text-sm font-bold shadow-lg"
-          style={{ top: "max(0.5rem, env(safe-area-inset-top))", zIndex: 2147483646 }}
-        >
-          ${Number(me.balance ?? 0).toLocaleString()}
+      {/* Top bar: time left · reset · exit · balance (one line) */}
+      <div
+        className="fixed left-0 right-0 z-[100] flex items-center justify-between gap-1.5 px-2 py-1.5 bg-slate-800/95 border-b border-slate-600/50"
+        style={{ top: 0, paddingTop: "max(0.375rem, env(safe-area-inset-top))", zIndex: 2147483646 }}
+      >
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
+            <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} compact className="text-slate-200 text-xs shrink-0" />
+          )}
         </div>
-      )}
-
-      {/* Timer */}
-      {isLiveGame && game && !isUntimed && game.duration && (
-        <GameDurationCountdown
-          game={game}
-          onTimeUp={handleGameTimeUp}
-          className="fixed top-2 left-1/2 -translate-x-1/2 z-30 text-slate-200 text-sm bg-slate-800/90 px-3 py-1.5 rounded-lg"
-        />
-      )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
+            <>
+              <button
+                type="button"
+                onClick={() => setResetViewTrigger((t) => t + 1)}
+                className="px-2 py-1.5 rounded-md bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-200 text-xs font-medium"
+                title="Reset board view"
+                aria-label="Reset view"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="px-2 py-1.5 rounded-md bg-slate-700/90 hover:bg-slate-600 border border-slate-500/50 text-slate-200 text-xs font-medium"
+                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? "Exit" : "FS"}
+              </button>
+            </>
+          )}
+          {isLiveGame && me && (
+            <div
+              className="px-2 py-1.5 rounded-md bg-slate-700/90 border border-cyan-500/40 text-cyan-200 text-xs font-bold"
+              title={`Balance: $${Number(me.balance ?? 0).toLocaleString()}`}
+            >
+              ${Number(me.balance ?? 0) >= 1000 ? `${(Number(me.balance ?? 0) / 1000).toFixed(1)}k` : Number(me.balance ?? 0).toLocaleString()}
+            </div>
+          )}
+        </div>
+      </div>
 
       <main
         className="w-full relative overflow-hidden"
         style={{
           position: "absolute",
-          top: 0,
+          top: "calc(2.5rem + env(safe-area-inset-top, 0px))",
           left: 0,
           right: 0,
-          height: `${BOARD_HEIGHT_PCT}%`,
+          height: `calc(${BOARD_HEIGHT_PCT}% - 2.5rem - env(safe-area-inset-top, 0px))`,
           zIndex: 0,
           isolation: "isolate",
         }}
@@ -1490,33 +1515,6 @@ export default function Board3DMobilePage() {
             history={historyToShow}
             className="h-full min-h-0 flex-1 !mt-0 !max-w-none"
           />
-        </div>
-      )}
-
-      {/* Reset view + Fullscreen — visible in normal and fullscreen */}
-      {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
-        <div
-          className="absolute top-2 right-3 z-[100] flex items-center gap-2"
-          style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
-        >
-          <button
-            type="button"
-            onClick={() => setResetViewTrigger((t) => t + 1)}
-            className="px-3 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 text-sm font-medium shadow-lg"
-            title="Reset board view to default"
-            aria-label="Reset board view"
-          >
-            Reset view
-          </button>
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="px-3 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 text-sm font-medium shadow-lg"
-            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-          >
-            {isFullscreen ? "Exit" : "Fullscreen"}
-          </button>
         </div>
       )}
 
