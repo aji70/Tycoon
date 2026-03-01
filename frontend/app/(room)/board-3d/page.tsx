@@ -1681,12 +1681,9 @@ export default function Board3DDemoPage() {
           </div>
         )}
 
-        {/* Reset view + Fullscreen — visible in normal and fullscreen */}
+        {/* Reset view + Fullscreen — above the board */}
         {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
-          <div
-            className="absolute top-3 right-3 z-[100] flex items-center gap-2"
-            style={{ zIndex: 2147483646 }}
-          >
+          <div className="flex items-center justify-center gap-2 w-full max-w-[1200px] py-2 shrink-0">
             <button
               type="button"
               onClick={() => setResetViewTrigger((t) => t + 1)}
@@ -1707,7 +1704,7 @@ export default function Board3DDemoPage() {
         )}
 
         {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" ? (
-          <div className="flex flex-col items-center gap-2 mb-2">
+          <div className="flex flex-col items-center gap-2 mb-2 shrink-0">
             <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />
           </div>
         ) : null}
