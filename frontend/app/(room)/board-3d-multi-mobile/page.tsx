@@ -1722,15 +1722,16 @@ export default function Board3DMobilePage() {
               className="flex-1 min-h-0 flex flex-col mt-auto rounded-t-2xl overflow-hidden border-t border-amber-500/30 bg-[#0a1214] shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30">
+              <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30 min-h-[52px]">
                 <h3 className="font-bold text-amber-100 text-sm uppercase tracking-wide">Tavern Chat</h3>
                 <button
                   type="button"
                   onClick={() => setChatOpen(false)}
-                  className="p-2 rounded-lg text-amber-400/80 hover:text-amber-200 hover:bg-amber-500/20 transition-colors"
+                  className="flex items-center gap-2 min-h-[44px] min-w-[44px] px-3 py-2 -my-1 rounded-xl text-amber-200 hover:text-amber-100 hover:bg-amber-500/30 active:bg-amber-500/40 transition-colors touch-manipulation"
                   aria-label="Close chat"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 shrink-0" />
+                  <span className="text-sm font-medium">Close</span>
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
