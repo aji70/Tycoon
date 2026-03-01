@@ -45,8 +45,10 @@ type BoardSceneProps = {
   lastRollResult?: { die1: number; die2: number; total: number } | null;
   /** Called when user clicks the center Roll button (demo). */
   onRoll?: () => void;
-  /** Action log history — renders below roll button in center */
+  /** Action log history — renders below roll button in center (unless hideCenterActionLog) */
   history?: Game["history"];
+  /** When true, do not render the action log in the 3D center (e.g. mobile uses a fixed on-screen log) */
+  hideCenterActionLog?: boolean;
   /** When true, show "AI is thinking" in center just above the dice result */
   aiThinking?: boolean;
 };
@@ -816,6 +818,7 @@ export default function BoardScene({
   lastRollResult,
   onRoll,
   history,
+  hideCenterActionLog = false,
   aiThinking,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
@@ -876,7 +879,7 @@ export default function BoardScene({
     aiThinking ? createElement(AiThinkingLabel, { key: "ai-thinking" }) : null,
     lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult }) : null,
     onRoll ? createElement(CenterRollButton, { key: "roll-btn", onRoll, disabled: !!rollingDice }) : null,
-    history ? createElement(CenterActionLog, { key: "action-log", history }) : null,
+    history && !hideCenterActionLog ? createElement(CenterActionLog, { key: "action-log", history }) : null,
     ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, symbol }) =>
       createElement(PlayerToken, {
         key: player.user_id,
