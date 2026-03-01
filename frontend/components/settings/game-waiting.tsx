@@ -11,7 +11,12 @@ import { useWaitingRoom, USDC_DECIMALS } from "./useWaitingRoom";
 import { getPlayerSymbolData, symbols } from "@/lib/types/symbol";
 import GameRoomLoading from "./game-room-loading";
 
-export default function GameWaiting(): JSX.Element {
+interface GameWaitingProps {
+  /** When game starts, redirect to this board (e.g. /board-3d-multi for 3D). Default: /game-play */
+  redirectToBoard?: string;
+}
+
+export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}): JSX.Element {
   const {
     router,
     gameCode,
@@ -47,7 +52,7 @@ export default function GameWaiting(): JSX.Element {
     handleGoHome,
     isCreator,
     guestCannotJoinStaked,
-  } = useWaitingRoom();
+  } = useWaitingRoom({ redirectToBoard });
 
   // Loading / Error guards
   if (loading || contractGameLoading) {

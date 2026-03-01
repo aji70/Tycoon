@@ -17,7 +17,7 @@ export default function ClientLayout({ children, cookies }: ClientLayoutProps) {
   const [isClient, setIsClient] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const pathname = usePathname();
-  const isBoard3DMobile = pathname === "/board-3d-mobile";
+  const isBoard3DMobile = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
 
   // Hydration safety: Wait for client mount before rendering dynamic content
   useEffect(() => {
