@@ -1,7 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import GameBoard3DView from "@/components/game/board/game-board-3d";
-import GameRoom from "@/components/game/game-room";
 import { Multiplayer3DPlayerSection } from "@/components/game/multiplayer-3d-player/PlayerSection";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -276,6 +276,12 @@ export default function Board3DMultiPage() {
 
   return (
     <main className="w-full h-screen overflow-hidden relative flex flex-row bg-[#010F10] lg:gap-4 p-4">
+      <Link
+        href={`/game-play?gameCode=${encodeURIComponent(gameCode)}`}
+        className="absolute top-2 right-2 z-10 px-3 py-1.5 rounded-lg bg-slate-800/90 text-cyan-300 text-sm border border-cyan-500/50 hover:bg-slate-700"
+      >
+        2D board
+      </Link>
       {isWaitingForStart && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-8 max-w-md text-center shadow-xl">
@@ -328,11 +334,6 @@ export default function Board3DMultiPage() {
           onFinishByTime={onFinishByTime}
           embedded
         />
-      </div>
-
-      {/* Right: only addition — chat */}
-      <div className="hidden lg:flex w-80 flex-shrink-0 flex-col min-h-0">
-        <GameRoom game={game} me={me} fillContainer />
       </div>
     </main>
   );

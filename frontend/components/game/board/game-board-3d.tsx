@@ -1,14 +1,11 @@
 "use client";
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import Link from "next/link";
 import { Toaster, toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
-import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
-import { Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameBoardLogic } from "./useGameBoardLogic";
 import PropertyDetailModal from "./PropertyDetailModal";
@@ -45,8 +42,6 @@ const GameBoard3DView = ({
     isRolling,
     buyPrompted,
     animatedPositions,
-    showPerksModal,
-    setShowPerksModal,
     showCardModal,
     setShowCardModal,
     cardData,
@@ -114,8 +109,6 @@ const GameBoard3DView = ({
       </div>
     );
   }
-
-  const togglePerksModal = () => setShowPerksModal((prev: boolean) => !prev);
 
   const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on";
   const [aiTipsOn, setAiTipsOn] = useState(() => {
@@ -310,78 +303,8 @@ const GameBoard3DView = ({
             currentPlayerId={currentPlayerId}
             className="absolute inset-0 w-full h-full"
           />
-          <Link
-            href={`/game-play?gameCode=${encodeURIComponent(game.code)}`}
-            className="absolute top-2 right-2 z-10 px-3 py-1.5 rounded-lg bg-slate-800/90 text-cyan-300 text-sm border border-cyan-500/50 hover:bg-slate-700 pointer-events-auto"
-          >
-            2D Board
-          </Link>
-          {embedded && (
-            <button
-              onClick={togglePerksModal}
-              className="absolute bottom-4 left-4 z-10 w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-            >
-              <Sparkles className="w-7 h-7 text-black" />
-            </button>
-          )}
         </div>
       </div>
-
-      {!embedded && (
-        <button
-          onClick={togglePerksModal}
-          className="fixed bottom-20 left-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-        >
-          <Sparkles className="w-8 h-8 text-black" />
-        </button>
-      )}
-
-      <AnimatePresence>
-        {showPerksModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowPerksModal(false)}
-              className="fixed inset-0 bg-black/70 z-50"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 50 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 50 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed bottom-6 left-6 z-50 w-80 max-h-[80vh]"
-            >
-              <div className="bg-[#0A1C1E] rounded-2xl shadow-2xl border border-cyan-500/30 overflow-hidden">
-                <div className="p-5 border-b border-cyan-900/50 flex items-center justify-between">
-                  <h2 className="text-2xl font-bold flex items-center gap-3">
-                    <Sparkles className="w-8 h-8 text-[#00F0FF]" />
-                    My Perks
-                  </h2>
-                  <button
-                    onClick={() => setShowPerksModal(false)}
-                    className="text-gray-400 hover:text-white p-1"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-                <div className="p-4 overflow-y-auto max-h-[60vh]">
-                  <CollectibleInventoryBar
-                    game={game}
-                    game_properties={game_properties}
-                    isMyTurn={isMyTurn}
-                    ROLL_DICE={ROLL_DICE}
-                    END_TURN={END_TURN}
-                    triggerSpecialLanding={triggerLandingLogic}
-                    endTurnAfterSpecial={endTurnAfterSpecialMove}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       <CardModal
         isOpen={showCardModal}
