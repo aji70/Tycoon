@@ -1448,115 +1448,7 @@ export default function Board3DDemoPage() {
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
-      {/* End game by net worth — confirm modal */}
-      <AnimatePresence>
-        {showEndByNetWorthConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowEndByNetWorthConfirm(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-900/30 p-6 max-w-sm w-full"
-            >
-              <button
-                type="button"
-                onClick={() => setShowEndByNetWorthConfirm(false)}
-                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-cyan-300 hover:text-cyan-100 hover:bg-cyan-500/20 transition-colors"
-                aria-label="Close"
-              >
-                <span className="text-xl leading-none">×</span>
-              </button>
-              <p className="text-lg font-semibold text-cyan-100 mb-1 pr-8">End game by net worth?</p>
-              <p className="text-sm text-cyan-200/80 mb-6">The game will end and the player with the highest net worth will win.</p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowEndByNetWorthConfirm(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-cyan-200 hover:text-cyan-100 border border-cyan-500/40 hover:bg-cyan-500/10 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    voteEndByNetWorth();
-                    setShowEndByNetWorthConfirm(false);
-                  }}
-                  className="px-4 py-2 rounded-xl text-sm font-medium bg-cyan-600/90 text-white hover:bg-cyan-500 border border-cyan-400/50 transition-colors"
-                >
-                  Yes, vote to end
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Perks / collectibles modal */}
-      <AnimatePresence>
-        {showPerksModal && game && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
-            onClick={() => setShowPerksModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0, y: 12 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: 8 }}
-              transition={{ type: "spring", damping: 26, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-violet-400/40 bg-gradient-to-b from-slate-900 via-violet-950/30 to-slate-900 shadow-2xl shadow-violet-950/50 ring-1 ring-white/5"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between shrink-0 px-5 py-4 bg-gradient-to-r from-violet-900/80 via-fuchsia-900/40 to-violet-900/80 border-b border-violet-500/30">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-500/30 border border-violet-400/40">
-                    <Sparkles className="w-5 h-5 text-violet-200" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-white tracking-tight">Perks & collectibles</h2>
-                    <p className="text-xs text-violet-200/80">Use perks to boost your game</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPerksModal(false)}
-                  className="w-9 h-9 flex items-center justify-center rounded-full text-violet-200/90 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              {/* Content */}
-              <div className="overflow-y-auto max-h-[calc(88vh-5.5rem)] p-5 bg-slate-900/50">
-                <CollectibleInventoryBar
-                  game={game}
-                  game_properties={gameProperties}
-                  isMyTurn={isMyTurn}
-                  ROLL_DICE={playerCanRoll ? handleRollForLive : undefined}
-                  END_TURN={END_TURN}
-                  triggerSpecialLanding={triggerLandingLogic}
-                  endTurnAfterSpecial={endTurnAfterSpecialMove}
-                />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Wrapper for fullscreen: sidebar + board so both stay visible in fullscreen mode */}
+      {/* Wrapper for fullscreen: sidebar + board + all modals so modals show in fullscreen mode */}
       <div
         ref={fullscreenRef}
         className={`flex flex-row gap-4 flex-1 min-w-0 min-h-0 overflow-hidden ${isFullscreen ? "p-4 bg-[#010F10]" : ""}`}
@@ -1871,117 +1763,223 @@ export default function Board3DDemoPage() {
         </div>
       )}
 
-        {/* Chance / Community Chest card modal — inside fullscreen so it shows in fullscreen mode */}
+        {/* Chance / Community Chest card modal */}
         <CardModal
           isOpen={showCardModal}
           onClose={() => setShowCardModal(false)}
           card={cardData}
           playerName={cardPlayerName}
         />
-      </div>
-      </div>
 
-      {selectedProperty && (
-        <PropertyDetailModal3D
-          property={selectedProperty}
-          gameProperty={selectedGameProperty}
-          players={players}
-          me={me}
-          isMyTurn={isMyTurn}
-          getCurrentRent={getCurrentRent}
-          onClose={() => {
-            setSelectedProperty(null);
-            setSelectedGameProperty(undefined);
-            fetchUpdatedGame();
-          }}
-          onBuild={handleBuild}
-          onSellBuilding={handleSellBuilding}
-          onMortgageToggle={handleMortgageToggle}
-          onSellToBank={handleSellToBank}
-        />
-      )}
-
-      <AnimatePresence>
-        {winner && gameTimeUp && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4"
-            style={{ zIndex: 2147483647 }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
-            {winner.user_id === me?.user_id ? (
+        {/* End game by net worth — confirm modal (inside fullscreen so visible in fullscreen) */}
+        <AnimatePresence>
+          {showEndByNetWorthConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowEndByNetWorthConfirm(false)}
+            >
               <motion.div
-                initial={{ scale: 0.88, y: 24, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-cyan-400/50 bg-gradient-to-b from-indigo-900/95 to-slate-950/95 shadow-2xl text-center p-8"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: "spring", duration: 0.3 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative bg-gradient-to-b from-slate-800 to-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-900/30 p-6 max-w-sm w-full"
               >
-                <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
-                <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
-                <p className="text-slate-200 mb-6">You had the highest net worth when time ran out.</p>
-                {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEndByNetWorthConfirm(false)}
+                  className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-cyan-300 hover:text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                  aria-label="Close"
+                >
+                  <span className="text-xl leading-none">×</span>
+                </button>
+                <p className="text-lg font-semibold text-cyan-100 mb-1 pr-8">End game by net worth?</p>
+                <p className="text-sm text-cyan-200/80 mb-6">The game will end and the player with the highest net worth will win.</p>
+                <div className="flex gap-3 justify-end">
                   <button
                     type="button"
-                    onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
-                    className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
+                    onClick={() => setShowEndByNetWorthConfirm(false)}
+                    className="px-4 py-2 rounded-xl text-sm font-medium text-cyan-200 hover:text-cyan-100 border border-cyan-500/40 hover:bg-cyan-500/10 transition-colors"
                   >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    Cancel
                   </button>
-                ) : (
-                  <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
-                    Go home
-                  </Link>
-                )}
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ scale: 0.88, y: 24, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-slate-500/50 bg-gradient-to-b from-slate-900/95 to-black/95 shadow-2xl text-center p-8"
-              >
-                <Trophy className="w-16 h-16 mx-auto text-amber-400 mb-4" />
-                <h1 className="text-2xl font-bold text-slate-200 mb-2">Time&apos;s up</h1>
-                <p className="text-xl text-white mb-4">{winner.username} <span className="text-amber-400">wins</span></p>
-                <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
-                <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
-                {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                   <button
                     type="button"
-                    onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
-                    className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
+                    onClick={() => {
+                      voteEndByNetWorth();
+                      setShowEndByNetWorthConfirm(false);
+                    }}
+                    className="px-4 py-2 rounded-xl text-sm font-medium bg-cyan-600/90 text-white hover:bg-cyan-500 border border-cyan-400/50 transition-colors"
                   >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    Yes, vote to end
                   </button>
-                ) : (
-                  <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
-                    Go home
-                  </Link>
-                )}
+                </div>
               </motion.div>
-            )}
-          </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Perks / collectibles modal (inside fullscreen so visible in fullscreen) */}
+        <AnimatePresence>
+          {showPerksModal && game && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+              onClick={() => setShowPerksModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.96, opacity: 0, y: 8 }}
+                transition={{ type: "spring", damping: 26, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border border-violet-400/40 bg-gradient-to-b from-slate-900 via-violet-950/30 to-slate-900 shadow-2xl shadow-violet-950/50 ring-1 ring-white/5"
+              >
+                <div className="flex items-center justify-between shrink-0 px-5 py-4 bg-gradient-to-r from-violet-900/80 via-fuchsia-900/40 to-violet-900/80 border-b border-violet-500/30">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-500/30 border border-violet-400/40">
+                      <Sparkles className="w-5 h-5 text-violet-200" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white tracking-tight">Perks & collectibles</h2>
+                      <p className="text-xs text-violet-200/80">Use perks to boost your game</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPerksModal(false)}
+                    className="w-9 h-9 flex items-center justify-center rounded-full text-violet-200/90 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto max-h-[calc(88vh-5.5rem)] p-5 bg-slate-900/50">
+                  <CollectibleInventoryBar
+                    game={game}
+                    game_properties={gameProperties}
+                    isMyTurn={isMyTurn}
+                    ROLL_DICE={playerCanRoll ? handleRollForLive : undefined}
+                    END_TURN={END_TURN}
+                    triggerSpecialLanding={triggerLandingLogic}
+                    endTurnAfterSpecial={endTurnAfterSpecialMove}
+                  />
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {selectedProperty && (
+          <PropertyDetailModal3D
+            property={selectedProperty}
+            gameProperty={selectedGameProperty}
+            players={players}
+            me={me}
+            isMyTurn={isMyTurn}
+            getCurrentRent={getCurrentRent}
+            onClose={() => {
+              setSelectedProperty(null);
+              setSelectedGameProperty(undefined);
+              fetchUpdatedGame();
+            }}
+            onBuild={handleBuild}
+            onSellBuilding={handleSellBuilding}
+            onMortgageToggle={handleMortgageToggle}
+            onSellToBank={handleSellToBank}
+          />
         )}
-      </AnimatePresence>
 
-      <BankruptcyModal
-        isOpen={showBankruptcyModal}
-        onReturnHome={() => (window.location.href = "/")}
-        tokensAwarded={0.5}
-      />
+        <AnimatePresence>
+          {winner && gameTimeUp && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4"
+              style={{ zIndex: 2147483647 }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-violet-950/60 to-cyan-950/70" />
+              {winner.user_id === me?.user_id ? (
+                <motion.div
+                  initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-cyan-400/50 bg-gradient-to-b from-indigo-900/95 to-slate-950/95 shadow-2xl text-center p-8"
+                >
+                  <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
+                  <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
+                  <p className="text-slate-200 mb-6">You had the highest net worth when time ran out.</p>
+                  {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
+                    <button
+                      type="button"
+                      onClick={handleClaimAndGoHome}
+                      disabled={claimAndLeaveInProgress || endGamePending}
+                      className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
+                    >
+                      {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    </button>
+                  ) : (
+                    <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
+                      Go home
+                    </Link>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ scale: 0.88, y: 24, opacity: 0 }}
+                  animate={{ scale: 1, y: 0, opacity: 1 }}
+                  className="relative w-full max-w-md rounded-[2rem] overflow-hidden border-2 border-slate-500/50 bg-gradient-to-b from-slate-900/95 to-black/95 shadow-2xl text-center p-8"
+                >
+                  <Trophy className="w-16 h-16 mx-auto text-amber-400 mb-4" />
+                  <h1 className="text-2xl font-bold text-slate-200 mb-2">Time&apos;s up</h1>
+                  <p className="text-xl text-white mb-4">{winner.username} <span className="text-amber-400">wins</span></p>
+                  <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
+                  <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
+                  {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
+                    <button
+                      type="button"
+                      onClick={handleClaimAndGoHome}
+                      disabled={claimAndLeaveInProgress || endGamePending}
+                      className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
+                    >
+                      {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    </button>
+                  ) : (
+                    <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
+                      Go home
+                    </Link>
+                  )}
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
-          <button
-            onClick={handleDeclareBankruptcy}
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold"
-          >
-            Declare bankruptcy
-          </button>
-        </div>
-      )}
+        <BankruptcyModal
+          isOpen={showBankruptcyModal}
+          onReturnHome={() => (window.location.href = "/")}
+          tokensAwarded={0.5}
+        />
+
+        {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+            <button
+              onClick={handleDeclareBankruptcy}
+              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold"
+            >
+              Declare bankruptcy
+            </button>
+          </div>
+        )}
+      </div>
+      </div>
 
       <Toaster position="top-center" />
     </div>
