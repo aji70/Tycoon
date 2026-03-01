@@ -1478,7 +1478,7 @@ export default function Board3DDemoPage() {
         className={`flex flex-row gap-4 flex-1 min-w-0 min-h-0 overflow-hidden ${isFullscreen ? "p-4 bg-[#010F10]" : ""}`}
       >
       {/* Sidebar: Perks + X + notification bell + Players — fixed on desktop so it never scrolls out */}
-      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 fixed left-4 top-4 z-20 max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 fixed left-4 top-[200px] z-20 max-h-[calc(100vh-200px-1rem)] overflow-y-auto">
         {/* Perks and X (end by net worth) — inline above player section */}
         {isLiveGame && game && (
           <div className="flex items-center gap-2 shrink-0">
