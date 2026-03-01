@@ -300,8 +300,8 @@ export default function Board3DMultiPage() {
         </div>
       )}
 
-      {/* Left: Players panel — same as AI game (My Empire, Trades, perks behaviour) */}
-      <div className="hidden lg:block w-80 flex-shrink-0 min-h-0">
+      {/* Left: same as ai-play-3d */}
+      <div className="hidden lg:block w-80 flex-shrink-0">
         <GamePlayers
           game={game}
           properties={properties}
@@ -317,7 +317,7 @@ export default function Board3DMultiPage() {
         />
       </div>
 
-      {/* Center: 3D board — fills like AI board */}
+      {/* Center: same as ai-play-3d (board area), 3D instead of AiBoard */}
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <GameBoard3DView
           game={game}
@@ -330,7 +330,7 @@ export default function Board3DMultiPage() {
         />
       </div>
 
-      {/* Right: Chat — same width as players for symmetry */}
+      {/* Right: only addition — chat */}
       <div className="hidden lg:flex w-80 flex-shrink-0 flex-col min-h-0">
         <GameRoom game={game} me={me} fillContainer />
       </div>
