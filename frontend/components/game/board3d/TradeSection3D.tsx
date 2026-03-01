@@ -11,7 +11,7 @@ interface TradeSection3DProps {
   tradeRequests: any[];
   properties: Property[];
   game: { players?: any[] };
-  onTradeAction: (id: number, action: "accepted" | "declined" | "counter") => void;
+  onTradeAction: (id: number, action: "accepted" | "declined" | "counter" | "delete") => void;
 }
 
 export default function TradeSection3D({
@@ -27,16 +27,16 @@ export default function TradeSection3D({
 
   const handleClearAllOutgoing = () => {
     if (openTrades.length === 0) return;
-    if (!confirm("Decline and cancel ALL your active trade offers? This cannot be undone.")) return;
-    openTrades.forEach((trade) => onTradeAction(trade.id, "declined"));
+    if (!confirm("Delete ALL your active trade offers? This cannot be undone.")) return;
+    openTrades.forEach((trade) => onTradeAction(trade.id, "delete"));
   };
 
-  const handleDeclineAll = () => {
+  const handleDeleteAll = () => {
     const total = tradeRequests.length + openTrades.length;
     if (total === 0) return;
-    if (!confirm(`Decline and cancel ALL ${total} trade(s)? This will clear both incoming and your outgoing offers.`)) return;
-    tradeRequests.forEach((trade) => onTradeAction(trade.id, "declined"));
-    openTrades.forEach((trade) => onTradeAction(trade.id, "declined"));
+    if (!confirm(`Delete ALL ${total} trade(s)? This will decline and remove both incoming and outgoing trades. This cannot be undone.`)) return;
+    tradeRequests.forEach((trade) => onTradeAction(trade.id, "delete"));
+    openTrades.forEach((trade) => onTradeAction(trade.id, "delete"));
   };
 
   const renderTrade = (trade: any, isIncoming: boolean) => {
@@ -134,10 +134,10 @@ export default function TradeSection3D({
             {totalActive > 0 && (
               <div className="flex justify-end mb-1.5">
                 <button
-                  onClick={handleDeclineAll}
+                  onClick={handleDeleteAll}
                   className="px-2 py-1 rounded text-[10px] font-bold bg-red-700/80 hover:bg-red-600 text-white"
                 >
-                  Decline All
+                  Delete All
                 </button>
               </div>
             )}
@@ -159,7 +159,7 @@ export default function TradeSection3D({
                     onClick={handleClearAllOutgoing}
                     className="px-2 py-1 rounded text-[10px] font-bold bg-amber-700/80 hover:bg-amber-600 text-black"
                   >
-                    Cancel All
+                    Delete Outgoing
                   </button>
                 </div>
                 <div className="space-y-2">

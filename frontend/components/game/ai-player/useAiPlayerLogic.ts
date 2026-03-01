@@ -248,7 +248,7 @@ export function useAiPlayerLogic({
   ]);
 
   const handleTradeAction = useCallback(
-    async (id: number, action: "accepted" | "declined" | "counter") => {
+    async (id: number, action: "accepted" | "declined" | "counter" | "delete") => {
       if (action === "counter") {
         const trade = tradeRequests.find((t) => t.id === id);
         if (trade) {
@@ -257,6 +257,18 @@ export function useAiPlayerLogic({
           setRequestProperties(trade.offer_properties || []);
           setOfferCash(trade.requested_amount || 0);
           setRequestCash(trade.offer_amount || 0);
+        }
+        return;
+      }
+
+      if (action === "delete") {
+        try {
+          await apiClient.post<ApiResponse>("/game-trade-requests/decline", { id });
+          await apiClient.delete(`/game-trade-requests/${id}`);
+          closeAiTradePopup();
+          refreshTrades();
+        } catch (error) {
+          toast.error("Failed to delete trade");
         }
         return;
       }
