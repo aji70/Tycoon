@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Bell, Users, X } from "lucide-react";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
+import PerksBar from "./PerksBar";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
 interface Mobile3DGameUIProps {
@@ -24,6 +25,8 @@ interface Mobile3DGameUIProps {
   incomingTradeCount?: number;
   showPerksModal: boolean;
   setShowPerksModal: (v: boolean) => void;
+  /** When set, tapping a perk in the bar activates it (burn + apply) instead of opening the modal. */
+  onUsePerk?: (tokenId: bigint, perk: number, strength: number, name: string) => void;
   isMyTurn: boolean;
   onRollDice?: () => void;
   onEndTurn: () => void;
@@ -48,6 +51,7 @@ export default function Mobile3DGameUI({
   incomingTradeCount = 0,
   showPerksModal,
   setShowPerksModal,
+  onUsePerk,
   isMyTurn,
   onRollDice,
   onEndTurn,
@@ -71,19 +75,18 @@ export default function Mobile3DGameUI({
 
   return (
     <>
-      {/* Bottom bar: Perks, Bell (Trades), Players */}
+      {/* Bottom bar: Perks (bar or button), Bell (Trades), Players */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
+        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-center gap-2 sm:gap-4 px-2 sm:px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        <button
-          type="button"
-          onClick={() => setShowPerksModal(true)}
-          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition"
-        >
-          <Sparkles className="w-5 h-5" />
-          <span className="text-xs font-medium">Perks</span>
-        </button>
+        <div className="flex items-center justify-center min-w-0 flex-1">
+          <PerksBar
+            onOpenModal={() => setShowPerksModal(true)}
+            onUsePerk={onUsePerk}
+            className="!flex-row !flex-wrap !gap-1 !items-center"
+          />
+        </div>
         <button
           type="button"
           onClick={openBellModal}
