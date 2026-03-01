@@ -114,16 +114,16 @@ export default function PropertyDetailModal3D({
                     : "Bank"}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-200">
-                <span className="text-slate-400">Houses</span>
-                <span className="font-semibold text-cyan-300">
-                  {gameProperty?.development === 5
-                    ? "Hotel"
-                    : gameProperty?.development != null && gameProperty.development > 0
-                      ? `${gameProperty.development} house${gameProperty.development === 1 ? "" : "s"}`
-                      : "0 houses"}
-                </span>
-              </div>
+              {gameProperty?.development != null && gameProperty.development >= 1 && (
+                <div className="flex justify-between text-slate-200">
+                  <span className="text-slate-400">Houses</span>
+                  <span className="font-semibold text-cyan-300">
+                    {gameProperty.development === 5
+                      ? "Hotel"
+                      : `${gameProperty.development} house${gameProperty.development === 1 ? "" : "s"}`}
+                  </span>
+                </div>
+              )}
               {gameProperty && (
                 <div className="flex justify-between text-slate-200">
                   <span className="text-slate-400">Mortgage</span>
