@@ -35,13 +35,25 @@ function isTournamentMatchCode(code: string): boolean {
   return /^T\d+-R\d+-M\d+$/i.test(code);
 }
 
+const MOBILE_BREAKPOINT_PX = 768;
+
 export interface UseWaitingRoomOptions {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D board. */
   redirectToBoard?: string;
+  /** On viewports <= 768px, redirect here instead of redirectToBoard (e.g. /board-3d-multi-mobile). */
+  redirectToBoardMobile?: string;
 }
 
 export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
-  const { redirectToBoard = "/game-play" } = options;
+  const { redirectToBoard = "/game-play", redirectToBoardMobile } = options;
+
+  const getRedirectBoardUrl = useCallback(() => {
+    const base = redirectToBoard;
+    if (redirectToBoardMobile && typeof window !== "undefined" && window.innerWidth <= MOBILE_BREAKPOINT_PX) {
+      return redirectToBoardMobile;
+    }
+    return base;
+  }, [redirectToBoard, redirectToBoardMobile]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawGameCode = searchParams.get("gameCode") ?? "";
@@ -292,7 +304,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
         const gameData = res.data.data;
 
         if (gameData.status === "RUNNING") {
-          router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(gameCode)}`);
+          router.push(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
           return;
         }
 
@@ -309,7 +321,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
             status: "RUNNING",
           });
           if (updateRes?.data?.success)
-            router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(gameCode)}`);
+            router.push(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
         }
       } catch (err: unknown) {
         if (!mountedRef.current) return;
@@ -344,7 +356,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
       refetchGameRef.current.fn = null;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router]);
+  }, [gameCode, computeAvailableSymbols, checkPlayerJoined, router, getRedirectBoardUrl]);
 
   // Socket: refetch immediately when someone joins (game-update / player-joined)
   useEffect(() => {
