@@ -239,6 +239,14 @@ export default function PlayerSection3D({
             popup={aiResponsePopup}
             properties={properties}
             onClose={() => setAiResponsePopup(null)}
+            onAcceptCounter={(id) => {
+              handleTradeAction(id, "accepted");
+              setAiResponsePopup(null);
+            }}
+            onDeclineCounter={(id) => {
+              handleTradeAction(id, "declined");
+              setAiResponsePopup(null);
+            }}
           />
         )}
 

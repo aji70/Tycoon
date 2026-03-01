@@ -5,9 +5,17 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 
 interface AiResponseModal3DProps {
-  popup: { trade?: any; favorability?: number; decision?: string; remark?: string } | null;
+  popup: {
+    trade?: any;
+    favorability?: number;
+    decision?: string;
+    remark?: string;
+    counterOffer?: { id: number; trade: { offer_properties?: number[]; offer_amount?: number; requested_properties?: number[]; requested_amount?: number } };
+  } | null;
   properties: { id: number; name: string }[];
   onClose: () => void;
+  onAcceptCounter?: (id: number) => void;
+  onDeclineCounter?: (id: number) => void;
 }
 
 /** Portal target: fullscreen element when active so modal is visible in fullscreen (desktop and mobile), else body */
@@ -17,7 +25,7 @@ function getPortalTarget(): HTMLElement | null {
 }
 
 /** Gamy AI trade response modal — portals into fullscreen element when in fullscreen so it's visible on desktop and mobile */
-export default function AiResponseModal3D({ popup, properties, onClose }: AiResponseModal3DProps) {
+export default function AiResponseModal3D({ popup, properties, onClose, onAcceptCounter, onDeclineCounter }: AiResponseModal3DProps) {
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(() => getPortalTarget());
 
   useEffect(() => {
@@ -47,6 +55,19 @@ export default function AiResponseModal3D({ popup, properties, onClose }: AiResp
   const hasRequestedCash = (trade.requested_amount ?? 0) > 0;
 
   const isAccepted = decision === "accepted";
+  const counterOffer = popup.counterOffer;
+  const counterTrade = counterOffer?.trade || {};
+  const counterOfferedPropNames = counterOffer
+    ? properties.filter((p) => counterTrade.offer_properties?.includes(p.id)).map((p) => p.name)
+    : [];
+  const counterRequestedPropNames = counterOffer
+    ? properties.filter((p) => counterTrade.requested_properties?.includes(p.id)).map((p) => p.name)
+    : [];
+  const hasCounterOfferedProps = counterOfferedPropNames.length > 0;
+  const hasCounterOfferedCash = (counterTrade.offer_amount ?? 0) > 0;
+  const hasCounterRequestedProps = counterRequestedPropNames.length > 0;
+  const hasCounterRequestedCash = (counterTrade.requested_amount ?? 0) > 0;
+  const showCounterSection = !isAccepted && counterOffer && (onAcceptCounter || onDeclineCounter);
 
   const modalContent = (
     <motion.div
@@ -142,6 +163,57 @@ export default function AiResponseModal3D({ popup, properties, onClose }: AiResp
               </div>
             )}
           </div>
+
+          {/* Counter offer from AI */}
+          {showCounterSection && (
+            <div className="rounded-xl border-2 border-amber-500/50 bg-slate-800/70 p-4 space-y-3">
+              <p className="text-sm font-bold text-amber-300 uppercase tracking-wider text-center">
+                Counter offer from AI
+              </p>
+              {(hasCounterOfferedProps || hasCounterOfferedCash) && (
+                <div className="rounded-lg border border-emerald-500/40 bg-slate-800/50 p-2">
+                  <p className="text-xs font-bold text-emerald-400 uppercase mb-0.5">AI offers</p>
+                  <p className="text-sm text-slate-200">
+                    {hasCounterOfferedProps && counterOfferedPropNames.join(", ")}
+                    {hasCounterOfferedProps && hasCounterOfferedCash && " + "}
+                    {hasCounterOfferedCash && (
+                      <span className="text-emerald-300 font-semibold">${counterTrade.offer_amount}</span>
+                    )}
+                  </p>
+                </div>
+              )}
+              {(hasCounterRequestedProps || hasCounterRequestedCash) && (
+                <div className="rounded-lg border border-amber-500/40 bg-slate-800/50 p-2">
+                  <p className="text-xs font-bold text-amber-400 uppercase mb-0.5">AI requests</p>
+                  <p className="text-sm text-slate-200">
+                    {hasCounterRequestedProps && counterRequestedPropNames.join(", ")}
+                    {hasCounterRequestedProps && hasCounterRequestedCash && " + "}
+                    {hasCounterRequestedCash && (
+                      <span className="text-amber-300 font-semibold">${counterTrade.requested_amount}</span>
+                    )}
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                {onAcceptCounter && (
+                  <button
+                    onClick={() => onAcceptCounter(counterOffer!.id)}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600/50 hover:bg-emerald-500/60 font-bold text-emerald-100 border border-emerald-400/50 transition"
+                  >
+                    Accept
+                  </button>
+                )}
+                {onDeclineCounter && (
+                  <button
+                    onClick={() => onDeclineCounter(counterOffer!.id)}
+                    className="flex-1 py-2.5 rounded-xl bg-rose-600/40 hover:bg-rose-500/50 font-bold text-rose-100 border border-rose-400/50 transition"
+                  >
+                    Decline
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <button
             onClick={onClose}
