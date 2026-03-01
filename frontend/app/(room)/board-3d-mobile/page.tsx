@@ -1722,7 +1722,7 @@ export default function Board3DMobilePage() {
               onClick={(e) => e.stopPropagation()}
               className="bg-slate-800 border border-violet-500/50 rounded-xl p-6 max-w-sm w-full shadow-xl"
             >
-              <p className="text-lg font-semibold text-white mb-1">Use {pendingBarPerk.name}?</p>
+              <p className="text-lg font-semibold text-white mb-1">Use {pendingBarPerk?.name ?? "perk"}?</p>
               <p className="text-sm text-slate-400 mb-6">This will burn one collectible. The effect will apply immediately.</p>
               <div className="flex gap-3 justify-end">
                 <button
@@ -1734,7 +1734,14 @@ export default function Board3DMobilePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => burnCollectible(pendingBarPerk.tokenId)}
+                  onClick={async () => {
+                    try {
+                      await burnCollectible(pendingBarPerk.tokenId);
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Burn failed");
+                      setPendingBarPerk(null);
+                    }
+                  }}
                   className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition"
                 >
                   Use
