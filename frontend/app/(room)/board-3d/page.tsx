@@ -1725,11 +1725,10 @@ export default function Board3DDemoPage() {
             </button>
           </div>
         )}
-      </div>
 
-      {/* Buy / Skip overlay (live game) */}
-      {isLiveGame && buyPrompted && justLandedProperty && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 p-4" style={{ zIndex: 2147483647 }}>
+        {/* Buy / Skip + Jail overlays inside fullscreen container so they show in fullscreen mode */}
+        {isLiveGame && buyPrompted && justLandedProperty && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black/60 p-4" style={{ zIndex: 2147483647 }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1844,6 +1843,7 @@ export default function Board3DDemoPage() {
           </motion.div>
         </div>
       )}
+      </div>
 
       <CardModal
         isOpen={showCardModal}
