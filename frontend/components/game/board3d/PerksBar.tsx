@@ -104,6 +104,18 @@ export default function PerksBar({ onOpenModal, className = "" }: PerksBarProps)
       .filter((c): c is { perk: number; tokenId: bigint } => c !== null);
   }, [infoResults, ownedTokenIds]);
 
+  /** Group by perk type and count: [{ perk: 1, count: 2 }, { perk: 5, count: 1 }, ...] */
+  const perksGrouped = useMemo(() => {
+    const byPerk: Record<number, number> = {};
+    perks.forEach(({ perk }) => {
+      byPerk[perk] = (byPerk[perk] ?? 0) + 1;
+    });
+    return Object.entries(byPerk).map(([perkStr, count]) => ({
+      perk: Number(perkStr),
+      count,
+    }));
+  }, [perks]);
+
   if (!address || perks.length === 0) {
     return (
       <button
@@ -137,15 +149,20 @@ export default function PerksBar({ onOpenModal, className = "" }: PerksBarProps)
         </button>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {perks.map(({ perk, tokenId }, i) => (
+        {perksGrouped.map(({ perk, count }) => (
           <button
-            key={`${tokenId}-${i}`}
+            key={perk}
             type="button"
             onClick={onOpenModal}
-            title={PERK_NAMES[perk] ?? `Perk ${perk}`}
-            className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600/90 to-fuchsia-600/80 border border-violet-400/50 text-white hover:scale-105 hover:border-violet-300/70 active:scale-95 transition-transform shadow-md"
+            title={`${PERK_NAMES[perk] ?? `Perk ${perk}`}${count > 1 ? ` (×${count})` : ""}`}
+            className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600/90 to-fuchsia-600/80 border border-violet-400/50 text-white hover:scale-105 hover:border-violet-300/70 active:scale-95 transition-transform shadow-md"
           >
             {PERK_ICONS[perk] ?? <Sparkles className="w-4 h-4" />}
+            {count > 1 && (
+              <span className="absolute -bottom-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-md bg-slate-900/95 border border-violet-400/60 text-[9px] font-bold text-violet-200 flex items-center justify-center">
+                ×{count}
+              </span>
+            )}
           </button>
         ))}
       </div>
