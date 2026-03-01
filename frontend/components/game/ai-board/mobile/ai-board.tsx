@@ -720,13 +720,12 @@ const endTime =
     lastTopHistoryIdRef.current = topId;
     if (!first?.comment) return;
 
-    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
+    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.*)/i;
     const match = first.comment.match(cardRegex);
-    if (!match || !match[2]) return;
+    if (!match) return;
 
     const [, typeStr, text] = match;
-    const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
-    if (!cardText) return;
+    const cardText = (text ?? "").replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim() || "Card drawn";
 
     const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
     const lowerText = cardText.toLowerCase();

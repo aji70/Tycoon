@@ -737,7 +737,13 @@ export default function Board3DMobilePage() {
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
       const res = await apiClient.post<{
-        data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property };
+        data?: {
+          still_in_jail?: boolean;
+          new_position?: number;
+          requires_buy?: boolean;
+          property_for_buy?: Property;
+          card?: { instruction?: string; display_instruction?: string };
+        };
       }>("/game-players/change-position", {
         user_id: me.user_id,
         game_id: game.id,
@@ -745,7 +751,7 @@ export default function Board3DMobilePage() {
         rolled: value.total,
         is_double: rolledDouble,
       });
-      const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property } })?.data;
+      const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property; card?: { instruction?: string; display_instruction?: string } } })?.data;
       if (data?.still_in_jail) {
         setJailChoiceRequired(true);
       }
@@ -760,6 +766,30 @@ export default function Board3DMobilePage() {
         return next;
       });
       setLandedPositionForBuy(finalPosition);
+      if (data?.card) {
+        const cardText = (data.card.display_instruction ?? data.card.instruction ?? "Card drawn").trim() || "Card drawn";
+        const lowerText = cardText.toLowerCase();
+        const isGood =
+          lowerText.includes("collect") ||
+          lowerText.includes("receive") ||
+          lowerText.includes("advance") ||
+          lowerText.includes("get out of jail") ||
+          lowerText.includes("matures") ||
+          lowerText.includes("refund") ||
+          lowerText.includes("prize") ||
+          lowerText.includes("inherit");
+        const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
+        const effect = effectMatch ? effectMatch[0] : undefined;
+        const isChanceSquare = [7, 22, 36].includes(newPos);
+        setCardData({
+          type: isChanceSquare ? "chance" : "community",
+          text: cardText,
+          effect,
+          isGood,
+        });
+        setCardPlayerName(String(me?.username ?? "").trim() || "Player");
+        setShowCardModal(true);
+      }
       if (data?.requires_buy && data?.property_for_buy) {
         setBuyPrompted(true);
       } else {
@@ -1151,12 +1181,11 @@ export default function Board3DMobilePage() {
     if (topId === lastTopHistoryIdRef.current) return;
     lastTopHistoryIdRef.current = topId;
     if (!first?.comment) return;
-    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.+)/i;
+    const cardRegex = /drew\s+(chance|community\s+chest):\s*(.*)/i;
     const match = first.comment.match(cardRegex);
-    if (!match || !match[2]) return;
+    if (!match) return;
     const [, typeStr, text] = match;
-    const cardText = text.replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim();
-    if (!cardText) return;
+    const cardText = (text ?? "").replace(/\s*\[Rolled\s+\d+\].*$/i, "").trim() || "Card drawn";
     const type = typeStr.toLowerCase().includes("chance") ? "chance" : "community";
     const lowerText = cardText.toLowerCase();
     const isGood =
