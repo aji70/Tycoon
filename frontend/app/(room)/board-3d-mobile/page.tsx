@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
+import Mobile3DGameUI from "@/components/game/board3d/Mobile3DGameUI";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import type { Property } from "@/types/game";
@@ -168,6 +169,9 @@ export default function Board3DMobilePage() {
           </div>
         )}
       </main>
+
+      {/* Player modal (Players / My Empire / Trade), perks modal, notification bar — skeletal only */}
+      <Mobile3DGameUI />
     </div>
   );
 }
