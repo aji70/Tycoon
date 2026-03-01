@@ -41,6 +41,13 @@ export default function AiPlay3DPage() {
     }
   }, [searchParams]);
 
+  // Redirect mobile to the dedicated mobile 3D board as soon as we have a code (so we never show desktop layout)
+  useEffect(() => {
+    if (isMobile && gameCode && gameCode.length === 6) {
+      router.replace(`/board-3d-mobile?gameCode=${encodeURIComponent(gameCode)}`);
+    }
+  }, [isMobile, gameCode, router]);
+
   const handleGoWithCode = useCallback(() => {
     const trimmed = codeInput.trim().toUpperCase();
     if (trimmed.length === 6) {
@@ -148,6 +155,16 @@ export default function AiPlay3DPage() {
     );
   }
 
+  // Mobile with game code: always send to board-3d-mobile (redirect runs in useEffect); never show desktop layout
+  if (isMobile && gameCode && gameCode.length === 6) {
+    return (
+      <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
+        <Loader2 className="w-12 h-12 animate-spin" />
+        <p className="text-xl">Opening mobile 3D board…</p>
+      </div>
+    );
+  }
+
   // No game code: create or enter code
   if (!gameCode) {
     return (
@@ -223,18 +240,7 @@ export default function AiPlay3DPage() {
     );
   }
 
-  // Mobile: use the dedicated mobile 3D board (board-3d-mobile) so layout matches
-  if (isMobile && gameCode) {
-    router.replace(`/board-3d-mobile?gameCode=${encodeURIComponent(gameCode)}`);
-    return (
-      <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center gap-4 text-cyan-300">
-        <Loader2 className="w-12 h-12 animate-spin" />
-        <p className="text-xl">Opening mobile 3D board…</p>
-      </div>
-    );
-  }
-
-  // AI game: 3D board (desktop)
+  // AI game: 3D board (desktop only; mobile is redirected above)
   return (
     <main className="w-full h-screen overflow-hidden relative flex flex-row bg-[#010F10] lg:gap-4 p-4">
       <div className="hidden lg:block w-80 flex-shrink-0">
