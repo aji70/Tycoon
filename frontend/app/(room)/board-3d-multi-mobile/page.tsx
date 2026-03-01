@@ -1937,7 +1937,7 @@ export default function Board3DMobilePage() {
         onEndTurn={END_TURN}
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
-        onOpenChat={isMultiplayer ? () => setChatOpen(true) : undefined}
+        onOpenChat={() => setChatOpen(true)}
       />
 
       {/* End game by net worth — confirm modal */}
