@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 
@@ -24,7 +23,6 @@ export const useMobilePropertyActions = (
       });
 
       if (res.data?.success) {
-        showToast("Successfully built!", "success");
         await fetchUpdatedGame();
       } else {
         showToast(res.data?.message || "Build failed", "error");
@@ -48,7 +46,6 @@ export const useMobilePropertyActions = (
       });
 
       if (res.data?.success) {
-        showToast("Successfully sold building!", "success");
         await fetchUpdatedGame();
       } else {
         showToast(res.data?.message || "Sell failed", "error");
@@ -75,7 +72,6 @@ export const useMobilePropertyActions = (
       });
 
       if (res.data?.success) {
-        showToast(`Property ${actionVerb}!`, "success");
         await fetchUpdatedGame();
       } else {
         showToast(res.data?.message || `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} failed`, "error");
@@ -100,7 +96,6 @@ export const useMobilePropertyActions = (
       });
 
       if (res.data?.success) {
-        showToast("Property sold back to bank!", "success");
         await fetchUpdatedGame();
       } else {
         showToast(res.data?.message || "Sell failed", "error");
