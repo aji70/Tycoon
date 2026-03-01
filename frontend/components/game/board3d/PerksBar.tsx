@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo } from "react";
-import Link from "next/link";
 import { useAccount, useChainId, useReadContract, useReadContracts } from "wagmi";
 import type { Address, Abi } from "viem";
 import { Zap, Crown, Coins, Sparkles, Gem, Shield } from "lucide-react";
@@ -126,41 +125,24 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
 
   if (!address || perks.length === 0) {
     return (
-      <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-        <button
-          type="button"
-          onClick={onOpenModal}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-500/40 bg-violet-950/30 text-violet-200/80 hover:bg-violet-900/40 hover:border-violet-400/50 transition-colors text-sm font-medium"
-          aria-label="View perks"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Perks</span>
-        </button>
-        <Link
-          href="/game-shop"
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-500/40 bg-violet-950/30 text-violet-200/80 hover:bg-violet-900/40 hover:border-violet-400/50 transition-colors text-sm font-medium"
-        >
-          Shop
-        </Link>
-      </div>
+      <button
+        type="button"
+        onClick={onOpenModal}
+        className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-500/40 bg-violet-950/30 text-violet-200/80 hover:bg-violet-900/40 hover:border-violet-400/50 transition-colors text-sm font-medium ${className}`}
+        aria-label="View perks"
+      >
+        <Sparkles className="w-4 h-4" />
+        <span>Perks</span>
+      </button>
     );
   }
 
   return (
     <div
-      className={`flex flex-col gap-2 ${className}`}
+      className={`flex flex-wrap gap-1.5 ${className}`}
       role="region"
       aria-label="Perks bar"
     >
-      <div className="flex items-center gap-2 flex-wrap">
-        <Link
-          href="/game-shop"
-          className="text-xs font-medium text-violet-400 hover:text-violet-200 underline underline-offset-1 shrink-0"
-        >
-          Shop
-        </Link>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
         {perksGrouped.map(({ perk, count, tokenId, strength }) => (
           <button
             key={perk}
@@ -177,7 +159,6 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
             )}
           </button>
         ))}
-      </div>
     </div>
   );
 }
