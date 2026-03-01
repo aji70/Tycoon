@@ -28,6 +28,7 @@ import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import Mobile3DGameUI from "@/components/game/board3d/Mobile3DGameUI";
+import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake } from "lucide-react";
 
@@ -159,7 +160,7 @@ export default function Board3DMobilePage() {
   const isGuest = !!guestUser;
 
   const { properties, isLoading } = useBoardProperties();
-  const { data: game, isLoading: gameLoading, refetch: refetchGame } = useQuery<Game>({
+  const { data: game, isLoading: gameLoading, isError: gameError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
       if (!gameCode) throw new Error("No code");
@@ -213,6 +214,22 @@ export default function Board3DMobilePage() {
     validWin: boolean;
   }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
   const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
+
+  const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d_mobile";
+  const [aiTipsOn, setAiTipsOn] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(AI_TIPS_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [aiTipText, setAiTipText] = useState<string | null>(null);
+  const [aiTipLoading, setAiTipLoading] = useState(false);
+  const lastTipPropertyIdRef = useRef<number | null>(null);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
 
   const timeUpHandledRef = useRef(false);
   const rollingForPlayerIdRef = useRef<number | null>(null);
@@ -978,6 +995,27 @@ export default function Board3DMobilePage() {
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
+  const toggleFullscreen = useCallback(() => {
+    const el = fullscreenRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
+  const toggleAiTips = useCallback(() => {
+    setAiTipsOn((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(AI_TIPS_STORAGE_KEY, String(next));
+      } catch {}
+      if (!next) setAiTipText(null);
+      return next;
+    });
+  }, []);
+
   const getCurrentRent = useCallback(
     (prop: Property, gp: GameProperty | undefined): number => {
       if (!gp || !gp.address) return prop.rent_site_only ?? 0;
@@ -1119,6 +1157,76 @@ export default function Board3DMobilePage() {
     setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
     setShowCardModal(true);
   }, [game?.history]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!buyPrompted) {
+      setAiTipText(null);
+      lastTipPropertyIdRef.current = null;
+    }
+  }, [buyPrompted]);
+
+  useEffect(() => {
+    if (
+      !aiTipsOn ||
+      !isMyTurn ||
+      !buyPrompted ||
+      !justLandedProperty ||
+      !currentPlayer ||
+      currentPlayer?.user_id !== me?.user_id
+    )
+      return;
+    const propId = justLandedProperty.id;
+    if (lastTipPropertyIdRef.current === propId) return;
+    lastTipPropertyIdRef.current = propId;
+    setAiTipLoading(true);
+    const groupIds =
+      Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
+    const ownedInGroup = groupIds.filter((id) =>
+      gameProperties.some(
+        (gp) => gp.property_id === id && gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
+      )
+    ).length;
+    const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+    const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
+    apiClient
+      .post<{ success?: boolean; data?: { reasoning?: string } }>("/agent-registry/decision", {
+        gameId: game?.id,
+        slot: 1,
+        decisionType: "tip",
+        context: {
+          myBalance: currentPlayer.balance ?? 0,
+          myProperties: gameProperties
+            .filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (game?.players ?? []).filter((p) => p.user_id !== currentPlayer.user_id),
+          situation: "buy_property",
+          property: { ...justLandedProperty, completesMonopoly, landingRank },
+        },
+      })
+      .then((res) => {
+        const text = res?.data?.data?.reasoning ?? null;
+        if (text) setAiTipText(text);
+      })
+      .catch(() => setAiTipText(null))
+      .finally(() => setAiTipLoading(false));
+  }, [
+    aiTipsOn,
+    isMyTurn,
+    buyPrompted,
+    justLandedProperty,
+    currentPlayer,
+    me?.user_id,
+    game?.id,
+    game?.players,
+    gameProperties,
+    properties,
+  ]);
 
   useEffect(() => {
     if (!game || game.status !== "FINISHED" || game.winner_id == null) return;
@@ -1269,6 +1377,7 @@ export default function Board3DMobilePage() {
 
   return (
     <div
+      ref={fullscreenRef}
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
@@ -1337,6 +1446,35 @@ export default function Board3DMobilePage() {
         )}
       </main>
 
+      {/* Action log — between board and bottom bar */}
+      {isLiveGame && (
+        <div
+          className="absolute left-2 right-2 z-10 flex flex-col"
+          style={{
+            top: `${BOARD_HEIGHT_PCT}%`,
+            bottom: "72px",
+          }}
+        >
+          <ActionLog
+            history={historyToShow}
+            className="h-full min-h-0 flex-1 !mt-0 !max-w-none"
+          />
+        </div>
+      )}
+
+      {/* Fullscreen button */}
+      {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute top-12 right-3 z-[100] px-3 py-2 rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 text-sm font-medium shadow-lg"
+          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        >
+          {isFullscreen ? "Exit" : "Fullscreen"}
+        </button>
+      )}
+
       <Mobile3DGameUI
         game={game ?? null}
         properties={properties}
@@ -1380,6 +1518,16 @@ export default function Board3DMobilePage() {
             <p className="text-slate-300 text-sm mb-4">
               ${justLandedProperty.price?.toLocaleString()} — Buy or skip?
             </p>
+            {aiTipsOn && (
+              <div className="mb-4 p-3 rounded-lg bg-cyan-900/30 border border-cyan-500/30 text-left">
+                <p className="text-xs text-cyan-300/90 mb-1">AI tip</p>
+                {aiTipLoading ? (
+                  <p className="text-sm text-slate-400">Thinking…</p>
+                ) : aiTipText ? (
+                  <p className="text-sm text-slate-200">{aiTipText}</p>
+                ) : null}
+              </div>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={() => buyGuard.submit(handleBuy)}
@@ -1396,6 +1544,15 @@ export default function Board3DMobilePage() {
                 Skip
               </button>
             </div>
+            <label className="flex items-center gap-2 mt-3 text-sm text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiTipsOn}
+                onChange={toggleAiTips}
+                className="rounded border-slate-500"
+              />
+              AI tips
+            </label>
           </motion.div>
         </div>
       )}
