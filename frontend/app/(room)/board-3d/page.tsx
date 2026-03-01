@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
@@ -209,6 +209,7 @@ const initialPositions: Record<number, number> = Object.fromEntries(
  */
 function Board3DPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
 
   const { address } = useAccount();
@@ -216,12 +217,12 @@ function Board3DPageContent() {
   const guestUser = guestAuth?.guestUser ?? null;
 
   const { properties, isLoading, fromApi } = useBoardProperties();
-  const { data: game, isLoading: gameLoading, isError: gameError, refetch: refetchGame } = useQuery<Game>({
+  const { data: game, isLoading: gameLoading, isError: gameError, error: gameQueryError, refetch: refetchGame } = useQuery<Game>({
     queryKey: ["game", gameCode ?? ""],
     queryFn: async () => {
       if (!gameCode) throw new Error("No code");
       const res = await apiClient.get<ApiResponse>(`/games/code/${gameCode}`);
-      if (!res.data?.success) throw new Error("Game not found");
+      if (!res.data?.success) throw new Error((res.data as { error?: string })?.error ?? (res.data as { message?: string })?.message ?? "Game not found");
       return res.data.data;
     },
     enabled: !!gameCode && gameCode.length === 6,
@@ -1600,6 +1601,17 @@ function Board3DPageContent() {
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
   const lastRollResultToShow = isLiveGame ? lastRollResultLive : lastRollResult;
+
+  const gameEnded = gameError && (gameQueryError as Error)?.message === "Game ended";
+  if (gameEnded) {
+    return (
+      <div className="w-full min-h-screen bg-[#010F10] flex flex-col items-center justify-center text-center px-8">
+        <h2 className="text-2xl font-bold text-cyan-400 mb-2">Game over</h2>
+        <p className="text-gray-400 mb-6">This game has ended.</p>
+        <button onClick={() => router.push("/")} className="px-8 py-4 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg hover:bg-[#00F0FF]/80 transition-all">Go home</button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-[#010F10] flex flex-row gap-4 p-4">
