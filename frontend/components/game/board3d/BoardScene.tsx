@@ -51,6 +51,8 @@ type BoardSceneProps = {
   hideCenterActionLog?: boolean;
   /** When true, show "AI is thinking" in center just above the dice result */
   aiThinking?: boolean;
+  /** When true, hide persistent owner badges on tiles (e.g. mobile for a cleaner board; ownership still shown on tap in tooltip) */
+  hideOwnerBadges?: boolean;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -91,11 +93,13 @@ function SquareTile({
   development = 0,
   owner = null,
   onClick,
+  hideOwnerBadge = false,
 }: {
   square: Property;
   development?: number;
   owner?: string | null;
   onClick?: () => void;
+  hideOwnerBadge?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   // Use backend grid when available (matches 2D board); else fall back to id-based layout
@@ -145,9 +149,9 @@ function SquareTile({
       )
     : null;
 
-  // Owner badge: only show when property has an owner (no badge for unowned).
+  // Owner badge: only show when property has an owner (no badge for unowned). Hidden on mobile for cleaner board.
   const ownerBadge =
-    square.type === "property" && owner
+    !hideOwnerBadge && square.type === "property" && owner
       ? createElement(
           Html,
           {
@@ -511,11 +515,13 @@ function BoardTiles({
   developmentByPropertyId,
   ownerByPropertyId,
   onSquareClick,
+  hideOwnerBadges = false,
 }: {
   properties: Property[];
   developmentByPropertyId?: DevelopmentByPropertyId;
   ownerByPropertyId?: Record<number, string>;
   onSquareClick?: (square: Property) => void;
+  hideOwnerBadges?: boolean;
 }) {
   return createElement(
     "group",
@@ -527,6 +533,7 @@ function BoardTiles({
         development: developmentByPropertyId?.[square.id] ?? 0,
         owner: ownerByPropertyId?.[square.id] ?? null,
         onClick: onSquareClick ? () => onSquareClick(square) : undefined,
+        hideOwnerBadge: hideOwnerBadges,
       })
     )
   );
@@ -826,6 +833,7 @@ export default function BoardScene({
   history,
   hideCenterActionLog = false,
   aiThinking,
+  hideOwnerBadges = false,
 }: BoardSceneProps) {
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -872,6 +880,7 @@ export default function BoardScene({
       developmentByPropertyId,
       ownerByPropertyId,
       onSquareClick,
+      hideOwnerBadges,
     }),
     createElement(BoardCenter),
     rollingDice && onDiceComplete
