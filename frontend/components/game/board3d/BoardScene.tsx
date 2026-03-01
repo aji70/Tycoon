@@ -116,7 +116,8 @@ function SquareTile({
   const size = 0.9;
   const displayName = square.name || getSquareName(square.id);
   const ownerSuffix = owner ? ` — Owner: ${owner}` : "";
-  const [r, g, b] = square.color && /^#?[0-9A-Fa-f]{6}$/.test(square.color) ? hexToRgb(square.color) : [0.3, 0.35, 0.4];
+  const isRailroadSquare = square.color === "railroad" || [5, 15, 25, 35].includes(square.id);
+  const [r, g, b] = isRailroadSquare ? [0.95, 0.95, 0.98] : (square.color && /^#?[0-9A-Fa-f]{6}$/.test(square.color) ? hexToRgb(square.color) : [0.3, 0.35, 0.4]);
   const color = new THREE.Color(r, g, b);
   const rotFlat = [-Math.PI / 2, 0, 0] as [number, number, number];
   const type = square.type;
@@ -329,8 +330,7 @@ function SquareTile({
   }
 
   // ---- RAILROADS: station (light) + colored awning + train (red engine, blue carriage) ----
-  const isRailroad = square.color === "railroad" || [5, 15, 25, 35].includes(id);
-  if (isRailroad) {
+  if (isRailroadSquare) {
     const platform = createElement("mesh", { position: [x, 0.06, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.85, 0.08, size * 0.5] }), createElement("meshStandardMaterial", { color: 0x7f8c8d }));
     const station = createElement("mesh", { position: [x, 0.22, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.45, 0.25, size * 0.4] }), createElement("meshStandardMaterial", { color: 0xd5d8dc }));
     const awning = createElement("mesh", { position: [x, 0.38, z] as [number, number, number], castShadow: true }, createElement("boxGeometry", { args: [size * 0.9, 0.04, size * 0.35] }), createElement("meshStandardMaterial", { color: 0x27ae60 }));

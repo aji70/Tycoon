@@ -36,6 +36,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
+import PerksBar from "@/components/game/board3d/PerksBar";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -1479,17 +1480,11 @@ export default function Board3DDemoPage() {
       >
       {/* Sidebar: Perks + X + notification bell + Players — fixed on desktop so it never scrolls out */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 fixed left-4 top-[100px] z-20 max-h-[calc(100vh-100px-1rem)] overflow-y-auto">
-        {/* Perks and X (end by net worth) — inline above player section */}
+        {/* Boost bar (perks) + X (end by net worth) + notification bell — inline above player section */}
         {isLiveGame && game && (
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowPerksModal(true)}
-              className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center bg-violet-600/90 border border-violet-400/60 text-white hover:bg-violet-500 transition-colors"
-              aria-label="Perks & collectibles"
-            >
-              <Sparkles className="w-4 h-4" />
-            </button>
+          <div className="flex flex-col gap-3 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <PerksBar onOpenModal={() => setShowPerksModal(true)} className="shrink-0" />
             {isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
               <button
                 type="button"
@@ -1509,6 +1504,7 @@ export default function Board3DDemoPage() {
               incomingCount={incomingTrades?.length ?? 0}
               onViewTrades={() => setViewTradesRequested(true)}
             />
+            </div>
           </div>
         )}
         {gameCode && gameLoading ? (
