@@ -27,7 +27,10 @@ import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
-import Mobile3DGameUI from "@/components/game/board3d/Mobile3DGameUI";
+const Mobile3DGameUI = dynamic(
+  () => import("@/components/game/board3d/Mobile3DGameUI").then((m) => m.default),
+  { ssr: false }
+);
 import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake } from "lucide-react";
@@ -965,20 +968,20 @@ export default function Board3DMobilePage() {
   }, [me, game?.id, refetchGame]);
 
   const handleUseGetOutOfJailFree = useCallback(
-    (cardType: "chance" | "community_chest") => {
+    async (cardType: "chance" | "community_chest"): Promise<void> => {
       if (!me || !game?.id) return;
-      apiClient
-        .post("/game-players/use-get-out-of-jail-free", {
+      try {
+        await apiClient.post("/game-players/use-get-out-of-jail-free", {
           game_id: game.id,
           user_id: me.user_id,
           card_type: cardType,
-        })
-        .then(() => {
-          setJailChoiceRequired(false);
-          toast.success("Used Get Out of Jail Free. You may now roll.");
-          refetchGame();
-        })
-        .catch((err) => toast.error(getContractErrorMessage(err, "Use card failed")));
+        });
+        setJailChoiceRequired(false);
+        toast.success("Used Get Out of Jail Free. You may now roll.");
+        await refetchGame();
+      } catch (err) {
+        toast.error(getContractErrorMessage(err, "Use card failed"));
+      }
     },
     [me, game?.id, refetchGame]
   );
@@ -1381,11 +1384,20 @@ export default function Board3DMobilePage() {
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
+      {/* Balance — always visible, including fullscreen */}
+      {isLiveGame && me && (
+        <div
+          className="fixed left-3 z-[100] px-3 py-1.5 rounded-lg bg-slate-800/95 border border-slate-500/60 text-amber-200 text-sm font-bold shadow-lg"
+          style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
+        >
+          ${(me.balance ?? 0).toLocaleString()}
+        </div>
+      )}
+
       {/* Timer */}
       {isLiveGame && game && !isUntimed && game.duration && (
         <GameDurationCountdown
-          gameId={game.id}
-          durationMinutes={Number(game.duration)}
+          game={game}
           onTimeUp={handleGameTimeUp}
           className="fixed top-2 left-1/2 -translate-x-1/2 z-30 text-slate-200 text-sm bg-slate-800/90 px-3 py-1.5 rounded-lg"
         />
@@ -1439,6 +1451,7 @@ export default function Board3DMobilePage() {
                 onRoll={showRollUi ? onRollClick : undefined}
                 history={historyToShow}
                 hideCenterActionLog={true}
+                hideOwnerBadges={true}
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
               />
             </Canvas>
@@ -1485,7 +1498,7 @@ export default function Board3DMobilePage() {
         positions={positions}
         isAITurn={isAITurn}
         isLoading={!!gameCode && gameLoading}
-        onPropertySelect={(prop, gp) => {
+        onPropertySelect={(prop: Property, gp?: GameProperty) => {
           setSelectedProperty(prop);
           setSelectedGameProperty(gp ?? undefined);
         }}
