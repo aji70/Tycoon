@@ -4,9 +4,10 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
+import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
@@ -157,9 +158,16 @@ function makeHistoryEntry(id: number, player_name: string, comment: string, roll
 
 const BOARD_HEIGHT_PCT = 65.6; /* 10% smaller than 72.9 so board fits screen */
 
+const SOCKET_URL =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_SOCKET_URL ||
+        (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, ""))
+    : "";
+
 export default function Board3DMobilePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
 
   const { address } = useAccount();
@@ -190,6 +198,33 @@ export default function Board3DMobilePage() {
   });
 
   const isLiveGame = !!gameCode && !!game;
+  const isMultiplayer = !!game && game.is_ai === false;
+
+  // Multiplayer: socket for live updates
+  useEffect(() => {
+    if (!gameCode || !SOCKET_URL || !game || game.is_ai !== false) return;
+    const socket = socketService.connect(SOCKET_URL);
+    socketService.joinGameRoom(gameCode);
+    const onGameUpdate = (data: { gameCode: string }) => {
+      if (data.gameCode === gameCode) {
+        refetchGame();
+        queryClient.invalidateQueries({ queryKey: ["game_properties"] });
+        refetchGameProperties();
+      }
+    };
+    const onGameStarted = () => {
+      refetchGame();
+      queryClient.invalidateQueries({ queryKey: ["game_properties"] });
+      refetchGameProperties();
+    };
+    socketService.onGameUpdate(onGameUpdate);
+    socketService.onGameStarted(onGameStarted);
+    return () => {
+      socketService.removeListener("game-update", onGameUpdate);
+      socketService.removeListener("game-started", onGameStarted);
+      socketService.leaveGameRoom(gameCode);
+    };
+  }, [gameCode, game?.is_ai, queryClient, refetchGame, refetchGameProperties]);
 
   const me = useMemo<Player | null>(() => {
     const myAddress = guestUser?.address ?? address;
@@ -236,6 +271,48 @@ export default function Board3DMobilePage() {
   } | null>(null);
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
+
+  // Multiplayer: "Start now" ready window
+  const [requestStartLoading, setRequestStartLoading] = useState(false);
+  const READY_WINDOW_SECONDS = 30;
+  const isWaitingForStart =
+    isMultiplayer &&
+    game?.status === "PENDING" &&
+    !!game?.ready_window_opens_at &&
+    (game?.players?.length ?? 0) >= (game?.number_of_players ?? 0);
+  const readyOpensAt = game?.ready_window_opens_at ? new Date(game.ready_window_opens_at).getTime() : 0;
+  const readyClosesAt = readyOpensAt + READY_WINDOW_SECONDS * 1000;
+  const [readySecondsLeft, setReadySecondsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isWaitingForStart || !readyOpensAt) {
+      setReadySecondsLeft(null);
+      return;
+    }
+    const tick = () => {
+      const now = Date.now();
+      if (now >= readyClosesAt) setReadySecondsLeft(0);
+      else setReadySecondsLeft(Math.ceil((readyClosesAt - now) / 1000));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isWaitingForStart, readyOpensAt, readyClosesAt]);
+  const requestStart = useCallback(async () => {
+    if (!game?.id || requestStartLoading) return;
+    setRequestStartLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse>(`/games/${game.id}/request-start`);
+      const data = res.data as { success?: boolean; started?: boolean; message?: string };
+      if (data?.started) await refetchGame();
+      if (data?.message) toast.success(data.message);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(err?.response?.data?.message || err?.message || "Failed to request start");
+    } finally {
+      setRequestStartLoading(false);
+    }
+  }, [game?.id, requestStartLoading, refetchGame]);
+  const startGuard = usePreventDoubleSubmit();
 
   const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d_mobile";
   const [aiTipsOn, setAiTipsOn] = useState(() => {
@@ -1634,6 +1711,31 @@ export default function Board3DMobilePage() {
       className="fixed inset-0 w-full bg-[#010F10] overflow-hidden"
       style={{ height: "100dvh" }}
     >
+      {/* Multiplayer: "All players have joined" / Start now overlay */}
+      {isWaitingForStart && (
+        <div className="absolute inset-0 z-[2147483647] flex items-center justify-center bg-black/80 backdrop-blur-sm" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+          <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-6 mx-4 max-w-sm text-center shadow-xl">
+            <h2 className="text-lg font-semibold text-white mb-2">All players have joined</h2>
+            <p className="text-gray-300 text-sm mb-3">
+              Click &quot;Start now&quot; to begin. All players must click within the window.
+            </p>
+            {readySecondsLeft !== null && (
+              <p className="text-cyan-400 font-mono text-xl mb-4">
+                {readySecondsLeft > 0 ? `${readySecondsLeft}s left` : "Window closed"}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => startGuard.submit(() => requestStart())}
+              disabled={requestStartLoading || startGuard.isSubmitting || readySecondsLeft === 0}
+              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors"
+            >
+              {requestStartLoading || startGuard.isSubmitting ? "..." : "Start now"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top bar: all game controls start from the left; right side left clear for main nav hamburger */}
       <div
         className="fixed left-0 right-0 z-[100] flex items-center justify-start gap-1.5 pl-2 pr-16 py-1.5 bg-slate-800/95 border-b border-slate-600/50"
