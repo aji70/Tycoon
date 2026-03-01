@@ -8,15 +8,20 @@ const Message = {
       (await db("games").where({ id: gameIdOrCode }).first()) ??
       (await db("games").where({ code: String(gameIdOrCode) }).first());
     if (game && game.status === "RUNNING") {
-      const game_player = await db("game_players")
+      let game_player = await db("game_players")
         .where({ game_id: game.id, id: messageData.player_id })
         .first();
+      if (!game_player && messageData.user_id != null) {
+        game_player = await db("game_players")
+          .where({ game_id: game.id, user_id: messageData.user_id })
+          .first();
+      }
       if (game_player) {
         const chat = await db("chats").where({ game_id: game.id }).first();
         if (chat && chat.status === "open") {
           const insertData = {
             chat_id: chat.id,
-            player_id: String(messageData.player_id),
+            player_id: String(game_player.id),
             body: messageData.body,
           };
           const [id] = await db("messages").insert(insertData);

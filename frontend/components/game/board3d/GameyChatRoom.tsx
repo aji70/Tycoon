@@ -116,6 +116,7 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
       await apiClient.post("/messages", {
         game_id: gameId,
         player_id: playerId,
+        user_id: me?.user_id ?? undefined,
         body: bodyToSend,
       });
       queryClient.invalidateQueries({ queryKey: ["messages", gameId] });
