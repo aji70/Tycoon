@@ -300,9 +300,10 @@ const payRent = async (
         };
       }
 
-      // Resolve card text using property name from backend (matches board). Only for cards that move to a named destination (card.position >= 0), not "Go back 3 spaces".
+      // Resolve card text using property name from backend (matches board). Only when the card actually moves the player to a different square (avoids showing "Advance to Community Chest" for credit/debit cards drawn on Community Chest).
       let displayInstruction = card.instruction;
-      const moveDest = position != null && position >= 0 && position !== 10 && (card.position == null || card.position >= 0);
+      const actuallyMoved = position !== new_position && position != null && position >= 0 && position !== 10;
+      const moveDest = actuallyMoved && (card.position != null && card.position >= 0 || extra?.rule === "nearest_utility" || extra?.rule === "nearest_railroad");
       if (moveDest) {
         const destProp = await trx("properties").where({ id: position }).first();
         if (destProp && destProp.name) {
@@ -313,7 +314,8 @@ const payRent = async (
           else if (PROPERTY_TYPES.UTILITY.includes(position))
             displayInstruction = `Advance token to nearest Utility: ${name}. If unowned, you may buy it from the Bank. If owned, throw dice and pay owner a total ten times the amount thrown.`;
           else if (position === 39) displayInstruction = `Take a walk on the ${name}. Advance token to ${name}.`;
-          else displayInstruction = `Advance to ${name}. If you pass Go, collect $200`;
+          else if (!PROPERTY_TYPES.COMMUNITY_CHEST.includes(position) && !PROPERTY_TYPES.CHANCE.includes(position))
+            displayInstruction = `Advance to ${name}. If you pass Go, collect $200`;
           chanceCard = { ...chanceCard, display_instruction: displayInstruction };
         }
       }
