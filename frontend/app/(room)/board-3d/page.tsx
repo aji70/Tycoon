@@ -16,7 +16,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION } from "@/components/game/constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
+import { useEndAIGameAndClaim, useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { useChainId } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
@@ -39,6 +39,10 @@ import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
+
+const PERK_CASH_TIERS = [0, 100, 250, 500, 700, 1000];
+const PERK_REFUND_TIERS = [0, 60, 150, 300, 420, 600];
+const PERK_DISCOUNT_TIERS = [0, 100, 200, 300, 400, 500];
 
 function makeHistoryEntry(id: number, player_name: string, comment: string, rolled: number): History {
   return {
@@ -270,6 +274,13 @@ export default function Board3DDemoPage() {
   const timeUpHandledRef = useRef(false);
   const [viewTradesRequested, setViewTradesRequested] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
+  const [pendingBarPerk, setPendingBarPerk] = useState<{
+    tokenId: bigint;
+    perk: number;
+    strength: number;
+    name: string;
+  } | null>(null);
+  const { burn: burnCollectible, isSuccess: burnSuccess } = useRewardBurnCollectible();
   const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d";
   const [aiTipsOn, setAiTipsOn] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -413,6 +424,125 @@ export default function Board3DDemoPage() {
   });
   const buyGuard = usePreventDoubleSubmit();
   const jailGuard = usePreventDoubleSubmit();
+
+  const handleUsePerkFromBar = useCallback(
+    (tokenId: bigint, perk: number, _strength: number, name: string) => {
+      if (perk === 6 || perk === 10) {
+        setShowPerksModal(true);
+        return;
+      }
+      setPendingBarPerk({ tokenId, perk, strength: _strength, name });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!burnSuccess || !pendingBarPerk || !game?.id || !me) return;
+
+    const { perk, strength, name } = pendingBarPerk;
+    const toastId = toast.loading("Applying perk...");
+
+    (async () => {
+      try {
+        let success = false;
+        switch (perk) {
+          case 1:
+            if (playerCanRoll) {
+              toast.success("Extra Turn! Roll again.", { id: toastId });
+              handleRollForLive();
+              success = true;
+            }
+            break;
+          case 2: {
+            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
+            if (realId != null) {
+              await apiClient.put(`/game-players/${realId}`, {
+                game_id: game.id,
+                user_id: me.user_id,
+                in_jail: false,
+              });
+              success = true;
+              toast.success("Escaped jail!", { id: toastId });
+            }
+            break;
+          }
+          case 3:
+          case 4:
+          case 7: {
+            const res = await apiClient.post<{ data?: { success?: boolean } }>("/perks/activate", {
+              game_id: game.id,
+              perk_id: perk,
+            });
+            success = res?.data?.success ?? false;
+            if (success) toast.success(`${name} activated for next use!`, { id: toastId });
+            break;
+          }
+          case 5: {
+            const amount = PERK_CASH_TIERS[Math.min(strength, PERK_CASH_TIERS.length - 1)];
+            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
+            if (realId != null && amount > 0) {
+              await apiClient.put(`/game-players/${realId}`, {
+                game_id: game.id,
+                user_id: me.user_id,
+                balance: (me.balance ?? 0) + amount,
+              });
+              success = true;
+              toast.success(`+$${amount} Instant Cash!`, { id: toastId });
+            }
+            break;
+          }
+          case 8: {
+            const discount = PERK_DISCOUNT_TIERS[Math.min(strength, PERK_DISCOUNT_TIERS.length - 1)];
+            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
+            if (realId != null && discount > 0) {
+              await apiClient.put(`/game-players/${realId}`, {
+                game_id: game.id,
+                user_id: me.user_id,
+                balance: (me.balance ?? 0) + discount,
+              });
+              success = true;
+              toast.success(`+$${discount} Property Discount!`, { id: toastId });
+            }
+            break;
+          }
+          case 9: {
+            const refund = PERK_REFUND_TIERS[Math.min(strength, PERK_REFUND_TIERS.length - 1)];
+            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
+            if (realId != null && refund > 0) {
+              await apiClient.put(`/game-players/${realId}`, {
+                game_id: game.id,
+                user_id: me.user_id,
+                balance: (me.balance ?? 0) + refund,
+              });
+              success = true;
+              toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+            }
+            break;
+          }
+          default:
+            break;
+        }
+        if (success || perk === 1) {
+          toast.success("Perk used & collectible burned!", { id: toastId });
+        } else if (perk !== 6 && perk !== 10) {
+          toast.error("Effect failed", { id: toastId });
+        }
+        await refetchGame();
+      } catch {
+        toast.error("Activation failed", { id: toastId });
+      } finally {
+        setPendingBarPerk(null);
+      }
+    })();
+  }, [
+    burnSuccess,
+    pendingBarPerk,
+    game?.id,
+    me,
+    playerCanRoll,
+    handleRollForLive,
+    refetchGame,
+  ]);
 
   const players = isLiveGame ? livePlayers : mockPlayers;
   const positions = useMemo(() => {
@@ -1483,7 +1613,11 @@ export default function Board3DDemoPage() {
         {/* Boost bar (perks) on its own line; X + notification bell on the next line */}
         {isLiveGame && game && (
           <div className="flex flex-col gap-3 shrink-0">
-            <PerksBar onOpenModal={() => setShowPerksModal(true)} className="shrink-0" />
+            <PerksBar
+              onOpenModal={() => setShowPerksModal(true)}
+              onUsePerk={handleUsePerkFromBar}
+              className="shrink-0"
+            />
             <div className="flex items-center gap-2 flex-wrap">
               {isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
                 <button
@@ -1839,6 +1973,48 @@ export default function Board3DDemoPage() {
                     className="px-4 py-2 rounded-xl text-sm font-medium bg-cyan-600/90 text-white hover:bg-cyan-500 border border-cyan-400/50 transition-colors"
                   >
                     Yes, vote to end
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Confirm use perk from bar (burn + apply) */}
+        <AnimatePresence>
+          {pendingBarPerk && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+              onClick={() => setPendingBarPerk(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-slate-800 border border-violet-500/50 rounded-xl p-6 max-w-sm w-full shadow-xl"
+              >
+                <p className="text-lg font-semibold text-white mb-1">Use {pendingBarPerk.name}?</p>
+                <p className="text-sm text-slate-400 mb-6">This will burn one collectible. The effect will apply immediately.</p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPendingBarPerk(null)}
+                    className="px-4 py-2 rounded-lg bg-slate-600 text-slate-200 hover:bg-slate-500 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      burnCollectible(pendingBarPerk.tokenId);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition"
+                  >
+                    Use
                   </button>
                 </div>
               </motion.div>

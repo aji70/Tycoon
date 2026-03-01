@@ -37,10 +37,12 @@ const PERK_NAMES: Record<number, string> = {
 
 interface PerksBarProps {
   onOpenModal: () => void;
+  /** When set, clicking a perk activates it (burn + apply) instead of opening the modal. */
+  onUsePerk?: (tokenId: bigint, perk: number, strength: number, name: string) => void;
   className?: string;
 }
 
-export default function PerksBar({ onOpenModal, className = "" }: PerksBarProps) {
+export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: PerksBarProps) {
   const { address } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
@@ -97,22 +99,26 @@ export default function PerksBar({ onOpenModal, className = "" }: PerksBarProps)
     return infoResults
       .map((res, i) => {
         if (res?.status !== "success") return null;
-        const [perkBig] = res.result as [bigint, bigint];
-        const perk = Number(perkBig);
-        return { perk, tokenId: ownedTokenIds[i] };
+        const arr = res.result as [bigint, bigint?, ...unknown[]];
+        const perk = Number(arr[0]);
+        const strength = arr[1] != null ? Number(arr[1]) : 1;
+        return { perk, tokenId: ownedTokenIds[i], strength };
       })
-      .filter((c): c is { perk: number; tokenId: bigint } => c !== null);
+      .filter((c): c is { perk: number; tokenId: bigint; strength: number } => c !== null);
   }, [infoResults, ownedTokenIds]);
 
-  /** Group by perk type and count: [{ perk: 1, count: 2 }, { perk: 5, count: 1 }, ...] */
+  /** Group by perk type: count, and first tokenId/strength for activation */
   const perksGrouped = useMemo(() => {
-    const byPerk: Record<number, number> = {};
-    perks.forEach(({ perk }) => {
-      byPerk[perk] = (byPerk[perk] ?? 0) + 1;
+    const byPerk: Record<number, { count: number; tokenId: bigint; strength: number }> = {};
+    perks.forEach(({ perk, tokenId, strength }) => {
+      if (!byPerk[perk]) byPerk[perk] = { count: 1, tokenId, strength };
+      else byPerk[perk].count += 1;
     });
-    return Object.entries(byPerk).map(([perkStr, count]) => ({
+    return Object.entries(byPerk).map(([perkStr, v]) => ({
       perk: Number(perkStr),
-      count,
+      count: v.count,
+      tokenId: v.tokenId,
+      strength: v.strength,
     }));
   }, [perks]);
 
@@ -149,11 +155,11 @@ export default function PerksBar({ onOpenModal, className = "" }: PerksBarProps)
         </button>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {perksGrouped.map(({ perk, count }) => (
+        {perksGrouped.map(({ perk, count, tokenId, strength }) => (
           <button
             key={perk}
             type="button"
-            onClick={onOpenModal}
+            onClick={() => (onUsePerk ? onUsePerk(tokenId, perk, strength, PERK_NAMES[perk] ?? `Perk ${perk}`) : onOpenModal())}
             title={`${PERK_NAMES[perk] ?? `Perk ${perk}`}${count > 1 ? ` (×${count})` : ""}`}
             className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-violet-600/90 to-fuchsia-600/80 border border-violet-400/50 text-white hover:scale-105 hover:border-violet-300/70 active:scale-95 transition-transform shadow-md"
           >
