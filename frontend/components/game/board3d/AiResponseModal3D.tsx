@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 
@@ -10,8 +10,23 @@ interface AiResponseModal3DProps {
   onClose: () => void;
 }
 
-/** Gamy AI trade response modal — renders via portal so visible above 3D board */
+/** Portal target: fullscreen element when active so modal is visible in fullscreen (desktop and mobile), else body */
+function getPortalTarget(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return (document.fullscreenElement as HTMLElement) || document.body;
+}
+
+/** Gamy AI trade response modal — portals into fullscreen element when in fullscreen so it's visible on desktop and mobile */
 export default function AiResponseModal3D({ popup, properties, onClose }: AiResponseModal3DProps) {
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(() => getPortalTarget());
+
+  useEffect(() => {
+    setPortalTarget(getPortalTarget());
+    const onFullscreenChange = () => setPortalTarget(getPortalTarget());
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
   if (!popup) return null;
 
   const trade = popup.trade || {};
@@ -139,7 +154,6 @@ export default function AiResponseModal3D({ popup, properties, onClose }: AiResp
     </motion.div>
   );
 
-  return typeof document !== "undefined"
-    ? createPortal(modalContent, document.body)
-    : modalContent;
+  const target = portalTarget ?? (typeof document !== "undefined" ? document.body : null);
+  return target ? createPortal(modalContent, target) : modalContent;
 }

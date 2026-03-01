@@ -267,7 +267,7 @@ export function useAiPlayerLogic({
           { id }
         );
         if (res?.data?.success) {
-          toast.success(`Trade ${action}`);
+          if (action === "accepted") toast.success("Trade accepted");
           closeAiTradePopup();
           refreshTrades();
         }

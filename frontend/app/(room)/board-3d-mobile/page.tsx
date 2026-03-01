@@ -151,7 +151,7 @@ function makeHistoryEntry(id: number, player_name: string, comment: string, roll
   };
 }
 
-const BOARD_HEIGHT_PCT = 72.9;
+const BOARD_HEIGHT_PCT = 65.6; /* 10% smaller than 72.9 so board fits screen */
 
 export default function Board3DMobilePage() {
   const searchParams = useSearchParams();
@@ -1452,6 +1452,7 @@ export default function Board3DMobilePage() {
                 history={historyToShow}
                 hideCenterActionLog={true}
                 hideOwnerBadges={true}
+                smallTokens={true}
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
               />
             </Canvas>

@@ -29,6 +29,8 @@ interface PlayerSection3DProps {
   openTradeSection?: boolean;
   /** Called after opening trade section so parent can reset openTradeSection */
   onTradeSectionOpened?: () => void;
+  /** When true, do not show the AI trade response modal (e.g. on mobile for a simpler UI) */
+  hideAiResponseModal?: boolean;
 }
 
 export default function PlayerSection3D({
@@ -44,6 +46,7 @@ export default function PlayerSection3D({
   onPropertySelect,
   openTradeSection = false,
   onTradeSectionOpened,
+  hideAiResponseModal = false,
 }: PlayerSection3DProps) {
   const [showEmpire, setShowEmpire] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -231,11 +234,13 @@ export default function PlayerSection3D({
 
       {/* Modals — PropertyDetailModal3D is rendered by parent (board page) when property selected from My Empire */}
       <AnimatePresence>
-        <AiResponseModal3D
-          popup={aiResponsePopup}
-          properties={properties}
-          onClose={() => setAiResponsePopup(null)}
-        />
+        {!hideAiResponseModal && (
+          <AiResponseModal3D
+            popup={aiResponsePopup}
+            properties={properties}
+            onClose={() => setAiResponsePopup(null)}
+          />
+        )}
 
         <TradeModal
           open={tradeModal.open}
