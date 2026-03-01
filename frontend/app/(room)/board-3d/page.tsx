@@ -1477,8 +1477,8 @@ export default function Board3DDemoPage() {
         ref={fullscreenRef}
         className={`flex flex-row gap-4 flex-1 min-w-0 min-h-0 overflow-hidden ${isFullscreen ? "p-4 bg-[#010F10]" : ""}`}
       >
-      {/* Sidebar: Perks + End game by net worth (untimed) inline, then Players + My Empire + Trade — sticky so it stays visible when scrolling */}
-      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
+      {/* Sidebar: Perks + X + notification bell + Players — fixed on desktop so it never scrolls out */}
+      <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 fixed left-4 top-4 z-20 max-h-[calc(100vh-2rem)] overflow-y-auto">
         {/* Perks and X (end by net worth) — inline above player section */}
         {isLiveGame && game && (
           <div className="flex items-center gap-2 shrink-0">
@@ -1582,6 +1582,9 @@ export default function Board3DDemoPage() {
           </div>
         )}
       </div>
+
+      {/* Spacer so board doesn't sit under fixed sidebar on desktop */}
+      <div className="hidden lg:block w-72 flex-shrink-0" aria-hidden="true" />
 
       {/* Board area */}
       <div
