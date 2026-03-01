@@ -1610,7 +1610,7 @@ function Board3DPageContent() {
       >
       {/* Sidebar: Perks + X + notification bell + Players — fixed on desktop so it never scrolls out */}
       <div className="hidden lg:flex flex-col w-72 flex-shrink-0 gap-5 fixed left-4 top-[100px] z-20 max-h-[calc(100vh-100px-1rem)] overflow-y-auto">
-        {/* Boost bar (perks) on its own line; X + notification bell on the next line */}
+        {/* Perks bar + Shop link; X + notification bell on the next line */}
         {isLiveGame && game && (
           <div className="flex flex-col gap-3 shrink-0">
             <PerksBar
