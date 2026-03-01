@@ -502,6 +502,38 @@ const payRent = async (
       }
     }
 
+    // Apply Double Rent (3) and Shield (7) from active_perks (payer = game_player)
+    let activePerksAfterRent = null;
+    if (rent && game_player) {
+      let activePerks = [];
+      try {
+        activePerks = game_player.active_perks ? JSON.parse(game_player.active_perks) : [];
+      } catch (_) {
+        activePerks = [];
+      }
+      const toRemove = [];
+      if (rent.player < 0) {
+        const hasShield = activePerks.some((p) => p.id === 7);
+        const hasDoubleRent = activePerks.some((p) => p.id === 3);
+        if (hasShield) {
+          rent = { player: 0, owner: 0, players: 0 };
+          comment = "Shield blocked rent";
+          toRemove.push(7);
+        } else if (hasDoubleRent) {
+          rent = {
+            player: rent.player * 2,
+            owner: rent.owner * 2,
+            players: rent.players ?? 0,
+          };
+          comment = comment ? `${comment} (Double Rent!)` : "Double Rent applied";
+          toRemove.push(3);
+        }
+      }
+      if (toRemove.length > 0) {
+        activePerksAfterRent = activePerks.filter((p) => !toRemove.includes(p.id));
+      }
+    }
+
     // Process transactions (ensure numeric amounts to avoid DB errors / rollbacks)
     const playerAmount = Number(rent?.player ?? 0);
     const ownerAmount = Number(rent?.owner ?? 0);
@@ -602,6 +634,14 @@ const payRent = async (
             created_at: now,
             updated_at: now,
           })
+        );
+      }
+
+      if (activePerksAfterRent !== null) {
+        updates.push(
+          trx("game_players")
+            .where({ id: game_player.id })
+            .update({ active_perks: JSON.stringify(activePerksAfterRent), updated_at: now })
         );
       }
 
@@ -1062,6 +1102,22 @@ const gamePlayerController = {
       // Clear vote-to-end-by-networth when any player rolls (untimed games)
       await trx("end_by_networth_votes").where({ game_id }).del();
 
+      // Apply Roll Boost (4): add +2 to roll and consume perk
+      let effectiveRolled = rolled != null ? Number(rolled) : null;
+      let activePerksRoll = [];
+      try {
+        activePerksRoll = game_player.active_perks ? JSON.parse(game_player.active_perks) : [];
+      } catch (_) {
+        activePerksRoll = [];
+      }
+      if (effectiveRolled != null && activePerksRoll.some((p) => p.id === 4)) {
+        effectiveRolled = Math.min(12, effectiveRolled + 2);
+        const updated = activePerksRoll.filter((p) => p.id !== 4);
+        await trx("game_players")
+          .where({ id: game_player.id })
+          .update({ active_perks: JSON.stringify(updated), updated_at: now });
+      }
+
       // Compute positions
       const old_position = Number(game_player.position || 0);
       const new_position = position;
@@ -1071,7 +1127,7 @@ const gamePlayerController = {
         await trx("game_play_history").insert({
           game_id,
           game_player_id: game_player.id,
-          rolled,
+          rolled: effectiveRolled,
           old_position,
           new_position,
           action: PROPERTY_ACTION(new_position),
@@ -1124,7 +1180,7 @@ const gamePlayerController = {
           .where({ id: game_player.id })
           .update({
             rolls: Number(game_player.rolls || 0) + 1,
-            rolled: rolled ?? null,
+            rolled: effectiveRolled ?? null,
             updated_at: now,
           });
         await insertPlayHistory(
@@ -1136,7 +1192,7 @@ const gamePlayerController = {
         return res.json({
           success: true,
           still_in_jail: true,
-          rolled: rolled ?? null,
+          rolled: effectiveRolled ?? null,
           message: "Choose: Pay $50, Use Get Out of Jail Free, or Stay in jail.",
         });
       }
@@ -1178,7 +1234,7 @@ const gamePlayerController = {
             player_id: game_player.id,
             old_position: old_position,
             new_position: new_position,
-            rolled,
+            rolled: effectiveRolled,
           },
           trx // Pass transaction to prevent nested transactions
         );
