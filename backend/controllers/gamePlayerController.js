@@ -152,6 +152,8 @@ const payRent = async (
     let position = new_position;
     let comment = "";
     let chanceCard = null;
+    let requires_buy = false;
+    let property_for_buy = null;
 
     // Helper functions
     const createHistory = (playerId, amount, desc) => ({
@@ -239,9 +241,10 @@ const payRent = async (
             PROPERTY_TYPES.RAILWAY.find((id) => id > new_position) ??
             PROPERTY_TYPES.RAILWAY[0];
         } else if (rule === "get_out_of_jail_free") {
+          const jailCardCol = typeName === "community chest" ? "community_chest_jail_card" : "chance_jail_card";
           await trx("game_players")
             .where({ id: game_player.id })
-            .update({ [`${typeName}_jail_card`]: 1 });
+            .update({ [jailCardCol]: 1 });
         } else if (rule === "go_to_jail") {
           position = 10;
           await trx("game_players").where({ id: game_player.id }).update({
@@ -297,7 +300,24 @@ const payRent = async (
         };
       }
 
-      comment = `drew ${typeName}: ${card.instruction}`;
+      // Resolve card text using property name from backend (matches board). Only for cards that move to a named destination (card.position >= 0), not "Go back 3 spaces".
+      let displayInstruction = card.instruction;
+      const moveDest = position != null && position >= 0 && position !== 10 && (card.position == null || card.position >= 0);
+      if (moveDest) {
+        const destProp = await trx("properties").where({ id: position }).first();
+        if (destProp && destProp.name) {
+          const name = destProp.name;
+          if (position === 0) displayInstruction = `Advance to ${name} (Collect $200)`;
+          else if (PROPERTY_TYPES.RAILWAY.includes(position))
+            displayInstruction = `Take a trip to ${name}. If you pass Go, collect $200`;
+          else if (PROPERTY_TYPES.UTILITY.includes(position))
+            displayInstruction = `Advance token to nearest Utility: ${name}. If unowned, you may buy it from the Bank. If owned, throw dice and pay owner a total ten times the amount thrown.`;
+          else if (position === 39) displayInstruction = `Take a walk on the ${name}. Advance token to ${name}.`;
+          else displayInstruction = `Advance to ${name}. If you pass Go, collect $200`;
+          chanceCard = { ...chanceCard, display_instruction: displayInstruction };
+        }
+      }
+      comment = `drew ${typeName}: ${displayInstruction}`;
     };
 
     let game_property = null;
@@ -400,6 +420,82 @@ const payRent = async (
             ? "hotel"
             : `${development} house${development > 1 ? "s" : ""}`
         }`;
+      }
+    }
+
+    // When a Chance/Community Chest card moved the player, handle destination: rent if owned, or require buy if bank-owned
+    if (chanceCard && position !== new_position) {
+      const destProperty = await trx("properties").where({ id: position }).first();
+      const isOwnable =
+        destProperty &&
+        !PROPERTY_TYPES.CHANCE.includes(position) &&
+        !PROPERTY_TYPES.COMMUNITY_CHEST.includes(position) &&
+        !PROPERTY_TYPES.TAX.includes(position) &&
+        position !== 10;
+      if (isOwnable) {
+        const destGameProperty = await trx("game_properties")
+          .forUpdate()
+          .where({ property_id: position, game_id })
+          .first();
+        if (
+          destGameProperty &&
+          destGameProperty.player_id !== game_player.id &&
+          !destGameProperty.mortgaged
+        ) {
+          const [destOwnerRow, destOwnerUser] = await Promise.all([
+            trx("game_players").where({ id: destGameProperty.player_id }).forUpdate().first(),
+            trx("game_players")
+              .where({ id: destGameProperty.player_id })
+              .first()
+              .then((po) => (po ? trx("users").where({ id: po.user_id }).first() : null)),
+          ]);
+          if (destOwnerRow && destOwnerUser) {
+            game_property = destGameProperty;
+            _owner = destOwnerUser;
+            let destRentAmount = 0;
+            let destComment = "";
+            if (PROPERTY_TYPES.RAILWAY.includes(position)) {
+              const owned = await trx("game_properties")
+                .where({ game_id, player_id: destGameProperty.player_id })
+                .whereIn("property_id", PROPERTY_TYPES.RAILWAY)
+                .count({ cnt: "*" })
+                .first()
+                .then((res) => Number(res?.cnt || 0));
+              destRentAmount = RAILWAY_RENT[owned] || 0;
+              destComment = `paid ${destRentAmount} to ${destOwnerUser.username} for ${owned} railway${owned > 1 ? "s" : ""}`;
+            } else if (PROPERTY_TYPES.UTILITY.includes(position)) {
+              const owned = await trx("game_properties")
+                .where({ game_id, player_id: destGameProperty.player_id })
+                .whereIn("property_id", PROPERTY_TYPES.UTILITY)
+                .count({ cnt: "*" })
+                .first()
+                .then((res) => Number(res?.cnt || 0));
+              destRentAmount = Number(rolled || 0) * (UTILITY_MULTIPLIER[owned] || 0);
+              destComment = `paid ${destRentAmount} to ${destOwnerUser.username} for ${owned} utility${owned > 1 ? "ies" : "y"}`;
+            } else {
+              const dev = Number(destGameProperty?.development || 0);
+              const rentFields = [
+                destProperty.rent_site_only,
+                destProperty.rent_one_house,
+                destProperty.rent_two_houses,
+                destProperty.rent_three_houses,
+                destProperty.rent_four_houses,
+                destProperty.rent_hotel,
+              ];
+              destRentAmount = dev >= 0 && dev <= 5 ? Number(rentFields[dev] || 0) : 0;
+              destComment = `paid ${destRentAmount} rent to ${destOwnerUser.username}`;
+            }
+            rent = {
+              player: Number(rent?.player ?? 0) - destRentAmount,
+              owner: Number(rent?.owner ?? 0) + destRentAmount,
+              players: rent?.players ?? 0,
+            };
+            comment = comment ? `${comment} Landed on ${destProperty.name}: ${destComment}` : `drew card. Landed on ${destProperty.name}: ${destComment}`;
+          }
+        } else if (!destGameProperty) {
+          requires_buy = true;
+          property_for_buy = destProperty;
+        }
       }
     }
 
@@ -519,6 +615,8 @@ const payRent = async (
       comment,
       card: chanceCard,
       message: comment,
+      requires_buy: requires_buy || undefined,
+      property_for_buy: property_for_buy || undefined,
     };
   } catch (err) {
     logger.error({ err }, "Error in payRent");
@@ -1112,6 +1210,9 @@ const gamePlayerController = {
             new_position: pay_rent.position || new_position,
             rent_paid: pay_rent.rent,
             passed_go: passedStart,
+            card: pay_rent.card || undefined,
+            requires_buy: pay_rent.requires_buy || undefined,
+            property_for_buy: pay_rent.property_for_buy || undefined,
           },
         });
       } else {

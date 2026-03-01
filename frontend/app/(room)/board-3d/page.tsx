@@ -937,7 +937,14 @@ export default function Board3DDemoPage() {
 
     try {
       await runMovementAnimation(me.user_id, currentPos, totalSteps);
-      const res = await apiClient.post<{ data?: { still_in_jail?: boolean; new_position?: number } }>("/game-players/change-position", {
+      const res = await apiClient.post<{
+        data?: {
+          still_in_jail?: boolean;
+          new_position?: number;
+          requires_buy?: boolean;
+          property_for_buy?: Property;
+        };
+      }>("/game-players/change-position", {
         user_id: me.user_id,
         game_id: game.id,
         position: newPos,
@@ -960,12 +967,17 @@ export default function Board3DDemoPage() {
         return next;
       });
       setLandedPositionForBuy(finalPosition);
-      const square = properties.find((p) => p.id === finalPosition);
-      const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
-      const action = PROPERTY_ACTION(finalPosition);
-      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
-      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-      if (needBuyPrompt) setBuyPrompted(true);
+      // After a Chance/Community Chest card move, backend may require rent (already applied) or buy prompt
+      if (data?.requires_buy && data?.property_for_buy) {
+        setBuyPrompted(true);
+      } else {
+        const square = properties.find((p) => p.id === finalPosition);
+        const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
+        const action = PROPERTY_ACTION(finalPosition);
+        const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+        const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
+        if (needBuyPrompt) setBuyPrompted(true);
+      }
       // Don't call END_TURN here — let the useEffect below handle auto end (matches 2D; avoids turn break on Chance/CC)
     } catch (err) {
       setLiveMovementOverride((prev) => {
