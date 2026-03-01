@@ -1653,7 +1653,7 @@ export default function Board3DMobilePage() {
             className="px-2 py-1.5 rounded-md text-xs font-bold bg-red-600/90 border border-red-400/60 text-white hover:bg-red-500 shrink-0 disabled:opacity-50 disabled:pointer-events-none"
             title={endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End by net worth · ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
           >
-            {endByNetWorthStatus.voters?.some((v) => v.user_id === me?.user_id) ? `Voted ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}` : `End ${endByNetWorthStatus.vote_count}/${endByNetWorthStatus.required_votes}`}
+            X
           </button>
         )}
         {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
