@@ -37,6 +37,7 @@ import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X } from "lucide-reac
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
+import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -2195,6 +2196,15 @@ function Board3DPageContent() {
           </div>
         )}
       </div>
+
+      {/* Multiplayer: Tavern chat sidebar (desktop only) */}
+      {isLiveGame && game && game.is_ai === false && gameCode && (
+        <aside className="hidden lg:flex flex-col w-80 xl:w-[22rem] flex-shrink-0 min-h-0 h-full border-l border-amber-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden">
+          <div className="flex-1 min-h-0 p-2">
+            <GameyChatRoom gameId={gameCode} me={me} isMobile={false} showHeader={true} />
+          </div>
+        </aside>
+      )}
       </div>
 
       <Toaster position="top-center" />
