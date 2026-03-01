@@ -637,6 +637,21 @@ const gamePropertyController = {
         .where({ id: game_property.id })
         .update({ mortgaged: 1 });
 
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: Number(property.price) / 2,
+        extra: null,
+        comment: `mortgaged ${property.name}`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
       await trx.commit();
       return res
         .status(200)
@@ -743,6 +758,21 @@ const gamePropertyController = {
         .where({ id: game_property.id })
         .update({ mortgaged: 0 });
 
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: -Number(property.price),
+        extra: null,
+        comment: `redeemed ${property.name} from mortgage`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
+
       await trx.commit();
       return res
         .status(200)
@@ -804,6 +834,21 @@ const gamePropertyController = {
         .where({ id: player.id })
         .increment("balance", sellPrice);
       await trx("game_properties").where({ id: game_property.id }).del();
+
+      await trx("game_play_history").insert({
+        game_id: game.id,
+        game_player_id: player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "property_action",
+        amount: sellPrice,
+        extra: null,
+        comment: `sold ${property.name} back to bank`,
+        active: 1,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+      });
 
       const sellerUser = await trx("users").where({ id: player.user_id }).select("username").first();
       const sellerUsername = sellerUser?.username ?? null;

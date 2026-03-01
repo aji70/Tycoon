@@ -951,7 +951,6 @@ export default function Board3DMobilePage() {
         game_id: game.id,
         property_id: justLandedProperty.id,
       });
-      toast.success(`You bought ${justLandedProperty.name}!`);
       setBuyPrompted(false);
       setLandedPositionForBuy(null);
       landedPositionThisTurnRef.current = null;

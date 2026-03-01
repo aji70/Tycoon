@@ -237,6 +237,24 @@ export const GameTradeRequestController = {
         created_at: new Date(),
         updated_at: new Date(),
       });
+
+      const proposerUser = await trx("users").where({ id: player.user_id }).select("username").first();
+      const proposerUsername = proposerUser?.username ?? "Player";
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: target_player.id,
+        rolled: null,
+        old_position: null,
+        new_position: null,
+        action: "trade_accept",
+        amount: 0,
+        extra: null,
+        comment: `accepted trade with ${proposerUsername}`,
+        active: 1,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
       await trx.commit();
 
       const playerUser = await db("users").where({ id: player.user_id }).select("username").first();

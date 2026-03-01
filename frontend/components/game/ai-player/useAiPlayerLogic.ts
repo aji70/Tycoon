@@ -136,7 +136,6 @@ export function useAiPlayerLogic({
 
       const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
       if (res?.data?.success) {
-        toast.success("Trade sent successfully!");
         setTradeModal({ open: false, target: null });
         resetTradeFields();
         refreshTrades();
@@ -217,7 +216,6 @@ export function useAiPlayerLogic({
 
           if (decision === "accepted") {
             await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
-            toast.success("AI accepted your trade instantly! 🎉");
             refreshTrades();
           }
 
@@ -279,7 +277,6 @@ export function useAiPlayerLogic({
           { id }
         );
         if (res?.data?.success) {
-          if (action === "accepted") toast.success("Trade accepted");
           closeAiTradePopup();
           refreshTrades();
         }
@@ -305,7 +302,6 @@ export function useAiPlayerLogic({
         payload
       );
       if (res?.data?.success) {
-        toast.success("Counter offer sent");
         setCounterModal({ open: false, trade: null });
         resetTradeFields();
         refreshTrades();
