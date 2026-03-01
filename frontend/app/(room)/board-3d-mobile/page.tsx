@@ -1290,6 +1290,8 @@ export default function Board3DMobilePage() {
           left: 0,
           right: 0,
           height: `${BOARD_HEIGHT_PCT}%`,
+          zIndex: 0,
+          isolation: "isolate",
         }}
       >
         {isLoading || (gameCode && gameLoading) ? (
@@ -1300,7 +1302,7 @@ export default function Board3DMobilePage() {
         ) : (
           <div
             className="absolute inset-0 w-full h-full overflow-hidden"
-            style={{ touchAction: "none" }}
+            style={{ touchAction: "none", zIndex: 0, isolation: "isolate" }}
           >
             <Canvas
               camera={{ position: [0, 12, 12], fov: 45 }}
@@ -1323,9 +1325,7 @@ export default function Board3DMobilePage() {
                 ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
                 onSquareClick={handlePropertyClick}
                 rollingDice={rollingDice ?? undefined}
-                onDiceComplete={
-                  isLiveGame ? (showRollUi ? onDiceCompleteClick : undefined) : undefined
-                }
+                onDiceComplete={isLiveGame ? onDiceCompleteClick : undefined}
                 lastRollResult={lastRollResultToShow}
                 onRoll={showRollUi ? onRollClick : undefined}
                 history={historyToShow}

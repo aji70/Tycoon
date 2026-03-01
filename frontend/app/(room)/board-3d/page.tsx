@@ -1654,8 +1654,8 @@ export default function Board3DDemoPage() {
         ref={fullscreenRef}
         className="flex flex-col items-center justify-center bg-[#010F10] rounded-xl min-h-0 flex-1 min-w-0 relative"
       >
-        {/* Live game: balance (visible in fullscreen so user can see their cash) */}
-        {isLiveGame && me && (
+        {/* Live game: balance (visible only in fullscreen so user can see their cash) */}
+        {isLiveGame && me && isFullscreen && (
           <div
             className="absolute top-3 left-3 z-[100] px-4 py-2 rounded-xl bg-slate-800/95 border border-cyan-500/50 text-cyan-200 font-bold shadow-lg"
             style={{ zIndex: 2147483646 }}
@@ -1677,21 +1677,6 @@ export default function Board3DDemoPage() {
           </button>
         )}
 
-        {/* Live game: End Turn button when human has rolled and can pass (manual fallback if auto-end fails) */}
-        {isLiveGame && isMyTurn && lastRollResultLive && !buyPrompted && !jailChoiceRequired && !rollingDice && (
-          <div className="mb-2">
-            <button
-              type="button"
-              onClick={() => {
-                setTurnEndScheduled(true);
-                END_TURN();
-              }}
-              className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-lg border border-amber-500/50"
-            >
-              End Turn
-            </button>
-          </div>
-        )}
         {isLiveGame && game?.duration != null && Number(game.duration) > 0 && game?.status === "RUNNING" ? (
           <div className="flex flex-col items-center gap-2 mb-2">
             <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} />

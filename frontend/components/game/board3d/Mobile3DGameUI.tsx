@@ -3,134 +3,129 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Bell, Users, X } from "lucide-react";
-import type { Game, GameProperty, Player, Property } from "@/types/game";
+import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
-export interface Mobile3DGameUIProps {
-  game?: Game | null;
-  properties?: Property[];
-  game_properties?: GameProperty[];
-  my_properties?: Property[];
-  me?: Player | null;
-  currentPlayer?: Player | null;
-  positions?: Record<number, number>;
-  isAITurn?: boolean;
+interface Mobile3DGameUIProps {
+  game: Game | null;
+  properties: Property[];
+  game_properties: GameProperty[];
+  my_properties: Property[];
+  me: Player | null;
+  currentPlayer: Player | null;
+  positions: Record<number, number>;
+  isAITurn: boolean;
   isLoading?: boolean;
   onPropertySelect?: (property: Property, gameProperty?: GameProperty) => void;
-  viewTradesRequested?: boolean;
-  onViewTrades?: () => void;
-  onTradeSectionOpened?: () => void;
+  viewTradesRequested: boolean;
+  onViewTrades: () => void;
+  onTradeSectionOpened: () => void;
   incomingTradeCount?: number;
-  showPerksModal?: boolean;
-  setShowPerksModal?: (v: boolean) => void;
-  isMyTurn?: boolean;
+  showPerksModal: boolean;
+  setShowPerksModal: (v: boolean) => void;
+  isMyTurn: boolean;
   onRollDice?: () => void;
-  onEndTurn?: () => void;
+  onEndTurn: () => void;
   triggerSpecialLanding?: (position: number, isSpecial?: boolean) => void;
   endTurnAfterSpecial?: () => void;
 }
 
-export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
-  const {
-    game,
-    properties = [],
-    game_properties = [],
-    my_properties = [],
-    me,
-    currentPlayer,
-    positions = {},
-    isAITurn = false,
-    isLoading = false,
-    onPropertySelect,
-    viewTradesRequested = false,
-    onViewTrades,
-    onTradeSectionOpened,
-    incomingTradeCount = 0,
-    showPerksModal: controlledPerksOpen,
-    setShowPerksModal: setControlledPerksOpen,
-    isMyTurn = false,
-    onRollDice,
-    onEndTurn,
-    triggerSpecialLanding,
-    endTurnAfterSpecial,
-  } = props;
+export default function Mobile3DGameUI({
+  game,
+  properties,
+  game_properties,
+  my_properties,
+  me,
+  currentPlayer,
+  positions,
+  isAITurn,
+  isLoading = false,
+  onPropertySelect,
+  viewTradesRequested,
+  onViewTrades,
+  onTradeSectionOpened,
+  incomingTradeCount = 0,
+  showPerksModal,
+  setShowPerksModal,
+  isMyTurn,
+  onRollDice,
+  onEndTurn,
+  triggerSpecialLanding,
+  endTurnAfterSpecial,
+}: Mobile3DGameUIProps) {
+  const hasGame = !!game;
 
   const [internalPlayerModalOpen, setInternalPlayerModalOpen] = useState(false);
-  const [internalPerksOpen, setInternalPerksOpen] = useState(false);
 
-  const showPerksModal = controlledPerksOpen ?? internalPerksOpen;
-  const setShowPerksModal = setControlledPerksOpen ?? setInternalPerksOpen;
-  const showPlayerModal = internalPlayerModalOpen;
+  // Bell: open modal with Trade tab selected (viewTradesRequested=true)
+  const openBellModal = () => {
+    onViewTrades();
+    setInternalPlayerModalOpen(true);
+  };
 
-  const hasGame = !!game && !isLoading;
-
-  const openPlayerModal = (tab?: "players" | "empire" | "trade") => {
-    if (viewTradesRequested && onTradeSectionOpened) onTradeSectionOpened();
+  // Players: open modal with Players tab selected (do NOT set viewTradesRequested)
+  const openPlayerModal = () => {
     setInternalPlayerModalOpen(true);
   };
 
   return (
     <>
-      {/* Notification bar — Perks · Trade · Players (always on top so it’s visible) */}
+      {/* Bottom bar: Perks, Bell (Trades), Players — high z-index so board stays behind */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-[100] flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
+        className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
         <button
           type="button"
           onClick={() => setShowPerksModal(true)}
-          className="w-12 h-12 rounded-xl flex items-center justify-center bg-violet-600/90 border border-violet-400/60 text-white hover:bg-violet-500 transition-colors"
-          aria-label="Perks & collectibles"
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition"
         >
           <Sparkles className="w-5 h-5" />
+          <span className="text-xs font-medium">Perks</span>
         </button>
-
         <button
           type="button"
-          onClick={() => {
-            onViewTrades?.();
-            openPlayerModal();
-          }}
-          className="relative w-12 h-12 rounded-xl flex items-center justify-center border border-violet-500/50 bg-gradient-to-br from-violet-800/95 to-fuchsia-800/95 text-violet-200 hover:border-violet-400/60 transition-colors"
-          aria-label="Trade"
+          onClick={openBellModal}
+          className="relative flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition"
         >
           <Bell className="w-5 h-5" />
+          <span className="text-xs font-medium">Trades</span>
           {incomingTradeCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-xs font-bold text-white">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
               {incomingTradeCount > 99 ? "99+" : incomingTradeCount}
             </span>
           )}
         </button>
-
         <button
           type="button"
-          onClick={() => openPlayerModal()}
-          className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-600/90 border border-amber-400/60 text-white hover:bg-amber-500 transition-colors"
-          aria-label="Players"
+          onClick={openPlayerModal}
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition"
         >
           <Users className="w-5 h-5" />
+          <span className="text-xs font-medium">Players</span>
         </button>
       </div>
 
-      {/* Player modal: PlayerSection3D when game exists, else placeholder */}
+      {/* Player/Game modal: Bell opens with Trade tab, Players opens with Players tab */}
       <AnimatePresence>
-        {showPlayerModal && (
+        {internalPlayerModalOpen && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setInternalPlayerModalOpen(false)}
-              className="fixed inset-0 bg-black/60 z-[110]"
+              className="fixed inset-0 bg-black/60 z-[9999]"
+              style={{ transform: "translateZ(0)" }}
             />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-[110] rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+              className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
+              style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
                 <h2 className="text-lg font-bold text-amber-200">Game</h2>
@@ -171,7 +166,7 @@ export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
         )}
       </AnimatePresence>
 
-      {/* Perks modal: CollectibleInventoryBar when game exists, else placeholder */}
+      {/* Perks modal */}
       <AnimatePresence>
         {showPerksModal && (
           <>
@@ -180,15 +175,16 @@ export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowPerksModal(false)}
-              className="fixed inset-0 bg-black/60 z-[110]"
+              className="fixed inset-0 bg-black/60 z-[9999]"
+              style={{ transform: "translateZ(0)" }}
             />
             <motion.div
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-[110] rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+              className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
+              style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
                 <h2 className="text-lg font-bold text-violet-200 flex items-center gap-2">
@@ -216,10 +212,7 @@ export default function Mobile3DGameUI(props: Mobile3DGameUIProps) {
                     endTurnAfterSpecial={endTurnAfterSpecial}
                   />
                 ) : (
-                  <>
-                    <p className="text-slate-500 text-sm">Perks content</p>
-                    <p className="text-slate-600 text-xs mt-1">Join a game to use collectibles and perks.</p>
-                  </>
+                  <p className="text-slate-500 text-sm py-4">Join a game to see your perks.</p>
                 )}
               </div>
             </motion.div>
