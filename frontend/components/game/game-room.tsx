@@ -12,9 +12,11 @@ interface GameRoomProps {
   me: Player | null;
   /** When true, used as full-width tab on mobile (no sidebar chrome) */
   isMobile?: boolean;
+  /** When true, fill parent (e.g. board-3d-multi right column w-80) instead of fixed widths */
+  fillContainer?: boolean;
 }
 
-const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
+const GameRoom = ({ game, me, isMobile = false, fillContainer = false }: GameRoomProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const toggleSidebar = () => {
@@ -40,7 +42,22 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
     );
   }
 
-  // Desktop sidebar layout
+  // Desktop sidebar layout (fillContainer = board-3d-multi right column: no collapse, just chat)
+  if (fillContainer) {
+    return (
+      <aside className="w-full h-full min-h-0 bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col">
+        <div className="flex-shrink-0 flex items-center px-4 py-2.5 border-b border-white/5">
+          <h4 className="font-bold text-lg text-white font-dmSans tracking-tight">
+            Game Chat{gameId ? ` · ${gameId}` : ""}
+          </h4>
+        </div>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ChatRoomDesktop gameId={gameId} me={me} />
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <>
       {!isSidebarOpen && (
@@ -57,9 +74,9 @@ const GameRoom = ({ game, me, isMobile = false }: GameRoomProps) => {
 
       <aside
         className={`
-          h-[calc(100vh-120px)] mb-[120px] bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
+          bg-[#0a0f10] border-l border-white/5 overflow-hidden flex flex-col
           transition-all duration-300 ease-in-out
-          fixed top-0 right-0 z-20 lg:static lg:z-auto lg:self-start
+          h-[calc(100vh-120px)] mb-[120px] fixed top-0 right-0 z-20 lg:static lg:z-auto lg:self-start
           ${isSidebarOpen
             ? "translate-x-0 w-[85vw] sm:w-[75vw] md:w-[400px] lg:w-[340px] xl:w-[380px]"
             : "translate-x-full lg:translate-x-0 lg:w-[72px]"

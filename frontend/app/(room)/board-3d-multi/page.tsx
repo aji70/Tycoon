@@ -2,8 +2,7 @@
 
 import GameBoard3DView from "@/components/game/board/game-board-3d";
 import GameRoom from "@/components/game/game-room";
-import GamePlayers from "@/components/game/player/player";
-import MobileGamePlayers from "@/components/game/player/mobile/player";
+import GamePlayers from "@/components/game/ai-player/ai-player";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
@@ -115,6 +114,13 @@ export default function Board3DMultiPage() {
     ) || null;
   }, [game, myAddress]);
 
+  const currentPlayer = useMemo<Player | null>(() => {
+    if (!game?.next_player_id || !game?.players) return null;
+    return game.players.find((p) => p.user_id === game.next_player_id) ?? null;
+  }, [game]);
+
+  const [focusTrades, setFocusTrades] = useState(false);
+
   const {
     data: properties = [],
     isLoading: propertiesLoading,
@@ -209,6 +215,7 @@ export default function Board3DMultiPage() {
 
   const finishByTimeGuard = usePreventDoubleSubmit();
   const onFinishByTime = useCallback(() => finishByTimeGuard.submit(() => finishGameByTime()), [finishGameByTime, finishByTimeGuard]);
+  const startGuard = usePreventDoubleSubmit();
 
   if (gameLoading) {
     return (
@@ -268,7 +275,7 @@ export default function Board3DMultiPage() {
   }
 
   return (
-    <main className="w-full h-screen max-h-screen overflow-hidden relative flex flex-row lg:gap-2 lg:[gap:28px] bg-[#010F10]">
+    <main className="w-full h-screen overflow-hidden relative flex flex-row bg-[#010F10] lg:gap-4 p-4">
       {isWaitingForStart && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-8 max-w-md text-center shadow-xl">
@@ -283,27 +290,35 @@ export default function Board3DMultiPage() {
             )}
             <button
               type="button"
-              onClick={requestStart}
-              disabled={requestStartLoading || readySecondsLeft === 0}
+              onClick={() => startGuard.submit(() => requestStart())}
+              disabled={requestStartLoading || startGuard.isSubmitting || readySecondsLeft === 0}
               className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors"
             >
-              {requestStartLoading ? "..." : "Start now"}
+              {requestStartLoading || startGuard.isSubmitting ? "..." : "Start now"}
             </button>
           </div>
         </div>
       )}
 
-      <div className="hidden lg:block shrink-0">
+      {/* Left: Players panel — same as AI game (My Empire, Trades, perks behaviour) */}
+      <div className="hidden lg:block w-80 flex-shrink-0 min-h-0">
         <GamePlayers
           game={game}
           properties={properties}
           game_properties={game_properties}
           my_properties={my_properties}
           me={me}
+          currentPlayer={currentPlayer}
+          roll={null}
+          isAITurn={false}
+          focusTrades={focusTrades}
+          onViewedTrades={() => setFocusTrades(false)}
+          isGuest={!!guestUser}
         />
       </div>
 
-      <div className="lg:flex-1 w-full min-w-0 flex flex-col">
+      {/* Center: 3D board — fills like AI board */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <GameBoard3DView
           game={game}
           properties={properties}
@@ -311,11 +326,13 @@ export default function Board3DMultiPage() {
           me={me}
           onGameUpdated={() => refetchGame()}
           onFinishByTime={onFinishByTime}
+          embedded
         />
       </div>
 
-      <div className="hidden lg:block shrink-0">
-        <GameRoom game={game} me={me} />
+      {/* Right: Chat — same width as players for symmetry */}
+      <div className="hidden lg:flex w-80 flex-shrink-0 flex-col min-h-0">
+        <GameRoom game={game} me={me} fillContainer />
       </div>
     </main>
   );

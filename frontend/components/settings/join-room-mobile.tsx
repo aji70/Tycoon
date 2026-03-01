@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 
 interface JoinRoomMobileProps {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
@@ -38,6 +39,7 @@ export default function JoinRoom({
   const [fetchingRecent, setFetchingRecent] = useState<boolean>(true);
   const [fetchingPending, setFetchingPending] = useState<boolean>(true);
   const [timeFilter, setTimeFilter] = useState<number>(5 * 60 * 1000); // Default: last 5 minutes in ms
+  const joinByCodeGuard = usePreventDoubleSubmit();
 
   // Time filter options - prioritize recent games
   const timeOptions = [
@@ -210,17 +212,17 @@ export default function JoinRoom({
                   type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleJoinByCode()}
+                  onKeyDown={(e) => e.key === "Enter" && !joinByCodeGuard.isSubmitting && joinByCodeGuard.submit(() => handleJoinByCode())}
                   placeholder="ABCD1234"
                   className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
                   maxLength={12}
                 />
                 <button
-                  onClick={handleJoinByCode}
-                  disabled={loading || !normalizedCode}
+                  onClick={() => joinByCodeGuard.submit(() => handleJoinByCode())}
+                  disabled={loading || joinByCodeGuard.isSubmitting || !normalizedCode}
                   className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {loading ? "Checking..." : "Join"}
+                  {loading || joinByCodeGuard.isSubmitting ? "Checking..." : "Join"}
                   <IoArrowForwardOutline className="w-6 h-6" />
                 </button>
               </div>

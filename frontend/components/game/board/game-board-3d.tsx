@@ -29,6 +29,7 @@ const GameBoard3DView = ({
   me,
   onGameUpdated,
   onFinishByTime,
+  embedded = false,
 }: {
   game: Game;
   properties: Property[];
@@ -36,6 +37,8 @@ const GameBoard3DView = ({
   me: Player | null;
   onGameUpdated?: () => void;
   onFinishByTime?: () => void | Promise<void>;
+  /** When true, used inside board-3d-multi: fill container, no extra padding (same layout as AI board). */
+  embedded?: boolean;
 }) => {
   const logic = useGameBoardLogic({ game, properties, game_properties, me, onGameUpdated });
 
@@ -147,6 +150,7 @@ const GameBoard3DView = ({
     }
   }, [buyPrompted]);
 
+  // AI tips: available in both AI and multiplayer games (no game.is_ai check)
   useEffect(() => {
     if (!aiTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !currentPlayer || currentPlayer?.user_id !== me?.user_id) return;
     const propId = justLandedProperty.id;
@@ -216,7 +220,13 @@ const GameBoard3DView = ({
   }, [game?.id, game?.status, onFinishByTime]);
 
   return (
-    <div className="w-full min-h-screen bg-[#010F10] text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative">
+    <div
+      className={
+        embedded
+          ? "w-full h-full min-h-0 bg-[#010F10] text-white flex flex-col relative"
+          : "w-full min-h-screen bg-[#010F10] text-white p-4 flex flex-col lg:flex-row gap-4 items-start justify-center relative"
+      }
+    >
       <AnimatePresence>
         {timeoutPopupPlayer && (
           <motion.div
@@ -301,8 +311,20 @@ const GameBoard3DView = ({
         )}
       </AnimatePresence>
 
-      <div className="flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]">
-        <div className="w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10">
+      <div
+        className={
+          embedded
+            ? "flex-1 min-h-0 flex justify-center items-center w-full"
+            : "flex justify-center items-start w-full lg:w-2/3 max-w-[800px] mt-[-1rem]"
+        }
+      >
+        <div
+          className={
+            embedded
+              ? "w-full max-w-[min(100%,min(80vh,800px))] aspect-square bg-[#010F10] rounded-lg relative shadow-2xl shadow-cyan-500/10"
+              : "w-full bg-[#010F10] aspect-square rounded-lg relative shadow-2xl shadow-cyan-500/10"
+          }
+        >
           <GameBoard3D
             properties={properties}
             players={players}
@@ -367,15 +389,25 @@ const GameBoard3DView = ({
           >
             2D Board
           </Link>
+          {embedded && (
+            <button
+              onClick={togglePerksModal}
+              className="absolute bottom-4 left-4 z-10 w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+            >
+              <Sparkles className="w-7 h-7 text-black" />
+            </button>
+          )}
         </div>
       </div>
 
-      <button
-        onClick={togglePerksModal}
-        className="fixed bottom-20 left-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-      >
-        <Sparkles className="w-8 h-8 text-black" />
-      </button>
+      {!embedded && (
+        <button
+          onClick={togglePerksModal}
+          className="fixed bottom-20 left-6 z-40 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 shadow-2xl shadow-cyan-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+        >
+          <Sparkles className="w-8 h-8 text-black" />
+        </button>
+      )}
 
       <AnimatePresence>
         {showPerksModal && (

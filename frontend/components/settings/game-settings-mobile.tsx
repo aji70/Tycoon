@@ -544,7 +544,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
                        rounded-xl shadow-lg transition-all duration-300
                        disabled:opacity-60 disabled:cursor-not-allowed border-2 border-[#00F0FF]/40"
           >
-            {isStarting || (!isGuest && (approvePending || approveConfirming))
+            {playGuard.isSubmitting || isStarting || (!isGuest && (approvePending || approveConfirming))
               ? "PROCESSING..."
               : !isGuest && isCreatePending
               ? "CREATING..."

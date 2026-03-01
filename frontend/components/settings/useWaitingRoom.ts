@@ -61,6 +61,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const actionGuardRef = useRef<boolean>(false);
 
   const tournamentLobby = isTournamentMatchCode(gameCode);
   const gameHasContract = !!(game && (game as Game & { contract_game_id?: string | null }).contract_game_id);
@@ -407,6 +408,8 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
       return;
     }
 
+    if (actionGuardRef.current) return;
+    actionGuardRef.current = true;
     setActionLoading(true);
     setError(null);
     const toastId = toast.loading("Joining the game...");
@@ -414,6 +417,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     if (guestUser) {
       if (stakePerPlayer > BigInt(0)) {
         setError("Guests cannot join staked games. Connect a wallet to join this game.");
+        actionGuardRef.current = false;
         setActionLoading(false);
         toast.update(toastId, {
           render: "Guests cannot join staked games. Connect a wallet to join.",
@@ -444,13 +448,17 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
         setError(message);
         toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 8000 });
       } finally {
-        if (mountedRef.current) setActionLoading(false);
+        if (mountedRef.current) {
+          actionGuardRef.current = false;
+          setActionLoading(false);
+        }
       }
       return;
     }
 
     if (!contractAddress) {
       setError("Contract not deployed on this network.");
+      actionGuardRef.current = false;
       setActionLoading(false);
       toast.dismiss(toastId);
       return;
@@ -462,6 +470,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
           ? "Tournament match not ready yet. The first player needs to create the game with their wallet; then you can join."
           : "Game not found on-chain. Make sure you're on the correct network, or the game may still be creating."
       );
+      actionGuardRef.current = false;
       setActionLoading(false);
       toast.dismiss(toastId);
       return;
@@ -469,6 +478,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
 
     if (!usdcTokenAddress && stakePerPlayer > 0) {
       setError("USDC not available on this network.");
+      actionGuardRef.current = false;
       setActionLoading(false);
       toast.dismiss(toastId);
       return;
@@ -530,7 +540,10 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
         autoClose: 8000,
       });
     } finally {
-      if (mountedRef.current) setActionLoading(false);
+      if (mountedRef.current) {
+        actionGuardRef.current = false;
+        setActionLoading(false);
+      }
     }
   }, [
     game,
@@ -553,6 +566,8 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   const handleLeaveGame = useCallback(async () => {
     if (!game)
       return setError("No game data found. Please enter a valid game code.");
+    if (actionGuardRef.current) return;
+    actionGuardRef.current = true;
     setActionLoading(true);
     setError(null);
     try {
@@ -573,7 +588,10 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
           (err as Error)?.message ?? "Failed to leave game. Please try again."
         );
     } finally {
-      if (mountedRef.current) setActionLoading(false);
+      if (mountedRef.current) {
+        actionGuardRef.current = false;
+        setActionLoading(false);
+      }
     }
   }, [game, address]);
 

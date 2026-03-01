@@ -116,8 +116,9 @@ export default function MobileGamePlayers({
   const toggleTrade = useCallback(() => setSectionOpen((prev) => ({ ...prev, trades: !prev.trades })), []);
   const tradesSectionRef = useRef<HTMLElement | null>(null);
 
+  // AI-only: detect human winner in 2-player AI games; never run in multiplayer
   useEffect(() => {
-    if (!me || game.players.length !== 2) return;
+    if (game.is_ai !== true || !me || game.players.length !== 2) return;
 
     const aiPlayer = game.players.find(p => isAIPlayer(p));
     const humanPlayer = me;
@@ -133,7 +134,7 @@ export default function MobileGamePlayers({
         validWin,
       });
     }
-  }, [game.players, me]);
+  }, [game.is_ai, game.players, me]);
 
   const handleFinalizeAndLeave = async () => {
     const toastId = toast.loading(

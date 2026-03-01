@@ -2,7 +2,8 @@
 
 import GameBoard3DView from "@/components/game/board/game-board-3d";
 import GameRoom from "@/components/game/game-room";
-import MobileGamePlayers from "@/components/game/player/mobile/player";
+import MobileGamePlayers from "@/components/game/ai-player/mobile/ai-player";
+import { LayoutGrid, Users, MessageCircle } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import toast from "react-hot-toast";
 import { socketService } from "@/lib/socket";
@@ -111,6 +112,11 @@ export default function Board3DMultiMobilePage() {
     ) || null;
   }, [game, myAddress]);
 
+  const currentPlayer = useMemo<Player | null>(() => {
+    if (!game?.next_player_id || !game?.players) return null;
+    return game.players.find((p) => p.user_id === game.next_player_id) ?? null;
+  }, [game]);
+
   const {
     data: properties = [],
     isLoading: propertiesLoading,
@@ -203,6 +209,7 @@ export default function Board3DMultiMobilePage() {
 
   const finishByTimeGuard = usePreventDoubleSubmit();
   const onFinishByTime = useCallback(() => finishByTimeGuard.submit(() => finishGameByTime()), [finishGameByTime, finishByTimeGuard]);
+  const startGuard = usePreventDoubleSubmit();
 
   const gameId = game?.code ?? game?.id ?? "";
   const { data: messages = [] } = useQuery({
@@ -269,7 +276,7 @@ export default function Board3DMultiMobilePage() {
   }
 
   return (
-    <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10] pt-[calc(80px+env(safe-area-inset-top,0px))]">
+    <main className="w-full h-dvh max-h-dvh min-h-0 flex flex-col overflow-hidden bg-[#010F10] mt-[100px]">
       {isWaitingForStart && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pt-[80px]">
           <div className="bg-[#0d1f23] border border-cyan-500/30 rounded-xl p-6 mx-4 max-w-sm text-center shadow-xl">
@@ -284,11 +291,11 @@ export default function Board3DMultiMobilePage() {
             )}
             <button
               type="button"
-              onClick={requestStart}
-              disabled={requestStartLoading || readySecondsLeft === 0}
+              onClick={() => startGuard.submit(() => requestStart())}
+              disabled={requestStartLoading || startGuard.isSubmitting || readySecondsLeft === 0}
               className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors"
             >
-              {requestStartLoading ? "..." : "Start now"}
+              {requestStartLoading || startGuard.isSubmitting ? "..." : "Start now"}
             </button>
           </div>
         </div>
@@ -304,7 +311,7 @@ export default function Board3DMultiMobilePage() {
         className={`flex-1 w-full min-h-0 flex flex-col ${activeTab === "chat" ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden"} ${activeTab !== "chat" ? "pb-20" : ""}`}
       >
         {activeTab === "board" && (
-          <div className="flex-1 min-h-0 w-full">
+          <div className="flex-1 min-h-0 w-full flex flex-col">
             <GameBoard3DView
               game={game}
               properties={properties}
@@ -312,6 +319,7 @@ export default function Board3DMultiMobilePage() {
               me={me}
               onGameUpdated={() => refetchGame()}
               onFinishByTime={onFinishByTime}
+              embedded
             />
           </div>
         )}
@@ -322,6 +330,9 @@ export default function Board3DMultiMobilePage() {
             game_properties={game_properties}
             my_properties={my_properties}
             me={me}
+            currentPlayer={currentPlayer}
+            roll={null}
+            isAITurn={false}
             focusTrades={focusTrades}
             onViewedTrades={() => setFocusTrades(false)}
           />
@@ -333,36 +344,36 @@ export default function Board3DMultiMobilePage() {
         <button
           onClick={() => setActiveTab("board")}
           className={`flex flex-col items-center justify-center flex-1 py-3 transition-all ${
-            activeTab === "board" ? "text-cyan-400 scale-110" : "text-gray-500"
+            activeTab === "board" ? "text-[#00F0FF] scale-110" : "text-gray-500"
           }`}
         >
-          <span className="text-2xl leading-none" aria-hidden>🎲</span>
-          <span className="text-xs mt-1 font-semibold tracking-wide">Board</span>
+          <LayoutGrid size={26} />
+          <span className="text-xs mt-1 font-orbitron">Board</span>
         </button>
         <button
           onClick={() => setActiveTab("players")}
           className={`flex flex-col items-center justify-center flex-1 py-3 transition-all ${
-            activeTab === "players" ? "text-cyan-400 scale-110" : "text-gray-500"
+            activeTab === "players" ? "text-[#00F0FF] scale-110" : "text-gray-500"
           }`}
         >
-          <span className="text-2xl leading-none" aria-hidden>👥</span>
-          <span className="text-xs mt-1 font-semibold tracking-wide">Players</span>
+          <Users size={26} />
+          <span className="text-xs mt-1 font-orbitron">Players</span>
         </button>
         <button
           onClick={() => setActiveTab("chat")}
           className={`relative flex flex-col items-center justify-center flex-1 py-3 transition-all ${
-            activeTab === "chat" ? "text-cyan-400 scale-110" : "text-gray-500"
+            activeTab === "chat" ? "text-[#00F0FF] scale-110" : "text-gray-500"
           }`}
         >
           <span className="relative inline-block">
-            <span className="text-2xl leading-none" aria-hidden>💬</span>
+            <MessageCircle size={26} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 left-6 min-w-[18px] h-[18px] rounded-full bg-cyan-400 text-[#010F10] text-xs font-bold flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#00F0FF] text-[#010F10] text-xs font-bold flex items-center justify-center">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </span>
-          <span className="text-xs mt-1 font-semibold tracking-wide">Chat</span>
+          <span className="text-xs mt-1 font-orbitron">Chat</span>
         </button>
       </nav>
     </main>
