@@ -1434,10 +1434,10 @@ export default function Board3DMobilePage() {
           )}
           {isLiveGame && me && (
             <div
-              className="px-2 py-1.5 rounded-md bg-slate-700/90 border border-cyan-500/40 text-cyan-200 text-xs font-bold"
+              className="px-2 py-1.5 rounded-md bg-slate-700/90 border border-cyan-500/40 text-cyan-200 text-xs font-bold shrink-0"
               title={`Balance: $${Number(me.balance ?? 0).toLocaleString()}`}
             >
-              ${Number(me.balance ?? 0) >= 1000 ? `${(Number(me.balance ?? 0) / 1000).toFixed(1)}k` : Number(me.balance ?? 0).toLocaleString()}
+              ${Number(me.balance ?? 0).toLocaleString()}
             </div>
           )}
         </div>

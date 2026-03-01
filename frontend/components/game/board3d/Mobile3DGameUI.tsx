@@ -71,7 +71,7 @@ export default function Mobile3DGameUI({
 
   return (
     <>
-      {/* Bottom bar: Perks, Bell (Trades), Players — high z-index so board stays behind */}
+      {/* Bottom bar: Perks, Bell (Trades), Players */}
       <div
         className="fixed left-0 right-0 bottom-0 z-[9998] flex items-center justify-center gap-4 px-4 py-3 bg-slate-900/98 backdrop-blur-md border-t-2 border-slate-500/60 min-h-[56px]"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
