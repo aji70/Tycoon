@@ -340,7 +340,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                         }}
                         className="w-full py-4 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"
                       >
-                        {user?.email ? user.email : 'Signed in'} · Log out
+                        {typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address ?? 'Signed in'} · Log out
                       </button>
                     )}
                   </div>

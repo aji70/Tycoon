@@ -206,7 +206,7 @@ const NavBar = () => {
               onClick={() => logout()}
               className="px-4 py-2 rounded-[12px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] bg-[#011112] text-[#00F0FF] text-xs font-dmSans"
             >
-              {user?.email ? user.email : 'Signed in'} · Log out
+              {typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address ?? 'Signed in'} · Log out
             </button>
           )}
         </div>
