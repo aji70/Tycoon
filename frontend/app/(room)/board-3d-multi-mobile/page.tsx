@@ -545,9 +545,8 @@ export default function Board3DMobilePage() {
     fetchEndByNetWorthStatus();
   }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
 
-  // 2-minute turn timer (same as 2D board): show to all players, freeze when current player has rolled
-  const TURN_TOTAL_SECONDS = 120;
-  const isTwoPlayer = livePlayers.length === 2;
+  // 90-second roll timer: must roll within 90s; when time hits 0, pass turn on backend for all player counts
+  const TURN_ROLL_SECONDS = 90;
   const hasRolled = isMyTurn && lastRollResultLive != null;
   useEffect(() => {
     if (!isLiveGame || !currentPlayer?.turn_start) {
@@ -561,11 +560,11 @@ export default function Board3DMobilePage() {
       setTurnTimeLeft(null);
       return;
     }
-    timeLeftFrozenAtRollRef.current = null; // reset each turn so freeze is for current turn only
+    timeLeftFrozenAtRollRef.current = null;
     const tick = () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const elapsed = nowSec - turnStartSec;
-      const liveRemaining = Math.max(0, TURN_TOTAL_SECONDS - elapsed);
+      const liveRemaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
       if (hasRolled) {
         if (timeLeftFrozenAtRollRef.current === null) {
           timeLeftFrozenAtRollRef.current = liveRemaining;
@@ -574,26 +573,15 @@ export default function Board3DMobilePage() {
       } else {
         setTurnTimeLeft(liveRemaining);
       }
-      if (liveRemaining <= 0) {
-        if (isTwoPlayer) {
-          END_TURN(true);
-        } else if (me?.user_id && recordTimeoutCalledForTurnRef.current !== turnStartSec) {
-          recordTimeoutCalledForTurnRef.current = turnStartSec;
-          apiClient
-            .post<ApiResponse>("/game-players/record-timeout", {
-              game_id: game!.id,
-              user_id: me.user_id,
-              target_user_id: currentPlayer.user_id,
-            })
-            .then(() => fetchUpdatedGame())
-            .catch((err) => console.warn("record-timeout failed:", err));
-        }
+      if (liveRemaining <= 0 && recordTimeoutCalledForTurnRef.current !== turnStartSec) {
+        recordTimeoutCalledForTurnRef.current = turnStartSec;
+        END_TURN(true);
       }
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, game?.id, END_TURN, fetchUpdatedGame, hasRolled]);
+  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, me?.user_id, game?.id, END_TURN, hasRolled]);
 
   const runMovementAnimation = useCallback(
     async (playerId: number, currentPos: number, totalSteps: number) => {
@@ -1590,7 +1578,10 @@ export default function Board3DMobilePage() {
         onTradeSectionOpened={() => setViewTradesRequested(false)}
         incomingTradeCount={incomingTrades?.length ?? 0}
         showPerksModal={showPerksModal}
-        setShowPerksModal={setShowPerksModal}
+        setShowPerksModal={(v) => {
+          setShowPerksModal(v);
+          if (!v) fetchUpdatedGame();
+        }}
         onUsePerk={handleUsePerkFromBar}
         isMyTurn={isMyTurn}
         onRollDice={playerCanRoll ? handleRollForLive : undefined}
@@ -1876,7 +1867,10 @@ export default function Board3DMobilePage() {
 
       <CardModal
         isOpen={showCardModal}
-        onClose={() => setShowCardModal(false)}
+        onClose={() => {
+          setShowCardModal(false);
+          fetchUpdatedGame();
+        }}
         card={cardData}
         playerName={cardPlayerName}
         isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
