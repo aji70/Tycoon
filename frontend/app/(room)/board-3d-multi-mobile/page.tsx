@@ -33,7 +33,7 @@ const Mobile3DGameUI = dynamic(
 );
 import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Trophy, HeartHandshake, X } from "lucide-react";
+import { Crown, Trophy, HeartHandshake, X, LayoutDashboard } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
 
 const Canvas = dynamic(
@@ -264,6 +264,7 @@ export default function Board3DMobilePage() {
     validWin: boolean;
   }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
   const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
+  const [hasLeftGame, setHasLeftGame] = useState(false);
   const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{
     vote_count: number;
     required_votes: number;
@@ -1318,6 +1319,7 @@ export default function Board3DMobilePage() {
         code: game.code,
         reason: "bankruptcy",
       });
+      setHasLeftGame(true);
       await refetchGame();
       toast.error("Game over! You have declared bankruptcy.");
       setShowBankruptcyModal(true);
@@ -2001,16 +2003,17 @@ export default function Board3DMobilePage() {
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} />
+                <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} disableSend={hasLeftGame} />
               </div>
               {/* Board button at bottom so it's always tappable above game bar */}
               <div className="flex-shrink-0 px-4 py-3 border-t border-amber-500/20 bg-gradient-to-r from-amber-950/40 to-amber-900/20">
                 <button
                   type="button"
                   onClick={() => setChatOpen(false)}
-                  className="w-full min-h-[48px] rounded-xl font-semibold text-amber-100 bg-amber-600/80 hover:bg-amber-500/90 border border-amber-500/40 transition-colors touch-manipulation"
+                  className="w-full min-h-[52px] rounded-2xl font-bold text-slate-900 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:via-amber-400 hover:to-amber-500 border-2 border-amber-300/80 shadow-lg shadow-amber-500/30 active:scale-[0.98] transition-all duration-200 touch-manipulation flex items-center justify-center gap-2.5"
                 >
-                  Back to board
+                  <LayoutDashboard className="w-5 h-5 shrink-0" strokeWidth={2.5} />
+                  <span>Back to board</span>
                 </button>
               </div>
             </motion.div>

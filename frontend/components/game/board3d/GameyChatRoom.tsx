@@ -26,9 +26,12 @@ export interface GameyChatRoomProps {
   isMobile?: boolean;
   /** Optional compact header (e.g. when embedded in sidebar) */
   showHeader?: boolean;
+  /** When true, sending is disabled (e.g. user has left the game so me may be stale) */
+  disableSend?: boolean;
 }
 
 const POLLING_INTERVAL = 3000;
+const POLLING_INTERVAL_MOBILE = 8000;
 
 const fetchMessages = async (gameId: string | number): Promise<Message[]> => {
   const res = await apiClient.get<{ data?: Message[] }>(`/messages/game/${gameId}`);
@@ -63,7 +66,7 @@ function getInitial(name: string) {
 
 type ReplyingTo = { id: string | number; name: string; body: string };
 
-export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader = true }: GameyChatRoomProps) {
+export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader = true, disableSend = false }: GameyChatRoomProps) {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyingTo | null>(null);
@@ -74,24 +77,31 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   const playerId = me?.id != null ? String(me.id) : "";
   const userId = me?.user_id != null ? me.user_id : undefined;
   const userAddress = me?.address != null && String(me.address).trim() !== "" ? String(me.address).trim() : undefined;
-  const canSend = !!(gameId && me && (playerId || (typeof userId === "number") || userAddress));
+  const canSend = !disableSend && !!(gameId && me && (playerId || (typeof userId === "number") || userAddress));
 
   const hasGameId = !!gameId && String(gameId).trim().length > 0;
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["messages", gameId],
     queryFn: () => fetchMessages(gameId),
-    refetchInterval: hasGameId ? POLLING_INTERVAL : false,
-    refetchOnWindowFocus: hasGameId,
-    staleTime: 2000,
+    refetchInterval: hasGameId ? (isMobile ? POLLING_INTERVAL_MOBILE : POLLING_INTERVAL) : false,
+    refetchOnWindowFocus: hasGameId && !isMobile,
+    staleTime: isMobile ? 5000 : 2000,
     enabled: hasGameId,
   });
 
+  const prevMessagesLengthRef = useRef(0);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const len = messages.length;
+    if (len > prevMessagesLengthRef.current) {
+      prevMessagesLengthRef.current = len;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      prevMessagesLengthRef.current = len;
+    }
   }, [messages]);
 
   const sendMessage = async () => {
-    const canSendNow = gameId && me && (playerId || typeof userId === "number" || userAddress);
+    const canSendNow = !disableSend && gameId && me && (playerId || typeof userId === "number" || userAddress);
     if (!newMessage.trim() || !canSendNow || sending) return;
 
     setSending(true);
@@ -284,7 +294,9 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
           </div>
         )}
         {!canSend ? (
-          <div className="text-center py-3 text-sm text-amber-500/60 font-medium">Join the game to send messages</div>
+          <div className="text-center py-3 text-sm text-amber-500/60 font-medium">
+            {disableSend ? "You have left the game" : "Join the game to send messages"}
+          </div>
         ) : (
           <div className="flex gap-2">
             <input
