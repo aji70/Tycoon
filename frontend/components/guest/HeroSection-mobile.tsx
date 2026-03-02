@@ -255,25 +255,24 @@ const HeroSectionMobile: React.FC = () => {
   };
 
 const handleContinuePrevious = () => {
-  if (guestUser && guestLastGame) {
-    if (guestLastGame.status === "PENDING") {
-      router.push(`/game-waiting?gameCode=${encodeURIComponent(guestLastGame.code)}`);
-    } else if (guestLastGame.is_ai) {
-      router.push(`/ai-play?gameCode=${encodeURIComponent(guestLastGame.code)}`);
-    } else {
-      router.push(`/game-play?gameCode=${encodeURIComponent(guestLastGame.code)}`);
-    }
+  const code = (guestUser && guestLastGame ? guestLastGame.code : gameCode) ?? "";
+  if (!code) return;
+
+  const isAi = guestUser && guestLastGame ? guestLastGame.is_ai : (backendGame?.is_ai ?? contractGame?.ai);
+  const isPending =
+    (guestUser && guestLastGame && guestLastGame.status === "PENDING") ||
+    (!!backendGame && backendGame.status === "PENDING");
+
+  if (isPending) {
+    router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
     return;
   }
-  if (!gameCode) return;
-
-  // Prefer backend is_ai (source of truth for our games); fall back to contract
-  const isAi = backendGame?.is_ai ?? contractGame?.ai;
   if (isAi) {
-    router.push(`/ai-play?gameCode=${encodeURIComponent(gameCode)}`);
-  } else {
-    router.push(`/game-play?gameCode=${encodeURIComponent(gameCode)}`);
+    router.push(`/ai-play-3d?gameCode=${encodeURIComponent(code)}`);
+    return;
   }
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  router.push(isMobile ? `/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}` : `/board-3d-multi?gameCode=${encodeURIComponent(code)}`);
 };
 
   if (isConnecting) {
@@ -469,7 +468,7 @@ const handleContinuePrevious = () => {
               {/* Secondary buttons grid */}
               <div className="grid grid-cols-2 gap-4 w-full max-w-[280px]">
                 <button
-                  onClick={() => router.push("/game-settings")}
+                  onClick={() => router.push("/game-settings-3d")}
                   className="relative h-12 transition-transform active:scale-[0.97]"
                 >
                   <svg
@@ -491,7 +490,7 @@ const handleContinuePrevious = () => {
                 </button>
 
                 <button
-                  onClick={() => router.push("/join-room")}
+                  onClick={() => router.push("/join-room-3d")}
                   className="relative h-12 transition-transform active:scale-[0.97]"
                 >
                   <svg
@@ -515,7 +514,7 @@ const handleContinuePrevious = () => {
 
               {/* Challenge AI - prominent but not full width */}
               <button
-                onClick={() => router.push("/play-ai")}
+                onClick={() => router.push("/play-ai-3d")}
                 className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
               >
                 <svg

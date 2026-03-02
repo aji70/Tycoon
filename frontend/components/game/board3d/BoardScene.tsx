@@ -49,8 +49,10 @@ type BoardSceneProps = {
   history?: Game["history"];
   /** When true, do not render the action log in the 3D center (e.g. mobile uses a fixed on-screen log) */
   hideCenterActionLog?: boolean;
-  /** When true, show "AI is thinking" in center just above the dice result */
+  /** When true, show a thinking label in center just above the dice result */
   aiThinking?: boolean;
+  /** Custom label when waiting for a player (e.g. "Alice is thinking..."). If not set and aiThinking is true, shows "AI is thinking..." */
+  thinkingLabel?: string;
   /** When true, hide persistent owner badges on tiles (e.g. mobile for a cleaner board; ownership still shown on tap in tooltip) */
   hideOwnerBadges?: boolean;
   /** When set, show owner badge as symbol (emoji) per property instead of name — e.g. for mobile */
@@ -678,7 +680,7 @@ function RollingDice({
   );
 }
 
-function AiThinkingLabel() {
+function AiThinkingLabel({ label = "AI is thinking..." }: { label?: string }) {
   return createElement(
     Html,
     {
@@ -698,7 +700,7 @@ function AiThinkingLabel() {
         whiteSpace: "nowrap",
       },
     },
-    "AI is thinking..."
+    label
   );
 }
 
@@ -879,6 +881,7 @@ export default function BoardScene({
   history,
   hideCenterActionLog = false,
   aiThinking,
+  thinkingLabel,
   hideOwnerBadges = false,
   smallTokens = false,
   resetViewTrigger = 0,
@@ -950,7 +953,7 @@ export default function BoardScene({
           onComplete: onDiceComplete,
         })
       : null,
-    aiThinking ? createElement(AiThinkingLabel, { key: "ai-thinking" }) : null,
+    aiThinking ? createElement(AiThinkingLabel, { key: "ai-thinking", label: thinkingLabel }) : null,
     lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult }) : null,
     onRoll ? createElement(CenterRollButton, { key: "roll-btn", onRoll, disabled: !!rollingDice }) : null,
     history && !hideCenterActionLog ? createElement(CenterActionLog, { key: "action-log", history }) : null,

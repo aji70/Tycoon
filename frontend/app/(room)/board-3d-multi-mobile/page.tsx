@@ -270,6 +270,18 @@ export default function Board3DMobilePage() {
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const BUY_TIPS_STORAGE_KEY = "tycoon_buy_tips_3d_multi_mobile";
+  const [buyTipsOn, setBuyTipsOn] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return localStorage.getItem(BUY_TIPS_STORAGE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [buyTipText, setBuyTipText] = useState<string | null>(null);
+  const [buyTipLoading, setBuyTipLoading] = useState(false);
+  const lastTipPropertyIdRef = useRef<number | null>(null);
 
   // Multiplayer: "Start now" ready window
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -1029,6 +1041,72 @@ export default function Board3DMobilePage() {
     };
   }, [isLiveGame, isMyTurn, lastRollResultLive, buyPrompted, jailChoiceRequired, rollingDice, END_TURN]);
 
+  const toggleBuyTips = useCallback(() => {
+    setBuyTipsOn((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(BUY_TIPS_STORAGE_KEY, String(next));
+      } catch {}
+      if (!next) setBuyTipText(null);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!buyPrompted) {
+      setBuyTipText(null);
+      lastTipPropertyIdRef.current = null;
+    }
+  }, [buyPrompted]);
+
+  useEffect(() => {
+    if (!buyTipsOn || !isMyTurn || !buyPrompted || !justLandedProperty || !me || !game?.id) return;
+    const propId = justLandedProperty.id;
+    if (lastTipPropertyIdRef.current === propId) return;
+    lastTipPropertyIdRef.current = propId;
+    setBuyTipLoading(true);
+    const groupIds =
+      Object.values(MONOPOLY_STATS.colorGroups).find((ids) => ids.includes(justLandedProperty.id)) ?? [];
+    const ownedInGroup = groupIds.filter((id) =>
+      gameProperties.some(
+        (gp) => gp.property_id === id && gp.address?.toLowerCase() === me.address?.toLowerCase()
+      )
+    ).length;
+    const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+    const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
+    apiClient
+      .post<{ success?: boolean; data?: { reasoning?: string } }>("/agent-registry/decision", {
+        gameId: game.id,
+        slot: 1,
+        decisionType: "tip",
+        context: {
+          myBalance: me.balance ?? 0,
+          myProperties: gameProperties
+            .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (game?.players ?? []).filter((p) => p.user_id !== me.user_id),
+          situation: "buy_property",
+          property: { ...justLandedProperty, completesMonopoly, landingRank },
+        },
+      })
+      .then((res) => {
+        const text = res?.data?.data?.reasoning ?? null;
+        if (text) setBuyTipText(text);
+      })
+      .catch(() => setBuyTipText(null))
+      .finally(() => setBuyTipLoading(false));
+  }, [
+    buyTipsOn,
+    isMyTurn,
+    buyPrompted,
+    justLandedProperty,
+    me,
+    game?.id,
+    game?.players,
+    gameProperties,
+    properties,
+  ]);
+
   useEffect(() => {
     const history = game?.history ?? [];
     if (history.length === 0) return;
@@ -1305,6 +1383,7 @@ export default function Board3DMobilePage() {
                 hideOwnerBadges={false}
                 smallTokens={true}
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
+                thinkingLabel={isLiveGame && !isMyTurn && currentPlayer ? `${currentPlayer.username || "Player"} is thinking...` : undefined}
                 resetViewTrigger={resetViewTrigger}
               />
             </Canvas>
@@ -1474,6 +1553,16 @@ export default function Board3DMobilePage() {
             <p className="text-slate-300 text-sm mb-4">
               ${justLandedProperty.price?.toLocaleString()} — Buy or skip?
             </p>
+            {buyTipsOn && (
+              <div className="mb-4 p-3 rounded-lg bg-cyan-900/30 border border-cyan-500/30 text-left">
+                <p className="text-xs text-cyan-300/90 mb-1">AI tip</p>
+                {buyTipLoading ? (
+                  <p className="text-sm text-slate-400">Thinking…</p>
+                ) : buyTipText ? (
+                  <p className="text-sm text-slate-200">{buyTipText}</p>
+                ) : null}
+              </div>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={() => buyGuard.submit(handleBuy)}
@@ -1490,6 +1579,15 @@ export default function Board3DMobilePage() {
                 Skip
               </button>
             </div>
+            <label className="flex items-center gap-2 mt-3 text-sm text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={buyTipsOn}
+                onChange={toggleBuyTips}
+                className="rounded border-slate-500"
+              />
+              AI tips
+            </label>
           </motion.div>
         </div>
       )}
