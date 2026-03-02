@@ -2007,7 +2007,15 @@ function Board3DMobilePageContent() {
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} disableSend={hasLeftGame} />
+                <GameyChatRoom
+                  gameId={gameCode ?? game?.code ?? ""}
+                  me={me}
+                  isMobile
+                  showHeader={false}
+                  disableSend={hasLeftGame}
+                  fallbackAddress={guestUser?.address ?? address ?? undefined}
+                  fallbackUserId={me?.user_id ?? undefined}
+                />
               </div>
               {/* Board button at bottom so it's always tappable above game bar */}
               <div className="flex-shrink-0 px-4 py-3 border-t border-amber-500/20 bg-gradient-to-r from-amber-950/40 to-amber-900/20">
