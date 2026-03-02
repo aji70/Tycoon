@@ -89,9 +89,9 @@ function buildTipPrompt(context) {
   const monopolies = getMonopolies(myProperties || []);
   if (situation === "buy_property" && landedProperty && Object.keys(landedProperty).length > 0) {
     const opps = (opponents || []).map((o) => `${o.username ?? "Opp"}: $${o.balance ?? 0}`).join("; ");
-    return `Human landed on ${landedProperty.name ?? "?"} $${landedProperty.price ?? 0}. Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Rank #${landedProperty.landingRank ?? "?"}. Their balance: $${myBalance}. Monopolies: ${monopolies.join(", ") || "None"}. Opponents: ${opps}. One short tactical tip (1-2 sentences), don't say buy/skip outright. JSON only: {"action":"ok","reasoning":"tip text"}`;
+    return `Monopoly: human landed on ${landedProperty.name ?? "?"} ($${landedProperty.price ?? 0}). Completes set: ${landedProperty.completesMonopoly ? "Y" : "N"}. Their balance: $${myBalance}. Give ONE short tip in plain language. Examples: "Buy it — you'd complete a set." or "Skip — save your cash." or "Worth it — good value." Keep to one sentence, max 10 words. No jargon. JSON only: {"action":"ok","reasoning":"your one-sentence tip"}`;
   }
-  return `Human Monopoly turn. Balance: $${myBalance}. Monopolies: ${monopolies.join(", ") || "None"}. One short encouraging tip. JSON only: {"action":"ok","reasoning":"tip"}`;
+  return `Monopoly turn. Balance: $${myBalance}. One short encouraging tip, one sentence, simple words. JSON only: {"action":"ok","reasoning":"tip"}`;
 }
 
 /**
@@ -131,7 +131,7 @@ async function getDecision(gameId, slot, decisionType, context) {
       break;
     case "tip":
       prompt = buildTipPrompt(context);
-      fallback = { action: "ok", reasoning: "Consider cash flow and completing color sets." };
+      fallback = { action: "ok", reasoning: "Buy if it completes a set; otherwise save cash." };
       break;
     default:
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };

@@ -17,6 +17,7 @@ import {
   PROPERTY_ACTION,
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
+import { simplifyAiTip } from "@/lib/simplifyAiTip";
 
 // Child components
 import BoardSquare from "./board-square";
@@ -1212,7 +1213,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       })
       .then((res) => {
         const text = res?.data?.data?.reasoning ?? null;
-        if (text) setAiTipText(text);
+        if (text) setAiTipText(simplifyAiTip(text) ?? text);
       })
       .catch(() => setAiTipText(null))
       .finally(() => setAiTipLoading(false));
