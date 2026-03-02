@@ -1290,7 +1290,7 @@ export default function Board3DMobilePage() {
     }
   }, [game?.id, me, livePlayers]);
 
-  // Finalize multiplayer game: sync backend, optionally claim on-chain (exitGame), then redirect — matches 2D flow
+  // Finalize multiplayer game: sync backend; wallet users sign exitGame to claim; guests — backend calls exit on their behalf
   const handleFinalizeAndLeave = useCallback(async () => {
     if (!game?.id || claimAndLeaveInProgress) return;
     setClaimAndLeaveInProgress(true);
@@ -1302,7 +1302,8 @@ export default function Board3DMobilePage() {
         status: "FINISHED",
         winner_id: game.winner_id ?? winner?.user_id ?? me?.user_id ?? null,
       });
-      if (contractGame?.id && contractGame.id !== BigInt(0)) {
+      // Guests: backend runs exitGameByBackend when we PUT FINISHED — no wallet call
+      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0)) {
         toast.loading("Confirm in your wallet to claim…", { id: toastId });
         try {
           await exitGame();
@@ -1339,7 +1340,7 @@ export default function Board3DMobilePage() {
       );
       setClaimAndLeaveInProgress(false);
     }
-  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, contractGame?.id, exitGame, exitGameReset]);
+  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, isGuest, contractGame?.id, exitGame, exitGameReset]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
   const lastRollResultToShow = lastRollResultLive;

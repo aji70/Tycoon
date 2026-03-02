@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -166,7 +166,21 @@ const SOCKET_URL =
         (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, ""))
     : "";
 
-export default function Board3DMobilePage() {
+function Board3DMobileLoading() {
+  return (
+    <div
+      className="fixed inset-0 w-full flex items-center justify-center bg-[#010F10]"
+      style={{ height: "100dvh" }}
+    >
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+        <p className="text-sm text-slate-400">Loading board…</p>
+      </div>
+    </div>
+  );
+}
+
+function Board3DMobileContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -2395,5 +2409,20 @@ export default function Board3DMobilePage() {
 
       <Toaster position="top-center" />
     </div>
+  );
+}
+
+export default function Board3DMobilePage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) {
+    return <Board3DMobileLoading />;
+  }
+  return (
+    <Suspense fallback={<Board3DMobileLoading />}>
+      <Board3DMobileContent />
+    </Suspense>
   );
 }
