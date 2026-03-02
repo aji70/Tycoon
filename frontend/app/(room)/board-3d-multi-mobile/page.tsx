@@ -1274,21 +1274,57 @@ export default function Board3DMobilePage() {
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
+  // Bankruptcy: align with 2D — transfer properties, end turn, then POST leave (backend does on-chain removal for both guest and wallet)
   const handleDeclareBankruptcy = useCallback(async () => {
-    if (!game?.id || !me) return;
+    if (!game?.id || !me?.address || !game?.code) return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
-      const opponent = livePlayers.find((p) => p.user_id !== me.user_id);
-      await apiClient.put(`/games/${game.id}`, {
-        status: "FINISHED",
-        winner_id: opponent?.user_id ?? null,
+      const myOwnedProperties = gameProperties.filter(
+        (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+      );
+      // Creditor: owner of property we're on (if any), else in 2-player the opponent
+      let creditorGamePlayerId: number | null = null;
+      const landedGameProp = gameProperties.find((gp) => gp.property_id === me.position && gp.address && gp.address !== "bank");
+      if (landedGameProp?.player_id) {
+        creditorGamePlayerId = landedGameProp.player_id;
+      } else if (livePlayers.length === 2) {
+        const opponent = livePlayers.find((p) => p.user_id !== me.user_id);
+        creditorGamePlayerId = opponent?.id ?? null;
+      }
+      if (myOwnedProperties.length > 0) {
+        if (creditorGamePlayerId != null) {
+          toast.loading("Transferring properties to the player who bankrupted you…", { id: "bankruptcy-transfer" });
+          for (const gp of myOwnedProperties) {
+            try {
+              await apiClient.put(`/game-properties/${gp.id}`, { game_id: game.id, player_id: creditorGamePlayerId });
+            } catch (err) {
+              console.error("Transfer property failed", err);
+            }
+          }
+        } else {
+          toast.loading("Returning properties to the bank…", { id: "bankruptcy-transfer" });
+          for (const gp of myOwnedProperties) {
+            try {
+              await apiClient.delete(`/game-properties/${gp.id}`, { data: { game_id: game.id } });
+            } catch (err) {
+              console.error("Return property failed", err);
+            }
+          }
+        }
+      }
+      await END_TURN();
+      await apiClient.post("/game-players/leave", {
+        address: me.address,
+        code: game.code,
+        reason: "bankruptcy",
       });
+      await refetchGame();
       toast.error("Game over! You have declared bankruptcy.");
       setShowBankruptcyModal(true);
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, livePlayers]);
+  }, [game?.id, game?.code, me, livePlayers, gameProperties, END_TURN, refetchGame]);
 
   // Finalize multiplayer game: sync backend; wallet users sign exitGame to claim; guests — backend calls exit on their behalf
   const handleFinalizeAndLeave = useCallback(async () => {
