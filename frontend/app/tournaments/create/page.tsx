@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 import { useTournament } from "@/context/TournamentContext";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";
@@ -30,6 +31,7 @@ export default function CreateTournamentPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
+  const { ready, authenticated } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? false;
@@ -51,9 +53,10 @@ export default function CreateTournamentPage() {
   const [guestPassword, setGuestPassword] = useState("");
   const [guestLoading, setGuestLoading] = useState(false);
 
+  const isPrivyAuthed = ready && authenticated;
   const isSignedIn = !!guestUser;
   const hasWallet = isConnected && !!address;
-  const canCreate = isSignedIn || hasWallet;
+  const canCreate = isSignedIn || hasWallet || isPrivyAuthed;
   const showAuthGate = !authLoading && !canCreate;
   const canUseWallet = hasWallet && !!loginByWallet;
 
