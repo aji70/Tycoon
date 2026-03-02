@@ -18,6 +18,7 @@ import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
+import { useUserLevel } from "@/hooks/useUserLevel";
 
 const HeroSectionMobile: React.FC = () => {
   const router = useRouter();
@@ -48,6 +49,7 @@ const HeroSectionMobile: React.FC = () => {
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
+  const [guestGameCount, setGuestGameCount] = useState(0);
 
   useEffect(() => {
     if (!gameCode || typeof gameCode !== "string") {
@@ -78,15 +80,17 @@ const HeroSectionMobile: React.FC = () => {
     }
     let cancelled = false;
     apiClient
-      .get<ApiResponse>("/games/my-games", { params: { limit: 10 } })
+      .get<ApiResponse>("/games/my-games", { params: { limit: 50 } })
       .then((res) => {
         if (cancelled || !res?.data?.success || !Array.isArray(res.data.data)) return;
         const games = res.data.data as { code: string; status: string; is_ai?: boolean }[];
         const active = games.find((g) => g.status === "RUNNING");
         setGuestLastGame(active ? { code: active.code, status: active.status, is_ai: active.is_ai } : null);
+        setGuestGameCount(games.length);
       })
       .catch(() => {
         if (!cancelled) setGuestLastGame(null);
+        if (!cancelled) setGuestGameCount(0);
       });
     return () => {
       cancelled = true;
@@ -153,6 +157,12 @@ const HeroSectionMobile: React.FC = () => {
     if (guestUser) return guestUser.username;
     return user?.username || localUsername || fetchedUsername || inputUsername || "Player";
   }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
+
+  const { levelInfo } = useUserLevel({
+    address: address ?? undefined,
+    guestGameCount: guestUser ? guestGameCount : 0,
+    isGuest: !!guestUser,
+  });
 
   const handleRegister = async () => {
     if (!address) {
@@ -310,12 +320,30 @@ const handleContinuePrevious = () => {
           </h1>
         </div>
 
-        {/* Welcome / Loading message */}
-        <div className="mt-5 sm:mt-6 text-center px-2">
+        {/* Welcome / Loading message + Level */}
+        <div className="mt-5 sm:mt-6 text-center px-2 flex flex-col items-center gap-2">
           {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest") && !loading && (
-            <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
-              Welcome back, {displayUsername}!
-            </p>
+            <>
+              <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
+                Welcome back, {displayUsername}!
+              </p>
+              {levelInfo && (
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="game-badge text-xs">LEVEL {levelInfo.level}</span>
+                    <span className="game-level-label text-xs opacity-90">{levelInfo.label}</span>
+                  </div>
+                  {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                    <div className="w-28 h-1.5 rounded-full bg-[#0E282A] overflow-hidden border border-[#003B3E]/60">
+                      <div
+                        className="h-full rounded-full bg-[#00F0FF] transition-all duration-500"
+                        style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {loading && (

@@ -20,6 +20,7 @@ import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constant
 import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
+import { getLevelFromActivity } from '@/lib/level';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -500,6 +501,25 @@ export default function ProfilePageMobile() {
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                {userData && (() => {
+                  const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                  return (
+                    <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
+                        <span className="font-bold text-cyan-300 text-sm">Level {levelInfo.level} · {levelInfo.label}</span>
+                      </div>
+                      {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-cyan-500/80 transition-all duration-500"
+                            style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
                   <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
                     <BarChart2 className="w-4 h-4 text-cyan-400" />
