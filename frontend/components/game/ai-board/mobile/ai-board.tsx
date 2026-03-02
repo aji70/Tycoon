@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { toast, Toaster } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
 import { Game, GameProperty, Property, Player, PROPERTY_ACTION } from "@/types/game";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { isAIPlayer } from "@/utils/gameUtils";
@@ -207,31 +206,7 @@ const endTime =
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-  const { data: contractGame } = useGetGameByCode(game.code);
-  const onChainGameId = contractGame?.id;
-
-  const {
-    write: endGame,
-    isPending: endGamePending,
-    reset: endGameReset,
-  } = useEndAIGameAndClaim(
-    onChainGameId ?? BigInt(0),
-    endGameCandidate.position,
-    BigInt(endGameCandidate.balance),
-    // Use validWin: if winner has < 20 turns, pass false to prevent spam, but still show them as winner
-    endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
-  );
-
-  // Only call endAIGame when on-chain game is actually AI (avoids "Not an AI game" when on wrong network)
-  const safeEndGame = useCallback(async () => {
-    if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
-      throw new Error(
-        "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Base or Celo)."
-      );
-    }
-    await endGame();
-  }, [contractGame, endGame]);
-
+  // AI game end is backend-signed (gasless); no wallet endAIGame call
   const activeToasts = useRef<Set<string>>(new Set());
 
   // Show toasts only for successful property purchases and the purple trade notification (toast.custom)
@@ -875,8 +850,7 @@ const endTime =
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      if (endGame) await endGame();
-
+      // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
@@ -1275,9 +1249,7 @@ const endTime =
         players={players}
         currentGame={currentGame}
         isGuest={isGuest}
-        isPending={endGamePending}
-        endGame={safeEndGame}
-        reset={endGameReset}
+        isPending={false}
         onFinishGameByTime={onFinishGameByTime}
         setShowInsolvencyModal={setShowInsolvencyModal}
         setIsRaisingFunds={setIsRaisingFunds}

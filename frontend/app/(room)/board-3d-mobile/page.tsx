@@ -21,7 +21,7 @@ import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
-import { useGetGameByCode, useEndAIGameAndClaim, useRewardBurnCollectible } from "@/context/ContractProvider";
+import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
 import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
@@ -1673,36 +1673,12 @@ function Board3DMobileContent() {
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
   const { data: contractGame } = useGetGameByCode(game?.code ?? "");
-  const endGameFinalPosition = endGameCandidate.winner ? 1 : 2;
-  const onChainGameId =
-    contractGame?.id ??
-    (game?.contract_game_id != null && game?.contract_game_id !== ""
-      ? BigInt(game.contract_game_id)
-      : undefined);
-  const {
-    write: endGame,
-    isPending: endGamePending,
-    reset: endGameReset,
-  } = useEndAIGameAndClaim(
-    onChainGameId ?? BigInt(0),
-    endGameFinalPosition,
-    endGameCandidate.balance,
-    endGameCandidate.winner ? endGameCandidate.validWin !== false : false
-  );
 
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me) return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
-      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai) {
-        setEndGameCandidate({
-          winner: null,
-          position: 2,
-          balance: BigInt(me?.balance ?? 0),
-          validWin: true,
-        });
-        await endGame();
-      }
+      // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
       const opponent = livePlayers.find((p) => p.user_id !== me.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
@@ -1713,28 +1689,18 @@ function Board3DMobileContent() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, livePlayers, isGuest, contractGame, endGame]);
+  }, [game?.id, me, livePlayers]);
 
   const handleClaimAndGoHome = useCallback(async () => {
     setClaimAndLeaveInProgress(true);
     const isHumanWinner = winner?.user_id === me?.user_id;
     try {
-      if (!isGuest) {
-        if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
-          toast.error(
-            "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo)."
-          );
-          setClaimAndLeaveInProgress(false);
-          return;
-        }
-        await endGame();
-      }
       try {
         await refetchGame();
       } catch (_) {
         /* ignore */
       }
-      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      toast.success(isHumanWinner ? "Prize already distributed! 🎉" : "Thanks for playing!");
       try {
         await apiClient.post(`/games/${game?.id}/erc8004-feedback`);
       } catch (_) {
@@ -1745,18 +1711,9 @@ function Board3DMobileContent() {
       toast.error(getContractErrorMessage(err as Error, "Something went wrong — try again later"));
       setClaimAndLeaveInProgress(false);
     } finally {
-      endGameReset?.();
+      setClaimAndLeaveInProgress(false);
     }
-  }, [
-    winner?.user_id,
-    me?.user_id,
-    isGuest,
-    game?.id,
-    refetchGame,
-    endGame,
-    endGameReset,
-    contractGame,
-  ]);
+  }, [winner?.user_id, me?.user_id, game?.id, refetchGame]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
   const lastRollResultToShow = lastRollResultLive;
@@ -2302,10 +2259,10 @@ function Board3DMobileContent() {
                   <button
                     type="button"
                     onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
+                    disabled={claimAndLeaveInProgress}
                     className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
                   >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                   </button>
                 ) : (
                   <Link
@@ -2333,10 +2290,10 @@ function Board3DMobileContent() {
                   <button
                     type="button"
                     onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
+                    disabled={claimAndLeaveInProgress}
                     className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
                   >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                   </button>
                 ) : (
                   <Link
