@@ -16,6 +16,7 @@ import WalletDisconnectModal from './wallet-disconnect-modal';
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
+import { usePrivy } from '@privy-io/react-auth';
 
 const NavBar = () => {
   const { scrollYProgress } = useScroll();
@@ -54,6 +55,9 @@ const NavBar = () => {
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
   const profileAvatar = useProfileAvatar();
+
+  const { ready, authenticated, login, logout, user } = usePrivy();
+  const isPrivyAuthed = ready && authenticated;
 
   const toggleSound = () => {
     if (isSoundPlaying) {
@@ -187,55 +191,23 @@ const NavBar = () => {
             )}
           </button>
 
-          {/* Wallet Section */}
-          {!isConnected ? (
+          {/* Privy auth entry point (replaces visible connect wallet button) */}
+          {!isPrivyAuthed ? (
             <button
-              onClick={() => setIsConnectModalOpen(true)}
+              type="button"
+              onClick={() => login()}
               className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
             >
-              Connect
+              Sign in
             </button>
           ) : (
-            <div className="flex items-center gap-3">
-              {/* Network Switcher Button – Now properly shows network name */}
-              <button
-                onClick={() => setIsNetworkModalOpen(true)}
-                className="px-4 py-3 rounded-[12px] bg-[#003B3E] hover:bg-[#005458] border border-[#00F0FF]/30 text-[#00F0FF] font-orbitron font-medium text-sm transition-all flex items-center gap-2 shadow-md"
-              >
-                <Globe className="w-4 h-4" />
-                <span className="truncate max-w-[120px]">
-                  {networkDisplay}
-                </span>
-              </button>
-
-              {/* Wallet Address + Avatar */}
-              <div className="flex items-center gap-3 px-5 py-3 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] font-orbitron">
-                <div className="h-8 w-8 rounded-full border-2 border-[#0FF0FC] overflow-hidden shadow-lg shrink-0">
-                  {profileAvatar ? (
-                    <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <Image
-                      src={avatar}
-                      alt="Wallet"
-                      width={32}
-                      height={32}
-                      className="object-cover w-full h-full"
-                    />
-                  )}
-                </div>
-                <span className="text-sm tracking-wider">
-                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
-                </span>
-              </div>
-
-              {/* Disconnect Button */}
-              <button
-                onClick={() => setIsDisconnectModalOpen(true)}
-                className="px-4 py-3 rounded-[12px] bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-600/40 font-medium text-sm transition-all"
-              >
-                Disconnect
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="px-4 py-2 rounded-[12px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] bg-[#011112] text-[#00F0FF] text-xs font-dmSans"
+            >
+              {user?.email ? user.email : 'Signed in'} · Log out
+            </button>
           )}
         </div>
       </header>
