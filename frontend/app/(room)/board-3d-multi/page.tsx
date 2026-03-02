@@ -1982,7 +1982,15 @@ function Board3DPageContent() {
       {/* Tavern (game) chat only — general chat is in Rooms from nav */}
       <aside className="hidden lg:flex flex-col w-96 fixed right-4 top-[60px] z-20 h-[calc(100vh-60px-1rem)] max-h-[calc(100vh-60px-1rem)] border border-amber-500/20 rounded-xl bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden shadow-xl">
         <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
-          <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} disableSend={hasLeftGame} />
+          <GameyChatRoom
+            gameId={gameCode ?? game?.code ?? ""}
+            me={me}
+            isMobile={false}
+            showHeader={true}
+            disableSend={hasLeftGame}
+            fallbackAddress={guestUser?.address ?? address ?? undefined}
+            fallbackUserId={me?.user_id ?? undefined}
+          />
         </div>
       </aside>
       </div>
