@@ -182,6 +182,7 @@ const AiBoard = ({
     isGood: boolean;
   } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
+  const [cardIsCurrentPlayerDrawer, setCardIsCurrentPlayerDrawer] = useState(false);
   const prevHistoryLength = useRef(game.history?.length ?? 0);
   /** Top history id we've seen; only show card modal when a NEW card is drawn (not on load/return). */
   const lastTopHistoryIdRef = useRef<number | null>(null);
@@ -1269,9 +1270,11 @@ const endTurnAfterSpecialMove = useCallback(() => {
     const effect = effectMatch ? effectMatch[0] : undefined;
 
     setCardData({ type, text: cardText, effect, isGood });
-    setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
+    const drawerName = String(first.player_name ?? "").trim() || "Player";
+    setCardPlayerName(drawerName);
+    setCardIsCurrentPlayerDrawer(me?.username?.trim() === drawerName);
     setShowCardModal(true);
-  }, [game.history]);
+  }, [game.history, me?.username]);
 
   const aiPropertyDecisionKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1663,6 +1666,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
         onClose={() => setShowCardModal(false)}
         card={cardData}
         playerName={cardPlayerName}
+        isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
       />
 
       <BankruptcyModal

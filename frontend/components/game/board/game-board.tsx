@@ -47,6 +47,7 @@ const Board = ({
     setShowCardModal,
     cardData,
     cardPlayerName,
+    cardIsCurrentPlayerDrawer,
     selectedProperty,
     setSelectedProperty,
     showBankruptcyModal,
@@ -447,6 +448,7 @@ const Board = ({
         onClose={() => setShowCardModal(false)}
         card={cardData}
         playerName={cardPlayerName}
+        isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
       />
 
       <BankruptcyModal

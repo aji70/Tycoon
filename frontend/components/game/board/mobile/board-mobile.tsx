@@ -77,6 +77,7 @@ const MobileGameLayout = ({
     setShowCardModal,
     cardData,
     cardPlayerName,
+    cardIsCurrentPlayerDrawer,
     selectedProperty,
     setSelectedProperty,
     showBankruptcyModal,
@@ -894,6 +895,7 @@ const MobileGameLayout = ({
         showCardModal={showCardModal}
         cardData={cardData}
         cardPlayerName={cardPlayerName}
+        cardIsCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
         setShowCardModal={setShowCardModal}
         me={me}
         players={players}

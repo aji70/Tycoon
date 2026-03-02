@@ -24,6 +24,7 @@ interface GameModalsProps {
     isGood: boolean;
   } | null;
   cardPlayerName: string;
+  cardIsCurrentPlayerDrawer?: boolean;
   setShowCardModal: (value: boolean) => void;
   me: Player | null;
   players: Player[];
@@ -50,6 +51,7 @@ const GameModals: React.FC<GameModalsProps> = ({
   showCardModal,
   cardData,
   cardPlayerName,
+  cardIsCurrentPlayerDrawer = false,
   setShowCardModal,
   me,
   players,
@@ -184,6 +186,7 @@ const GameModals: React.FC<GameModalsProps> = ({
         onClose={() => setShowCardModal(false)}
         card={cardData}
         playerName={cardPlayerName}
+        isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
       />
 
       {/* Raised Funds Button */}

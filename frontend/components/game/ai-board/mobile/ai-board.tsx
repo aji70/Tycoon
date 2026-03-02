@@ -111,6 +111,7 @@ const MobileGameLayout = ({
     isGood: boolean;
   } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
+  const [cardIsCurrentPlayerDrawer, setCardIsCurrentPlayerDrawer] = useState(false);
 
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
@@ -742,9 +743,11 @@ const endTime =
     const effect = effectMatch ? effectMatch[0] : undefined;
 
     setCardData({ type, text: cardText, effect, isGood });
-    setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
+    const drawerName = String(first.player_name ?? "").trim() || "Player";
+    setCardPlayerName(drawerName);
+    setCardIsCurrentPlayerDrawer(me?.username?.trim() === drawerName);
     setShowCardModal(true);
-  }, [currentGame?.history]);
+  }, [currentGame?.history, me?.username]);
 
   useMobileAiLogic({
     game,
@@ -1266,6 +1269,7 @@ const endTime =
         showCardModal={showCardModal}
         cardData={cardData}
         cardPlayerName={cardPlayerName}
+        cardIsCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
         setShowCardModal={setShowCardModal}
         me={me}
         players={players}
