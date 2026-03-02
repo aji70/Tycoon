@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 
 const TOKEN_KEY = "token";
@@ -10,7 +11,7 @@ function getApiBase() {
   return process.env.NEXT_PUBLIC_API_URL || "https://base-monopoly-production.up.railway.app/api";
 }
 
-type SyncState = "idle" | "checking" | "needs_username" | "submitting" | "done";
+type SyncState = "idle" | "checking" | "needs_username" | "submitting" | "done" | "sync_failed";
 
 /**
  * When the user is signed in with Privy, ensures they have a backend user (with username) and our JWT.
@@ -20,6 +21,9 @@ export default function PrivyBackendSync() {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const refetchGuest = guestAuth?.refetchGuest;
+  const retryCountRef = useRef(0);
+  const RETRY_DELAY_MS = 1500;
+  const MAX_TOKEN_RETRIES = 2;
 
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [username, setUsername] = useState("");
@@ -28,10 +32,33 @@ export default function PrivyBackendSync() {
   const callPrivySignin = useCallback(
     async (usernameBody?: string) => {
       const apiBase = getApiBase();
-      if (!apiBase) return;
+      if (!apiBase) {
+        setError("API URL not configured");
+        setSyncState("sync_failed");
+        toast.error("Sign-in with server failed: API URL not configured.");
+        return;
+      }
       try {
         const token = await getAccessToken();
-        if (!token) return;
+        if (!token) {
+          if (usernameBody != null) {
+            setError("Session expired. Please sign in again.");
+            setSyncState("sync_failed");
+            toast.error("Session expired. Please sign in again.");
+            return;
+          }
+          if (retryCountRef.current < MAX_TOKEN_RETRIES) {
+            retryCountRef.current += 1;
+            setTimeout(() => callPrivySignin(), RETRY_DELAY_MS);
+            return;
+          }
+          retryCountRef.current = 0;
+          setError("Could not get session. Please try again.");
+          setSyncState("sync_failed");
+          toast.error("Could not get session. Please try again.");
+          return;
+        }
+        retryCountRef.current = 0;
         const res = await fetch(`${apiBase}/auth/privy-signin`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -55,21 +82,41 @@ export default function PrivyBackendSync() {
           setSyncState("needs_username");
           return;
         }
-        setError(data?.message ?? "Sign-in failed");
-        setSyncState("idle");
+        const msg = data?.message ?? "Sign-in failed";
+        setError(msg);
+        setSyncState("sync_failed");
+        toast.error(`Sign-in with server failed: ${msg}`);
       } catch (e) {
-        setError((e as Error)?.message ?? "Request failed");
-        setSyncState("idle");
+        const msg = (e as Error)?.message ?? "Request failed";
+        setError(msg);
+        setSyncState("sync_failed");
+        toast.error(`Sign-in with server failed: ${msg}`);
       }
     },
     [getAccessToken, refetchGuest]
   );
 
   useEffect(() => {
-    if (!ready || !authenticated || syncState !== "idle" || !refetchGuest) return;
+    if (!authenticated) {
+      retryCountRef.current = 0;
+      setSyncState("idle");
+      setError(null);
+      return;
+    }
+  }, [authenticated]);
+
+  useEffect(() => {
+    if (!ready || !authenticated || !refetchGuest) return;
+    if (syncState !== "idle") return;
     setSyncState("checking");
     callPrivySignin();
   }, [ready, authenticated]); // Run when Privy auth state becomes true; callPrivySignin/refetchGuest are stable
+
+  const handleRetry = useCallback(() => {
+    setError(null);
+    setSyncState("checking");
+    callPrivySignin();
+  }, [callPrivySignin]);
 
   const handleUsernameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +131,22 @@ export default function PrivyBackendSync() {
       setSyncState((s) => (s === "submitting" ? "needs_username" : s));
     });
   };
+
+  // Sync failed: show banner with retry (user is Privy-signed-in but backend registration failed)
+  if (syncState === "sync_failed") {
+    return (
+      <div className="fixed bottom-4 left-4 right-4 z-[10000] md:left-auto md:right-4 md:max-w-sm flex items-center justify-between gap-3 rounded-xl bg-[#0E1415] border border-red-500/50 p-4 shadow-xl">
+        <p className="text-sm text-red-300 flex-1">{error ?? "Sign-in with server failed."}</p>
+        <button
+          type="button"
+          onClick={handleRetry}
+          className="shrink-0 h-10 px-4 rounded-lg bg-[#00F0FF] text-[#010F10] font-orbitron font-bold hover:bg-[#00D4E6] transition"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (syncState !== "needs_username" && syncState !== "submitting") return null;
 

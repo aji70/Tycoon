@@ -170,7 +170,7 @@ export async function privySignin(req, res) {
       logger.warn({ err: err?.message }, "Privy token verification failed");
       return res.status(401).json({ success: false, message: "Invalid or expired Privy token" });
     }
-    const privyDid = claims?.sub;
+    const privyDid = claims?.sub ?? claims?.userId;
     if (!privyDid || typeof privyDid !== "string") {
       return res.status(401).json({ success: false, message: "Invalid Privy token payload" });
     }
