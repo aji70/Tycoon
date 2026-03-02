@@ -782,7 +782,8 @@ export default function Board3DMobilePage() {
         return;
       }
       runningTotalRef.current += value.total;
-      setLastRollResultLive(value);
+      // Don't set lastRollResultLive here — we're not ending the move; player rolls again. Setting it would trigger auto END_TURN.
+      setLastRollResultLive(null);
       toast.success("Doubles! Roll again.");
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
