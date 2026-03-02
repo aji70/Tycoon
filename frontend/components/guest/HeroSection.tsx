@@ -309,9 +309,7 @@ const handleContinuePrevious = () => {
   }
 
   return (
-    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10] hero-game-frame">
-      {/* Scanline overlay for game feel */}
-      <div className="hero-scanline absolute inset-0 z-[1] pointer-events-none" aria-hidden />
+    <section className="z-0 w-full lg:h-screen md:h-[calc(100vh-87px)] h-screen relative overflow-x-hidden md:mb-20 mb-10 bg-[#010F10]">
       <div className="w-full h-full overflow-hidden">
         <Image
           src={herobg}
@@ -330,18 +328,12 @@ const handleContinuePrevious = () => {
         </h1>
       </div>
 
-      <main className="w-full h-full absolute top-0 left-0 z-[2] bg-transparent flex flex-col lg:justify-center items-center gap-1">
-        {/* Game badge */}
-        <div className="mt-16 md:mt-20 lg:mt-0">
-          <span className="hero-badge inline-block">WEB3 BOARD GAME</span>
-        </div>
+      <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
         {/* Welcome Message */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest") && !loading && (
-          <div className="mt-4 md:mt-6 lg:mt-2">
-            <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center hero-title-glow">
-              <span className="text-[#73838B] font-normal text-sm uppercase tracking-widest">Player </span>
-              {displayUsername}
-              <span className="text-[#00F0FF]/70 font-normal text-sm ml-1"> • Ready</span>
+          <div className="mt-20 md:mt-28 lg:mt-0">
+            <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
+              Welcome back, {displayUsername}!
             </p>
           </div>
         )}
@@ -379,7 +371,7 @@ const handleContinuePrevious = () => {
           />
         </div>
 
-        <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative hero-title-pulse">
+        <h1 className="block-text font-[900] font-orbitron lg:text-[116px] md:text-[98px] text-[54px] lg:leading-[120px] md:leading-[100px] leading-[60px] tracking-[-0.02em] uppercase text-[#17ffff] relative">
           TYCOON
           <span className="absolute top-0 left-[69%] text-[#0FF0FC] font-dmSans font-[700] md:text-[27px] text-[18px] rotate-12 animate-pulse">
             ?
@@ -420,7 +412,7 @@ const handleContinuePrevious = () => {
               type="text"
               value={inputUsername}
               onChange={(e) => setInputUsername(e.target.value)}
-              placeholder="Enter player name..."
+              placeholder="Choose your tycoon name"
               className="w-[80%] md:w-[260px] h-[45px] bg-[#0E1415] rounded-[12px] border-[1px] border-[#003B3E] outline-none px-3 text-[#17ffff] font-orbitron font-[400] text-[16px] text-center placeholder:text-[#455A64] placeholder:font-dmSans"
             />
           )}
@@ -497,7 +489,7 @@ const handleContinuePrevious = () => {
                 registerPending ||
                 (registrationStatus === "none" && !inputUsername.trim())
               }
-              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60 game-cta-glow"
+              className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
             >
               <svg
                 width="260"
@@ -643,8 +635,8 @@ const handleContinuePrevious = () => {
           ) : null}
 
           {!address && !guestUser && (
-            <p className="text-[#73838B] font-orbitron text-xs uppercase tracking-wider text-center mt-4">
-              Connect wallet or sign in as guest to start
+            <p className="text-gray-400 text-sm text-center mt-4">
+              Connect your wallet or play without a wallet above.
             </p>
           )}
         </div>
