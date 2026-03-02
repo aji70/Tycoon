@@ -279,6 +279,7 @@ const User = {
     const { played, won } = cols;
     return await db("users")
       .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
       .select("id", "username", "address", played + " as games_played", won + " as game_won")
       .orderBy(won, "desc")
       .orderBy(played, "desc")
@@ -292,6 +293,7 @@ const User = {
     const normalized = this.normalizeChain(chain);
     return await db("users")
       .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
       .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
       .orderBy("total_earned", "desc")
       .limit(Math.min(Number(limit) || 20, 100));
@@ -304,6 +306,7 @@ const User = {
     const normalized = this.normalizeChain(chain);
     return await db("users")
       .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
       .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
       .orderBy("total_staked", "desc")
       .limit(Math.min(Number(limit) || 20, 100));
@@ -321,6 +324,7 @@ const User = {
     const { played, won } = cols;
     return await db("users")
       .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
       .where(played, ">", 0)
       .select(
         "id",

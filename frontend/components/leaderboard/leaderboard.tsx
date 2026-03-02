@@ -177,10 +177,12 @@ export default function Leaderboard() {
   }, [activeTab, fetchLeaderboard]);
 
   const currentList = activeTab === 'wins' ? wins : activeTab === 'earnings' ? earnings : activeTab === 'stakes' ? stakes : winrate;
-  const showContractFallback = !loading && !error && currentList.length === 0 && isConnected && currentUserFromContract;
+  const isAIUser = (u: { username?: string } | null) => u?.username?.includes?.('AI_') ?? false;
+  const filteredList = Array.isArray(currentList) ? currentList.filter((row: { username?: string }) => !isAIUser(row)) : currentList;
+  const showContractFallback = !loading && !error && currentList.length === 0 && isConnected && currentUserFromContract && !isAIUser(currentUserFromContract);
   const displayList = showContractFallback && currentUserFromContract
     ? [currentUserFromContract]
-    : currentList;
+    : filteredList;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white">

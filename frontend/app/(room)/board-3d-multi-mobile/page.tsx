@@ -275,6 +275,8 @@ export default function Board3DMobilePage() {
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatTab, setChatTab] = useState<"tavern" | "general">("tavern");
+  const [lastReadTavernCount, setLastReadTavernCount] = useState(0);
+  const [lastReadLobbyCount, setLastReadLobbyCount] = useState(0);
   const BUY_TIPS_STORAGE_KEY = "tycoon_buy_tips_3d_multi_mobile";
   const [buyTipsOn, setBuyTipsOn] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -287,6 +289,41 @@ export default function Board3DMobilePage() {
   const [buyTipText, setBuyTipText] = useState<string | null>(null);
   const [buyTipLoading, setBuyTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
+
+  // Chat unread: use same query keys as GameyChatRoom / LobbyChatRoom so we share cache
+  const gameChatId = gameCode ?? game?.code ?? "";
+  const { data: tavernMessages = [] } = useQuery({
+    queryKey: ["messages", gameChatId],
+    queryFn: async (): Promise<unknown[]> => {
+      const res = await apiClient.get<{ data?: unknown }>(`/messages/game/${gameChatId}`);
+      const payload = (res as { data?: { data?: unknown[] } })?.data;
+      const list = payload?.data ?? payload;
+      return Array.isArray(list) ? list : [];
+    },
+    enabled: !!gameChatId,
+    refetchInterval: 8000,
+    staleTime: 5000,
+  });
+  const { data: lobbyMessages = [] } = useQuery({
+    queryKey: ["messages", "lobby"],
+    queryFn: async (): Promise<unknown[]> => {
+      const res = await apiClient.get<{ data?: unknown }>("/messages/lobby");
+      const payload = (res as { data?: { data?: unknown[] } })?.data;
+      const list = payload?.data ?? payload;
+      return Array.isArray(list) ? list : [];
+    },
+    refetchInterval: 8000,
+    staleTime: 5000,
+  });
+  const tavernLen = Array.isArray(tavernMessages) ? tavernMessages.length : 0;
+  const lobbyLen = Array.isArray(lobbyMessages) ? lobbyMessages.length : 0;
+  useEffect(() => {
+    if (chatOpen) {
+      setLastReadTavernCount(tavernLen);
+      setLastReadLobbyCount(lobbyLen);
+    }
+  }, [chatOpen, tavernLen, lobbyLen]);
+  const chatUnreadCount = chatOpen ? 0 : Math.max(0, tavernLen - lastReadTavernCount) + Math.max(0, lobbyLen - lastReadLobbyCount);
 
   // Multiplayer: "Start now" ready window
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -1602,6 +1639,7 @@ export default function Board3DMobilePage() {
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
         onOpenChat={() => setChatOpen(true)}
+        chatUnreadCount={chatUnreadCount}
       />
 
       {/* End game by net worth — confirm modal */}
