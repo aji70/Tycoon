@@ -421,6 +421,32 @@ const gameController = {
       const io = req.app.get("io");
       const game = await Game.findById(req.params.id);
       if (game?.code) emitGameUpdate(io, game.code);
+
+      // Multiplayer game set to FINISHED: if requester is a guest (has password_hash), backend exits on-chain on their behalf
+      if (
+        payload.status === "FINISHED" &&
+        game &&
+        game.is_ai !== true &&
+        game.contract_game_id &&
+        req.user?.id
+      ) {
+        const chainForContract = User.normalizeChain(game.chain || "CELO");
+        if (isContractConfigured(chainForContract)) {
+          const user = await db("users").where({ id: req.user.id }).select("address", "username", "password_hash").first();
+          if (user?.address && user?.password_hash) {
+            exitGameByBackend(
+              user.address,
+              user.username || "",
+              user.password_hash,
+              game.contract_game_id,
+              chainForContract
+            ).catch((err) =>
+              logger.warn({ err: err?.message, gameId: game.id, userId: req.user.id }, "exitGameByBackend for guest on FINISHED update failed")
+            );
+          }
+        }
+      }
+
       res.json({ success: true, message: "Game updated" });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });

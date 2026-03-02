@@ -1262,7 +1262,7 @@ function Board3DPageContent() {
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
-  // Finalize multiplayer game: sync backend, optionally claim on-chain (exitGame), then redirect — matches 2D flow
+  // Finalize multiplayer game: sync backend; wallet users sign exitGame to claim; guests — backend calls exit on their behalf
   const handleFinalizeAndLeave = useCallback(async () => {
     if (!game?.id || claimAndLeaveInProgress) return;
     setClaimAndLeaveInProgress(true);
@@ -1274,8 +1274,8 @@ function Board3DPageContent() {
         status: "FINISHED",
         winner_id: game.winner_id ?? winner?.user_id ?? me?.user_id ?? null,
       });
-      // If game has on-chain id, prompt user to sign exitGame to release stake / claim
-      if (contractGame?.id && contractGame.id !== BigInt(0)) {
+      // Guests: backend runs exitGameByBackend when we PUT FINISHED — no wallet call
+      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0)) {
         toast.loading("Confirm in your wallet to claim…", { id: toastId });
         try {
           await exitGame();
@@ -1312,7 +1312,7 @@ function Board3DPageContent() {
       );
       setClaimAndLeaveInProgress(false);
     }
-  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, contractGame?.id, exitGame, exitGameReset]);
+  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, isGuest, contractGame?.id, exitGame, exitGameReset]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
