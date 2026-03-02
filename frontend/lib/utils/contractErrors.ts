@@ -56,14 +56,15 @@ export function getContractErrorMessage(
 
   // Backend API errors
   if (e?.response?.status === 400) {
-    const msg = (e.response?.data?.message ?? "").toLowerCase();
+    const msg = (e?.response?.data?.message ?? "").toLowerCase();
     if (msg.includes("already exists") || msg.includes("duplicate")) {
       return "Game code already taken. Try again in a moment.";
     }
     if (msg.includes("invalid stake") || msg.includes("minimum")) {
       return "Invalid stake amount.";
     }
-    if (e.response?.data?.message) return e.response.data.message;
+    const msg400 = e?.response?.data?.message;
+    if (msg400 && typeof msg400 === "string") return msg400;
   }
 
   if (e?.response?.status === 429) {
