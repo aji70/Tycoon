@@ -119,6 +119,7 @@ const AiBoard = ({
   isGuest = false,
   onFinishGameByTime,
   onViewTrades,
+  onRefetchGame,
 }: {
   game: Game;
   properties: Property[];
@@ -127,6 +128,7 @@ const AiBoard = ({
   isGuest?: boolean;
   onFinishGameByTime?: () => Promise<void>;
   onViewTrades?: () => void;
+  onRefetchGame?: () => void | Promise<void>;
 }) => {
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
   const [gameTimeUp, setGameTimeUp] = useState(false);
@@ -1006,7 +1008,12 @@ const endTurnAfterSpecialMove = useCallback(() => {
               }
             } catch (err) {
               toast.error(getContractErrorMessage(err, "Jail roll failed"));
-              END_TURN();
+              try {
+                await END_TURN();
+                await onRefetchGame?.();
+              } catch (_) {
+                await onRefetchGame?.();
+              }
             }
             setIsRolling(false);
             unlockAction();
@@ -1066,7 +1073,13 @@ const endTurnAfterSpecialMove = useCallback(() => {
       } catch (err) {
         console.error("Move failed:", err);
         toast.error(getContractErrorMessage(err, "Move failed"));
-        END_TURN();
+        try {
+          await END_TURN();
+          await onRefetchGame?.();
+        } catch (_) {
+          // end-turn or refetch failed; still try refetch so UI can recover
+          await onRefetchGame?.();
+        }
       } finally {
         setIsRolling(false);
         unlockAction();
@@ -1075,7 +1088,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
   }, [
     isRolling, actionLock, lockAction, unlockAction,
     currentPlayerId, me, players, pendingRoll, game.id,
-    showToast, END_TURN, fetchGameState,
+    showToast, END_TURN, fetchGameState, onRefetchGame,
   ]);
 
   useEffect(() => {

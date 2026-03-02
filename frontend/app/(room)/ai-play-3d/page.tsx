@@ -267,6 +267,7 @@ export default function AiPlay3DPage() {
           isGuest={isGuest}
           onFinishGameByTime={onFinishGameByTime}
           onViewTrades={() => {}}
+          onRefetchGame={async () => { await refetchGame(); }}
         />
       </div>
       <Link
