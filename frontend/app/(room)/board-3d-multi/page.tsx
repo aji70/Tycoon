@@ -4,10 +4,11 @@ import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "rea
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { simplifyAiTip } from "@/lib/simplifyAiTip";
+import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
@@ -203,10 +204,17 @@ const initialPositions: Record<number, number> = Object.fromEntries(
  * 3D board demo. With ?gameCode=XXX loads that game from backend (players, positions, development).
  * Without gameCode uses mock data. Route: /board-3d or /board-3d?gameCode=ABC123
  */
+const SOCKET_URL =
+  typeof window !== "undefined"
+    ? process.env.NEXT_PUBLIC_SOCKET_URL ||
+      (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "")
+    : "";
+
 function Board3DPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const gameCode = searchParams.get("gameCode")?.trim().toUpperCase() || null;
+  const queryClient = useQueryClient();
 
   const { address } = useAccount();
   const guestAuth = useGuestAuthOptional();
@@ -235,6 +243,32 @@ function Board3DPageContent() {
   });
 
   const isLiveGame = !!gameCode && !!game;
+  const isMultiplayer = !!game && game.is_ai === false;
+
+  useEffect(() => {
+    if (!gameCode || !SOCKET_URL || !game || game.is_ai !== false) return;
+    socketService.connect(SOCKET_URL);
+    socketService.joinGameRoom(gameCode);
+    const onGameUpdate = (data: { gameCode?: string }) => {
+      if (data?.gameCode === gameCode) {
+        refetchGame();
+        queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
+        refetchGameProperties();
+      }
+    };
+    const onGameStarted = () => {
+      refetchGame();
+      queryClient.invalidateQueries({ queryKey: ["game_properties", game?.id] });
+      refetchGameProperties();
+    };
+    socketService.onGameUpdate(onGameUpdate);
+    socketService.onGameStarted(onGameStarted);
+    return () => {
+      socketService.removeListener("game-update", onGameUpdate);
+      socketService.removeListener("game-started", onGameStarted);
+      socketService.leaveGameRoom(gameCode);
+    };
+  }, [gameCode, game?.id, game?.is_ai, queryClient, refetchGame, refetchGameProperties]);
 
   const me = useMemo<Player | null>(() => {
     const myAddress = guestUser?.address ?? address;
@@ -704,9 +738,8 @@ function Board3DPageContent() {
     }
   }, [currentPlayerId, game?.id, refetchGame]);
 
-  // 2-minute turn timer (same as 2D board): show to all players, freeze when current player has rolled
-  const TURN_TOTAL_SECONDS = 120;
-  const isTwoPlayer = livePlayers.length === 2;
+  // 90-second roll timer: must roll within 90s; when time hits 0, pass turn on backend for all player counts
+  const TURN_ROLL_SECONDS = 90;
   const hasRolled = isMyTurn && lastRollResultLive != null;
   useEffect(() => {
     if (!isLiveGame || !currentPlayer?.turn_start) {
@@ -724,7 +757,7 @@ function Board3DPageContent() {
     const tick = () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const elapsed = nowSec - turnStartSec;
-      const liveRemaining = Math.max(0, TURN_TOTAL_SECONDS - elapsed);
+      const liveRemaining = Math.max(0, TURN_ROLL_SECONDS - elapsed);
       if (hasRolled) {
         if (timeLeftFrozenAtRollRef.current === null) {
           timeLeftFrozenAtRollRef.current = liveRemaining;
@@ -733,26 +766,15 @@ function Board3DPageContent() {
       } else {
         setTurnTimeLeft(liveRemaining);
       }
-      if (liveRemaining <= 0) {
-        if (isTwoPlayer) {
-          END_TURN(true);
-        } else if (me?.user_id && recordTimeoutCalledForTurnRef.current !== turnStartSec) {
-          recordTimeoutCalledForTurnRef.current = turnStartSec;
-          apiClient
-            .post<ApiResponse>("/game-players/record-timeout", {
-              game_id: game!.id,
-              user_id: me.user_id,
-              target_user_id: currentPlayer.user_id,
-            })
-            .then(() => fetchUpdatedGame())
-            .catch((err) => console.warn("record-timeout failed:", err));
-        }
+      if (liveRemaining <= 0 && recordTimeoutCalledForTurnRef.current !== turnStartSec) {
+        recordTimeoutCalledForTurnRef.current = turnStartSec;
+        END_TURN(true);
       }
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, game?.id, END_TURN, fetchUpdatedGame, hasRolled]);
+  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, me?.user_id, game?.id, END_TURN, hasRolled]);
 
   const triggerLandingLogic = useCallback(
     (newPosition: number, isSpecial = false) => {
@@ -1706,7 +1728,10 @@ function Board3DPageContent() {
         {/* Chance / Community Chest card modal */}
         <CardModal
           isOpen={showCardModal}
-          onClose={() => setShowCardModal(false)}
+          onClose={() => {
+            setShowCardModal(false);
+            fetchUpdatedGame();
+          }}
           card={cardData}
           playerName={cardPlayerName}
           isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
@@ -1820,7 +1845,10 @@ function Board3DPageContent() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="fixed inset-0 z-[2147483646] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
-              onClick={() => setShowPerksModal(false)}
+              onClick={() => {
+                setShowPerksModal(false);
+                fetchUpdatedGame();
+              }}
             >
               <motion.div
                 initial={{ scale: 0.92, opacity: 0, y: 12 }}
@@ -1842,7 +1870,10 @@ function Board3DPageContent() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowPerksModal(false)}
+                    onClick={() => {
+                      setShowPerksModal(false);
+                      fetchUpdatedGame();
+                    }}
                     className="w-9 h-9 flex items-center justify-center rounded-full text-violet-200/90 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
                     aria-label="Close"
                   >

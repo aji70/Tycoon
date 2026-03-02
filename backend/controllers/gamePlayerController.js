@@ -74,7 +74,9 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
   let status = game.status;
 
   if (game.next_player_id === target_user_id && remaining.length > 0) {
-    next_player_id = remaining[0].user_id;
+    const targetTurnOrder = Number(target.turn_order ?? 0);
+    const nextInOrder = remaining.find((p) => Number(p.turn_order ?? 0) > targetTurnOrder);
+    next_player_id = nextInOrder ? nextInOrder.user_id : remaining[0].user_id;
   }
   if (remaining.length === 1) {
     status = "FINISHED";
@@ -89,6 +91,13 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
       winner_id,
       updated_at: db.fn.now(),
     });
+
+  if (status === "RUNNING" && next_player_id) {
+    const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+    await trx("game_players")
+      .where({ game_id, user_id: next_player_id })
+      .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+  }
 
   return {
     removed_user_id: target_user_id,
@@ -2061,7 +2070,7 @@ const gamePlayerController = {
         return res.status(404).json({ success: false, message: "Target not in game" });
       }
 
-      const TURN_ROLL_SECONDS = 120;
+      const TURN_ROLL_SECONDS = 90;
       const turnStartSec = Number(target.turn_start) || 0;
       const nowSec = Math.floor(Date.now() / 1000);
       const elapsed = nowSec - turnStartSec;
@@ -2176,8 +2185,8 @@ const gamePlayerController = {
       const strikes = Number(target.consecutive_timeouts || 0);
       const otherPlayersCount = players.filter((p) => p.user_id !== target_user_id).length;
 
-      // Soft timeout: if target is current player and 2 min has elapsed, allow vote (3+ players only)
-      const TURN_ROLL_SECONDS = 120;
+      // Soft timeout: if target is current player and 90s has elapsed, allow vote (3+ players only)
+      const TURN_ROLL_SECONDS = 90;
       const turnStartSec = Number(target.turn_start) || 0;
       const nowSec = Math.floor(Date.now() / 1000);
       const timeElapsed = nowSec - turnStartSec;
