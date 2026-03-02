@@ -760,6 +760,7 @@ export default function Board3DMobilePage() {
     const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
     const rolledDouble = value.die1 === value.die2;
 
+    // Classic Monopoly: doubles = roll again (accumulate move). Three doubles in a row = go to jail.
     if (!isInJail && rolledDouble) {
       doublesCountRef.current += 1;
       if (doublesCountRef.current >= 3) {
@@ -782,7 +783,6 @@ export default function Board3DMobilePage() {
         return;
       }
       runningTotalRef.current += value.total;
-      // Don't set lastRollResultLive here — we're not ending the move; player rolls again. Setting it would trigger auto END_TURN.
       setLastRollResultLive(null);
       toast.success("Doubles! Roll again.");
       setRollingDice(null);

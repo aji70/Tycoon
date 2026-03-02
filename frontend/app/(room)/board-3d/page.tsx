@@ -1076,7 +1076,7 @@ function Board3DPageContent() {
     const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
     const rolledDouble = value.die1 === value.die2;
 
-    // Not in jail: doubles = roll again (accumulate); three consecutive doubles = go to jail
+    // Classic Monopoly: doubles = roll again (accumulate move). Three doubles in a row = go to jail.
     if (!isInJail && rolledDouble) {
       doublesCountRef.current += 1;
       if (doublesCountRef.current >= 3) {
@@ -1099,14 +1099,13 @@ function Board3DPageContent() {
         return;
       }
       runningTotalRef.current += value.total;
-      setLastRollResultLive(value);
+      setLastRollResultLive(null);
       toast.success("Doubles! Roll again.");
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
       return;
     }
 
-    // Not in jail and not doubles, or in jail: use (possibly accumulated) total for this move
     const totalMove = isInJail ? (rolledDouble ? value.total : 0) : runningTotalRef.current + value.total;
     if (!isInJail) runningTotalRef.current += value.total;
     const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + totalMove) % 40;
