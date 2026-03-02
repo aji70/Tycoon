@@ -28,6 +28,10 @@ export interface GameyChatRoomProps {
   showHeader?: boolean;
   /** When true, sending is disabled (e.g. user has left the game so me may be stale) */
   disableSend?: boolean;
+  /** Fallback address when me is null (e.g. guest or wallet address from parent) so chat can still send on mobile */
+  fallbackAddress?: string | null;
+  /** Fallback user_id when me is null so chat can still send */
+  fallbackUserId?: number | null;
 }
 
 const POLLING_INTERVAL = 3000;
@@ -66,7 +70,7 @@ function getInitial(name: string) {
 
 type ReplyingTo = { id: string | number; name: string; body: string };
 
-export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader = true, disableSend = false }: GameyChatRoomProps) {
+export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader = true, disableSend = false, fallbackAddress, fallbackUserId }: GameyChatRoomProps) {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyingTo | null>(null);
@@ -75,9 +79,11 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   const queryClient = useQueryClient();
 
   const playerId = me?.id != null ? String(me.id) : "";
-  const userId = me?.user_id != null ? me.user_id : undefined;
-  const userAddress = me?.address != null && String(me.address).trim() !== "" ? String(me.address).trim() : undefined;
-  const canSend = !disableSend && !!(gameId && me && (playerId || (typeof userId === "number") || userAddress));
+  const userId = me?.user_id != null ? me.user_id : (fallbackUserId != null ? fallbackUserId : undefined);
+  const userAddress = (me?.address != null && String(me.address).trim() !== "" ? String(me.address).trim() : undefined)
+    || (fallbackAddress != null && String(fallbackAddress).trim() !== "" ? String(fallbackAddress).trim() : undefined);
+  const hasIdentity = !!(playerId || (typeof userId === "number") || userAddress);
+  const canSend = !disableSend && !!(gameId && hasIdentity);
 
   const hasGameId = !!gameId && String(gameId).trim().length > 0;
   const { data: messages = [], isLoading } = useQuery<Message[]>({
@@ -102,7 +108,7 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
   }, [messages]);
 
   const sendMessage = async () => {
-    const canSendNow = !disableSend && gameId && me && (playerId || typeof userId === "number" || userAddress);
+    const canSendNow = !disableSend && gameId && (playerId || typeof userId === "number" || userAddress);
     if (!newMessage.trim() || !canSendNow || sending) return;
 
     setSending(true);
