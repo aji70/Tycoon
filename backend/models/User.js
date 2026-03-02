@@ -280,6 +280,7 @@ const User = {
     return await db("users")
       .where({ chain: normalized })
       .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .where(played, ">", 0)
       .select("id", "username", "address", played + " as games_played", won + " as game_won")
       .orderBy(won, "desc")
       .orderBy(played, "desc")
@@ -287,26 +288,32 @@ const User = {
   },
 
   /**
-   * Top players by total earned (filtered by chain)
+   * Top players by total earned (filtered by chain). Excludes users with 0 games on this chain.
    */
   async getLeaderboardByEarnings(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    return await db("users")
+    const cols = this.chainColumns(normalized);
+    let q = db("users")
       .where({ chain: normalized })
-      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
+    if (cols) q = q.where(cols.played, ">", 0);
+    return await q
       .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
       .orderBy("total_earned", "desc")
       .limit(Math.min(Number(limit) || 20, 100));
   },
 
   /**
-   * Top players by total staked (filtered by chain)
+   * Top players by total staked (filtered by chain). Excludes users with 0 games on this chain.
    */
   async getLeaderboardByStakes(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
-    return await db("users")
+    const cols = this.chainColumns(normalized);
+    let q = db("users")
       .where({ chain: normalized })
-      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
+    if (cols) q = q.where(cols.played, ">", 0);
+    return await q
       .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
       .orderBy("total_staked", "desc")
       .limit(Math.min(Number(limit) || 20, 100));

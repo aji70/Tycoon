@@ -1277,6 +1277,39 @@ const gamePlayerController = {
           .where({ game_id, target_player_id: user_id, status: "pending" })
           .update({ status: "declined", updated_at: now });
 
+        // When a Chance/Community Chest card was drawn and there is no buy prompt, advance turn so the player doesn't get stuck (roll already counted).
+        if (pay_rent.card && !pay_rent.requires_buy) {
+          const players = await trx("game_players")
+            .where({ game_id })
+            .forUpdate()
+            .orderBy("turn_order", "asc");
+          const currentIdx = players.findIndex((p) => p.user_id === user_id);
+          const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
+          const next_player = players[nextIdx];
+          const last_active = await trx("game_play_history")
+            .where({ game_id, active: 1 })
+            .orderBy("id", "desc")
+            .first();
+          if (last_active) {
+            await trx("game_play_history").where({ id: last_active.id }).update({ active: 0 });
+          }
+          await trx("game_players")
+            .where({ game_id, user_id })
+            .update({ rolled: null, updated_at: now });
+          await trx("games").where({ id: game_id }).update({
+            next_player_id: next_player.user_id,
+            updated_at: now,
+          });
+          const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+          await trx("game_players")
+            .where({ game_id, user_id: next_player.user_id })
+            .update({ turn_start: turnStartSeconds, updated_at: now });
+          const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
+          if (allRolled) {
+            await trx("game_players").where({ game_id }).update({ rolls: 0 });
+          }
+        }
+
         await trx.commit();
         await notifyGameUpdate(req, game_id);
         return res.json({
