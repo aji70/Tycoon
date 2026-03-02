@@ -113,10 +113,10 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
   const hamburgerButton = (
     <button
       onClick={() => setIsMobileMenuOpen(true)}
-      className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-2xl bg-[#011112]/95 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 shadow-lg backdrop-blur-sm transition"
+      className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-xl bg-gradient-to-b from-[#022a2c] to-[#011112] border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_1px_0_rgba(255,255,255,0.06)] hover:shadow-[0_0_24px_rgba(0,240,255,0.25),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-[#00F0FF]/50 active:scale-[0.98] transition-all duration-200"
       aria-label="Open menu"
     >
-      <Menu size={24} />
+      <Menu size={22} strokeWidth={2.5} />
     </button>
   );
 
@@ -127,34 +127,34 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
         hamburgerButton
       ) : (
         <>
-          {/* Mobile Fixed Header - slides up off-screen when scrolling down */}
+          {/* Mobile Fixed Header - game HUD style, slides up when scrolling down */}
           <motion.header
             initial={false}
             animate={{ y: navVisible ? 0 : -100 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed top-0 left-0 right-0 h-[80px] pt-safe flex flex-col z-[1000]"
+            className="fixed top-0 left-0 right-0 h-[82px] pt-safe flex flex-col z-[1000]"
           >
-            {/* Scroll Progress Bar */}
+            {/* Game-style "energy" progress bar */}
             <motion.div
-              className="w-full bg-[#0FF0FC] h-[3px] origin-left shrink-0"
+              className="h-1 origin-left shrink-0 rounded-r-full bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] shadow-[0_0_12px_rgba(0,240,255,0.6)]"
               style={{ scaleX }}
             />
-            <div className="flex-1 flex items-center justify-between px-5 bg-[#010F10]/80 backdrop-blur-xl border-b border-[#003B3E]/50">
-              <Logo className="w-[42px]" image={LogoIcon} href="/" />
+            <div className="flex-1 flex items-center justify-between px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)]">
+              <Logo className="w-[44px] drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" image={LogoIcon} href="/" />
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={toggleSound}
-                  className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
+                  className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] hover:text-white active:scale-[0.97] transition-all duration-200"
                 >
-                  {isSoundPlaying ? <Volume2 size={22} /> : <VolumeOff size={22} />}
+                  {isSoundPlaying ? <Volume2 size={20} /> : <VolumeOff size={20} />}
                 </button>
 
                 <button
                   onClick={() => setIsMobileMenuOpen(true)}
-                  className="w-12 h-12 rounded-2xl bg-[#011112]/90 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 transition"
+                  className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-[#00F0FF]/55 hover:shadow-[0_0_18px_rgba(0,240,255,0.2)] active:scale-[0.97] transition-all duration-200"
                 >
-                  <Menu size={24} />
+                  <Menu size={21} strokeWidth={2.5} />
                 </button>
               </div>
             </div>
@@ -170,85 +170,95 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
             }}
             transition={{ duration: 0.2 }}
             onClick={() => setIsMobileMenuOpen(true)}
-            className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-2xl bg-[#011112]/95 border border-[#003B3E] flex items-center justify-center text-[#00F0FF] hover:bg-[#003B3E]/50 shadow-lg backdrop-blur-sm transition"
+            className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-xl bg-gradient-to-b from-[#022a2c] to-[#011112] border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_1px_0_rgba(255,255,255,0.06)] hover:shadow-[0_0_24px_rgba(0,240,255,0.25),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-[#00F0FF]/50 active:scale-[0.98] transition-all duration-200"
             aria-label="Open menu"
           >
-            <Menu size={24} />
+            <Menu size={22} strokeWidth={2.5} />
           </motion.button>
         </>
       )}
 
-      {/* Mobile Bottom Sheet Menu */}
+      {/* Mobile Bottom Sheet Menu - game pause/menu panel style */}
       {isMobileMenuOpen && (
         <>
-          <div className="fixed inset-0 bg-black/70 z-[55]" onClick={closeMobileMenu} />
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-[2px] z-[55]" onClick={closeMobileMenu} />
 
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 pb-safe bg-[#010F10]/98 backdrop-blur-2xl rounded-t-3xl border-t border-[#003B3E] z-[60] max-h-[90dvh] overflow-y-auto overscroll-contain"
+            className="fixed bottom-0 left-0 right-0 pb-safe bg-gradient-to-b from-[#021a1c] to-[#010F10] backdrop-blur-2xl rounded-t-[1.75rem] border-t-2 border-[#00F0FF]/25 shadow-[0_-8px_40px_rgba(0,0,0,0.5)] z-[60] max-h-[90dvh] overflow-y-auto overscroll-contain"
           >
-            <div className="p-6 pb-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-              {/* Drag Handle */}
-              <div className="w-14 h-1.5 bg-[#00F0FF]/50 rounded-full mx-auto mb-8" />
+            <div className="p-5 pb-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] relative">
+              {/* Drag Handle - game UI divider */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-12 h-1.5 rounded-full bg-gradient-to-r from-transparent via-[#00F0FF]/70 to-transparent shadow-[0_0_10px_rgba(0,240,255,0.3)]" />
+              </div>
 
-              {/* Wallet Section */}
-              <div className="mb-8 space-y-5">
-                {/* Connected wallet info - only when connected */}
+              {/* Wallet Section - HUD card */}
+              <div className="mb-6 space-y-4">
                 {isConnected && (
-                  <div className="p-5 rounded-2xl bg-[#011112]/80 border border-[#003B3E] flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full border-2 border-[#0FF0FC] overflow-hidden shadow-lg shrink-0">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-[#022a2c]/90 to-[#011112] border border-[#00F0FF]/20 shadow-[0_4px_16px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(0,240,255,0.06)] flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-11 w-11 rounded-lg border-2 border-[#00F0FF]/40 overflow-hidden shadow-[0_0_12px_rgba(0,240,255,0.15)] shrink-0 ring-1 ring-[#00F0FF]/10">
                         {profileAvatar ? (
                           <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
-                          <Image src={avatar} alt="Avatar" width={48} height={48} className="object-cover w-full h-full" />
+                          <Image src={avatar} alt="Avatar" width={44} height={44} className="object-cover w-full h-full" />
                         )}
                       </div>
-                      <span className="text-[#00F0FF] font-orbitron text-lg">
-                        {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
+                      <span className="text-[#00F0FF] font-orbitron font-semibold text-base tracking-wide">
+                        {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : 'Connected'}
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* MiniPay connection feedback */}
                 {isMiniPay && !isConnected && (
-                  <p className="text-center text-xs text-[#00F0FF]/50 mt-4">
+                  <p className="text-center text-xs text-[#00F0FF]/60 font-medium">
                     Connecting via MiniPay...
                   </p>
                 )}
               </div>
 
-              {/* Navigation Links - Leaderboard always visible (MiniPay + all devices) */}
-              <nav className="space-y-4 mb-10">
+              {/* Menu label */}
+              <p className="text-[#00F0FF]/50 font-orbitron text-xs uppercase tracking-[0.2em] mb-3 px-1">
+                Menu
+              </p>
+
+              {/* Navigation Links - game menu options */}
+              <nav className="space-y-2 mb-6">
                 <Link
                   href="/"
                   onClick={closeMobileMenu}
-                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-white text-lg font-medium transition"
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-white font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                 >
-                  <House size={24} />
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                    <House size={20} />
+                  </div>
                   Home
                 </Link>
 
-                {/* Leaderboard: always visible so it shows on MiniPay and when connection is delayed */}
                 <Link
                   href="/leaderboard"
                   onClick={closeMobileMenu}
-                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                 >
-                  <Trophy size={24} />
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-amber-400/90">
+                    <Trophy size={20} />
+                  </div>
                   Leaderboard
                 </Link>
 
                 <Link
                   href="/tournaments"
                   onClick={closeMobileMenu}
-                  className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                 >
-                  <Swords size={24} />
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                    <Swords size={20} />
+                  </div>
                   Tournaments
                 </Link>
 
@@ -257,53 +267,54 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     <Link
                       href="/profile"
                       onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#00F0FF] text-lg font-medium transition"
+                      className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                     >
-                      <User size={24} />
+                      <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                        <User size={20} />
+                      </div>
                       {fetchedUsername || 'Profile'}
                     </Link>
 
                     <Link
                       href="/game-shop"
                       onClick={closeMobileMenu}
-                      className="flex items-center gap-5 py-5 px-6 rounded-2xl bg-[#011112]/60 hover:bg-[#011112] text-[#0FF0FC] text-lg font-medium transition"
+                      className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#0FF0FC] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                     >
-                      <ShoppingBag size={24} />
+                      <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-emerald-400/90">
+                        <ShoppingBag size={20} />
+                      </div>
                       Shop
                     </Link>
                   </>
                 )}
               </nav>
 
-
-                {/* Network Switcher - ONLY visible when NOT in MiniPay */}
-                {!isMiniPay && (
+              {/* Network & Wallet - game settings row */}
+              {!isMiniPay && (
+                <>
                   <button
                     onClick={() => {
                       setIsNetworkModalOpen(true);
                       closeMobileMenu();
                     }}
-                    className={`w-full py-5 rounded-2xl flex items-center justify-center gap-4 font-orbitron text-lg transition ${
+                    className={`w-full py-4 rounded-xl flex items-center justify-center gap-3 font-orbitron text-base font-medium transition-all duration-200 border ${
                       isConnected
-                        ? 'bg-[#003B3E]/70 hover:bg-[#003B3E] border border-[#00F0FF]/40 text-[#00F0FF]'
-                        : 'bg-[#011112]/80 hover:bg-[#011112]/90 border border-[#003B3E]/60 text-[#00F0FF]/90'
+                        ? 'bg-[#022a2c]/80 hover:bg-[#03383a] border-[#00F0FF]/30 text-[#00F0FF] hover:shadow-[0_0_16px_rgba(0,240,255,0.12)]'
+                        : 'bg-[#011112]/80 hover:bg-[#022a2c]/80 border-[#003B3E]/50 text-[#00F0FF]/80'
                     }`}
                   >
-                    <Globe size={24} />
-                    <span className="truncate max-w-[220px]">{networkDisplay}</span>
+                    <Globe size={20} />
+                    <span className="truncate max-w-[200px]">{networkDisplay}</span>
                   </button>
-                )}
 
-                {/* Connect / Disconnect buttons - ONLY outside MiniPay */}
-                {!isMiniPay && (
-                  <div className="mt-6">
+                  <div className="mt-4">
                     {!isConnected ? (
                       <button
                         onClick={() => {
                           setIsConnectModalOpen(true);
                           closeMobileMenu();
                         }}
-                        className="w-full py-5 rounded-2xl bg-gradient-to-r from-[#00F0FF]/20 to-[#0FF0FC]/20 border border-[#00F0FF]/60 text-[#00F0FF] font-orbitron text-xl font-bold tracking-wide hover:from-[#00F0FF]/30 hover:to-[#0FF0FC]/30 transition"
+                        className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF]/25 to-[#0FF0FC]/20 border border-[#00F0FF]/50 text-[#00F0FF] font-orbitron font-bold text-lg tracking-wide hover:from-[#00F0FF]/35 hover:to-[#0FF0FC]/28 hover:shadow-[0_0_24px_rgba(0,240,255,0.2)] hover:border-[#00F0FF]/60 active:scale-[0.99] transition-all duration-200"
                       >
                         Connect Wallet
                       </button>
@@ -313,20 +324,21 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                           setIsDisconnectModalOpen(true);
                           closeMobileMenu();
                         }}
-                        className="w-full py-5 rounded-2xl bg-red-900/40 hover:bg-red-900/60 border border-red-600/50 text-red-400 font-orbitron text-lg font-medium transition"
+                        className="w-full py-4 rounded-xl bg-red-950/50 hover:bg-red-900/40 border border-red-500/40 text-red-400 font-orbitron font-medium transition-all duration-200 hover:border-red-400/50"
                       >
                         Disconnect Wallet
                       </button>
                     )}
                   </div>
-                )}
+                </>
+              )}
 
-              {/* Close Button */}
+              {/* Close - game UI button */}
               <button
                 onClick={closeMobileMenu}
-                className="absolute top-5 right-5 w-10 h-10 rounded-full bg-[#011112]/70 flex items-center justify-center text-white hover:bg-[#003B3E]/50 transition"
+                className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-[#011112]/90 border border-[#003B3E]/60 flex items-center justify-center text-white/90 hover:bg-[#022a2c] hover:border-[#00F0FF]/25 hover:text-[#00F0FF] transition-all duration-200"
               >
-                <X size={26} />
+                <X size={22} />
               </button>
             </div>
           </motion.div>
