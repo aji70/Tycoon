@@ -398,64 +398,19 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Privy first, then guest fallback */}
+          {/* Sign in with Privy only (no username + password on hero) */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-full flex flex-col gap-4">
+            <div className="w-full flex flex-col gap-4 items-center">
               <button
                 type="button"
                 onClick={() => login()}
-                className="w-full h-14 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-base font-bold hover:bg-[#00D4E6] transition-colors"
+                className="h-12 px-8 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold hover:bg-[#00D4E6] transition-colors shrink-0"
               >
                 Sign in
               </button>
               <p className="text-[#869298] text-xs text-center font-dmSans">
                 Sign in with email or social—no password. You’ll choose a username once and be set.
               </p>
-              <p className="text-[#869298] text-xs text-center font-dmSans">Or use username + password</p>
-              <div className="w-full flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
-                <input
-                  type="text"
-                  value={guestUsername}
-                  onChange={(e) => setGuestUsername(e.target.value)}
-                  placeholder="Username"
-                  className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-                />
-                <input
-                  type="password"
-                  value={guestPassword}
-                  onChange={(e) => setGuestPassword(e.target.value)}
-                  placeholder="Password"
-                  className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
-                      setGuestLoading(true);
-                      const r = await guestAuth?.registerGuest(guestUsername.trim(), guestPassword);
-                      setGuestLoading(false);
-                      if (r?.success) toast.success("Account created!"); else toast.error(r?.message ?? "Failed");
-                    }}
-                    disabled={guestLoading}
-                    className="flex-1 h-12 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold disabled:opacity-60"
-                  >
-                    {guestLoading ? "..." : "Register"}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
-                      setGuestLoading(true);
-                      const r = await guestAuth?.loginGuest(guestUsername.trim(), guestPassword);
-                      setGuestLoading(false);
-                      if (r?.success) toast.success("Welcome back!"); else toast.error(r?.message ?? "Failed");
-                    }}
-                    disabled={guestLoading}
-                    className="flex-1 h-12 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold disabled:opacity-60"
-                  >
-                    {guestLoading ? "..." : "Login"}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 

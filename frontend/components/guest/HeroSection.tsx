@@ -451,78 +451,19 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Privy first (no password), then guest auth (username + password) for those who skip Privy */}
+          {/* Sign in with Privy only (no username + password on hero) */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-[80%] md:w-[320px] flex flex-col gap-4">
+            <div className="w-[80%] md:w-[320px] flex flex-col gap-4 items-center">
               <button
                 type="button"
                 onClick={() => login()}
-                className="w-full h-[52px] rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-base font-bold hover:bg-[#00D4E6] transition-colors"
+                className="h-[44px] px-8 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold hover:bg-[#00D4E6] transition-colors shrink-0"
               >
                 Sign in
               </button>
               <p className="text-[#869298] text-xs text-center font-dmSans">
                 Sign in with email or social—no password. You’ll choose a username once and be set.
               </p>
-              <p className="text-[#869298] text-xs text-center font-dmSans">Or use username + password</p>
-              <div className="flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
-              <input
-                type="text"
-                value={guestUsername}
-                onChange={(e) => setGuestUsername(e.target.value)}
-                placeholder="Username"
-                className="h-[42px] bg-[#010F10] rounded-lg border border-[#003B3E] px-3 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-              />
-              <input
-                type="password"
-                value={guestPassword}
-                onChange={(e) => setGuestPassword(e.target.value)}
-                placeholder="Password"
-                className="h-[42px] bg-[#010F10] rounded-lg border border-[#003B3E] px-3 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    if (!guestUsername.trim() || !guestPassword) {
-                      toast.warn("Enter username and password");
-                      return;
-                    }
-                    setGuestLoading(true);
-                    const r = await guestAuth?.registerGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (r?.success) {
-                      toast.success("Account created! You can play until you connect a wallet.");
-                    } else {
-                      toast.error(r?.message ?? "Registration failed");
-                    }
-                  }}
-                  disabled={guestLoading}
-                  className="flex-1 h-[42px] rounded-lg bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold hover:bg-[#004B4F] disabled:opacity-60"
-                >
-                  {guestLoading ? "..." : "Register"}
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!guestUsername.trim() || !guestPassword) {
-                      toast.warn("Enter username and password");
-                      return;
-                    }
-                    setGuestLoading(true);
-                    const r = await guestAuth?.loginGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (r?.success) {
-                      toast.success("Welcome back!");
-                    } else {
-                      toast.error(r?.message ?? "Login failed");
-                    }
-                  }}
-                  disabled={guestLoading}
-                  className="flex-1 h-[42px] rounded-lg bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold hover:opacity-90 disabled:opacity-60"
-                >
-                  {guestLoading ? "..." : "Login"}
-                </button>
-              </div>
-              </div>
             </div>
           )}
 
