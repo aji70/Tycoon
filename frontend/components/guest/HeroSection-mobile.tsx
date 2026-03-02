@@ -14,6 +14,7 @@ import {
   useGetGameByCode,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
@@ -23,8 +24,10 @@ import { useUserLevel } from "@/hooks/useUserLevel";
 const HeroSectionMobile: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
+  const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+  const isPrivyAuthed = ready && authenticated;
 
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
@@ -150,13 +153,18 @@ const HeroSectionMobile: React.FC = () => {
       return "none";
     }
     if (guestUser) return "guest";
+    if (isPrivyAuthed) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, localRegistered, guestUser]);
+  }, [address, user, isUserRegistered, localRegistered, guestUser, isPrivyAuthed]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
+    if (isPrivyAuthed && privyUser) {
+      const email = typeof privyUser.email === "string" ? privyUser.email : (privyUser.email as { address?: string })?.address;
+      return email ?? "Player";
+    }
     return user?.username || localUsername || fetchedUsername || inputUsername || "Player";
-  }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
+  }, [guestUser, privyUser, user, localUsername, fetchedUsername, inputUsername, isPrivyAuthed]);
 
   const { levelInfo } = useUserLevel({
     address: address ?? undefined,
@@ -322,7 +330,7 @@ const handleContinuePrevious = () => {
 
         {/* Welcome / Loading message + Level */}
         <div className="mt-5 sm:mt-6 text-center px-2 flex flex-col items-center gap-2">
-          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest") && !loading && (
+          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest" || registrationStatus === "privy") && !loading && (
             <>
               <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
                 Welcome back, {displayUsername}!
@@ -390,51 +398,60 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Guest login/register */}
+          {/* Privy first, then guest fallback */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-full flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
-              <p className="text-[#00F0FF] font-orbitron text-sm font-bold text-center">Play without a wallet</p>
-              <input
-                type="text"
-                value={guestUsername}
-                onChange={(e) => setGuestUsername(e.target.value)}
-                placeholder="Username"
-                className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-              />
-              <input
-                type="password"
-                value={guestPassword}
-                onChange={(e) => setGuestPassword(e.target.value)}
-                placeholder="Password"
-                className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
-                    setGuestLoading(true);
-                    const r = await guestAuth?.registerGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (r?.success) toast.success("Account created!"); else toast.error(r?.message ?? "Failed");
-                  }}
-                  disabled={guestLoading}
-                  className="flex-1 h-12 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold disabled:opacity-60"
-                >
-                  {guestLoading ? "..." : "Register"}
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
-                    setGuestLoading(true);
-                    const r = await guestAuth?.loginGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (r?.success) toast.success("Welcome back!"); else toast.error(r?.message ?? "Failed");
-                  }}
-                  disabled={guestLoading}
-                  className="flex-1 h-12 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold disabled:opacity-60"
-                >
-                  {guestLoading ? "..." : "Login"}
-                </button>
+            <div className="w-full flex flex-col gap-4">
+              <button
+                type="button"
+                onClick={() => login()}
+                className="w-full h-14 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-base font-bold hover:bg-[#00D4E6] transition-colors"
+              >
+                Sign in
+              </button>
+              <p className="text-[#869298] text-xs text-center font-dmSans">Or play without a wallet</p>
+              <div className="w-full flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
+                <input
+                  type="text"
+                  value={guestUsername}
+                  onChange={(e) => setGuestUsername(e.target.value)}
+                  placeholder="Username"
+                  className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
+                />
+                <input
+                  type="password"
+                  value={guestPassword}
+                  onChange={(e) => setGuestPassword(e.target.value)}
+                  placeholder="Password"
+                  className="h-12 bg-[#010F10] rounded-xl border border-[#003B3E] px-4 text-[#17ffff] font-orbitron text-sm placeholder:text-[#455A64]"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
+                      setGuestLoading(true);
+                      const r = await guestAuth?.registerGuest(guestUsername.trim(), guestPassword);
+                      setGuestLoading(false);
+                      if (r?.success) toast.success("Account created!"); else toast.error(r?.message ?? "Failed");
+                    }}
+                    disabled={guestLoading}
+                    className="flex-1 h-12 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold disabled:opacity-60"
+                  >
+                    {guestLoading ? "..." : "Register"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!guestUsername.trim() || !guestPassword) { toast.warn("Enter username and password"); return; }
+                      setGuestLoading(true);
+                      const r = await guestAuth?.loginGuest(guestUsername.trim(), guestPassword);
+                      setGuestLoading(false);
+                      if (r?.success) toast.success("Welcome back!"); else toast.error(r?.message ?? "Failed");
+                    }}
+                    disabled={guestLoading}
+                    className="flex-1 h-12 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold disabled:opacity-60"
+                  >
+                    {guestLoading ? "..." : "Login"}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -464,7 +481,7 @@ const handleContinuePrevious = () => {
             </button>
           )}
 
-          {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
+          {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy" ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
@@ -562,17 +579,20 @@ const handleContinuePrevious = () => {
                   Challenge AI!
                 </span>
               </button>
-              {guestUser && (
-                <button onClick={() => guestAuth?.logoutGuest()} className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs">
-                  Sign out (guest)
+              {(guestUser || registrationStatus === "privy") && (
+                <button
+                  onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
+                  className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
+                >
+                  {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
                 </button>
               )}
             </div>
           ) : null}
 
-          {!address && !guestUser && !loading && (
+          {!address && !guestUser && !isPrivyAuthed && !loading && (
             <p className="text-gray-400 text-sm text-center mt-4">
-              Connect your wallet or play without a wallet above.
+              Sign in above or connect your wallet to play.
             </p>
           )}
         </div>
