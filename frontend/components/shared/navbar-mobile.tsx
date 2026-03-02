@@ -18,6 +18,7 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
+import { usePrivy } from '@privy-io/react-auth';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -66,6 +67,8 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
   const { connect } = useConnect();
+  const { ready, authenticated, login, logout, user } = usePrivy();
+  const isPrivyAuthed = ready && authenticated;
 
   const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Change Network');
 
@@ -319,25 +322,25 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                   </button>
 
                   <div className="mt-4">
-                    {!isConnected ? (
+                    {!isPrivyAuthed ? (
                       <button
                         onClick={() => {
-                          setIsConnectModalOpen(true);
+                          login();
                           closeMobileMenu();
                         }}
                         className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF]/25 to-[#0FF0FC]/20 border border-[#00F0FF]/50 text-[#00F0FF] font-orbitron font-bold text-lg tracking-wide hover:from-[#00F0FF]/35 hover:to-[#0FF0FC]/28 hover:shadow-[0_0_24px_rgba(0,240,255,0.2)] hover:border-[#00F0FF]/60 active:scale-[0.99] transition-all duration-200"
                       >
-                        Connect Wallet
+                        Sign in
                       </button>
                     ) : (
                       <button
                         onClick={() => {
-                          setIsDisconnectModalOpen(true);
+                          logout();
                           closeMobileMenu();
                         }}
-                        className="w-full py-4 rounded-xl bg-red-950/50 hover:bg-red-900/40 border border-red-500/40 text-red-400 font-orbitron font-medium transition-all duration-200 hover:border-red-400/50"
+                        className="w-full py-4 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"
                       >
-                        Disconnect Wallet
+                        {user?.email ? user.email : 'Signed in'} · Log out
                       </button>
                     )}
                   </div>
