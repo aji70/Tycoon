@@ -58,6 +58,20 @@ class SocketService {
     }
   }
 
+  /** Register presence in global lobby (for "everyone online" and general chat). */
+  registerLobbyPresence(payload: { userId?: number; username?: string; address?: string }): void {
+    if (this.socket && this.isConnected && (payload?.userId != null || payload?.username || payload?.address)) {
+      this.socket.emit("register-presence", payload);
+    }
+  }
+
+  /** Listen for lobby online-users list (broadcast by server). */
+  onOnlineUsers(callback: (data: { users: Array<{ userId?: number; username?: string | null; address?: string | null }>; count: number }) => void): void {
+    if (this.socket) {
+      this.socket.on("online-users", callback);
+    }
+  }
+
   // Event listeners with proper typing
   onGameCreated(callback: (data: GameCreatedData) => void): void {
     if (this.socket) {

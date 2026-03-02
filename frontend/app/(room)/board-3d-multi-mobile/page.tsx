@@ -35,6 +35,7 @@ import ActionLog from "@/components/game/ai-board/action-log";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown, Trophy, HeartHandshake, X, LayoutDashboard } from "lucide-react";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
+import LobbyChatRoom from "@/components/game/board3d/LobbyChatRoom";
 
 const Canvas = dynamic(
   () => import("@react-three/fiber").then((m) => m.Canvas),
@@ -273,6 +274,7 @@ export default function Board3DMobilePage() {
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatTab, setChatTab] = useState<"tavern" | "general">("tavern");
   const BUY_TIPS_STORAGE_KEY = "tycoon_buy_tips_3d_multi_mobile";
   const [buyTipsOn, setBuyTipsOn] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -1991,7 +1993,30 @@ export default function Board3DMobilePage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30 min-h-[52px]">
-                <h3 className="font-bold text-amber-100 text-sm uppercase tracking-wide">Tavern Chat</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setChatTab("tavern")}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                      chatTab === "tavern"
+                        ? "bg-amber-500/40 text-amber-100"
+                        : "text-amber-400/80 hover:text-amber-200"
+                    }`}
+                  >
+                    Tavern
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatTab("general")}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                      chatTab === "general"
+                        ? "bg-cyan-500/40 text-cyan-100"
+                        : "text-cyan-400/80 hover:text-cyan-200"
+                    }`}
+                  >
+                    General
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => setChatOpen(false)}
@@ -2003,7 +2028,17 @@ export default function Board3DMobilePage() {
                 </button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} disableSend={hasLeftGame} />
+                {chatTab === "tavern" ? (
+                  <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} disableSend={hasLeftGame} />
+                ) : (
+                  <LobbyChatRoom
+                    address={guestUser?.address ?? address ?? me?.address}
+                    userId={me?.user_id ?? undefined}
+                    username={me?.username ?? undefined}
+                    isMobile
+                    showHeader={false}
+                  />
+                )}
               </div>
               {/* Board button at bottom so it's always tappable above game bar */}
               <div className="flex-shrink-0 px-4 py-3 border-t border-amber-500/20 bg-gradient-to-r from-amber-950/40 to-amber-900/20">

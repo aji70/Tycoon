@@ -46,6 +46,15 @@ const messageController = {
     }
   },
 
+  async findByLobby(req, res) {
+    try {
+      const messages = await Message.findAllByLobby();
+      res.json({ success: true, message: "successful", data: Array.isArray(messages) ? messages : [] });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+
   async findByChatId(req, res) {
     try {
       const { id } = req.params;

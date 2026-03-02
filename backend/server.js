@@ -56,6 +56,9 @@ const CONNECTIONS_PER_IP = 5;
 const EVENTS_PER_SOCKET_PER_MINUTE = 60;
 const connectionCountByIp = new Map();
 const socketEventCounts = new Map(); // socketId -> { count, resetAt }
+// Lobby presence: socketId -> { userId, username }; used to broadcast "online-users" to lobby room
+const lobbyPresenceBySocket = new Map();
+const LOBBY_ROOM = "lobby";
 
 function getClientIp(socket) {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
@@ -83,6 +86,18 @@ function checkSocketEventRate(socket) {
     return false;
   }
   return true;
+}
+
+function broadcastLobbyPresence(socketIo) {
+  const list = [];
+  const seen = new Set();
+  for (const entry of lobbyPresenceBySocket.values()) {
+    const key = entry.userId != null ? `u:${entry.userId}` : (entry.address || `n:${entry.username || "anon"}`);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push({ userId: entry.userId, username: entry.username || null, address: entry.address || null });
+  }
+  socketIo.to(LOBBY_ROOM).emit("online-users", { users: list, count: list.length });
 }
 
 io.on("connection", (socket) => {
@@ -114,7 +129,24 @@ io.on("connection", (socket) => {
     logger.debug({ socketId: socket.id, gameCode }, "User left room");
   });
 
+  // Register presence in global lobby (for "everyone online" and general chat)
+  socket.on("register-presence", (payload) => {
+    if (!checkSocketEventRate(socket)) {
+      socket.emit("error", { message: "Too many actions; slow down." });
+      return;
+    }
+    const { userId, username, address } = payload || {};
+    const entry = { userId: userId != null ? Number(userId) : null, username: username != null ? String(username).trim() : null, address: address != null ? String(address).trim() : null };
+    if (entry.userId || entry.username || entry.address) {
+      lobbyPresenceBySocket.set(socket.id, entry);
+      socket.join(LOBBY_ROOM);
+      broadcastLobbyPresence(io);
+    }
+  });
+
   socket.on("disconnect", () => {
+    lobbyPresenceBySocket.delete(socket.id);
+    broadcastLobbyPresence(io);
     connectionCountByIp.set(ip, Math.max(0, (connectionCountByIp.get(ip) || 0) - 1));
     socketEventCounts.delete(socket.id);
     logger.info({ socketId: socket.id }, "User disconnected");
@@ -242,6 +274,19 @@ app.post("/api/config/call-contract", async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Online users (from socket lobby presence)
+app.get("/api/users/online", (_req, res) => {
+  const list = [];
+  const seen = new Set();
+  for (const entry of lobbyPresenceBySocket.values()) {
+    const key = entry.userId != null ? `u:${entry.userId}` : (entry.address || `n:${entry.username || "anon"}`);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push({ userId: entry.userId, username: entry.username || null, address: entry.address || null });
+  }
+  res.json({ success: true, data: { users: list, count: list.length } });
 });
 
 // API routes
