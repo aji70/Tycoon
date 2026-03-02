@@ -21,8 +21,8 @@ export default function PlayAI3DPage() {
 
   if (isRegisteredLoading) {
     return (
-      <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/20 flex flex-col items-center justify-center gap-4 text-amber-300">
-        <Loader2 className="w-12 h-12 animate-spin text-amber-400" />
+      <div className="w-full min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 flex flex-col items-center justify-center gap-4 text-cyan-300">
+        <Loader2 className="w-12 h-12 animate-spin text-cyan-400" />
         <p className="text-xl font-orbitron">Checking registration...</p>
       </div>
     );
@@ -30,8 +30,8 @@ export default function PlayAI3DPage() {
 
   if (isUserRegistered === false) {
     return (
-      <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30 flex flex-col items-center justify-center gap-8 px-8 text-center">
-        <AlertCircle className="w-20 h-20 text-amber-400/80" />
+      <div className="w-full min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950 flex flex-col items-center justify-center gap-8 px-8 text-center">
+        <AlertCircle className="w-20 h-20 text-cyan-400/80" />
         <div>
           <h2 className="text-3xl font-bold text-white mb-4 font-orbitron">
             Registration Required
@@ -42,7 +42,7 @@ export default function PlayAI3DPage() {
         </div>
         <button
           onClick={() => router.push("/")}
-          className="px-8 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-900 font-bold rounded-xl border-2 border-amber-400/50 transition-all transform hover:scale-105"
+          className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-900 font-bold rounded-xl border-2 border-cyan-400/50 transition-all transform hover:scale-105"
         >
           Go to Home Page
         </button>
@@ -51,7 +51,7 @@ export default function PlayAI3DPage() {
   }
 
   return (
-    <main className="w-full overflow-x-hidden min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/20">
+    <main className="w-full overflow-x-hidden min-h-screen bg-gradient-to-br from-[#0E282A] via-slate-900 to-slate-950">
       {isMobile ? <PlayWithAI3DMobile /> : <PlayWithAI3D />}
     </main>
   );
