@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { Send, MessageCircle, Reply, X, Dices } from "lucide-react";
 import { Player } from "@/types/game";
@@ -87,6 +87,7 @@ export default function GameyChatRoom({ gameId, me, isMobile = false, showHeader
     refetchOnWindowFocus: hasGameId && !isMobile,
     staleTime: isMobile ? 5000 : 2000,
     enabled: hasGameId,
+    placeholderData: keepPreviousData,
   });
 
   const prevMessagesLengthRef = useRef(0);
