@@ -33,7 +33,6 @@ import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
-import LobbyChatRoom from "@/components/game/board3d/LobbyChatRoom";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -304,7 +303,6 @@ function Board3DPageContent() {
   }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
   const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
   const [hasLeftGame, setHasLeftGame] = useState(false);
-  const [chatTab, setChatTab] = useState<"tavern" | "general">("tavern");
   const timeUpHandledRef = useRef(false);
   const [viewTradesRequested, setViewTradesRequested] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
@@ -1966,40 +1964,10 @@ function Board3DPageContent() {
       {/* Spacer so board doesn't sit under fixed chat sidebar */}
       <div className="hidden lg:block w-96 flex-shrink-0" aria-hidden="true" />
 
-      {/* Tavern + General chat — fixed, taller and wider */}
+      {/* Tavern (game) chat only — general chat is in Rooms from nav */}
       <aside className="hidden lg:flex flex-col w-96 fixed right-4 top-[60px] z-20 h-[calc(100vh-60px-1rem)] max-h-[calc(100vh-60px-1rem)] border border-amber-500/20 rounded-xl bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden shadow-xl">
-        <div className="flex-shrink-0 flex gap-1 p-2 border-b border-amber-500/20">
-          <button
-            type="button"
-            onClick={() => setChatTab("tavern")}
-            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              chatTab === "tavern" ? "bg-amber-500/40 text-amber-100" : "text-amber-400/80 hover:text-amber-200"
-            }`}
-          >
-            Tavern
-          </button>
-          <button
-            type="button"
-            onClick={() => setChatTab("general")}
-            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              chatTab === "general" ? "bg-cyan-500/40 text-cyan-100" : "text-cyan-400/80 hover:text-cyan-200"
-            }`}
-          >
-            General
-          </button>
-        </div>
         <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
-          {chatTab === "tavern" ? (
-            <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} disableSend={hasLeftGame} />
-          ) : (
-            <LobbyChatRoom
-              address={guestUser?.address ?? address ?? me?.address}
-              userId={me?.user_id ?? undefined}
-              username={me?.username ?? undefined}
-              isMobile={false}
-              showHeader={true}
-            />
-          )}
+          <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} disableSend={hasLeftGame} />
         </div>
       </aside>
       </div>

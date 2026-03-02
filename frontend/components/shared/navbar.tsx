@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -152,6 +152,17 @@ const NavBar = () => {
             >
               <Swords className="w-[16px] h-[16px]" />
               <span className="text-[12px] font-[400] font-dmSans">Tournaments</span>
+            </Link>
+          )}
+
+          {/* Rooms button (only when connected) — general lobby with chat */}
+          {isConnected && (
+            <Link
+              href="/rooms"
+              className="w-[75px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+            >
+              <MessageCircle className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Rooms</span>
             </Link>
           )}
 
