@@ -447,6 +447,31 @@ const gameController = {
         }
       }
 
+      // AI game set to FINISHED (e.g. human declared bankruptcy): backend ends on-chain so user never needs to sign
+      if (payload.status === "FINISHED" && game?.is_ai && game.contract_game_id) {
+        const chainForContract = User.normalizeChain(game.chain || "CELO");
+        if (isContractConfigured(chainForContract)) {
+          const creator = await ensureUserHasContractPassword(db, game.creator_id, chainForContract) ||
+            (await db("users").where({ id: game.creator_id }).select("address", "username", "password_hash").first());
+          const humanGp = await db("game_players").where({ game_id: game.id, user_id: game.creator_id }).select("position", "balance").first();
+          if (creator?.address && creator?.password_hash && humanGp) {
+            const isWin = game.winner_id === game.creator_id;
+            endAIGameByBackend(
+              creator.address,
+              creator.username || "",
+              creator.password_hash,
+              game.contract_game_id,
+              Number(humanGp.position ?? 0),
+              String(humanGp.balance ?? 0),
+              isWin,
+              chainForContract
+            ).catch((err) =>
+              logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend on game update (e.g. bankruptcy) failed")
+            );
+          }
+        }
+      }
+
       res.json({ success: true, message: "Game updated" });
     } catch (error) {
       res.status(200).json({ success: false, message: error.message });

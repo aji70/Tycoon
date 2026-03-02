@@ -23,10 +23,6 @@ import { simplifyAiTip } from "@/lib/simplifyAiTip";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
 import { ApiResponse } from "@/types/api";
-import { useEndAIGameAndClaim, useGetGameByCode } from "@/context/ContractProvider";
-import { useChainId } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
-import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
 import { BankruptcyModal } from "../modals/bankruptcy";
 import { CardModal } from "../modals/cards";
 import { PropertyActionModal } from "../modals/property-action";
@@ -249,34 +245,8 @@ const AiBoard = ({
     return properties.find((p) => p.id === landedPositionThisTurn.current) ?? null;
   }, [landedPositionThisTurn.current, properties]);
 
-const { data: contractGame } = useGetGameByCode(game.code);
-  const chainId = useChainId();
-  const { open: openAppKit } = useAppKit();
-  const CELO_CHAIN_ID = 42220;
-
-// On-chain game ID: prefer contract read, fallback to backend's contract_game_id (so we don't send 0)
-const onChainGameId =
-  contractGame?.id ??
-  (game.contract_game_id != null && game.contract_game_id !== "" ? BigInt(game.contract_game_id) : undefined);
-
-// finalPosition = finishing rank (1 = winner, 2 = second) per contract; not board position (0-39)
-const endGameFinalPosition = endGameCandidate.winner ? 1 : 2;
-
-// Hook for ending an AI game and claiming rewards
-const {
-  write: endGame,
-  isPending: endGamePending,
-  isSuccess: endGameSuccess,
-  error: endGameError,
-  txHash: endGameTxHash,
-  reset: endGameReset,
-} = useEndAIGameAndClaim(
-  onChainGameId ?? BigInt(0), // fallback only for hook stability; do not call write when 0
-  endGameFinalPosition,
-  BigInt(endGameCandidate.balance),
-  endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
-);
-
+  // AI game end is backend-signed (gasless): finish-by-time and game update (e.g. bankruptcy) trigger endAIGameByBackend
+  const [finalizeInProgress, setFinalizeInProgress] = useState(false);
   const buyGuard = usePreventDoubleSubmit();
   const jailGuard = usePreventDoubleSubmit();
 
@@ -337,63 +307,36 @@ const {
   const handleFinalizeTimeUpAndLeave = useCallback(async () => {
     setShowExitPrompt(false);
     const isHumanWinner = winner?.user_id === me?.user_id;
+    setFinalizeInProgress(true);
     try {
-      // Only call endAIGame when the on-chain game is actually an AI game (avoids "Not an AI game" when on wrong network)
-      if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
-        if (chainId !== CELO_CHAIN_ID) {
-          showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
-        } else {
-          toast.error(
-            "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo)."
-          );
-        }
-        return;
-      }
-      // 1) Claim on-chain first (winners and losers both call exit AI game to get rewards)
-      await endGame();
-      // 2) Then sync backend (mark game FINISHED). Both can call; backend is idempotent if already finished.
+      // Backend already ended the AI game on-chain (finish-by-time); just sync and show success
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
         if (backendErr?.message?.includes("not running") || backendErr?.response?.data?.error === "Game is not running") {
-          // Game already finished. On-chain claim succeeded; ignore.
+          // Game already finished; ignore
         } else {
           throw backendErr;
         }
       }
-      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      toast.success(isHumanWinner ? "Prize already distributed! 🎉" : "Thanks for playing!");
       try {
         await apiClient.post(`/games/${game.id}/erc8004-feedback`);
       } catch (_) {
-        // Backend submits ERC-8004 feedback; best-effort, don't block user
+        // Backend submits ERC-8004 feedback; best-effort
       }
-      // Stay on modal; user chooses when to go home via "Go home" button
     } catch (err: any) {
       toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
     } finally {
-      endGameReset();
+      setFinalizeInProgress(false);
     }
-  }, [winner?.user_id, me?.user_id, game?.id, onFinishGameByTime, endGame, endGameReset, contractGame, chainId, openAppKit]);
+  }, [winner?.user_id, me?.user_id, game?.id, onFinishGameByTime]);
 
   const handleClaimAndGoHome = useCallback(async () => {
     setClaimAndLeaveInProgress(true);
     const isHumanWinner = winner?.user_id === me?.user_id;
     try {
-      // Guest: backend already claimed on-chain when finish-by-time ran; skip wallet call.
-      if (!isGuest) {
-        if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
-          if (chainId !== CELO_CHAIN_ID) {
-            showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
-          } else {
-            toast.error(
-              "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo)."
-            );
-          }
-          setClaimAndLeaveInProgress(false);
-          return;
-        }
-        await endGame();
-      }
+      // Backend already ended the AI game on-chain; just sync and redirect
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
@@ -403,20 +346,20 @@ const {
           throw backendErr;
         }
       }
-      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      toast.success(isHumanWinner ? "Prize already distributed! 🎉" : "Thanks for playing!");
       try {
         await apiClient.post(`/games/${game.id}/erc8004-feedback`);
       } catch (_) {
-        // Backend submits ERC-8004 feedback; best-effort
+        // best-effort
       }
       window.location.href = "/";
     } catch (err: any) {
       toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
       setClaimAndLeaveInProgress(false);
     } finally {
-      endGameReset();
+      setClaimAndLeaveInProgress(false);
     }
-  }, [winner?.user_id, me?.user_id, isGuest, game?.id, onFinishGameByTime, endGame, endGameReset, contractGame, chainId, openAppKit]);
+  }, [winner?.user_id, me?.user_id, game?.id, onFinishGameByTime]);
 
   // Sync players
   useEffect(() => {
@@ -1491,8 +1434,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      if (endGame) await endGame();
-
+      // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
@@ -1554,7 +1496,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
               onBuyProperty={handleBuyProperty}
               onSkipBuy={handleSkipBuy}
               onDeclareBankruptcy={handleDeclareBankruptcy}
-              isPending={endGamePending}
+              isPending={finalizeInProgress}
               buyPending={buyGuard.isSubmitting}
               jailSubmitting={jailGuard.isSubmitting}
               timerSlot={game?.duration && Number(game.duration) > 0 ? (
@@ -1750,10 +1692,10 @@ const endTurnAfterSpecialMove = useCallback(() => {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
+                    disabled={claimAndLeaveInProgress || finalizeInProgress}
                     className="w-full py-4 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 text-slate-900 font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-300/40 transition-all disabled:cursor-wait"
                   >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    {claimAndLeaveInProgress || finalizeInProgress ? "Finalizing…" : "Finalize & go home"}
                   </motion.button>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
@@ -1808,10 +1750,10 @@ const endTurnAfterSpecialMove = useCallback(() => {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleClaimAndGoHome}
-                    disabled={claimAndLeaveInProgress || endGamePending}
+                    disabled={claimAndLeaveInProgress || finalizeInProgress}
                     className="w-full py-4 px-6 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-600 text-white font-bold text-lg shadow-lg shadow-cyan-900/40 border border-cyan-400/30 transition-all disabled:cursor-wait"
                   >
-                    {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                    {claimAndLeaveInProgress || finalizeInProgress ? "Finalizing…" : "Finalize & go home"}
                   </motion.button>
                   <p className="text-sm text-slate-500 mt-6">Thanks for playing Tycoon!</p>
                 </div>
@@ -1834,17 +1776,15 @@ const endTurnAfterSpecialMove = useCallback(() => {
           >
             <h2 className="text-2xl font-bold text-white mb-5">One last step</h2>
             <p className="text-lg text-gray-300 mb-6">
-              {winner.user_id === me?.user_id
-                ? "End the game on the blockchain to claim your rewards."
-                : "End the game on the blockchain to collect your consolation prize."}
+              Prizes were already distributed when the game ended. You can go home now.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={handleFinalizeTimeUpAndLeave}
-                disabled={endGamePending}
+                disabled={finalizeInProgress}
                 className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition disabled:opacity-50"
               >
-                {endGamePending ? "Processing..." : "Yes, end game"}
+                {finalizeInProgress ? "Finalizing…" : "Finalize & go home"}
               </button>
               <button
                 onClick={() => setShowExitPrompt(false)}

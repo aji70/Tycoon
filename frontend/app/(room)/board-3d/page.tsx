@@ -17,7 +17,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION } from "@/components/game/constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { useEndAIGameAndClaim, useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
+import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { useChainId } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
@@ -410,20 +410,6 @@ function Board3DPageContent() {
   const { data: contractGame } = useGetGameByCode(game?.code ?? "");
   const chainId = useChainId();
   const { open: openAppKit } = useAppKit();
-  const onChainGameId =
-    contractGame?.id ??
-    (game?.contract_game_id != null && game?.contract_game_id !== "" ? BigInt(game.contract_game_id) : undefined);
-  const endGameFinalPosition = endGameCandidate.winner ? 1 : 2;
-  const {
-    write: endGame,
-    isPending: endGamePending,
-    reset: endGameReset,
-  } = useEndAIGameAndClaim(
-    onChainGameId ?? BigInt(0),
-    endGameFinalPosition,
-    endGameCandidate.balance,
-    endGameCandidate.winner ? (endGameCandidate.validWin !== false) : false
-  );
   const { tradeRequests: incomingTrades } = useGameTrades({
     gameId: game?.id,
     myUserId: me?.user_id,
@@ -1472,10 +1458,7 @@ function Board3DPageContent() {
     if (!game?.id || !me) return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
-      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai) {
-        setEndGameCandidate({ winner: null, position: 2, balance: BigInt(me?.balance ?? 0), validWin: true });
-        await endGame();
-      }
+      // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
       const opponent = livePlayers.find((p) => p.user_id !== me.user_id);
       await apiClient.put(`/games/${game.id}`, {
         status: "FINISHED",
@@ -1486,7 +1469,7 @@ function Board3DPageContent() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, livePlayers, isGuest, contractGame, endGame]);
+  }, [game?.id, me, livePlayers]);
 
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
@@ -1620,26 +1603,13 @@ function Board3DPageContent() {
     setClaimAndLeaveInProgress(true);
     const isHumanWinner = winner?.user_id === me?.user_id;
     try {
-      if (!isGuest) {
-        if (!contractGame?.id || contractGame.id === BigInt(0) || !contractGame.ai) {
-          if (chainId !== CELO_CHAIN_ID) {
-            showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
-          } else {
-            toast.error(
-              "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo)."
-            );
-          }
-          setClaimAndLeaveInProgress(false);
-          return;
-        }
-        await endGame();
-      }
+      // Backend already ended AI game on-chain (finish-by-time); just sync and redirect
       try {
         await refetchGame();
       } catch (_) {
         /* ignore */
       }
-      toast.success(isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!");
+      toast.success(isHumanWinner ? "Prize already distributed! 🎉" : "Thanks for playing!");
       try {
         await apiClient.post(`/games/${game?.id}/erc8004-feedback`);
       } catch (_) {
@@ -1650,9 +1620,9 @@ function Board3DPageContent() {
       toast.error(getContractErrorMessage(err as Error, "Something went wrong — try again later"));
       setClaimAndLeaveInProgress(false);
     } finally {
-      endGameReset?.();
+      setClaimAndLeaveInProgress(false);
     }
-  }, [winner?.user_id, me?.user_id, isGuest, game?.id, refetchGame, endGame, endGameReset, contractGame, chainId, openAppKit, guestUser]);
+  }, [winner?.user_id, me?.user_id, game?.id, refetchGame]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
@@ -2194,10 +2164,10 @@ function Board3DPageContent() {
                     <button
                       type="button"
                       onClick={handleClaimAndGoHome}
-                      disabled={claimAndLeaveInProgress || endGamePending}
+                      disabled={claimAndLeaveInProgress}
                       className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
                     >
-                      {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                      {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                     </button>
                   ) : (
                     <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold">
@@ -2220,10 +2190,10 @@ function Board3DPageContent() {
                     <button
                       type="button"
                       onClick={handleClaimAndGoHome}
-                      disabled={claimAndLeaveInProgress || endGamePending}
+                      disabled={claimAndLeaveInProgress}
                       className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
                     >
-                      {claimAndLeaveInProgress || endGamePending ? "Claiming…" : "Claim & go home"}
+                      {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                     </button>
                   ) : (
                     <Link href="/" className="inline-block w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold">

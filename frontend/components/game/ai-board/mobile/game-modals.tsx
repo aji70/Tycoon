@@ -2,9 +2,6 @@ import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { Crown, Trophy, Sparkles, Wallet, HeartHandshake } from "lucide-react";
-import { useChainId } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
-import { showWrongNetworkClaimToast } from "@/lib/utils/wrongNetworkClaimToast";
 import { Game, Player } from "@/types/game";
 import { apiClient } from "@/lib/api";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -33,8 +30,6 @@ interface GameModalsProps {
   currentGame: Game;
   isGuest?: boolean;
   isPending: boolean;
-  endGame: () => Promise<any>;
-  reset: () => void;
   onFinishGameByTime?: () => Promise<void>;
   setShowInsolvencyModal: (value: boolean) => void;
   setIsRaisingFunds: (value: boolean) => void;
@@ -42,8 +37,6 @@ interface GameModalsProps {
   fetchUpdatedGame: () => Promise<void>;
   showToast: (message: string, type?: "success" | "error" | "default") => void;
 }
-
-const CELO_CHAIN_ID = 42220;
 
 const GameModals: React.FC<GameModalsProps> = ({
   winner,
@@ -63,8 +56,6 @@ const GameModals: React.FC<GameModalsProps> = ({
   currentGame,
   isGuest = false,
   isPending,
-  endGame,
-  reset,
   onFinishGameByTime,
   setShowInsolvencyModal,
   setIsRaisingFunds,
@@ -72,9 +63,6 @@ const GameModals: React.FC<GameModalsProps> = ({
   fetchUpdatedGame,
   showToast,
 }) => {
-  const chainId = useChainId();
-  const { open: openAppKit } = useAppKit();
-
   const handleRaiseFunds = () => {
     setShowInsolvencyModal(false);
     setIsRaisingFunds(true);
@@ -87,8 +75,7 @@ const GameModals: React.FC<GameModalsProps> = ({
     showToast("Declaring bankruptcy...", "default");
 
     try {
-      if (!isGuest && endGame) await endGame();
-
+      // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
       const opponent = players.find(p => p.user_id !== me?.user_id);
       await apiClient.put(`/games/${currentGame.id}`, {
         status: "FINISHED",
@@ -117,44 +104,30 @@ const GameModals: React.FC<GameModalsProps> = ({
   const handleFinalizeAndLeave = async () => {
     setShowExitPrompt(false);
     const isHumanWinner = winner?.user_id === me?.user_id;
-    const toastId = toast.loading(
-      isHumanWinner ? "Claiming your prize on-chain…" : "Claiming consolation on-chain…"
-    );
+    const toastId = toast.loading("Finalizing…");
 
     try {
-      // Guest: backend already claimed on-chain when finish-by-time ran; skip wallet call.
-      if (!isGuest) {
-        await endGame();
-      }
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
         if (backendErr?.message?.includes("not running") || backendErr?.response?.data?.error === "Game is not running") {
-          // Game already finished (e.g. other player already called). On-chain claim succeeded; ignore.
+          // Game already finished; ignore
         } else {
           throw backendErr;
         }
       }
       toast.success(
-        isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
+        isHumanWinner ? "Prize already distributed! 🎉" : "Thanks for playing!",
         { id: toastId, duration: 5000 }
       );
       try {
         await apiClient.post(`/games/${currentGame.id}/erc8004-feedback`);
       } catch (_) {}
     } catch (err: any) {
-      const msg = String(err?.message ?? "").toLowerCase();
-      if ((msg.includes("isn't an ai game") || msg.includes("not an ai game")) && chainId !== CELO_CHAIN_ID) {
-        toast.dismiss(toastId);
-        showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
-      } else {
-        toast.error(
-          getContractErrorMessage(err, "Something went wrong — you can try again later"),
-          { id: toastId, duration: 8000 }
-        );
-      }
-    } finally {
-      reset();
+      toast.error(
+        getContractErrorMessage(err, "Something went wrong — you can try again later"),
+        { id: toastId, duration: 8000 }
+      );
     }
   };
 
@@ -162,14 +135,9 @@ const GameModals: React.FC<GameModalsProps> = ({
   const handleClaimAndGoHome = useCallback(async () => {
     setClaimAndLeaveInProgress(true);
     const isHumanWinner = winner?.user_id === me?.user_id;
-    const toastId = toast.loading(
-      isHumanWinner ? "Claiming your prize…" : "Finishing up…"
-    );
+    const toastId = toast.loading("Finalizing…");
     try {
       // Guest: backend already claimed on-chain when finish-by-time ran; skip wallet call.
-      if (!isGuest) {
-        await endGame();
-      }
       try {
         await onFinishGameByTime?.();
       } catch (backendErr: any) {
@@ -180,7 +148,7 @@ const GameModals: React.FC<GameModalsProps> = ({
         }
       }
       toast.success(
-        isHumanWinner ? "Prize claimed! 🎉" : "Consolation collected — thanks for playing!",
+        isHumanWinner ? "Prize already distributed! 🎉" : "Thanks for playing!",
         { id: toastId, duration: 5000 }
       );
       try {
@@ -188,21 +156,13 @@ const GameModals: React.FC<GameModalsProps> = ({
       } catch (_) {}
       window.location.href = "/";
     } catch (err: any) {
-      const msg = String(err?.message ?? "").toLowerCase();
-      if ((msg.includes("isn't an ai game") || msg.includes("not an ai game")) && chainId !== CELO_CHAIN_ID) {
-        toast.dismiss(toastId);
-        showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
-      } else {
-        toast.error(
-          getContractErrorMessage(err, "Something went wrong — you can try again later"),
-          { id: toastId, duration: 8000 }
-        );
-      }
+      toast.error(
+        getContractErrorMessage(err, "Something went wrong — try again later"),
+        { id: toastId, duration: 8000 }
+      );
       setClaimAndLeaveInProgress(false);
-    } finally {
-      reset();
     }
-  }, [winner?.user_id, me?.user_id, isGuest, currentGame?.id, endGame, onFinishGameByTime, reset, chainId, openAppKit]);
+  }, [winner?.user_id, me?.user_id, currentGame?.id, onFinishGameByTime]);
 
   return (
     <>

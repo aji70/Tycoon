@@ -267,33 +267,14 @@ useEffect(() => {
   }, [game?.status, game?.winner_id, game?.players, me]);
 
   const handleFinalizeAndLeave = async () => {
-    const toastId = toast.loading(
-      winner?.user_id === me?.user_id
-        ? "Claiming your prize..."
-        : "Finalizing game..."
-    );
+    const toastId = toast.loading("Finalizing…");
 
     try {
-      if (!isGuest) {
-        if (!canClaimAIGameOnChain) {
-          if (chainId !== CELO_CHAIN_ID) {
-            toast.dismiss(toastId);
-            showWrongNetworkClaimToast(() => openAppKit({ view: "Networks" }));
-          } else {
-            toast.error(
-              "Could not claim: this game isn't an AI game on-chain. Make sure your wallet is on the same network you used when creating the game (e.g. Celo).",
-              { id: toastId, duration: 8000 }
-            );
-          }
-          return;
-        }
-        if (endGameHook.write) await endGameHook.write();
-      }
-
+      // Backend already ended the AI game on-chain (gasless); just show success and redirect
       toast.success(
         winner?.user_id === me?.user_id
-          ? "Prize claimed! 🎉"
-          : "Game completed — thanks for playing!",
+          ? "Prize already distributed! 🎉"
+          : "Thanks for playing!",
         { id: toastId, duration: 5000 }
       );
 
@@ -305,8 +286,6 @@ useEffect(() => {
         getContractErrorMessage(err, "Something went wrong — try again later"),
         { id: toastId, duration: 8000 }
       );
-    } finally {
-      if (endGameHook.reset) endGameHook.reset();
     }
   };
 
