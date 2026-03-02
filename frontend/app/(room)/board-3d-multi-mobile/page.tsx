@@ -335,6 +335,7 @@ export default function Board3DMobilePage() {
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
   const doublesCountRef = useRef(0);
   const runningTotalRef = useRef(0);
+  const expectingDoublesRollAgainRef = useRef(false);
   const landedPositionThisTurnRef = useRef<number | null>(null);
   const hasScheduledTurnEndRef = useRef(false);
   const turnEndInProgressRef = useRef(false);
@@ -750,6 +751,7 @@ export default function Board3DMobilePage() {
   ]);
 
   const handleDiceCompleteForLive = useCallback(async () => {
+    expectingDoublesRollAgainRef.current = false;
     const value = pendingRollRef.current;
     if (!game?.id || !me) {
       setRollingDice(null);
@@ -784,6 +786,7 @@ export default function Board3DMobilePage() {
       }
       runningTotalRef.current += value.total;
       setLastRollResultLive(null);
+      expectingDoublesRollAgainRef.current = true;
       toast.success("Doubles! Roll again.");
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
@@ -1029,6 +1032,7 @@ export default function Board3DMobilePage() {
       hasScheduledTurnEndRef.current = false;
       return;
     }
+    if (expectingDoublesRollAgainRef.current) return;
     if (hasScheduledTurnEndRef.current) return;
     hasScheduledTurnEndRef.current = true;
     setTurnEndScheduled(true);
