@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -164,7 +164,7 @@ const SOCKET_URL =
         (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, ""))
     : "";
 
-export default function Board3DMobilePage() {
+function Board3DMobilePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -936,22 +936,26 @@ export default function Board3DMobilePage() {
         if (needBuyPrompt) setBuyPrompted(true);
       }
     } catch (err) {
-      setLiveMovementOverride((prev) => {
-        const next = { ...prev };
-        delete next[me.user_id];
-        return next;
-      });
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
-      if (msg.includes("You already rolled this round")) {
-        toast.success("Passing turn to next player.");
-        try {
-          await apiClient.post("/game-players/end-turn", { user_id: me.user_id, game_id: game.id });
-          await refetchGame();
-        } catch (e) {
-          toast.error(getContractErrorMessage(e, "Failed to pass turn"));
+      try {
+        setLiveMovementOverride((prev) => {
+          const next = { ...prev };
+          if (me?.user_id != null) delete next[me.user_id];
+          return next;
+        });
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
+        if (msg.includes("You already rolled this round") && me?.user_id != null && game?.id != null) {
+          toast.success("Passing turn to next player.");
+          try {
+            await apiClient.post("/game-players/end-turn", { user_id: me.user_id, game_id: game.id });
+            await refetchGame();
+          } catch (e) {
+            toast.error(getContractErrorMessage(e, "Failed to pass turn"));
+          }
+        } else {
+          toast.error(getContractErrorMessage(err, "Roll failed"));
         }
-      } else {
-        toast.error(getContractErrorMessage(err, "Roll failed"));
+      } catch (toastErr) {
+        toast.error("Roll failed");
       }
     } finally {
       doublesCountRef.current = 0;
@@ -2034,5 +2038,24 @@ export default function Board3DMobilePage() {
 
       <Toaster position="top-center" />
     </div>
+  );
+}
+
+function Board3DMobilePageFallback() {
+  return (
+    <div className="fixed inset-0 w-full flex items-center justify-center bg-[#010F10]" style={{ height: "100dvh" }}>
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+        <p className="text-sm text-slate-400">Loading room…</p>
+      </div>
+    </div>
+  );
+}
+
+export default function Board3DMobilePage() {
+  return (
+    <Suspense fallback={<Board3DMobilePageFallback />}>
+      <Board3DMobilePageContent />
+    </Suspense>
   );
 }
