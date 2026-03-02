@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
+import { simplifyAiTip } from "@/lib/simplifyAiTip";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
@@ -788,7 +789,7 @@ function Board3DPageContent() {
       })
       .then((res) => {
         const text = res?.data?.data?.reasoning ?? null;
-        if (text) setBuyTipText(text);
+        if (text) setBuyTipText(simplifyAiTip(text) ?? text);
       })
       .catch(() => setBuyTipText(null))
       .finally(() => setBuyTipLoading(false));
