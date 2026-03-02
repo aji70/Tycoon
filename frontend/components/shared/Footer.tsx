@@ -9,7 +9,7 @@ import { RxDiscordLogo } from "react-icons/rx";
 const Footer = () => {
   return (
     <footer className="w-full md:pb-12 pb-8 px-4">
-      <div className="w-full max-w-[1120px] mx-auto flex flex-col md:flex-row items-center md:justify-between justify-center md:gap-0 gap-4 bg-[#0B191A] rounded-[16px] p-[20px]">
+      <div className="w-full max-w-[1120px] mx-auto flex flex-col md:flex-row items-center md:justify-between justify-center md:gap-0 gap-4 bg-[#0B191A] rounded-[16px] p-[20px] border border-[#003B3E]/50 game-panel">
         <Logo className="md:w-[60px] w-[55px]" image={logo} href="/" />
 
         <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400]">

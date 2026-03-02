@@ -4,16 +4,20 @@ import { FaXTwitter } from 'react-icons/fa6'; // Import Twitter (X) icon
 
 const JoinOurCommunity = () => {
     return (
-        <section className="w-full md:py-36 py-28 px-4">
-            <div className='w-full max-w-[80%] mx-auto flex flex-col justify-center items-center gap-6'>
-                <div className='w-full flex lg:flex-row items-center flex-col gap-4'>
-                    <h1 className="flex-1 text-[#F0F7F7] font-orbitron md:text-[36px] text-[28px] -tracking-[2%] font-[700]">Join Our Community</h1>
-                    <p className="flex-1 font-dmSans font-[400] text-[18px] text-[#F0F7F7] -tracking-[2%]">
+        <section className="w-full md:py-36 py-28 px-4 bg-[#010F10]">
+            <div className="w-full max-w-[90%] md:max-w-[80%] mx-auto flex flex-col justify-center items-center gap-8">
+                <div className="w-full max-w-[1100px] game-panel rounded-xl bg-[#0B191A]/60 backdrop-blur-sm border border-[#003B3E]/60 px-6 md:px-12 py-10 md:py-14 flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex flex-col items-center md:items-start text-center md:text-left gap-3">
+                        <span className="game-badge">JOIN THE GUILD</span>
+                        <h2 className="game-section-title text-[#F0F7F7] font-orbitron md:text-[36px] text-[28px] -tracking-[2%] font-[700]">
+                            Join Our Community
+                        </h2>
+                    </div>
+                    <p className="flex-1 font-dmSans font-[400] text-[16px] md:text-[18px] text-[#E0F7F8] -tracking-[2%] max-w-xl text-center md:text-left">
                         Join our community of players, builders, and dreamers shaping the future of gaming — one block at a time.
                     </p>
-                </div>
 
-                <div className="w-full flex md:flex-row flex-col gap-4 md:gap-0 justify-center md:items-center items-start mt-2">
+                <div className="w-full flex md:flex-row flex-col gap-4 md:gap-6 justify-center md:items-center items-center mt-2">
                     {/* Telegram Button */}
                     <button
                         type="button"
@@ -77,6 +81,7 @@ const JoinOurCommunity = () => {
                             Follow us on X
                         </a>
                     </button>
+                </div>
                 </div>
             </div>
         </section>
