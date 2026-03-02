@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
+import PrivyBackendSync from "@/components/PrivyBackendSync";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import { ToastContainer } from "react-toastify";
@@ -68,6 +69,7 @@ export default async function RootLayout({
           <ContextProvider cookies={cookies}>
             <TycoonProvider>
               <GuestAuthProvider>
+              <PrivyBackendSync />
               <TournamentProvider>
               <AppKitProviderWrapper>
                 {/* SocketProvider commented out as in your code */}

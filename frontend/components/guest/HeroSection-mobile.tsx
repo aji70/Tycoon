@@ -408,7 +408,10 @@ const handleContinuePrevious = () => {
               >
                 Sign in
               </button>
-              <p className="text-[#869298] text-xs text-center font-dmSans">Or play without a wallet</p>
+              <p className="text-[#869298] text-xs text-center font-dmSans">
+                Sign in with email or social—no password. You’ll choose a username once and be set.
+              </p>
+              <p className="text-[#869298] text-xs text-center font-dmSans">Or use username + password</p>
               <div className="w-full flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
                 <input
                   type="text"

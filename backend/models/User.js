@@ -84,6 +84,14 @@ const User = {
   },
 
   /**
+   * Find by Privy DID (for Privy sign-in).
+   */
+  async findByPrivyDid(privyDid) {
+    if (!privyDid || typeof privyDid !== "string") return null;
+    return await db("users").where({ privy_did: privyDid.trim() }).first();
+  },
+
+  /**
    * Find by email (for login with email). Email stored lowercase.
    */
   async findByEmail(email) {
