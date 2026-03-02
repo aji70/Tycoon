@@ -675,12 +675,22 @@ const gameController = {
             ).catch((err) => logger.warn({ err: err?.message, gameId: game.id }, "endAIGameByBackend failed (game already ended on-chain?)"));
           }
         } else {
+          // Multiplayer: remove players from contract in order (lowest net worth first).
+          // When we remove the second-to-last player (last loser), the contract in that same tx:
+          // - pays that player their rank payout, then sees joinedPlayers == 1,
+          // - ends the game and pays the remaining player (the winner) via _payoutReward(winner, rank 1).
+          // So the winner (guest or wallet user) already receives USDC/rewards in that backend-driven tx;
+          // no wallet signing is needed — "Finalize & go home" only syncs DB.
+          // Guests have a custodial address (created at sign-up); when a guest wins, the contract pays that address.
           const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
           const playerRows = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
           const turnCountByUser = Object.fromEntries(playerRows.map((r) => [r.user_id, Number(r.turn_count ?? 0)]));
           for (const { user_id } of sortedByNetWorth) {
             const user = await db("users").where({ id: user_id }).select("address").first();
-            if (!user?.address) continue;
+            if (!user?.address) {
+              logger.warn({ gameId: game.id, user_id }, "finishByTime: skip contract remove — user has no address");
+              continue;
+            }
             const turnCount = turnCountByUser[user_id];
             try {
               await removePlayerFromGame(

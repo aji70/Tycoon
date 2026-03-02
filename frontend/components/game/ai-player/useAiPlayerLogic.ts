@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Game, Player, Property, GameProperty } from "@/types/game";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
@@ -29,6 +30,7 @@ export function useAiPlayerLogic({
   currentPlayer,
   isAITurn,
 }: UseAiPlayerLogicProps) {
+  const queryClient = useQueryClient();
   const [tradeModal, setTradeModal] = useState<{ open: boolean; target: Player | null }>({
     open: false,
     target: null,
@@ -281,12 +283,15 @@ export function useAiPlayerLogic({
         if (res?.data?.success) {
           closeAiTradePopup();
           refreshTrades();
+          // Refetch game and properties so balance updates show immediately in modals/sidebar
+          if (game?.code) queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+          if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
         }
       } catch (error) {
         toast.error("Failed to update trade");
       }
     },
-    [tradeRequests, closeAiTradePopup, refreshTrades]
+    [tradeRequests, closeAiTradePopup, refreshTrades, game?.code, game?.id, queryClient]
   );
 
   const submitCounterTrade = useCallback(async () => {
@@ -330,12 +335,16 @@ export function useAiPlayerLogic({
           user_id: me.user_id,
           property_id: id,
         });
-        if (res?.data?.success) toast.success("Property developed successfully");
+        if (res?.data?.success) {
+          toast.success("Property developed successfully");
+          if (game?.code) queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+          if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
+        }
       } catch (error: any) {
         toast.error(error?.message || "Failed to develop property");
       }
     },
-    [isNext, me, game.id]
+    [isNext, me, game.id, game?.code, queryClient]
   );
 
   const handleDowngrade = useCallback(
@@ -347,13 +356,16 @@ export function useAiPlayerLogic({
           user_id: me.user_id,
           property_id: id,
         });
-        if (res?.data?.success) toast.success("Property downgraded successfully");
-        else toast.error(res.data?.message ?? "Failed to downgrade property");
+        if (res?.data?.success) {
+          toast.success("Property downgraded successfully");
+          if (game?.code) queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+          if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
+        } else toast.error(res.data?.message ?? "Failed to downgrade property");
       } catch (error: any) {
         toast.error(error?.message || "Failed to downgrade property");
       }
     },
-    [isNext, me, game.id]
+    [isNext, me, game.id, game?.code, queryClient]
   );
 
   const handleMortgage = useCallback(
@@ -365,13 +377,16 @@ export function useAiPlayerLogic({
           user_id: me.user_id,
           property_id: id,
         });
-        if (res?.data?.success) toast.success("Property mortgaged successfully");
-        else toast.error(res.data?.message ?? "Failed to mortgage property");
+        if (res?.data?.success) {
+          toast.success("Property mortgaged successfully");
+          if (game?.code) queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+          if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
+        } else toast.error(res.data?.message ?? "Failed to mortgage property");
       } catch (error: any) {
         toast.error(error?.message || "Failed to mortgage property");
       }
     },
-    [isNext, me, game.id]
+    [isNext, me, game.id, game?.code, queryClient]
   );
 
   const handleUnmortgage = useCallback(
@@ -383,13 +398,16 @@ export function useAiPlayerLogic({
           user_id: me.user_id,
           property_id: id,
         });
-        if (res?.data?.success) toast.success("Property unmortgaged successfully");
-        else toast.error(res.data?.message ?? "Failed to unmortgage property");
+        if (res?.data?.success) {
+          toast.success("Property unmortgaged successfully");
+          if (game?.code) queryClient.invalidateQueries({ queryKey: ["game", game.code] });
+          if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
+        } else toast.error(res.data?.message ?? "Failed to unmortgage property");
       } catch (error: any) {
         toast.error(error?.message || "Failed to unmortgage property");
       }
     },
-    [isNext, me, game.id]
+    [isNext, me, game.id, game?.code, queryClient]
   );
 
   const handlePropertyTransfer = useCallback(

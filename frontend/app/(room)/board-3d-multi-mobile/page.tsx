@@ -20,7 +20,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
-import { useRewardBurnCollectible, useGetGameByCode, useExitGame } from "@/context/ContractProvider";
+import { useRewardBurnCollectible, useGetGameByCode } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
@@ -477,8 +477,6 @@ export default function Board3DMobilePage() {
   }, [isLiveGame, liveAnimatedPositions, liveMovementOverride, livePlayers]);
 
   const { data: contractGame } = useGetGameByCode(game?.code ?? "");
-  const onChainGameId = contractGame?.id ?? BigInt(0);
-  const { exit: exitGame, isPending: exitGamePending, reset: exitGameReset } = useExitGame(onChainGameId);
 
   const { tradeRequests: incomingTrades } = useGameTrades({
     gameId: game?.id,
@@ -999,12 +997,12 @@ export default function Board3DMobilePage() {
       setBuyPrompted(false);
       setLandedPositionForBuy(null);
       landedPositionThisTurnRef.current = null;
-      await refetchGame();
+      await Promise.all([refetchGame(), refetchGameProperties()]);
       setTimeout(() => END_TURN(), 800);
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Purchase failed"));
     }
-  }, [game?.id, me, justLandedProperty, refetchGame, END_TURN]);
+  }, [game?.id, me, justLandedProperty, refetchGame, refetchGameProperties, END_TURN]);
 
   const handleSkip = useCallback(() => {
     setTurnEndScheduled(true);
@@ -1355,7 +1353,7 @@ export default function Board3DMobilePage() {
     }
   }, [game?.id, game?.code, me, livePlayers, gameProperties, END_TURN, refetchGame]);
 
-  // Finalize multiplayer game: sync backend. On-chain settlement is done by backend when anyone calls finish-by-time (removes players in order; contract pays winner when last loser is removed). So we never call exitGame() here when game is already FINISHED — same as 2D board.
+  // Multiplayer game end: backend already settled on-chain when the game ended (finish-by-time or vote). We only sync DB and leave — no wallet signing (same as 2D board).
   const handleFinalizeAndLeave = useCallback(async () => {
     if (!game?.id || claimAndLeaveInProgress) return;
     setClaimAndLeaveInProgress(true);
@@ -1367,47 +1365,12 @@ export default function Board3DMobilePage() {
         status: "FINISHED",
         winner_id: game.winner_id ?? winner?.user_id ?? me?.user_id ?? null,
       });
-      // Backend already ended the game on-chain (finish-by-time or vote); no wallet signature needed when already FINISHED — match 2D board flow.
-      const alreadyFinished = game?.status === "FINISHED";
-      if (!isGuest && !alreadyFinished && contractGame?.id && contractGame.id !== BigInt(0)) {
-        toast.loading("Confirm in your wallet to claim…", { id: toastId });
-        try {
-          await exitGame();
-          toast.success(
-            winner?.user_id === me?.user_id
-              ? "You won! Thanks for playing."
-              : "Game completed — thanks for playing!",
-            { id: toastId, duration: 5000 }
-          );
-        } catch (txErr: unknown) {
-          const msg = String((txErr as { shortMessage?: string; message?: string })?.shortMessage ?? (txErr as { message?: string })?.message ?? "");
-          const alreadyClaimed = /Not in game|Game not ongoing/i.test(msg);
-          if (alreadyClaimed) {
-            toast.success(
-              winner?.user_id === me?.user_id
-                ? "You won! Prize already distributed."
-                : "Game completed — thanks for playing!",
-              { id: toastId, duration: 5000 }
-            );
-            setTimeout(() => { window.location.href = "/"; }, 1500);
-            return;
-          }
-          toast.error(
-            getContractErrorMessage(txErr, "Claim transaction failed — you can try again from home."),
-            { id: toastId, duration: 8000 }
-          );
-          exitGameReset?.();
-          setClaimAndLeaveInProgress(false);
-          return;
-        }
-      } else {
-        toast.success(
-          winner?.user_id === me?.user_id
-            ? "You won! Thanks for playing."
-            : "Game completed — thanks for playing!",
-          { id: toastId, duration: 5000 }
-        );
-      }
+      toast.success(
+        winner?.user_id === me?.user_id
+          ? "You won! Prize already distributed."
+          : "Game completed — thanks for playing!",
+        { id: toastId, duration: 5000 }
+      );
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
@@ -1418,7 +1381,7 @@ export default function Board3DMobilePage() {
       );
       setClaimAndLeaveInProgress(false);
     }
-  }, [game?.id, game?.status, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, isGuest, contractGame?.id, exitGame, exitGameReset]);
+  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
   const lastRollResultToShow = lastRollResultLive;
@@ -1640,6 +1603,10 @@ export default function Board3DMobilePage() {
         endTurnAfterSpecial={endTurnAfterSpecialMove}
         onOpenChat={() => setChatOpen(true)}
         chatUnreadCount={chatUnreadCount}
+        onPlayersModalOpen={() => {
+          refetchGame();
+          refetchGameProperties();
+        }}
       />
 
       {/* End game by net worth — confirm modal */}
@@ -1965,19 +1932,15 @@ export default function Board3DMobilePage() {
                 <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
                 <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
                 <p className="text-slate-200 mb-6">
-                  You had the highest net worth when time ran out.
+                  You had the highest net worth when time ran out. Prizes were distributed when the game ended.
                 </p>
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}
-                  disabled={claimAndLeaveInProgress || exitGamePending}
+                  disabled={claimAndLeaveInProgress}
                   className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
                 >
-                  {claimAndLeaveInProgress || exitGamePending
-                    ? (exitGamePending ? "Confirm in wallet…" : "Finalizing…")
-                    : contractGame?.id && contractGame.id !== BigInt(0)
-                      ? "Claim & go home"
-                      : "Finalize & go home"}
+                  {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                 </button>
               </motion.div>
             ) : (
@@ -1992,18 +1955,14 @@ export default function Board3DMobilePage() {
                   {winner.username} <span className="text-amber-400">wins</span>
                 </p>
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
-                <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
+                <p className="text-slate-300 mb-6">You still get a consolation prize. Prizes were distributed when the game ended.</p>
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}
-                  disabled={claimAndLeaveInProgress || exitGamePending}
+                  disabled={claimAndLeaveInProgress}
                   className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
                 >
-                  {claimAndLeaveInProgress || exitGamePending
-                    ? (exitGamePending ? "Confirm in wallet…" : "Finalizing…")
-                    : contractGame?.id && contractGame.id !== BigInt(0)
-                      ? "Claim & go home"
-                      : "Finalize & go home"}
+                  {claimAndLeaveInProgress ? "Finalizing…" : "Finalize & go home"}
                 </button>
               </motion.div>
             )}
