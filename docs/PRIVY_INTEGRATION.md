@@ -76,6 +76,21 @@ This doc guides the full integration of [Privy](https://www.privy.io/) into Tyco
 - [ ] **Node version**  
   Backend: Node 20+ for `@privy-io/node`.
 
+- [ ] **Backend env (for Privy DB user)**  
+  Set `PRIVY_APP_ID` and `PRIVY_APP_SECRET` in the backend so `POST /auth/privy-signin` can verify tokens and create/link users.
+
+- [ ] **Migration**  
+  Run `npm run migrate` in the backend to add the `privy_did` column to `users` (see migration `20260306000000_add_privy_did_to_users.js`).
+
+---
+
+## 3b. Privy users in the DB (username)
+
+Privy-authenticated users are stored in the same `users` table with a **username** and `privy_did`:
+
+- **First time:** After sign-in with Privy, the frontend shows a “Choose your username” modal and calls `POST /auth/privy-signin` with `Authorization: Bearer <privy_access_token>` and body `{ username }`. The backend verifies the token, creates a user (username, `privy_did`, placeholder address, `is_guest: true`), and returns our JWT + user. The frontend stores the JWT and refetches guest session so the rest of the app sees the user.
+- **Returning:** If a user with that `privy_did` exists, `POST /auth/privy-signin` (with no body) returns our JWT + user; no username prompt.
+
 ---
 
 ## 4. High-level architecture

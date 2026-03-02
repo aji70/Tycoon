@@ -451,10 +451,21 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Guest: login/register form when no wallet and not guest yet */}
+          {/* Privy first (no password), then guest auth (username + password) for those who skip Privy */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-[80%] md:w-[320px] flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
-              <p className="text-[#00F0FF] font-orbitron text-sm font-bold text-center">Play without a wallet</p>
+            <div className="w-[80%] md:w-[320px] flex flex-col gap-4">
+              <button
+                type="button"
+                onClick={() => login()}
+                className="w-full h-[52px] rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-base font-bold hover:bg-[#00D4E6] transition-colors"
+              >
+                Sign in
+              </button>
+              <p className="text-[#869298] text-xs text-center font-dmSans">
+                Sign in with email or social—no password. You’ll choose a username once and be set.
+              </p>
+              <p className="text-[#869298] text-xs text-center font-dmSans">Or use username + password</p>
+              <div className="flex flex-col gap-3 p-4 rounded-xl bg-[#0E1415]/90 border border-[#003B3E]">
               <input
                 type="text"
                 value={guestUsername}
@@ -510,6 +521,7 @@ const handleContinuePrevious = () => {
                 >
                   {guestLoading ? "..." : "Login"}
                 </button>
+              </div>
               </div>
             </div>
           )}

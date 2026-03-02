@@ -1,15 +1,26 @@
 /**
  * Guest auth: register (create custodial wallet + on-chain registerPlayerFor) and login.
  * Password is hashed with keccak256 to match contract's expected passwordHash.
- * Also: link-wallet, unlink-wallet, login-by-wallet, connect-email, verify-email, login-email.
+ * Also: link-wallet, unlink-wallet, login-by-wallet, connect-email, verify-email, login-email, privy-signin.
  */
 import crypto from "crypto";
 import { ethers } from "ethers";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { PrivyClient } from "@privy-io/node";
 import User from "../models/User.js";
 import { registerPlayerFor } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
+
+const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
+const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
+const privyClient = PRIVY_APP_ID && PRIVY_APP_SECRET ? new PrivyClient({ appId: PRIVY_APP_ID, appSecret: PRIVY_APP_SECRET }) : null;
+
+/** Placeholder address for Privy-only users (unique per privy_did, valid 0x hex). */
+function placeholderAddressForPrivyDid(privyDid) {
+  const hash = crypto.createHash("sha256").update(privyDid).digest("hex").slice(0, 40);
+  return `0x${hash}`;
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || "tycoon-guest-secret-change-in-production";
 const JWT_EXPIRY = process.env.JWT_EXPIRY || "7d";
@@ -130,6 +141,93 @@ export async function guestLogin(req, res) {
   } catch (err) {
     logger.error({ err: err?.message }, "guestLogin failed");
     return res.status(500).json({ success: false, message: "Login failed" });
+  }
+}
+
+/**
+ * POST /auth/privy-signin
+ * Body: { username } (required on first sign-in for this Privy user)
+ * Authorization: Bearer <privy_access_token>
+ *
+ * Combines Privy with our guest auth: same users table, same JWT shape. Privy = no password;
+ * we verify the Privy token and link one username to that Privy account (privy_did).
+ * Returning users are found by privy_did and get our JWT with no username prompt.
+ */
+export async function privySignin(req, res) {
+  try {
+    if (!privyClient) {
+      return res.status(503).json({ success: false, message: "Privy not configured" });
+    }
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, message: "Authorization required (Bearer <privy_token>)" });
+    }
+    const privyToken = authHeader.slice(7);
+    let claims;
+    try {
+      claims = await privyClient.verifyAuthToken(privyToken);
+    } catch (err) {
+      logger.warn({ err: err?.message }, "Privy token verification failed");
+      return res.status(401).json({ success: false, message: "Invalid or expired Privy token" });
+    }
+    const privyDid = claims?.sub;
+    if (!privyDid || typeof privyDid !== "string") {
+      return res.status(401).json({ success: false, message: "Invalid Privy token payload" });
+    }
+
+    let user = await User.findByPrivyDid(privyDid);
+    if (user) {
+      const token = jwt.sign(
+        { userId: user.id, address: user.address, username: user.username, isGuest: true },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+      const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+      return res.status(200).json({
+        success: true,
+        data: {
+          token,
+          user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did },
+        },
+      });
+    }
+
+    const username = req.body?.username;
+    if (!username || typeof username !== "string" || username.trim().length < 2) {
+      return res.status(400).json({ success: false, message: "Username required (min 2 characters) for first-time Privy sign-in" });
+    }
+    const trimmedUsername = username.trim();
+    const existing = await User.findByUsernameIgnoreCase(trimmedUsername);
+    if (existing) {
+      return res.status(409).json({ success: false, message: "Username already taken" });
+    }
+
+    const address = placeholderAddressForPrivyDid(privyDid);
+    const chain = "CELO";
+    user = await User.create({
+      username: trimmedUsername,
+      address,
+      chain,
+      privy_did: privyDid,
+      is_guest: true,
+    });
+    const token = jwt.sign(
+      { userId: user.id, address: user.address, username: user.username, isGuest: true },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+    return res.status(201).json({
+      success: true,
+      message: "Account created. You can link a wallet later.",
+      data: {
+        token,
+        user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did },
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "privySignin failed");
+    return res.status(500).json({ success: false, message: err?.message || "Sign-in failed" });
   }
 }
 

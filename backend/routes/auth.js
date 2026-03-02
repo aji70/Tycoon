@@ -2,6 +2,7 @@ import express from "express";
 import {
   guestRegister,
   guestLogin,
+  privySignin,
   me,
   linkWallet,
   unlinkWallet,
@@ -16,6 +17,7 @@ const router = express.Router();
 
 router.post("/guest-register", guestRegister);
 router.post("/guest-login", guestLogin);
+router.post("/privy-signin", privySignin);
 router.get("/me", requireAuth, me);
 router.post("/link-wallet", requireAuth, linkWallet);
 router.post("/unlink-wallet", requireAuth, unlinkWallet);
