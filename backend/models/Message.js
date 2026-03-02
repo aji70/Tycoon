@@ -63,8 +63,18 @@ const Message = {
       if (!game_player && addressRaw) {
         game_player = await db("game_players")
           .where({ game_id: game.id })
-          .whereRaw("LOWER(address) = ?", [addressRaw.toLowerCase()])
+          .whereRaw("LOWER(TRIM(address)) = ?", [addressRaw.toLowerCase().trim()])
           .first();
+      }
+      // Fallback: resolve user by address (e.g. mobile/guest sends address but game_players.address may differ or be null)
+      if (!game_player && addressRaw) {
+        const User = (await import("./User.js")).default;
+        const userByAddr = await User.resolveUserByAddress(addressRaw, game.chain);
+        if (userByAddr?.id) {
+          game_player = await db("game_players")
+            .where({ game_id: game.id, user_id: userByAddr.id })
+            .first();
+        }
       }
       if (game_player) {
         const chat = await db("chats").where({ game_id: game.id }).first();
