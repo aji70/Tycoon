@@ -897,11 +897,13 @@ const gamePlayerController = {
         return res.status(404).json({ success: false, message: "Game not found" });
       }
 
-      const playersBeforeLeave = await db("game_players").where({ game_id: game.id }).select("user_id");
-      const willLeaveOneRemaining = playersBeforeLeave.length === 2 && game.status === "RUNNING";
+      const playersBeforeLeave = await db("game_players").where({ game_id: game.id }).select("user_id", "turn_count");
       const chainForLeave = User.normalizeChain(game.chain || "CELO");
+      const gameContinues = game.status === "RUNNING" && playersBeforeLeave.length > 2;
 
-      if (willLeaveOneRemaining && isContractConfigured(chainForLeave)) {
+      // Remove leaver from contract whenever game is on-chain (bankruptcy, voluntary leave, etc.) so contract stays in sync.
+      // When 2 players and one leaves: contract removes leaver and ends game (pays winner). When 4→3: contract just removes leaver.
+      if (game.status === "RUNNING" && isContractConfigured(chainForLeave)) {
         let contractGameIdToUse = game.contract_game_id;
         if (!contractGameIdToUse && game.code) {
           try {
@@ -918,21 +920,27 @@ const gamePlayerController = {
         if (contractGameIdToUse) {
           const leaverAddress = user.address;
           if (leaverAddress) {
+            const leaverRow = playersBeforeLeave.find((p) => p.user_id === user.id);
+            const turnCount = leaverRow != null ? Number(leaverRow.turn_count ?? 0) : 0;
+            const turnCountForContract = turnCount >= 20 ? turnCount : MAX_UINT256;
             try {
-              // Single call: contract removes leaver and, when joinedPlayers becomes 1, ends game and pays winner.
-              await removePlayerFromGame(contractGameIdToUse, leaverAddress, MAX_UINT256, chainForLeave);
+              await removePlayerFromGame(contractGameIdToUse, leaverAddress, turnCountForContract, chainForLeave);
             } catch (contractErr) {
-              // Still remove player and set winner in DB so the game does not get stuck (e.g. contract "check balance" / USDC revert).
-              logger.warn(
-                { err: contractErr?.message, gameId: game.id, code: game.code, leaverId: user.id },
-                "leave: contract removePlayerFromGame failed; continuing with DB leave and winner set"
-              );
+              if (!gameContinues) {
+                logger.warn(
+                  { err: contractErr?.message, gameId: game.id, code: game.code, leaverId: user.id },
+                  "leave: contract removePlayerFromGame failed; continuing with DB leave and winner set"
+                );
+              } else {
+                logger.warn(
+                  { err: contractErr?.message, gameId: game.id, code: game.code, leaverId: user.id },
+                  "leave: contract removePlayerFromGame failed (game continues); DB already in sync"
+                );
+              }
             }
           } else {
-            logger.warn({ gameId: game.id, leaverId: user.id }, "leave: missing leaver address, skipping contract end");
+            logger.warn({ gameId: game.id, leaverId: user.id }, "leave: missing leaver address, skipping contract");
           }
-        } else {
-          logger.warn({ gameId: game.id, code: game.code }, "leave: could not resolve contract_game_id, game will not end on-chain");
         }
       }
 
