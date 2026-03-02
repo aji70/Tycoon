@@ -256,7 +256,6 @@ function Board3DPageContent() {
   const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
   const [cardIsCurrentPlayerDrawer, setCardIsCurrentPlayerDrawer] = useState(false);
-  const [cardIsCurrentPlayerDrawer, setCardIsCurrentPlayerDrawer] = useState(false);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);

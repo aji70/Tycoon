@@ -20,7 +20,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
-import { useRewardBurnCollectible } from "@/context/ContractProvider";
+import { useRewardBurnCollectible, useGetGameByCode, useExitGame } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
 import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
@@ -342,6 +342,10 @@ export default function Board3DMobilePage() {
   const hasScheduledTurnEndRef = useRef(false);
   const turnEndInProgressRef = useRef(false);
   const lastTopHistoryIdRef = useRef<number | null>(null);
+  const timeLeftFrozenAtRollRef = useRef<number | null>(null);
+  const recordTimeoutCalledForTurnRef = useRef<number | null>(null);
+
+  const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
@@ -432,6 +436,10 @@ export default function Board3DMobilePage() {
     return merged;
   }, [isLiveGame, liveAnimatedPositions, liveMovementOverride, livePlayers]);
 
+  const { data: contractGame } = useGetGameByCode(game?.code ?? "");
+  const onChainGameId = contractGame?.id ?? BigInt(0);
+  const { exit: exitGame, isPending: exitGamePending, reset: exitGameReset } = useExitGame(onChainGameId);
+
   const { tradeRequests: incomingTrades } = useGameTrades({
     gameId: game?.id,
     myUserId: me?.user_id,
@@ -452,13 +460,14 @@ export default function Board3DMobilePage() {
     await refetchGameProperties();
   }, [refetchGame, refetchGameProperties]);
 
-  const END_TURN = useCallback(async () => {
+  const END_TURN = useCallback(async (timedOut?: boolean) => {
     if (currentPlayerId == null || !game?.id || turnEndInProgressRef.current) return;
     turnEndInProgressRef.current = true;
     try {
       await apiClient.post("/game-players/end-turn", {
         user_id: currentPlayerId,
         game_id: game.id,
+        ...(timedOut === true && { timed_out: true }),
       });
       setBuyPrompted(false);
       setTurnEndScheduled(false);
@@ -532,6 +541,56 @@ export default function Board3DMobilePage() {
     }
     fetchEndByNetWorthStatus();
   }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
+
+  // 2-minute turn timer (same as 2D board): show to all players, freeze when current player has rolled
+  const TURN_TOTAL_SECONDS = 120;
+  const isTwoPlayer = livePlayers.length === 2;
+  const hasRolled = isMyTurn && lastRollResultLive != null;
+  useEffect(() => {
+    if (!isLiveGame || !currentPlayer?.turn_start) {
+      setTurnTimeLeft(null);
+      timeLeftFrozenAtRollRef.current = null;
+      return;
+    }
+    const raw = currentPlayer.turn_start;
+    const turnStartSec = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+    if (Number.isNaN(turnStartSec)) {
+      setTurnTimeLeft(null);
+      return;
+    }
+    timeLeftFrozenAtRollRef.current = null; // reset each turn so freeze is for current turn only
+    const tick = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const elapsed = nowSec - turnStartSec;
+      const liveRemaining = Math.max(0, TURN_TOTAL_SECONDS - elapsed);
+      if (hasRolled) {
+        if (timeLeftFrozenAtRollRef.current === null) {
+          timeLeftFrozenAtRollRef.current = liveRemaining;
+        }
+        setTurnTimeLeft(timeLeftFrozenAtRollRef.current);
+      } else {
+        setTurnTimeLeft(liveRemaining);
+      }
+      if (liveRemaining <= 0) {
+        if (isTwoPlayer) {
+          END_TURN(true);
+        } else if (me?.user_id && recordTimeoutCalledForTurnRef.current !== turnStartSec) {
+          recordTimeoutCalledForTurnRef.current = turnStartSec;
+          apiClient
+            .post<ApiResponse>("/game-players/record-timeout", {
+              game_id: game!.id,
+              user_id: me.user_id,
+              target_user_id: currentPlayer.user_id,
+            })
+            .then(() => fetchUpdatedGame())
+            .catch((err) => console.warn("record-timeout failed:", err));
+        }
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isLiveGame, currentPlayer?.turn_start, currentPlayer?.user_id, isTwoPlayer, me?.user_id, game?.id, END_TURN, fetchUpdatedGame, hasRolled]);
 
   const runMovementAnimation = useCallback(
     async (playerId: number, currentPos: number, totalSteps: number) => {
@@ -1231,12 +1290,56 @@ export default function Board3DMobilePage() {
     }
   }, [game?.id, me, livePlayers]);
 
-  const handleGoHomeAfterGame = useCallback(() => {
+  // Finalize multiplayer game: sync backend, optionally claim on-chain (exitGame), then redirect — matches 2D flow
+  const handleFinalizeAndLeave = useCallback(async () => {
+    if (!game?.id || claimAndLeaveInProgress) return;
     setClaimAndLeaveInProgress(true);
-    const isWinner = winner?.user_id === me?.user_id;
-    toast.success(isWinner ? "Game over — you won! 🎉" : "Game over. Thanks for playing!");
-    window.location.href = "/";
-  }, [winner?.user_id, me?.user_id]);
+    const toastId = toast.loading(
+      winner?.user_id === me?.user_id ? "Finalizing..." : "Finalizing game..."
+    );
+    try {
+      await apiClient.put(`/games/${game.id}`, {
+        status: "FINISHED",
+        winner_id: game.winner_id ?? winner?.user_id ?? me?.user_id ?? null,
+      });
+      if (contractGame?.id && contractGame.id !== BigInt(0)) {
+        toast.loading("Confirm in your wallet to claim…", { id: toastId });
+        try {
+          await exitGame();
+          toast.success(
+            winner?.user_id === me?.user_id
+              ? "You won! Thanks for playing."
+              : "Game completed — thanks for playing!",
+            { id: toastId, duration: 5000 }
+          );
+        } catch (txErr: unknown) {
+          toast.error(
+            getContractErrorMessage(txErr, "Claim transaction failed — you can try again from home."),
+            { id: toastId, duration: 8000 }
+          );
+          exitGameReset?.();
+          setClaimAndLeaveInProgress(false);
+          return;
+        }
+      } else {
+        toast.success(
+          winner?.user_id === me?.user_id
+            ? "You won! Thanks for playing."
+            : "Game completed — thanks for playing!",
+          { id: toastId, duration: 5000 }
+        );
+      }
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+    } catch (err: unknown) {
+      toast.error(
+        getContractErrorMessage(err, "Something went wrong — try again later"),
+        { id: toastId, duration: 8000 }
+      );
+      setClaimAndLeaveInProgress(false);
+    }
+  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, contractGame?.id, exitGame, exitGameReset]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
   const lastRollResultToShow = lastRollResultLive;
@@ -1294,6 +1397,16 @@ export default function Board3DMobilePage() {
       >
         {isLiveGame && game && !isUntimed && game.duration && game.status === "RUNNING" && (
           <GameDurationCountdown game={game} onTimeUp={handleGameTimeUp} compact className="text-slate-200 text-xs shrink-0" />
+        )}
+        {isLiveGame && turnTimeLeft != null && game?.status === "RUNNING" && (
+          <div
+            className={`font-mono text-xs font-bold rounded-md px-2 py-1 bg-black/80 shrink-0 ${(turnTimeLeft ?? 120) <= 10 ? "text-red-400 animate-pulse" : "text-cyan-300"}`}
+            title={isMyTurn ? "Your turn: roll or complete actions" : `${currentPlayer?.username ?? "Player"} has 2 min to roll`}
+          >
+            {isMyTurn
+              ? (turnTimeLeft <= 10 ? "Roll!" : `${Math.floor((turnTimeLeft ?? 120) / 60)}:${((turnTimeLeft ?? 120) % 60).toString().padStart(2, "0")}`)
+              : `${currentPlayer?.username ?? "?"} ${Math.floor((turnTimeLeft ?? 120) / 60)}:${((turnTimeLeft ?? 120) % 60).toString().padStart(2, "0")}`}
+          </div>
         )}
         {isLiveGame && isUntimed && endByNetWorthStatus != null && !showEndByNetWorthConfirm && (
           <button
@@ -1770,11 +1883,15 @@ export default function Board3DMobilePage() {
                 </p>
                 <button
                   type="button"
-                  onClick={handleGoHomeAfterGame}
-                  disabled={claimAndLeaveInProgress}
+                  onClick={() => handleFinalizeAndLeave()}
+                  disabled={claimAndLeaveInProgress || exitGamePending}
                   className="w-full py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-70 text-slate-900 font-bold"
                 >
-                  {claimAndLeaveInProgress ? "Leaving…" : "Go home"}
+                  {claimAndLeaveInProgress || exitGamePending
+                    ? (exitGamePending ? "Confirm in wallet…" : "Finalizing…")
+                    : contractGame?.id && contractGame.id !== BigInt(0)
+                      ? "Claim & go home"
+                      : "Finalize & go home"}
                 </button>
               </motion.div>
             ) : (
@@ -1792,11 +1909,15 @@ export default function Board3DMobilePage() {
                 <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
                 <button
                   type="button"
-                  onClick={handleGoHomeAfterGame}
-                  disabled={claimAndLeaveInProgress}
+                  onClick={() => handleFinalizeAndLeave()}
+                  disabled={claimAndLeaveInProgress || exitGamePending}
                   className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-70 text-white font-bold"
                 >
-                  {claimAndLeaveInProgress ? "Leaving…" : "Go home"}
+                  {claimAndLeaveInProgress || exitGamePending
+                    ? (exitGamePending ? "Confirm in wallet…" : "Finalizing…")
+                    : contractGame?.id && contractGame.id !== BigInt(0)
+                      ? "Claim & go home"
+                      : "Finalize & go home"}
                 </button>
               </motion.div>
             )}
@@ -1810,18 +1931,15 @@ export default function Board3DMobilePage() {
         tokensAwarded={0.5}
       />
 
-      {/* Tavern chat slide-up panel — opened from bottom bar Chat button; inset from bottom so nav bar stays visible */}
+      {/* Tavern chat slide-up panel — opened from bottom bar Chat button; z above navbar and game bar so close/Board are tappable */}
       <AnimatePresence>
         {chatOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed left-0 right-0 top-0 z-[2147483645] flex flex-col bg-black/60 backdrop-blur-sm"
-            style={{
-              paddingTop: "env(safe-area-inset-top)",
-              bottom: "calc(56px + max(0.75rem, env(safe-area-inset-bottom)))",
-            }}
+            className="fixed inset-0 z-[2147483646] flex flex-col bg-black/60 backdrop-blur-sm"
+            style={{ paddingTop: "env(safe-area-inset-top)" }}
             onClick={() => setChatOpen(false)}
           >
             <motion.div
@@ -1830,6 +1948,7 @@ export default function Board3DMobilePage() {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
               className="flex-1 min-h-0 flex flex-col mt-auto rounded-t-2xl overflow-hidden border-t border-amber-500/30 bg-[#0a1214] shadow-2xl"
+              style={{ paddingBottom: "max(56px, env(safe-area-inset-bottom))" }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-amber-500/20 bg-gradient-to-r from-amber-950/50 to-amber-900/30 min-h-[52px]">
@@ -1846,6 +1965,16 @@ export default function Board3DMobilePage() {
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
                 <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile showHeader={false} />
+              </div>
+              {/* Board button at bottom so it's always tappable above game bar */}
+              <div className="flex-shrink-0 px-4 py-3 border-t border-amber-500/20 bg-gradient-to-r from-amber-950/40 to-amber-900/20">
+                <button
+                  type="button"
+                  onClick={() => setChatOpen(false)}
+                  className="w-full min-h-[48px] rounded-xl font-semibold text-amber-100 bg-amber-600/80 hover:bg-amber-500/90 border border-amber-500/40 transition-colors touch-manipulation"
+                >
+                  Back to board
+                </button>
               </div>
             </motion.div>
           </motion.div>
