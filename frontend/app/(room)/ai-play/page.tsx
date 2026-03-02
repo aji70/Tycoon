@@ -130,6 +130,7 @@ export default function GamePlayPage() {
 
   const {
     data: game_properties = [],
+    refetch: refetchGameProperties,
   } = useQuery<GameProperty[]>({
     queryKey: ["game_properties", game?.id],
     queryFn: async () => {
@@ -140,6 +141,13 @@ export default function GamePlayPage() {
     enabled: !!game?.id,
     refetchInterval: 15000,
   });
+
+  /** Called by MobileAiBoard after game state refresh (e.g. after buy) — keeps My Empire in sync when switching tabs */
+  const onRefetchGame = useCallback(async () => {
+    queryClient.invalidateQueries({ queryKey: ["game", gameCode] });
+    if (game?.id) queryClient.invalidateQueries({ queryKey: ["game_properties", game.id] });
+    await Promise.all([refetchGame(), refetchGameProperties()]);
+  }, [gameCode, game?.id, queryClient, refetchGame, refetchGameProperties]);
 
   const my_properties: Property[] = useMemo(() => {
     const myAddress = guestUser?.address ?? address;
@@ -253,6 +261,7 @@ export default function GamePlayPage() {
                 setActiveTab("players");
                 setFocusTrades(true);
               }}
+              onRefetchGame={onRefetchGame}
             />
           ) : (
             <GamePlayersMobile

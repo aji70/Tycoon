@@ -59,6 +59,7 @@ const MobileGameLayout = ({
   isGuest = false,
   onFinishGameByTime,
   onViewTrades,
+  onRefetchGame,
 }: {
   game: Game;
   properties: Property[];
@@ -67,6 +68,8 @@ const MobileGameLayout = ({
   isGuest?: boolean;
   onFinishGameByTime?: () => Promise<void>;
   onViewTrades?: () => void;
+  /** Called after game state is refreshed (e.g. after buy). Used so parent can invalidate its React Query cache so My Empire stays in sync. */
+  onRefetchGame?: () => void | Promise<void>;
 }) => {
   const [currentGame, setCurrentGame] = useState<Game>(game);
   const [players, setPlayers] = useState<Player[]>(game?.players ?? []);
@@ -238,6 +241,8 @@ const endTime =
         } catch {
           // Non-critical
         }
+        // Notify parent so it can invalidate its React Query cache (keeps My Empire in sync when switching tabs)
+        await onRefetchGame?.();
       } catch (err: any) {
         if (err?.response?.status === 429 || err?.message?.toLowerCase().includes("too many")) {
           const msg = err?.response?.data?.message || err?.message || "Too many requests — wait a moment";
@@ -266,7 +271,7 @@ const endTime =
       pendingFetchTimeoutRef.current = null;
     }
     await doFetch();
-  }, [game.code, game.id, refreshTrades]);
+  }, [game.code, game.id, refreshTrades, onRefetchGame]);
 
   useEffect(() => {
     const interval = setInterval(fetchUpdatedGame, 20000);
