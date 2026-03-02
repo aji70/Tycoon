@@ -1025,7 +1025,18 @@ function Board3DPageContent() {
         delete next[me.user_id];
         return next;
       });
-      toast.error(getContractErrorMessage(err, "Roll failed"));
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
+      if (msg.includes("You already rolled this round")) {
+        toast.success("Passing turn to next player.");
+        try {
+          await apiClient.post("/game-players/end-turn", { user_id: me.user_id, game_id: game.id });
+          await refetchGame();
+        } catch (e) {
+          toast.error(getContractErrorMessage(e, "Failed to pass turn"));
+        }
+      } else {
+        toast.error(getContractErrorMessage(err, "Roll failed"));
+      }
     } finally {
       doublesCountRef.current = 0;
       runningTotalRef.current = 0;
