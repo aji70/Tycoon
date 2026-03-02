@@ -34,6 +34,8 @@ interface Mobile3DGameUIProps {
   endTurnAfterSpecial?: () => void;
   /** When set, shows a Chat button in the bottom bar (e.g. multiplayer). */
   onOpenChat?: () => void;
+  /** Unread message count to show a notification badge on the Chat button. */
+  chatUnreadCount?: number;
 }
 
 export default function Mobile3DGameUI({
@@ -60,6 +62,7 @@ export default function Mobile3DGameUI({
   triggerSpecialLanding,
   endTurnAfterSpecial,
   onOpenChat,
+  chatUnreadCount = 0,
 }: Mobile3DGameUIProps) {
   const hasGame = !!game;
 
@@ -125,11 +128,16 @@ export default function Mobile3DGameUI({
           <button
             type="button"
             onClick={onOpenChat}
-            className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/80 hover:bg-amber-400/90 text-amber-100 transition shrink-0"
-            aria-label="Open chat"
+            className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/80 hover:bg-amber-400/90 text-amber-100 transition shrink-0"
+            aria-label={chatUnreadCount > 0 ? `Open chat (${chatUnreadCount} new)` : "Open chat"}
           >
             <MessageCircle className="w-5 h-5" />
             <span className="text-xs font-medium">Chat</span>
+            {chatUnreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+              </span>
+            )}
           </button>
         )}
       </div>
