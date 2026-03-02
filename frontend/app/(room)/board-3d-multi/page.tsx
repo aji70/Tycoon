@@ -1324,7 +1324,7 @@ function Board3DPageContent() {
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
-  // Finalize multiplayer game: sync backend; wallet users sign exitGame to claim; guests — backend calls exit on their behalf
+  // Finalize multiplayer game: sync backend. On-chain settlement is done by backend when anyone calls finish-by-time (removes players in order; contract pays winner when last loser is removed). So we never call exitGame() here — same as 2D board.
   const handleFinalizeAndLeave = useCallback(async () => {
     if (!game?.id || claimAndLeaveInProgress) return;
     setClaimAndLeaveInProgress(true);
@@ -1336,8 +1336,9 @@ function Board3DPageContent() {
         status: "FINISHED",
         winner_id: game.winner_id ?? winner?.user_id ?? me?.user_id ?? null,
       });
-      // Guests: backend runs exitGameByBackend when we PUT FINISHED — no wallet call
-      if (!isGuest && contractGame?.id && contractGame.id !== BigInt(0)) {
+      // Backend already ended the game on-chain (finish-by-time or vote); no wallet signature needed — match 2D board flow.
+      const alreadyFinished = game?.status === "FINISHED";
+      if (!isGuest && !alreadyFinished && contractGame?.id && contractGame.id !== BigInt(0)) {
         toast.loading("Confirm in your wallet to claim…", { id: toastId });
         try {
           await exitGame();
@@ -1348,6 +1349,18 @@ function Board3DPageContent() {
             { id: toastId, duration: 5000 }
           );
         } catch (txErr: unknown) {
+          const msg = String((txErr as { shortMessage?: string; message?: string })?.shortMessage ?? (txErr as { message?: string })?.message ?? "");
+          const alreadyClaimed = /Not in game|Game not ongoing/i.test(msg);
+          if (alreadyClaimed) {
+            toast.success(
+              winner?.user_id === me?.user_id
+                ? "You won! Prize already distributed."
+                : "Game completed — thanks for playing!",
+              { id: toastId, duration: 5000 }
+            );
+            setTimeout(() => { window.location.href = "/"; }, 1500);
+            return;
+          }
           toast.error(
             getContractErrorMessage(txErr, "Claim transaction failed — you can try again from home."),
             { id: toastId, duration: 8000 }
@@ -1374,7 +1387,7 @@ function Board3DPageContent() {
       );
       setClaimAndLeaveInProgress(false);
     }
-  }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, isGuest, contractGame?.id, exitGame, exitGameReset]);
+  }, [game?.id, game?.status, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress, isGuest, contractGame?.id, exitGame, exitGameReset]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
   // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
