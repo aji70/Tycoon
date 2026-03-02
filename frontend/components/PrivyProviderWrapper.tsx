@@ -23,6 +23,9 @@ export default function PrivyProviderWrapper({ children }: Props) {
         },
         appearance: {
           theme: 'dark',
+          landingHeader: 'Sign in to Tycoon',
+          loginMessage: 'Use email or social—no password. Choose a username once you’re in.',
+          logo: '', // Set a URL to your logo (e.g. /logo.png) or leave empty
         },
         loginMethods: ['email', 'google', 'twitter'],
       }}
