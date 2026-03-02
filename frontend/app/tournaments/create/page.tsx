@@ -31,7 +31,7 @@ export default function CreateTournamentPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, login } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? false;
@@ -214,6 +214,14 @@ export default function CreateTournamentPage() {
             <h2 className="text-lg font-semibold text-white">Sign in to create a tournament</h2>
             {error && <p className="text-red-400 text-sm">{error}</p>}
 
+            <button
+              type="button"
+              onClick={() => login()}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 font-medium hover:bg-cyan-500/30 transition"
+            >
+              Sign in
+            </button>
+
             {canUseWallet && (
               <button
                 type="button"
@@ -232,12 +240,12 @@ export default function CreateTournamentPage() {
 
             {!isConnected && (
               <p className="text-sm text-amber-400/90">
-                Connect your wallet in the menu, then refresh or use guest sign-in below.
+                Or connect your wallet in the menu, then refresh.
               </p>
             )}
 
             <div className="border-t border-white/10 pt-6">
-              <p className="text-sm text-white/70 mb-3">Or sign in as guest</p>
+              <p className="text-sm text-white/70 mb-3">Or continue as guest</p>
               <form onSubmit={handleSignInAsGuest} className="space-y-3">
                 <input
                   type="text"
@@ -271,7 +279,7 @@ export default function CreateTournamentPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <p className="text-sm text-emerald-400/90 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" />
-              {isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
+              {isPrivyAuthed ? "Signed in" : isSignedIn ? `Signed in as ${guestUser?.username ?? "user"}` : "Connected with wallet"}
             </p>
 
             <div>

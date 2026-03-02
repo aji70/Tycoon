@@ -14,6 +14,7 @@ import {
   useGetGameByCode,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
@@ -23,8 +24,10 @@ import { useUserLevel } from "@/hooks/useUserLevel";
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
+  const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+  const isPrivyAuthed = ready && authenticated;
 
   const [loading, setLoading] = useState(false);
   const [inputUsername, setInputUsername] = useState("");
@@ -158,11 +161,16 @@ const HeroSection: React.FC = () => {
       return "none";
     }
     if (guestUser) return "guest";
+    if (isPrivyAuthed) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, localRegistered, guestUser]);
+  }, [address, user, isUserRegistered, localRegistered, guestUser, isPrivyAuthed]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
+    if (isPrivyAuthed && privyUser) {
+      const email = typeof privyUser.email === "string" ? privyUser.email : (privyUser.email as { address?: string })?.address;
+      return email ?? "Player";
+    }
     return (
       user?.username ||
       localUsername ||
@@ -170,7 +178,7 @@ const HeroSection: React.FC = () => {
       inputUsername ||
       "Player"
     );
-  }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
+  }, [guestUser, privyUser, user, localUsername, fetchedUsername, inputUsername, isPrivyAuthed]);
 
   const { levelInfo } = useUserLevel({
     address: address ?? undefined,
@@ -340,7 +348,7 @@ const handleContinuePrevious = () => {
 
       <main className="w-full h-full absolute top-0 left-0 z-2 bg-transparent flex flex-col lg:justify-center items-center gap-1">
         {/* Welcome Message + Level */}
-        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest") && !loading && (
+        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest" || registrationStatus === "privy") && !loading && (
           <div className="mt-20 md:mt-28 lg:mt-0 flex flex-col items-center gap-2">
             <p className="font-orbitron lg:text-[24px] md:text-[20px] text-[16px] font-[700] text-[#00F0FF] text-center">
               Welcome back, {displayUsername}!
@@ -538,8 +546,8 @@ const handleContinuePrevious = () => {
             </button>
           )}
 
-          {/* Action buttons: wallet registered OR guest */}
-          {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) ? (
+          {/* Action buttons: wallet registered, guest, or Privy */}
+          {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy" ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
@@ -624,12 +632,12 @@ const handleContinuePrevious = () => {
                 </span>
               </button>
 
-              {guestUser && (
+              {(guestUser || registrationStatus === "privy") && (
                 <button
-                  onClick={() => guestAuth?.logoutGuest()}
+                  onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
                   className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
                 >
-                  Sign out (guest)
+                  {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
                 </button>
               )}
 
@@ -660,9 +668,9 @@ const handleContinuePrevious = () => {
             </div>
           ) : null}
 
-          {!address && !guestUser && (
+          {!address && !guestUser && !isPrivyAuthed && (
             <p className="text-gray-400 text-sm text-center mt-4">
-              Connect your wallet or play without a wallet above.
+              Sign in above or connect your wallet to play.
             </p>
           )}
         </div>
