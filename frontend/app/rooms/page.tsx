@@ -9,11 +9,14 @@ import { MessageCircle, Users } from "lucide-react";
 
 export default function RoomsPage() {
   const { address, isConnected } = useAppKitAccount();
-  const { guestUser } = useGuestAuthOptional();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
   const { onlineCount } = useOnlineUsers(isConnected ? address : undefined);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   const displayAddress = guestUser?.address ?? address ?? undefined;
+  const currentUserId = guestUser?.id ?? undefined;
+  const currentUsername = guestUser?.username ?? undefined;
 
   return (
     <main className="w-full min-h-screen bg-[#010F10] flex flex-col">
@@ -39,8 +42,8 @@ export default function RoomsPage() {
         <div className="flex-1 min-h-[400px] flex flex-col rounded-2xl overflow-hidden border border-cyan-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] shadow-xl">
           <LobbyChatRoom
             address={displayAddress}
-            userId={undefined}
-            username={undefined}
+            userId={currentUserId}
+            username={currentUsername}
             isMobile={isMobile}
             showHeader={false}
           />
