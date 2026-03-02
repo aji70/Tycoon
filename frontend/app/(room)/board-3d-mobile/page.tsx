@@ -241,6 +241,7 @@ export default function Board3DMobilePage() {
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
+  const [cardIsCurrentPlayerDrawer, setCardIsCurrentPlayerDrawer] = useState(false);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
@@ -318,15 +319,16 @@ export default function Board3DMobilePage() {
   const startGuard = usePreventDoubleSubmit();
 
   const AI_TIPS_STORAGE_KEY = "tycoon_ai_tips_on_3d_mobile";
-  const [aiTipsOn, setAiTipsOn] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(AI_TIPS_STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
+  // Always start false to avoid hydration mismatch; sync from localStorage in useEffect
+  const [aiTipsOn, setAiTipsOn] = useState(false);
   const [aiTipText, setAiTipText] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setAiTipsOn(localStorage.getItem(AI_TIPS_STORAGE_KEY) === "true");
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [aiTipLoading, setAiTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
 
@@ -1109,6 +1111,7 @@ export default function Board3DMobilePage() {
           isGood,
         });
         setCardPlayerName(String(me?.username ?? "").trim() || "Player");
+        setCardIsCurrentPlayerDrawer(true);
         setShowCardModal(true);
       }
       if (data?.requires_buy && data?.property_for_buy) {
@@ -1525,9 +1528,11 @@ export default function Board3DMobilePage() {
     const effectMatch = cardText.match(/([+-]?\$\d+)|go to jail|move to .+|get out of jail free/i);
     const effect = effectMatch ? effectMatch[0] : undefined;
     setCardData({ type, text: cardText, effect, isGood });
-    setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
+    const drawerName = String(first.player_name ?? "").trim() || "Player";
+    setCardPlayerName(drawerName);
+    setCardIsCurrentPlayerDrawer(me?.username?.trim() === drawerName);
     setShowCardModal(true);
-  }, [game?.history]);
+  }, [game?.history, me?.username]);
 
   useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -2126,9 +2131,9 @@ export default function Board3DMobilePage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="rounded-2xl border-2 border-slate-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
+              className="rounded-2xl border-2 border-cyan-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
             >
-              <h3 className="text-lg font-bold text-slate-200 mb-2">You&apos;re in jail</h3>
+              <h3 className="text-lg font-bold text-cyan-200 mb-2">You&apos;re in jail</h3>
               <p className="text-slate-400 text-sm mb-4">
                 Pay $50, use a Get Out of Jail Free card, or roll for doubles.
               </p>
@@ -2137,7 +2142,7 @@ export default function Board3DMobilePage() {
                   <button
                     onClick={() => jailGuard.submit(handlePayToLeaveJail)}
                     disabled={jailGuard.isSubmitting}
-                    className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold"
+                    className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold border border-cyan-400/30"
                   >
                     {jailGuard.isSubmitting ? "…" : "Pay $50"}
                   </button>
@@ -2148,7 +2153,7 @@ export default function Board3DMobilePage() {
                       jailGuard.submit(() => handleUseGetOutOfJailFree("chance"))
                     }
                     disabled={jailGuard.isSubmitting}
-                    className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+                    className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold border border-cyan-400/30"
                   >
                     Use Chance Get Out of Jail Free
                   </button>
@@ -2159,14 +2164,14 @@ export default function Board3DMobilePage() {
                       jailGuard.submit(() => handleUseGetOutOfJailFree("community_chest"))
                     }
                     disabled={jailGuard.isSubmitting}
-                    className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+                    className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold border border-cyan-400/30"
                   >
                     Use Community Chest Get Out of Jail Free
                   </button>
                 )}
                 <button
                   onClick={handleRollForLive}
-                  className="w-full py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold"
+                  className="w-full py-2.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold border border-slate-500/50"
                 >
                   Roll for doubles
                 </button>
@@ -2183,15 +2188,16 @@ export default function Board3DMobilePage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="rounded-2xl border-2 border-slate-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
+            className="rounded-2xl border-2 border-cyan-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
           >
-            <h3 className="text-lg font-bold text-slate-200 mb-2">No doubles — stay in jail or pay</h3>
+            <h3 className="text-lg font-bold text-cyan-200 mb-2">No doubles — stay or pay</h3>
+            <p className="text-slate-400 text-sm mb-4">Pay $50, use a card, or stay in jail.</p>
             <div className="flex flex-col gap-2">
               {canPayToLeaveJail && (
                 <button
                   onClick={() => jailGuard.submit(handlePayToLeaveJail)}
                   disabled={jailGuard.isSubmitting}
-                  className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold"
+                  className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold border border-cyan-400/30"
                 >
                   {jailGuard.isSubmitting ? "…" : "Pay $50"}
                 </button>
@@ -2202,7 +2208,7 @@ export default function Board3DMobilePage() {
                     jailGuard.submit(() => handleUseGetOutOfJailFree("chance"))
                   }
                   disabled={jailGuard.isSubmitting}
-                  className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+                  className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold border border-cyan-400/30"
                 >
                   Use Chance Get Out of Jail Free
                 </button>
@@ -2213,7 +2219,7 @@ export default function Board3DMobilePage() {
                     jailGuard.submit(() => handleUseGetOutOfJailFree("community_chest"))
                   }
                   disabled={jailGuard.isSubmitting}
-                  className="w-full py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+                  className="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold border border-cyan-400/30"
                 >
                   Use Community Chest Get Out of Jail Free
                 </button>
@@ -2221,7 +2227,7 @@ export default function Board3DMobilePage() {
               <button
                 onClick={() => jailGuard.submit(handleStayInJail)}
                 disabled={jailGuard.isSubmitting}
-                className="w-full py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold"
+                className="w-full py-2.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold border border-slate-500/50"
               >
                 {jailGuard.isSubmitting ? "…" : "Stay in jail"}
               </button>
@@ -2235,6 +2241,7 @@ export default function Board3DMobilePage() {
         onClose={() => setShowCardModal(false)}
         card={cardData}
         playerName={cardPlayerName}
+        isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
       />
 
       {selectedProperty && (

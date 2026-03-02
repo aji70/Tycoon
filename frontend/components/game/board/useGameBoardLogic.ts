@@ -70,6 +70,7 @@ export function useGameBoardLogic({
     isGood: boolean;
   } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
+  const [cardIsCurrentPlayerDrawer, setCardIsCurrentPlayerDrawer] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
@@ -207,9 +208,11 @@ export function useGameBoardLogic({
     const effect = effectMatch ? effectMatch[0] : undefined;
 
     setCardData({ type, text: cardText, effect, isGood });
-    setCardPlayerName(String(first.player_name ?? "").trim() || "Player");
+    const drawerName = String(first.player_name ?? "").trim() || "Player";
+    setCardPlayerName(drawerName);
+    setCardIsCurrentPlayerDrawer(me?.username?.trim() === drawerName);
     setShowCardModal(true);
-  }, [game?.history]);
+  }, [game?.history, me?.username]);
 
   const touchActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -978,6 +981,7 @@ export function useGameBoardLogic({
     setCardData,
     cardPlayerName,
     setCardPlayerName,
+    cardIsCurrentPlayerDrawer,
     selectedProperty,
     setSelectedProperty,
     showBankruptcyModal,

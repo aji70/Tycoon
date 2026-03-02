@@ -13,6 +13,8 @@ export interface CardModalProps {
     isGood: boolean;
   } | null;
   playerName: string;
+  /** When true, show "You drew" instead of "{playerName} drew" (for the player who drew the card) */
+  isCurrentPlayerDrawer?: boolean;
   /** Auto-close after this many ms; 0 = no auto-close */
   autoCloseMs?: number;
   /** Min ms to show before Close is enabled (forces read time) */
@@ -24,6 +26,7 @@ export const CardModal: React.FC<CardModalProps> = ({
   onClose,
   card,
   playerName,
+  isCurrentPlayerDrawer = false,
   autoCloseMs = 12000,
   minDisplayMs = 2500,
 }) => {
@@ -43,7 +46,7 @@ export const CardModal: React.FC<CardModalProps> = ({
 
   if (!isOpen) return null;
 
-  const displayName = (playerName || "Player").trim() || "Player";
+  const headerText = isCurrentPlayerDrawer ? "You drew" : `${(playerName || "Player").trim() || "Player"} drew`;
   const isChance = card?.type === "chance";
   const cardLabel = isChance ? "Chance" : "Community Chest";
 
@@ -69,16 +72,16 @@ export const CardModal: React.FC<CardModalProps> = ({
             boxShadow: "0 25px 50px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)",
           }}
         >
-          {/* Card header - Chance = orange, Community Chest = blue */}
+          {/* Card header - Chance = cyan/amber theme, Community Chest = blue */}
           <div
             className={`px-6 py-5 text-center border-b-4 ${
               isChance
-                ? "bg-gradient-to-b from-amber-400 to-amber-600 border-amber-700 text-amber-950"
+                ? "bg-gradient-to-b from-cyan-400 to-cyan-600 border-cyan-700 text-slate-950"
                 : "bg-gradient-to-b from-blue-400 to-blue-700 border-blue-800 text-white"
             }`}
           >
             <p className="text-xs font-bold tracking-widest uppercase opacity-90">
-              {displayName} draws
+              {headerText}
             </p>
             <h2 className="text-2xl font-black mt-1 tracking-tight">
               {cardLabel}
