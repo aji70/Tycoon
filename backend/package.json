@@ -19,7 +19,7 @@
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.78.0",
-        "@privy-io/node": "^1.0.0",
+        "@privy-io/node": "^0.10.0",
         "@socket.io/redis-adapter": "^8.3.0",
         "bcrypt": "^5.1.0",
         "cors": "^2.8.5",
