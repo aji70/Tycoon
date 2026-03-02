@@ -11,6 +11,8 @@ interface BankruptcyModalProps {
   onReturnHome?: () => void;
   autoCloseDelay?: number;
   tokensAwarded?: number;
+  /** When true (default), show "Go home" and "Continue watching" so the player can choose. When false, keep legacy countdown. */
+  allowContinueWatching?: boolean;
 }
 
 export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
@@ -21,6 +23,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   onReturnHome = () => (window.location.href = "/"),
   autoCloseDelay = 10000,
   tokensAwarded = 0.5,
+  allowContinueWatching = true,
 }) => {
   const [shouldShow, setShouldShow] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(Math.round(autoCloseDelay / 1000));
@@ -46,7 +49,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   }, [isOpen, autoCloseDelay, onConfirmBankruptcy]);
 
   useEffect(() => {
-    if (!shouldShow || onConfirmBankruptcy) {
+    if (!shouldShow || onConfirmBankruptcy || allowContinueWatching) {
       if (timerRef.current) clearInterval(timerRef.current);
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
       return;
@@ -70,7 +73,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
       if (timerRef.current) clearInterval(timerRef.current);
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
-  }, [shouldShow, autoCloseDelay, onReturnHome, onConfirmBankruptcy]);
+  }, [shouldShow, autoCloseDelay, onReturnHome, onConfirmBankruptcy, allowContinueWatching]);
 
   useEffect(() => {
     if (!bankruptcyConfirmed.current || hasNavigated.current) return;
@@ -87,6 +90,19 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
     hasNavigated.current = true;
     setShouldShow(false);
     setTimeout(() => onClose?.(), 300);
+  };
+
+  const handleGoHome = () => {
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+    setShouldShow(false);
+    setTimeout(() => onReturnHome(), 300);
+  };
+
+  const handleContinueWatching = () => {
+    if (hasNavigated.current) return;
+    setShouldShow(false);
+    onClose?.();
   };
 
   const handleDeclareBankruptcy = async () => {
@@ -107,6 +123,7 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
   if (!shouldShow) return null;
 
   const isManualMode = !!onConfirmBankruptcy;
+  const showChoiceButtons = !isManualMode && allowContinueWatching;
 
   return (
     <AnimatePresence mode="wait">
@@ -157,6 +174,23 @@ export const BankruptcyModal: React.FC<BankruptcyModalProps> = ({
                 {bankruptcyConfirmed.current && (
                   <p className="text-center text-amber-400/90 text-sm">Redirecting home in 5 seconds…</p>
                 )}
+              </>
+            ) : showChoiceButtons ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleGoHome}
+                  className="w-full py-3 rounded-xl font-semibold text-white bg-rose-600 hover:bg-rose-500 transition"
+                >
+                  Go home
+                </button>
+                <button
+                  type="button"
+                  onClick={handleContinueWatching}
+                  className="w-full py-2.5 rounded-xl font-medium text-slate-300 hover:text-slate-100 border border-slate-500/60 hover:border-slate-400 transition"
+                >
+                  Continue watching
+                </button>
               </>
             ) : (
               <p className="text-center text-slate-400 text-sm">

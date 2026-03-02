@@ -2311,6 +2311,7 @@ function Board3DMobileContent() {
 
       <BankruptcyModal
         isOpen={showBankruptcyModal}
+        onClose={() => setShowBankruptcyModal(false)}
         onReturnHome={() => (window.location.href = "/")}
         tokensAwarded={0.5}
       />

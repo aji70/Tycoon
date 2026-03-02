@@ -1613,6 +1613,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
       <BankruptcyModal
         isOpen={showBankruptcyModal}
+        onClose={() => setShowBankruptcyModal(false)}
         tokensAwarded={0.5}
         onReturnHome={() => window.location.href = "/"}
       />
