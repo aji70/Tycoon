@@ -19,16 +19,17 @@ interface Message {
   username?: string | null;
 }
 
-export function parseMessageBody(body: string): { quote: { name: string; text: string } | null; main: string } {
-  if (!body.startsWith(REPLY_QUOTE_PREFIX)) return { quote: null, main: body };
-  const idx = body.indexOf(REPLY_QUOTE_SEP);
-  if (idx === -1) return { quote: null, main: body };
-  const quoteLine = body.slice(REPLY_QUOTE_PREFIX.length, idx).trim();
-  const main = body.slice(idx + REPLY_QUOTE_SEP.length).trim();
+export function parseMessageBody(body: string | null | undefined): { quote: { name: string; text: string } | null; main: string } {
+  const safeBody = typeof body === "string" ? body : "";
+  if (!safeBody.startsWith(REPLY_QUOTE_PREFIX)) return { quote: null, main: safeBody };
+  const idx = safeBody.indexOf(REPLY_QUOTE_SEP);
+  if (idx === -1) return { quote: null, main: safeBody };
+  const quoteLine = safeBody.slice(REPLY_QUOTE_PREFIX.length, idx).trim();
+  const main = safeBody.slice(idx + REPLY_QUOTE_SEP.length).trim();
   const atIndex = quoteLine.indexOf(": ");
   const name = atIndex >= 0 ? quoteLine.slice(0, atIndex).replace(/^@/, "") : "Someone";
   const text = atIndex >= 0 ? quoteLine.slice(atIndex + 2) : quoteLine;
-  return { quote: { name, text }, main: main || body };
+  return { quote: { name, text }, main: main || safeBody };
 }
 
 interface ChatRoomProps {

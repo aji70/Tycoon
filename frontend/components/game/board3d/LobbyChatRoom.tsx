@@ -38,7 +38,12 @@ const fetchLobbyMessages = async (): Promise<LobbyMessage[]> => {
   const res = await apiClient.get<{ data?: LobbyMessage[] }>("/messages/lobby");
   const payload = (res as { data?: { data?: LobbyMessage[] } })?.data;
   const list = payload?.data ?? payload;
-  return Array.isArray(list) ? list : [];
+  const arr = Array.isArray(list) ? list : [];
+  return arr.map((m) => ({
+    ...m,
+    body: typeof m?.body === "string" ? m.body : "",
+    username: m?.username ?? null,
+  }));
 };
 
 function formatTime(created_at?: string) {
@@ -185,7 +190,7 @@ export default function LobbyChatRoom({
                 (userId != null && msg.user_id === userId) ||
                 (msg.username && username && msg.username === username);
               const displayName = msg.username ?? "Anonymous";
-              const { quote, main } = parseMessageBody(msg.body);
+              const { quote, main } = parseMessageBody(msg?.body);
               return (
                 <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
                   {!isMobile && (
