@@ -17,6 +17,7 @@ import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constant
 import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
+import { getLevelFromActivity } from '@/lib/level';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -520,6 +521,25 @@ export default function Profile() {
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[280px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                {userData && (() => {
+                  const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                  return (
+                    <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
+                        <span className="font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
+                      </div>
+                      {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                        <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-cyan-500/80 transition-all duration-500"
+                            style={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {[
                     { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
