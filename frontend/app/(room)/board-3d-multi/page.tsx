@@ -268,6 +268,7 @@ function Board3DPageContent() {
     validWin: boolean;
   }>({ winner: null, position: 0, balance: BigInt(0), validWin: true });
   const [claimAndLeaveInProgress, setClaimAndLeaveInProgress] = useState(false);
+  const [hasLeftGame, setHasLeftGame] = useState(false);
   const timeUpHandledRef = useRef(false);
   const [viewTradesRequested, setViewTradesRequested] = useState(false);
   const [showPerksModal, setShowPerksModal] = useState(false);
@@ -1190,6 +1191,7 @@ function Board3DPageContent() {
         code: game.code,
         reason: "bankruptcy",
       });
+      setHasLeftGame(true);
       await refetchGame();
       toast.error("Game over! You have declared bankruptcy.");
       setShowBankruptcyModal(true);
@@ -1966,7 +1968,7 @@ function Board3DPageContent() {
       {/* Tavern chat — fixed, taller and wider */}
       <aside className="hidden lg:flex flex-col w-96 fixed right-4 top-[60px] z-20 h-[calc(100vh-60px-1rem)] max-h-[calc(100vh-60px-1rem)] border border-amber-500/20 rounded-xl bg-gradient-to-b from-[#0a1214] to-[#061012] overflow-hidden shadow-xl">
         <div className="flex-1 min-h-0 p-2 flex flex-col overflow-hidden">
-          <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} />
+          <GameyChatRoom gameId={gameCode ?? game?.code ?? ""} me={me} isMobile={false} showHeader={true} disableSend={hasLeftGame} />
         </div>
       </aside>
       </div>

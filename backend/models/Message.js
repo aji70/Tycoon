@@ -7,7 +7,7 @@ const Message = {
     const game =
       (await db("games").where({ id: gameIdOrCode }).first()) ??
       (await db("games").where({ code: String(gameIdOrCode) }).first());
-    if (game && game.status === "RUNNING") {
+    if (game && (game.status === "RUNNING" || game.status === "FINISHED")) {
       const playerIdRaw = messageData.player_id;
       const userIdRaw = messageData.user_id;
       const addressRaw = messageData.address != null && String(messageData.address).trim() !== "" ? String(messageData.address).trim() : null;
