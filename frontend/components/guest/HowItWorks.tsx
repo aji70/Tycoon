@@ -36,9 +36,10 @@ const HowItWorks = () => {
 
             {/* Foreground content */}
             <div className="absolute inset-0 bg-gradient-to-b from-[#010F1000] via-[#010F10] z-0 w-full px-4 flex flex-col items-center justify-center">
-                <div className=' w-full flex flex-col justify-center items-center gap-2 mb-6'>
-                    <h1 className="text-center text-[#F0F7F7] font-[900] md:text-[48px] text-[32px] font-orbitron leading-normal">How it works</h1>
-                    <p className='md:max-w-[60%]  w-full text-center text-[20px] font-[400] font-dmSans leading-[30px] text-[#F0F7F7]'>It&apos;s super simple how Tycoon works. The flow has been designed to help you not to stress too much.</p>
+                <div className="w-full flex flex-col justify-center items-center gap-2 mb-6">
+                    <span className="game-badge mb-2">TUTORIAL</span>
+                    <h1 className="game-section-title text-center md:text-[48px] text-[32px] leading-normal">How it works</h1>
+                    <p className="md:max-w-[60%] w-full text-center text-[18px] md:text-[20px] font-[400] font-dmSans leading-[30px] text-[#E0F7F8]">Complete each step to master Tycoon. Simple flow, zero stress.</p>
                 </div>
 
 
@@ -57,10 +58,10 @@ const HowItWorks = () => {
                         slidesData.map((item, index) => (
                             <SwiperSlide key={index} className={`keen-slider__slide w-[90%] sm:w-full h-[350px] relative md:p-6 p-3 rounded-[12px] overflow-hidden flex items-center justify-center transition-all duration-500 ${currentSlide !== index ? 'blur-[1.5px] opacity-40 scale-[0.95]' : 'opacity-100 blur-0 scale-100'
                                 }`}>
-                                <div className="w-full h-full bg-[#091F201F] border-[1px] border-[#55656D] rounded-[12px] custom-glow-blur p-6 md:p-10 flex flex-col justify-between items-center">
+                                <div className="w-full h-full bg-[#091F201F] border-[1px] border-[#003B3E] rounded-[12px] custom-glow-blur p-6 md:p-10 flex flex-col justify-between items-center game-panel">
                                     <div className="w-full flex items-center justify-between">
                                         {item.icon}
-                                        <span className='text-[#73838B] font-dmSans font-[400] text-[14px]'>{item.outOf}</span>
+                                        <span className="game-level-label">LEVEL {index + 1}</span>
                                     </div>
                                     <div className="flex flex-col">
                                         <h2 className="md:text-[25px] text-[20px] text-[#FFFFFF] font-[800] font-orbitron uppercase">{item.title}</h2>
@@ -87,7 +88,7 @@ const HowItWorks = () => {
                                     setCurrentSlide(i);
                                     swiperInstance?.slideTo(i)
                                 }}
-                                className={`h-[12px] cursor-pointer rounded-full ${currentSlide === i ? 'bg-cyan-400 w-[36px]' : 'bg-[#455A64] w-[12px]'} transition-all duration-300`}
+                                className={`h-[12px] cursor-pointer rounded-full transition-all duration-300 ${currentSlide === i ? 'bg-[#00F0FF] w-[36px] shadow-[0_0_12px_rgba(0,240,255,0.5)]' : 'bg-[#455A64] w-[12px]'}`}
                             />
                         ))}
                     </div>
