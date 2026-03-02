@@ -7,6 +7,8 @@ import {
   recordPropertyPurchase,
   incrementPropertiesSold,
 } from "../utils/userPropertyStats.js";
+import { invalidateGameById } from "../utils/gameCache.js";
+import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 
 const gamePropertyController = {
@@ -238,6 +240,11 @@ const gamePropertyController = {
 
       await trx.commit();
 
+      // Notify clients so balance/property list updates immediately
+      const io = req.app.get("io");
+      if (io && game.id) await emitGameUpdateByGameId(io, game.id);
+      await invalidateGameById(game.id);
+
       // Stats: record property purchase (bank)
       recordPropertyPurchase(user_id, property_id, game.id, "bank").catch(() => {});
 
@@ -451,6 +458,12 @@ const gamePropertyController = {
       });
 
       await trx.commit();
+
+      // Notify clients so balance updates immediately
+      const ioDev = req.app.get("io");
+      if (ioDev && game.id) await emitGameUpdateByGameId(ioDev, game.id);
+      await invalidateGameById(game.id);
+
       return res
         .status(200)
         .json({ success: true, message: "successful", data: null });
@@ -580,6 +593,9 @@ const gamePropertyController = {
       });
 
       await trx.commit();
+      const ioDown = req.app.get("io");
+      if (ioDown && game.id) await emitGameUpdateByGameId(ioDown, game.id);
+      await invalidateGameById(game.id);
       return res
         .status(200)
         .json({ success: true, message: "successful", data: null });
@@ -700,6 +716,9 @@ const gamePropertyController = {
       });
 
       await trx.commit();
+      const ioMort = req.app.get("io");
+      if (ioMort && game.id) await emitGameUpdateByGameId(ioMort, game.id);
+      await invalidateGameById(game.id);
       return res
         .status(200)
         .json({ success: true, message: "successful", data: null });
@@ -821,6 +840,9 @@ const gamePropertyController = {
       });
 
       await trx.commit();
+      const ioUnmort = req.app.get("io");
+      if (ioUnmort && game.id) await emitGameUpdateByGameId(ioUnmort, game.id);
+      await invalidateGameById(game.id);
       return res
         .status(200)
         .json({ success: true, message: "successful", data: null });

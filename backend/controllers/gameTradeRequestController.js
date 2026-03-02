@@ -10,6 +10,8 @@ import {
   incrementTradesInitiated,
   incrementTradesAccepted,
 } from "../utils/userPropertyStats.js";
+import { invalidateGameById } from "../utils/gameCache.js";
+import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 
 export const GameTradeRequestController = {
@@ -256,6 +258,11 @@ export const GameTradeRequestController = {
       });
 
       await trx.commit();
+
+      // Notify clients so balance updates immediately
+      const io = req.app.get("io");
+      if (io && game_id) await emitGameUpdateByGameId(io, game_id);
+      await invalidateGameById(game_id);
 
       const playerUser = await db("users").where({ id: player.user_id }).select("username").first();
       const targetUser = await db("users").where({ id: target_player.user_id }).select("username").first();

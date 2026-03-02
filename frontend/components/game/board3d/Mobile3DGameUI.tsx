@@ -36,6 +36,8 @@ interface Mobile3DGameUIProps {
   onOpenChat?: () => void;
   /** Unread message count to show a notification badge on the Chat button. */
   chatUnreadCount?: number;
+  /** Called when the Players/Game modal is opened so parent can refetch and show fresh balances. */
+  onPlayersModalOpen?: () => void;
 }
 
 export default function Mobile3DGameUI({
@@ -63,6 +65,7 @@ export default function Mobile3DGameUI({
   endTurnAfterSpecial,
   onOpenChat,
   chatUnreadCount = 0,
+  onPlayersModalOpen,
 }: Mobile3DGameUIProps) {
   const hasGame = !!game;
 
@@ -73,11 +76,13 @@ export default function Mobile3DGameUI({
   const openBellModal = () => {
     onViewTrades();
     setInternalPlayerModalOpen(true);
+    onPlayersModalOpen?.();
   };
 
   // Players: open modal with Players tab selected (do NOT set viewTradesRequested)
   const openPlayerModal = () => {
     setInternalPlayerModalOpen(true);
+    onPlayersModalOpen?.();
   };
 
   return (
