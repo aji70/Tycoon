@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
@@ -15,6 +15,7 @@ import WalletConnectModal from './wallet-connect-modal';
 import WalletDisconnectModal from './wallet-disconnect-modal';
 import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
+import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 
 const NavBar = () => {
   const { scrollYProgress } = useScroll();
@@ -26,6 +27,19 @@ const NavBar = () => {
 
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
+  const { onlineCount, onlineUsers } = useOnlineUsers(isConnected ? address : undefined);
+  const [onlineDropdownOpen, setOnlineDropdownOpen] = useState(false);
+  const onlineDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (onlineDropdownRef.current && !onlineDropdownRef.current.contains(e.target as Node)) {
+        setOnlineDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
 
   // Prioritize shortName if available (e.g., "Ethereum"), fall back to name, then chain ID
   const networkDisplay =  caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Network');
@@ -64,15 +78,37 @@ const NavBar = () => {
         <Logo className="cursor-pointer md:w-[50px] w-[45px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-[4px]">
-          {/* Friends button (only when connected) */}
+          {/* Online players (only when connected) */}
           {isConnected && (
-            <button
-              type="button"
-              className="w-[133px] h-[40px] hidden border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] md:flex justify-center items-center gap-2 bg-[#011112] text-[#AFBAC0]"
-            >
-              <PiUserCircle className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">0 friends online</span>
-            </button>
+            <div className="relative hidden md:block" ref={onlineDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setOnlineDropdownOpen((o) => !o)}
+                className="w-[133px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] flex justify-center items-center gap-2 bg-[#011112] text-[#AFBAC0]"
+              >
+                <PiUserCircle className="w-[16px] h-[16px]" />
+                <span className="text-[12px] font-[400] font-dmSans">
+                  {onlineCount} {onlineCount === 1 ? 'player' : 'players'} online
+                </span>
+              </button>
+              {onlineDropdownOpen && (
+                <div className="absolute top-full right-0 mt-1 w-56 max-h-64 overflow-y-auto rounded-xl border border-[#0E282A] bg-[#011112] shadow-xl z-50 py-2">
+                  <p className="px-3 py-1 text-[11px] text-[#869298] uppercase tracking-wide">Online now</p>
+                  {onlineUsers.length === 0 ? (
+                    <p className="px-3 py-2 text-[12px] text-[#AFBAC0]">No one else online</p>
+                  ) : (
+                    onlineUsers.map((u, i) => (
+                      <div key={u.userId ?? u.address ?? i} className="px-3 py-1.5 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-[12px] text-[#F0F7F7] truncate">
+                          {u.username || (u.address ? `${u.address.slice(0, 6)}...${u.address.slice(-4)}` : 'Anonymous')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Profile button (only when connected) */}

@@ -8,9 +8,10 @@ const router = express.Router();
 // -------------------------
 router.post("/", messageController.create);
 router.get("/", messageController.findAll);
+router.get("/lobby", messageController.findByLobby);
+router.get("/game/:id", messageController.findByGameId);
+router.get("/chat/:id", messageController.findByChatId);
 router.get("/:id", messageController.findById);
 router.put("/:id", messageController.update);
 router.delete("/:id", messageController.remove);
-router.get("/game/:id", messageController.findByGameId);
-router.get("/chat/:id", messageController.findByChatId);
 export default router;

@@ -2,7 +2,41 @@ import db from "../config/database.js";
 
 const Message = {
   async create(messageData) {
-    // Support both game id (number) and game code (string)
+    // Lobby (global) chat: room === "lobby" or game_id === "lobby"
+    const isLobby =
+      messageData.room === "lobby" ||
+      messageData.game_id === "lobby" ||
+      String(messageData.game_id || "").toLowerCase() === "lobby";
+    if (isLobby) {
+      const lobbyChat = await db("chats").where({ slug: "lobby" }).first();
+      if (!lobbyChat || lobbyChat.status !== "open") {
+        return { error: true, message: "Lobby chat is not available", data: null };
+      }
+      const userIdRaw = messageData.user_id;
+      const addressRaw =
+        messageData.address != null && String(messageData.address).trim() !== ""
+          ? String(messageData.address).trim()
+          : null;
+      let userId = userIdRaw != null && userIdRaw !== "" ? Number(userIdRaw) : null;
+      if (userId == null && addressRaw) {
+        const User = (await import("./User.js")).default;
+        const user = await User.resolveUserByAddress(addressRaw);
+        if (user) userId = user.id;
+      }
+      if (userId == null) {
+        return { error: true, message: "User identity required for lobby chat", data: null };
+      }
+      const [id] = await db("messages").insert({
+        chat_id: lobbyChat.id,
+        player_id: null,
+        user_id: userId,
+        body: messageData.body,
+      });
+      const created = await this.findById(id);
+      return { error: false, message: "Successful", data: created };
+    }
+
+    // Game chat
     const gameIdOrCode = messageData.game_id;
     const game =
       (await db("games").where({ id: gameIdOrCode }).first()) ??
@@ -97,6 +131,24 @@ const Message = {
       id: r.id,
       body: r.body,
       player_id: String(r.player_id ?? ""),
+      created_at: r.created_at,
+      username: r.username ?? null,
+    }));
+  },
+
+  async findAllByLobby() {
+    const lobbyChat = await db("chats").where({ slug: "lobby" }).first();
+    if (!lobbyChat) return [];
+    const rows = await db("messages as m")
+      .leftJoin("users as u", "m.user_id", "u.id")
+      .where({ "m.chat_id": lobbyChat.id })
+      .orderBy("m.id", "asc")
+      .select("m.id", "m.body", "m.player_id", "m.user_id", "m.created_at", "u.username");
+    return rows.map((r) => ({
+      id: r.id,
+      body: r.body,
+      player_id: String(r.player_id ?? ""),
+      user_id: r.user_id ?? null,
       created_at: r.created_at,
       username: r.username ?? null,
     }));
