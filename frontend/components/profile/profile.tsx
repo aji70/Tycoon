@@ -13,6 +13,9 @@ import { useProfile } from '@/context/ProfileContext';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import AccountLinkWallet from '@/components/auth/AccountLinkWallet';
 
+import { apiClient } from '@/lib/api';
+import { ApiResponse } from '@/types/api';
+import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -91,6 +94,52 @@ function formatStakeOrEarned(value: number): string {
   if (value >= 1e18) return (value / 1e18).toFixed(2);
   if (value >= 1e15) return (value / 1e18).toFixed(4);
   return String(value);
+}
+
+/** Guest-only profile: shows stats, no Account & login section. Data merges when they link wallet. */
+function GuestProfileView({ username }: { username: string }) {
+  const { data: games = [] } = useQuery({
+    queryKey: ['guest-my-games'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse>('/games/my-games', { params: { limit: 100 } });
+      if (!res?.data?.success || !Array.isArray(res.data.data)) return [];
+      return res.data.data as { code: string; status: string; is_ai?: boolean }[];
+    },
+  });
+  const gameCount = games.length;
+  const runningCount = games.filter((g) => g.status === 'RUNNING').length;
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
+      <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
+        <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between max-w-5xl">
+          <Link href="/" className="flex items-center gap-2 text-cyan-300/90 hover:text-cyan-200 transition text-sm font-medium">
+            <span className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">←</span>
+            Back
+          </Link>
+          <h1 className="text-lg font-semibold text-white/90 tracking-tight">My Profile</h1>
+          <div className="w-20" />
+        </div>
+      </header>
+      <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl">
+        <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
+          <h2 className="text-xl font-bold text-white mb-2">{username}</h2>
+          <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account and keep your stats when you play with it.</p>
+          <div className="flex gap-6 text-sm">
+            <div>
+              <span className="text-cyan-400 font-semibold">{gameCount}</span>
+              <span className="text-white/70 ml-1">games played</span>
+            </div>
+            {runningCount > 0 && (
+              <div>
+                <span className="text-amber-400 font-semibold">{runningCount}</span>
+                <span className="text-white/70 ml-1">in progress</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 export default function Profile() {
@@ -349,24 +398,7 @@ export default function Profile() {
 
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
-          <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
-            <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between max-w-5xl">
-              <Link href="/" className="flex items-center gap-2 text-cyan-300/90 hover:text-cyan-200 transition text-sm font-medium">
-                <span className="w-8 h-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">←</span>
-                Back
-              </Link>
-              <h1 className="text-lg font-semibold text-white/90 tracking-tight">My Profile</h1>
-              <div className="w-20" />
-            </div>
-          </header>
-          <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl">
-            <p className="text-white/80 mb-4">Logged in as <strong>{guestUser.username}</strong> (guest). Connect your wallet to link it to this account.</p>
-            <AccountLinkWallet />
-          </main>
-        </div>
-      );
+      return <GuestProfileView username={guestUser.username} />;
     }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center">
@@ -411,9 +443,11 @@ export default function Profile() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-5xl">
-        <section className="mb-6">
-          <AccountLinkWallet />
-        </section>
+        {!guestUser?.is_guest && (
+          <section className="mb-6">
+            <AccountLinkWallet />
+          </section>
+        )}
         {/* Hero card — focal point */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
