@@ -19,6 +19,7 @@ import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { isAddress } from 'viem';
 import { usePrivy } from '@privy-io/react-auth';
+import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -68,6 +69,8 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const { caipNetwork, chainId } = useAppKitNetwork();
   const { connect } = useConnect();
   const { ready, authenticated, login, logout, user } = usePrivy();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
 
   const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Change Network');
@@ -201,7 +204,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
               {/* Wallet Section - HUD card (wallet or Privy signed in) */}
               <div className="mb-6 space-y-4">
-                {(isConnected || isPrivyAuthed) && (
+                {(isConnected || isPrivyAuthed || guestUser) && (
                   <div className="p-4 rounded-xl bg-gradient-to-br from-[#022a2c]/90 to-[#011112] border border-[#00F0FF]/20 shadow-[0_4px_16px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(0,240,255,0.06)] flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-11 w-11 rounded-lg border-2 border-[#00F0FF]/40 overflow-hidden shadow-[0_0_12px_rgba(0,240,255,0.15)] shrink-0 ring-1 ring-[#00F0FF]/10">
@@ -212,7 +215,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                         )}
                       </div>
                       <span className="text-[#00F0FF] font-orbitron font-semibold text-base tracking-wide">
-                        {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : (typeof user?.email === 'string' ? user?.email : (user?.email as { address?: string })?.address) ?? 'Signed in'}
+                        {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : guestUser ? `Guest: ${guestUser.username}` : (typeof user?.email === 'string' ? user?.email : (user?.email as { address?: string })?.address) ?? 'Signed in'}
                       </span>
                     </div>
                   </div>
@@ -276,7 +279,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                   Rooms
                 </Link>
 
-                {(isConnected || isPrivyAuthed) && (
+                {(isConnected || isPrivyAuthed || guestUser) && (
                   <>
                     <Link
                       href="/profile"
@@ -331,6 +334,16 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                         className="w-full py-4 rounded-xl bg-red-950/50 hover:bg-red-900/40 border border-red-500/40 text-red-400 font-orbitron font-medium transition-all duration-200"
                       >
                         Disconnect Wallet
+                      </button>
+                    ) : guestUser ? (
+                      <button
+                        onClick={() => {
+                          guestAuth?.logoutGuest();
+                          closeMobileMenu();
+                        }}
+                        className="w-full py-4 rounded-xl bg-[#011112]/80 hover:bg-[#022a2c]/80 border border-[#003B3E]/60 text-[#00F0FF] font-orbitron font-medium transition-all duration-200"
+                      >
+                        Guest: {guestUser.username} · Sign out
                       </button>
                     ) : isPrivyAuthed ? (
                       <button

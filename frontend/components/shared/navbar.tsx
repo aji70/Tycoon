@@ -17,6 +17,7 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
+import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
 const NavBar = () => {
   const { scrollYProgress } = useScroll();
@@ -57,6 +58,8 @@ const NavBar = () => {
   const profileAvatar = useProfileAvatar();
 
   const { ready, authenticated, login, logout, user } = usePrivy();
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
 
   const toggleSound = () => {
@@ -191,7 +194,7 @@ const NavBar = () => {
             )}
           </button>
 
-          {/* Wallet or Privy: show wallet UI when connected via wallet, else Privy sign in / signed in */}
+          {/* Wallet, guest, or Privy: wallet when connected; guest when signed in from hero; Privy sign in / signed in in nav */}
           {isConnected ? (
             <div className="flex items-center gap-3">
               <button
@@ -218,6 +221,19 @@ const NavBar = () => {
                 className="px-4 py-3 rounded-[12px] bg-red-900/40 hover:bg-red-800/60 text-red-400 border border-red-600/40 font-medium text-sm transition-all"
               >
                 Disconnect
+              </button>
+            </div>
+          ) : guestUser ? (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-2 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] text-xs font-dmSans">
+                Guest: {guestUser.username}
+              </span>
+              <button
+                type="button"
+                onClick={() => guestAuth?.logoutGuest()}
+                className="px-4 py-2 rounded-[12px] border border-[#0E282A] hover:border-[#003B3E] bg-[#011112] text-[#869298] hover:text-[#00F0FF] text-xs font-dmSans"
+              >
+                Sign out
               </button>
             </div>
           ) : isPrivyAuthed ? (

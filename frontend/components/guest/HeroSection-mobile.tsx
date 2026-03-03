@@ -398,18 +398,69 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* Sign in with Privy only (no username + password on hero) */}
+          {/* Guest auth (register + login) when not connected — primary on home; Privy is in the navbar */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-full flex flex-col gap-4 items-center">
-              <button
-                type="button"
-                onClick={() => login()}
-                className="h-12 px-8 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold hover:bg-[#00D4E6] transition-colors shrink-0"
-              >
-                Sign in
-              </button>
-              <p className="text-[#869298] text-xs text-center font-dmSans">
-                Sign in with email or social—no password. You’ll choose a username once and be set.
+            <div className="w-full max-w-[340px] flex flex-col gap-5 items-center">
+              <div className="w-full rounded-xl border border-[#004B4F] bg-[#0E1415]/90 p-5 space-y-4">
+                <p className="text-[#00F0FF] font-orbitron text-sm font-bold text-center">Play as guest</p>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!guestAuth?.registerGuest || !guestUsername.trim() || !guestPassword) return;
+                    setGuestLoading(true);
+                    const res = await guestAuth.registerGuest(guestUsername.trim(), guestPassword);
+                    setGuestLoading(false);
+                    if (res.success) toast.success("Account created!");
+                    else toast.error(res.message ?? "Registration failed");
+                  }}
+                  className="space-y-3"
+                >
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={guestUsername}
+                    onChange={(e) => setGuestUsername(e.target.value)}
+                    className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#004B4F] text-[#17ffff] font-orbitron placeholder:text-[#6B8A8F] text-sm"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={guestPassword}
+                    onChange={(e) => setGuestPassword(e.target.value)}
+                    className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#004B4F] text-[#17ffff] font-orbitron placeholder:text-[#6B8A8F] text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={guestLoading || guestUsername.trim().length < 2 || !guestPassword}
+                    className="w-full h-12 rounded-xl bg-[#00F0FF] text-[#010F10] font-orbitron text-sm font-bold hover:bg-[#00D4E6] disabled:opacity-50 transition-colors"
+                  >
+                    {guestLoading ? "Creating…" : "Create account"}
+                  </button>
+                </form>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!guestAuth?.loginGuest || !guestUsername.trim() || !guestPassword) return;
+                    setGuestLoading(true);
+                    const res = await guestAuth.loginGuest(guestUsername.trim(), guestPassword);
+                    setGuestLoading(false);
+                    if (res.success) toast.success("Signed in!");
+                    else toast.error(res.message ?? "Sign-in failed");
+                  }}
+                  className="space-y-3 pt-2 border-t border-[#004B4F]"
+                >
+                  <p className="text-[#869298] text-xs text-center">Already have an account?</p>
+                  <button
+                    type="submit"
+                    disabled={guestLoading || !guestUsername.trim() || !guestPassword}
+                    className="w-full h-12 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold hover:bg-[#005458] disabled:opacity-50 transition-colors border border-[#004B4F]"
+                  >
+                    {guestLoading ? "Signing in…" : "Sign in"}
+                  </button>
+                </form>
+              </div>
+              <p className="text-[#869298] text-xs text-center font-dmSans px-2">
+                Or use <strong className="text-[#00F0FF]">Sign in</strong> in the menu for Privy (email/social).
               </p>
             </div>
           )}
@@ -549,8 +600,8 @@ const handleContinuePrevious = () => {
           ) : null}
 
           {!address && !guestUser && !isPrivyAuthed && !loading && (
-            <p className="text-gray-400 text-sm text-center mt-4">
-              Sign in above or connect your wallet to play.
+            <p className="text-gray-400 text-sm text-center mt-4 px-2">
+              Create a guest account above, use Sign in in the menu for Privy, or connect your wallet to play.
             </p>
           )}
         </div>
