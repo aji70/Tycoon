@@ -917,6 +917,27 @@ const gameController = {
     }
   },
 
+  /** GET /games/open — PENDING + PUBLIC only (browse lobbies). */
+  async findOpen(req, res) {
+    try {
+      const { limit, offset } = req.query;
+      const games = await Game.findOpenGames({
+        limit: Math.min(Number.parseInt(limit) || 50, 100),
+        offset: Number.parseInt(offset) || 0,
+      });
+      const withSettingsAndPlayers = await Promise.all(
+        games.map(async (g) => ({
+          ...g,
+          settings: await GameSetting.findByGameId(g.id),
+          players: await GamePlayer.findByGameId(g.id),
+        }))
+      );
+      res.json({ success: true, message: "successful", data: withSettingsAndPlayers });
+    } catch (error) {
+      res.status(200).json({ success: false, message: error.message });
+    }
+  },
+
   /**
    * Games where the current user is a player (for "Continue Game").
    * Auth: optionalAuth — if req.user set (guest or registered with token), use user_id; else if query address=0x..., use address.

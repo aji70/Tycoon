@@ -86,12 +86,12 @@ export default function JoinRoom({
 
     const fetchPending = async () => {
       try {
-        const res = await apiClient.get<ApiResponse>("/games/pending");
+        const res = await apiClient.get<ApiResponse>("/games/open");
         if (res?.data?.success && Array.isArray(res.data.data)) {
           setAllPendingGames(res.data.data as Game[]);
         }
       } catch (err) {
-        console.error("Failed to fetch pending games:", err);
+        console.error("Failed to fetch open games:", err);
       } finally {
         setFetchingPending(false);
       }
@@ -265,7 +265,7 @@ export default function JoinRoom({
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] font-orbitron">
-                      Recent Public Games
+                      Browse open games
                     </h3>
                     <select
                       value={timeFilter}
@@ -281,7 +281,7 @@ export default function JoinRoom({
                   </div>
 
                   {fetchingPending ? (
-                    <p className="text-[#869298] text-center">Loading public games...</p>
+                    <p className="text-[#869298] text-center">Loading open games…</p>
                   ) : pendingGames.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {pendingGames.map((game) => (
@@ -307,7 +307,7 @@ export default function JoinRoom({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[#869298] text-center">No recent public games available.</p>
+                    <p className="text-[#869298] text-center">No open games right now. Create one or enter a code above.</p>
                   )}
                 </div>
 
