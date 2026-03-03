@@ -263,6 +263,7 @@ export default function Mobile3DGameUI({
                       openTradeSection={tradesOnlyModal || viewTradesRequested}
                       onTradeSectionOpened={onTradeSectionOpened}
                       onlyShowTrades={tradesOnlyModal}
+                      onlyShowPlayers={!tradesOnlyModal}
                     />
                   </ModalErrorBoundary>
                 ) : (
