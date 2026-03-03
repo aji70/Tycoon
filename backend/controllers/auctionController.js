@@ -1,9 +1,5 @@
 import db from "../config/database.js";
-import Game from "../models/Game.js";
-import GameSetting from "../models/GameSetting.js";
 import GamePlayer from "../models/GamePlayer.js";
-import GameProperty from "../models/GameProperty.js";
-import GamePlayHistory from "../models/GamePlayHistory.js";
 import { invalidateGameById } from "../utils/gameCache.js";
 import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";

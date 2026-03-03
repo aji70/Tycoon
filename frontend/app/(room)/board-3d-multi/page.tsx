@@ -1260,7 +1260,7 @@ function Board3DPageContent() {
   }, [game?.id, me, justLandedProperty, refetchGame, refetchGameProperties, END_TURN]);
 
   const handleSkip = useCallback(async () => {
-    const auctionOn = (game?.settings as { auction?: boolean })?.auction === true;
+    const auctionOn = (game?.settings as unknown as { auction?: boolean })?.auction === true;
     if (auctionOn && game?.id && me?.user_id && justLandedProperty?.id) {
       try {
         const res = await apiClient.post<{ data?: { requires_auction?: boolean; auction?: unknown }; success?: boolean }>(
