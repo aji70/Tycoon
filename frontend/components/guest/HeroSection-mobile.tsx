@@ -398,99 +398,33 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* When no wallet: Privy sign-in primary; guest account secondary */}
+          {/* When no wallet: Sign in (Privy) only */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-full max-w-[340px] flex flex-col gap-5 items-center">
-              {/* Primary: Sign in with email or social (Privy) */}
-              <div className="w-full flex flex-col items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => login()}
-                  className="relative w-full max-w-[300px] h-14 overflow-hidden rounded-xl transition-transform active:scale-[0.98]"
+            <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">
+              <button
+                type="button"
+                onClick={() => login()}
+                className="relative w-full max-w-[260px] h-14 overflow-hidden rounded-xl transition-transform active:scale-[0.98]"
+              >
+                <svg
+                  className="absolute inset-0 w-full h-full"
+                  viewBox="0 0 260 56"
+                  fill="none"
+                  preserveAspectRatio="none"
                 >
-                  <svg
-                    className="absolute inset-0 w-full h-full"
-                    viewBox="0 0 300 56"
-                    fill="none"
-                    preserveAspectRatio="none"
-                  >
-                    <path
-                      d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                      fill="#00F0FF"
-                      stroke="#0E282A"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold z-0">
-                    Sign in with email or social
-                  </span>
-                </button>
-                <p className="text-[#869298] text-xs text-center font-dmSans px-2">
-                  No password — choose a username once you’re in.
-                </p>
-              </div>
-
-              {/* Secondary: Play as guest */}
-              <div className="w-full rounded-xl border border-[#004B4F] bg-[#0E1415]/90 p-5 space-y-4">
-                <p className="text-[#869298] font-orbitron text-sm font-bold text-center">Or play as guest</p>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!guestAuth?.registerGuest || !guestUsername.trim() || !guestPassword) return;
-                    setGuestLoading(true);
-                    const res = await guestAuth.registerGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (res.success) toast.success("Account created!");
-                    else toast.error(res.message ?? "Registration failed");
-                  }}
-                  className="space-y-3"
-                >
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={guestUsername}
-                    onChange={(e) => setGuestUsername(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#004B4F] text-[#17ffff] font-orbitron placeholder:text-[#6B8A8F] text-sm"
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth="2"
                   />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    value={guestPassword}
-                    onChange={(e) => setGuestPassword(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#004B4F] text-[#17ffff] font-orbitron placeholder:text-[#6B8A8F] text-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={guestLoading || guestUsername.trim().length < 2 || !guestPassword}
-                    className="w-full h-12 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold hover:bg-[#005458] disabled:opacity-50 transition-colors border border-[#004B4F]"
-                  >
-                    {guestLoading ? "Creating…" : "Create guest account"}
-                  </button>
-                </form>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!guestAuth?.loginGuest || !guestUsername.trim() || !guestPassword) return;
-                    setGuestLoading(true);
-                    const res = await guestAuth.loginGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (res.success) toast.success("Signed in!");
-                    else toast.error(res.message ?? "Sign-in failed");
-                  }}
-                  className="space-y-3 pt-2 border-t border-[#004B4F]"
-                >
-                  <p className="text-[#869298] text-xs text-center">Already have a guest account?</p>
-                  <button
-                    type="submit"
-                    disabled={guestLoading || !guestUsername.trim() || !guestPassword}
-                    className="w-full h-12 rounded-xl bg-[#0E1415] text-[#869298] font-orbitron text-sm font-bold hover:bg-[#1a2527] disabled:opacity-50 transition-colors border border-[#004B4F]"
-                  >
-                    {guestLoading ? "Signing in…" : "Sign in"}
-                  </button>
-                </form>
-              </div>
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold z-0">
+                  Sign in
+                </span>
+              </button>
               <p className="text-[#869298] text-xs text-center font-dmSans px-2">
-                Or connect your wallet in the menu to play with your wallet.
+                Email or social · No password
               </p>
             </div>
           )}
@@ -631,7 +565,7 @@ const handleContinuePrevious = () => {
 
           {!address && !guestUser && !isPrivyAuthed && !loading && (
             <p className="text-gray-400 text-sm text-center mt-4 px-2">
-              Sign in above, create a guest account, or connect your wallet to play.
+              Sign in or connect your wallet (menu) to play.
             </p>
           )}
         </div>

@@ -6,6 +6,7 @@ import { Dices, Gamepad2, Wallet } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
 import {
   useIsRegistered,
   useGetUsername,
@@ -25,6 +26,7 @@ const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
+  const { open: openAppKit } = useAppKit();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
@@ -451,101 +453,45 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* When no wallet: Privy sign-in primary; guest account secondary */}
+          {/* When no wallet: Sign in (Privy) + Connect wallet (desktop) */}
           {!address && registrationStatus === "disconnected" && !loading && (
-            <div className="w-[80%] md:w-[340px] flex flex-col gap-5 items-center">
-              {/* Primary: Sign in with email or social (Privy) */}
-              <div className="w-full flex flex-col items-center gap-3">
+            <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
+              <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
                 <button
                   type="button"
                   onClick={() => login()}
-                  className="relative group w-full max-w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+                  className="relative group w-full sm:w-auto min-w-[200px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
                 >
                   <svg
-                    width="300"
-                    height="56"
-                    viewBox="0 0 300 56"
+                    width="220"
+                    height="52"
+                    viewBox="0 0 220 52"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
-                    className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[220px] transform scale-x-[-1]"
                   >
                     <path
-                      d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                      d="M10 1H210C214.373 1 216.996 6.85486 214.601 10.5127L196.167 49.5127C195.151 51.0646 193.42 52 191.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
                       fill="#00F0FF"
                       stroke="#0E282A"
                       strokeWidth={2}
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
-                    Sign in with email or social
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[16px] font-orbitron font-[700] z-2">
+                    Sign in
                   </span>
                 </button>
-                <p className="text-[#869298] text-xs text-center font-dmSans">
-                  No password — choose a username once you’re in.
-                </p>
-              </div>
-
-              {/* Secondary: Play as guest */}
-              <div className="w-full rounded-xl border border-[#003B3E] bg-[#0E1415]/90 p-5 space-y-4">
-                <p className="text-[#869298] font-orbitron text-sm font-bold text-center">Or play as guest</p>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!guestAuth?.registerGuest || !guestUsername.trim() || !guestPassword) return;
-                    setGuestLoading(true);
-                    const res = await guestAuth.registerGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (res.success) toast.success("Account created!");
-                    else toast.error(res.message ?? "Registration failed");
-                  }}
-                  className="space-y-3"
+                <button
+                  type="button"
+                  onClick={() => openAppKit()}
+                  className="hidden md:flex relative group w-full sm:w-auto min-w-[200px] h-[52px] px-8 items-center justify-center rounded-xl border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-[16px] font-[700] hover:border-[#00F0FF]/50 hover:bg-[#0E1415]/90 transition-all cursor-pointer"
                 >
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={guestUsername}
-                    onChange={(e) => setGuestUsername(e.target.value)}
-                    className="w-full h-11 px-4 rounded-lg bg-[#010F10] border border-[#003B3E] text-[#17ffff] font-orbitron placeholder:text-[#455A64] text-sm"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    value={guestPassword}
-                    onChange={(e) => setGuestPassword(e.target.value)}
-                    className="w-full h-11 px-4 rounded-lg bg-[#010F10] border border-[#003B3E] text-[#17ffff] font-orbitron placeholder:text-[#455A64] text-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={guestLoading || guestUsername.trim().length < 2 || !guestPassword}
-                    className="w-full h-11 rounded-xl bg-[#003B3E] text-[#00F0FF] font-orbitron text-sm font-bold hover:bg-[#005458] disabled:opacity-50 transition-colors border border-[#003B3E]"
-                  >
-                    {guestLoading ? "Creating…" : "Create guest account"}
-                  </button>
-                </form>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!guestAuth?.loginGuest || !guestUsername.trim() || !guestPassword) return;
-                    setGuestLoading(true);
-                    const res = await guestAuth.loginGuest(guestUsername.trim(), guestPassword);
-                    setGuestLoading(false);
-                    if (res.success) toast.success("Signed in!");
-                    else toast.error(res.message ?? "Sign-in failed");
-                  }}
-                  className="space-y-3 pt-2 border-t border-[#003B3E]"
-                >
-                  <p className="text-[#869298] text-xs text-center">Already have a guest account?</p>
-                  <button
-                    type="submit"
-                    disabled={guestLoading || !guestUsername.trim() || !guestPassword}
-                    className="w-full h-11 rounded-xl bg-[#0E1415] text-[#869298] font-orbitron text-sm font-bold hover:bg-[#1a2527] disabled:opacity-50 transition-colors border border-[#003B3E]"
-                  >
-                    {guestLoading ? "Signing in…" : "Sign in"}
-                  </button>
-                </form>
+                  <Wallet className="w-5 h-5 mr-2" />
+                  Connect wallet
+                </button>
               </div>
               <p className="text-[#869298] text-xs text-center font-dmSans">
-                Or connect your wallet in the top-right to play with your wallet.
+                Sign in with email or social · No password
               </p>
             </div>
           )}
@@ -706,7 +652,7 @@ const handleContinuePrevious = () => {
 
           {!address && !guestUser && !isPrivyAuthed && (
             <p className="text-gray-400 text-sm text-center mt-4">
-              Sign in above, create a guest account, or connect your wallet to play.
+              Sign in or connect your wallet to play.
             </p>
           )}
         </div>
