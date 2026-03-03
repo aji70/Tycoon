@@ -175,10 +175,20 @@ export async function privySignin(req, res) {
       claims = await privyClient.verifyAuthToken(privyToken);
     } catch (err) {
       logger.warn(
-        { err: err?.message, code: err?.code, appId: PRIVY_APP_ID },
+        {
+          err: err?.message,
+          code: err?.code,
+          appIdMasked: PRIVY_APP_ID ? `${PRIVY_APP_ID.slice(0, 4)}...${PRIVY_APP_ID.slice(-4)}` : "missing",
+          hasSecret: !!PRIVY_APP_SECRET,
+          hasJwtKey: !!PRIVY_JWT_VERIFICATION_KEY,
+        },
         "Privy token verification failed — ensure backend PRIVY_APP_ID/PRIVY_APP_SECRET match frontend NEXT_PUBLIC_PRIVY_APP_ID (same Privy app); optional: set PRIVY_JWT_VERIFICATION_KEY from Dashboard"
       );
-      return res.status(401).json({ success: false, message: "Invalid or expired Privy token" });
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid or expired Privy token. Check backend PRIVY_APP_ID and PRIVY_APP_SECRET match the Privy app used by the frontend.",
+      });
     }
     const privyDid = claims?.sub ?? claims?.userId;
     if (!privyDid || typeof privyDid !== "string") {
@@ -236,7 +246,7 @@ export async function privySignin(req, res) {
       },
     });
   } catch (err) {
-    logger.error({ err: err?.message }, "privySignin failed");
+    logger.error({ err: err?.message, stack: err?.stack }, "privySignin failed");
     return res.status(500).json({ success: false, message: err?.message || "Sign-in failed" });
   }
 }
