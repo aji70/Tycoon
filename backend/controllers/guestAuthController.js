@@ -7,7 +7,7 @@ import crypto from "crypto";
 import { ethers } from "ethers";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import { PrivyClient } from "@privy-io/node";
+import { PrivyClient, verifyAccessToken } from "@privy-io/node";
 import User from "../models/User.js";
 import { registerPlayerFor } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
@@ -190,9 +190,21 @@ export async function privySignin(req, res) {
       return res.status(401).json({ success: false, message: "Authorization required (Bearer <privy_token>)" });
     }
     const privyToken = authHeader.slice(7);
+    if (!PRIVY_JWT_VERIFICATION_KEY) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Privy JWT verification key not configured. Set PRIVY_JWT_VERIFICATION_KEY in backend env (from Privy Dashboard → Configuration → App settings → Verify with key instead).",
+      });
+    }
     let claims;
     try {
-      claims = await privyClient.verifyAuthToken(privyToken);
+      const result = await verifyAccessToken({
+        access_token: privyToken,
+        app_id: PRIVY_APP_ID,
+        verification_key: PRIVY_JWT_VERIFICATION_KEY,
+      });
+      claims = { sub: result.user_id, userId: result.user_id };
     } catch (err) {
       // Decode token payload without verifying (for debug only) to see app_id/issuer in token
       let tokenPayloadHint = null;
