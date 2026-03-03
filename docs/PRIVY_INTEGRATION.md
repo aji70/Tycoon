@@ -102,15 +102,18 @@ If the frontend shows *"Privy sign-in worked, but the game server couldn't link 
    - If `privyConfigured: false` → set `PRIVY_APP_ID` and `PRIVY_APP_SECRET` in that backend’s env (e.g. Railway variables).  
    - If the masked ID does **not** match your frontend’s `NEXT_PUBLIC_PRIVY_APP_ID` (e.g. `cmm9kscwq03zy0cjoycdpqh9z` → `cmm9...qh9z`), the backend is using a different Privy app. Use the same app’s App ID and App Secret from [Privy Dashboard](https://dashboard.privy.io/).
 
-3. **Add JWT verification key (recommended)**  
-   In [Privy Dashboard](https://dashboard.privy.io/) → your app → **Configuration** → **App settings** → copy the **verification key** (“Verify with key instead”).  
-   In your backend env (e.g. Railway), add:
-   ```text
-   PRIVY_JWT_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----
-   ...
-   -----END PUBLIC KEY-----"
-   ```
-   Use one line with `\n` for newlines if the platform requires it. This avoids extra network calls and often fixes verification failures.
+3. **Add JWT verification key (fixes “Invalid or expired” when app ID matches)**  
+   Without this key, the backend calls Privy’s API to verify tokens; that can fail. With the key, verification is done locally and is more reliable.  
+   - Open **[Privy Dashboard → Configuration → App settings → Basics](https://dashboard.privy.io/apps?page=settings)**.  
+   - Find **“Verify with key instead”** and copy the full PEM (starts with `-----BEGIN PUBLIC KEY-----`).  
+   - In your backend env (e.g. Railway), add:
+     ```text
+     PRIVY_JWT_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----
+     ...paste the key lines here...
+     -----END PUBLIC KEY-----"
+     ```
+   - If the platform requires a single line, use `\n` for newlines (e.g. `"-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----"`).  
+   - Redeploy the backend so the new env is applied.
 
 4. **Redeploy**  
    After changing env vars on Railway (or your host), redeploy so the new values are applied.

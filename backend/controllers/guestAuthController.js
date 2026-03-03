@@ -14,7 +14,9 @@ import logger from "../config/logger.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
-const PRIVY_JWT_VERIFICATION_KEY = process.env.PRIVY_JWT_VERIFICATION_KEY;
+// Support key in .env with literal \n (e.g. "-----BEGIN...\n...\n-----END...") or real newlines
+const rawKey = process.env.PRIVY_JWT_VERIFICATION_KEY;
+const PRIVY_JWT_VERIFICATION_KEY = rawKey ? rawKey.replace(/\\n/g, "\n") : undefined;
 const privyClientOpts = { appId: PRIVY_APP_ID, appSecret: PRIVY_APP_SECRET };
 if (PRIVY_JWT_VERIFICATION_KEY) privyClientOpts.jwtVerificationKey = PRIVY_JWT_VERIFICATION_KEY;
 const privyClient = PRIVY_APP_ID && PRIVY_APP_SECRET ? new PrivyClient(privyClientOpts) : null;
