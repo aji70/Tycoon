@@ -45,8 +45,8 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 
 | # | Item | Notes |
 |---|------|--------|
-| 4.1 | **Load testing** | e.g. k6 with ~200 VUs to confirm 200+ concurrent users. |
-| 4.2 | **Monitoring (Sentry/APM)** | Add error tracking and optional APM for backend/frontend. |
+| 4.1 | **Load testing** ✅ | k6 script in `scripts/load/load-test.js` (~200 VUs, 2m); see `docs/load-testing.md`. |
+| 4.2 | **Monitoring (Sentry/APM)** ✅ | Sentry in backend (`@sentry/node`) and frontend (`@sentry/nextjs`); see `docs/monitoring-sentry.md`. |
 | 4.3 | **Security audit prep** | Checklist or doc for mainnet (e.g. auth, stakes, contract calls, rate limits). |
 
 ---
