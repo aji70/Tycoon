@@ -10,7 +10,7 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 |---|------|--------|
 | 1.1 | **Specific game stats** ✅ | Replace “Specific game stats feature coming soon!” with real query (e.g. by game code/ID) and display. |
 | 1.2 | **Multiplayer lobbies (browse)** ✅ | Beyond join-by-code: list open/public games, join from list (backend + frontend). |
-| 1.3 | **Leaderboards** | Full leaderboard: wins, games played, win rate; wire to real data and protect/optimize. |
+| 1.3 | **Leaderboards** ✅ | Full leaderboard: wins, games played, win rate; wire to real data and protect/optimize. |
 | 1.4 | **Tournaments (brackets)** | Complete tournament flow: brackets, rounds, matchmaking, payouts (if staked). |
 | 1.5 | **AI trade proposals** | Use decision engine to propose trades; call `POST /game-trade-requests` from AI flow. |
 | 1.6 | **Perk / collectible copy** | Replace “Coming soon” in collectibles/shop with real perk descriptions and shop copy. |
