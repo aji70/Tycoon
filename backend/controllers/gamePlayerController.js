@@ -1108,11 +1108,46 @@ const gamePlayerController = {
         });
       }
 
-      // Prevent double rolls in same round
+      // Prevent double rolls in same round — if they already rolled, advance the turn so the game doesn't get stuck
       if (Number(game_player.rolls || 0) >= 1) {
-        return await respondAndRollback({
-          success: false,
-          message: "You already rolled this round.",
+        const players = await trx("game_players")
+          .where({ game_id })
+          .orderBy("turn_order", "asc");
+        const currentIdx = players.findIndex((p) => p.user_id === user_id);
+        const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
+        const next_player = players[nextIdx];
+        if (!next_player) {
+          await trx.rollback();
+          return res.status(200).json({ success: false, message: "You already rolled this round." });
+        }
+        const last_active = await trx("game_play_history")
+          .where({ game_id, active: 1 })
+          .orderBy("id", "desc")
+          .first();
+        if (last_active) {
+          await trx("game_play_history").where({ id: last_active.id }).update({ active: 0 });
+        }
+        await trx("game_players")
+          .where({ game_id, user_id: game.next_player_id })
+          .update({ rolled: null, updated_at: db.fn.now() });
+        await trx("games").where({ id: game.id }).update({
+          next_player_id: next_player.user_id,
+          updated_at: new Date(),
+        });
+        const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+        await trx("game_players")
+          .where({ game_id: game.id, user_id: next_player.user_id })
+          .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+        const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
+        if (allRolled) {
+          await trx("game_players").where({ game_id }).update({ rolls: 0 });
+        }
+        await trx.commit();
+        await notifyGameUpdate(req, game_id);
+        return res.status(200).json({
+          success: true,
+          message: "Already rolled; turn passed to next player.",
+          data: { passed_turn: true },
         });
       }
 
