@@ -36,8 +36,8 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 | # | Item | Notes |
 |---|------|--------|
 | 3.1 | **Guest account merge** ✅ | Merge guest into wallet: `POST /auth/merge-guest-into-wallet`; “merge guest into existing wallet account” frontend in AccountLinkWallet. |
-| 3.2 | **Auction edge cases** ✅ | See `docs/auction-edge-cases.md`: timeout, reconnection, ties. |
-| 3.3 | **N+1 / query optimization** ✅ | Batch load: `GameSetting.findByGameIds`, `GamePlayer.findByGameIds`; see `docs/data-optimization.md`. |
+| 3.2 | **Auction edge cases** ✅ | See `doc/auction-edge-cases.md`: timeout, reconnection, ties. |
+| 3.3 | **N+1 / query optimization** ✅ | Batch load: `GameSetting.findByGameIds`, `GamePlayer.findByGameIds`; see `doc/data-optimization.md`. |
 
 ---
 
@@ -45,9 +45,9 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 
 | # | Item | Notes |
 |---|------|--------|
-| 4.1 | **Load testing** ✅ | k6 script in `scripts/load/load-test.js` (~200 VUs, 2m); see `docs/load-testing.md`. |
-| 4.2 | **Monitoring (Sentry/APM)** ✅ | Sentry in backend (`@sentry/node`) and frontend (`@sentry/nextjs`); see `docs/monitoring-sentry.md`. |
-| 4.3 | **Security audit prep** ✅ | Checklist/doc in `docs/security-audit-prep.md`: auth, stakes, contract calls, rate limits, contract-specific. |
+| 4.1 | **Load testing** ✅ | k6 script in `scripts/load/load-test.js` (~200 VUs, 2m); see `doc/load-testing.md`. |
+| 4.2 | **Monitoring (Sentry/APM)** ✅ | Sentry in backend (`@sentry/node`) and frontend (`@sentry/nextjs`); see `doc/monitoring-sentry.md`. |
+| 4.3 | **Security audit prep** ✅ | Checklist/doc in `doc/security-audit-prep.md`: auth, stakes, contract calls, rate limits, contract-specific. |
 
 ---
 
