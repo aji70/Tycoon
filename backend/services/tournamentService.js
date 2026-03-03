@@ -757,20 +757,44 @@ export async function getLeaderboard(tournamentId, phase = "live") {
     }
   }
 
-  const rows = entries.map((e) => ({
-    entry_id: e.id,
-    user_id: e.user_id,
-    username: e.username || e.user_address,
-    address: e.address,
-    match_wins: entryIdToWins[e.id] || 0,
-    round_eliminated: entryIdToRoundEliminated[e.id],
-    placement: tournament.status === "COMPLETED" && phase === "final" ? placementOrder.indexOf(e.id) + 1 || null : null,
-  }));
+  let payoutByEntryId = {};
+  if (tournament.status === "COMPLETED" && phase === "final") {
+    try {
+      const { computePayouts } = await import("./tournamentPayoutService.js");
+      const payouts = await computePayouts(tournamentId);
+      payoutByEntryId = Object.fromEntries((payouts || []).map((p) => [p.entry_id, String(p.amount_wei)]));
+    } catch (err) {
+      logger.warn({ err: err?.message, tournamentId }, "getLeaderboard computePayouts failed");
+    }
+  }
+
+  const rows = entries.map((e) => {
+    const placement = tournament.status === "COMPLETED" && phase === "final" ? placementOrder.indexOf(e.id) + 1 || null : null;
+    return {
+      entry_id: e.id,
+      user_id: e.user_id,
+      username: e.username || e.user_address,
+      address: e.address,
+      match_wins: entryIdToWins[e.id] || 0,
+      round_eliminated: entryIdToRoundEliminated[e.id],
+      eliminated_in_round: entryIdToRoundEliminated[e.id] ?? null,
+      placement,
+      rank: placement ?? null,
+      is_winner: placement === 1,
+      payout_wei: payoutByEntryId[e.id] ?? null,
+    };
+  });
 
   if (tournament.status === "COMPLETED" && phase === "final") {
     rows.sort((a, b) => (a.placement || 999) - (b.placement || 999));
+    rows.forEach((r, i) => {
+      r.rank = r.placement ?? i + 1;
+    });
   } else {
     rows.sort((a, b) => (b.match_wins || 0) - (a.match_wins || 0));
+    rows.forEach((r, i) => {
+      r.rank = i + 1;
+    });
   }
 
   return { tournament_id: tournamentId, status: tournament.status, phase, entries: rows };
