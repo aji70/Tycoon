@@ -317,6 +317,8 @@ function Board3DMobilePageContent() {
   const [buyTipText, setBuyTipText] = useState<string | null>(null);
   const [buyTipLoading, setBuyTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
+  const [auctionBidAmount, setAuctionBidAmount] = useState("");
+  const [auctionSubmitting, setAuctionSubmitting] = useState(false);
 
   // Chat unread: use same query keys as GameyChatRoom so we share cache
   const gameChatId = gameCode ?? game?.code ?? "";
@@ -1124,13 +1126,81 @@ function Board3DMobilePageContent() {
     }
   }, [game?.id, me, justLandedProperty, refetchGame, refetchGameProperties, END_TURN]);
 
-  const handleSkip = useCallback(() => {
+  const handleSkip = useCallback(async () => {
+    const auctionOn = (game?.settings as unknown as { auction?: boolean })?.auction === true;
+    if (auctionOn && game?.id && me?.user_id && justLandedProperty?.id) {
+      try {
+        const res = await apiClient.post<{ data?: { requires_auction?: boolean }; success?: boolean }>(
+          "/game-players/decline-buy",
+          { game_id: game.id, user_id: me.user_id, property_id: justLandedProperty.id }
+        );
+        const data = (res as { data?: { requires_auction?: boolean } })?.data;
+        setBuyPrompted(false);
+        setLandedPositionForBuy(null);
+        landedPositionThisTurnRef.current = null;
+        if (data?.requires_auction) {
+          await refetchGame();
+          return;
+        }
+      } catch (err) {
+        toast.error(getContractErrorMessage(err, "Could not start auction"));
+      }
+    }
     setTurnEndScheduled(true);
     setBuyPrompted(false);
     setLandedPositionForBuy(null);
     landedPositionThisTurnRef.current = null;
     setTimeout(() => END_TURN(), 900);
-  }, [END_TURN]);
+  }, [END_TURN, game?.id, game?.settings, me?.user_id, justLandedProperty?.id, refetchGame]);
+
+  const activeAuction = (game as { active_auction?: { id: number; property?: { name: string }; current_high: number | null; next_bidder_player_id: number | null } })?.active_auction;
+  const isMyTurnToBid = !!me && !!activeAuction && activeAuction.next_bidder_player_id === me.id;
+
+  const handleAuctionBid = useCallback(async () => {
+    if (!game?.id || !me?.user_id || !activeAuction?.id || auctionSubmitting) return;
+    const amount = auctionBidAmount.trim() ? parseInt(auctionBidAmount, 10) : null;
+    if (amount != null && (isNaN(amount) || amount <= (activeAuction.current_high ?? 0))) {
+      toast.error("Enter a bid higher than current high");
+      return;
+    }
+    setAuctionSubmitting(true);
+    try {
+      await apiClient.post("/games/auction/bid", {
+        game_id: game.id,
+        auction_id: activeAuction.id,
+        user_id: me.user_id,
+        amount: amount ?? undefined,
+      });
+      setAuctionBidAmount("");
+      await refetchGame();
+      await refetchGameProperties();
+      toast.success(amount != null ? `Bid $${amount} submitted` : "Passed");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Bid failed"));
+    } finally {
+      setAuctionSubmitting(false);
+    }
+  }, [game?.id, me?.user_id, activeAuction?.id, activeAuction?.current_high, auctionBidAmount, auctionSubmitting, refetchGame, refetchGameProperties]);
+
+  const handleAuctionPass = useCallback(async () => {
+    if (!game?.id || !me?.user_id || !activeAuction?.id || auctionSubmitting) return;
+    setAuctionSubmitting(true);
+    try {
+      await apiClient.post("/games/auction/bid", {
+        game_id: game.id,
+        auction_id: activeAuction.id,
+        user_id: me.user_id,
+      });
+      setAuctionBidAmount("");
+      await refetchGame();
+      await refetchGameProperties();
+      toast.success("Passed");
+    } catch (err) {
+      toast.error(getContractErrorMessage(err, "Pass failed"));
+    } finally {
+      setAuctionSubmitting(false);
+    }
+  }, [game?.id, me?.user_id, activeAuction?.id, auctionSubmitting, refetchGame, refetchGameProperties]);
 
   const handlePayToLeaveJail = useCallback(async () => {
     if (!me || !game?.id) return;
@@ -1911,6 +1981,56 @@ function Board3DMobilePageContent() {
               />
               AI tips
             </label>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Auction: unsold property — all players bid in turn or pass */}
+      {isLiveGame && activeAuction && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 p-4 z-[2147483647]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-2xl border-2 border-amber-500/50 bg-slate-900 p-6 max-w-sm w-full shadow-2xl"
+          >
+            <h3 className="text-lg font-bold text-amber-200 mb-1">Auction</h3>
+            <p className="text-slate-300 text-sm mb-3">
+              {activeAuction.property?.name ?? "Property"} — high bid: ${(activeAuction.current_high ?? 0).toLocaleString()}
+            </p>
+            {isMyTurnToBid ? (
+              <>
+                <div className="flex flex-col gap-2 mb-3">
+                  <input
+                    type="number"
+                    min={(activeAuction.current_high ?? 0) + 1}
+                    max={me?.balance ?? 0}
+                    value={auctionBidAmount}
+                    onChange={(e) => setAuctionBidAmount(e.target.value)}
+                    placeholder="Your bid"
+                    className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2 text-white"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleAuctionBid()}
+                      disabled={auctionSubmitting || (!!auctionBidAmount.trim() && (isNaN(parseInt(auctionBidAmount, 10)) || parseInt(auctionBidAmount, 10) <= (activeAuction.current_high ?? 0)))}
+                      className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold"
+                    >
+                      {auctionSubmitting ? "…" : "Bid"}
+                    </button>
+                    <button
+                      onClick={handleAuctionPass}
+                      disabled={auctionSubmitting}
+                      className="flex-1 py-2.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-semibold"
+                    >
+                      Pass
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400">Your balance: ${(me?.balance ?? 0).toLocaleString()}</p>
+              </>
+            ) : (
+              <p className="text-slate-400 text-sm">Waiting for another player to bid or pass…</p>
+            )}
           </motion.div>
         </div>
       )}
