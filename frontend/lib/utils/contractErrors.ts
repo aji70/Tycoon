@@ -71,6 +71,43 @@ export function getContractErrorMessage(
     return "Too many requests — please wait a moment before trying again.";
   }
 
+  // Connection / network errors
+  const msgLower = (e?.message ?? e?.shortMessage ?? "").toLowerCase();
+  if (
+    msgLower.includes("network") ||
+    msgLower.includes("fetch failed") ||
+    msgLower.includes("econnreset") ||
+    msgLower.includes("econnrefused") ||
+    msgLower.includes("timeout") ||
+    msgLower.includes("failed to fetch")
+  ) {
+    return "Connection problem. Check your network and try again.";
+  }
+
+  // Turn / roll errors (not your turn, already rolled, etc.)
+  const backendMsgRaw = e?.response?.data?.message ?? e?.response?.data?.error;
+  const backendStr = typeof backendMsgRaw === "string" ? backendMsgRaw.toLowerCase() : "";
+  if (
+    backendStr.includes("not your turn") ||
+    backendStr.includes("not the current player") ||
+    backendStr.includes("already rolled") ||
+    backendStr.includes("must roll")
+  ) {
+    return "It's not your turn to roll, or the turn state changed. Refresh the game if the board looks wrong.";
+  }
+
+  if (backendStr.includes("timeout") || backendStr.includes("timed out")) {
+    return "Turn timed out. You can try again next round, or rejoin the game with your code if you were disconnected.";
+  }
+
+  if (e?.response?.status === 404) {
+    return "Game or resource not found. Check the game code and try rejoining.";
+  }
+
+  if (e?.response?.status === 503 || e?.response?.status === 502) {
+    return "Server temporarily unavailable. Wait a moment and try again.";
+  }
+
   // Prefer backend message so we don't show generic "API request failed" when we have context
   const backendMsg = e?.response?.data?.message ?? e?.response?.data?.error;
   if (backendMsg && typeof backendMsg === "string") {

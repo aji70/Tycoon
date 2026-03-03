@@ -16,7 +16,7 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 | 1.6 | **Perk / collectible copy** ✅ | Replace “Coming soon” in collectibles/shop with real perk descriptions and shop copy. |
 | 1.7 | **Rooms on mobile (fix)** | Fix client error on `/rooms` on mobile and re-add Rooms to mobile nav (or keep removed if intentional). |
 | 1.8 | **Onboarding / tutorial** ✅ | First-time flow: short tutorial or guided steps (e.g. connect wallet → create or join game). |
-| 1.9 | **Error recovery UX** | Clearer messages and flows for disconnect, failed roll, timeout, rejoin. |
+| 1.9 | **Error recovery UX** ✅ | Clearer messages and flows for disconnect, failed roll, timeout, rejoin. |
 
 ---
 

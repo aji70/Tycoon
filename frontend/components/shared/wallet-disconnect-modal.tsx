@@ -22,6 +22,7 @@ export default function WalletDisconnectModal({
       onClose();
     } catch (err) {
       console.error("Wallet disconnection failed:", err);
+      // Keep modal open so user can try again or cancel
     }
   };
 
@@ -77,8 +78,11 @@ export default function WalletDisconnectModal({
               </button>
             </div>
 
-            <p className="w-full text-[#F0F7F7] text-sm text-center pb-6">
+            <p className="w-full text-[#F0F7F7] text-sm text-center pb-2">
               Are you sure you want to disconnect your wallet?
+            </p>
+            <p className="w-full text-[#869298] text-xs text-center pb-6">
+              You can reconnect anytime from the menu. If you&apos;re in a game, rejoin with the same wallet and game code.
             </p>
             <div className="flex gap-3 items-center justify-center">
               <AnimationWrapper variant="slideLeft" delay={0.1}>
