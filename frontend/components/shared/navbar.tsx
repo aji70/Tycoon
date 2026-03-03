@@ -5,9 +5,9 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet } from 'lucide-react';
 import useSound from 'use-sound';
-import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
 import Image from 'next/image';
 import avatar from '@/public/avatar.jpg';
@@ -27,6 +27,7 @@ const NavBar = () => {
     restDelta: 0.001,
   });
 
+  const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { caipNetwork, chainId } = useAppKitNetwork();
   const { onlineCount, onlineUsers } = useOnlineUsers(isConnected ? address : undefined);
@@ -224,7 +225,15 @@ const NavBar = () => {
               </button>
             </div>
           ) : guestUser ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => open()}
+                className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
+              >
+                <Wallet className="w-4 h-4" />
+                Connect wallet
+              </button>
               <span className="px-3 py-2 rounded-[12px] border border-[#0E282A] bg-[#011112] text-[#00F0FF] text-xs font-dmSans">
                 Guest: {guestUser.username}
               </span>
@@ -237,21 +246,41 @@ const NavBar = () => {
               </button>
             </div>
           ) : isPrivyAuthed ? (
-            <button
-              type="button"
-              onClick={() => logout()}
-              className="px-4 py-2 rounded-[12px] border border-[#0E282A] hover:border-[#003B3E] bg-[#011112] text-[#00F0FF] text-xs font-dmSans"
-            >
-              {typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address ?? 'Signed in'} · Log out
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => open()}
+                className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
+              >
+                <Wallet className="w-4 h-4" />
+                Connect wallet
+              </button>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="px-4 py-2 rounded-[12px] border border-[#0E282A] hover:border-[#003B3E] bg-[#011112] text-[#00F0FF] text-xs font-dmSans"
+              >
+                {typeof user?.email === 'string' ? user.email : (user?.email as { address?: string })?.address ?? 'Signed in'} · Log out
+              </button>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => login()}
-              className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
-            >
-              Sign in
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => login()}
+                className="px-4 py-2 rounded-[12px] bg-[#0FF0FC]/80 hover:bg-[#0FF0FC]/40 text-[#0D191B] font-medium transition"
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => open()}
+                className="hidden md:flex px-4 py-2 rounded-[12px] border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-sm font-medium hover:border-[#00F0FF]/50 transition-all items-center gap-2"
+              >
+                <Wallet className="w-4 h-4" />
+                Connect wallet
+              </button>
+            </div>
           )}
         </div>
       </header>
