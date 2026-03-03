@@ -878,13 +878,23 @@ const gameController = {
         timeframe: timeframe ? Number(timeframe) : null,
       });
 
-      const withSettingsAndPlayers = await Promise.all(
-        games.map(async (g) => ({
-          ...g,
-          settings: await GameSetting.findByGameId(g.id),
-          players: await GamePlayer.findByGameId(g.id),
-        }))
-      );
+      const gameIds = games.map((g) => g.id);
+      const [settingsList, playersList] = await Promise.all([
+        GameSetting.findByGameIds(gameIds),
+        GamePlayer.findByGameIds(gameIds),
+      ]);
+      const settingsByGame = Object.fromEntries(settingsList.map((s) => [s.game_id, s]));
+      const playersByGame = playersList.reduce((acc, p) => {
+        if (!acc[p.game_id]) acc[p.game_id] = [];
+        acc[p.game_id].push(p);
+        return acc;
+      }, {});
+
+      const withSettingsAndPlayers = games.map((g) => ({
+        ...g,
+        settings: settingsByGame[g.id] ?? null,
+        players: playersByGame[g.id] ?? [],
+      }));
 
       res.json({
         success: true,
@@ -906,14 +916,24 @@ const gameController = {
         limit: Number.parseInt(limit) || 50,
         offset: Number.parseInt(offset) || 0,
       });
-      // Eager load settings for each game
-      const withSettingsAndPlayers = await Promise.all(
-        games.map(async (g) => ({
-          ...g,
-          settings: await GameSetting.findByGameId(g.id),
-          players: await GamePlayer.findByGameId(g.id),
-        }))
-      );
+
+      const gameIds = games.map((g) => g.id);
+      const [settingsList, playersList] = await Promise.all([
+        GameSetting.findByGameIds(gameIds),
+        GamePlayer.findByGameIds(gameIds),
+      ]);
+      const settingsByGame = Object.fromEntries(settingsList.map((s) => [s.game_id, s]));
+      const playersByGame = playersList.reduce((acc, p) => {
+        if (!acc[p.game_id]) acc[p.game_id] = [];
+        acc[p.game_id].push(p);
+        return acc;
+      }, {});
+
+      const withSettingsAndPlayers = games.map((g) => ({
+        ...g,
+        settings: settingsByGame[g.id] ?? null,
+        players: playersByGame[g.id] ?? [],
+      }));
 
       res.json({
         success: true,

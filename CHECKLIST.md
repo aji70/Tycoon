@@ -35,9 +35,9 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 
 | # | Item | Notes |
 |---|------|--------|
-| 3.1 | **Guest account merge** | If needed: merge two guest accounts or “merge guest into existing wallet account” flow (backend + frontend). |
-| 3.2 | **Auction edge cases** | Review auction: timeout, reconnection during auction, ties; document or fix. |
-| 3.3 | **N+1 / query optimization** | Fix N+1 queries (e.g. with joins); add optimistic locking where safe. |
+| 3.1 | **Guest account merge** ✅ | Merge guest into wallet: `POST /auth/merge-guest-into-wallet`; “merge guest into existing wallet account” frontend in AccountLinkWallet. |
+| 3.2 | **Auction edge cases** ✅ | See `docs/auction-edge-cases.md`: timeout, reconnection, ties. |
+| 3.3 | **N+1 / query optimization** ✅ | Batch load: `GameSetting.findByGameIds`, `GamePlayer.findByGameIds`; see `docs/data-optimization.md`. |
 
 ---
 

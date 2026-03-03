@@ -44,6 +44,7 @@ async function resolveAuction(req, auctionId) {
   const gameId = auction.game_id;
   const bids = await db("game_auction_bids").where({ auction_id: auctionId });
   const withAmount = bids.filter((b) => b.amount != null);
+  // Tie-breaker: equal highest bids → first highest bidder wins (see docs/auction-edge-cases.md)
   const winnerBid = withAmount.length > 0 ? withAmount.reduce((best, b) => (b.amount > (best?.amount ?? 0) ? b : best), null) : null;
 
   await db.transaction(async (trx) => {

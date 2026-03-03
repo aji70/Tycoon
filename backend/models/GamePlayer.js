@@ -102,6 +102,41 @@ const GamePlayer = {
       .orderBy("gp.turn_order", "asc");
   },
 
+  /**
+   * Batch fetch players for multiple games (avoids N+1). Returns array of rows with game_id, ordered by game_id, turn_order.
+   */
+  async findByGameIds(gameIds) {
+    if (!gameIds?.length) return [];
+    return db("game_players as gp")
+      .leftJoin("users as u", "gp.user_id", "u.id")
+      .leftJoin("games as g", "gp.game_id", "g.id")
+      .select(
+        "gp.game_id",
+        "gp.id",
+        "gp.user_id",
+        "gp.address",
+        "gp.chance_jail_card",
+        "gp.community_chest_jail_card",
+        "gp.balance",
+        "gp.position",
+        "gp.turn_order",
+        "gp.symbol",
+        "gp.rolls",
+        "gp.rolled",
+        "gp.circle",
+        "gp.in_jail",
+        "gp.in_jail_rolls",
+        "gp.turn_start",
+        "gp.consecutive_timeouts",
+        "gp.turn_count",
+        "gp.created_at as joined_date",
+        "u.username"
+      )
+      .whereIn("gp.game_id", gameIds)
+      .orderBy("gp.game_id")
+      .orderBy("gp.turn_order", "asc");
+  },
+
   async findByUserId(userId) {
     return db("game_players as gp")
       .leftJoin("games as g", "gp.game_id", "g.id")
