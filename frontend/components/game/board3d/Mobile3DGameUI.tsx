@@ -6,6 +6,7 @@ import { Sparkles, Bell, Users, X, Landmark, MessageCircle } from "lucide-react"
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
 import MyEmpire3D from "./MyEmpire3D";
+import ModalErrorBoundary from "./ModalErrorBoundary";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory-mobile";
 
 interface Mobile3DGameUIProps {
@@ -236,20 +237,22 @@ export default function Mobile3DGameUI({
               </div>
               <div className="flex-1 overflow-y-auto p-3">
                 {hasGame && game ? (
-                  <PlayerSection3D
-                    game={game}
-                    properties={properties}
-                    game_properties={game_properties}
-                    my_properties={my_properties}
-                    me={me ?? null}
-                    currentPlayer={currentPlayer ?? null}
-                    positions={positions}
-                    isAITurn={isAITurn}
-                    isLoading={false}
-                    onPropertySelect={onPropertySelect}
-                    openTradeSection={viewTradesRequested}
-                    onTradeSectionOpened={onTradeSectionOpened}
-                  />
+                  <ModalErrorBoundary>
+                    <PlayerSection3D
+                      game={game}
+                      properties={properties ?? []}
+                      game_properties={game_properties ?? []}
+                      my_properties={my_properties ?? []}
+                      me={me ?? null}
+                      currentPlayer={currentPlayer ?? null}
+                      positions={positions ?? {}}
+                      isAITurn={isAITurn}
+                      isLoading={false}
+                      onPropertySelect={onPropertySelect}
+                      openTradeSection={viewTradesRequested}
+                      onTradeSectionOpened={onTradeSectionOpened}
+                    />
+                  </ModalErrorBoundary>
                 ) : (
                   <div className="space-y-2 py-4">
                     <p className="text-slate-500 text-sm">Join a game to see players, your empire, and trades.</p>
