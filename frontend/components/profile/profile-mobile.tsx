@@ -16,6 +16,9 @@ import { useProfile } from '@/context/ProfileContext';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import AccountLinkWallet from '@/components/auth/AccountLinkWallet';
 
+import { apiClient } from '@/lib/api';
+import { ApiResponse } from '@/types/api';
+import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -94,6 +97,47 @@ const getPerkMetadata = (perk: number) => {
   ];
   return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-14 h-14 bg-gray-500/20 rounded-2xl flex items-center justify-center text-2xl">?</div> };
 };
+
+/** Guest-only profile: shows stats, no Account & login section. */
+function GuestProfileViewMobile({ username }: { username: string }) {
+  const { data: games = [] } = useQuery({
+    queryKey: ['guest-my-games'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse>('/games/my-games', { params: { limit: 100 } });
+      if (!res?.data?.success || !Array.isArray(res.data.data)) return [];
+      return res.data.data as { code: string; status: string; is_ai?: boolean }[];
+    },
+  });
+  const gameCount = games.length;
+  const runningCount = games.filter((g) => g.status === 'RUNNING').length;
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24">
+      <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl py-4">
+        <Link href="/" className="flex items-center gap-2 text-cyan-300/90 text-sm font-medium">
+          <ArrowLeft className="w-5 h-5" /> Back
+        </Link>
+      </header>
+      <main className="py-6">
+        <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
+          <h2 className="text-lg font-bold text-white mb-2">{username}</h2>
+          <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
+          <div className="flex gap-4 text-sm">
+            <div>
+              <span className="text-cyan-400 font-semibold">{gameCount}</span>
+              <span className="text-white/70 ml-1">games</span>
+            </div>
+            {runningCount > 0 && (
+              <div>
+                <span className="text-amber-400 font-semibold">{runningCount}</span>
+                <span className="text-white/70 ml-1">in progress</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function ProfilePageMobile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
@@ -348,19 +392,7 @@ export default function ProfilePageMobile() {
   const { guestUser } = useGuestAuthOptional() ?? {};
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24">
-          <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl py-4">
-            <Link href="/" className="flex items-center gap-2 text-cyan-300/90 text-sm font-medium">
-              <ArrowLeft className="w-5 h-5" /> Back
-            </Link>
-          </header>
-          <main className="py-6">
-            <p className="text-white/80 mb-4">Logged in as <strong>{guestUser.username}</strong>. Connect your wallet to link it.</p>
-            <AccountLinkWallet />
-          </main>
-        </div>
-      );
+      return <GuestProfileViewMobile username={guestUser.username} />;
     }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
@@ -402,7 +434,7 @@ export default function ProfilePageMobile() {
       </header>
 
       <main className="px-4 pt-6 max-w-xl mx-auto space-y-5">
-        <AccountLinkWallet />
+        {!guestUser?.is_guest && <AccountLinkWallet />}
         {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
