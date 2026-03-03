@@ -3,6 +3,7 @@ import {
   guestRegister,
   guestLogin,
   privySignin,
+  privyCheck,
   me,
   linkWallet,
   unlinkWallet,
@@ -15,6 +16,7 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
+router.get("/privy-check", privyCheck);
 router.post("/guest-register", guestRegister);
 router.post("/guest-login", guestLogin);
 router.post("/privy-signin", privySignin);

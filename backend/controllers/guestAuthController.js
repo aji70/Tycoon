@@ -23,6 +23,24 @@ if (privyClient && PRIVY_APP_ID) {
   logger.info({ privyAppIdMasked: masked, hasJwtKey: !!PRIVY_JWT_VERIFICATION_KEY }, "Privy configured for /auth/privy-signin — ensure frontend NEXT_PUBLIC_PRIVY_APP_ID matches this app ID");
 }
 
+/**
+ * GET /auth/privy-check
+ * Returns whether Privy is configured and masked app ID so you can verify backend matches frontend.
+ * Call this on your deployed backend (e.g. Railway) to confirm PRIVY_APP_ID/PRIVY_APP_SECRET are set and match.
+ */
+export function privyCheck(_req, res) {
+  const configured = !!(PRIVY_APP_ID && PRIVY_APP_SECRET);
+  const masked = PRIVY_APP_ID && PRIVY_APP_ID.length > 8 ? `${PRIVY_APP_ID.slice(0, 4)}...${PRIVY_APP_ID.slice(-4)}` : null;
+  res.json({
+    privyConfigured: configured,
+    privyAppIdMasked: masked,
+    hasJwtVerificationKey: !!PRIVY_JWT_VERIFICATION_KEY,
+    hint: configured
+      ? `Backend app ID should match frontend NEXT_PUBLIC_PRIVY_APP_ID (e.g. cmm9...qh9z). If token verification still fails, add PRIVY_JWT_VERIFICATION_KEY from Privy Dashboard → Configuration → App settings.`
+      : "Set PRIVY_APP_ID and PRIVY_APP_SECRET in backend env (same Privy app as frontend).",
+  });
+}
+
 /** Placeholder address for Privy-only users (unique per privy_did, valid 0x hex). */
 function placeholderAddressForPrivyDid(privyDid) {
   const hash = crypto.createHash("sha256").update(privyDid).digest("hex").slice(0, 40);
