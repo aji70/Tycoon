@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords, MessageCircle } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
@@ -73,7 +73,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
 
-  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : 'Change Network');
+  const networkDisplay = caipNetwork?.name ?? (chainId ? `Chain ${chainId}` : '—');
 
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -268,17 +268,6 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                   Tournaments
                 </Link>
 
-                <Link
-                  href="/rooms"
-                  onClick={closeMobileMenu}
-                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
-                    <MessageCircle size={20} />
-                  </div>
-                  Rooms
-                </Link>
-
                 {(isConnected || isPrivyAuthed || guestUser) && (
                   <>
                     <Link
@@ -306,7 +295,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 )}
               </nav>
 
-              {/* Network & Wallet - game settings row */}
+              {/* Network - same row style as other nav items */}
               {!isMiniPay && (
                 <>
                   <button
@@ -314,14 +303,12 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                       setIsNetworkModalOpen(true);
                       closeMobileMenu();
                     }}
-                    className={`w-full py-4 rounded-xl flex items-center justify-center gap-3 font-orbitron text-base font-medium transition-all duration-200 border ${
-                      isConnected
-                        ? 'bg-[#022a2c]/80 hover:bg-[#03383a] border-[#00F0FF]/30 text-[#00F0FF] hover:shadow-[0_0_16px_rgba(0,240,255,0.12)]'
-                        : 'bg-[#011112]/80 hover:bg-[#022a2c]/80 border-[#003B3E]/50 text-[#00F0FF]/80'
-                    }`}
+                    className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)] w-full text-left"
                   >
-                    <Globe size={20} />
-                    <span className="truncate max-w-[200px]">{networkDisplay}</span>
+                    <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90 shrink-0">
+                      <Globe size={20} />
+                    </div>
+                    <span className="truncate">{networkDisplay}</span>
                   </button>
 
                   <div className="mt-4">
