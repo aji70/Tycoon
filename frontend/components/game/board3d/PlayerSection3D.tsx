@@ -192,9 +192,9 @@ export default function PlayerSection3D({
                         className={`flex items-center justify-center w-9 h-9 rounded-full text-xl shrink-0 ${
                           isMe || isCurrent ? "bg-amber-500/30 ring-2 ring-amber-400/50" : "bg-slate-700/80"
                         }`}
-                        title={p.symbol ?? ""}
+                        title={typeof p.symbol === "string" ? p.symbol : ""}
                       >
-                        {getPlayerSymbol(p.symbol)}
+                        {getPlayerSymbol(typeof p.symbol === "string" ? p.symbol : "hat")}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold truncate flex items-center gap-1.5 ${isMe || isCurrent ? "text-amber-100" : "text-slate-200"}`}>
@@ -319,7 +319,7 @@ export default function PlayerSection3D({
           setRequestCash={setRequestCash}
           toggleSelect={toggleSelect}
           targetPlayerAddress={
-            game.players.find((p) => p.user_id === counterModal.trade?.target_player_id)?.address
+            (game.players ?? []).find((p) => p.user_id === counterModal.trade?.target_player_id)?.address
           }
         />
       </AnimatePresence>
