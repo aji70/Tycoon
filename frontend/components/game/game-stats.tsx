@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGetUsername, useIsRegistered } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
-import { BarChart2, Trophy, Wallet, Crown, Users } from "lucide-react";
+import { BarChart2, Trophy, Wallet, Crown, Users, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import herobg from "@/public/heroBg.png";
+import { apiClient } from "@/lib/api";
+import { ApiResponse } from "@/types/api";
 
 interface PlayerStats {
   totalGames: number;
@@ -45,6 +47,13 @@ const GameStats: React.FC = () => {
   ]);
   const [gameIdQuery, setGameIdQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [queriedGame, setQueriedGame] = useState<{
+    code: string;
+    status: string;
+    players: Array<{ username: string; balance: number; position: number; user_id?: number }>;
+    winner_id?: number | null;
+  } | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (registeredError) {
@@ -59,12 +68,45 @@ const GameStats: React.FC = () => {
     }
   }, [registeredError]);
 
-  const handleGameIdQuery = () => {
-    // Placeholder for querying specific game stats (no validation to avoid errors)
-    toast.info("Specific game stats feature coming soon!", {
-      position: "top-right",
-      autoClose: 3000,
-    });
+  const handleGameIdQuery = async () => {
+    const code = gameIdQuery.trim().toUpperCase().replace(/^#/, "");
+    if (!code || code.length !== 6) {
+      toast.error("Enter a 6-character game code", { position: "top-right", autoClose: 3000 });
+      setQueryError("Enter a 6-character game code.");
+      setQueriedGame(null);
+      return;
+    }
+    setLoading(true);
+    setQueryError(null);
+    setQueriedGame(null);
+    try {
+      const res = await apiClient.get<ApiResponse>(`/games/code/${encodeURIComponent(code)}`);
+      const data = (res?.data as { success?: boolean; data?: unknown })?.data;
+      if (!res?.data?.success || !data) {
+        setQueryError("Game not found.");
+        toast.error("Game not found", { position: "top-right", autoClose: 3000 });
+        return;
+      }
+      const game = data as { code?: string; status?: string; players?: unknown[]; winner_id?: number | null };
+      const players = (game.players ?? []) as Array<Record<string, unknown>>;
+      setQueriedGame({
+        code: game.code ?? code,
+        status: game.status ?? "UNKNOWN",
+        players: players.map((p) => ({
+          username: String(p.username ?? p.address ?? "—"),
+          balance: Number(p.balance ?? 0),
+          position: Number(p.position ?? 0),
+          user_id: p.user_id != null ? Number(p.user_id) : undefined,
+        })),
+        winner_id: game.winner_id ?? null,
+      });
+      toast.success("Game loaded", { position: "top-right", autoClose: 2000 });
+    } catch {
+      setQueryError("Could not load game. Check the code and try again.");
+      toast.error("Could not load game", { position: "top-right", autoClose: 3000 });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (isConnecting) {
@@ -257,20 +299,23 @@ const GameStats: React.FC = () => {
             <section className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6">
               <h3 className="font-orbitron text-xl text-[#00F0FF] font-bold mb-4 flex items-center gap-2">
                 <BarChart2 className="w-5 h-5" />
-                Query Specific Conquest
+                Query specific game
               </h3>
               <div className="flex flex-col sm:flex-row gap-4">
                 <input
                   type="text"
                   value={gameIdQuery}
                   onChange={(e) => setGameIdQuery(e.target.value)}
-                  placeholder="Enter Conquest ID (e.g., #12345)"
+                  onKeyDown={(e) => e.key === "Enter" && handleGameIdQuery()}
+                  placeholder="Enter 6-character game code (e.g. ABC123)"
+                  maxLength={7}
                   className="flex-1 h-[48px] bg-[#0E1415]/50 rounded-[12px] border border-[#003B3E] outline-none px-4 text-[#17ffff] font-orbitron font-[400] text-[16px] placeholder:text-[#455A64] placeholder:font-dmSans focus:border-[#00F0FF] transition-colors"
                 />
                 <button
                   type="button"
                   onClick={handleGameIdQuery}
-                  className="relative group w-full sm:w-auto h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
+                  disabled={loading}
+                  className="relative group w-full sm:w-auto h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <svg
                     width="140"
@@ -288,14 +333,58 @@ const GameStats: React.FC = () => {
                       className="group-hover:stroke-[#00F0FF] transition-all duration-300 ease-in-out"
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[14px] font-dmSans font-medium z-10">
-                    Decode Battle
+                  <span className="absolute inset-0 flex items-center justify-center gap-2 text-[#00F0FF] capitalize text-[14px] font-dmSans font-medium z-10">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {loading ? "Loading…" : "Look up"}
                   </span>
                 </button>
               </div>
-              <p className="font-dmSans text-[14px] text-[#AFBAC0] mt-3 text-center sm:text-left">
-                Unlock detailed conquest logs – feature deploying soon.
-              </p>
+              {queryError && (
+                <p className="font-dmSans text-[14px] text-red-400 mt-3">{queryError}</p>
+              )}
+              {queriedGame && (
+                <div className="mt-4 p-4 rounded-xl bg-[#0a1214] border border-[#003B3E]">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="font-orbitron text-[#00F0FF] font-semibold">Code: {queriedGame.code}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      queriedGame.status === "RUNNING" ? "bg-amber-500/20 text-amber-400" :
+                      queriedGame.status === "FINISHED" ? "bg-emerald-500/20 text-emerald-400" :
+                      "bg-[#455A64]/30 text-[#AFBAC0]"
+                    }`}>
+                      {queriedGame.status}
+                    </span>
+                  </div>
+                  <p className="font-dmSans text-[14px] text-[#AFBAC0] mb-2">Players</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="text-[#00F0FF]/80 border-b border-[#003B3E]">
+                          <th className="py-2 pr-4 font-orbitron">Player</th>
+                          <th className="py-2 pr-4 font-orbitron">Balance</th>
+                          <th className="py-2 font-orbitron">Position</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {queriedGame.players.map((p, i) => (
+                          <tr key={i} className="border-b border-[#003B3E]/50">
+                            <td className="py-2 pr-4 text-[#F0F7F7]">{p.username}</td>
+                            <td className="py-2 pr-4 text-[#AFBAC0]">${p.balance.toLocaleString()}</td>
+                            <td className="py-2 text-[#AFBAC0]">{p.position}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {queriedGame.status === "FINISHED" && queriedGame.winner_id != null && (
+                    <p className="font-dmSans text-[14px] text-amber-400 mt-2">
+                      Winner: {queriedGame.players.find((p) => p.user_id === queriedGame.winner_id)?.username ?? "—"}
+                    </p>
+                  )}
+                </div>
+              )}
+              {!queriedGame && !queryError && (
+                <p className="font-dmSans text-[14px] text-[#AFBAC0] mt-3">Enter a game code to see players, balances, and status.</p>
+              )}
             </section>
           </div>
         )}
