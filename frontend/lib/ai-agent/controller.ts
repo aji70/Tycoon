@@ -188,7 +188,44 @@ export class MonopolyAIController {
     });
   }
 
-  private async proposeStrategicTrades(_gameId: number, _aiPlayer: any, _gameState: any) {
-    // TODO: Use decisionEngine to propose trades, then apiClient.post('/game-trade-requests', payload)
+  private async proposeStrategicTrades(gameId: number, aiPlayer: any, gameState: any) {
+    const myProperties = this.getPlayerProperties(gameState, aiPlayer);
+    const opponents = (gameState.players ?? []).filter((p: any) => p.user_id !== aiPlayer.user_id);
+    if (opponents.length === 0) return;
+
+    const proposals = await this.decisionEngine.suggestProposedTrades({
+      myBalance: aiPlayer.balance ?? 0,
+      myPosition: aiPlayer.position ?? 0,
+      myProperties,
+      opponents,
+      gameState,
+      aiPlayer,
+      gameId,
+    });
+
+    for (const p of proposals) {
+      if (!p?.target_player_id || !Array.isArray(p.offer_properties) || !Array.isArray(p.requested_properties)) continue;
+      const offerProps = p.offer_properties.filter((id: number) =>
+        myProperties.some((mp: any) => (mp.id ?? mp.property_id) === id)
+      );
+      const target = opponents.find((o: any) => o.user_id === p.target_player_id);
+      if (!target) continue;
+
+      try {
+        await apiClient.post('/game-trade-requests', {
+          game_id: gameId,
+          player_id: aiPlayer.user_id,
+          target_player_id: p.target_player_id,
+          offer_properties: offerProps,
+          offer_amount: p.offer_amount ?? 0,
+          requested_properties: p.requested_properties,
+          requested_amount: p.requested_amount ?? 0,
+          status: 'pending',
+        });
+        console.log(`🤖 AI proposed trade to ${target.username}: ${p.reasoning ?? 'strategic'}`);
+      } catch (err) {
+        console.warn('AI trade proposal failed:', err);
+      }
+    }
   }
 }

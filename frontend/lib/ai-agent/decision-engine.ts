@@ -135,15 +135,20 @@ Respond ONLY with valid JSON (no markdown, no extra text):
   }
 
   private buildTradePrompt(trade: any, context: GameContext): string {
+    const offerProps = Array.isArray(trade.offer_properties) ? trade.offer_properties : [];
+    const requestProps = Array.isArray(trade.requested_properties) ? trade.requested_properties : [];
+    const offerStr = offerProps.map((p: any) => (typeof p === 'object' && p?.name) ? p.name : `ID ${p}`).join(', ') || 'None';
+    const requestStr = requestProps.map((p: any) => (typeof p === 'object' && p?.name) ? p.name : `ID ${p}`).join(', ') || 'None';
+
     return `Evaluate this Monopoly trade offer.
 
 RECEIVING:
-- Cash: $${trade.offer_amount}
-- Properties: ${trade.offer_properties?.map((p: any) => p.name).join(', ') || 'None'}
+- Cash: $${trade.offer_amount ?? 0}
+- Properties: ${offerStr}
 
 GIVING:
-- Cash: $${trade.requested_amount}
-- Properties: ${trade.requested_properties?.map((p: any) => p.name).join(', ') || 'None'}
+- Cash: $${trade.requested_amount ?? 0}
+- Properties: ${requestStr}
 
 FROM: ${trade.fromPlayer}
 
@@ -164,6 +169,58 @@ Respond ONLY with JSON:
   "reasoning": "max 60 words",
   "counterOffer": { "cashAdjustment": 200 } // only if countering
 }`;
+  }
+
+  /** Suggest 0 or more trades for the AI to propose (e.g. to complete a monopoly). */
+  async suggestProposedTrades(context: GameContext & { aiPlayer: any; gameId: number }): Promise<
+    Array<{
+      target_player_id: number;
+      offer_properties: number[];
+      offer_amount: number;
+      requested_properties: number[];
+      requested_amount: number;
+      reasoning?: string;
+    }>
+  > {
+    const { gameState, aiPlayer, myProperties, myBalance, opponents } = context;
+    const properties = (gameState?.properties ?? []) as any[];
+    const gameProps = (gameState?.game_properties ?? []) as any[];
+
+    const myPropIds = myProperties.map((p: any) => p.id ?? p.property_id).filter(Boolean);
+    const oppSummary = opponents.map((opp: any) => {
+      const oppPropIds = gameProps
+        .filter((gp: any) => gp.address?.toLowerCase() === opp.address?.toLowerCase() || gp.player_id === opp.user_id)
+        .map((gp: any) => gp.property_id);
+      return { user_id: opp.user_id, username: opp.username ?? 'Opponent', balance: opp.balance ?? 0, property_ids: oppPropIds };
+    });
+
+    const prompt = `You are an expert Monopoly AI. Suggest trades the AI should PROPOSE to others to complete a monopoly or improve position.
+
+AI PLAYER: balance $${myBalance}, property IDs: [${myPropIds.join(', ')}]
+Property names (id): ${properties.map((p: any) => `${p.name}(${p.id})`).join(', ')}
+
+OPPONENTS (user_id, balance, property_ids):
+${oppSummary.map((o: any) => `- user_id=${o.user_id} ${o.username}: $${o.balance}, owns property IDs [${(o.property_ids || []).join(', ')}]`).join('\n')}
+
+RULES: Propose at most 1 trade. Only suggest if it helps complete a color set for the AI. Use property IDs from above. offer_properties = IDs the AI gives; requested_properties = IDs the AI wants. Keep offer_amount/requested_amount reasonable (e.g. base price ±30%).
+
+Respond ONLY with a JSON array (empty array [] if no good trade):
+[
+  { "target_player_id": <number>, "offer_properties": [<id>], "offer_amount": <number>, "requested_properties": [<id>], "requested_amount": <number>, "reasoning": "brief" }
+]`;
+
+    try {
+      const response = await generateText({
+        model: anthropic('claude-sonnet-4-20250514'),
+        messages: [{ role: 'user', content: prompt }],
+        maxOutputTokens: 512,
+      });
+      const stripped = response.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const arr = JSON.parse(stripped);
+      return Array.isArray(arr) ? arr.slice(0, 1) : [];
+    } catch {
+      return [];
+    }
   }
 
   private getMonopolies(properties: any[]): string[] {

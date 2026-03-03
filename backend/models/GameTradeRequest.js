@@ -49,8 +49,8 @@ export default {
 
   // ✅ Get all trade requests for a given game
   async getByGameId(game_id) {
-    return await db(TABLE).where({ game_id });
-    return records.map(this._parseJsonFields);
+    const records = await db(TABLE).where({ game_id });
+    return records.map((r) => this._parseJsonFields(r));
   },
 
   // ✅ Get all trades involving a specific player (as initiator or target)

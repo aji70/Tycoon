@@ -12,7 +12,7 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 | 1.2 | **Multiplayer lobbies (browse)** ✅ | Beyond join-by-code: list open/public games, join from list (backend + frontend). |
 | 1.3 | **Leaderboards** ✅ | Full leaderboard: wins, games played, win rate; wire to real data and protect/optimize. |
 | 1.4 | **Tournaments (brackets)** ✅ | Complete tournament flow: brackets, rounds, matchmaking, payouts (if staked). |
-| 1.5 | **AI trade proposals** | Use decision engine to propose trades; call `POST /game-trade-requests` from AI flow. |
+| 1.5 | **AI trade proposals** ✅ | Use decision engine to propose trades; call `POST /game-trade-requests` from AI flow. |
 | 1.6 | **Perk / collectible copy** | Replace “Coming soon” in collectibles/shop with real perk descriptions and shop copy. |
 | 1.7 | **Rooms on mobile (fix)** | Fix client error on `/rooms` on mobile and re-add Rooms to mobile nav (or keep removed if intentional). |
 | 1.8 | **Onboarding / tutorial** | First-time flow: short tutorial or guided steps (e.g. connect wallet → create or join game). |
