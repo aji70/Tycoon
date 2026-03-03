@@ -194,20 +194,29 @@ export async function privySignin(req, res) {
     try {
       claims = await privyClient.verifyAuthToken(privyToken);
     } catch (err) {
+      // Decode token payload without verifying (for debug only) to see app_id/issuer in token
+      let tokenPayloadHint = null;
+      try {
+        const parts = privyToken.split(".");
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+          tokenPayloadHint = { iss: payload.iss, aud: payload.aud, app_id: payload.app_id, exp: payload.exp };
+        }
+      } catch (_) {}
+      const privyErrorMsg = err?.message || String(err);
       logger.warn(
         {
-          err: err?.message,
+          err: privyErrorMsg,
           code: err?.code,
-          appIdMasked: PRIVY_APP_ID ? `${PRIVY_APP_ID.slice(0, 4)}...${PRIVY_APP_ID.slice(-4)}` : "missing",
-          hasSecret: !!PRIVY_APP_SECRET,
+          tokenPayloadHint,
+          backendAppIdMasked: PRIVY_APP_ID ? `${PRIVY_APP_ID.slice(0, 4)}...${PRIVY_APP_ID.slice(-4)}` : "missing",
           hasJwtKey: !!PRIVY_JWT_VERIFICATION_KEY,
         },
-        "Privy token verification failed — ensure backend PRIVY_APP_ID/PRIVY_APP_SECRET match frontend NEXT_PUBLIC_PRIVY_APP_ID (same Privy app); optional: set PRIVY_JWT_VERIFICATION_KEY from Dashboard"
+        "Privy token verification failed"
       );
       return res.status(401).json({
         success: false,
-        message:
-          "Invalid or expired Privy token. Check backend PRIVY_APP_ID and PRIVY_APP_SECRET match the Privy app used by the frontend.",
+        message: `Invalid or expired Privy token. (${privyErrorMsg})`,
       });
     }
     const privyDid = claims?.sub ?? claims?.userId;
