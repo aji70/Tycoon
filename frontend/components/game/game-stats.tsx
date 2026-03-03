@@ -1,7 +1,7 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { useGetUsername, useIsRegistered } from "@/context/ContractProvider";
 import { toast } from "react-toastify";
 import { BarChart2, Trophy, Wallet, Crown, Users, Loader2 } from "lucide-react";
@@ -10,6 +10,13 @@ import Link from "next/link";
 import herobg from "@/public/heroBg.png";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
+
+function chainIdToLeaderboardChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
+  return "CELO";
+}
 
 interface PlayerStats {
   totalGames: number;
@@ -30,6 +37,7 @@ interface LeaderboardEntry {
 const GameStats: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
+  const chainId = useChainId();
   const { data: isUserRegistered, error: registeredError } = useIsRegistered(address);
   const { data: username } = useGetUsername(address);
   const [playerStats] = useState<PlayerStats>({
@@ -39,12 +47,9 @@ const GameStats: React.FC = () => {
     ranking: 3,
     winRate: "35.7%",
   });
-  const [leaderboard] = useState<LeaderboardEntry[]>([
-    { username: "CryptoKing", totalGames: 100, wins: 50, ranking: 1, avatar: "/game/cairo.svg" },
-    { username: "BlockBaron", totalGames: 80, wins: 40, ranking: 2, avatar: "/game/dubai.svg" },
-    { username: "PixelTycoon", totalGames: 60, wins: 30, ranking: 3, avatar: "/game/canberra.svg" },
-    { username: username || "You", totalGames: 42, wins: 15, ranking: 4, avatar: "/game/berlin.svg" },
-  ]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [gameIdQuery, setGameIdQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [queriedGame, setQueriedGame] = useState<{
@@ -54,6 +59,38 @@ const GameStats: React.FC = () => {
     winner_id?: number | null;
   } | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
+
+  const chainParam = chainIdToLeaderboardChain(chainId);
+  const fetchLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true);
+    setLeaderboardError(null);
+    try {
+      const res = await apiClient.get<unknown>("/users/leaderboard", {
+        params: { chain: chainParam, type: "wins", limit: 10 },
+      });
+      const raw = Array.isArray(res?.data) ? res.data : (res as { data?: unknown[] })?.data;
+      const list = (raw ?? []) as Array<{ username?: string; games_played?: number; game_won?: number }>;
+      const filtered = list.filter((row) => !String(row?.username ?? "").includes("AI_"));
+      setLeaderboard(
+        filtered.map((row, i) => ({
+          username: String(row?.username ?? "—"),
+          totalGames: Number(row?.games_played ?? 0),
+          wins: Number(row?.game_won ?? 0),
+          ranking: i + 1,
+        }))
+      );
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "message" in err ? String((err as { message: string }).message) : "Failed to load leaderboard";
+      setLeaderboardError(msg);
+      setLeaderboard([]);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, [chainParam]);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   useEffect(() => {
     if (registeredError) {
@@ -239,7 +276,7 @@ const GameStats: React.FC = () => {
               </div>
             </section>
 
-            {/* Leaderboard */}
+            {/* Leaderboard (real data from API) */}
             <section className="bg-[#0E1415]/80 backdrop-blur-sm rounded-[16px] border border-[#003B3E] p-6">
               <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
                 <h3 className="font-orbitron text-2xl text-[#00F0FF] font-bold flex items-center gap-2">
@@ -253,46 +290,66 @@ const GameStats: React.FC = () => {
                   View full leaderboard →
                 </Link>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-[#F0F7F7] font-dmSans">
-                  <thead>
-                    <tr className="border-b border-[#003B3E]/50">
-                      <th className="py-4 px-4 text-left font-semibold">Rank</th>
-                      <th className="py-4 px-4 text-left font-semibold">Tycoon</th>
-                      <th className="py-4 px-4 text-left font-semibold hidden md:table-cell">Games</th>
-                      <th className="py-4 px-4 text-left font-semibold">Wins</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboard.map((entry, index) => (
-                      <tr
-                        key={index}
-                        className={`border-b border-[#003B3E]/50 hover:bg-[#00F0FF]/5 transition-colors ${
-                          entry.username === (username || "You") ? "bg-[#00F0FF]/10" : ""
-                        }`}
-                      >
-                        <td className="py-4 px-4 font-bold text-[#FFD700]">{entry.ranking === 1 ? "🏆" : `#${entry.ranking}`}</td>
-                        <td className="py-4 px-4 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#00F0FF]/20 overflow-hidden">
-                            <Image
-                              src={entry.avatar || "/public/avatar.jpg"}
-                              alt={entry.username}
-                              width={32}
-                              height={32}
-                              className="object-cover"
-                            />
-                          </div>
-                          <span className={entry.username === (username || "You") ? "text-[#00F0FF] font-bold" : ""}>
-                            {entry.username}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 hidden md:table-cell">{entry.totalGames}</td>
-                        <td className="py-4 px-4 font-bold">{entry.wins}</td>
+              {leaderboardLoading ? (
+                <div className="flex items-center justify-center gap-2 py-12">
+                  <Loader2 className="w-6 h-6 text-[#00F0FF] animate-spin" />
+                  <span className="text-[#F0F7F7]/70">Loading leaderboard…</span>
+                </div>
+              ) : leaderboardError ? (
+                <div className="py-8 text-center">
+                  <p className="text-red-400/90 mb-3">{leaderboardError}</p>
+                  <button
+                    type="button"
+                    onClick={() => fetchLeaderboard()}
+                    className="text-sm font-semibold text-[#00F0FF] hover:text-[#0FF0FC] border border-[#00F0FF]/50 hover:border-[#00F0FF] rounded-lg px-4 py-2 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[#F0F7F7] font-dmSans">
+                    <thead>
+                      <tr className="border-b border-[#003B3E]/50">
+                        <th className="py-4 px-4 text-left font-semibold">Rank</th>
+                        <th className="py-4 px-4 text-left font-semibold">Tycoon</th>
+                        <th className="py-4 px-4 text-left font-semibold hidden md:table-cell">Games</th>
+                        <th className="py-4 px-4 text-left font-semibold">Wins</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {leaderboard.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-8 text-center text-[#F0F7F7]/60">
+                            No leaderboard data yet. Play games to climb the board!
+                          </td>
+                        </tr>
+                      ) : (
+                        leaderboard.map((entry, index) => (
+                          <tr
+                            key={`${entry.username}-${index}`}
+                            className={`border-b border-[#003B3E]/50 hover:bg-[#00F0FF]/5 transition-colors ${
+                              entry.username === (username || "You") ? "bg-[#00F0FF]/10" : ""
+                            }`}
+                          >
+                            <td className="py-4 px-4 font-bold text-[#FFD700]">{entry.ranking === 1 ? "🏆" : `#${entry.ranking}`}</td>
+                            <td className="py-4 px-4 flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#00F0FF]/20 flex items-center justify-center text-[#00F0FF] font-bold text-sm shrink-0">
+                                {(entry.username || "?")[0].toUpperCase()}
+                              </div>
+                              <span className={entry.username === (username || "You") ? "text-[#00F0FF] font-bold" : ""}>
+                                {entry.username}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 hidden md:table-cell">{entry.totalGames}</td>
+                            <td className="py-4 px-4 font-bold">{entry.wins}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
             {/* Specific Game Stats Query */}
