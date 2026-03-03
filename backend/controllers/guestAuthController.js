@@ -14,7 +14,10 @@ import logger from "../config/logger.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
-const privyClient = PRIVY_APP_ID && PRIVY_APP_SECRET ? new PrivyClient({ appId: PRIVY_APP_ID, appSecret: PRIVY_APP_SECRET }) : null;
+const PRIVY_JWT_VERIFICATION_KEY = process.env.PRIVY_JWT_VERIFICATION_KEY;
+const privyClientOpts = { appId: PRIVY_APP_ID, appSecret: PRIVY_APP_SECRET };
+if (PRIVY_JWT_VERIFICATION_KEY) privyClientOpts.jwtVerificationKey = PRIVY_JWT_VERIFICATION_KEY;
+const privyClient = PRIVY_APP_ID && PRIVY_APP_SECRET ? new PrivyClient(privyClientOpts) : null;
 
 /** Placeholder address for Privy-only users (unique per privy_did, valid 0x hex). */
 function placeholderAddressForPrivyDid(privyDid) {
@@ -167,7 +170,10 @@ export async function privySignin(req, res) {
     try {
       claims = await privyClient.verifyAuthToken(privyToken);
     } catch (err) {
-      logger.warn({ err: err?.message }, "Privy token verification failed");
+      logger.warn(
+        { err: err?.message, code: err?.code, appId: PRIVY_APP_ID },
+        "Privy token verification failed — ensure backend PRIVY_APP_ID/PRIVY_APP_SECRET match frontend NEXT_PUBLIC_PRIVY_APP_ID (same Privy app); optional: set PRIVY_JWT_VERIFICATION_KEY from Dashboard"
+      );
       return res.status(401).json({ success: false, message: "Invalid or expired Privy token" });
     }
     const privyDid = claims?.sub ?? claims?.userId;
