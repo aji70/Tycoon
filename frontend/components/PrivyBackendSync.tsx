@@ -71,8 +71,25 @@ export default function PrivyBackendSync() {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(usernameBody != null ? { username: usernameBody } : {}),
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data: { success?: boolean; message?: string; data?: { token?: string } } = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          // non-JSON response (e.g. 502/504 HTML)
+          if (!isLatest()) return;
+          const msg = `Server returned ${res.status} (not JSON). Is the backend running and using the same Privy app?`;
+          setError(msg);
+          setSyncState("sync_failed");
+          toast.error(`Sign-in with server failed: ${msg}`);
+          console.error("[PrivyBackendSync] privy-signin non-JSON response", res.status, text?.slice(0, 200));
+          return;
+        }
         if (!isLatest()) return;
+        // Debug: log backend response when not OK so we can see exact error
+        if (!res.ok) {
+          console.error("[PrivyBackendSync] privy-signin failed", { status: res.status, url: `${apiBase}/auth/privy-signin`, body: data });
+        }
         if (res.ok && data?.data?.token) {
           if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, data.data.token);
           await refetchGuest?.();
@@ -93,13 +110,15 @@ export default function PrivyBackendSync() {
         const msg = data?.message ?? "Sign-in failed";
         setError(msg);
         setSyncState("sync_failed");
-        toast.error(`Sign-in with server failed: ${msg}`);
+        // Clarify: Privy login succeeded; the failure is our backend linking
+        toast.error(`Privy sign-in worked, but the game server couldn't link your session: ${msg}`);
       } catch (e) {
         if (!isLatest()) return;
         const msg = (e as Error)?.message ?? "Request failed";
         setError(msg);
         setSyncState("sync_failed");
-        toast.error(`Sign-in with server failed: ${msg}`);
+        console.error("[PrivyBackendSync] privy-signin request threw", e);
+        toast.error(`Privy sign-in worked, but the game server link failed: ${msg}`);
       }
     },
     [getAccessToken, refetchGuest]
@@ -145,7 +164,7 @@ export default function PrivyBackendSync() {
   if (syncState === "sync_failed") {
     return (
       <div className="fixed bottom-4 left-4 right-4 z-[10000] md:left-auto md:right-4 md:max-w-sm flex items-center justify-between gap-3 rounded-xl bg-[#0E1415] border border-red-500/50 p-4 shadow-xl">
-        <p className="text-sm text-red-300 flex-1">{error ?? "Sign-in with server failed."}</p>
+        <p className="text-sm text-red-300 flex-1">{error ?? "Privy sign-in worked, but the game server couldn't link your session."}</p>
         <button
           type="button"
           onClick={handleRetry}
