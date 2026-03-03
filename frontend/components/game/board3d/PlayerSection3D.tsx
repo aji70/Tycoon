@@ -10,7 +10,7 @@ import TradeSection3D from "./TradeSection3D";
 import AiResponseModal3D from "./AiResponseModal3D";
 import { TradeModal } from "../modals/trade";
 import { useAiPlayerLogic } from "../ai-player/useAiPlayerLogic";
-import { Loader2 } from "lucide-react";
+import { Loader2, Crown } from "lucide-react";
 
 interface PlayerSection3DProps {
   game: Game;
@@ -107,6 +107,28 @@ export default function PlayerSection3D({
     [game_properties, onPropertySelect]
   );
 
+  /** Highest net worth = balance + sum of owned property prices (for crown) */
+  const highestNetWorthUserId = useMemo(() => {
+    const players = game?.players ?? [];
+    if (players.length === 0) return null;
+    let bestUserId: number | null = null;
+    let bestNet = -1;
+    for (const player of players) {
+      const ownedValue = (game_properties ?? [])
+        .filter((gp) => gp.address?.toLowerCase() === player.address?.toLowerCase())
+        .reduce((sum, gp) => {
+          const prop = properties.find((p) => p.id === gp.property_id);
+          return sum + (prop?.price ?? 0);
+        }, 0);
+      const net = (player.balance ?? 0) + ownedValue;
+      if (net > bestNet) {
+        bestNet = net;
+        bestUserId = player.user_id;
+      }
+    }
+    return bestUserId;
+  }, [game?.players, game_properties, properties]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-5">
@@ -175,8 +197,11 @@ export default function PlayerSection3D({
                         {getPlayerSymbol(p.symbol)}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold truncate ${isMe || isCurrent ? "text-amber-100" : "text-slate-200"}`}>
-                          {p.username ?? `Player ${p.user_id}`}
+                        <p className={`text-sm font-bold truncate flex items-center gap-1.5 ${isMe || isCurrent ? "text-amber-100" : "text-slate-200"}`}>
+                          {highestNetWorthUserId === p.user_id && (
+                            <Crown className="w-4 h-4 shrink-0 text-amber-400" aria-label="Highest net worth" title="Highest net worth" />
+                          )}
+                          <span className="truncate">{p.username ?? `Player ${p.user_id}`}</span>
                         </p>
                         <p className="text-xs text-slate-400 truncate">
                           <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>

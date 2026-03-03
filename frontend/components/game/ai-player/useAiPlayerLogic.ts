@@ -110,13 +110,15 @@ export function useAiPlayerLogic({
     [isNext, resetTradeFields]
   );
 
-  const sortedPlayers = useMemo(
-    () =>
-      [...(game?.players ?? [])].sort(
-        (a, b) => (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity)
-      ),
-    [game?.players]
-  );
+  /** Connected player first, then others by turn order */
+  const sortedPlayers = useMemo(() => {
+    const list = [...(game?.players ?? [])];
+    return list.sort((a, b) => {
+      if (me && a.user_id === me.user_id) return -1;
+      if (me && b.user_id === me.user_id) return 1;
+      return (a.turn_order ?? Infinity) - (b.turn_order ?? Infinity);
+    });
+  }, [game?.players, me?.user_id]);
 
   const handleCreateTrade = useCallback(async () => {
     if (!me || !tradeModal.target) return;
