@@ -21,6 +21,7 @@ router.get("/creator/:userId", gameController.findByCreator);
 router.get("/winner/:userId", gameController.findByWinner);
 router.get("/active", gameController.findActive);
 router.get("/pending", gameController.findPending);
+router.get("/open", gameController.findOpen);
 router.get("/my-games", optionalAuth, gameController.findMyGames);
 
 // -------------------------

@@ -60,6 +60,15 @@ const Game = {
       .offset(offset);
   },
 
+  /** Open lobbies: PENDING + PUBLIC only (for browse/join list). */
+  async findOpenGames({ limit = 50, offset = 0 } = {}) {
+    return db("games")
+      .where({ status: "PENDING", mode: "PUBLIC" })
+      .orderBy("created_at", "desc")
+      .limit(limit)
+      .offset(offset);
+  },
+
   async _findActiveGames({ limit = 50, offset = 0 } = {}) {
     return db("games")
       .whereIn("status", ["PENDING", "RUNNING"])
