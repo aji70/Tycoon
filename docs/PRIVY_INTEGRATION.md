@@ -86,6 +86,37 @@ This doc guides the full integration of [Privy](https://www.privy.io/) into Tyco
 
 ---
 
+## 3a. Troubleshooting: "Invalid or expired Privy token"
+
+If the frontend shows *"Privy sign-in worked, but the game server couldn't link your session: Invalid or expired Privy token"*:
+
+1. **Same backend as the one you're calling**  
+   The frontend uses `NEXT_PUBLIC_API_URL` (e.g. Railway). That backend must have Privy env set. Local `.env` does not apply to Railway.
+
+2. **Check the backend that serves the request**  
+   Open in the browser (or `curl`):
+   ```text
+   https://<your-backend-host>/api/auth/privy-check
+   ```
+   You should see `privyConfigured: true` and `privyAppIdMasked: "cmm9...qh9z"` (or your app’s masked ID).  
+   - If `privyConfigured: false` → set `PRIVY_APP_ID` and `PRIVY_APP_SECRET` in that backend’s env (e.g. Railway variables).  
+   - If the masked ID does **not** match your frontend’s `NEXT_PUBLIC_PRIVY_APP_ID` (e.g. `cmm9kscwq03zy0cjoycdpqh9z` → `cmm9...qh9z`), the backend is using a different Privy app. Use the same app’s App ID and App Secret from [Privy Dashboard](https://dashboard.privy.io/).
+
+3. **Add JWT verification key (recommended)**  
+   In [Privy Dashboard](https://dashboard.privy.io/) → your app → **Configuration** → **App settings** → copy the **verification key** (“Verify with key instead”).  
+   In your backend env (e.g. Railway), add:
+   ```text
+   PRIVY_JWT_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----
+   ...
+   -----END PUBLIC KEY-----"
+   ```
+   Use one line with `\n` for newlines if the platform requires it. This avoids extra network calls and often fixes verification failures.
+
+4. **Redeploy**  
+   After changing env vars on Railway (or your host), redeploy so the new values are applied.
+
+---
+
 ## 3b. Privy users in the DB (username)
 
 Privy-authenticated users are stored in the same `users` table with a **username** and `privy_did`:
