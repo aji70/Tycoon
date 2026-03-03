@@ -8,7 +8,7 @@ export const up = async (knex) => {
   await knex.schema.createTable("game_auctions", (table) => {
     table.increments("id").primary();
     table.integer("game_id").unsigned().notNullable().references("id").inTable("games").onDelete("CASCADE");
-    table.integer("property_id").unsigned().notNullable().references("id").inTable("properties");
+    table.integer("property_id").notNullable().references("id").inTable("properties");
     table.integer("started_by_player_id").unsigned().notNullable().references("id").inTable("game_players").onDelete("CASCADE");
     table.enum("status", ["open", "closed"]).notNullable().defaultTo("open");
     table.integer("winner_player_id").unsigned().nullable().references("id").inTable("game_players").onDelete("SET NULL");
