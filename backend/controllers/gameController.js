@@ -883,12 +883,17 @@ const gameController = {
         GameSetting.findByGameIds(gameIds),
         GamePlayer.findByGameIds(gameIds),
       ]);
-      const settingsByGame = Object.fromEntries(settingsList.map((s) => [s.game_id, s]));
-      const playersByGame = playersList.reduce((acc, p) => {
-        if (!acc[p.game_id]) acc[p.game_id] = [];
-        acc[p.game_id].push(p);
-        return acc;
-      }, {});
+      const settingsByGame = {};
+      for (const s of settingsList) {
+        const { game_id, ...rest } = s;
+        settingsByGame[game_id] = rest;
+      }
+      const playersByGame = {};
+      for (const p of playersList) {
+        const { game_id, ...rest } = p;
+        if (!playersByGame[game_id]) playersByGame[game_id] = [];
+        playersByGame[game_id].push(rest);
+      }
 
       const withSettingsAndPlayers = games.map((g) => ({
         ...g,
@@ -922,12 +927,17 @@ const gameController = {
         GameSetting.findByGameIds(gameIds),
         GamePlayer.findByGameIds(gameIds),
       ]);
-      const settingsByGame = Object.fromEntries(settingsList.map((s) => [s.game_id, s]));
-      const playersByGame = playersList.reduce((acc, p) => {
-        if (!acc[p.game_id]) acc[p.game_id] = [];
-        acc[p.game_id].push(p);
-        return acc;
-      }, {});
+      const settingsByGame = {};
+      for (const s of settingsList) {
+        const { game_id, ...rest } = s;
+        settingsByGame[game_id] = rest;
+      }
+      const playersByGame = {};
+      for (const p of playersList) {
+        const { game_id, ...rest } = p;
+        if (!playersByGame[game_id]) playersByGame[game_id] = [];
+        playersByGame[game_id].push(rest);
+      }
 
       const withSettingsAndPlayers = games.map((g) => ({
         ...g,
