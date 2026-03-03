@@ -1164,7 +1164,7 @@ export const join = async (req, res) => {
 export const createAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!user || !user.is_guest || !user.password_hash) {
+    if (!user || !user.is_guest) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -1194,6 +1194,17 @@ export const createAsGuest = async (req, res) => {
     const stakeAmount = 0n; // Guests: free games only
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
     const chainForCreate = User.normalizeChain(chain || "CELO");
+
+    // Privy (and other guest-without-password) users: ensure on-chain registration so we can call contract
+    const contractUser = user.password_hash
+      ? user
+      : await ensureUserHasContractPassword(db, user.id, chainForCreate);
+    if (!contractUser?.password_hash) {
+      return res.status(403).json({
+        success: false,
+        message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
+      });
+    }
     const isAI = !!is_ai;
     const numberOfAI = isAI ? Math.max(1, (number_of_players ?? 2) - 1) : 0;
 
@@ -1202,9 +1213,9 @@ export const createAsGuest = async (req, res) => {
     let onChainGameId;
     if (isAI) {
       const result = await createAIGameByBackend(
-        user.address,
-        user.password_hash,
-        user.username,
+        contractUser.address,
+        contractUser.password_hash,
+        contractUser.username,
         gameType,
         symbol || "hat",
         numberOfAI,
@@ -1215,9 +1226,9 @@ export const createAsGuest = async (req, res) => {
       onChainGameId = result?.gameId;
     } else {
       const result = await createGameByBackend(
-        user.address,
-        user.password_hash,
-        user.username,
+        contractUser.address,
+        contractUser.password_hash,
+        contractUser.username,
         gameType,
         symbol || "hat",
         number_of_players ?? 4,
@@ -1296,7 +1307,7 @@ export const createAsGuest = async (req, res) => {
 export const joinAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!user || !user.is_guest || !user.password_hash) {
+    if (!user || !user.is_guest) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -1322,6 +1333,18 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Already in game" });
     }
 
+    const chainForJoin = User.normalizeChain(game.chain || "CELO");
+    // Privy (and other guest-without-password) users: ensure on-chain registration so we can join
+    const contractUser = user.password_hash
+      ? user
+      : await ensureUserHasContractPassword(db, user.id, chainForJoin);
+    if (!contractUser?.password_hash) {
+      return res.status(403).json({
+        success: false,
+        message: "Guest authentication required. Link a wallet or use a guest account that can join games.",
+      });
+    }
+
     // Tournament lobby: game not created on-chain yet — avoid RPC call and return clear message
     if (!game.contract_game_id) {
       return res.status(400).json({
@@ -1336,7 +1359,6 @@ export const joinAsGuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Game code required" });
     }
 
-    const chainForJoin = User.normalizeChain(game.chain || "CELO");
     let contractGame;
     try {
       contractGame = await callContractRead("getGameByCode", [gameCodeForContract], chainForJoin);
@@ -1374,10 +1396,10 @@ export const joinAsGuest = async (req, res) => {
 
     try {
       await joinGameByBackend(
-        user.address,
-        user.password_hash,
+        contractUser.address,
+        contractUser.password_hash,
         onChainGameId,
-        user.username,
+        contractUser.username,
         symbol || "car",
         joinCode || gameCodeForContract,
         chainForJoin
@@ -1398,7 +1420,7 @@ export const joinAsGuest = async (req, res) => {
     const nextTurnOrder = maxTurnOrder + 1;
 
     await GamePlayer.create({
-      address: user.address,
+      address: contractUser.address,
       symbol: symbol || "car",
       user_id: user.id,
       game_id: game.id,
@@ -1448,7 +1470,7 @@ export const joinAsGuest = async (req, res) => {
 export const createAIAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!user || !user.is_guest || !user.password_hash) {
+    if (!user || !user.is_guest) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -1466,11 +1488,22 @@ export const createAIAsGuest = async (req, res) => {
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
     const chainForAICreate = User.normalizeChain(chain || "CELO");
 
+    // Privy (and other guest-without-password) users: ensure on-chain registration so we can call contract
+    const contractUser = user.password_hash
+      ? user
+      : await ensureUserHasContractPassword(db, user.id, chainForAICreate);
+    if (!contractUser?.password_hash) {
+      return res.status(403).json({
+        success: false,
+        message: "Guest authentication required. Link a wallet or use a guest account that can create games.",
+      });
+    }
+
     const gameCodeForContract = (code || "").trim();
     const { gameId: onChainGameIdFromEvent } = await createAIGameByBackend(
-      user.address,
-      user.password_hash,
-      user.username,
+      contractUser.address,
+      contractUser.password_hash,
+      contractUser.username,
       "PRIVATE",
       symbol || "hat",
       numberOfAI,
@@ -1523,7 +1556,7 @@ export const createAIAsGuest = async (req, res) => {
     await GamePlayer.create({
       game_id: game.id,
       user_id: user.id,
-      address: user.address,
+      address: contractUser.address,
       balance: startingCash,
       position: 0,
       turn_order: 1,
