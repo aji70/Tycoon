@@ -110,19 +110,23 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
 
   if (!props.open) return null;
 
+  const safeGameProps = game_properties ?? [];
+  const safeProperties = properties ?? [];
+  const safeMyProperties = my_properties ?? [];
+
   const targetOwnedProps = useMemo(() => {
     if (!targetPlayerAddress) return [];
-    const ownedGameProps = game_properties.filter(
+    const ownedGameProps = safeGameProps.filter(
       (gp: any) => gp.address === targetPlayerAddress
     );
-    return properties.filter((p: any) =>
+    return safeProperties.filter((p: any) =>
       ownedGameProps.some((gp: any) => gp.property_id === p.id)
     );
-  }, [game_properties, properties, targetPlayerAddress]);
+  }, [safeGameProps, safeProperties, targetPlayerAddress]);
 
   const offerPropNames = useMemo(
-    () => my_properties.filter((p) => offerProperties.includes(p.id)).map((p) => p.name),
-    [my_properties, offerProperties]
+    () => safeMyProperties.filter((p) => offerProperties.includes(p.id)).map((p) => p.name),
+    [safeMyProperties, offerProperties]
   );
   const requestPropNames = useMemo(
     () => targetOwnedProps.filter((p) => requestProperties.includes(p.id)).map((p) => p.name),
@@ -182,8 +186,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                 </h3>
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {my_properties.length > 0 ? (
-                  my_properties.map((p) => (
+                {safeMyProperties.length > 0 ? (
+                  safeMyProperties.map((p) => (
                     <PropertyCard
                       key={p.id}
                       prop={p}
@@ -221,8 +225,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                 </h3>
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {targetOwnedProps.length > 0 ? (
-                  targetOwnedProps.map((p) => (
+                {(targetOwnedProps ?? []).length > 0 ? (
+                  (targetOwnedProps ?? []).map((p) => (
                     <PropertyCard
                       key={p.id}
                       prop={p}

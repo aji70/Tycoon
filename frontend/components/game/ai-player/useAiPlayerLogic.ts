@@ -54,7 +54,7 @@ export function useAiPlayerLogic({
   const [offerCash, setOfferCash] = useState<number>(0);
   const [requestCash, setRequestCash] = useState<number>(0);
 
-  const { data: contractGame } = useGetGameByCode(game.code);
+  const { data: contractGame } = useGetGameByCode(game?.code, { enabled: !!game?.code });
   const onChainGameId = contractGame?.id;
   const canClaimAIGameOnChain = !!(contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai);
 
