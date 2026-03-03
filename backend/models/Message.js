@@ -36,11 +36,14 @@ const Message = {
       return { error: false, message: "Successful", data: created };
     }
 
-    // Game chat
+    // Game chat: resolve game by numeric id or by code (frontend may send either).
+    // Never use a string code in an id query — MySQL coerces e.g. "ABC123" to 0 and can return the wrong game.
     const gameIdOrCode = messageData.game_id;
+    const numericId = gameIdOrCode != null && String(gameIdOrCode).trim() !== "" ? Number(gameIdOrCode) : NaN;
+    const isNumericId = Number.isInteger(numericId) && numericId > 0;
     const game =
-      (await db("games").where({ id: gameIdOrCode }).first()) ??
-      (await db("games").where({ code: String(gameIdOrCode) }).first());
+      (isNumericId ? await db("games").where({ id: numericId }).first() : null) ??
+      (await db("games").where({ code: String(gameIdOrCode || "").trim().toUpperCase() }).first());
     if (game && (game.status === "RUNNING" || game.status === "FINISHED")) {
       const playerIdRaw = messageData.player_id;
       const userIdRaw = messageData.user_id;
@@ -124,10 +127,12 @@ const Message = {
   },
 
   async findAllByMessagesByGameId(gameIdOrCode) {
-    // Support both game id (number) and game code (string)
+    // Support both game id (number) and game code (string); avoid using string code in id query
+    const numericId = gameIdOrCode != null && String(gameIdOrCode).trim() !== "" ? Number(gameIdOrCode) : NaN;
+    const isNumericId = Number.isInteger(numericId) && numericId > 0;
     const game =
-      (await db("games").where({ id: gameIdOrCode }).first()) ??
-      (await db("games").where({ code: String(gameIdOrCode) }).first());
+      (isNumericId ? await db("games").where({ id: numericId }).first() : null) ??
+      (await db("games").where({ code: String(gameIdOrCode || "").trim().toUpperCase() }).first());
     if (!game) return [];
     const chat = await db("chats").where({ game_id: game.id }).first();
     if (!chat) return [];
