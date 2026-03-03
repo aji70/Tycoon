@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 
@@ -36,7 +35,6 @@ const GuestAuthContext = createContext<GuestAuthContextValue | null>(null);
 const TOKEN_KEY = "token";
 
 export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const [guestUser, setGuestUser] = useState<GuestUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -87,7 +85,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       if (data?.data?.token && data?.data?.user) {
         if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
         setGuestUser(data.data.user);
-        router.push("/profile");
         return { success: true };
       }
       return { success: false, message: (data?.message as string) || "Registration failed" };
@@ -95,7 +92,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       const message = err?.response?.data?.message ?? err?.message ?? "Registration failed";
       return { success: false, message };
     }
-  }, [router]);
+  }, []);
 
   const loginGuest = useCallback(async (username: string, password: string) => {
     try {
@@ -104,7 +101,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       if (data?.data?.token && data?.data?.user) {
         if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
         setGuestUser(data.data.user);
-        router.push("/profile");
         return { success: true };
       }
       return { success: false, message: (data?.message as string) || "Login failed" };
@@ -112,7 +108,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       const message = err?.response?.data?.message ?? err?.message ?? "Login failed";
       return { success: false, message };
     }
-  }, [router]);
+  }, []);
 
   const logoutGuest = useCallback(() => {
     if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
@@ -178,7 +174,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
         if (data?.data?.token && data?.data?.user) {
           if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
           setGuestUser(data.data.user);
-          router.push("/profile");
           return { success: true };
         }
         return { success: false, message: (res?.data as { message?: string })?.message };
@@ -187,7 +182,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message };
       }
     },
-    [router]
+    []
   );
 
   const connectEmail = useCallback(async (email: string, password: string) => {
@@ -223,7 +218,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       if (data?.data?.token && data?.data?.user) {
         if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
         setGuestUser(data.data.user);
-        router.push("/profile");
         return { success: true };
       }
       return { success: false, message: (res?.data as { message?: string })?.message };
@@ -231,7 +225,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (err as Error)?.message ?? "Login failed";
       return { success: false, message };
     }
-  }, [router]);
+  }, []);
 
   const value: GuestAuthContextValue = {
     guestUser,
