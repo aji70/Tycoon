@@ -1,18 +1,34 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useAccount } from "wagmi";
-import LobbyChatRoom from "@/components/game/board3d/LobbyChatRoom";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import { MessageCircle, Users } from "lucide-react";
 
+const LobbyChatRoom = dynamic(
+  () => import("@/components/game/board3d/LobbyChatRoom"),
+  { ssr: false, loading: () => (
+    <div className="flex flex-col items-center justify-center h-full min-h-[300px] gap-3">
+      <div className="w-10 h-10 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+      <span className="text-sm text-cyan-400/80 font-medium">Loading chat…</span>
+    </div>
+  ) }
+);
+
 export default function RoomsPage() {
+  const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const { onlineCount } = useOnlineUsers(isConnected ? address : undefined);
+  const { onlineCount } = useOnlineUsers(mounted && (isConnected || !!guestUser) ? (guestUser?.address ?? address ?? undefined) : undefined);
   const isMobile = useMediaQuery("(max-width: 768px)");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const displayAddress = guestUser?.address ?? address ?? undefined;
   const currentUserId = guestUser?.id ?? undefined;
@@ -31,7 +47,7 @@ export default function RoomsPage() {
           <p className="text-cyan-400/80 text-sm mt-2 font-dmSans">
             General lobby — chat with everyone online. Create or join games from Home.
           </p>
-          {isConnected && onlineCount != null && (
+          {mounted && (isConnected || guestUser) && onlineCount != null && (
             <p className="flex items-center gap-2 text-cyan-400/70 text-sm mt-1">
               <Users className="w-4 h-4" />
               <span>{onlineCount} {onlineCount === 1 ? "player" : "players"} online</span>
