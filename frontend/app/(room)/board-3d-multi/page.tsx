@@ -1045,6 +1045,7 @@ function Board3DPageContent() {
           requires_buy?: boolean;
           property_for_buy?: Property;
           card?: { instruction?: string; display_instruction?: string };
+          passed_turn?: boolean;
         };
       }>("/game-players/change-position", {
         user_id: me.user_id,
@@ -1054,6 +1055,13 @@ function Board3DPageContent() {
         is_double: isInJail ? rolledDouble : false,
       });
       const data = res?.data?.data ?? (res as any)?.data;
+      if (data?.passed_turn) {
+        toast.success("Turn passed to next player.");
+        await refetchGame();
+        setRollingDice(null);
+        rollingForPlayerIdRef.current = null;
+        return;
+      }
       if (data?.still_in_jail) {
         setJailChoiceRequired(true);
       }
@@ -1116,12 +1124,25 @@ function Board3DPageContent() {
         });
         const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
         if (msg.includes("You already rolled this round") && me?.user_id != null && game?.id != null) {
-          toast.success("Passing turn to next player.");
           try {
-            await apiClient.post("/game-players/end-turn", { user_id: me.user_id, game_id: game.id });
-            await refetchGame();
+            const endRes = await apiClient.post<{ data?: { success?: boolean; message?: string }; success?: boolean; message?: string }>(
+              "/game-players/end-turn",
+              { user_id: me.user_id, game_id: game.id }
+            );
+            const ok = (endRes?.data as { success?: boolean })?.success ?? (endRes as { success?: boolean })?.success;
+            const endMsg = (endRes?.data as { message?: string })?.message ?? (endRes as { message?: string })?.message ?? "";
+            if (ok || (typeof endMsg === "string" && endMsg.includes("cannot end another player"))) {
+              toast.success("Turn passed to next player.");
+              await refetchGame();
+            } else if (!ok && endMsg) {
+              toast.error(endMsg);
+              await refetchGame();
+            } else {
+              await refetchGame();
+            }
           } catch (e) {
             toast.error(getContractErrorMessage(e, "Failed to pass turn"));
+            await refetchGame();
           }
         } else {
           toast.error(getContractErrorMessage(err, "Roll failed"));
