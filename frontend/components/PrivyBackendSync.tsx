@@ -22,6 +22,7 @@ export default function PrivyBackendSync() {
   const guestAuth = useGuestAuthOptional();
   const refetchGuest = guestAuth?.refetchGuest;
   const retryCountRef = useRef(0);
+  const requestIdRef = useRef(0);
   const RETRY_DELAY_MS = 1500;
   const MAX_TOKEN_RETRIES = 2;
 
@@ -38,13 +39,17 @@ export default function PrivyBackendSync() {
         toast.error("Sign-in with server failed: API URL not configured.");
         return;
       }
+      const thisRequestId = ++requestIdRef.current;
+      const isLatest = () => thisRequestId === requestIdRef.current;
       try {
         const token = await getAccessToken();
         if (!token) {
           if (usernameBody != null) {
-            setError("Session expired. Please sign in again.");
-            setSyncState("sync_failed");
-            toast.error("Session expired. Please sign in again.");
+            if (isLatest()) {
+              setError("Session expired. Please sign in again.");
+              setSyncState("sync_failed");
+              toast.error("Session expired. Please sign in again.");
+            }
             return;
           }
           if (retryCountRef.current < MAX_TOKEN_RETRIES) {
@@ -53,9 +58,11 @@ export default function PrivyBackendSync() {
             return;
           }
           retryCountRef.current = 0;
-          setError("Could not get session. Please try again.");
-          setSyncState("sync_failed");
-          toast.error("Could not get session. Please try again.");
+          if (isLatest()) {
+            setError("Could not get session. Please try again.");
+            setSyncState("sync_failed");
+            toast.error("Could not get session. Please try again.");
+          }
           return;
         }
         retryCountRef.current = 0;
@@ -65,6 +72,7 @@ export default function PrivyBackendSync() {
           body: JSON.stringify(usernameBody != null ? { username: usernameBody } : {}),
         });
         const data = await res.json();
+        if (!isLatest()) return;
         if (res.ok && data?.data?.token) {
           if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, data.data.token);
           await refetchGuest?.();
@@ -87,6 +95,7 @@ export default function PrivyBackendSync() {
         setSyncState("sync_failed");
         toast.error(`Sign-in with server failed: ${msg}`);
       } catch (e) {
+        if (!isLatest()) return;
         const msg = (e as Error)?.message ?? "Request failed";
         setError(msg);
         setSyncState("sync_failed");
