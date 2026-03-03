@@ -17,3 +17,6 @@ frontend/.env.*.local
 **/secrets/
 **/.secrets
 ENV_SETUP.md
+
+# Documentation (local / not tracked)
+doc/
