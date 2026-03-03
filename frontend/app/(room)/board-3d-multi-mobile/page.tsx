@@ -231,10 +231,15 @@ function Board3DMobilePageContent() {
     socketService.onGameUpdate(onGameUpdate);
     socketService.onGameStarted(onGameStarted);
     socketService.onVoteCast(onVoteCast);
+    const onPlayerRolled = (data: { user_id: number; username: string; die1: number; die2: number; total: number }) => {
+      setLastVisibleRoll({ user_id: data.user_id, username: data.username || "Player", die1: data.die1, die2: data.die2, total: data.total });
+    };
+    socketService.onPlayerRolled(onPlayerRolled);
     return () => {
       socketService.removeListener("game-update", onGameUpdate);
       socketService.removeListener("game-started", onGameStarted);
       socketService.removeListener("vote-cast", onVoteCast);
+      socketService.removeListener("player-rolled", onPlayerRolled);
       socketService.leaveGameRoom(gameCode);
     };
   }, [gameCode, game?.is_ai, queryClient, refetchGame, refetchGameProperties]);
@@ -270,6 +275,7 @@ function Board3DMobilePageContent() {
   const [liveMovementOverride, setLiveMovementOverride] = useState<Record<number, number>>({});
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  const [lastVisibleRoll, setLastVisibleRoll] = useState<{ user_id: number; username: string; die1: number; die2: number; total: number } | null>(null);
   const [endGameCandidate, setEndGameCandidate] = useState<{
     winner: Player | null;
     position: number;
@@ -519,6 +525,7 @@ function Board3DMobilePageContent() {
       setJailChoiceRequired(false);
       setLandedPositionForBuy(null);
       setLastRollResultLive(null);
+      setLastVisibleRoll(null);
       landedPositionThisTurnRef.current = null;
       await refetchGame();
     } catch (err) {
@@ -976,6 +983,8 @@ function Board3DMobilePageContent() {
         position: newPos,
         rolled: totalMove,
         is_double: isInJail ? rolledDouble : false,
+        die1: value.die1,
+        die2: value.die2,
       });
       const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean; new_position?: number; requires_buy?: boolean; property_for_buy?: Property; card?: { instruction?: string; display_instruction?: string }; passed_turn?: boolean } })?.data;
       if (data?.passed_turn) {
@@ -989,6 +998,7 @@ function Board3DMobilePageContent() {
         setJailChoiceRequired(true);
       }
       setLastRollResultLive(value);
+      setLastVisibleRoll({ user_id: me.user_id, username: (me?.username ?? "Player").trim() || "Player", die1: value.die1, die2: value.die2, total: value.total });
       const finalPosition = data?.new_position != null ? data.new_position : newPos;
       landedPositionThisTurnRef.current = finalPosition;
       await Promise.all([refetchGame(), refetchGameProperties()]);
@@ -1494,7 +1504,12 @@ function Board3DMobilePageContent() {
   }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : [];
-  const lastRollResultToShow = lastRollResultLive;
+  const lastRollResultToShow = isLiveGame && lastVisibleRoll
+    ? { die1: lastVisibleRoll.die1, die2: lastVisibleRoll.die2, total: lastVisibleRoll.total }
+    : lastRollResultLive;
+  const rollLabel = isLiveGame && lastVisibleRoll
+    ? (lastVisibleRoll.user_id === me?.user_id ? "You rolled" : `${lastVisibleRoll.username} rolled`)
+    : undefined;
   const showRollUi = !isLiveGame || (playerCanRoll && !(meInJail && !jailChoiceRequired));
 
   const players = isLiveGame ? livePlayers : [];
@@ -1676,6 +1691,7 @@ function Board3DMobilePageContent() {
                 rollingDice={rollingDice ?? undefined}
                 onDiceComplete={isLiveGame ? onDiceCompleteClick : undefined}
                 lastRollResult={lastRollResultToShow}
+                rollLabel={rollLabel}
                 onRoll={showRollUi ? onRollClick : undefined}
                 history={historyToShow}
                 hideCenterActionLog={true}
