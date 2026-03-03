@@ -85,7 +85,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    duration: 10,
+    duration: 30,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
@@ -481,6 +481,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="500">$500</SelectItem>
+                <SelectItem value="1000">$1,000</SelectItem>
                 <SelectItem value="1500">$1,500</SelectItem>
                 <SelectItem value="2000">$2,000</SelectItem>
               </SelectContent>
@@ -497,9 +498,8 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="2">2m</SelectItem>
-                <SelectItem value="10">10m</SelectItem>
                 <SelectItem value="30">30m</SelectItem>
+                <SelectItem value="45">45m</SelectItem>
                 <SelectItem value="60">60m</SelectItem>
                 <SelectItem value="90">90m</SelectItem>
                 <SelectItem value="0">∞</SelectItem>

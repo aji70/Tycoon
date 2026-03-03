@@ -83,7 +83,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
     randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
-    duration: 10,
+    duration: 30,
   });
 
   const [customStake, setCustomStake] = useState<string>("");
@@ -474,7 +474,6 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
                   <SelectItem value="1000">$1,000</SelectItem>
                   <SelectItem value="1500">$1,500</SelectItem>
                   <SelectItem value="2000">$2,000</SelectItem>
-                  <SelectItem value="5000">$5,000</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -490,8 +489,6 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2">2 minutes</SelectItem>
-                  <SelectItem value="10">10 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
                   <SelectItem value="60">60 minutes</SelectItem>

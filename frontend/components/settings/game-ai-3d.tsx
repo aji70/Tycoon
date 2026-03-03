@@ -149,7 +149,6 @@ export default function PlayWithAI3D() {
                 <SelectItem value="1000">$1,000</SelectItem>
                 <SelectItem value="1500">$1,500</SelectItem>
                 <SelectItem value="2000">$2,000</SelectItem>
-                <SelectItem value="5000">$5,000</SelectItem>
               </SelectContent>
             </Select>
             <div className="mt-8">
@@ -165,8 +164,6 @@ export default function PlayWithAI3D() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2">2 minutes</SelectItem>
-                  <SelectItem value="5">5 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="45">45 minutes</SelectItem>
                   <SelectItem value="60">60 minutes</SelectItem>
