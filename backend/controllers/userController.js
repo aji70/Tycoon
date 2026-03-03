@@ -120,10 +120,11 @@ const userController = {
   /**
    * GET /api/users/leaderboard?chain=&type=wins|earnings|stakes|winrate&limit=20
    * Returns top players for the given chain. Chain can be name (BASE, CELO) or chainId (8453, 42220).
+   * Default chain is CELO (app is Celo-only); use BASE/POLYGON if query param provided.
    */
   async getLeaderboard(req, res) {
     try {
-      const { chain = "BASE", type = "wins", limit = 20 } = req.query;
+      const { chain = "CELO", type = "wins", limit = 20 } = req.query;
       const normalizedLimit = Math.min(Number.parseInt(limit, 10) || 20, 100);
       const normalizedType = String(type).toLowerCase();
       let data;
