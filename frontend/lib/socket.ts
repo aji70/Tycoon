@@ -3,6 +3,7 @@ import {
   GameCreatedData,
   PlayerJoinedData,
   PlayerLeftData,
+  PlayerRolledData,
   PositionChangedData,
   GameReadyData,
   GameStartedData,
@@ -125,6 +126,13 @@ class SocketService {
   onVoteCast(callback: (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => void): void {
     if (this.socket) {
       this.socket.on("vote-cast", callback);
+    }
+  }
+
+  /** Emitted by backend when any player rolls; all clients see the dice result (like chance/chest). */
+  onPlayerRolled(callback: (data: PlayerRolledData) => void): void {
+    if (this.socket) {
+      this.socket.on("player-rolled", callback);
     }
   }
 

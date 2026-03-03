@@ -43,6 +43,8 @@ type BoardSceneProps = {
   onDiceComplete?: () => void;
   /** After roll, show this result in the center (die1 + die2 = total). */
   lastRollResult?: { die1: number; die2: number; total: number } | null;
+  /** Optional label above the dice (e.g. "You rolled" or "Alice rolled") so all players see whose roll it is. */
+  rollLabel?: string;
   /** Called when user clicks the center Roll button (demo). */
   onRoll?: () => void;
   /** Action log history — renders below roll button in center (unless hideCenterActionLog) */
@@ -704,7 +706,7 @@ function AiThinkingLabel({ label = "AI is thinking..." }: { label?: string }) {
   );
 }
 
-function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: number } }) {
+function RollResultLabel({ roll, label }: { roll: { die1: number; die2: number; total: number }; label?: string }) {
   return createElement(
     Html,
     {
@@ -715,6 +717,26 @@ function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: 
         pointerEvents: "none",
         userSelect: "none",
         display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        whiteSpace: "nowrap",
+      },
+    },
+    label
+      ? createElement("span", {
+          style: {
+            fontSize: "24px",
+            fontWeight: 600,
+            color: "rgba(255,255,255,0.9)",
+            textShadow: "0 0 8px #000, 0 1px 4px #000",
+          },
+        }, label)
+      : null,
+    createElement("div", {
+      style: {
+        display: "flex",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -723,14 +745,14 @@ function RollResultLabel({ roll }: { roll: { die1: number; die2: number; total: 
         fontWeight: 800,
         color: "#fff",
         textShadow: "0 0 12px #000, 0 2px 6px #000",
-        whiteSpace: "nowrap",
       },
     },
-    createElement("span", { style: { color: "#22d3ee" } }, String(roll.die1)),
-    createElement("span", { style: { color: "#fff" } }, "+"),
-    createElement("span", { style: { color: "#f472b6" } }, String(roll.die2)),
-    createElement("span", { style: { color: "#fff" } }, "="),
-    createElement("span", { style: { color: "#fbbf24" } }, String(roll.total))
+      createElement("span", { style: { color: "#22d3ee" } }, String(roll.die1)),
+      createElement("span", { style: { color: "#fff" } }, "+"),
+      createElement("span", { style: { color: "#f472b6" } }, String(roll.die2)),
+      createElement("span", { style: { color: "#fff" } }, "="),
+      createElement("span", { style: { color: "#fbbf24" } }, String(roll.total))
+    )
   );
 }
 
@@ -877,6 +899,7 @@ export default function BoardScene({
   rollingDice,
   onDiceComplete,
   lastRollResult,
+  rollLabel,
   onRoll,
   history,
   hideCenterActionLog = false,
@@ -954,7 +977,7 @@ export default function BoardScene({
         })
       : null,
     aiThinking ? createElement(AiThinkingLabel, { key: "ai-thinking", label: thinkingLabel }) : null,
-    lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult }) : null,
+    lastRollResult && !rollingDice ? createElement(RollResultLabel, { key: "roll-result", roll: lastRollResult, label: rollLabel }) : null,
     onRoll ? createElement(CenterRollButton, { key: "roll-btn", onRoll, disabled: !!rollingDice }) : null,
     history && !hideCenterActionLog ? createElement(CenterActionLog, { key: "action-log", history }) : null,
     ...playerTokens.map(({ player, pos, idxOnSquare, totalOnSquare, symbol }) =>

@@ -1035,6 +1035,25 @@ const gamePlayerController = {
       return res.status(statusObj.success ? 200 : 400).json(statusObj);
     };
 
+    // Emit player-rolled so all clients (including opponents) can show the dice result
+    const emitPlayerRolledIfPresent = async (gameObj, userId, d1, d2, rolledTotal) => {
+      if (d1 == null || d2 == null || !gameObj?.code) return;
+      const io = req.app.get("io");
+      if (!io) return;
+      try {
+        const userRow = await db("users").where({ id: userId }).select("username").first();
+        io.to(gameObj.code).emit("player-rolled", {
+          user_id: userId,
+          username: userRow?.username ?? "Player",
+          die1: Number(d1),
+          die2: Number(d2),
+          total: Number(rolledTotal) || Number(d1) + Number(d2),
+        });
+      } catch (e) {
+        logger.warn({ err: e, gameId: gameObj?.id }, "emitPlayerRolled failed");
+      }
+    };
+
     try {
       const {
         user_id,
@@ -1042,6 +1061,8 @@ const gamePlayerController = {
         position: rawPosition,
         rolled = null,
         is_double = false,
+        die1 = null,
+        die2 = null,
       } = req.body;
 
       // Basic validation
@@ -1216,6 +1237,7 @@ const gamePlayerController = {
           .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
+        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         return res.json({
           success: true,
           message: "You've been sent to jail!",
@@ -1243,6 +1265,7 @@ const gamePlayerController = {
         );
         await trx.commit();
         await notifyGameUpdate(req, game_id);
+        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         return res.json({
           success: true,
           still_in_jail: true,
@@ -1349,6 +1372,7 @@ const gamePlayerController = {
 
         await trx.commit();
         await notifyGameUpdate(req, game_id);
+        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         return res.json({
           success: true,
           message: "Position updated successfully.",
@@ -1382,6 +1406,7 @@ const gamePlayerController = {
           .update({ status: "declined", updated_at: now });
         await trx.commit();
         await notifyGameUpdate(req, game_id);
+        await emitPlayerRolledIfPresent(game, user_id, die1, die2, rolled);
         return res.json({
           success: true,
           message: "Still in jail. Try again next turn.",

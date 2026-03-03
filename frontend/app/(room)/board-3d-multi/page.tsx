@@ -400,6 +400,8 @@ function Board3DPageContent() {
   const [animatedPositions, setAnimatedPositions] = useState<Record<number, number>>(initialPositions);
   const [lastRollResult, setLastRollResult] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
+  /** When set, all players see this roll (set by roller locally or by opponent via socket "player-rolled"). */
+  const [lastVisibleRoll, setLastVisibleRoll] = useState<{ user_id: number; username: string; die1: number; die2: number; total: number } | null>(null);
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [demoHistory, setDemoHistory] = useState<History[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -752,6 +754,15 @@ function Board3DPageContent() {
     return () => socketService.removeListener("vote-cast", onVoteCast);
   }, [gameCode, game?.id, game?.is_ai, me?.user_id, fetchUpdatedGame, fetchVoteStatus]);
 
+  useEffect(() => {
+    if (!gameCode || !SOCKET_URL || !game || game.is_ai !== false) return;
+    const onPlayerRolled = (data: { user_id: number; username: string; die1: number; die2: number; total: number }) => {
+      setLastVisibleRoll({ user_id: data.user_id, username: data.username || "Player", die1: data.die1, die2: data.die2, total: data.total });
+    };
+    socketService.onPlayerRolled(onPlayerRolled);
+    return () => socketService.removeListener("player-rolled", onPlayerRolled);
+  }, [gameCode, SOCKET_URL, game?.id, game?.is_ai]);
+
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     game?.id ?? 0,
     me?.user_id,
@@ -811,6 +822,7 @@ function Board3DPageContent() {
       setJailChoiceRequired(false);
       setLandedPositionForBuy(null);
       setLastRollResultLive(null);
+      setLastVisibleRoll(null);
       landedPositionThisTurnRef.current = null;
       await refetchGame();
     } catch (err) {
@@ -1053,6 +1065,8 @@ function Board3DPageContent() {
         position: newPos,
         rolled: totalMove,
         is_double: isInJail ? rolledDouble : false,
+        die1: value.die1,
+        die2: value.die2,
       });
       const data = res?.data?.data ?? (res as any)?.data;
       if (data?.passed_turn) {
@@ -1066,6 +1080,7 @@ function Board3DPageContent() {
         setJailChoiceRequired(true);
       }
       setLastRollResultLive(value);
+      setLastVisibleRoll({ user_id: me.user_id, username: (me?.username ?? "Player").trim() || "Player", die1: value.die1, die2: value.die2, total: value.total });
       const finalPosition = data?.new_position != null ? data.new_position : newPos;
       landedPositionThisTurnRef.current = finalPosition;
       const [_, gpRes] = await Promise.all([refetchGame(), refetchGameProperties()]);
@@ -1474,8 +1489,13 @@ function Board3DPageContent() {
   }, [game?.id, game?.winner_id, winner?.user_id, me?.user_id, claimAndLeaveInProgress]);
 
   const historyToShow = isLiveGame && game?.history?.length ? game.history : demoHistory;
-  // Live game: only show actual dice we rolled (never reconstruct from history — backend only has total, so we'd show wrong e.g. 3+3=6)
-  const lastRollResultToShow = isLiveGame ? lastRollResultLive : lastRollResult;
+  // Live game: show last visible roll for all players (roller sets it locally; opponents get it via socket "player-rolled")
+  const lastRollResultToShow = isLiveGame
+    ? (lastVisibleRoll ? { die1: lastVisibleRoll.die1, die2: lastVisibleRoll.die2, total: lastVisibleRoll.total } : null)
+    : lastRollResult;
+  const rollLabel = isLiveGame && lastVisibleRoll
+    ? (lastVisibleRoll.user_id === me?.user_id ? "You rolled" : `${lastVisibleRoll.username} rolled`)
+    : undefined;
 
   const gameEnded = gameError && (gameQueryError as Error)?.message === "Game ended";
   if (gameEnded) {
@@ -1721,6 +1741,7 @@ function Board3DPageContent() {
                   rollingDice={rollingDice ?? undefined}
                   onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
                   lastRollResult={lastRollResultToShow}
+                  rollLabel={rollLabel}
                   onRoll={showRollUi ? onRollClick : undefined}
                   history={historyToShow}
                   aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}

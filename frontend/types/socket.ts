@@ -72,3 +72,11 @@ export interface GameStartedData {
 export interface GameEndedData {
   gameCode: string;
 }
+
+export interface PlayerRolledData {
+  user_id: number;
+  username: string;
+  die1: number;
+  die2: number;
+  total: number;
+}
