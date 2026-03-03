@@ -1,6 +1,7 @@
 import db from "../config/database.js";
 import Game from "../models/Game.js";
 import GameProperty from "../models/GameProperty.js";
+import GameSetting from "../models/GameSetting.js";
 import User from "../models/User.js";
 import { transferPropertyOwnership, isContractConfigured } from "../services/tycoonContract.js";
 import {
@@ -371,40 +372,41 @@ const gamePropertyController = {
         });
       }
 
-      // Get current development levels for all properties in the group
-      const groupDevelopments = await trx("game_properties")
-        .whereIn("property_id", groupProperties)
-        .andWhere({ game_id, player_id: player.id })
-        .select("property_id", "development"); // assumes this column exists
+      // House rule: even build — only enforce "within 1 level" when enabled
+      const game_settings_dev = await GameSetting.findByGameId(game.id);
+      if (game_settings_dev && game_settings_dev.even_build) {
+        const groupDevelopments = await trx("game_properties")
+          .whereIn("property_id", groupProperties)
+          .andWhere({ game_id, player_id: player.id })
+          .select("property_id", "development");
 
-      if (groupDevelopments.length > 0) {
-        const levels = groupDevelopments.map((p) => Number(p.development || 0));
-        const minLevel = Math.min(...levels);
-        const maxLevel = Math.max(...levels);
+        if (groupDevelopments.length > 0) {
+          const levels = groupDevelopments.map((p) => Number(p.development || 0));
+          const minLevel = Math.min(...levels);
+          const maxLevel = Math.max(...levels);
 
-        // No property may have a difference greater than 1
-        if (maxLevel - minLevel > 1) {
-          await trx.rollback();
-          return res.status(422).json({
-            success: false,
-            message:
-              "Development levels in this property group must be within 1 level of each other.",
-            data: null,
-          });
-        }
+          if (maxLevel - minLevel > 1) {
+            await trx.rollback();
+            return res.status(422).json({
+              success: false,
+              message:
+                "Development levels in this property group must be within 1 level of each other.",
+              data: null,
+            });
+          }
 
-        // The property being upgraded cannot exceed the lowest by more than 1
-        const currentPropertyLevel = Number(game_property.development || 0);
-        const proposedLevel = currentPropertyLevel + 1;
+          const currentPropertyLevel = Number(game_property.development || 0);
+          const proposedLevel = currentPropertyLevel + 1;
 
-        if (proposedLevel - minLevel > 1) {
-          await trx.rollback();
-          return res.status(422).json({
-            success: false,
-            message:
-              "You must build evenly across all properties in this group (cannot upgrade this one yet).",
-            data: null,
-          });
+          if (proposedLevel - minLevel > 1) {
+            await trx.rollback();
+            return res.status(422).json({
+              success: false,
+              message:
+                "You must build evenly across all properties in this group (cannot upgrade this one yet).",
+              data: null,
+            });
+          }
         }
       }
 
@@ -628,6 +630,16 @@ const gamePropertyController = {
         });
       }
 
+      const game_settings = await GameSetting.findByGameId(game.id);
+      if (game_settings && !game_settings.mortgage) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Mortgages are disabled for this game",
+          data: null,
+        });
+      }
+
       //  Fetch player
       const player = await trx("game_players")
         .where({ user_id, game_id })
@@ -747,6 +759,16 @@ const gamePropertyController = {
         return res.status(422).json({
           success: false,
           message: "Game is currently not running",
+          data: null,
+        });
+      }
+
+      const game_settingsUnmort = await GameSetting.findByGameId(game.id);
+      if (game_settingsUnmort && !game_settingsUnmort.mortgage) {
+        await trx.rollback();
+        return res.status(422).json({
+          success: false,
+          message: "Mortgages are disabled for this game",
           data: null,
         });
       }

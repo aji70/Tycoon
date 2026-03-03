@@ -14,7 +14,6 @@ import { Switch } from "@/components/ui/game-switch";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
-import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
@@ -196,13 +195,12 @@ export default function PlayWithAIMobile() {
           <div className="bg-black/60 rounded-xl p-4 border border-cyan-500/30">
             <h3 className="text-base font-bold text-cyan-400 mb-3 text-center">House Rules</h3>
             <div className="space-y-2">
-              {[
-                { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
-                { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
-                { icon: GiBank, label: "Mortgages", key: "mortgage" },
-                { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-                { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
-              ].map((item) => (
+                {[
+                  { icon: RiAuctionFill, label: "Auction Unsold", key: "auction" },
+                  { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
+                  { icon: GiBank, label: "Mortgages", key: "mortgage" },
+                  { icon: IoBuild, label: "Even Build", key: "evenBuild" },
+                ].map((item) => (
                 <div key={item.key} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <item.icon className="w-4 h-4 text-cyan-400" />

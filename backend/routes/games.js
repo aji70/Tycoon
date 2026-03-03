@@ -8,6 +8,7 @@ import gameController, {
   createAIAsGuest,
   addAIPlayers,
 } from "../controllers/gameController.js";
+import { placeBid } from "../controllers/auctionController.js";
 import { requireAuth, optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -42,5 +43,7 @@ router.post("/create-as-guest", requireAuth, createAsGuest);
 router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
 router.post("/join-as-guest", requireAuth, joinAsGuest);
 router.post("/:id/add-ai-players", addAIPlayers);
+
+router.post("/auction/bid", placeBid);
 
 export default router;
