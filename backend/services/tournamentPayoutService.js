@@ -10,16 +10,20 @@ import logger from "../config/logger.js";
 
 /**
  * Compute payout list for a completed tournament: [{ entry_id, rank, amount_wei }].
+ * ENTRY_FEE_POOL: pool = entry_fee_wei * participant count. CREATOR_FUNDED: pool from prize_pool_wei.
  */
 export async function computePayouts(tournamentId) {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament || tournament.status !== "COMPLETED") return [];
   if (tournament.prize_source === "NO_POOL") return [];
 
-  const pool =
-    tournament.prize_source === "CREATOR_FUNDED"
-      ? Number(tournament.prize_pool_wei) || 0
-      : 0; // TODO: entry-fee pool from sum of entry payments
+  let pool = 0;
+  if (tournament.prize_source === "CREATOR_FUNDED") {
+    pool = Number(tournament.prize_pool_wei) || 0;
+  } else if (tournament.prize_source === "ENTRY_FEE_POOL") {
+    const count = await TournamentEntry.countByTournament(tournamentId);
+    pool = (Number(tournament.entry_fee_wei) || 0) * count;
+  }
 
   if (pool <= 0) return [];
 
