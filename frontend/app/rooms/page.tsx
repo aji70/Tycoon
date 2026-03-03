@@ -7,6 +7,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useMediaQuery } from "@/components/useMediaQuery";
 import { MessageCircle, Users } from "lucide-react";
+import ModalErrorBoundary from "@/components/game/board3d/ModalErrorBoundary";
 
 const LobbyChatRoom = dynamic(
   () => import("@/components/game/board3d/LobbyChatRoom"),
@@ -56,13 +57,18 @@ export default function RoomsPage() {
         </div>
 
         <div className="flex-1 min-h-[400px] flex flex-col rounded-2xl overflow-hidden border border-cyan-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] shadow-xl">
-          <LobbyChatRoom
-            address={displayAddress}
-            userId={currentUserId}
-            username={currentUsername}
-            isMobile={isMobile}
-            showHeader={false}
-          />
+          <ModalErrorBoundary
+            fallbackTitle="Something went wrong loading the room."
+            fallbackSubtext="Try refreshing the page. If it keeps happening, check the browser console for details."
+          >
+            <LobbyChatRoom
+              address={displayAddress ?? undefined}
+              userId={currentUserId ?? undefined}
+              username={currentUsername ?? undefined}
+              isMobile={isMobile}
+              showHeader={false}
+            />
+          </ModalErrorBoundary>
         </div>
       </div>
     </main>
