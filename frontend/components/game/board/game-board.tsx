@@ -233,12 +233,12 @@ const Board = ({
               className="bg-slate-800 border border-cyan-500/50 rounded-xl p-6 max-w-sm w-full shadow-2xl"
             >
               <p className="text-lg font-semibold text-cyan-100 mb-1">
-                {timeoutPopupPlayer.username} timed out
+                {timeoutPopupPlayer.username} didn’t roll in time
               </p>
               <p className="text-sm text-slate-400 mb-4">
                 {canVoteOutTimeoutPlayer
-                  ? "Do you want to vote them out?"
-                  : "You can vote them out after 3 timeouts (2-player game)."}
+                  ? "They have one or more timeouts (90s per turn). You can vote to remove them, or wait — they may reconnect."
+                  : "After 3 timeouts in a row you can vote them out. For now, wait for the next turn or they may rejoin."}
               </p>
               <div className="flex gap-3 justify-end">
                 <button

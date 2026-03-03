@@ -1073,14 +1073,14 @@ function Board3DMobilePageContent() {
               await refetchGame();
             }
           } catch (e) {
-            toast.error(getContractErrorMessage(e, "Failed to pass turn"));
+            toast.error(getContractErrorMessage(e, "Failed to pass turn. Try again or refresh the game if the board looks stuck."));
             await refetchGame();
           }
         } else {
-          toast.error(getContractErrorMessage(err, "Roll failed"));
+          toast.error(getContractErrorMessage(err, "Roll failed. Try again or refresh if it persists."));
         }
       } catch (toastErr) {
-        toast.error("Roll failed");
+        toast.error(getContractErrorMessage(toastErr as unknown, "Roll failed. Check your connection and try again."));
       }
     } finally {
       doublesCountRef.current = 0;

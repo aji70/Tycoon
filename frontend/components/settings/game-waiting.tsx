@@ -63,17 +63,20 @@ export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}):
     const needsGuestSignIn = error?.toLowerCase().includes("sign in as guest");
     return (
       <section className="w-full h-[calc(100dvh-87px)] flex items-center justify-center bg-gray-900">
-        <div className="space-y-3 text-center bg-[#0A1A1B]/80 p-6 rounded-xl shadow-lg border border-red-500/50">
-          <p className="text-red-400 text-lg font-bold font-orbitron animate-pulse">
-            {error ?? "Game Portal Closed"}
+        <div className="space-y-4 text-center bg-[#0A1A1B]/80 p-6 rounded-xl shadow-lg border border-red-500/50 max-w-md">
+          <p className="text-red-400 text-lg font-bold font-orbitron">
+            {error ? "Couldn’t load game" : "Game not found"}
           </p>
-          <div className="flex flex-wrap gap-3 justify-center">
+          <p className="text-slate-400 text-sm font-dmSans">
+            {error ?? "Check the game code and your connection. Rejoin with the same code, or go home."}
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center pt-2">
             <button
               type="button"
               onClick={() => router.push("/join-room")}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              {needsGuestSignIn ? "Go to Join Room" : "Retry Join"}
+              {needsGuestSignIn ? "Go to Join Room" : "Rejoin with code"}
             </button>
             {needsGuestSignIn && (
               <button
@@ -89,7 +92,7 @@ export default function GameWaiting({ redirectToBoard }: GameWaitingProps = {}):
               onClick={handleGoHome}
               className="bg-[#00F0FF]/20 text-[#00F0FF] px-5 py-2 rounded-lg font-orbitron font-bold border border-[#00F0FF]/50 hover:bg-[#00F0FF]/30 transition-all shadow-md hover:shadow-[#00F0FF]/50"
             >
-              Return home
+              Back to home
             </button>
           </div>
         </div>
