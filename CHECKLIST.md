@@ -24,10 +24,10 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 
 | # | Item | Notes |
 |---|------|--------|
-| 2.1 | **More analytics events** | Emit `game_started`, `game_finished`, `game_joined`, optional `error` (code/message) via `recordEvent()`. |
-| 2.2 | **Dashboard: games over time** | On `/analytics`: e.g. “Games started vs finished”, “Games over last 7 days”. |
-| 2.3 | **Dashboard protection** | Restrict `GET /api/analytics/*` and `/analytics` (admin-only or API key) before production. |
-| 2.4 | **Dashboard: filters & export** | Date range filter, optional CSV export or “recent activity” / errors tab. |
+| 2.1 | **More analytics events** ✅ | Emit `game_started`, `game_finished`, `game_joined`, optional `error` (code/message) via `recordEvent()`. |
+| 2.2 | **Dashboard: games over time** ✅ | On `/analytics`: e.g. “Games started vs finished”, “Games over last 7 days”. |
+| 2.3 | **Dashboard protection** ✅ | Restrict `GET /api/analytics/*` and `/analytics` (admin-only or API key) before production. |
+| 2.4 | **Dashboard: filters & export** ✅ | Date range filter, optional CSV export or “recent activity” / errors tab. |
 
 ---
 
