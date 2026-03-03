@@ -49,18 +49,18 @@ const isVoucherToken = (tokenId: bigint): boolean =>
 const isCollectibleToken = (tokenId: bigint): boolean =>
   tokenId >= COLLECTIBLE_ID_START;
 
-// Perk metadata
+// Perk metadata — real descriptions for shop and collectibles
 const perkMetadata = [
-  { perk: 1, name: "Extra Turn", desc: "Get +1 extra turn!", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 2, name: "Jail Free Card", desc: "Escape jail instantly!", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 3, name: "Double Rent", desc: "Next rent doubled!", icon: <Coins className="w-12 h-12 text-green-400" />, image: "/game/shop/c.jpeg" },
-  { perk: 4, name: "Roll Boost", desc: "Bonus to next roll!", icon: <Sparkles className="w-12 h-12 text-blue-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 5, name: "Instant Cash", desc: "Burn for tiered TYC!", icon: <Gem className="w-12 h-12 text-cyan-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 6, name: "Teleport", desc: "Move to any property!", icon: <Zap className="w-12 h-12 text-pink-400" />, image: "/game/shop/c.jpeg" },
-  { perk: 7, name: "Shield", desc: "Protect from rent/fees!", icon: <Shield className="w-12 h-12 text-indigo-400" />, image: "/game/shop/a.jpeg" },
-  { perk: 8, name: "Property Discount", desc: "30-50% off next buy!", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/game/shop/b.jpeg" },
-  { perk: 9, name: "Tax Refund", desc: "Tiered tax cash back!", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/game/shop/c.jpeg" },
-  { perk: 10, name: "Exact Roll", desc: "Choose exact roll 2-12!", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles. Keep your cash and stay in the game.", icon: <Crown className="w-12 h-12 text-purple-400" />, image: "/game/shop/b.jpeg" },
+  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once. Maximize your income.", icon: <Coins className="w-12 h-12 text-green-400" />, image: "/game/shop/c.jpeg" },
+  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12). Nudge the odds in your favor.", icon: <Sparkles className="w-12 h-12 text-blue-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 5, name: "Instant Cash", desc: "Burn during a game to receive TYC based on tier (100–1000). Instant liquidity when you need it.", icon: <Gem className="w-12 h-12 text-cyan-400" />, image: "/game/shop/b.jpeg" },
+  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board. Buy that key lot or skip past danger.", icon: <Zap className="w-12 h-12 text-pink-400" />, image: "/game/shop/c.jpeg" },
+  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use). Stay solvent when the board turns against you.", icon: <Shield className="w-12 h-12 text-indigo-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered). Stretch your cash and complete sets faster.", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/game/shop/b.jpeg" },
+  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered). Turn tax hits into partial recovery.", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/game/shop/c.jpeg" },
+  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice. Land on the exact space you need.", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/game/shop/a.jpeg" },
 ];
 
 export default function GameShop() {
@@ -198,7 +198,7 @@ const { data: usdcAllowance } = useReadContract({
         const tokenId = shopTokenIds[index];
         const meta = perkMetadata.find((m) => m.perk === perk) || {
           name: `Perk #${perk}`,
-          desc: 'Powerful game advantage',
+          desc: 'Use during a game for a strategic advantage.',
           icon: <Gem className="w-12 h-12 text-gray-400" />,
           image: '/game/shop/placeholder.jpg',
         };

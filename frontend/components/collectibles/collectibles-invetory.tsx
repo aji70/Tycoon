@@ -53,16 +53,16 @@ const perkMetadata: Record<number, {
   canBeActivated: boolean;
   fakeDescription?: string;
 }> = {
-  1: { name: "Extra Turn", icon: <Zap className="w-6 h-6" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: true },
-  2: { name: "Jail Free Card", icon: <Crown className="w-6 h-6" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: true },
-  3: { name: "Double Rent", icon: <Coins className="w-6 h-6" />, gradient: "from-green-600 to-emerald-600", image: "/game/shop/c.jpeg", canBeActivated: true },
-  4: { name: "Roll Boost", icon: <Sparkles className="w-6 h-6" />, gradient: "from-blue-600 to-cyan-600", image: "/game/shop/a.jpeg", canBeActivated: true },
-  5: { name: "Instant Cash", icon: <Gem className="w-6 h-6" />, gradient: "from-cyan-600 to-teal-600", image: "/game/shop/b.jpeg", canBeActivated: true },
-  6: { name: "Teleport", icon: <Zap className="w-6 h-6" />, gradient: "from-pink-600 to-rose-600", image: "/game/shop/c.jpeg", canBeActivated: true },
-  7: { name: "Shield", icon: <Shield className="w-6 h-6" />, gradient: "from-indigo-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: true },
-  8: { name: "Property Discount", icon: <Coins className="w-6 h-6" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: true },
-  9: { name: "Tax Refund", icon: <Gem className="w-6 h-6" />, gradient: "from-teal-600 to-cyan-600", image: "/game/shop/c.jpeg", canBeActivated: true },
-  10: { name: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: true },
+  1: { name: "Extra Turn", icon: <Zap className="w-6 h-6" />, gradient: "from-yellow-500 to-amber-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Use on your turn to take an extra roll after this one." },
+  2: { name: "Jail Free Card", icon: <Crown className="w-6 h-6" />, gradient: "from-purple-600 to-pink-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Use when in Jail to get out without paying or rolling doubles." },
+  3: { name: "Double Rent", icon: <Coins className="w-6 h-6" />, gradient: "from-green-600 to-emerald-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "When someone lands on your property, charge double the normal rent once." },
+  4: { name: "Roll Boost", icon: <Sparkles className="w-6 h-6" />, gradient: "from-blue-600 to-cyan-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Add +1 to your next dice roll (capped at 12)." },
+  5: { name: "Instant Cash", icon: <Gem className="w-6 h-6" />, gradient: "from-cyan-600 to-teal-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Burn to receive TYC based on tier (100–1000)." },
+  6: { name: "Teleport", icon: <Zap className="w-6 h-6" />, gradient: "from-pink-600 to-rose-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Move your token to any property on the board." },
+  7: { name: "Shield", icon: <Shield className="w-6 h-6" />, gradient: "from-indigo-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Block the next rent or fee you would pay (one use)." },
+  8: { name: "Property Discount", icon: <Coins className="w-6 h-6" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Get 30–50% off the next property you buy (tiered)." },
+  9: { name: "Tax Refund", icon: <Gem className="w-6 h-6" />, gradient: "from-teal-600 to-cyan-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Receive TYC back when you pay Income or Luxury Tax (tiered)." },
+  10: { name: "Exact Roll", icon: <Sparkles className="w-6 h-6" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Choose your next roll (2–12) instead of rolling the dice." },
 };
 
 export default function CollectibleInventoryBar({
@@ -393,7 +393,7 @@ export default function CollectibleInventoryBar({
     }
 
     if (!canBeActivated) {
-      toast(`${name} — ${perkMetadata[perkId]?.fakeDescription || "Coming Soon"}`, {
+      toast(`${name} — ${perkMetadata[perkId]?.fakeDescription || "Use during a game for its effect."}`, {
         icon: <Clock className="w-5 h-5" />,
         duration: 5000
       });
@@ -541,7 +541,7 @@ export default function CollectibleInventoryBar({
                     <div>
                       <p className="text-white text-base font-bold">{item.name}</p>
                       {!item.canBeActivated && (
-                        <p className="text-xs text-gray-300 mt-1">{item.fakeDescription || "Coming Soon"}</p>
+                        <p className="text-xs text-gray-300 mt-1">{item.fakeDescription || "Use during a game for its effect."}</p>
                       )}
                     </div>
                   </div>

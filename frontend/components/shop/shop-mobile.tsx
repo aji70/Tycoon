@@ -50,16 +50,16 @@ const isVoucherToken = (tokenId: bigint) =>
 const isCollectibleToken = (tokenId: bigint) => tokenId >= COLLECTIBLE_ID_START;
 
 const perkMetadata = [
-  { perk: 1, name: "Extra Turn", desc: "Get +1 extra turn!", icon: <Zap />, image: "/game/shop/a.jpeg" },
-  { perk: 2, name: "Jail Free Card", desc: "Escape jail instantly!", icon: <Crown />, image: "/game/shop/b.jpeg" },
-  { perk: 3, name: "Double Rent", desc: "Next rent doubled!", icon: <Coins />, image: "/game/shop/c.jpeg" },
-  { perk: 4, name: "Roll Boost", desc: "Bonus to next roll!", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
-  { perk: 5, name: "Instant Cash", desc: "Burn for tiered TYC!", icon: <Gem />, image: "/game/shop/b.jpeg" },
-  { perk: 6, name: "Teleport", desc: "Move to any property!", icon: <Zap />, image: "/game/shop/c.jpeg" },
-  { perk: 7, name: "Shield", desc: "Protect from rent/fees!", icon: <Shield />, image: "/game/shop/a.jpeg" },
-  { perk: 8, name: "Property Discount", desc: "30-50% off next buy!", icon: <Coins />, image: "/game/shop/b.jpeg" },
-  { perk: 9, name: "Tax Refund", desc: "Tiered tax cash back!", icon: <Gem />, image: "/game/shop/c.jpeg" },
-  { perk: 10, name: "Exact Roll", desc: "Choose exact roll 2-12!", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
+  { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one.", icon: <Zap />, image: "/game/shop/a.jpeg" },
+  { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles.", icon: <Crown />, image: "/game/shop/b.jpeg" },
+  { perk: 3, name: "Double Rent", desc: "When someone lands on your property, charge double the normal rent once.", icon: <Coins />, image: "/game/shop/c.jpeg" },
+  { perk: 4, name: "Roll Boost", desc: "Add +1 to your next dice roll (capped at 12).", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
+  { perk: 5, name: "Instant Cash", desc: "Burn to receive TYC based on tier (100–1000).", icon: <Gem />, image: "/game/shop/b.jpeg" },
+  { perk: 6, name: "Teleport", desc: "Move your token to any property on the board.", icon: <Zap />, image: "/game/shop/c.jpeg" },
+  { perk: 7, name: "Shield", desc: "Block the next rent or fee you would pay (one use).", icon: <Shield />, image: "/game/shop/a.jpeg" },
+  { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered).", icon: <Coins />, image: "/game/shop/b.jpeg" },
+  { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered).", icon: <Gem />, image: "/game/shop/c.jpeg" },
+  { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice.", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
 ];
 
 export default function GameShopMobile() {
@@ -170,7 +170,7 @@ export default function GameShopMobile() {
         const tokenId = shopTokenIds[index];
         const meta = perkMetadata.find((m) => m.perk === perk) || {
           name: `Perk #${perk}`,
-          desc: 'Powerful game advantage',
+          desc: 'Use during a game for a strategic advantage.',
           icon: <Gem className="w-12 h-12 text-gray-400" />,
           image: '/game/shop/placeholder.jpg',
         };
@@ -403,7 +403,7 @@ export default function GameShopMobile() {
           >
             <ShoppingBag size={56} className="mx-auto mb-6 text-slate-600" />
             <p className="text-lg font-medium text-slate-400">Shop is currently empty</p>
-            <p className="text-sm text-slate-500 mt-2">New perks coming soon!</p>
+            <p className="text-sm text-slate-500 mt-2">New perks will appear here when available. Play games or check back later!</p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5">
