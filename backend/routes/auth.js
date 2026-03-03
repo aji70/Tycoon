@@ -7,6 +7,7 @@ import {
   me,
   linkWallet,
   unlinkWallet,
+  mergeGuestIntoWallet,
   loginByWallet,
   connectEmail,
   verifyEmail,
@@ -23,6 +24,7 @@ router.post("/privy-signin", privySignin);
 router.get("/me", requireAuth, me);
 router.post("/link-wallet", requireAuth, linkWallet);
 router.post("/unlink-wallet", requireAuth, unlinkWallet);
+router.post("/merge-guest-into-wallet", requireAuth, mergeGuestIntoWallet);
 router.post("/login-by-wallet", loginByWallet);
 router.post("/connect-email", requireAuth, connectEmail);
 router.get("/verify-email", verifyEmail);

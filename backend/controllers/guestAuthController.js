@@ -8,6 +8,7 @@ import { ethers } from "ethers";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { PrivyClient, verifyAccessToken } from "@privy-io/node";
+import db from "../config/database.js";
 import User from "../models/User.js";
 import { registerPlayerFor } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
@@ -518,6 +519,119 @@ export async function verifyEmail(req, res) {
   } catch (err) {
     logger.error({ err: err?.message }, "verifyEmail failed");
     return res.status(500).json({ success: false, message: err?.message || "Verification failed" });
+  }
+}
+
+/**
+ * POST /api/auth/merge-guest-into-wallet
+ * Guest only. Body: { walletAddress, chain, message, signature }.
+ * Verifies signature, finds user by wallet (primary address). Transfers guest's game participations,
+ * created games, votes, and stats to the wallet user, then deletes the guest account.
+ * Returns JWT for the wallet user so the client can switch session.
+ * Fails if the wallet is already linked to another account or if guest and wallet user are both in the same game.
+ */
+export async function mergeGuestIntoWallet(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    if (!req.user.is_guest) {
+      return res.status(400).json({ success: false, message: "Only guest accounts can be merged into a wallet" });
+    }
+    const guestId = req.user.id;
+    const { walletAddress, chain, message, signature } = req.body;
+    if (!walletAddress || !message || !signature) {
+      return res.status(400).json({ success: false, message: "walletAddress, message, and signature required" });
+    }
+    const normalizedChain = User.normalizeChain(chain || "POLYGON");
+    if (!GUEST_CHAIN_OPTIONS.includes(normalizedChain)) {
+      return res.status(400).json({ success: false, message: "chain must be POLYGON, CELO, or BASE" });
+    }
+    let recovered;
+    try {
+      recovered = ethers.verifyMessage(message, signature);
+    } catch (e) {
+      return res.status(400).json({ success: false, message: "Invalid signature" });
+    }
+    const addr = String(walletAddress).trim().toLowerCase();
+    const recoveredLower = recovered.toLowerCase();
+    if (recoveredLower !== addr) {
+      return res.status(400).json({ success: false, message: "Signature does not match wallet address" });
+    }
+    const walletUser = await User.findByAddress(walletAddress, normalizedChain);
+    if (!walletUser) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found for this wallet. Register on-chain first (e.g. play one game with this wallet), then merge.",
+      });
+    }
+    const walletUserId = walletUser.id;
+    if (walletUserId === guestId) {
+      return res.status(400).json({ success: false, message: "Guest and wallet are the same account" });
+    }
+    const existingByLinked = await User.findByLinkedWallet(addr, normalizedChain);
+    if (existingByLinked && existingByLinked.id !== guestId) {
+      return res.status(409).json({ success: false, message: "This wallet is already linked to another account" });
+    }
+    const guestGameIds = await db("game_players").where({ user_id: guestId }).select("game_id");
+    const guestGameIdSet = new Set(guestGameIds.map((r) => r.game_id));
+    if (guestGameIdSet.size > 0) {
+      const overlap = await db("game_players")
+        .where({ user_id: walletUserId })
+        .whereIn("game_id", [...guestGameIdSet])
+        .first();
+      if (overlap) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Cannot merge: you and your wallet account are both in the same game. Finish or leave that game first, then merge.",
+        });
+      }
+    }
+    const guest = await User.findById(guestId);
+    if (!guest) return res.status(401).json({ success: false, message: "Guest account not found" });
+
+    await db.transaction(async (trx) => {
+      await trx("game_players").where({ user_id: guestId }).update({ user_id: walletUserId, updated_at: db.fn.now() });
+      await trx("games").where({ creator_id: guestId }).update({ creator_id: walletUserId, updated_at: db.fn.now() });
+      await trx("player_votes").where({ voter_user_id: guestId }).update({ voter_user_id: walletUserId });
+      await trx("player_votes").where({ target_user_id: guestId }).update({ target_user_id: walletUserId });
+      await trx("end_by_networth_votes").where({ user_id: guestId }).update({ user_id: walletUserId });
+      if (await trx.schema.hasTable("tournament_entries")) {
+        await trx("tournament_entries").where({ user_id: guestId }).update({ user_id: walletUserId });
+      }
+      const cols = User.chainColumns(normalizedChain);
+      if (cols) {
+        const guestPlayed = Number(guest[cols.played] ?? 0);
+        const guestWon = Number(guest[cols.won] ?? 0);
+        if (guestPlayed > 0 || guestWon > 0) {
+          await trx("users").where({ id: walletUserId }).increment(cols.played, guestPlayed).increment(cols.won, guestWon).update({ updated_at: db.fn.now() });
+        }
+      }
+      const gp = Number(guest.games_played ?? 0);
+      const gw = Number(guest.game_won ?? 0);
+      const gl = Number(guest.game_lost ?? 0);
+      if (gp > 0 || gw > 0 || gl > 0) {
+        await trx("users").where({ id: walletUserId }).increment("games_played", gp).increment("game_won", gw).increment("game_lost", gl).update({ updated_at: db.fn.now() });
+      }
+      await trx("users").where({ id: guestId }).del();
+    });
+
+    const updatedWalletUser = await User.findById(walletUserId);
+    const token = jwt.sign(
+      { userId: updatedWalletUser.id, address: updatedWalletUser.address, username: updatedWalletUser.username, isGuest: !!updatedWalletUser.is_guest },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+    const { password_hash: _, ...safe } = updatedWalletUser;
+    return res.status(200).json({
+      success: true,
+      message: "Guest account merged into wallet. You are now signed in as your wallet account.",
+      data: { token, user: safe },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "mergeGuestIntoWallet failed");
+    return res.status(500).json({ success: false, message: err?.message || "Merge failed" });
   }
 }
 

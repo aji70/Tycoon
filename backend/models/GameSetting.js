@@ -27,6 +27,17 @@ const GameSetting = {
       .first();
   },
 
+  /**
+   * Batch fetch settings for multiple games (avoids N+1). Returns array of rows with game_id.
+   */
+  async findByGameIds(gameIds) {
+    if (!gameIds?.length) return [];
+    const list = await db("game_settings")
+      .select("game_id", "auction", "mortgage", "even_build", "randomize_play_order", "starting_cash")
+      .whereIn("game_id", gameIds);
+    return list;
+  },
+
   async findAll({ limit = 100, offset = 0 } = {}) {
     return db("game_settings")
       .select("*")
