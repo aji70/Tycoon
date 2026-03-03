@@ -88,8 +88,22 @@ function buildTipPrompt(context) {
   const { myBalance = 0, myProperties = [], opponents = [], situation = "buy_property", property: landedProperty = {} } = context;
   const monopolies = getMonopolies(myProperties || []);
   if (situation === "buy_property" && landedProperty && Object.keys(landedProperty).length > 0) {
+    const price = Number(landedProperty.price) || 0;
+    const balanceAfter = myBalance - price;
     const opps = (opponents || []).map((o) => `${o.username ?? "Opp"}: $${o.balance ?? 0}`).join("; ");
-    return `Monopoly: human landed on ${landedProperty.name ?? "?"} ($${landedProperty.price ?? 0}). Completes set: ${landedProperty.completesMonopoly ? "Y" : "N"}. Their balance: $${myBalance}. Give ONE short tip in plain language. Examples: "Buy it — you'd complete a set." or "Skip — save your cash." or "Worth it — good value." Keep to one sentence, max 10 words. No jargon. JSON only: {"action":"ok","reasoning":"your one-sentence tip"}`;
+    const rank = landedProperty.landingRank != null ? landedProperty.landingRank : 99;
+    const color = landedProperty.color ?? "";
+    const rentSite = landedProperty.rent_site_only ?? landedProperty.rent_site ?? 0;
+    const setProgress = (landedProperty.ownedInGroup != null && landedProperty.groupSize != null)
+      ? `They have ${landedProperty.ownedInGroup} of ${landedProperty.groupSize} in this set.`
+      : landedProperty.completesMonopoly ? "Buying this COMPLETES their set." : "";
+    const strategyNote = [
+      "Best sets: orange, red, yellow (high traffic). Brown/darkblue weaker.",
+      "Rank 1-10 = strong property, 20+ = weaker.",
+      "Keep $500+ cash if possible; avoid buying if balance after would be under $300.",
+      "Railroads/utilities: lower priority unless completing set.",
+    ].join(" ");
+    return `Monopoly: human landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Rules: ${strategyNote} Give ONE short tip in plain language. Be specific: say "Buy — completes set" or "Skip — save cash" or "Good value — strong property" or "Risky — would leave you under $300". One sentence, max 12 words. No jargon. JSON only: {"action":"ok","reasoning":"your one-sentence tip"}`;
   }
   return `Monopoly turn. Balance: $${myBalance}. One short encouraging tip, one sentence, simple words. JSON only: {"action":"ok","reasoning":"tip"}`;
 }

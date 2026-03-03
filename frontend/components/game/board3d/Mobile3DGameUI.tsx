@@ -72,16 +72,21 @@ export default function Mobile3DGameUI({
 
   const [internalPlayerModalOpen, setInternalPlayerModalOpen] = useState(false);
   const [showEmpireModal, setShowEmpireModal] = useState(false);
+  /** When true, the open modal shows only Trades (not full Game with Players + Empire + Trades). */
+  const [tradesOnlyModal, setTradesOnlyModal] = useState(false);
 
-  // Bell: open modal with Trade tab selected (viewTradesRequested=true)
+  // Trades (Bell): open modal with ONLY the trade section
   const openBellModal = () => {
     onViewTrades();
+    setTradesOnlyModal(true);
     setInternalPlayerModalOpen(true);
+    onTradeSectionOpened();
     onPlayersModalOpen?.();
   };
 
-  // Players: open modal with Players tab selected (do NOT set viewTradesRequested)
+  // Players: open full Game modal (Players + Empire + Trades)
   const openPlayerModal = () => {
+    setTradesOnlyModal(false);
     setInternalPlayerModalOpen(true);
     onPlayersModalOpen?.();
   };
@@ -204,7 +209,7 @@ export default function Mobile3DGameUI({
         )}
       </AnimatePresence>
 
-      {/* Player/Game modal: Bell opens with Trade tab, Players opens with Players tab */}
+      {/* Trades-only modal (Bell) or full Game modal (Players) */}
       <AnimatePresence>
         {internalPlayerModalOpen && (
           <>
@@ -212,7 +217,10 @@ export default function Mobile3DGameUI({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setInternalPlayerModalOpen(false)}
+              onClick={() => {
+                setInternalPlayerModalOpen(false);
+                setTradesOnlyModal(false);
+              }}
               className="fixed inset-0 bg-black/60 z-[9999]"
               style={{ transform: "translateZ(0)" }}
             />
@@ -225,10 +233,13 @@ export default function Mobile3DGameUI({
               style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
-                <h2 className="text-lg font-bold text-amber-200">Game</h2>
+                <h2 className="text-lg font-bold text-amber-200">{tradesOnlyModal ? "Trades" : "Game"}</h2>
                 <button
                   type="button"
-                  onClick={() => setInternalPlayerModalOpen(false)}
+                  onClick={() => {
+                    setInternalPlayerModalOpen(false);
+                    setTradesOnlyModal(false);
+                  }}
                   className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
                   aria-label="Close"
                 >
@@ -249,13 +260,16 @@ export default function Mobile3DGameUI({
                       isAITurn={isAITurn}
                       isLoading={false}
                       onPropertySelect={onPropertySelect}
-                      openTradeSection={viewTradesRequested}
+                      openTradeSection={tradesOnlyModal || viewTradesRequested}
                       onTradeSectionOpened={onTradeSectionOpened}
+                      onlyShowTrades={tradesOnlyModal}
                     />
                   </ModalErrorBoundary>
                 ) : (
                   <div className="space-y-2 py-4">
-                    <p className="text-slate-500 text-sm">Join a game to see players, your empire, and trades.</p>
+                    <p className="text-slate-500 text-sm">
+                      {tradesOnlyModal ? "Join a game to see trades." : "Join a game to see players, your empire, and trades."}
+                    </p>
                     <p className="text-slate-600 text-xs">Use a game link with ?gameCode=XXXXXX</p>
                   </div>
                 )}
