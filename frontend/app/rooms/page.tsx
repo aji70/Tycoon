@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppKitAccount } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
 import LobbyChatRoom from "@/components/game/board3d/LobbyChatRoom";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
@@ -8,7 +8,7 @@ import { useMediaQuery } from "@/components/useMediaQuery";
 import { MessageCircle, Users } from "lucide-react";
 
 export default function RoomsPage() {
-  const { address, isConnected } = useAppKitAccount();
+  const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const { onlineCount } = useOnlineUsers(isConnected ? address : undefined);

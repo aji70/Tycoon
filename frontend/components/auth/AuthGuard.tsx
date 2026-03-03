@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/join-room-3d",
   "/verify-email",
   "/waitlist",
+  "/rooms",
 ];
 
 function isPublicPath(pathname: string): boolean {
