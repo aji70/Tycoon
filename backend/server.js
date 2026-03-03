@@ -212,12 +212,21 @@ app.get("/api/config/env-check", (_req, res) => {
     "BACKEND_GAME_CONTROLLER_POLYGON_PRIVATE_KEY",
     "BASE_RPC_URL",
     "TYCOON_BASE_CONTRACT_ADDRESS",
+    "PRIVY_APP_ID",
+    "PRIVY_APP_SECRET",
+    "PRIVY_JWT_VERIFICATION_KEY",
   ];
   const present = {};
   keys.forEach((k) => {
     present[k] = typeof process.env[k] === "string" && process.env[k].trim().length > 0;
   });
-  res.json({ envKeysPresent: present });
+  const payload = { envKeysPresent: present };
+  // In development, show masked PRIVY_APP_ID so you can confirm it matches frontend NEXT_PUBLIC_PRIVY_APP_ID
+  if (process.env.NODE_ENV !== "production" && present.PRIVY_APP_ID) {
+    const id = process.env.PRIVY_APP_ID;
+    payload.privyAppIdMasked = id.length > 8 ? `${id.slice(0, 4)}...${id.slice(-4)}` : "***";
+  }
+  res.json(payload);
 });
 
 // Test endpoint: expose chain env vars for frontend config-test. ?chain=Polygon|Celo|Base (default Polygon).

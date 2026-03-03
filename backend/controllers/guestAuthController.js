@@ -18,6 +18,10 @@ const PRIVY_JWT_VERIFICATION_KEY = process.env.PRIVY_JWT_VERIFICATION_KEY;
 const privyClientOpts = { appId: PRIVY_APP_ID, appSecret: PRIVY_APP_SECRET };
 if (PRIVY_JWT_VERIFICATION_KEY) privyClientOpts.jwtVerificationKey = PRIVY_JWT_VERIFICATION_KEY;
 const privyClient = PRIVY_APP_ID && PRIVY_APP_SECRET ? new PrivyClient(privyClientOpts) : null;
+if (privyClient && PRIVY_APP_ID) {
+  const masked = PRIVY_APP_ID.length > 8 ? `${PRIVY_APP_ID.slice(0, 4)}...${PRIVY_APP_ID.slice(-4)}` : "***";
+  logger.info({ privyAppIdMasked: masked, hasJwtKey: !!PRIVY_JWT_VERIFICATION_KEY }, "Privy configured for /auth/privy-signin — ensure frontend NEXT_PUBLIC_PRIVY_APP_ID matches this app ID");
+}
 
 /** Placeholder address for Privy-only users (unique per privy_did, valid 0x hex). */
 function placeholderAddressForPrivyDid(privyDid) {
