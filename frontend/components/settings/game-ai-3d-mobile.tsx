@@ -131,7 +131,6 @@ export default function PlayWithAI3DMobile() {
                   <SelectItem value="1000">$1,000</SelectItem>
                   <SelectItem value="1500">$1,500</SelectItem>
                   <SelectItem value="2000">$2,000</SelectItem>
-                  <SelectItem value="5000">$5,000</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -149,8 +148,6 @@ export default function PlayWithAI3DMobile() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2">2m</SelectItem>
-                  <SelectItem value="5">5m</SelectItem>
                   <SelectItem value="30">30m</SelectItem>
                   <SelectItem value="45">45m</SelectItem>
                   <SelectItem value="60">60m</SelectItem>

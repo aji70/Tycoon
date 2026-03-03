@@ -56,7 +56,7 @@ const DEFAULT_SETTINGS: AIGameSettings = {
   mortgage: true,
   evenBuild: true,
   randomPlayOrder: true,
-  duration: 5,
+  duration: 30,
 };
 
 interface GameCreateResponse {
