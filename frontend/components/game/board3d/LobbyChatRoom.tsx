@@ -185,12 +185,22 @@ export default function LobbyChatRoom({
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((msg) => {
+            {(Array.isArray(messages) ? messages : [])
+              .filter((msg): msg is LobbyMessage => msg != null && typeof msg === "object")
+              .map((msg) => {
               const isMe =
                 (userId != null && msg.user_id === userId) ||
                 (msg.username && username && msg.username === username);
               const displayName = msg.username ?? "Anonymous";
-              const { quote, main } = parseMessageBody(msg?.body);
+              let quote: { name: string; text: string } | null = null;
+              let main = "";
+              try {
+                const parsed = parseMessageBody(msg?.body);
+                quote = parsed?.quote ?? null;
+                main = typeof parsed?.main === "string" ? parsed.main : String(msg?.body ?? "");
+              } catch {
+                main = String(msg?.body ?? "");
+              }
               return (
                 <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
                   {!isMobile && (
@@ -237,7 +247,7 @@ export default function LobbyChatRoom({
                       </div>
                       <button
                         type="button"
-                        onClick={() => setReplyingTo({ id: msg.id, name: displayName, body: main })}
+                        onClick={() => setReplyingTo({ id: msg.id, name: displayName, body: main || String(msg?.body ?? "") })}
                         className={`flex-shrink-0 p-1.5 rounded-lg text-cyan-400/60 hover:text-cyan-300 transition ${
                           isMobile ? "" : "opacity-0 group-hover:opacity-100"
                         }`}
