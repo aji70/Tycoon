@@ -77,7 +77,9 @@ This doc guides the full integration of [Privy](https://www.privy.io/) into Tyco
   Backend: Node 20+ for `@privy-io/node`.
 
 - [ ] **Backend env (for Privy DB user)**  
-  Set `PRIVY_APP_ID` and `PRIVY_APP_SECRET` in the backend so `POST /auth/privy-signin` can verify tokens and create/link users.
+  Set `PRIVY_APP_ID` and `PRIVY_APP_SECRET` in the backend so `POST /auth/privy-signin` can verify tokens and create/link users.  
+  **Important:** `PRIVY_APP_ID` must equal the frontend’s `NEXT_PUBLIC_PRIVY_APP_ID` (same Privy app). If they differ, token verification fails with "Invalid or expired Privy token".  
+  Optional: set `PRIVY_JWT_VERIFICATION_KEY` (from Dashboard → Configuration → App settings) to verify tokens locally and avoid per-request API calls.
 
 - [ ] **Migration**  
   Run `npm run migrate` in the backend to add the `privy_did` column to `users` (see migration `20260306000000_add_privy_did_to_users.js`).
