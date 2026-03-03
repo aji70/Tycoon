@@ -1793,13 +1793,13 @@ function Board3DMobilePageContent() {
       )}
 
       <Mobile3DGameUI
-          game={game ?? null}
-        properties={properties}
-        game_properties={gameProperties}
-        my_properties={my_properties}
+        game={game ?? null}
+        properties={properties ?? []}
+        game_properties={gameProperties ?? []}
+        my_properties={my_properties ?? []}
         me={me ?? null}
         currentPlayer={currentPlayer ?? null}
-        positions={positions}
+        positions={positions ?? {}}
         isAITurn={false}
         isLoading={!!gameCode && gameLoading}
         onPropertySelect={(prop: Property, gp?: GameProperty) => {
