@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords, BookOpen } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
@@ -244,6 +244,17 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     <House size={20} />
                   </div>
                   Home
+                </Link>
+
+                <Link
+                  href="/how-to-play"
+                  onClick={closeMobileMenu}
+                  className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                    <BookOpen size={20} />
+                  </div>
+                  How to Play
                 </Link>
 
                 <Link

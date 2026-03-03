@@ -12,9 +12,18 @@ const Footer = () => {
       <div className="w-full max-w-[1120px] mx-auto flex flex-col md:flex-row items-center md:justify-between justify-center md:gap-0 gap-4 bg-[#0B191A] rounded-[16px] p-[20px] border border-[#003B3E]/50 game-panel">
         <Logo className="md:w-[60px] w-[55px]" image={logo} href="/" />
 
-        <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400]">
-          ©{new Date().getFullYear()} Tycoon &bull; All rights reserved.
-        </p>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/how-to-play"
+            className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
+          >
+            How to Play
+          </Link>
+          <span className="text-[#455A64]">·</span>
+          <p className="text-[#F0F7F7] text-[12px] font-dmSans font-[400]">
+            ©{new Date().getFullYear()} Tycoon &bull; All rights reserved.
+          </p>
+        </div>
 
         <div className="flex items-center gap-5">
           <Link
