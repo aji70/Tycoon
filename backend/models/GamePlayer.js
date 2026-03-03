@@ -3,10 +3,12 @@ import db from "../config/database.js";
 const GamePlayer = {
   async join(data) {
     return db.transaction(async (trx) => {
-      // 1. Ensure symbol uniqueness
+      // 1. Ensure symbol uniqueness (case-insensitive so "Car" and "car" cannot both join)
       if (data.symbol) {
+        const normalized = String(data.symbol).trim().toLowerCase();
         const existing = await trx("game_players")
-          .where({ game_id: data.game_id, symbol: data.symbol })
+          .where({ game_id: data.game_id })
+          .whereRaw("LOWER(TRIM(symbol)) = ?", [normalized])
           .first();
 
         if (existing) {
@@ -14,6 +16,7 @@ const GamePlayer = {
             `Symbol "${data.symbol}" is already taken in this game.`
           );
         }
+        data.symbol = normalized;
       }
 
       // 2. Auto-assign turn_order if missing
