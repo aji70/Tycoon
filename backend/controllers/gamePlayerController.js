@@ -823,27 +823,29 @@ const gamePlayerController = {
         return res.status(400).json({ success: false, message: "Already in game" });
       }
 
-      // find max turn order (0 if no players yet)
-      const maxTurnOrder =
-        players.length > 0
-          ? Math.max(...players.map((p) => p.turn_order || 0))
-          : 0;
-
-      // assign next turn_order
-      const nextTurnOrder = maxTurnOrder + 1;
-
-      // create new player
-      const player = await GamePlayer.create({
-        address,
-        symbol,
-        user_id: user.id,
-        game_id: game.id,
-        balance: settings.starting_cash,
-        position: 0,
-        chance_jail_card: false,
-        community_chest_jail_card: false,
-        turn_order: nextTurnOrder,
-      });
+      // create new player (GamePlayer.join enforces symbol uniqueness per game)
+      let player;
+      try {
+        player = await GamePlayer.join({
+          address,
+          symbol: symbol != null ? String(symbol).trim().toLowerCase() : undefined,
+          user_id: user.id,
+          game_id: game.id,
+          balance: settings.starting_cash,
+          position: 0,
+          chance_jail_card: false,
+          community_chest_jail_card: false,
+        });
+      } catch (err) {
+        const msg = err?.message || String(err);
+        if (/already taken|symbol.*taken/i.test(msg)) {
+          return res.status(400).json({
+            success: false,
+            message: `Symbol "${symbol ?? ""}" is already taken in this game. Please choose another token.`,
+          });
+        }
+        throw err;
+      }
 
       // Invalidate cache and notify waiting room (same as join-as-guest)
       const updatedPlayers = await GamePlayer.findByGameId(game.id);

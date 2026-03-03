@@ -1416,22 +1416,30 @@ export const joinAsGuest = async (req, res) => {
     }
 
     const settings = await GameSetting.findByGameId(game.id);
-    const maxTurnOrder = currentPlayers.length > 0 ? Math.max(...currentPlayers.map((p) => p.turn_order || 0)) : 0;
-    const nextTurnOrder = maxTurnOrder + 1;
 
-    await GamePlayer.create({
-      address: contractUser.address,
-      symbol: symbol || "car",
-      user_id: user.id,
-      game_id: game.id,
-      balance: settings?.starting_cash ?? 1500,
-      position: 0,
-      chance_jail_card: false,
-      community_chest_jail_card: false,
-      turn_order: nextTurnOrder,
-      circle: 0,
-      rolls: 0,
-    });
+    try {
+      await GamePlayer.join({
+        address: contractUser.address,
+        symbol: (symbol || "car").toString().trim().toLowerCase(),
+        user_id: user.id,
+        game_id: game.id,
+        balance: settings?.starting_cash ?? 1500,
+        position: 0,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+        circle: 0,
+        rolls: 0,
+      });
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (/already taken|symbol.*taken/i.test(msg)) {
+        return res.status(400).json({
+          success: false,
+          message: `Symbol "${symbol || "car"}" is already taken in this game. Please choose another token.`,
+        });
+      }
+      throw err;
+    }
 
     const updatedPlayers = await GamePlayer.findByGameId(game.id);
     const io = req.app.get("io");
