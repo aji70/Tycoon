@@ -13,6 +13,7 @@ import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
 import { finishGameByNetWorthAndNotify } from "./gameController.js";
 import { getActiveByGameId } from "./auctionController.js";
+import { recordEvent } from "../services/analytics.js";
 
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
 const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
@@ -863,6 +864,7 @@ const gamePlayerController = {
         emitGameUpdate(io, game.code);
         io.to(game.code).emit("player-joined", { player: updatedPlayers[updatedPlayers.length - 1], players: updatedPlayers, game });
       }
+      await recordEvent("game_joined", { entityType: "game", entityId: game.id, payload: { user_id: user.id } });
 
       if (updatedPlayers.length >= game.number_of_players) {
         const isTournamentGame = /^T\d+-R\d+-M\d+$/i.test(String(game.code || "").trim());
@@ -871,6 +873,7 @@ const gamePlayerController = {
           await Game.update(game.id, { ready_window_opens_at: db.fn.now() });
         } else {
           await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+          await recordEvent("game_started", { entityType: "game", entityId: game.id, payload: {} });
           const updatedGame = await Game.findByCode(game.code);
           if (updatedGame?.next_player_id) {
             await GamePlayer.setTurnStart(game.id, updatedGame.next_player_id);
@@ -965,6 +968,7 @@ const gamePlayerController = {
           winner_id: winnerId,
           next_player_id: winnerId,
         });
+        await recordEvent("game_finished", { entityType: "game", entityId: game.id, payload: { winner_id: winnerId } });
         User.recordChainGameResult(game.chain || "BASE", winnerId, playerUserIds).catch((err) =>
           logger.warn({ err: err?.message, gameId: game.id }, "recordChainGameResult failed")
         );
@@ -2039,6 +2043,7 @@ const gamePlayerController = {
             updated_at: new Date(),
           });
         await trx.commit();
+        await recordEvent("game_finished", { entityType: "game", entityId: game_id, payload: { winner_id: winner ? winner.user_id : null } });
         if (winner && game.chain) {
           const playerUserIds = players.map((p) => p.user_id);
           User.recordChainGameResult(game.chain || "BASE", winner.user_id, playerUserIds).catch((err) =>

@@ -64,8 +64,8 @@ class ApiClient {
     };
   }
 
-  async get<T>(endpoint: string, params?: any): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: "GET", url: endpoint, params });
+  async get<T>(endpoint: string, params?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return this.request<T>({ method: "GET", url: endpoint, params, ...config });
   }
 
   async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {

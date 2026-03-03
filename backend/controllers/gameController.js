@@ -418,6 +418,12 @@ const gameController = {
         if (existing && !existing.started_at) payload.started_at = db.fn.now();
       }
       await Game.update(req.params.id, payload);
+      if (payload.status === "RUNNING") {
+        await recordEvent("game_started", { entityType: "game", entityId: Number(req.params.id), payload: {} });
+      }
+      if (payload.status === "FINISHED") {
+        await recordEvent("game_finished", { entityType: "game", entityId: Number(req.params.id), payload: { winner_id: payload.winner_id ?? null } });
+      }
       await invalidateGameById(req.params.id);
       const io = req.app.get("io");
       const game = await Game.findById(req.params.id);
@@ -538,6 +544,7 @@ const gameController = {
 
       if (uniqueUserIds.length >= game.number_of_players) {
         await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+        await recordEvent("game_started", { entityType: "game", entityId: game.id, payload: {} });
         await invalidateGameById(game.id);
         const updatedGame = await Game.findById(game.id);
         if (updatedGame?.next_player_id) {
@@ -656,6 +663,7 @@ const gameController = {
         });
       }
 
+      await recordEvent("game_finished", { entityType: "game", entityId: game.id, payload: { winner_id: result.winner_id } });
       tournamentOnGameFinished(game.id).catch((err) =>
         logger.warn({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed")
       );
@@ -1150,9 +1158,11 @@ export const join = async (req, res) => {
       players: updatedPlayers,
       game: game,
     });
+    await recordEvent("game_joined", { entityType: "game", entityId: game.id, payload: { user_id: user.id } });
 
     if (updatedPlayers.length === game.number_of_players) {
       await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+      await recordEvent("game_started", { entityType: "game", entityId: game.id, payload: {} });
       await invalidateGameById(game.id);
       const updatedGame = await Game.findByCode(code);
       // Set turn_start for the first player (90s roll timer)
@@ -1469,9 +1479,11 @@ export const joinAsGuest = async (req, res) => {
     await invalidateGameByCode(game.code);
     emitGameUpdate(io, game.code);
     io.to(game.code).emit("player-joined", { player: updatedPlayers[updatedPlayers.length - 1], players: updatedPlayers, game });
+    await recordEvent("game_joined", { entityType: "game", entityId: game.id, payload: { user_id: user.id } });
 
     if (updatedPlayers.length >= game.number_of_players) {
       await Game.update(game.id, { status: "RUNNING", started_at: db.fn.now() });
+      await recordEvent("game_started", { entityType: "game", entityId: game.id, payload: {} });
       await invalidateGameById(game.id);
       const updatedGame = await Game.findByCode(game.code);
       if (updatedGame?.next_player_id) {
@@ -1489,6 +1501,7 @@ export const joinAsGuest = async (req, res) => {
     });
   } catch (err) {
     logger.error({ err: err?.message }, "joinAsGuest failed");
+    recordEvent("error", { payload: { code: "join_as_guest", message: (err?.message || String(err)).slice(0, 200) } }).catch(() => {});
     return res.status(500).json({ success: false, message: err?.message || "Failed to join game" });
   }
 };
