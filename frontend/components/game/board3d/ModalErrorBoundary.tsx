@@ -10,6 +10,8 @@ interface Props {
   fallbackTitle?: string;
   /** Optional subtext (e.g. "Try refreshing the page.") */
   fallbackSubtext?: string;
+  /** Show stack trace for debugging (e.g. rooms mobile crash) */
+  showStack?: boolean;
 }
 
 interface State {
@@ -38,12 +40,18 @@ export default class ModalErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
       const err = this.state.error;
       const message = err?.message ?? "Unknown error";
+      const stack = err?.stack ?? "";
       const title = this.props.fallbackTitle ?? "Something went wrong opening this panel.";
       const subtext = this.props.fallbackSubtext ?? "Try closing and opening again, or refresh the page.";
       return (
         <div className="p-4 space-y-3 rounded-xl bg-slate-800/80 border border-amber-500/30">
           <p className="text-amber-200 font-medium">{title}</p>
           <p className="text-red-300/90 text-xs font-mono break-all">{message}</p>
+          {this.props.showStack && stack && (
+            <pre className="p-2 mt-2 bg-black/50 rounded text-amber-300/80 text-[10px] font-mono whitespace-pre-wrap break-all max-h-32 overflow-auto">
+              {stack}
+            </pre>
+          )}
           <p className="text-slate-400 text-sm">{subtext}</p>
         </div>
       );

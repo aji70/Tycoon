@@ -60,6 +60,7 @@ export default function RoomsPage() {
           <ModalErrorBoundary
             fallbackTitle="Something went wrong loading the room."
             fallbackSubtext="Try refreshing the page. If it keeps happening, check the browser console for details."
+            showStack
           >
             <LobbyChatRoom
               address={displayAddress ?? undefined}
