@@ -173,9 +173,9 @@ export const GameTradeRequestController = {
       const offer_amount = Number(_offer_amount);
       const requested_amount = Number(_requested_amount);
 
-      // Parse JSON fields
-      const offeredProps = (offer_properties);
-      const requestedProps = (requested_properties);
+      // Parse JSON fields (stored as JSON strings in DB)
+      const offeredProps = safeJsonParse(offer_properties);
+      const requestedProps = safeJsonParse(requested_properties);
 
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
