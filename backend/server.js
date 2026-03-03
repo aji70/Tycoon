@@ -5,6 +5,17 @@ import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { Server } from "socket.io";
 import { createServer } from "node:http";
+import * as Sentry from "@sentry/node";
+
+dotenv.config();
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "development",
+    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  });
+}
 
 // Import routes
 import usersRoutes from "./routes/users.js";
@@ -33,8 +44,6 @@ import db from "./config/database.js";
 import redis from "./config/redis.js";
 import { getChainConfig } from "./config/chains.js";
 import { testContractConnection, callContractRead, callContractWrite } from "./services/tycoonContract.js";
-
-dotenv.config();
 
 const app = express();
 app.set("trust proxy", 1);
@@ -322,6 +331,10 @@ app.post("/api/perks/activate", gamePerkController.activatePerk);
 app.post("/api/perks/teleport", gamePerkController.teleport);
 app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
 app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
+
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
 
 app.use("*", (req, res) => {
   res.status(404).json({ success: false, error: "Endpoint not found" });
