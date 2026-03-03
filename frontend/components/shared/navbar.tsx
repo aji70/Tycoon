@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -173,6 +173,15 @@ const NavBar = () => {
               <span className="text-[12px] font-[400] font-dmSans">Rooms</span>
             </Link>
           )}
+
+          {/* How to Play — always visible */}
+          <Link
+            href="/how-to-play"
+            className="w-[95px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+          >
+            <BookOpen className="w-[16px] h-[16px]" />
+            <span className="text-[12px] font-[400] font-dmSans">How to Play</span>
+          </Link>
 
           {/* Home button */}
           <Link
