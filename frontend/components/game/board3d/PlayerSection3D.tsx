@@ -31,6 +31,8 @@ interface PlayerSection3DProps {
   onTradeSectionOpened?: () => void;
   /** When true, do not show the AI trade response modal (e.g. on mobile for a simpler UI) */
   hideAiResponseModal?: boolean;
+  /** When true, show only the Active Trades section (e.g. when opening from Trades button in bottom bar) */
+  onlyShowTrades?: boolean;
 }
 
 export default function PlayerSection3D({
@@ -47,17 +49,18 @@ export default function PlayerSection3D({
   openTradeSection = false,
   onTradeSectionOpened,
   hideAiResponseModal = false,
+  onlyShowTrades = false,
 }: PlayerSection3DProps) {
   const [showEmpire, setShowEmpire] = useState(false);
-  const [showTrade, setShowTrade] = useState(false);
+  const [showTrade, setShowTrade] = useState(onlyShowTrades);
   const [showPlayers, setShowPlayers] = useState(true);
 
   useEffect(() => {
-    if (openTradeSection) {
+    if (openTradeSection || onlyShowTrades) {
       setShowTrade(true);
       onTradeSectionOpened?.();
     }
-  }, [openTradeSection, onTradeSectionOpened]);
+  }, [openTradeSection, onTradeSectionOpened, onlyShowTrades]);
 
   const logic = useAiPlayerLogic({
     game,
@@ -139,6 +142,91 @@ export default function PlayerSection3D({
             <p className="text-slate-500 text-xs">Game data incoming</p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Trades-only view: just Active Trades + modals (no Players or My Empire)
+  if (onlyShowTrades) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(6,182,212,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="absolute inset-0 rounded-2xl border border-cyan-400/20 pointer-events-none" />
+          <div className="px-4 py-3 bg-gradient-to-r from-cyan-900/40 to-cyan-800/30 border-b-2 border-cyan-500/40">
+            <TradeSection3D
+              showTrade={true}
+              toggleTrade={() => {}}
+              openTrades={openTrades}
+              tradeRequests={tradeRequests}
+              properties={properties}
+              game={game}
+              onTradeAction={handleTradeAction}
+            />
+          </div>
+        </div>
+        <AnimatePresence>
+          {!hideAiResponseModal && (
+            <AiResponseModal3D
+              popup={aiResponsePopup}
+              properties={properties}
+              onClose={() => setAiResponsePopup(null)}
+              onAcceptCounter={(id) => {
+                handleTradeAction(id, "accepted");
+                setAiResponsePopup(null);
+              }}
+              onDeclineCounter={(id) => {
+                handleTradeAction(id, "declined");
+                setAiResponsePopup(null);
+              }}
+            />
+          )}
+          <TradeModal
+            open={tradeModal.open}
+            title={`Trade with ${tradeModal.target?.username || "Player"}`}
+            onClose={() => {
+              setTradeModal({ open: false, target: null });
+              resetTradeFields();
+            }}
+            onSubmit={handleCreateTrade}
+            my_properties={my_properties}
+            properties={properties}
+            game_properties={game_properties}
+            offerProperties={offerProperties}
+            requestProperties={requestProperties}
+            setOfferProperties={setOfferProperties}
+            setRequestProperties={setRequestProperties}
+            offerCash={offerCash}
+            requestCash={requestCash}
+            setOfferCash={setOfferCash}
+            setRequestCash={setRequestCash}
+            toggleSelect={toggleSelect}
+            targetPlayerAddress={tradeModal.target?.address}
+          />
+          <TradeModal
+            open={counterModal.open}
+            title="Counter Offer"
+            onClose={() => {
+              setCounterModal({ open: false, trade: null });
+              resetTradeFields();
+            }}
+            onSubmit={submitCounterTrade}
+            my_properties={my_properties}
+            properties={properties}
+            game_properties={game_properties}
+            offerProperties={offerProperties}
+            requestProperties={requestProperties}
+            setOfferProperties={setOfferProperties}
+            setRequestProperties={setRequestProperties}
+            offerCash={offerCash}
+            requestCash={requestCash}
+            setOfferCash={setOfferCash}
+            setRequestCash={setRequestCash}
+            toggleSelect={toggleSelect}
+            targetPlayerAddress={
+              (game.players ?? []).find((p) => p.user_id === counterModal.trade?.target_player_id)?.address
+            }
+          />
+        </AnimatePresence>
       </div>
     );
   }

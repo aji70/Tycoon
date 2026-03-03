@@ -1369,7 +1369,13 @@ function Board3DMobilePageContent() {
             .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
           opponents: (game?.players ?? []).filter((p) => p.user_id !== me.user_id),
           situation: "buy_property",
-          property: { ...justLandedProperty, completesMonopoly, landingRank },
+          property: {
+            ...justLandedProperty,
+            completesMonopoly,
+            landingRank,
+            ownedInGroup,
+            groupSize: groupIds.length,
+          },
         },
       })
       .then((res) => {
