@@ -233,11 +233,24 @@ function Board3DMobileContent() {
       queryClient.invalidateQueries({ queryKey: ["game_properties"] });
       refetchGameProperties();
     };
+    const onVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
+      if (data.removed) {
+        setVotedOutTargetUserId(data.target_user_id);
+        refetchGame();
+      } else {
+        setVoteStatuses((prev) => ({
+          ...prev,
+          [data.target_user_id]: { vote_count: data.vote_count, required_votes: data.required_votes, voters: [] },
+        }));
+      }
+    };
     socketService.onGameUpdate(onGameUpdate);
     socketService.onGameStarted(onGameStarted);
+    socketService.onVoteCast(onVoteCast);
     return () => {
       socketService.removeListener("game-update", onGameUpdate);
       socketService.removeListener("game-started", onGameStarted);
+      socketService.removeListener("vote-cast", onVoteCast);
       socketService.leaveGameRoom(gameCode);
     };
   }, [gameCode, game?.is_ai, queryClient, refetchGame, refetchGameProperties]);
@@ -289,6 +302,17 @@ function Board3DMobileContent() {
   const [endByNetWorthLoading, setEndByNetWorthLoading] = useState(false);
   const [showEndByNetWorthConfirm, setShowEndByNetWorthConfirm] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
+  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
+  const [showVotedOutModal, setShowVotedOutModal] = useState(false);
+  const [votedOutTargetUserId, setVotedOutTargetUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (votedOutTargetUserId != null && me?.user_id === votedOutTargetUserId) {
+      setShowVotedOutModal(true);
+      setVotedOutTargetUserId(null);
+    }
+  }, [votedOutTargetUserId, me?.user_id]);
 
   // Multiplayer: "Start now" ready window
   const [requestStartLoading, setRequestStartLoading] = useState(false);
@@ -569,6 +593,73 @@ function Board3DMobileContent() {
     }
     fetchEndByNetWorthStatus();
   }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
+
+  const voteablePlayersList = useMemo(() => {
+    if (!game?.players || !me?.user_id) return [];
+    return game.players.filter((p: Player) => {
+      if (p.user_id === me.user_id) return false;
+      const strikes = (p as Player & { consecutive_timeouts?: number }).consecutive_timeouts ?? 0;
+      const otherPlayers = game.players.filter((pl: Player) => pl.user_id !== me?.user_id);
+      if (otherPlayers.length === 1) return strikes >= 3;
+      return strikes > 0;
+    });
+  }, [game?.players, me?.user_id]);
+
+  const fetchVoteStatus = useCallback(
+    async (targetUserId: number) => {
+      if (!game?.id) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-status", {
+          game_id: game.id,
+          target_user_id: targetUserId,
+        });
+        const data = res?.data?.data;
+        if (res?.data?.success && data) {
+          setVoteStatuses((prev) => ({ ...prev, [targetUserId]: data }));
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [game?.id]
+  );
+
+  const voteToRemove = useCallback(
+    async (targetUserId: number) => {
+      if (!me?.user_id || !game?.id) return;
+      setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
+      try {
+        const res = await apiClient.post<ApiResponse & { data?: { vote_count: number; required_votes: number; voters?: Array<{ user_id: number; username: string }>; removed?: boolean } }>(
+          "/game-players/vote-to-remove",
+          { game_id: game.id, user_id: me.user_id, target_user_id: targetUserId }
+        );
+        if (res?.data?.success && res.data.data) {
+          const data = res.data.data;
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: { vote_count: data.vote_count, required_votes: data.required_votes, voters: data.voters ?? [] },
+          }));
+          if (data.removed) {
+            toast.success(`${(game?.players ?? []).find((p: Player) => p.user_id === targetUserId)?.username ?? "Player"} has been removed`);
+            await fetchUpdatedGame();
+          } else {
+            toast.success(`Vote recorded. ${data.vote_count}/${data.required_votes} votes.`);
+            await fetchVoteStatus(targetUserId);
+          }
+        }
+      } catch (err) {
+        toast.error(getContractErrorMessage(err, "Failed to vote"));
+      } finally {
+        setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
+      }
+    },
+    [game?.id, me?.user_id, game?.players, fetchUpdatedGame, fetchVoteStatus]
+  );
+
+  useEffect(() => {
+    if (!game?.id || !me?.user_id || voteablePlayersList.length === 0) return;
+    voteablePlayersList.forEach((p) => fetchVoteStatus(p.user_id));
+  }, [game?.id, me?.user_id, game?.players?.length, fetchVoteStatus, voteablePlayersList.length]);
 
   const runMovementAnimation = useCallback(
     async (playerId: number, currentPos: number, totalSteps: number) => {
@@ -1843,6 +1934,30 @@ function Board3DMobileContent() {
             Chat
           </button>
         )}
+        {/* Vote player out — same as 2D board */}
+        {isLiveGame && game && !game.is_ai && voteablePlayersList.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto shrink min-w-0">
+            {voteablePlayersList.map((p) => {
+              const status = voteStatuses[p.user_id];
+              const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
+              const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
+              const isLoading = votingLoading[p.user_id];
+              return (
+                <button
+                  key={p.user_id}
+                  type="button"
+                  onClick={() => voteToRemove(p.user_id)}
+                  disabled={isLoading || hasVoted}
+                  className={`shrink-0 text-xs font-medium rounded-lg px-2.5 py-1.5 border ${
+                    hasVoted ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50" : isLoading ? "bg-amber-900/60 text-amber-200 border-amber-500/50" : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50"
+                  }`}
+                >
+                  {hasVoted ? `✓${voteRatio}` : isLoading ? "…" : `Vote ${(p.username ?? "P").slice(0, 6)} out`}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <main
@@ -2330,6 +2445,48 @@ function Board3DMobileContent() {
         onReturnHome={() => (window.location.href = "/")}
         tokensAwarded={0.5}
       />
+
+      {/* You were voted out — same as 2D board */}
+      <AnimatePresence>
+        {showVotedOutModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voted-out-title-mobile"
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-slate-800/95 border border-cyan-500/30 rounded-2xl p-6 max-w-sm w-full shadow-xl text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p id="voted-out-title-mobile" className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
+              <p className="text-slate-300 text-sm mb-4">You can continue watching or leave the game.</p>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowVotedOutModal(false)}
+                  className="w-full py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+                >
+                  Continue watching
+                </button>
+                <Link
+                  href="/"
+                  className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium"
+                >
+                  Leave
+                </Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Multiplayer: Tavern chat slide-up panel (mobile) */}
       <AnimatePresence>

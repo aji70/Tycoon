@@ -325,6 +325,9 @@ function Board3DPageContent() {
   const [buyTipText, setBuyTipText] = useState<string | null>(null);
   const [buyTipLoading, setBuyTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
+  const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
+  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
+  const [showVotedOutModal, setShowVotedOutModal] = useState(false);
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
@@ -663,6 +666,91 @@ function Board3DPageContent() {
     }
     fetchEndByNetWorthStatus();
   }, [game?.id, isUntimed, fetchEndByNetWorthStatus, game?.history?.length]);
+
+  const voteablePlayersList = useMemo(() => {
+    if (!game?.players || !me?.user_id) return [];
+    return game.players.filter((p: Player) => {
+      if (p.user_id === me.user_id) return false;
+      const strikes = (p as Player & { consecutive_timeouts?: number }).consecutive_timeouts ?? 0;
+      const otherPlayers = game.players.filter((pl: Player) => pl.user_id !== me?.user_id);
+      if (otherPlayers.length === 1) return strikes >= 3;
+      return strikes > 0;
+    });
+  }, [game?.players, me?.user_id]);
+
+  const fetchVoteStatus = useCallback(
+    async (targetUserId: number) => {
+      if (!game?.id) return;
+      try {
+        const res = await apiClient.post<ApiResponse>("/game-players/vote-status", {
+          game_id: game.id,
+          target_user_id: targetUserId,
+        });
+        const data = res?.data?.data;
+        if (res?.data?.success && data) {
+          setVoteStatuses((prev) => ({ ...prev, [targetUserId]: data }));
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [game?.id]
+  );
+
+  const voteToRemove = useCallback(
+    async (targetUserId: number) => {
+      if (!me?.user_id || !game?.id) return;
+      setVotingLoading((prev) => ({ ...prev, [targetUserId]: true }));
+      try {
+        const res = await apiClient.post<ApiResponse & { data?: { vote_count: number; required_votes: number; voters?: Array<{ user_id: number; username: string }>; removed?: boolean } }>(
+          "/game-players/vote-to-remove",
+          { game_id: game.id, user_id: me.user_id, target_user_id: targetUserId }
+        );
+        if (res?.data?.success && res.data.data) {
+          const data = res.data.data;
+          setVoteStatuses((prev) => ({
+            ...prev,
+            [targetUserId]: { vote_count: data.vote_count, required_votes: data.required_votes, voters: data.voters ?? [] },
+          }));
+          if (data.removed) {
+            toast.success(`${(game?.players ?? []).find((p: Player) => p.user_id === targetUserId)?.username ?? "Player"} has been removed`);
+            await fetchUpdatedGame();
+          } else {
+            toast.success(`Vote recorded. ${data.vote_count}/${data.required_votes} votes.`);
+            await fetchVoteStatus(targetUserId);
+          }
+        }
+      } catch (err) {
+        toast.error(getContractErrorMessage(err, "Failed to vote"));
+      } finally {
+        setVotingLoading((prev) => ({ ...prev, [targetUserId]: false }));
+      }
+    },
+    [game?.id, me?.user_id, game?.players, fetchUpdatedGame, fetchVoteStatus]
+  );
+
+  useEffect(() => {
+    if (!game?.id || !me?.user_id || voteablePlayersList.length === 0) return;
+    voteablePlayersList.forEach((p) => fetchVoteStatus(p.user_id));
+  }, [game?.id, me?.user_id, game?.players?.length, fetchVoteStatus, voteablePlayersList.length]);
+
+  useEffect(() => {
+    if (!gameCode || !game || game.is_ai !== false) return;
+    const onVoteCast = (data: { target_user_id: number; voter_user_id: number; vote_count: number; required_votes: number; removed: boolean }) => {
+      if (data.removed) {
+        if (data.target_user_id === me?.user_id) setShowVotedOutModal(true);
+        fetchUpdatedGame();
+      } else {
+        setVoteStatuses((prev) => ({
+          ...prev,
+          [data.target_user_id]: { vote_count: data.vote_count, required_votes: data.required_votes, voters: [] },
+        }));
+        fetchVoteStatus(data.target_user_id);
+      }
+    };
+    socketService.onVoteCast(onVoteCast);
+    return () => socketService.removeListener("vote-cast", onVoteCast);
+  }, [gameCode, game?.id, game?.is_ai, me?.user_id, fetchUpdatedGame, fetchVoteStatus]);
 
   const { handleBuild, handleSellBuilding, handleMortgageToggle, handleSellToBank } = useMobilePropertyActions(
     game?.id ?? 0,
@@ -1419,6 +1507,35 @@ function Board3DPageContent() {
             </div>
           </div>
         )}
+        {/* Vote player out — same as 2D board */}
+        {isLiveGame && game && voteablePlayersList.length > 0 && (
+          <div className="rounded-xl border border-amber-500/40 bg-slate-900/90 p-3 space-y-2">
+            <p className="text-amber-200/90 font-orbitron text-xs font-bold uppercase tracking-wide">Vote player out</p>
+            {voteablePlayersList.map((p) => {
+              const status = voteStatuses[p.user_id];
+              const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
+              const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
+              const isLoading = votingLoading[p.user_id];
+              return (
+                <button
+                  key={p.user_id}
+                  type="button"
+                  onClick={() => voteToRemove(p.user_id)}
+                  disabled={isLoading || hasVoted}
+                  className={`w-full text-left text-xs font-medium rounded-lg px-3 py-2 border transition-all ${
+                    hasVoted
+                      ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50 cursor-not-allowed"
+                      : isLoading
+                      ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
+                      : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80"
+                  }`}
+                >
+                  {hasVoted ? `✓ Voted${voteRatio}` : isLoading ? "Voting…" : `Vote ${p.username ?? "Player"} out${voteRatio}`}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {gameCode && gameLoading ? (
           <div className="relative overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-slate-900/80 shadow-xl">
             <div className="p-6 flex flex-col items-center justify-center gap-4">
@@ -1963,6 +2080,47 @@ function Board3DPageContent() {
           onReturnHome={() => (window.location.href = "/")}
           tokensAwarded={0.5}
         />
+
+        {/* You were voted out — same as 2D board */}
+        <AnimatePresence>
+          {showVotedOutModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="voted-out-title"
+            >
+              <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.95 }}
+                className="bg-slate-800/95 border border-cyan-500/30 rounded-2xl p-6 max-w-sm w-full shadow-xl text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p id="voted-out-title" className="text-lg font-semibold text-cyan-100 mb-1">You were voted out</p>
+                <p className="text-slate-300 text-sm mb-4">You can continue watching or leave the game.</p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowVotedOutModal(false)}
+                    className="w-full py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+                  >
+                    Continue watching
+                  </button>
+                  <Link
+                    href="/"
+                    className="block w-full py-3 rounded-xl border border-slate-500 text-slate-300 hover:bg-slate-700/50 font-medium"
+                  >
+                    Leave
+                  </Link>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
