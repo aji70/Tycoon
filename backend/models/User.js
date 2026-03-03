@@ -276,82 +276,124 @@ const User = {
   },
 
   /**
-   * Top players by games won on this chain (uses per-chain columns: celo_games_won, etc.)
+   * Top players by games won on this chain. Uses per-chain columns (celo_games_won, etc.) when present;
+   * falls back to legacy games_played/game_won so existing data still shows until per-chain is populated.
    */
   async getLeaderboardByWins(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
-    if (!cols) {
-      return await db("users").where({ chain: normalized }).select("id", "username", "address").limit(0);
+    const lim = Math.min(Number(limit) || 20, 100);
+    if (cols) {
+      const rows = await db("users")
+        .where({ chain: normalized })
+        .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+        .where(cols.played, ">", 0)
+        .select("id", "username", "address", db.raw(`${cols.played} as games_played`), db.raw(`${cols.won} as game_won`))
+        .orderBy(cols.won, "desc")
+        .orderBy(cols.played, "desc")
+        .limit(lim);
+      if (rows.length > 0) return rows;
     }
-    const { played, won } = cols;
+    // Fallback: legacy columns so leaderboard shows data that existed before per-chain columns were populated
     return await db("users")
       .where({ chain: normalized })
       .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-      .where(played, ">", 0)
-      .select("id", "username", "address", played + " as games_played", won + " as game_won")
-      .orderBy(won, "desc")
-      .orderBy(played, "desc")
-      .limit(Math.min(Number(limit) || 20, 100));
+      .where("games_played", ">", 0)
+      .select("id", "username", "address", "games_played", "game_won")
+      .orderBy("game_won", "desc")
+      .orderBy("games_played", "desc")
+      .limit(lim);
   },
 
   /**
-   * Top players by total earned (filtered by chain). Excludes users with 0 games on this chain.
+   * Top players by total earned (filtered by chain). Uses per-chain game count when present; else falls back to legacy games_played.
    */
   async getLeaderboardByEarnings(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
-    let q = db("users")
-      .where({ chain: normalized })
-      .andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
+    const lim = Math.min(Number(limit) || 20, 100);
+    let q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
     if (cols) q = q.where(cols.played, ">", 0);
-    return await q
+    let rows = await q
       .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
       .orderBy("total_earned", "desc")
-      .limit(Math.min(Number(limit) || 20, 100));
+      .limit(lim);
+    if (rows.length > 0) return rows;
+    // Fallback: allow users with legacy games_played > 0
+    return await db("users")
+      .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .where("games_played", ">", 0)
+      .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
+      .orderBy("total_earned", "desc")
+      .limit(lim);
   },
 
   /**
-   * Top players by total staked (filtered by chain). Excludes users with 0 games on this chain.
+   * Top players by total staked (filtered by chain). Uses per-chain game count when present; else falls back to legacy games_played.
    */
   async getLeaderboardByStakes(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
-    let q = db("users")
-      .where({ chain: normalized })
-      .andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
+    const lim = Math.min(Number(limit) || 20, 100);
+    let q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
     if (cols) q = q.where(cols.played, ">", 0);
-    return await q
+    let rows = await q
       .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
       .orderBy("total_staked", "desc")
-      .limit(Math.min(Number(limit) || 20, 100));
+      .limit(lim);
+    if (rows.length > 0) return rows;
+    return await db("users")
+      .where({ chain: normalized })
+      .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+      .where("games_played", ">", 0)
+      .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
+      .orderBy("total_staked", "desc")
+      .limit(lim);
   },
 
   /**
-   * Top players by win rate on this chain (uses per-chain columns; min 1 game on that chain).
+   * Top players by win rate on this chain. Uses per-chain columns when present; else falls back to legacy games_played/game_won.
    */
   async getLeaderboardByWinRate(chain, limit = 20) {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
-    if (!cols) {
-      return await db("users").where({ chain: normalized }).select("id", "username", "address").limit(0);
+    const lim = Math.min(Number(limit) || 20, 100);
+    if (cols) {
+      const { played, won } = cols;
+      const rows = await db("users")
+        .where({ chain: normalized })
+        .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+        .where(played, ">", 0)
+        .select(
+          "id",
+          "username",
+          "address",
+          db.raw(`${played} AS games_played`),
+          db.raw(`${won} AS game_won`),
+          db.raw("0 AS game_lost"),
+          db.raw(`(CASE WHEN ${played} > 0 THEN (1.0 * ${won} / ${played}) ELSE 0 END) AS win_rate`)
+        )
+        .orderBy("win_rate", "desc")
+        .limit(lim);
+      if (rows.length > 0) return rows;
     }
-    const { played, won } = cols;
+    // Fallback: legacy columns
     return await db("users")
       .where({ chain: normalized })
       .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-      .where(played, ">", 0)
+      .where("games_played", ">", 0)
       .select(
         "id",
         "username",
         "address",
-        db.raw(`${played} AS games_played`),
-        db.raw(`${won} AS game_won`),
+        "games_played",
+        "game_won",
         db.raw("0 AS game_lost"),
-        db.raw(`(CASE WHEN ${played} > 0 THEN (1.0 * ${won} / ${played}) ELSE 0 END) AS win_rate`)
+        db.raw("(CASE WHEN games_played > 0 THEN (1.0 * game_won / games_played) ELSE 0 END) AS win_rate")
       )
       .orderBy("win_rate", "desc")
-      .limit(Math.min(Number(limit) || 20, 100));
+      .limit(lim);
   },
 };
 
