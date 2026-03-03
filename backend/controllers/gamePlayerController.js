@@ -12,6 +12,7 @@ import { emitGameUpdate } from "../utils/socketHelpers.js";
 import logger from "../config/logger.js";
 import { removePlayerFromGame, exitGameByBackend, endAIGameByBackend, isContractConfigured, callContractRead } from "../services/tycoonContract.js";
 import { finishGameByNetWorthAndNotify } from "./gameController.js";
+import { getActiveByGameId } from "./auctionController.js";
 
 /** Pass to removePlayerFromGame so contract uses on-chain turnsPlayed (voluntary exit behavior). */
 const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
@@ -359,6 +360,14 @@ const payRent = async (
         return {
           success: true,
           message: "No rent required",
+          position: new_position,
+        };
+      }
+      // House rule: no rent while in jail unless "Pay Rent in Jail" is enabled
+      if (game_player.in_jail && !game_settings.rent_in_prison) {
+        return {
+          success: true,
+          message: "No rent required (in jail)",
           position: new_position,
         };
       }
@@ -1775,6 +1784,90 @@ const gamePlayerController = {
     } catch (error) {
       await trx.rollback();
       logger.error({ err: error }, "stayInJail error");
+      return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
+    }
+  },
+
+  /**
+   * POST /game-players/decline-buy
+   * Body: { game_id, user_id, property_id }
+   * When player declines to buy (or can't afford), if game has auction enabled start an auction; otherwise advance turn.
+   */
+  async declineBuy(req, res) {
+    const trx = await db.transaction();
+    try {
+      const { user_id, game_id, property_id } = req.body;
+      if (!user_id || !game_id || !property_id) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Missing game_id, user_id, or property_id" });
+      }
+      const game = await trx("games").where({ id: game_id }).forUpdate().first();
+      if (!game) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Game not found" });
+      }
+      if (game.status !== "RUNNING") {
+        await trx.rollback();
+        return res.status(422).json({ success: false, message: "Game is not running" });
+      }
+      if (game.next_player_id !== user_id) {
+        await trx.rollback();
+        return res.status(422).json({ success: false, message: "Not your turn" });
+      }
+      const game_player = await trx("game_players").where({ game_id, user_id }).first();
+      if (!game_player) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Player not in game" });
+      }
+      const playerPosition = Number(game_player.position);
+      const property = await trx("properties").where({ id: property_id }).first();
+      if (!property) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Property not found" });
+      }
+      if (property.id !== playerPosition) {
+        await trx.rollback();
+        return res.status(422).json({ success: false, message: "You are not on this property" });
+      }
+      const existing = await trx("game_properties").where({ property_id, game_id }).first();
+      if (existing) {
+        await trx.rollback();
+        return res.status(422).json({ success: false, message: "Property is already owned" });
+      }
+      const settings = await trx("game_settings").where({ game_id }).first();
+      if (settings && settings.auction) {
+        await trx("game_auctions").insert({
+          game_id,
+          property_id,
+          started_by_player_id: game_player.id,
+          status: "open",
+        });
+        await trx.commit();
+        await notifyGameUpdate(req, game_id);
+        const active = await getActiveByGameId(game_id);
+        return res.json({
+          success: true,
+          requires_auction: true,
+          auction: active,
+        });
+      }
+      const players = await trx("game_players").where({ game_id }).forUpdate().orderBy("turn_order", "asc");
+      const currentIdx = players.findIndex((p) => p.user_id === user_id);
+      const nextIdx = currentIdx === players.length - 1 ? 0 : currentIdx + 1;
+      const next_player = players[nextIdx];
+      const now = new Date();
+      await trx("game_players").where({ game_id, user_id }).update({ rolled: null, updated_at: now });
+      await trx("games").where({ id: game_id }).update({ next_player_id: next_player.user_id, updated_at: now });
+      const turnStartSeconds = String(Math.floor(Date.now() / 1000));
+      await trx("game_players").where({ game_id, user_id: next_player.user_id }).update({ turn_start: turnStartSeconds, updated_at: now });
+      const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
+      if (allRolled) await trx("game_players").where({ game_id }).update({ rolls: 0 });
+      await trx.commit();
+      await notifyGameUpdate(req, game_id);
+      return res.json({ success: true, message: "Turn passed. Next player." });
+    } catch (error) {
+      await trx.rollback();
+      logger.error({ err: error }, "declineBuy error");
       return res.status(500).json({ success: false, message: error?.message || "Internal server error" });
     }
   },

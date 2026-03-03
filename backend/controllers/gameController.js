@@ -27,6 +27,7 @@ import {
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
+import { getActiveByGameId } from "./auctionController.js";
 
 // AI bot addresses (must match frontend) — used to create DB players for guest AI games so we have 2+ players from the start.
 const AI_ADDRESSES = [
@@ -318,7 +319,7 @@ const gameController = {
         rent_in_prison: settings.rent_in_prison,
         mortgage: settings.mortgage,
         even_build: settings.even_build,
-        randomize_play_order: settings.randomize_play_order,
+        randomize_play_order: settings?.randomize_play_order ?? true,
         starting_cash: settings.starting_cash,
         // turn_start: settings.turn_start,
       };
@@ -812,7 +813,8 @@ const gameController = {
       const settings = await GameSetting.findByGameId(game.id);
       const players = await GamePlayer.findByGameId(game.id);
       const history = await GamePlayHistory.findByGameId(game.id);
-      const data = { ...game, settings, players, history };
+      const active_auction = await getActiveByGameId(game.id);
+      const data = { ...game, settings, players, history, active_auction: active_auction || undefined };
       await setCachedGameByCode(code, data);
 
       res.json({
@@ -999,7 +1001,7 @@ export const create = async (req, res) => {
       rent_in_prison: settings.rent_in_prison,
       mortgage: settings.mortgage,
       even_build: settings.even_build,
-      randomize_play_order: settings.randomize_play_order,
+      randomize_play_order: settings?.randomize_play_order ?? true,
       starting_cash: settings.starting_cash,
     };
 

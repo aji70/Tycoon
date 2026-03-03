@@ -15,7 +15,6 @@ import { MdPrivateConnectivity } from "react-icons/md";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiBank, GiPrisoner } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
-import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import {
   useAccount,
@@ -82,7 +81,6 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
     rentInPrison: false,
     mortgage: true,
     evenBuild: true,
-    randomPlayOrder: true,
     startingCash: 1500,
     stake: 10,
     duration: 30,
@@ -176,7 +174,6 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
             rent_in_prison: settings.rentInPrison,
             mortgage: settings.mortgage,
             even_build: settings.evenBuild,
-            randomize_play_order: settings.randomPlayOrder,
             starting_cash: settings.startingCash,
           },
         });
@@ -256,7 +253,6 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
           rent_in_prison: settings.rentInPrison,
           mortgage: settings.mortgage,
           even_build: settings.evenBuild,
-          randomize_play_order: settings.randomPlayOrder,
         },
       });
 
@@ -517,7 +513,6 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
               { icon: GiPrisoner, label: "Rent in Jail", key: "rentInPrison" },
               { icon: GiBank, label: "Mortgages", key: "mortgage" },
               { icon: IoBuild, label: "Even Build", key: "evenBuild" },
-              { icon: FaRandom, label: "Random Order", key: "randomPlayOrder" },
             ].map((item) => (
               <div key={item.key} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

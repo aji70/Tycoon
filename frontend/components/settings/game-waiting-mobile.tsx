@@ -148,9 +148,6 @@ export default function GameWaitingMobile({ redirectToBoard }: GameWaitingMobile
                   {(game.settings as any)?.even_build && (
                     <span className="px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] text-xs">Even build</span>
                   )}
-                  {(game.settings as any)?.randomize_play_order && (
-                    <span className="px-2 py-0.5 rounded-md bg-[#00F0FF]/15 text-[#00F0FF] text-xs">Random order</span>
-                  )}
                   {(game.settings as any)?.rent_in_prison && (
                     <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-xs">Rent in jail</span>
                   )}

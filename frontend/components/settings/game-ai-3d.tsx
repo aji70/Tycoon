@@ -14,7 +14,6 @@ import { Switch } from "@/components/ui/game-switch";
 import { RiAuctionFill } from "react-icons/ri";
 import { GiPrisoner, GiBank } from "react-icons/gi";
 import { IoBuild } from "react-icons/io5";
-import { FaRandom } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { GamePieces } from "@/lib/constants/games";
 import { ShieldCheck } from "lucide-react";
@@ -199,7 +198,6 @@ export default function PlayWithAI3D() {
                   { icon: GiPrisoner, label: "Pay Rent in Jail", key: "rentInPrison" },
                   { icon: GiBank, label: "Allow Mortgages", key: "mortgage" },
                   { icon: IoBuild, label: "Even Building Rule", key: "evenBuild" },
-                  { icon: FaRandom, label: "Random Play Order", key: "randomPlayOrder" },
                 ].map((item) => (
                   <div key={item.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

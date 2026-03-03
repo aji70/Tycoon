@@ -42,7 +42,6 @@ export interface AIGameSettings {
   rentInPrison: boolean;
   mortgage: boolean;
   evenBuild: boolean;
-  randomPlayOrder: boolean;
   duration: number;
 }
 
@@ -55,7 +54,6 @@ const DEFAULT_SETTINGS: AIGameSettings = {
   rentInPrison: false,
   mortgage: true,
   evenBuild: true,
-  randomPlayOrder: true,
   duration: 30,
 };
 
@@ -126,7 +124,6 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
             mortgage: settings.mortgage,
             even_build: settings.evenBuild,
             starting_cash: settings.startingCash,
-            randomize_play_order: settings.randomPlayOrder,
           },
         });
         const data = (res as any)?.data;
@@ -203,7 +200,6 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
             mortgage: settings.mortgage,
             even_build: settings.evenBuild,
             starting_cash: settings.startingCash,
-            randomize_play_order: settings.randomPlayOrder,
           },
         });
 

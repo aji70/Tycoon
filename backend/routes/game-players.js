@@ -27,6 +27,7 @@ router.post("/pay-to-leave-jail", gamePlayerController.payToLeaveJail);
 router.post("/stay-in-jail", gamePlayerController.stayInJail);
 router.post("/use-get-out-of-jail-free", gamePlayerController.useGetOutOfJailFree);
 router.post("/end-turn", gamePlayerController.endTurn);
+router.post("/decline-buy", gamePlayerController.declineBuy);
 router.post("/can-roll", gamePlayerController.canRoll);
 router.post("/remove-inactive", gamePlayerController.removeInactive);
 router.post("/record-timeout", gamePlayerController.recordTimeout);
