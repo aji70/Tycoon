@@ -174,7 +174,7 @@ const payRent = async (
       action: PROPERTY_ACTION(position),
       amount,
       extra: JSON.stringify({ description: desc }),
-      comment,
+      comment: desc,
       active: 1,
       created_at: now,
     });
@@ -559,11 +559,12 @@ const payRent = async (
             .increment("balance", playerAmount)
         );
         if (!chanceCard) {
+          const absAmount = Math.abs(playerAmount);
           historyInserts.push(
             createHistory(
               game_player.id,
               playerAmount,
-              `${playerAmount > 0 ? "received" : "paid"} ${playerAmount}`
+              playerAmount > 0 ? `received ${playerAmount}` : `paid ${absAmount} rent`
             )
           );
         }
@@ -580,9 +581,7 @@ const payRent = async (
             createHistory(
               game_property.player_id,
               ownerAmount,
-              `${_owner ? _owner?.username : "Owner"} ${
-                ownerAmount > 0 ? "received" : "paid"
-              } ${ownerAmount}`
+              `${ownerAmount > 0 ? "received" : "paid"} ${Math.abs(ownerAmount)} rent`
             )
           );
         }
