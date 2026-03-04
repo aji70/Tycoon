@@ -141,7 +141,9 @@ export default function Leaderboard() {
     setError(null);
     try {
       const res = await apiClient.get('/users/leaderboard', {
-        params: { chain: chainParam, type: kind, limit: LIMIT },
+        chain: chainParam,
+        type: kind,
+        limit: LIMIT,
       });
       const data = normalizeLeaderboardArray(res) as unknown[];
       const list = Array.isArray(data) ? data : [];
