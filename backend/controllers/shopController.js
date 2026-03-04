@@ -1,14 +1,22 @@
 /**
- * Shop: perk bundles (list only; purchase requires contract buyBundle support).
+ * Shop: perk bundles (list; purchase via TYC/USDC on-chain or NGN via Paystack).
  */
 import db from "../config/database.js";
+import {
+  isPaystackConfigured,
+  initializeTransaction,
+  verifyWebhookSignature,
+  verifyTransaction,
+} from "../services/paystack.js";
+import logger from "../config/logger.js";
+import crypto from "crypto";
 
 export async function listBundles(req, res) {
   try {
     const bundles = await db("perk_bundles")
       .where({ active: true })
       .orderBy("id", "asc")
-      .select("id", "name", "description", "token_ids", "amounts", "price_tyc", "price_usdc", "created_at");
+      .select("id", "name", "description", "token_ids", "amounts", "price_tyc", "price_usdc", "price_ngn", "created_at");
 
     return res.json({
       success: true,
@@ -20,10 +28,195 @@ export async function listBundles(req, res) {
         amounts: b.amounts,
         price_tyc: String(b.price_tyc ?? 0),
         price_usdc: String(b.price_usdc ?? 0),
+        price_ngn: b.price_ngn != null ? Number(b.price_ngn) : null,
       })),
     });
   } catch (err) {
     console.error("listBundles error:", err);
     return res.status(500).json({ success: false, message: "Failed to list bundles" });
+  }
+}
+
+/**
+ * POST /api/shop/paystack/initialize
+ * Body: { bundle_id, callback_url? }
+ * Auth required. Creates Paystack transaction and returns authorization_url + reference.
+ */
+export async function paystackInitialize(req, res) {
+  try {
+    const user_id = req.user?.id;
+    if (!user_id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    if (!isPaystackConfigured()) {
+      return res.status(503).json({ success: false, message: "NGN payments are not configured" });
+    }
+
+    const { bundle_id, callback_url } = req.body || {};
+    const bundleId = bundle_id != null ? Number(bundle_id) : NaN;
+    if (!Number.isInteger(bundleId) || bundleId < 1) {
+      return res.status(400).json({ success: false, message: "Valid bundle_id is required" });
+    }
+
+    const bundle = await db("perk_bundles").where({ id: bundleId, active: true }).first();
+    if (!bundle) {
+      return res.status(404).json({ success: false, message: "Bundle not found or inactive" });
+    }
+    const priceNgn = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
+    if (priceNgn == null || priceNgn < 1) {
+      return res.status(400).json({ success: false, message: "This bundle is not available for NGN purchase" });
+    }
+
+    const user = await db("users").where({ id: user_id }).first();
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    const email = user.email || user.username ? `${user.username}@tycoon.placeholder` : null;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "User must have an email for NGN payment" });
+    }
+
+    const reference = `bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const { authorization_url, reference: ref } = await initializeTransaction({
+      amountKobo: priceNgn,
+      email,
+      reference,
+      callbackUrl: callback_url || undefined,
+      metadata: { user_id: String(user_id), bundle_id: String(bundleId) },
+    });
+
+    await db("paystack_payments").insert({
+      reference: ref,
+      user_id: user_id,
+      bundle_id: bundleId,
+      amount_kobo: priceNgn,
+      status: "pending",
+    });
+
+    return res.json({
+      success: true,
+      authorization_url: authorization_url,
+      reference: ref,
+    });
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.user?.id }, "paystackInitialize error");
+    return res.status(500).json({ success: false, message: err.message || "Failed to initialize payment" });
+  }
+}
+
+/**
+ * POST /api/shop/paystack/webhook
+ * Raw body required for signature verification. Respond 200 immediately; process async.
+ */
+export async function paystackWebhook(req, res) {
+  const rawBody = req.body;
+  const signature = req.headers["x-paystack-signature"];
+  if (!rawBody || !signature) {
+    return res.status(400).send("Bad request");
+  }
+  const bodyStr = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : String(rawBody);
+  if (!verifyWebhookSignature(bodyStr, signature)) {
+    logger.warn("Paystack webhook signature verification failed");
+    return res.status(401).send("Invalid signature");
+  }
+
+  let event;
+  try {
+    event = JSON.parse(bodyStr);
+  } catch (_) {
+    return res.status(400).send("Invalid JSON");
+  }
+
+  res.status(200).send("OK");
+
+  if (event.event !== "charge.success") {
+    return;
+  }
+
+  const data = event.data;
+  const reference = data?.reference;
+  if (!reference) return;
+
+  (async () => {
+    try {
+      const existing = await db("paystack_payments").where({ reference }).first();
+          if (!existing) {
+        logger.warn({ reference }, "Paystack webhook: unknown reference");
+        return;
+      }
+          if (existing.status === "completed") {
+        return;
+      }
+
+      const amountPaid = data.amount != null ? Number(data.amount) : 0;
+      if (amountPaid < existing.amount_kobo) {
+        logger.warn({ reference, amountPaid, expected: existing.amount_kobo }, "Paystack amount mismatch");
+        await db("paystack_payments").where({ reference }).update({ status: "failed", updated_at: new Date() });
+        return;
+      }
+
+      await db("paystack_payments").where({ reference }).update({
+        status: "completed",
+        fulfilled_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      await db("user_bundle_purchases").insert({
+        user_id: existing.user_id,
+        bundle_id: existing.bundle_id,
+        payment_reference: reference,
+        source: "ngn",
+      });
+
+      logger.info(
+        { reference, user_id: existing.user_id, bundle_id: existing.bundle_id },
+        "Paystack payment fulfilled"
+      );
+    } catch (err) {
+      logger.error({ err: err.message, reference }, "Paystack webhook fulfillment error");
+    }
+  })();
+}
+
+/**
+ * GET /api/shop/paystack/verify?reference=xxx
+ * Returns payment and fulfillment status for the given reference (for redirect page / polling).
+ */
+export async function paystackVerify(req, res) {
+  try {
+    const reference = req.query?.reference;
+    if (!reference || typeof reference !== "string") {
+      return res.status(400).json({ success: false, message: "reference query is required" });
+    }
+
+    const row = await db("paystack_payments")
+      .where({ reference })
+      .select("reference", "user_id", "bundle_id", "status", "fulfilled_at", "created_at")
+      .first();
+
+    if (!row) {
+      return res.json({
+        success: true,
+        found: false,
+        reference,
+        status: null,
+        fulfilled: false,
+      });
+    }
+
+    const isOwn = req.user && Number(req.user.id) === Number(row.user_id);
+    return res.json({
+      success: true,
+      found: true,
+      reference: row.reference,
+      status: row.status,
+      fulfilled: Boolean(row.fulfilled_at),
+      fulfilled_at: row.fulfilled_at,
+      bundle_id: row.bundle_id,
+      user_id: isOwn ? row.user_id : undefined,
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, "paystackVerify error");
+    return res.status(500).json({ success: false, message: "Verification failed" });
   }
 }
