@@ -99,6 +99,7 @@ export default function GameShopMobile() {
   const { usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
+  const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
 
   useEffect(() => {
@@ -439,14 +440,40 @@ export default function GameShopMobile() {
           </button>
         </motion.div>
 
-        {/* Bundles */}
-        {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).length > 0 && (
+        {/* Tabs: Perks | Bundles — one visible at a time */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setShopTab('perks')}
+            className={`flex-1 min-h-[44px] px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+              shopTab === 'perks'
+                ? 'bg-[#00F0FF]/20 border-2 border-[#00F0FF]/60 text-[#00F0FF]'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Perks
+          </button>
+          <button
+            type="button"
+            onClick={() => setShopTab('bundles')}
+            className={`flex-1 min-h-[44px] px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+              shopTab === 'bundles'
+                ? 'bg-amber-500/20 border-2 border-amber-400/60 text-amber-300'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Bundles
+          </button>
+        </div>
+
+        {shopTab === 'bundles' && (
           <div className="space-y-4 mb-8">
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-[#003B3E]/80" />
               <span className="text-xs text-slate-500 uppercase tracking-widest">Bundles</span>
               <div className="h-px flex-1 bg-[#003B3E]/80" />
             </div>
+            {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).map((b, idx) => (
                 <motion.div
@@ -475,9 +502,16 @@ export default function GameShopMobile() {
                 </motion.div>
               ))}
             </div>
+            ) : (
+              <div className="text-center py-12 px-4 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40">
+                <p className="text-slate-400 text-sm">No bundles available yet. Check back soon.</p>
+              </div>
+            )}
           </div>
         )}
 
+        {shopTab === 'perks' && (
+          <>
         {/* Section label */}
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-[#003B3E]/80" />
@@ -602,6 +636,8 @@ export default function GameShopMobile() {
               );
             })}
           </div>
+        )}
+          </>
         )}
       </div>
 
