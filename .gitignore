@@ -18,5 +18,6 @@ frontend/.env.*.local
 **/.secrets
 ENV_SETUP.md
 
-# Documentation (local / not tracked)
+# Documentation (local / not tracked — do not push to GitHub)
 doc/
+docs/
