@@ -24,6 +24,7 @@ import { useRewardTokenAddresses } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
+import { DailyClaim } from '@/components/rewards/DailyClaim';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -533,6 +534,9 @@ export default function ProfilePageMobile() {
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <div className="mb-4">
+                  <DailyClaim />
+                </div>
                 {userData && (() => {
                   const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
                   return (

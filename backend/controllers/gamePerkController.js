@@ -13,6 +13,10 @@ const getPerkName = (id) => {
     8: "Property Discount",
     9: "Tax Refund",
     10: "Exact Roll",
+    11: "Rent Cashback",
+    12: "Interest",
+    13: "Lucky 7",
+    14: "Free Parking Bonus",
   };
   return names[id] || "Unknown Perk";
 };
@@ -29,7 +33,7 @@ const gamePerkController = {
       return res.status(400).json({ success: false, message: "Missing game_id or perk_id" });
     }
 
-    const validPerks = [1, 2, 3, 4, 7, 8, 9]; // Extra Turn, Jail Free, Double Rent, Roll Boost, Shield, Property Discount, Tax Refund
+    const validPerks = [1, 2, 3, 4, 7, 8, 9, 11, 12, 13, 14]; // 11 Rent Cashback, 12 Interest, 13 Lucky 7, 14 Free Parking
     if (!validPerks.includes(Number(perk_id))) {
       await trx.rollback();
       return res.status(400).json({ success: false, message: "Invalid perk for this endpoint" });
@@ -45,12 +49,36 @@ const gamePerkController = {
       return res.status(404).json({ success: false, message: "Game or player not found" });
     }
 
-    // Example: store active perk in player row (you can use a JSON field or separate table)
     const activePerks = player.active_perks ? JSON.parse(player.active_perks) : [];
+    const pid = Number(perk_id);
 
-    // Prevent duplicates where needed
-    if ([3, 7, 8].includes(Number(perk_id))) { // Double Rent, Shield, Property Discount
-      const exists = activePerks.some(p => p.id === Number(perk_id));
+    // Lucky 7 (13): one-shot — set next roll to 7, do not add to active_perks
+    if (pid === 13) {
+      await trx("game_players")
+        .where({ id: player.id })
+        .update({
+          pending_exact_roll: 7,
+          updated_at: new Date(),
+        });
+      await trx("game_play_history").insert({
+        game_id,
+        game_player_id: player.id,
+        action: "PERK_ACTIVATED",
+        extra: JSON.stringify({ perk_id: 13, name: getPerkName(13) }),
+        comment: "Lucky 7 — next roll will be 7!",
+        active: 1,
+        created_at: new Date(),
+      });
+      await trx.commit();
+      return res.json({
+        success: true,
+        message: "Lucky 7! Your next roll will be 7.",
+      });
+    }
+
+    // Prevent duplicates where needed (one active per type)
+    if ([3, 7, 8, 11, 12, 14].includes(pid)) {
+      const exists = activePerks.some(p => p.id === pid);
       if (exists) {
         await trx.rollback();
         return res.status(400).json({ success: false, message: "This perk is already active" });
@@ -58,7 +86,7 @@ const gamePerkController = {
     }
 
     activePerks.push({
-      id: Number(perk_id),
+      id: pid,
       activated_at: new Date(),
     });
 
@@ -69,7 +97,6 @@ const gamePerkController = {
         updated_at: new Date(),
       });
 
-    // Optional: log to history
     await trx("game_play_history").insert({
       game_id,
       game_player_id: player.id,

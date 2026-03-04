@@ -99,6 +99,7 @@ async function executePlayerRemoval(trx, game_id, target_user_id) {
     await trx("game_players")
       .where({ game_id, user_id: next_player_id })
       .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+    await applyTurnStartPerks(trx, game_id, next_player_id);
   }
 
   return {
@@ -122,6 +123,36 @@ const PROPERTY_TYPES = {
 
 const RAILWAY_RENT = { 1: 25, 2: 50, 3: 100, 4: 200 };
 const UTILITY_MULTIPLIER = { 1: 4, 2: 10 };
+
+/** Interest (perk 12): when a player's turn starts, give $200 and remove the perk. */
+async function applyTurnStartPerks(trx, game_id, user_id) {
+  const gp = await trx("game_players").where({ game_id, user_id }).first();
+  if (!gp) return;
+  let activePerks = [];
+  try {
+    activePerks = gp.active_perks ? JSON.parse(gp.active_perks) : [];
+  } catch (_) {}
+  const hasInterest = activePerks.some((p) => p.id === 12);
+  if (!hasInterest) return;
+  const updated = activePerks.filter((p) => p.id !== 12);
+  await trx("game_players")
+    .where({ id: gp.id })
+    .update({
+      balance: Number(gp.balance || 0) + 200,
+      active_perks: JSON.stringify(updated),
+      updated_at: new Date(),
+    });
+  await trx("game_play_history").insert({
+    game_id,
+    game_player_id: gp.id,
+    action: "PERK_ACTIVATED",
+    amount: 200,
+    extra: JSON.stringify({ perk_id: 12, name: "Interest" }),
+    comment: "Interest: +$200 at start of turn",
+    active: 1,
+    created_at: new Date(),
+  });
+}
 
 const payRent = async (
   { game_id, property_id, player_id, old_position, new_position, rolled },
@@ -358,6 +389,33 @@ const payRent = async (
         game_property.player_id === game_player.id ||
         game_property.mortgaged
       ) {
+        // Free Parking (position 20): if player has perk 14, give $500 and consume it
+        if (property.id === 20 && game_player) {
+          let fpPerks = [];
+          try {
+            fpPerks = game_player.active_perks ? JSON.parse(game_player.active_perks) : [];
+          } catch (_) {}
+          if (fpPerks.some((p) => p.id === 14)) {
+            const fpBonus = 500;
+            const fpUpdated = fpPerks.filter((p) => p.id !== 14);
+            await trx("game_players")
+              .where({ id: game_player.id })
+              .update({
+                balance: Number(game_player.balance || 0) + fpBonus,
+                active_perks: JSON.stringify(fpUpdated),
+                updated_at: now,
+              });
+            await trx("game_play_history").insert(
+              createHistory(game_player.id, fpBonus, "Free Parking bonus +$500")
+            );
+            return {
+              success: true,
+              message: "Free Parking bonus +$500!",
+              rent: { player: fpBonus, owner: 0, players: 0 },
+              position: new_position,
+            };
+          }
+        }
         return {
           success: true,
           message: "No rent required",
@@ -523,6 +581,7 @@ const payRent = async (
 
     // Apply Double Rent (3) and Shield (7) from active_perks (payer = game_player)
     let activePerksAfterRent = null;
+    let ownerActivePerksAfterRent = null; // Rent Cashback (11): owner loses perk after bonus
     if (rent && game_player) {
       let activePerks = [];
       try {
@@ -547,6 +606,36 @@ const payRent = async (
           comment = comment ? `${comment} (Double Rent!)` : "Double Rent applied";
           toRemove.push(3);
         }
+      }
+      // Rent Cashback (11): when owner receives rent, they get +25% and lose the perk
+      const ownerAmountBefore = Number(rent?.owner ?? 0);
+      if (ownerAmountBefore > 0 && game_property?.player_id) {
+        const ownerGp = await trx("game_players").where({ id: game_property.player_id }).forUpdate().first();
+        if (ownerGp) {
+          let ownerPerks = [];
+          try {
+            ownerPerks = ownerGp.active_perks ? JSON.parse(ownerGp.active_perks) : [];
+          } catch (_) {}
+          if (ownerPerks.some((p) => p.id === 11)) {
+            const bonus = Math.floor(ownerAmountBefore * 0.25);
+            rent = {
+              player: rent?.player ?? 0,
+              owner: ownerAmountBefore + bonus,
+              players: rent?.players ?? 0,
+            };
+            ownerActivePerksAfterRent = ownerPerks.filter((p) => p.id !== 11);
+          }
+        }
+      }
+      // Free Parking Bonus (14): land on position 20, get $500 and lose the perk
+      if (position === 20 && activePerks.some((p) => p.id === 14)) {
+        rent = {
+          player: (rent?.player ?? 0) + 500,
+          owner: rent?.owner ?? 0,
+          players: rent?.players ?? 0,
+        };
+        toRemove.push(14);
+        comment = comment ? `${comment}; Free Parking bonus +$500!` : "Free Parking bonus +$500!";
       }
       if (toRemove.length > 0) {
         activePerksAfterRent = activePerks.filter((p) => !toRemove.includes(p.id));
@@ -660,6 +749,13 @@ const payRent = async (
           trx("game_players")
             .where({ id: game_player.id })
             .update({ active_perks: JSON.stringify(activePerksAfterRent), updated_at: now })
+        );
+      }
+      if (ownerActivePerksAfterRent !== null && game_property?.player_id) {
+        updates.push(
+          trx("game_players")
+            .where({ id: game_property.player_id })
+            .update({ active_perks: JSON.stringify(ownerActivePerksAfterRent), updated_at: now })
         );
       }
 
@@ -1173,6 +1269,7 @@ const gamePlayerController = {
         await trx("game_players")
           .where({ game_id: game.id, user_id: next_player.user_id })
           .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+        await applyTurnStartPerks(trx, game.id, next_player.user_id);
         const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
         if (allRolled) {
           await trx("game_players").where({ game_id }).update({ rolls: 0 });
@@ -1376,6 +1473,7 @@ const gamePlayerController = {
           await trx("game_players")
             .where({ game_id, user_id: next_player.user_id })
             .update({ turn_start: turnStartSeconds, updated_at: now });
+          await applyTurnStartPerks(trx, game_id, next_player.user_id);
           const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
           if (allRolled) {
             await trx("game_players").where({ game_id }).update({ rolls: 0 });
@@ -1553,6 +1651,7 @@ const gamePlayerController = {
       await trx("game_players")
         .where({ game_id, user_id: next_player.user_id })
         .update({ turn_start: turnStartSeconds, updated_at: now });
+      await applyTurnStartPerks(trx, game_id, next_player.user_id);
 
       const allRolled = players.every((p) =>
         p.user_id === user_id ? true : Number(p.rolls || 0) >= 1
@@ -1864,6 +1963,7 @@ const gamePlayerController = {
       await trx("games").where({ id: game_id }).update({ next_player_id: next_player.user_id, updated_at: now });
       const turnStartSeconds = String(Math.floor(Date.now() / 1000));
       await trx("game_players").where({ game_id, user_id: next_player.user_id }).update({ turn_start: turnStartSeconds, updated_at: now });
+      await applyTurnStartPerks(trx, game_id, next_player.user_id);
       const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
       if (allRolled) await trx("game_players").where({ game_id }).update({ rolls: 0 });
       await trx.commit();
@@ -2102,8 +2202,9 @@ const gamePlayerController = {
       await trx("game_players")
         .where({ game_id: game.id, user_id: next_player.user_id })
         .update({ turn_start: turnStartSeconds, updated_at: db.fn.now() });
+      await applyTurnStartPerks(trx, game.id, next_player.user_id);
 
-      // 5️⃣ Check if all players have rolled once (end of round)j
+      // 5️⃣ Check if all players have rolled once (end of round)
       const allRolled = players.every((p) => Number(p.rolls || 0) >= 1);
 
       if (allRolled) {

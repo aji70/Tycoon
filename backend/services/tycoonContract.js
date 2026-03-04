@@ -213,6 +213,19 @@ const TYCOON_ABI = [
 /** Network name by chain for ethers Network (used for chainId only; provider uses rpcUrl). */
 const CHAIN_NAMES = { CELO: "celo", POLYGON: "polygon", BASE: "base" };
 
+const REWARD_ABI_MINT = [
+  {
+    type: "function",
+    name: "mintVoucher",
+    inputs: [
+      { name: "to", type: "address", internalType: "address" },
+      { name: "tycValue", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+];
+
 /**
  * Get contract instance for a given chain. Defaults to CELO.
  * @param {string} [chain] - "CELO" | "POLYGON" | "BASE" (or normalized name)
@@ -231,6 +244,27 @@ function getContract(chain = "CELO") {
   const wallet = new Wallet(pk, provider);
   const contract = new Contract(contractAddress, TYCOON_ABI, wallet);
   return contract;
+}
+
+/**
+ * Get the reward system contract (for mintVoucher). Uses same wallet as game contract.
+ * Reward contract address is read from main Tycoon contract's rewardSystem().
+ * @param {string} [chain] - CELO | POLYGON | BASE
+ * @returns {Promise<Contract>} Contract instance with mintVoucher
+ */
+async function getRewardContract(chain = "CELO") {
+  const tycoon = getContract(chain);
+  const rewardAddress = await tycoon.rewardSystem();
+  if (!rewardAddress || rewardAddress === "0x0000000000000000000000000000000000000000") {
+    throw new Error(`Reward system not set on chain ${chain}`);
+  }
+  const { rpcUrl, privateKey, chainId } = getChainConfig(chain);
+  const pk = String(privateKey).startsWith("0x") ? privateKey : `0x${privateKey}`;
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, chainId);
+  const provider = new JsonRpcProvider(rpcUrl, network);
+  const wallet = new Wallet(pk, provider);
+  return new Contract(rewardAddress, REWARD_ABI_MINT, wallet);
 }
 
 /** Test RPC connection and wallet for a chain; returns { ok, error } for debugging. Defaults to CELO. */
@@ -563,6 +597,38 @@ export async function exitGameByBackend(forPlayer, forUsername, passwordHash, ga
 export function isContractConfigured(chain) {
   if (chain == null || String(chain).trim() === "") return isAnyChainConfigured();
   return getChainConfig(chain).isConfigured;
+}
+
+/**
+ * Mint a TYC voucher to an address (e.g. daily login reward). Uses reward system contract; backend wallet must be backendMinter.
+ * @param {string} toAddress - Recipient wallet (0x...)
+ * @param {string|bigint} tycValueWei - Voucher value in TYC wei (e.g. 10 TYC = 10e18)
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ * @returns {Promise<{ hash: string, tokenId: string }>}
+ */
+export async function mintVoucherTo(toAddress, tycValueWei, chain = "CELO") {
+  return withTxQueue(async () => {
+    const reward = await getRewardContract(chain);
+    const tx = await reward.mintVoucher(toAddress, BigInt(tycValueWei));
+    const receipt = await tx.wait();
+    let tokenId = null;
+    try {
+      const iface = new Interface([
+        "event VoucherMinted(uint256 indexed tokenId, address indexed to, uint256 tycValue)",
+      ]);
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+          if (parsed?.name === "VoucherMinted" && parsed.args?.tokenId != null) {
+            tokenId = String(parsed.args.tokenId);
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    logger.info({ to: toAddress, tycValue: String(tycValueWei), hash: receipt?.hash, tokenId }, "mintVoucherTo tx");
+    return { hash: receipt?.hash, tokenId: tokenId ?? "" };
+  });
 }
 
 const ALLOWED_READ_FNS = [
