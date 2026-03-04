@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useAccount } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -31,6 +31,9 @@ function RoomsLoadingPlaceholder() {
 export default function RoomsPage() {
   const [mounted, setMounted] = useState(false);
   const [chatReady, setChatReady] = useState(false);
+  // Freeze isMobile for LobbyChatRoom on first paint when chat mounts to avoid
+  // React "fewer hooks" (300) on mobile when useMediaQuery flips after hydration.
+  const isMobileForChatRef = useRef<boolean | null>(null);
 
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
@@ -49,6 +52,13 @@ export default function RoomsPage() {
     const t = setTimeout(() => setChatReady(true), 50);
     return () => clearTimeout(t);
   }, [mounted]);
+
+  // Stable isMobile for chat: set once when we first render the chat to avoid
+  // prop flip (false -> true) on mobile that can trigger hook-order issues.
+  if (chatReady && isMobileForChatRef.current === null) {
+    isMobileForChatRef.current = isMobile;
+  }
+  const isMobileForChat = chatReady ? (isMobileForChatRef.current ?? isMobile) : false;
 
   const displayAddress = guestUser?.address ?? address ?? undefined;
   const currentUserId = guestUser?.id ?? undefined;
@@ -88,7 +98,7 @@ export default function RoomsPage() {
                 address={displayAddress ?? undefined}
                 userId={currentUserId ?? undefined}
                 username={currentUsername ?? undefined}
-                isMobile={isMobile}
+                isMobile={isMobileForChat}
                 showHeader={false}
               />
             </ModalErrorBoundary>
