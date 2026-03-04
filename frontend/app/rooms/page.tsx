@@ -19,12 +19,22 @@ const LobbyChatRoom = dynamic(
   ) }
 );
 
+function RoomsLoadingPlaceholder() {
+  return (
+    <div className="flex-1 min-h-[400px] flex flex-col items-center justify-center rounded-2xl border border-cyan-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012]">
+      <div className="w-10 h-10 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+      <span className="text-sm text-cyan-400/80 font-medium mt-3">Loading…</span>
+    </div>
+  );
+}
+
 export default function RoomsPage() {
   const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
-  const { onlineCount } = useOnlineUsers(mounted && (isConnected || !!guestUser) ? (guestUser?.address ?? address ?? undefined) : undefined);
+  const onlineAddress = mounted && (isConnected || !!guestUser) ? (guestUser?.address ?? address ?? undefined) : undefined;
+  const { onlineCount } = useOnlineUsers(onlineAddress, { enabled: mounted });
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   useEffect(() => {
@@ -57,19 +67,23 @@ export default function RoomsPage() {
         </div>
 
         <div className="flex-1 min-h-[400px] flex flex-col rounded-2xl overflow-hidden border border-cyan-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] shadow-xl">
-          <ModalErrorBoundary
-            fallbackTitle="Something went wrong loading the room."
-            fallbackSubtext="Try refreshing the page. If it keeps happening, check the browser console for details."
-            showStack
-          >
-            <LobbyChatRoom
-              address={displayAddress ?? undefined}
-              userId={currentUserId ?? undefined}
-              username={currentUsername ?? undefined}
-              isMobile={isMobile}
-              showHeader={false}
-            />
-          </ModalErrorBoundary>
+          {!mounted ? (
+            <RoomsLoadingPlaceholder />
+          ) : (
+            <ModalErrorBoundary
+              fallbackTitle="Something went wrong loading the room."
+              fallbackSubtext="Try refreshing the page. If it keeps happening, check the browser console for details."
+              showStack
+            >
+              <LobbyChatRoom
+                address={displayAddress ?? undefined}
+                userId={currentUserId ?? undefined}
+                username={currentUsername ?? undefined}
+                isMobile={isMobile}
+                showHeader={false}
+              />
+            </ModalErrorBoundary>
+          )}
         </div>
       </div>
     </main>

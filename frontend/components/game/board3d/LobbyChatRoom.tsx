@@ -35,15 +35,21 @@ const POLLING_INTERVAL = 4000;
 const POLLING_INTERVAL_MOBILE = 8000;
 
 const fetchLobbyMessages = async (): Promise<LobbyMessage[]> => {
-  const res = await apiClient.get<{ data?: LobbyMessage[] }>("/messages/lobby");
-  const payload = (res as { data?: { data?: LobbyMessage[] } })?.data;
-  const list = payload?.data ?? payload;
-  const arr = Array.isArray(list) ? list : [];
-  return arr.map((m) => ({
-    ...m,
-    body: typeof m?.body === "string" ? m.body : "",
-    username: m?.username ?? null,
-  }));
+  try {
+    const res = await apiClient.get<{ data?: LobbyMessage[] }>("/messages/lobby");
+    const payload = (res as { data?: { data?: LobbyMessage[] } })?.data;
+    const list = payload?.data ?? payload;
+    const arr = Array.isArray(list) ? list : [];
+    return arr.map((m) => ({
+      id: m?.id ?? "",
+      body: typeof m?.body === "string" ? m.body : "",
+      user_id: m?.user_id ?? null,
+      username: m?.username != null ? m.username : null,
+      created_at: typeof m?.created_at === "string" ? m.created_at : undefined,
+    }));
+  } catch {
+    return [];
+  }
 };
 
 function formatTime(created_at?: string) {
@@ -60,8 +66,9 @@ function formatTime(created_at?: string) {
   }
 }
 
-function getInitial(name: string) {
-  return (name || "?").charAt(0).toUpperCase();
+function getInitial(name: string | null | undefined): string {
+  const s = name != null ? String(name) : "";
+  return (s || "?").charAt(0).toUpperCase();
 }
 
 type ReplyingTo = { id: string | number; name: string; body: string };
@@ -190,8 +197,8 @@ export default function LobbyChatRoom({
               .map((msg) => {
               const isMe =
                 (userId != null && msg.user_id === userId) ||
-                (msg.username && username && msg.username === username);
-              const displayName = msg.username ?? "Anonymous";
+                (username != null && msg.username != null && String(msg.username) === String(username));
+              const displayName = msg.username != null ? String(msg.username) : "Anonymous";
               let quote: { name: string; text: string } | null = null;
               let main = "";
               try {
