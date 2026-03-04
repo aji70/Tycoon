@@ -284,15 +284,19 @@ const User = {
     const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
     if (cols) {
-      const rows = await db("users")
-        .where({ chain: normalized })
-        .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-        .where(cols.played, ">", 0)
-        .select("id", "username", "address", db.raw(`${cols.played} as games_played`), db.raw(`${cols.won} as game_won`))
-        .orderBy(cols.won, "desc")
-        .orderBy(cols.played, "desc")
-        .limit(lim);
-      if (rows.length > 0) return rows;
+      try {
+        const rows = await db("users")
+          .where({ chain: normalized })
+          .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+          .where(cols.played, ">", 0)
+          .select("id", "username", "address", db.raw(`${cols.played} as games_played`), db.raw(`${cols.won} as game_won`))
+          .orderBy(cols.won, "desc")
+          .orderBy(cols.played, "desc")
+          .limit(lim);
+        if (rows.length > 0) return rows;
+      } catch (err) {
+        // Per-chain columns may not exist (migration not run); fall through to legacy
+      }
     }
     // Fallback: legacy columns so leaderboard shows data that existed before per-chain columns were populated
     return await db("users")
@@ -312,13 +316,18 @@ const User = {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
-    let q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
-    if (cols) q = q.where(cols.played, ">", 0);
-    let rows = await q
-      .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
-      .orderBy("total_earned", "desc")
-      .limit(lim);
-    if (rows.length > 0) return rows;
+    if (cols) {
+      try {
+        const q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]).where(cols.played, ">", 0);
+        const rows = await q
+          .select("id", "username", "address", "total_earned", "total_staked", "total_withdrawn")
+          .orderBy("total_earned", "desc")
+          .limit(lim);
+        if (rows.length > 0) return rows;
+      } catch (err) {
+        // Per-chain columns may not exist; fall through to legacy
+      }
+    }
     // Fallback: allow users with legacy games_played > 0
     return await db("users")
       .where({ chain: normalized })
@@ -336,13 +345,18 @@ const User = {
     const normalized = this.normalizeChain(chain);
     const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
-    let q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]);
-    if (cols) q = q.where(cols.played, ">", 0);
-    let rows = await q
-      .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
-      .orderBy("total_staked", "desc")
-      .limit(lim);
-    if (rows.length > 0) return rows;
+    if (cols) {
+      try {
+        const q = db("users").where({ chain: normalized }).andWhereRaw("username NOT LIKE ?", ["%AI_%"]).where(cols.played, ">", 0);
+        const rows = await q
+          .select("id", "username", "address", "total_staked", "total_earned", "total_withdrawn")
+          .orderBy("total_staked", "desc")
+          .limit(lim);
+        if (rows.length > 0) return rows;
+      } catch (err) {
+        // Per-chain columns may not exist; fall through to legacy
+      }
+    }
     return await db("users")
       .where({ chain: normalized })
       .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
@@ -360,23 +374,27 @@ const User = {
     const cols = this.chainColumns(normalized);
     const lim = Math.min(Number(limit) || 20, 100);
     if (cols) {
-      const { played, won } = cols;
-      const rows = await db("users")
-        .where({ chain: normalized })
-        .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
-        .where(played, ">", 0)
-        .select(
-          "id",
-          "username",
-          "address",
-          db.raw(`${played} AS games_played`),
-          db.raw(`${won} AS game_won`),
-          db.raw("0 AS game_lost"),
-          db.raw(`(CASE WHEN ${played} > 0 THEN (1.0 * ${won} / ${played}) ELSE 0 END) AS win_rate`)
-        )
-        .orderBy("win_rate", "desc")
-        .limit(lim);
-      if (rows.length > 0) return rows;
+      try {
+        const { played, won } = cols;
+        const rows = await db("users")
+          .where({ chain: normalized })
+          .andWhereRaw("username NOT LIKE ?", ["%AI_%"])
+          .where(played, ">", 0)
+          .select(
+            "id",
+            "username",
+            "address",
+            db.raw(`${played} AS games_played`),
+            db.raw(`${won} AS game_won`),
+            db.raw("0 AS game_lost"),
+            db.raw(`(CASE WHEN ${played} > 0 THEN (1.0 * ${won} / ${played}) ELSE 0 END) AS win_rate`)
+          )
+          .orderBy("win_rate", "desc")
+          .limit(lim);
+        if (rows.length > 0) return rows;
+      } catch (err) {
+        // Per-chain columns may not exist; fall through to legacy
+      }
     }
     // Fallback: legacy columns
     return await db("users")

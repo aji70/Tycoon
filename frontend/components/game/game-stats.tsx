@@ -66,7 +66,9 @@ const GameStats: React.FC = () => {
     setLeaderboardError(null);
     try {
       const res = await apiClient.get<unknown>("/users/leaderboard", {
-        params: { chain: chainParam, type: "wins", limit: 10 },
+        chain: chainParam,
+        type: "wins",
+        limit: 10,
       });
       const raw = Array.isArray(res?.data) ? res.data : (res as { data?: unknown[] })?.data;
       const list = (raw ?? []) as Array<{ username?: string; games_played?: number; game_won?: number }>;
