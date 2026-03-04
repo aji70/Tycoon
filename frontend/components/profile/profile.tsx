@@ -24,6 +24,7 @@ import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
+import FirstTimeHint from '@/components/ui/FirstTimeHint';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -567,6 +568,13 @@ export default function Profile() {
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[280px] max-h-[60vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                <FirstTimeHint
+                  storageKey="profile_stats"
+                  message="Your stats and level progress live here. Claim rewards after games from the results screen."
+                  link={{ href: '/how-to-play', label: 'How to Play' }}
+                  compact
+                  className="mb-4"
+                />
                 <div className="mb-6">
                   <DailyClaim />
                 </div>

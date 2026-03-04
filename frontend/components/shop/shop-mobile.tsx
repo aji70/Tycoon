@@ -14,6 +14,7 @@ import { toast } from 'react-toastify';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import EmptyState from '@/components/ui/EmptyState';
+import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import {
   ShoppingBag,
   Coins,
@@ -512,6 +513,13 @@ export default function GameShopMobile() {
 
         {shopTab === 'perks' && (
           <>
+        <FirstTimeHint
+          storageKey="perks_in_game"
+          message="You can also buy perks during a game from the My Perks button in the bottom bar."
+          link={{ href: '/how-to-play', label: 'How to Play' }}
+          compact
+          className="mb-4"
+        />
         {/* Section label */}
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-[#003B3E]/80" />
@@ -699,7 +707,7 @@ export default function GameShopMobile() {
                   <EmptyState
                     icon={<Ticket className="w-14 h-14 text-amber-500/70" />}
                     title="No vouchers yet"
-                    description="Win games to earn reward vouchers, or buy perks in the shop for in-game advantages."
+                    description="Win games to earn reward vouchers, or buy perks in the Perk Shop for in-game advantages."
                     compact
                     className="border-amber-500/20 bg-amber-950/10"
                   />
