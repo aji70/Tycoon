@@ -288,7 +288,7 @@ export default function PlayerSection3D({
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-bold truncate flex items-center gap-1.5 ${isMe || isCurrent ? "text-amber-100" : "text-slate-200"}`}>
                         {highestNetWorthUserId === p.user_id && (
-                          <Crown className="w-4 h-4 shrink-0 text-amber-400" aria-label="Highest net worth" title="Highest net worth" />
+                          <Crown className="w-4 h-4 shrink-0 text-amber-400" aria-label="Highest net worth" />
                         )}
                         <span className="truncate">{p.username ?? `Player ${p.user_id}`}</span>
                       </p>

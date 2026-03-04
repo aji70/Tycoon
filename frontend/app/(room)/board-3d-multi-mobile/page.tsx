@@ -851,7 +851,7 @@ function Board3DMobilePageContent() {
           }
           case 5: {
             const amount = PERK_CASH_TIERS[Math.min(strength, PERK_CASH_TIERS.length - 1)];
-            const res = await apiClient.post<{ success?: boolean; data?: { reward?: number } }>("/perks/burn-cash", {
+            const res = await apiClient.post<{ success?: boolean; reward?: number }>("/perks/burn-cash", {
               game_id: game.id,
               from_collectible: true,
               amount,

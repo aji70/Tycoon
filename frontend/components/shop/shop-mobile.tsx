@@ -49,6 +49,8 @@ const isVoucherToken = (tokenId: bigint) =>
 
 const isCollectibleToken = (tokenId: bigint) => tokenId >= COLLECTIBLE_ID_START;
 
+const TIERED_PERKS = new Set([5, 8, 9]);
+
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one.", icon: <Zap />, image: "/game/shop/a.jpeg" },
   { perk: 2, name: "Jail Free Card", desc: "Use when in Jail to get out without paying or rolling doubles.", icon: <Crown />, image: "/game/shop/b.jpeg" },
@@ -267,8 +269,14 @@ export default function GameShopMobile() {
       return;
     }
 
+    const priceNum = Number(item.usdcPrice);
+    if (Number(usdcBalance) < priceNum) {
+      toast.error('Insufficient USDC balance');
+      return;
+    }
+
     try {
-      const price = BigInt(Math.round(Number(item.usdcPrice) * 1e6));
+      const price = BigInt(Math.round(priceNum * 1e6));
 
       if (usdcAllowance === undefined || usdcAllowance === null) {
         toast.info('Approval required');
@@ -281,8 +289,9 @@ export default function GameShopMobile() {
       }
 
       await buy(item.tokenId, true); // true = use USDC
-    } catch (err: any) {
-      toast.error(err.message || 'Transaction failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed';
+      toast.error(msg);
     }
   };
 
@@ -424,8 +433,15 @@ export default function GameShopMobile() {
                     className="object-cover transition-transform duration-500 group-active:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/50 text-[10px] font-medium text-slate-300">
-                    {item.stock}
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                    {TIERED_PERKS.has(item.perk) && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
+                        T{item.strength}
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded-md bg-black/50 text-[10px] font-medium text-slate-300">
+                      {item.stock} left
+                    </span>
                   </div>
                   <div className="absolute bottom-2 left-2 right-2">
                     <p className="font-bold text-base leading-tight text-white drop-shadow-lg">{item.name}</p>
@@ -438,24 +454,37 @@ export default function GameShopMobile() {
                   <div className="flex justify-between items-end mb-3 mt-auto">
                     <div>
                       <p className="text-[10px] text-slate-500 uppercase">Price</p>
-                      <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</p>
+                      <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice} USDC</p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleBuy(item)}
-                    disabled={item.stock === 0 || buyingPending || buyingConfirming}
-                    className={`w-full py-3 rounded-xl font-semibold text-sm transition-all
-                      ${item.stock === 0
-                        ? 'bg-slate-800/80 text-slate-500'
-                        : buyingPending || buyingConfirming
-                        ? 'bg-amber-600/90 text-black'
-                        : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
-                  >
-                    {buyingPending || buyingConfirming ? (
-                      <Loader2 className="inline animate-spin mr-2" size={16} />
-                    ) : item.stock === 0 ? 'Sold Out' : 'Buy Now'}
-                  </button>
+                  {(() => {
+                    const insufficientUsdc = Number(usdcBalance) < Number(item.usdcPrice);
+                    return (
+                      <button
+                        onClick={() => handleBuy(item)}
+                        disabled={item.stock === 0 || buyingPending || buyingConfirming || insufficientUsdc}
+                        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
+                          ${item.stock === 0
+                            ? 'bg-slate-800/80 text-slate-500'
+                            : insufficientUsdc
+                            ? 'bg-slate-700/80 text-slate-400'
+                            : buyingPending || buyingConfirming
+                            ? 'bg-amber-600/90 text-black'
+                            : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
+                      >
+                        {buyingPending || buyingConfirming ? (
+                          <Loader2 className="inline animate-spin mr-2" size={16} />
+                        ) : item.stock === 0 ? (
+                          'Sold Out'
+                        ) : insufficientUsdc ? (
+                          'Insufficient USDC'
+                        ) : (
+                          'Buy Now'
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               </motion.div>
             ))}
