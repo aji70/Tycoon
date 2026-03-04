@@ -326,6 +326,33 @@ const payRent = async (
         };
       }
 
+      // Repair cards: "Make general repairs" / "Street repairs" — pay per house and per hotel owned
+      if ((extra.per_house != null || extra.per_hotel != null) && (cardType === "debit" || cardType === "credit")) {
+        const allPlayerProps = await trx("game_properties")
+          .where({ game_id: game.id, player_id: game_player.id })
+          .select("development");
+        let totalHouses = 0;
+        let totalHotels = 0;
+        for (const gp of allPlayerProps || []) {
+          const dev = Number(gp.development ?? 0);
+          if (dev >= 5) {
+            totalHotels += 1;
+          } else {
+            totalHouses += dev;
+          }
+        }
+        const perHouse = Number(extra.per_house ?? 0);
+        const perHotel = Number(extra.per_hotel ?? 0);
+        const repairAmount = perHouse * totalHouses + perHotel * totalHotels;
+        if (repairAmount > 0) {
+          rent = {
+            player: Number(rent?.player ?? 0) - repairAmount,
+            owner: rent?.owner ?? 0,
+            players: rent?.players ?? 0,
+          };
+        }
+      }
+
       // If you pass Go on a move (wrap from high to low), collect $200 (not when sent to jail).
       // Skip when moving TO Go (position 0): "Advance to Go (Collect $200)" already credits $200, so do not add it twice.
       if (
