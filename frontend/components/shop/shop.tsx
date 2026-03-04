@@ -59,6 +59,17 @@ const TIERED_PERKS = new Set([5, 8, 9]);
 // New perks not yet in contract — show in shop as "Coming Soon"
 const COMING_SOON_PERK_IDS = [11, 12, 13, 14];
 
+// Default bundles shown in UI (used when API returns empty or before migration)
+const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> = [
+  { name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5" },
+  { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3" },
+  { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75" },
+  { name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", price_tyc: "65", price_usdc: "3.25" },
+  { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5" },
+  { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4" },
+  { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5" },
+];
+
 // Perk metadata — real descriptions for shop and collectibles
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
@@ -505,17 +516,17 @@ const { data: usdcAllowance } = useReadContract({
         </div>
 
         {/* Bundles */}
-        {bundles.length > 0 && (
+        {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).length > 0 && (
           <div className="mb-16">
             <div className="flex items-center gap-4 mb-6">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
               <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Perk bundles</span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-6">
-              {bundles.map((b) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-6">
+              {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).map((b, idx) => (
                 <motion.div
-                  key={b.id}
+                  key={b.id ?? b.name ?? idx}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
