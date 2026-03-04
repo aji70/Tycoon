@@ -49,6 +49,9 @@ const isVoucherToken = (tokenId: bigint): boolean =>
 const isCollectibleToken = (tokenId: bigint): boolean =>
   tokenId >= COLLECTIBLE_ID_START;
 
+// Tiered perks: show "Tier N" badge
+const TIERED_PERKS = new Set([5, 8, 9]);
+
 // Perk metadata — real descriptions for shop and collectibles
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
@@ -284,14 +287,19 @@ const { data: usdcAllowance } = useReadContract({
   }, [voucherInfoResults, userVoucherIds]);
 
   // ── Handlers ──
- const handleBuy = async (item: typeof shopItems[0]) => {
-  if (!isConnected || !address) {
-    toast.error('Please connect your wallet');
-    return;
-  }
+  const handleBuy = async (item: typeof shopItems[0]) => {
+    if (!isConnected || !address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
 
-  try {
     const isPayingWithUsdc = useUsdc;
+    const priceNum = isPayingWithUsdc ? Number(item.usdcPrice) : Number(item.tycPrice);
+    const balanceNum = isPayingWithUsdc ? Number(usdcBalance) : Number(tycBalance);
+    if (balanceNum < priceNum) {
+      toast.error(isPayingWithUsdc ? 'Insufficient USDC balance' : 'Insufficient TYC balance');
+      return;
+    }
 
     const price = BigInt(
       isPayingWithUsdc
@@ -307,24 +315,23 @@ const { data: usdcAllowance } = useReadContract({
       return;
     }
 
-    // ── 1️⃣ Check allowance with proper type narrowing ──
-    if (allowance === undefined || allowance === null) {
-      toast.info('Approval required');
-      await approve(tokenAddress, contractAddress!, price);
-      toast.success('Approval successful, completing purchase...');
-    } else if (typeof allowance === 'bigint' && allowance < price) {
-      toast.info('Increasing approval...');
-      await approve(tokenAddress, contractAddress!, price);
-      toast.success('Approval successful, completing purchase...');
-    }
-    // If allowance is sufficient, skip approval
+    try {
+      if (allowance === undefined || allowance === null) {
+        toast.info('Approval required');
+        await approve(tokenAddress, contractAddress!, price);
+        toast.success('Approval successful, completing purchase...');
+      } else if (typeof allowance === 'bigint' && allowance < price) {
+        toast.info('Increasing approval...');
+        await approve(tokenAddress, contractAddress!, price);
+        toast.success('Approval successful, completing purchase...');
+      }
 
-    // ── 2️⃣ Buy collectible ──
-    await buy(item.tokenId, isPayingWithUsdc);
-  } catch (err: any) {
-    toast.error(err.message || 'Transaction failed');
-  }
-};
+      await buy(item.tokenId, isPayingWithUsdc);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Transaction failed';
+      toast.error(msg);
+    }
+  };
 
   const handleRedeemVoucher = async (tokenId: bigint) => {
     if (!isConnected) {
@@ -452,13 +459,18 @@ const { data: usdcAllowance } = useReadContract({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
-            className="rounded-xl px-4 py-3 border border-[#00F0FF]/20 bg-[#003B3E]/30"
+            className="rounded-xl px-4 py-3 border border-[#00F0FF]/20 bg-[#003B3E]/30 flex items-center gap-3"
           >
+            <span className="text-xs text-slate-500 uppercase tracking-wider">Pay with</span>
             <button
+              type="button"
               onClick={() => setUseUsdc(!useUsdc)}
-              className="flex items-center gap-2 font-medium text-sm text-[#00F0FF]"
+              className="flex items-center gap-2 font-semibold text-sm text-[#00F0FF] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] rounded-lg px-2 py-1 transition"
+              aria-pressed={useUsdc}
+              aria-label={useUsdc ? 'Paying with USDC; click to switch to TYC' : 'Paying with TYC; click to switch to USDC'}
             >
-              Pay with {useUsdc ? 'USDC' : 'TYC'}
+              {useUsdc ? <CreditCard className="w-4 h-4" /> : <Coins className="w-4 h-4" />}
+              {useUsdc ? 'USDC' : 'TYC'}
             </button>
           </motion.div>
         </div>
@@ -513,8 +525,15 @@ const { data: usdcAllowance } = useReadContract({
                       className="object-cover transition-transform duration-700 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
-                      Stock {item.stock}
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      {TIERED_PERKS.has(item.perk) && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
+                          Tier {item.strength}
+                        </span>
+                      )}
+                      <span className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
+                        {item.stock} left
+                      </span>
                     </div>
                     <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
                       <div className="rounded-xl bg-black/30 backdrop-blur-sm p-2 border border-white/10">
@@ -527,21 +546,36 @@ const { data: usdcAllowance } = useReadContract({
                   <div className="p-5 flex flex-col flex-1 min-h-0">
                     <p className="text-slate-400 text-sm leading-relaxed mb-4 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
-                    <div className="flex justify-between items-end mb-4 mt-auto">
-                      <div>
-                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Price</p>
-                        <p className="text-xl font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          ${item.usdcPrice}
-                        </p>
+                    <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
+                      <div className="flex flex-col gap-1">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
+                        <div className="flex items-baseline gap-3 flex-wrap">
+                          <span className={useUsdc ? 'text-slate-400 text-sm' : ''}>
+                            <span className="text-sm text-slate-500">TYC </span>
+                            <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">{item.tycPrice}</span>
+                          </span>
+                          <span className={!useUsdc ? 'text-slate-400 text-sm' : ''}>
+                            <span className="text-sm text-slate-500">USDC </span>
+                            <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</span>
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Paying with {useUsdc ? 'USDC' : 'TYC'}</p>
                       </div>
                     </div>
 
+                    {(() => {
+                      const balance = useUsdc ? Number(usdcBalance) : Number(tycBalance);
+                      const price = useUsdc ? Number(item.usdcPrice) : Number(item.tycPrice);
+                      const insufficientFunds = balance < price;
+                      return (
                     <button
                       onClick={() => handleBuy(item)}
-                      disabled={item.stock === 0 || isProcessing}
-                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 ${
+                      disabled={item.stock === 0 || isProcessing || insufficientFunds}
+                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
                         item.stock === 0
                           ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
+                          : insufficientFunds
+                          ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
                           : isProcessing
                           ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
                           : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
@@ -551,10 +585,14 @@ const { data: usdcAllowance } = useReadContract({
                         <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
                       ) : item.stock === 0 ? (
                         'Sold Out'
+                      ) : insufficientFunds ? (
+                        <>Insufficient {useUsdc ? 'USDC' : 'TYC'}</>
                       ) : (
-                        <> <Coins className="w-5 h-5" /> Buy Now </>
+                        <> <Coins className="w-5 h-5" /> Buy with {useUsdc ? 'USDC' : 'TYC'} </>
                       )}
                     </button>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               );
