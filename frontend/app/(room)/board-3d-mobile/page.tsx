@@ -374,7 +374,19 @@ function Board3DMobileContent() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
+  const [canvasKey, setCanvasKey] = useState(0);
   const fullscreenRef = useRef<HTMLDivElement>(null);
+
+  // When user presses device back button, the page can be restored from bfcache with a lost WebGL context — remount Canvas to avoid crash
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setCanvasKey((k) => k + 1);
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   const timeUpHandledRef = useRef(false);
   const rollingForPlayerIdRef = useRef<number | null>(null);
@@ -2011,6 +2023,7 @@ function Board3DMobileContent() {
             style={{ touchAction: "none", zIndex: 0, isolation: "isolate" }}
           >
             <Canvas
+              key={canvasKey}
               camera={{ position: [0, 12, 12], fov: 45 }}
               shadows
               gl={{ antialias: true, alpha: false }}
