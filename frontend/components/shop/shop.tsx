@@ -102,6 +102,7 @@ export default function GameShop() {
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
+  const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
 
   const { data: tycAllowance } = useReadContract({
@@ -494,9 +495,34 @@ const { data: usdcAllowance } = useReadContract({
           </motion.div>
         </div>
 
-        {/* Two sides: Bundles | Perks */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 xl:gap-12">
-          {/* Left: Bundles */}
+        {/* Tabs: Perks | Bundles — one visible at a time */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setShopTab('perks')}
+            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
+              shopTab === 'perks'
+                ? 'bg-[#00F0FF]/20 border-2 border-[#00F0FF]/60 text-[#00F0FF]'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Perks
+          </button>
+          <button
+            type="button"
+            onClick={() => setShopTab('bundles')}
+            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
+              shopTab === 'bundles'
+                ? 'bg-amber-500/20 border-2 border-amber-400/60 text-amber-300'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Bundles
+          </button>
+        </div>
+
+        <div className="min-h-[320px]">
+          {shopTab === 'bundles' && (
           <div>
             <div className="flex items-center gap-4 mb-6">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
@@ -546,8 +572,9 @@ const { data: usdcAllowance } = useReadContract({
               </div>
             ) : null}
           </div>
+          )}
 
-          {/* Right: Perks */}
+          {shopTab === 'perks' && (
           <div>
             <div className="flex items-center gap-4 mb-6">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
@@ -681,6 +708,7 @@ const { data: usdcAllowance } = useReadContract({
           </div>
         )}
           </div>
+          )}
         </div>
 
         {/* Voucher Teaser FAB */}
