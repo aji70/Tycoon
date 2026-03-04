@@ -181,12 +181,14 @@ export default function JoinRoom({
         );
 
         if (isPlayerInGame) {
+          setCode("");
           router.push(`${redirectToBoard}?gameCode=${encodeURIComponent(normalizedCode)}`);
         } else {
           throw new Error("This game has already started and you are not a player.");
         }
       } else if (game.status === "PENDING") {
         // Game waiting — go to waiting room (sign in as guest or connect wallet there to join)
+        setCode("");
         router.push(`${redirectToWaiting}?gameCode=${encodeURIComponent(normalizedCode)}`);
       } else {
         throw new Error("This game is no longer active.");
@@ -253,12 +255,15 @@ export default function JoinRoom({
                   onClick={() => joinByCodeGuard.submit(() => handleJoinByCode())}
                   disabled={loading || joinByCodeGuard.isSubmitting || !normalizedCode}
                   className="bg-gradient-to-r from-[#00F0FF] to-[#FF00FF] text-black font-orbitron font-extrabold px-8 py-4 rounded-xl hover:opacity-90 transition-all shadow-lg hover:shadow-[#00F0FF]/50 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  title={!normalizedCode ? "Enter a game code to join" : undefined}
                 >
-                  {loading || joinByCodeGuard.isSubmitting ? "Checking..." : "Join"}
+                  {loading || joinByCodeGuard.isSubmitting ? "Joining…" : "Join"}
                   <IoArrowForwardOutline className="w-6 h-6" />
                 </button>
               </div>
-
+              {!normalizedCode && !error && (
+                <p className="text-slate-500 text-xs text-center">Enter a 6-character game code above to join.</p>
+              )}
               {error && (
                 <p className="text-red-400 text-sm text-center bg-red-900/30 border border-red-500/30 p-3 rounded-lg font-orbitron" role="alert">
                   {error}

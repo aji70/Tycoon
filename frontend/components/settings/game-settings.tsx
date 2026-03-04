@@ -530,7 +530,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
         )}
 
         {/* Create Button */}
-        <div className="flex justify-center mt-12">
+        <div className="flex flex-col items-center justify-center mt-12 gap-2">
           <button
             onClick={() => {
               setCreateError(null);
@@ -542,19 +542,23 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
                        rounded-2xl shadow-2xl transform hover:scale-105 active:scale-100
                        transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
                        border-4 border-[#00F0FF]/40"
+            title={!canCreate ? "Connect wallet and register to create a game" : undefined}
           >
             <span className="relative z-10 drop-shadow-lg">
               {playGuard.isSubmitting
-                ? "CREATING..."
+                ? "Creating…"
                 : approvePending || approveConfirming
-                ? "APPROVING..."
+                ? "Approving…"
                 : isCreatePending
-                ? "CREATING..."
+                ? "Creating…"
                 : isFreeGame
                 ? "CREATE FREE GAME"
                 : "CREATE GAME"}
             </span>
           </button>
+          {!canCreate && (
+            <p className="text-slate-500 text-sm text-center">Connect your wallet and register to create a game.</p>
+          )}
         </div>
       </div>
     </div>
