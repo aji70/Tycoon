@@ -410,6 +410,39 @@ const gamePropertyController = {
         }
       }
 
+      // Classic Monopoly: bank has 32 houses and 12 hotels; cannot build if at limit
+      const currentDev = Number(game_property.development ?? 0);
+      const proposedDev = currentDev + 1;
+      const allGameProps = await trx("game_properties").where({ game_id }).select("development");
+      let totalHouses = 0;
+      let totalHotels = 0;
+      for (const gp of allGameProps || []) {
+        const d = Number(gp.development ?? 0);
+        if (d >= 5) totalHotels += 1;
+        else totalHouses += d;
+      }
+      const MAX_HOUSES = 32;
+      const MAX_HOTELS = 12;
+      if (proposedDev <= 4) {
+        if (totalHouses + 1 > MAX_HOUSES) {
+          await trx.rollback();
+          return res.status(422).json({
+            success: false,
+            message: "No houses available. The bank has run out (max 32). Sell a house to free one.",
+            data: null,
+          });
+        }
+      } else {
+        if (totalHotels + 1 > MAX_HOTELS) {
+          await trx.rollback();
+          return res.status(422).json({
+            success: false,
+            message: "No hotels available. The bank has run out (max 12).",
+            data: null,
+          });
+        }
+      }
+
       // Check player balance
       if (Number(player.balance) < Number(property.cost_of_house)) {
         await trx.rollback();
