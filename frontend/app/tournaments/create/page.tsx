@@ -114,7 +114,7 @@ export default function CreateTournamentPage() {
         name: name.trim(),
         chain,
         prize_source: prizeSource,
-        max_players: Math.min(256, Math.max(2, maxPlayers)),
+        max_players: Math.min(512, Math.max(2, maxPlayers)),
         min_players: Math.max(2, Math.min(maxPlayers, minPlayers)),
       };
       if (!isSignedIn && address) {
@@ -337,12 +337,12 @@ export default function CreateTournamentPage() {
                   id="max_players"
                   type="number"
                   min={2}
-                  max={256}
+                  max={512}
                   value={maxPlayers}
                   onChange={(e) => setMaxPlayers(Number(e.target.value) || 32)}
                   className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none"
                 />
-                <p className="text-xs text-white/50 mt-1">e.g. 8 for a single-elimination bracket</p>
+                <p className="text-xs text-white/50 mt-1">e.g. 8, 32, or 512 for single-elimination (max 512)</p>
               </div>
               <div>
                 <label htmlFor="min_players" className="block text-sm font-medium text-white/90 mb-1">

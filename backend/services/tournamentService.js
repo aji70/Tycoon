@@ -44,7 +44,7 @@ export async function createTournament(data) {
 
   if (!creator_id || !name) throw new Error("creator_id and name required");
   if (chain == null || String(chain).trim() === "") throw new Error("chain is required (e.g. POLYGON, BASE, CELO)");
-  const max = Math.min(256, Math.max(2, Number(max_players) || 32));
+  const max = Math.min(512, Math.max(2, Number(max_players) || 32));
   const min = Math.max(2, Math.min(max, Number(min_players) || 2));
 
   const normalizedChain = User.normalizeChain(chain);
@@ -217,17 +217,19 @@ export async function generateBracket(tournamentId, options = {}) {
   const numRounds = Math.log2(size);
   let firstRoundStart = options.first_round_start_at ? new Date(options.first_round_start_at) : null;
 
+  const roundRows = [];
   for (let r = 0; r < numRounds; r++) {
     const scheduledStartAt = firstRoundStart
       ? new Date(firstRoundStart.getTime() + r * 24 * 60 * 60 * 1000)
       : null;
-    await TournamentRound.create({
+    roundRows.push({
       tournament_id: tournamentId,
       round_index: r,
-      status: r === 0 ? "PENDING" : "PENDING",
+      status: "PENDING",
       scheduled_start_at: scheduledStartAt,
     });
   }
+  await TournamentRound.bulkCreate(roundRows);
 
   const matchRows = [];
   for (let i = 0; i < size / 2; i++) {
@@ -246,17 +248,16 @@ export async function generateBracket(tournamentId, options = {}) {
       winner_entry_id: isBye ? (slotAEntryId || slotBEntryId) : null,
     });
   }
-  for (const row of matchRows) {
-    await TournamentMatch.create(row);
-  }
+  await TournamentMatch.bulkCreate(matchRows);
 
   for (let r = 1; r < numRounds; r++) {
     const prevRoundMatches = await TournamentMatch.findByTournamentAndRound(tournamentId, r - 1);
     const matchesInRound = prevRoundMatches.length / 2;
+    const nextRoundRows = [];
     for (let m = 0; m < matchesInRound; m++) {
       const slotAPrevId = prevRoundMatches[m * 2]?.id;
       const slotBPrevId = prevRoundMatches[m * 2 + 1]?.id;
-      await TournamentMatch.create({
+      nextRoundRows.push({
         tournament_id: tournamentId,
         round_index: r,
         match_index: m,
@@ -267,6 +268,7 @@ export async function generateBracket(tournamentId, options = {}) {
         status: "PENDING",
       });
     }
+    await TournamentMatch.bulkCreate(nextRoundRows);
   }
 
   return { entries: n, size, byes, numRounds };

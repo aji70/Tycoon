@@ -17,19 +17,22 @@ export const AiResponsePopup: React.FC<AiResponsePopupProps> = ({ popup, propert
   const favorability = popup.favorability ?? 0;
   const decision = popup.decision;
   const remark = popup.remark || "No comment.";
+  const offerIds = Array.isArray(trade.offer_properties) ? trade.offer_properties : [];
+  const requestIds = Array.isArray(trade.requested_properties) ? trade.requested_properties : [];
+  const propList = Array.isArray(properties) ? properties : [];
 
-  const offeredPropNames = properties
-    .filter((p) => trade.offer_properties?.includes(p.id))
+  const offeredPropNames = propList
+    .filter((p) => offerIds.includes(p.id))
     .map((p) => p.name);
 
-  const requestedPropNames = properties
-    .filter((p) => trade.requested_properties?.includes(p.id))
+  const requestedPropNames = propList
+    .filter((p) => requestIds.includes(p.id))
     .map((p) => p.name);
 
   const hasOfferedProps = offeredPropNames.length > 0;
-  const hasOfferedCash = trade.offer_amount > 0;
+  const hasOfferedCash = (trade.offer_amount ?? 0) > 0;
   const hasRequestedProps = requestedPropNames.length > 0;
-  const hasRequestedCash = trade.requested_amount > 0;
+  const hasRequestedCash = (trade.requested_amount ?? 0) > 0;
 
   const isAccepted = decision === "accepted";
 
