@@ -1,6 +1,8 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Property } from "@/types/game";
+import { Handshake } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface TradeSectionProps {
   showTrade: boolean;
@@ -169,11 +171,13 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
 
             {/* Empty State */}
             {openTrades.length === 0 && tradeRequests.length === 0 && (
-              <div className="text-center text-gray-500 py-8">
-                <div className="text-5xl mb-3">💱</div>
-                <p className="text-lg">No active trades</p>
-                <p className="text-sm mt-1">Make an offer or wait for incoming requests</p>
-              </div>
+              <EmptyState
+                icon={<Handshake className="w-12 h-12 text-gray-500" />}
+                title="No active trades"
+                description="Make an offer by selecting a player and choosing Trade, or wait for incoming requests."
+                compact
+                className="py-8 text-gray-500 border-gray-700/50 bg-black/20"
+              />
             )}
           </motion.div>
         )}

@@ -45,6 +45,7 @@ import {
 } from '@/context/ContractProvider';
 import { apiClient } from '@/lib/api';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
+import EmptyState from '@/components/ui/EmptyState';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -553,14 +554,12 @@ const { data: usdcAllowance } = useReadContract({
             <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-6 items-stretch" />
           </motion.div>
         ) : allShopItems.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-24 px-8 rounded-3xl border border-[#003B3E]/60 bg-[#0E1415]/40 backdrop-blur-sm"
-          >
-            <ShoppingBag className="w-16 h-16 mx-auto mb-6 text-slate-600" />
-            <h3 className="text-xl font-semibold text-slate-300 mb-2">No collectibles yet</h3>
-            <p className="text-slate-500 max-w-md mx-auto">New perks will appear here. Check back soon!</p>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <EmptyState
+              icon={<ShoppingBag className="w-16 h-16 text-slate-500" />}
+              title="No perks in stock yet"
+              description="New perks will appear here when they’re added. Check back soon or play games to earn vouchers."
+            />
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-6 items-stretch">
@@ -728,7 +727,13 @@ const { data: usdcAllowance } = useReadContract({
                   </div>
 
                   {myVouchers.length === 0 ? (
-                    <p className="text-center text-slate-500 py-20">No vouchers found.</p>
+                    <EmptyState
+                      icon={<Ticket className="w-14 h-14 text-amber-500/70" />}
+                      title="No vouchers yet"
+                      description="Win games to earn reward vouchers, or buy perks in the shop to get in-game advantages."
+                      compact
+                      className="border-amber-500/20 bg-amber-950/10"
+                    />
                   ) : (
                     <div className="grid gap-5">
                       {myVouchers.map((voucher) => {

@@ -26,6 +26,7 @@ import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
+import EmptyState from '@/components/ui/EmptyState';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -674,10 +675,14 @@ export default function ProfilePageMobile() {
                     <SkeletonPerkGrid count={4} gridClass="grid grid-cols-2 gap-3" />
                   </>
                 ) : ownedCollectibles.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <ShoppingBag className="w-10 h-10 text-purple-400/50 mx-auto mb-2" />
-                    <p className="text-slate-400 text-sm">No perks yet — visit the shop.</p>
-                  </div>
+                  <EmptyState
+                    icon={<ShoppingBag className="w-12 h-12 text-purple-400/70" />}
+                    title="No perks yet"
+                    description="Buy perks in the Perk Shop or during a game from My Perks."
+                    action={{ label: 'Visit the shop', href: '/game-shop' }}
+                    compact
+                    className="border-purple-500/20 bg-black/20 py-6"
+                  />
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {ownedCollectibles.map((item) => (
@@ -748,10 +753,13 @@ export default function ProfilePageMobile() {
                     </div>
                   </>
                 ) : myVouchers.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <Ticket className="w-10 h-10 text-amber-400/30 mx-auto mb-2" />
-                    <p className="text-slate-500 text-sm">No vouchers yet</p>
-                  </div>
+                  <EmptyState
+                    icon={<Ticket className="w-12 h-12 text-amber-400/70" />}
+                    title="No vouchers yet"
+                    description="Win games to earn reward vouchers and redeem them here."
+                    compact
+                    className="border-amber-500/20 bg-black/20 py-6"
+                  />
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {myVouchers.map((voucher) => (
