@@ -11,6 +11,8 @@ import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
+import EmptyState from "@/components/ui/EmptyState";
+import { Users } from "lucide-react";
 
 interface JoinRoomMobileProps {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
@@ -305,7 +307,13 @@ export default function JoinRoom({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[#869298] text-center">No open games right now. Create one or enter a code above.</p>
+                    <EmptyState
+                      icon={<Users className="w-14 h-14 text-[#00F0FF]/70" />}
+                      title="No open games right now"
+                      description="Create a new game or enter a code above to join one."
+                      action={{ label: "Create new game", href: redirectCreateNew }}
+                      className="border-[#00F0FF]/20 bg-[#010F10]/50 text-center"
+                    />
                   )}
                 </div>
 

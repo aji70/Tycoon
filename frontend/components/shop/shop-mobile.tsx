@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import EmptyState from '@/components/ui/EmptyState';
 import {
   ShoppingBag,
   Coins,
@@ -647,10 +648,13 @@ export default function GameShopMobile() {
                 </div>
 
                 {myVouchers.length === 0 ? (
-                  <div className="text-center py-20 text-slate-500">
-                    <Ticket size={56} className="mx-auto mb-6 opacity-30" />
-                    <p>No vouchers available yet</p>
-                  </div>
+                  <EmptyState
+                    icon={<Ticket className="w-14 h-14 text-amber-500/70" />}
+                    title="No vouchers yet"
+                    description="Win games to earn reward vouchers, or buy perks in the shop for in-game advantages."
+                    compact
+                    className="border-amber-500/20 bg-amber-950/10"
+                  />
                 ) : (
                   <div className="space-y-5">
                     {myVouchers.map((v) => (

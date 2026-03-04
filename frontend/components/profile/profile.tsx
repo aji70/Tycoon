@@ -23,6 +23,7 @@ import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
+import EmptyState from '@/components/ui/EmptyState';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -715,12 +716,14 @@ export default function Profile() {
                     <SkeletonPerkGrid count={6} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" />
                   </>
                 ) : ownedCollectibles.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
-                      <ShoppingBag className="w-8 h-8 text-purple-400/60" />
-                    </div>
-                    <p className="text-slate-400 text-sm">No perks yet — visit the shop to collect.</p>
-                  </div>
+                  <EmptyState
+                    icon={<ShoppingBag className="w-14 h-14 text-purple-400/70" />}
+                    title="No perks yet"
+                    description="Perks give you in-game advantages. Buy them in the Perk Shop or during a game from My Perks."
+                    action={{ label: 'Visit the shop', href: '/game-shop' }}
+                    compact
+                    className="border-purple-500/20 bg-black/20"
+                  />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {ownedCollectibles.map((item, i) => (
@@ -798,10 +801,13 @@ export default function Profile() {
                     </div>
                   </>
                 ) : myVouchers.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <Ticket className="w-12 h-12 text-amber-400/30 mx-auto mb-3" />
-                    <p className="text-slate-500 text-sm">No vouchers yet — keep winning games!</p>
-                  </div>
+                  <EmptyState
+                    icon={<Ticket className="w-14 h-14 text-amber-400/70" />}
+                    title="No vouchers yet"
+                    description="Win games to earn reward vouchers. Redeem them here for TYC or use perks during a game."
+                    compact
+                    className="border-amber-500/20 bg-black/20"
+                  />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                     {myVouchers.map((voucher) => (

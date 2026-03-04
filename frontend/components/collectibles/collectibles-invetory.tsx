@@ -10,6 +10,7 @@ import Image from "next/image";
 import {
   Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag, Loader2, X, Wallet, Clock, Flame, Percent, CircleDollarSign, MapPin
 } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
@@ -676,9 +677,15 @@ export default function CollectibleInventoryBar({
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6 px-6 pb-8 overflow-y-auto max-h-full">
                 {shopItems.length === 0 ? (
-                  <p className="col-span-full text-center text-gray-400 py-12">
-                    No items available right now...
-                  </p>
+                  <div className="col-span-full">
+                    <EmptyState
+                      icon={<ShoppingBag className="w-14 h-14 text-cyan-500/70" />}
+                      title="No perks in stock right now"
+                      description="New perks are added regularly. Check back later or use your existing perks from My Perks."
+                      compact
+                      className="border-cyan-500/20 bg-[#0E1415]/60"
+                    />
+                  </div>
                 ) : (
                   shopItems.map((item) => (
                     <motion.div

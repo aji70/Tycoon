@@ -32,7 +32,7 @@ import {
   CircleDollarSign,
   MapPin,
 } from "lucide-react";
-
+import EmptyState from "@/components/ui/EmptyState";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
@@ -731,9 +731,14 @@ export default function CollectibleInventoryBar({
 
               <div className="flex-1 overflow-y-auto px-5 pb-8">
                 {shopItems.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-64 text-gray-400 text-lg">
-                    <ShoppingBag className="w-16 h-16 mb-4 opacity-50" />
-                    No items in stock right now...
+                  <div className="py-4">
+                    <EmptyState
+                      icon={<ShoppingBag className="w-14 h-14 text-cyan-500/70" />}
+                      title="No perks in stock right now"
+                      description="New perks are added regularly. Check back later or use your existing perks from My Perks."
+                      compact
+                      className="border-cyan-500/20 bg-[#0E1415]/60"
+                    />
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

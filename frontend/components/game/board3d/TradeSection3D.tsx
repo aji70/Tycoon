@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Property } from "@/types/game";
-import { X } from "lucide-react";
+import { X, Handshake } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 
 type DeleteConfirmMode = "outgoing" | "all" | null;
 
@@ -179,10 +180,13 @@ export default function TradeSection3D({
               </div>
             )}
             {totalActive === 0 && (
-              <div className="py-6 text-center">
-                <p className="text-slate-500 text-sm">No active trades</p>
-                <p className="text-slate-600 text-xs mt-1">Use Trade on a player to propose</p>
-              </div>
+              <EmptyState
+                icon={<Handshake className="w-12 h-12 text-slate-500" />}
+                title="No active trades"
+                description="Click a player on the board and choose Trade to make an offer, or wait for others to send you requests."
+                compact
+                className="py-6 border-slate-700/50 bg-slate-900/30"
+              />
             )}
           </motion.div>
         )}
