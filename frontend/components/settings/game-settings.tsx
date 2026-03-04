@@ -439,7 +439,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
                   placeholder="Custom ≥ 0.01 USDC"
                   value={customStake}
                   onChange={(e) => handleCustomStake(e.target.value)}
-                  className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400 disabled:opacity-50"
+                  className="w-full px-4 py-4 bg-black/60 border border-green-500/50 rounded-xl text-white text-center text-lg focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-black disabled:opacity-50"
                   disabled={isFreeGame}
                 />
 

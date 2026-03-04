@@ -452,7 +452,7 @@ export default function CreateGameMobile({ redirectToWaitingRoom = "/game-waitin
                 placeholder="Custom ≥ 0.01"
                 value={customStake}
                 onChange={(e) => handleCustomStake(e.target.value)}
-                className="w-full px-3 py-2.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-center text-sm focus:outline-none focus:border-green-400 mb-3"
+                className="w-full px-3 py-2.5 bg-black/60 border border-green-500/50 rounded-lg text-white text-center text-sm focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-black mb-3"
               />
 
               <div className="text-center">

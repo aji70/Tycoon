@@ -158,8 +158,10 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={toggleSound}
-                  className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] hover:text-white active:scale-[0.97] transition-all duration-200"
+                  aria-label={isSoundPlaying ? "Sound on" : "Sound off"}
+                  className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] hover:text-white active:scale-[0.97] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10]"
                 >
                   {isSoundPlaying ? <Volume2 size={20} /> : <VolumeOff size={20} />}
                 </button>
@@ -378,8 +380,10 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
 
               {/* Close - game UI button */}
               <button
+                type="button"
                 onClick={closeMobileMenu}
-                className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-[#011112]/90 border border-[#003B3E]/60 flex items-center justify-center text-white/90 hover:bg-[#022a2c] hover:border-[#00F0FF]/25 hover:text-[#00F0FF] transition-all duration-200"
+                aria-label="Close menu"
+                className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-[#011112]/90 border border-[#003B3E]/60 flex items-center justify-center text-white/90 hover:bg-[#022a2c] hover:border-[#00F0FF]/25 hover:text-[#00F0FF] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10]"
               >
                 <X size={22} />
               </button>

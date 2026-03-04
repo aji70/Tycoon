@@ -792,6 +792,7 @@ function CenterRollButton({ onRoll, disabled }: { onRoll: () => void; disabled: 
     },
     createElement("button", {
       type: "button",
+      "aria-label": "Roll dice",
       onClick: onRoll,
       disabled,
       style: {

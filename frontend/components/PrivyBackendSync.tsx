@@ -193,7 +193,7 @@ export default function PrivyBackendSync() {
             placeholder="Username"
             minLength={2}
             maxLength={50}
-            className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#003B3E] text-[#17ffff] font-orbitron placeholder:text-[#455A64] focus:border-[#00F0FF] focus:outline-none"
+            className="w-full h-12 px-4 rounded-xl bg-[#010F10] border border-[#003B3E] text-[#17ffff] font-orbitron placeholder:text-[#455A64] focus:border-[#00F0FF] focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#010F10]"
             disabled={syncState === "submitting"}
             autoFocus
           />

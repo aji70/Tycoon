@@ -194,7 +194,8 @@ const NavBar = () => {
           {/* Home button */}
           <Link
             href="/"
-            className="w-[40px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center bg-[#011112] text-white"
+            aria-label="Home"
+            className="w-[40px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center bg-[#011112] text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#011112]"
           >
             <House className="w-[16px] h-[16px]" />
           </Link>
@@ -203,7 +204,8 @@ const NavBar = () => {
           <button
             type="button"
             onClick={toggleSound}
-            className="w-[40px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center bg-[#011112] text-white"
+            aria-label={isSoundPlaying ? "Sound on" : "Sound off"}
+            className="w-[40px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center bg-[#011112] text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#011112]"
           >
             {isSoundPlaying ? (
               <Volume2 className="w-[16px] h-[16px]" />

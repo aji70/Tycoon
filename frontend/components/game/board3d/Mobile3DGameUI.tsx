@@ -101,7 +101,8 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={() => setShowPerksModal(true)}
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition shrink-0"
+          aria-label="My Perks"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Sparkles className="w-5 h-5" />
           <span className="text-xs font-medium">Perks</span>
@@ -109,7 +110,8 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={() => setShowEmpireModal(true)}
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0"
+          aria-label="My Empire"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Landmark className="w-5 h-5" />
           <span className="text-xs font-medium">Empire</span>
@@ -117,7 +119,8 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={openBellModal}
-          className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0"
+          aria-label={incomingTradeCount > 0 ? `Trades (${incomingTradeCount} pending)` : "Trades"}
+          className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Bell className="w-5 h-5" />
           <span className="text-xs font-medium">Trades</span>
@@ -130,7 +133,8 @@ export default function Mobile3DGameUI({
         <button
           type="button"
           onClick={openPlayerModal}
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0"
+          aria-label="Players"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Users className="w-5 h-5" />
           <span className="text-xs font-medium">Players</span>

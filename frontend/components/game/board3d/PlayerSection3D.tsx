@@ -291,6 +291,9 @@ export default function PlayerSection3D({
                           <Crown className="w-4 h-4 shrink-0 text-amber-400" aria-label="Highest net worth" />
                         )}
                         <span className="truncate">{p.username ?? `Player ${p.user_id}`}</span>
+                        {isCurrent && (
+                          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-amber-300/90 bg-amber-500/20 px-1.5 py-0.5 rounded" aria-label="Current turn">Turn</span>
+                        )}
                       </p>
                       <p className="text-xs text-slate-400 truncate">
                         <span className="text-emerald-400 font-semibold">${Number(p.balance ?? 0)}</span>
