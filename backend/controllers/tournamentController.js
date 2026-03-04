@@ -184,3 +184,15 @@ export async function startRound(req, res) {
     return res.status(400).json({ success: false, message: err?.message || "Start round failed" });
   }
 }
+
+export async function remove(req, res) {
+  try {
+    const tournament = req.tournament;
+    if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
+    await Tournament.delete(tournament.id);
+    return res.json({ success: true, message: "Tournament deleted" });
+  } catch (err) {
+    logger.error({ err: err?.message }, "tournament delete failed");
+    return res.status(500).json({ success: false, message: err?.message || "Delete failed" });
+  }
+}

@@ -15,5 +15,6 @@ router.post("/:id/register", resolveTournament, optionalAuth, tournamentControll
 router.post("/:id/close-registration", resolveTournament, tournamentController.closeRegistration);
 router.post("/:id/start-round/:roundIndex", resolveTournament, tournamentController.startRound);
 router.post("/:id/matches/:matchId/start-now", resolveTournament, requireAuth, tournamentController.requestMatchStart);
+router.delete("/:id", resolveTournament, tournamentController.remove);
 
 export default router;
