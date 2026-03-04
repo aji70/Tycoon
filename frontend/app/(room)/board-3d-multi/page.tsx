@@ -1559,7 +1559,7 @@ function Board3DPageContent() {
       }, 1500);
     } catch (err: unknown) {
       toast.error(
-        getContractErrorMessage(err, "Something went wrong — try again later"),
+        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
         { id: toastId, duration: 8000 }
       );
       setClaimAndLeaveInProgress(false);

@@ -44,6 +44,7 @@ export default function JoinRoom({
   const [pendingGames, setPendingGames] = useState<Game[]>([]);
   const [fetchingRecent, setFetchingRecent] = useState<boolean>(true);
   const [fetchingPending, setFetchingPending] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<number>(5 * 60 * 1000); // Default: last 5 minutes in ms
   const joinByCodeGuard = usePreventDoubleSubmit();
 
@@ -59,6 +60,52 @@ export default function JoinRoom({
   // Uppercase and trim code input
   const normalizedCode = useMemo(() => code.trim().toUpperCase(), [code]);
 
+  const fetchGames = useCallback(async () => {
+    if (!canAct) return;
+    const addr = address ?? guestUser?.address;
+    if (!addr) {
+      setFetchingRecent(false);
+      setFetchingPending(false);
+      return;
+    }
+    setFetchError(null);
+    setFetchingRecent(true);
+    setFetchingPending(true);
+
+    let recentFailed = false;
+    let pendingFailed = false;
+
+    try {
+      const resRecent = await apiClient.get<ApiResponse>("/games/my-games", {
+        params: { address: addr },
+      });
+      if (resRecent?.data?.success && Array.isArray(resRecent.data.data)) {
+        setRecentGames(resRecent.data.data as Game[]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch recent games:", err);
+      recentFailed = true;
+    } finally {
+      setFetchingRecent(false);
+    }
+
+    try {
+      const resPending = await apiClient.get<ApiResponse>("/games/open");
+      if (resPending?.data?.success && Array.isArray(resPending.data.data)) {
+        setAllPendingGames(resPending.data.data as Game[]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch open games:", err);
+      pendingFailed = true;
+    } finally {
+      setFetchingPending(false);
+    }
+
+    if (recentFailed || pendingFailed) {
+      setFetchError("Couldn't load games. Check your connection and try again.");
+    }
+  }, [address, canAct, guestUser?.address]);
+
   useEffect(() => {
     if (!canAct) {
       setFetchingRecent(false);
@@ -71,38 +118,8 @@ export default function JoinRoom({
       setFetchingPending(false);
       return;
     }
-
-    const fetchRecent = async () => {
-      try {
-        const res = await apiClient.get<ApiResponse>("/games/my-games", {
-          params: { address: addr },
-        });
-        if (res?.data?.success && Array.isArray(res.data.data)) {
-          setRecentGames(res.data.data as Game[]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch recent games:", err);
-      } finally {
-        setFetchingRecent(false);
-      }
-    };
-
-    const fetchPending = async () => {
-      try {
-        const res = await apiClient.get<ApiResponse>("/games/open");
-        if (res?.data?.success && Array.isArray(res.data.data)) {
-          setAllPendingGames(res.data.data as Game[]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch open games:", err);
-      } finally {
-        setFetchingPending(false);
-      }
-    };
-
-    fetchRecent();
-    fetchPending();
-  }, [address, canAct, guestUser?.address]);
+    fetchGames();
+  }, [canAct, address, guestUser?.address, fetchGames]);
 
   // Only show games that are not finished (so "Continue Game" is never for ended games)
   const activeRecentGames = useMemo(
@@ -223,7 +240,10 @@ export default function JoinRoom({
                 <input
                   type="text"
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    if (error) setError(null);
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && !joinByCodeGuard.isSubmitting && joinByCodeGuard.submit(() => handleJoinByCode())}
                   placeholder="ABCD1234"
                   className="flex-1 bg-[#0A1A1B] text-[#F0F7F7] px-5 py-4 rounded-xl border border-[#00F0FF]/50 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] font-orbitron text-lg uppercase tracking-wider shadow-inner"
@@ -240,7 +260,7 @@ export default function JoinRoom({
               </div>
 
               {error && (
-                <p className="text-red-400 text-sm text-center bg-red-900/50 p-3 rounded-lg animate-pulse font-orbitron">
+                <p className="text-red-400 text-sm text-center bg-red-900/30 border border-red-500/30 p-3 rounded-lg font-orbitron" role="alert">
                   {error}
                 </p>
               )}
@@ -263,6 +283,18 @@ export default function JoinRoom({
 
           {/* Games Section */}
           <div className="space-y-12">
+            {canAct && fetchError && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl bg-red-950/30 border border-red-500/30" role="alert">
+                <p className="text-red-400 text-sm font-medium">{fetchError}</p>
+                <button
+                  type="button"
+                  onClick={() => fetchGames()}
+                  className="shrink-0 px-4 py-2 rounded-lg bg-[#00F0FF] text-[#010F10] font-bold font-orbitron text-sm hover:bg-[#00F0FF]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1A1B]"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
             {canAct && (
               <>
                 <div className="space-y-6">

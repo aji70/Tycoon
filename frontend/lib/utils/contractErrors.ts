@@ -4,7 +4,7 @@
  */
 export function getContractErrorMessage(
   error: unknown,
-  defaultMessage = "Transaction failed. Please try again."
+  defaultMessage = "Transaction failed. Check your connection and try again, or refresh the page."
 ): string {
   const e = error as {
     code?: number;

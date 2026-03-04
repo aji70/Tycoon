@@ -328,7 +328,7 @@ const AiBoard = ({
         // Backend submits ERC-8004 feedback; best-effort
       }
     } catch (err: any) {
-      toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
+      toast.error(getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."));
     } finally {
       setFinalizeInProgress(false);
     }
@@ -356,7 +356,7 @@ const AiBoard = ({
       }
       window.location.href = "/";
     } catch (err: any) {
-      toast.error(getContractErrorMessage(err, "Something went wrong — try again later"));
+      toast.error(getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."));
       setClaimAndLeaveInProgress(false);
     } finally {
       setClaimAndLeaveInProgress(false);

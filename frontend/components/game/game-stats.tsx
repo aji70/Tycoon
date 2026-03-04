@@ -399,7 +399,16 @@ const GameStats: React.FC = () => {
                 </button>
               </div>
               {queryError && (
-                <p className="font-dmSans text-[14px] text-red-400 mt-3">{queryError}</p>
+                <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <p className="font-dmSans text-[14px] text-red-400 flex-1">{queryError}</p>
+                  <button
+                    type="button"
+                    onClick={() => fetchLeaderboard()}
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-[#00F0FF] text-[#010F10] font-semibold text-sm font-orbitron hover:bg-[#00F0FF]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]"
+                  >
+                    Try again
+                  </button>
+                </div>
               )}
               {queriedGame && (
                 <div className="mt-4 p-4 rounded-xl bg-[#0a1214] border border-[#003B3E]">

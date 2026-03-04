@@ -97,7 +97,7 @@ const GameModals: React.FC<GameModalsProps> = ({
       );
     } catch (err: any) {
       toast.error(
-        err?.message || "Something went wrong — you can try again later",
+        err?.message || "Something went wrong. Try again or refresh the page.",
         { id: toastId, duration: 8000 }
       );
     }
