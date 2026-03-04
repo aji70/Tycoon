@@ -704,11 +704,12 @@ export default function CollectibleInventoryBar({
                       whileHover={{ scale: 1.05 }}
                       className="bg-gradient-to-br from-[#0E1415] to-[#0A1C1E] rounded-2xl border border-cyan-900/50 overflow-hidden"
                     >
-                      <div className="relative h-40">
+                      <div className="relative h-40 min-h-[10rem] overflow-hidden">
                         <Image
                           src={item.image || "/game/shop/placeholder.jpg"}
                           alt={item.name}
                           fill
+                          sizes="(max-width: 768px) 100vw, 50vw"
                           className="object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />

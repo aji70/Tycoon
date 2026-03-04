@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
@@ -20,9 +20,12 @@ import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
+const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard'] as const;
+
 const NavBar = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { scrollYProgress } = useScroll();
 
   const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
@@ -81,6 +84,14 @@ const NavBar = () => {
     }
   };
 
+  // Prefetch main nav routes when idle so navigation feels instant
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      PREFETCH_ROUTES.forEach((r) => router.prefetch(r));
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [router]);
+
   return (
     <>
       {/* Progress Bar */}
@@ -131,6 +142,7 @@ const NavBar = () => {
           {isConnected && (
             <Link
               href="/profile"
+              onMouseEnter={() => router.prefetch('/profile')}
               className="w-[80px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
             >
               <User className="w-[16px] h-[16px]" />
@@ -142,6 +154,7 @@ const NavBar = () => {
           {isConnected && (
             <Link
               href={shopHref}
+              onMouseEnter={() => router.prefetch('/game-shop')}
               className="min-w-[90px] h-[40px] px-3 border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]"
             >
               <ShoppingBag className="w-[16px] h-[16px]" />
@@ -153,6 +166,7 @@ const NavBar = () => {
           {isConnected && (
             <Link
               href="/leaderboard"
+              onMouseEnter={() => router.prefetch('/leaderboard')}
               className="w-[100px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
             >
               <Trophy className="w-[16px] h-[16px]" />

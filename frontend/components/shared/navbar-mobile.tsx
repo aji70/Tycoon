@@ -5,7 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords, BookOpen } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
@@ -30,9 +30,12 @@ interface NavBarMobileProps {
   minimal?: boolean;
 }
 
+const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard'] as const;
+
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { scrollY, scrollYProgress } = useScroll();
 
   const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
@@ -94,6 +97,14 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     volume: 0.5,
     loop: true,
   });
+
+  // Prefetch main nav routes after mount so navigation feels instant
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      PREFETCH_ROUTES.forEach((r) => router.prefetch(r));
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [router]);
 
 const safeAddress = address && isAddress(address) 
   ? address as `0x${string}` 
