@@ -925,6 +925,10 @@ export default function BoardScene({
   const spinCurrentAngleRef = useRef(0);
   const spinRadiusRef = useRef(0);
   const spinHeightRef = useRef(0);
+  const zoomOutAfterTimeRef = useRef<number | null>(null);
+  const zoomBackOutRef = useRef(false);
+  const defaultCameraPos = useMemo(() => new THREE.Vector3(0, 12, 12), []);
+  const defaultTarget = useMemo(() => new THREE.Vector3(0, 0, 0), []);
 
   useEffect(() => {
     if (resetViewTrigger > 0 && controlsRef.current) {
@@ -934,6 +938,8 @@ export default function BoardScene({
       focusCameraRef.current = null;
       spinTargetAngleRef.current = null;
       lastSpinPropRef.current = 0;
+      zoomOutAfterTimeRef.current = null;
+      zoomBackOutRef.current = false;
     }
   }, [resetViewTrigger, camera]);
 
@@ -966,8 +972,9 @@ export default function BoardScene({
     focusCameraRef.current = camPos;
   }, [focusTilePosition]);
 
-  useFrame(() => {
+  useFrame((_, delta, xrFrame) => {
     if (!controlsRef.current) return;
+    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
     const spinTarget = spinTargetAngleRef.current;
     if (spinTarget != null) {
       const current = spinCurrentAngleRef.current;
@@ -983,6 +990,18 @@ export default function BoardScene({
       }
       return;
     }
+    if (zoomBackOutRef.current) {
+      const t = controlsRef.current.target;
+      const p = camera.position;
+      t.lerp(defaultTarget, 0.04);
+      p.lerp(defaultCameraPos, 0.04);
+      if (t.distanceTo(defaultTarget) < 0.05 && p.distanceTo(defaultCameraPos) < 0.05) {
+        t.copy(defaultTarget);
+        p.copy(defaultCameraPos);
+        zoomBackOutRef.current = false;
+      }
+      return;
+    }
     const target = focusTargetRef.current;
     const camPos = focusCameraRef.current;
     if (target && camPos) {
@@ -995,7 +1014,13 @@ export default function BoardScene({
         p.copy(camPos);
         focusTargetRef.current = null;
         focusCameraRef.current = null;
+        zoomOutAfterTimeRef.current = now + 1500;
       }
+      return;
+    }
+    if (zoomOutAfterTimeRef.current != null && now >= zoomOutAfterTimeRef.current) {
+      zoomOutAfterTimeRef.current = null;
+      zoomBackOutRef.current = true;
     }
   });
 
