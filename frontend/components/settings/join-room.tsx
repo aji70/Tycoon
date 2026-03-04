@@ -10,6 +10,7 @@ import { ApiResponse } from "@/types/api";
 import { Game } from "@/lib/types/games";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
+import { SkeletonGameGrid } from "@/components/ui/SkeletonCard";
 
 interface JoinRoomProps {
   /** When game is RUNNING, redirect here (default: /game-play). e.g. /board-3d-multi for 3D. */
@@ -281,7 +282,10 @@ export default function JoinRoom({
                   </div>
 
                   {fetchingPending ? (
-                    <p className="text-[#869298] text-center">Loading open games…</p>
+                    <>
+                      <p className="text-[#869298] text-sm text-center mb-2">Loading open games…</p>
+                      <SkeletonGameGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" />
+                    </>
                   ) : pendingGames.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {pendingGames.map((game) => (
@@ -311,12 +315,17 @@ export default function JoinRoom({
                   )}
                 </div>
 
-                {activeRecentGames.length > 0 && (
+                {(fetchingRecent || activeRecentGames.length > 0) && (
                   <div className="space-y-6">
                     <h3 className="text-xl lg:text-2xl font-bold text-[#00F0FF] text-center font-orbitron">
                       Continue Game
                     </h3>
-
+                    {fetchingRecent ? (
+                      <>
+                        <p className="text-[#869298] text-sm text-center mb-2">Loading your games…</p>
+                        <SkeletonGameGrid count={3} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" />
+                      </>
+                    ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {activeRecentGames.map((game) => (
                         <button
@@ -337,6 +346,7 @@ export default function JoinRoom({
                         </button>
                       ))}
                     </div>
+                    )}
                   </div>
                 )}
               </>
