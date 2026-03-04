@@ -173,18 +173,18 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           </button>
         </div>
 
-        {/* Two columns: You give | You get */}
+        {/* Two columns: What you offer | What you want */}
         <div className="flex-1 min-h-0 overflow-y-auto p-6">
-          <p className="text-slate-400 text-sm mb-4">
-            Choose properties and cash you want to give and what you want in return.
+          <p className="text-slate-300 text-sm mb-4">
+            Tap properties to add them. Add cash if you like. Then tap &quot;Send offer&quot;.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* You give (offer) */}
+            {/* What you offer */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" aria-hidden />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-emerald-400">
-                  You give
+                <h3 className="text-base font-semibold text-emerald-300">
+                  What you offer
                 </h3>
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
@@ -200,12 +200,12 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                   ))
                 ) : (
                   <p className="text-sm text-slate-500 py-4 text-center rounded-lg bg-slate-800/50">
-                    You have no properties to offer
+                    No properties to offer
                   </p>
                 )}
               </div>
               <label className="block">
-                <span className="text-xs text-slate-400 block mb-1.5">Cash to offer ($)</span>
+                <span className="text-sm text-slate-400 block mb-1.5">Cash ($)</span>
                 <input
                   type="number"
                   min={0}
@@ -218,12 +218,12 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               </label>
             </div>
 
-            {/* You get (request) */}
+            {/* What you want */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-400" aria-hidden />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-amber-400">
-                  You get
+                <h3 className="text-base font-semibold text-amber-300">
+                  What you want
                 </h3>
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
@@ -239,12 +239,12 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                   ))
                 ) : (
                   <p className="text-sm text-slate-500 py-4 text-center rounded-lg bg-slate-800/50">
-                    Other player has no properties
+                    They have no properties
                   </p>
                 )}
               </div>
               <label className="block">
-                <span className="text-xs text-slate-400 block mb-1.5">Cash to request ($)</span>
+                <span className="text-sm text-slate-400 block mb-1.5">Cash ($)</span>
                 <input
                   type="number"
                   min={0}
@@ -261,8 +261,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           {/* Deal summary */}
           {(hasOffer || hasRequest) && (
             <div className="mt-4 p-4 rounded-xl bg-slate-800/60 border border-slate-600/50">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Deal summary
+              <p className="text-sm font-medium text-slate-400 mb-2">
+                Your offer
               </p>
               <div className="flex flex-col sm:flex-row sm:gap-6 gap-1 text-sm text-slate-200">
                 {hasOffer && (
@@ -299,16 +299,16 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 transition focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+            className="flex-1 py-3.5 rounded-xl font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 transition focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-900"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="flex-1 py-3 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-500 transition focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+            className="flex-1 py-3.5 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-500 transition focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg shadow-emerald-900/30"
           >
-            Send deal
+            Send offer
           </button>
         </div>
       </motion.div>

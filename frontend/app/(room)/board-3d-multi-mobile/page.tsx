@@ -1697,11 +1697,11 @@ function Board3DMobilePageContent() {
         )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && voteablePlayersList.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto shrink min-w-0">
+          <div className="flex items-center gap-2 overflow-x-auto shrink min-w-0">
             {voteablePlayersList.map((p) => {
               const status = voteStatuses[p.user_id];
               const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
-              const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
+              const voteRatio = status ? ` (${status.vote_count}/${status.required_votes})` : "";
               const isLoading = votingLoading[p.user_id];
               return (
                 <button
@@ -1709,11 +1709,11 @@ function Board3DMobilePageContent() {
                   type="button"
                   onClick={() => voteToRemove(p.user_id)}
                   disabled={isLoading || hasVoted}
-                  className={`shrink-0 text-xs font-medium rounded-lg px-2.5 py-1.5 border ${
-                    hasVoted ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50" : isLoading ? "bg-amber-900/60 text-amber-200 border-amber-500/50" : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50"
+                  className={`shrink-0 text-xs font-semibold rounded-xl px-3 py-2 border-2 ${
+                    hasVoted ? "bg-emerald-900/70 text-emerald-100 border-emerald-400/50" : isLoading ? "bg-amber-900/70 text-amber-100 border-amber-400/50" : "bg-rose-900/60 text-rose-100 border-rose-400/50"
                   }`}
                 >
-                  {hasVoted ? `✓${voteRatio}` : isLoading ? "…" : `Vote ${(p.username ?? "P").slice(0, 6)} out`}
+                  {hasVoted ? `✓ Voted${voteRatio}` : isLoading ? "…" : `Vote ${(p.username ?? "P").slice(0, 8)} out`}
                 </button>
               );
             })}

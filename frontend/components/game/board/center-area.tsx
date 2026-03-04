@@ -202,11 +202,12 @@ export default function CenterArea({
       {/* Vote to remove inactive/timed-out players - multiplayer only */}
       {voteablePlayers && voteablePlayers.length > 0 && onVoteToRemove && (
         <div className="flex flex-col items-center gap-3 mb-3 z-10 max-w-md">
+          <p className="text-xs font-medium text-amber-200/90 uppercase tracking-wide">Timed out — vote to remove</p>
           {voteablePlayers.map((p) => {
             const status = voteStatuses[p.user_id];
             const isLoading = votingLoading[p.user_id];
             const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
-            const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
+            const voteRatio = status ? ` (${status.vote_count}/${status.required_votes})` : "";
             
             return (
               <div
@@ -216,15 +217,23 @@ export default function CenterArea({
                 <button
                   onClick={() => onVoteToRemove(p.user_id)}
                   disabled={isLoading || hasVoted}
-                  className={`text-xs font-medium rounded-lg px-4 py-2 border transition-all ${
-                    hasVoted
-                      ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50 cursor-not-allowed"
+                  className={`
+                    inline-flex items-center justify-center gap-2 min-w-[140px] rounded-xl px-5 py-3 text-sm font-semibold
+                    border-2 transition-all shadow-lg
+                    ${hasVoted
+                      ? "bg-emerald-900/70 text-emerald-100 border-emerald-400/50 cursor-default shadow-emerald-900/30"
                       : isLoading
-                      ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
-                      : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80 hover:scale-105"
-                  }`}
+                      ? "bg-amber-900/70 text-amber-100 border-amber-400/50 cursor-wait shadow-amber-900/30"
+                      : "bg-rose-900/60 text-rose-100 border-rose-400/50 hover:bg-rose-800/70 hover:border-rose-300/60 hover:scale-[1.02] active:scale-[0.98] shadow-rose-900/30"
+                    }`}
                 >
-                  {hasVoted ? `✓ Voted${voteRatio}` : isLoading ? "Voting..." : `Vote ${p.username} Out${voteRatio}`}
+                  {hasVoted ? (
+                    <>✓ Voted out{voteRatio}</>
+                  ) : isLoading ? (
+                    <>Voting…</>
+                  ) : (
+                    <>Vote {p.username ?? "Player"} out{voteRatio}</>
+                  )}
                 </button>
               </div>
             );
