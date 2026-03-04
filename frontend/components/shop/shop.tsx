@@ -44,6 +44,7 @@ import {
   useRewardTokenAddresses,
 } from '@/context/ContractProvider';
 import { apiClient } from '@/lib/api';
+import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -546,10 +547,10 @@ const { data: usdcAllowance } = useReadContract({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-col justify-center items-center py-24"
+            className="space-y-4"
           >
-            <div className="rounded-full border-2 border-[#00F0FF]/30 border-t-[#00F0FF] w-14 h-14 animate-spin mb-6" />
-            <p className="text-slate-400 text-lg">Loading perks...</p>
+            <p className="text-slate-400 text-sm text-center">Loading perks...</p>
+            <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-6 items-stretch" />
           </motion.div>
         ) : allShopItems.length === 0 ? (
           <motion.div

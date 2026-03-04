@@ -25,6 +25,7 @@ import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
+import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -277,6 +278,15 @@ export default function ProfilePageMobile() {
       };
     }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
   }, [voucherInfoResults.data, voucherTokenIds]);
+
+  const isLoadingPerks =
+    ownedCount.isLoading ||
+    (ownedCountNum > 0 && tokenResults.isLoading) ||
+    (allOwnedTokenIds.length > 0 && infoResults.isLoading);
+  const isLoadingVouchers =
+    ownedCount.isLoading ||
+    (ownedCountNum > 0 && tokenResults.isLoading) ||
+    (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
 
   useEffect(() => {
     if (playerData && username) {
@@ -658,7 +668,12 @@ export default function ProfilePageMobile() {
 
             {profileTab === 'perks' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
-                {ownedCollectibles.length === 0 ? (
+                {isLoadingPerks ? (
+                  <>
+                    <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
+                    <SkeletonPerkGrid count={4} gridClass="grid grid-cols-2 gap-3" />
+                  </>
+                ) : ownedCollectibles.length === 0 ? (
                   <div className="py-8 text-center">
                     <ShoppingBag className="w-10 h-10 text-purple-400/50 mx-auto mb-2" />
                     <p className="text-slate-400 text-sm">No perks yet — visit the shop.</p>
@@ -723,7 +738,16 @@ export default function ProfilePageMobile() {
 
             {profileTab === 'vouchers' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
-                {myVouchers.length === 0 ? (
+                {isLoadingVouchers ? (
+                  <>
+                    <p className="text-slate-400 text-sm text-center mb-3">Loading vouchers…</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <SkeletonCard key={i} hasImage={false} lines={2} className="rounded-xl p-4 border border-amber-500/20" />
+                      ))}
+                    </div>
+                  </>
+                ) : myVouchers.length === 0 ? (
                   <div className="py-8 text-center">
                     <Ticket className="w-10 h-10 text-amber-400/30 mx-auto mb-2" />
                     <p className="text-slate-500 text-sm">No vouchers yet</p>
