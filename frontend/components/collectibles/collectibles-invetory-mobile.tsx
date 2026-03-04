@@ -617,14 +617,21 @@ export default function CollectibleInventoryBar({
             Your Perks ({totalOwned})
           </h3>
 
-          <button
-            onClick={() => setShowMiniShop(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/50 transition active:scale-95"
-          >
-            <ShoppingBag className="w-5 h-5" />
-            Open Shop
-          </button>
+          <div className="flex flex-col items-stretch sm:items-end gap-1">
+            <button
+              onClick={() => setShowMiniShop(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/50 transition active:scale-95"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              Buy perks
+            </button>
+            <span className="text-xs text-slate-500 text-center sm:text-right">Without leaving the game</span>
+          </div>
         </div>
+
+        {totalOwned === 0 && (
+          <p className="text-slate-400 text-sm mb-4 text-center sm:text-left">Buy perks above to use during this game.</p>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {ownedCollectibles.map((item) => (
