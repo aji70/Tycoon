@@ -198,7 +198,7 @@ export function usePlayerSidebar({
             id: res.data?.data?.id || Date.now(),
           };
           const favorability = calculateAiFavorability(sentTrade, properties);
-          let decision: "accepted" | "declined" = "declined";
+          let decision: "accepted" | "declined" | "countered" = "declined";
           let remark = "";
 
           if (favorability >= 30) {
@@ -210,6 +210,9 @@ export function usePlayerSidebar({
           } else if (favorability >= 0) {
             decision = Math.random() < 0.3 ? "accepted" : "declined";
             remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
+          } else if (favorability >= -15 && Math.random() < 0.4) {
+            decision = "countered";
+            remark = "How about this instead?";
           } else {
             remark = "This deal is terrible for me! 😤";
           }
@@ -218,6 +221,22 @@ export function usePlayerSidebar({
             await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
             toast.success("AI accepted your trade instantly! 🎉");
             refreshTrades();
+          } else if (decision === "countered") {
+            try {
+              await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
+              await apiClient.post("/game-trade-requests/ai-counter", {
+                original_trade_id: sentTrade.id,
+                counter_offer_properties: sentTrade.requested_properties ?? [],
+                counter_offer_amount: sentTrade.requested_amount ?? 0,
+                counter_requested_properties: sentTrade.offer_properties ?? [],
+                counter_requested_amount: sentTrade.offer_amount ?? 0,
+              });
+              refreshTrades();
+            } catch (counterErr: any) {
+              console.error("[usePlayerSidebar] AI counter failed:", counterErr);
+              decision = "declined";
+              remark = "Counter failed; offer declined.";
+            }
           }
 
           setAiResponsePopup({ trade: sentTrade, favorability, decision, remark });

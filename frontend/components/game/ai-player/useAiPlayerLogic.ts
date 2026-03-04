@@ -165,8 +165,9 @@ export function useAiPlayerLogic({
           };
 
           let favorability = 0;
-          let decision: "accepted" | "declined" = "declined";
+          let decision: "accepted" | "declined" | "countered" = "declined";
           let remark = "";
+          let counterCashAdjustment: number | null = null;
 
           try {
             favorability = calculateAiFavorability(sentTrade, properties ?? []);
@@ -177,7 +178,7 @@ export function useAiPlayerLogic({
               try {
                 const agentRes = await apiClient.post<{
                   success?: boolean;
-                  data?: { action?: string };
+                  data?: { action?: string; counterOffer?: { cashAdjustment?: number } };
                   useBuiltIn?: boolean;
                 }>("/agent-registry/decision", {
                   gameId: game.id,
@@ -196,14 +197,21 @@ export function useAiPlayerLogic({
                   },
                 });
                 const action = agentRes?.data?.data?.action;
-                if (agentRes?.data?.success && agentRes?.data?.useBuiltIn === false && typeof action === "string") {
+                const counterOffer = agentRes?.data?.data?.counterOffer;
+                if (agentRes?.data?.success && typeof action === "string") {
                   const actionLower = action.toLowerCase();
                   if (actionLower === "accept") {
                     decision = "accepted";
-                    remark = "Celo agent accepted. 🤖";
+                    remark = agentRes?.data?.useBuiltIn === false ? "Celo agent accepted. 🤖" : remark;
                   } else if (actionLower === "decline") {
                     decision = "declined";
-                    remark = "Celo agent declined.";
+                    remark = agentRes?.data?.useBuiltIn === false ? "Celo agent declined." : remark;
+                  } else if (actionLower === "counter") {
+                    decision = "countered";
+                    counterCashAdjustment = counterOffer?.cashAdjustment ?? 0;
+                    remark = (counterOffer?.cashAdjustment != null && counterOffer.cashAdjustment !== 0)
+                      ? `Not quite — I'm countering. ${counterOffer.cashAdjustment > 0 ? `I want $${counterOffer.cashAdjustment} more.` : `I'll add $${Math.abs(counterOffer.cashAdjustment)}.`}`
+                      : "Not quite — here's my counter offer.";
                   }
                 }
               } catch (err) {
@@ -221,6 +229,10 @@ export function useAiPlayerLogic({
               } else if (favorability >= 0) {
                 decision = Math.random() < 0.3 ? "accepted" : "declined";
                 remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
+              } else if (favorability >= -15 && Math.random() < 0.4) {
+                decision = "countered";
+                counterCashAdjustment = counterCashAdjustment ?? 0;
+                remark = "How about this instead?";
               } else {
                 remark = "This deal is terrible for me! 😤";
               }
@@ -229,6 +241,25 @@ export function useAiPlayerLogic({
             if (decision === "accepted") {
               await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
               refreshTrades();
+            } else if (decision === "countered") {
+              const adj = counterCashAdjustment ?? 0;
+              const counterOfferAmount = Math.max(0, (sentTrade.requested_amount ?? 0) - adj);
+              const counterRequestedAmount = (sentTrade.offer_amount ?? 0) + adj;
+              try {
+                await apiClient.post("/game-trade-requests/decline", { id: sentTrade.id });
+                await apiClient.post("/game-trade-requests/ai-counter", {
+                  original_trade_id: sentTrade.id,
+                  counter_offer_properties: sentTrade.requested_properties ?? [],
+                  counter_offer_amount: counterOfferAmount,
+                  counter_requested_properties: sentTrade.offer_properties ?? [],
+                  counter_requested_amount: counterRequestedAmount,
+                });
+                refreshTrades();
+              } catch (counterErr: any) {
+                console.error("[useAiPlayerLogic] AI counter failed:", counterErr);
+                decision = "declined";
+                remark = "Counter failed; offer declined.";
+              }
             }
 
             setAiResponsePopup({

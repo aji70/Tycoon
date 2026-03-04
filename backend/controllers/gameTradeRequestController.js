@@ -327,6 +327,117 @@ export const GameTradeRequestController = {
     }
   },
 
+  // AI COUNTER: decline original trade and create a new trade from AI to human with counter terms
+  async aiCounter(req, res) {
+    const trx = await db.transaction();
+    try {
+      const {
+        original_trade_id,
+        counter_offer_properties = [],
+        counter_offer_amount = 0,
+        counter_requested_properties = [],
+        counter_requested_amount = 0,
+      } = req.body;
+
+      const original = await trx("game_trade_requests").where({ id: original_trade_id }).first();
+      if (!original || original.status !== "pending") {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Original trade not found or not pending",
+        });
+      }
+
+      const game = await trx("games").where({ id: original.game_id, status: "RUNNING" }).first();
+      if (!game || !game.is_ai) {
+        await trx.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Game not running or not an AI game",
+        });
+      }
+
+      // Counter is from AI (original target) to human (original initiator)
+      const aiUserId = original.target_player_id;
+      const humanUserId = original.player_id;
+      const player = await trx("game_players").where({ game_id: original.game_id, user_id: aiUserId }).first();
+      const targetPlayer = await trx("game_players").where({ game_id: original.game_id, user_id: humanUserId }).first();
+      if (!player || !targetPlayer) {
+        await trx.rollback();
+        return res.status(404).json({ success: false, message: "Player(s) not found in this game" });
+      }
+      if (targetPlayer.in_jail) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Target player is in jail" });
+      }
+
+      const offerProps = await trx("game_properties")
+        .whereIn("property_id", counter_offer_properties)
+        .andWhere({ game_id: original.game_id, player_id: player.id });
+      const requestedProps = await trx("game_properties")
+        .whereIn("property_id", counter_requested_properties)
+        .andWhere({ game_id: original.game_id, player_id: targetPlayer.id });
+      if (offerProps.length !== counter_offer_properties.length) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Invalid counter offered property ownership" });
+      }
+      if (requestedProps.length !== counter_requested_properties.length) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "Invalid counter requested property ownership" });
+      }
+      if (Number(player.balance) < counter_offer_amount) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "AI has insufficient balance for counter offer" });
+      }
+      if (Number(targetPlayer.balance) < counter_requested_amount) {
+        await trx.rollback();
+        return res.status(400).json({ success: false, message: "You have insufficient balance for the counter request" });
+      }
+
+      await trx("game_trade_requests").where({ id: original_trade_id }).update({
+        status: "declined",
+        updated_at: new Date(),
+      });
+
+      await trx("game_trade_requests").insert({
+        game_id: original.game_id,
+        player_id: aiUserId,
+        target_player_id: humanUserId,
+        offer_properties: JSON.stringify(counter_offer_properties),
+        offer_amount: counter_offer_amount,
+        requested_properties: JSON.stringify(counter_requested_properties),
+        requested_amount: counter_requested_amount,
+        status: "pending",
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      await trx.commit();
+
+      const newTrade = await db("game_trade_requests")
+        .where({
+          game_id: original.game_id,
+          player_id: aiUserId,
+          target_player_id: humanUserId,
+          status: "pending",
+        })
+        .orderBy("created_at", "desc")
+        .first();
+      const io = req.app.get("io");
+      if (io && original.game_id) await emitGameUpdateByGameId(io, original.game_id);
+      await invalidateGameById(original.game_id);
+
+      return res.status(201).json({ success: true, data: newTrade, message: "AI counter offer created" });
+    } catch (error) {
+      await trx.rollback();
+      console.error("AI Counter Trade Error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to create AI counter offer",
+      });
+    }
+  },
+
   // ✅ Get trade by ID
   async getById(req, res) {
     try {

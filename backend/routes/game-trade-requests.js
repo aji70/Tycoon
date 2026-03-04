@@ -9,6 +9,8 @@ router.post("/accept", GameTradeRequestController.accept);
 
 router.post("/decline", GameTradeRequestController.decline);
 
+router.post("/ai-counter", GameTradeRequestController.aiCounter);
+
 router.get("/:id", GameTradeRequestController.getById);
 
 router.put("/:id", GameTradeRequestController.update);

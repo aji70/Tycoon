@@ -1,5 +1,5 @@
 // hooks/useAiBankruptcy.ts
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Player, Property } from "@/types/game";
@@ -95,40 +95,48 @@ export function useAiBankruptcy({
     return raised;
   };
 
+  // Prevent concurrent runs (e.g. Strict Mode or rapid deps change) so we don't eliminate after staying in game
+  const handlingRef = useRef(false);
+
   // AI: Handle liquidation + possible bankruptcy
   useEffect(() => {
     if (!isAITurn || !currentPlayer || currentPlayer.balance >= 0) return;
     if (!game?.id || !game?.code) return;
+    if (handlingRef.current) return;
+    handlingRef.current = true;
 
     const handleAiLiquidationAndPossibleBankruptcy = async () => {
-      const raisedFromHouses = await aiSellHouses(Infinity);
-      const raisedFromMortgages = await aiMortgageProperties(Infinity);
-      const totalRaised = raisedFromHouses + raisedFromMortgages;
-
-      // Use refetched balance so we don't kick out AI who raised enough (stale balance bug)
-      let balanceAfterLiquidation: number =
-        currentPlayer.balance != null ? Number(currentPlayer.balance) : 0;
-      if (refetchGameFn && totalRaised > 0) {
-        const updatedGame = await refetchGameFn();
-        const updatedPlayer = updatedGame?.players?.find(
-          (p: Player) => p.user_id === currentPlayer.user_id
-        );
-        if (updatedPlayer?.balance != null) {
-          balanceAfterLiquidation = Number(updatedPlayer.balance);
-        }
-      }
-
-      if (balanceAfterLiquidation >= 0) {
-        toast.success(
-          `${currentPlayer.username} raised $${totalRaised} and stayed in the game.`,
-          { duration: 4000 }
-        );
-        return;
-      }
-
-      // Still bankrupt after liquidation
-
       try {
+        const raisedFromHouses = await aiSellHouses(Infinity);
+        const raisedFromMortgages = await aiMortgageProperties(Infinity);
+        const totalRaised = raisedFromHouses + raisedFromMortgages;
+        const initialBalance = currentPlayer.balance != null ? Number(currentPlayer.balance) : 0;
+
+        // Use computed balance so we never eliminate AI who raised enough (refetch can be stale/cached)
+        const computedBalance = initialBalance + totalRaised;
+        let balanceAfterLiquidation = computedBalance;
+        if (refetchGameFn && totalRaised > 0) {
+          const updatedGame = await refetchGameFn();
+          const updatedPlayer = updatedGame?.players?.find(
+            (p: Player) => p.user_id === currentPlayer.user_id
+          );
+          if (updatedPlayer?.balance != null) {
+            const refetched = Number(updatedPlayer.balance);
+            // Prefer refetched when it looks consistent; otherwise trust computed
+            balanceAfterLiquidation = refetched >= 0 ? refetched : computedBalance;
+          }
+        }
+
+        if (balanceAfterLiquidation >= 0) {
+          toast.success(
+            `${currentPlayer.username} raised $${totalRaised} and stayed in the game.`,
+            { duration: 4000 }
+          );
+          return;
+        }
+
+        // Still bankrupt after liquidation
+        try {
         const landedGameProperty = game_properties.find(
           gp => gp.property_id === currentPlayer.position
         );
@@ -198,9 +206,12 @@ export function useAiBankruptcy({
         });
 
         toast(`${currentPlayer.username} was eliminated (bankrupt).`, { duration: 4000 });
-      } catch (err: any) {
-        console.error("Bankruptcy handling failed:", err);
-        toast.error("AI bankruptcy process failed");
+        } catch (err: any) {
+          console.error("Bankruptcy handling failed:", err);
+          toast.error("AI bankruptcy process failed");
+        }
+      } finally {
+        handlingRef.current = false;
       }
     };
 
