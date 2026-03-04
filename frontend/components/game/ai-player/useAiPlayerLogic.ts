@@ -146,90 +146,95 @@ export function useAiPlayerLogic({
 
         // AI-only: auto-respond to trade; never run in multiplayer
         if (game.is_ai !== false && isAI) {
+          const tradeId = res.data?.data?.id ?? Date.now();
           const sentTrade = {
             ...payload,
-            id: res.data?.data?.id || Date.now(),
+            id: typeof tradeId === "number" ? tradeId : Number(tradeId),
           };
 
-          const favorability = calculateAiFavorability(sentTrade, properties);
+          let favorability = 0;
           let decision: "accepted" | "declined" = "declined";
           let remark = "";
 
-          // Optional Celo agent: try agent-registry first; fallback to built-in logic (no functions discarded)
-          const slot = getAiSlotFromPlayer(targetPlayer);
-          console.log("[useAiPlayerLogic] Trade to AI:", { 
-            targetPlayer: targetPlayer.username, 
-            slot, 
-            turnOrder: targetPlayer.turn_order 
-          });
-          if (slot != null) {
-            try {
-              console.log("[useAiPlayerLogic] Calling agent-registry for slot", slot);
-              const agentRes = await apiClient.post<{
-                success: boolean;
-                data?: { action: string };
-                useBuiltIn?: boolean;
-              }>("/agent-registry/decision", {
-                gameId: game.id,
-                slot,
-                decisionType: "trade",
-                context: {
-                  tradeOffer: sentTrade,
-                  myBalance: targetPlayer.balance ?? 0,
-                  myProperties: game_properties
-                    .filter((gp) => gp.address?.toLowerCase() === targetPlayer.address?.toLowerCase())
-                    .map((gp) => ({
-                      ...properties.find((p) => p.id === gp.property_id),
-                      ...gp,
-                    })),
-                  opponents: (game.players ?? []).filter((p) => p.user_id !== targetPlayer.user_id),
-                },
-              });
-              console.log("[useAiPlayerLogic] Agent response:", agentRes?.data);
-              if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
-                const action = agentRes.data.data.action.toLowerCase();
-                if (action === "accept") {
-                  decision = "accepted";
-                  remark = "Celo agent accepted. 🤖";
-                } else if (action === "decline") {
-                  decision = "declined";
-                  remark = "Celo agent declined.";
+          try {
+            favorability = calculateAiFavorability(sentTrade, properties ?? []);
+
+            // Optional Celo agent: try agent-registry first; fallback to built-in logic
+            const slot = getAiSlotFromPlayer(targetPlayer);
+            if (slot != null) {
+              try {
+                const agentRes = await apiClient.post<{
+                  success?: boolean;
+                  data?: { action?: string };
+                  useBuiltIn?: boolean;
+                }>("/agent-registry/decision", {
+                  gameId: game.id,
+                  slot,
+                  decisionType: "trade",
+                  context: {
+                    tradeOffer: sentTrade,
+                    myBalance: targetPlayer.balance ?? 0,
+                    myProperties: (game_properties ?? [])
+                      .filter((gp) => (gp.address ?? "").toLowerCase() === (targetPlayer.address ?? "").toLowerCase())
+                      .map((gp) => ({
+                        ...(properties ?? []).find((p) => p.id === gp.property_id),
+                        ...gp,
+                      })),
+                    opponents: (game.players ?? []).filter((p) => p.user_id !== targetPlayer.user_id),
+                  },
+                });
+                const action = agentRes?.data?.data?.action;
+                if (agentRes?.data?.success && agentRes?.data?.useBuiltIn === false && typeof action === "string") {
+                  const actionLower = action.toLowerCase();
+                  if (actionLower === "accept") {
+                    decision = "accepted";
+                    remark = "Celo agent accepted. 🤖";
+                  } else if (actionLower === "decline") {
+                    decision = "declined";
+                    remark = "Celo agent declined.";
+                  }
                 }
-              } else {
-                console.log("[useAiPlayerLogic] Using built-in logic (agent returned useBuiltIn=true or no action)");
+              } catch (err) {
+                console.warn("[useAiPlayerLogic] Agent call failed, using built-in logic:", err);
               }
-            } catch (err) {
-              console.error("[useAiPlayerLogic] Agent call failed:", err);
-              // Agent unreachable or error: use built-in logic below
             }
-          }
 
-          if (remark === "") {
-            if (favorability >= 30) {
-              decision = "accepted";
-              remark = "This is a fantastic deal! 🤖";
-            } else if (favorability >= 10) {
-              decision = Math.random() < 0.7 ? "accepted" : "declined";
-              remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
-            } else if (favorability >= 0) {
-              decision = Math.random() < 0.3 ? "accepted" : "declined";
-              remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
-            } else {
-              remark = "This deal is terrible for me! 😤";
+            if (remark === "") {
+              if (favorability >= 30) {
+                decision = "accepted";
+                remark = "This is a fantastic deal! 🤖";
+              } else if (favorability >= 10) {
+                decision = Math.random() < 0.7 ? "accepted" : "declined";
+                remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
+              } else if (favorability >= 0) {
+                decision = Math.random() < 0.3 ? "accepted" : "declined";
+                remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
+              } else {
+                remark = "This deal is terrible for me! 😤";
+              }
             }
-          }
 
-          if (decision === "accepted") {
-            await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
-            refreshTrades();
-          }
+            if (decision === "accepted") {
+              await apiClient.post("/game-trade-requests/accept", { id: sentTrade.id });
+              refreshTrades();
+            }
 
-          setAiResponsePopup({
-            trade: sentTrade,
-            favorability,
-            decision,
-            remark,
-          });
+            setAiResponsePopup({
+              trade: sentTrade,
+              favorability,
+              decision,
+              remark,
+            });
+          } catch (aiErr: any) {
+            console.error("[useAiPlayerLogic] AI trade response error:", aiErr);
+            toast.error("Trade sent, but AI response could not be shown.");
+            setAiResponsePopup({
+              trade: sentTrade,
+              favorability: 0,
+              decision: "declined",
+              remark: "Something went wrong.",
+            });
+          }
         }
       }
     } catch (error: any) {

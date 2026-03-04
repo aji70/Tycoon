@@ -44,19 +44,23 @@ export const calculateFavorability = (trade: any, properties: Property[]) => {
 };
 
 export const calculateAiFavorability = (trade: any, properties: Property[]) => {
+  const props = properties ?? [];
+  const offerIds = Array.isArray(trade?.offer_properties) ? trade.offer_properties : [];
+  const requestIds = Array.isArray(trade?.requested_properties) ? trade.requested_properties : [];
+
   const aiGetsValue =
-    (trade.offer_amount || 0) +
-    trade.offer_properties.reduce(
+    (trade?.offer_amount || 0) +
+    offerIds.reduce(
       (sum: number, id: number) =>
-        sum + (properties.find((p) => p.id === id)?.price || 0),
+        sum + (props.find((p) => p.id === id)?.price || 0),
       0
     );
 
   const aiGivesValue =
-    (trade.requested_amount || 0) +
-    trade.requested_properties.reduce(
+    (trade?.requested_amount || 0) +
+    requestIds.reduce(
       (sum: number, id: number) =>
-        sum + (properties.find((p) => p.id === id)?.price || 0),
+        sum + (props.find((p) => p.id === id)?.price || 0),
       0
     );
 

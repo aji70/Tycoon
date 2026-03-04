@@ -6,6 +6,12 @@ const TournamentMatch = {
     return this.findById(id);
   },
 
+  /** Insert many matches in one query. Use for bracket generation. */
+  async bulkCreate(rows) {
+    if (!rows || rows.length === 0) return;
+    await db("tournament_matches").insert(rows);
+  },
+
   async findById(id) {
     return db("tournament_matches").where({ id }).first();
   },

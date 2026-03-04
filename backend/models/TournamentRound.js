@@ -6,6 +6,12 @@ const TournamentRound = {
     return this.findById(id);
   },
 
+  /** Insert many rounds in one query. Use for bracket generation. */
+  async bulkCreate(rows) {
+    if (!rows || rows.length === 0) return;
+    await db("tournament_rounds").insert(rows);
+  },
+
   async findById(id) {
     return db("tournament_rounds").where({ id }).first();
   },
