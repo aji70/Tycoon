@@ -720,7 +720,7 @@ export default function Profile() {
                     icon={<ShoppingBag className="w-14 h-14 text-purple-400/70" />}
                     title="No perks yet"
                     description="Perks give you in-game advantages. Buy them in the Perk Shop or during a game from My Perks."
-                    action={{ label: 'Visit the shop', href: '/game-shop' }}
+                    action={{ label: 'Visit Perk Shop', href: '/game-shop' }}
                     compact
                     className="border-purple-500/20 bg-black/20"
                   />

@@ -660,9 +660,9 @@ export default function CollectibleInventoryBar({
               <div className="p-6 border-b border-cyan-900/50 flex justify-between items-center">
                 <h2 id="quick-perk-shop-title" className="text-3xl font-bold flex items-center gap-3">
                   <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
-                  Quick Perk Shop
+                  Perk Shop
                 </h2>
-                <button onClick={() => setShowMiniShop(false)} className="text-gray-400 hover:text-white" aria-label="Close Quick Perk Shop">
+                <button onClick={() => setShowMiniShop(false)} className="text-gray-400 hover:text-white" aria-label="Close Perk Shop">
                   <X className="w-8 h-8" />
                 </button>
               </div>

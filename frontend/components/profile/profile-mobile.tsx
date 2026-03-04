@@ -679,7 +679,7 @@ export default function ProfilePageMobile() {
                     icon={<ShoppingBag className="w-12 h-12 text-purple-400/70" />}
                     title="No perks yet"
                     description="Buy perks in the Perk Shop or during a game from My Perks."
-                    action={{ label: 'Visit the shop', href: '/game-shop' }}
+                    action={{ label: 'Visit Perk Shop', href: '/game-shop' }}
                     compact
                     className="border-purple-500/20 bg-black/20 py-6"
                   />
