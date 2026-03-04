@@ -30,6 +30,8 @@ function RoomsLoadingPlaceholder() {
 
 export default function RoomsPage() {
   const [mounted, setMounted] = useState(false);
+  const [chatReady, setChatReady] = useState(false);
+
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
@@ -40,6 +42,13 @@ export default function RoomsPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Delay rendering chat until after mount + one tick so mobile is past hydration
+  useEffect(() => {
+    if (!mounted) return;
+    const t = setTimeout(() => setChatReady(true), 50);
+    return () => clearTimeout(t);
+  }, [mounted]);
 
   const displayAddress = guestUser?.address ?? address ?? undefined;
   const currentUserId = guestUser?.id ?? undefined;
@@ -67,7 +76,7 @@ export default function RoomsPage() {
         </div>
 
         <div className="flex-1 min-h-[400px] flex flex-col rounded-2xl overflow-hidden border border-cyan-500/20 bg-gradient-to-b from-[#0a1214] to-[#061012] shadow-xl">
-          {!mounted ? (
+          {!chatReady ? (
             <RoomsLoadingPlaceholder />
           ) : (
             <ModalErrorBoundary

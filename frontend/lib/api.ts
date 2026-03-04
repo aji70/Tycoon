@@ -25,9 +25,15 @@ class ApiClient {
 
     this.axiosInstance.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem("token");
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        try {
+          if (typeof window !== "undefined" && window.localStorage) {
+            const token = window.localStorage.getItem("token");
+            if (token) {
+              config.headers.Authorization = `Bearer ${token}`;
+            }
+          }
+        } catch {
+          // localStorage can throw on mobile (private mode, quota, iframe)
         }
         return config;
       },
