@@ -179,6 +179,14 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(cors());
 app.use(limiter);
+
+// Paystack webhook must receive raw body for signature verification (before express.json)
+app.post(
+  "/api/shop/paystack/webhook",
+  express.raw({ type: "application/json" }),
+  shopController.paystackWebhook
+);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -338,6 +346,8 @@ app.post("/api/perks/activate", gamePerkController.activatePerk);
   app.post("/api/perks/apply-cash", gamePerkController.applyCash);
 
   app.get("/api/shop/bundles", shopController.listBundles);
+  app.post("/api/shop/paystack/initialize", requireAuth, shopController.paystackInitialize);
+  app.get("/api/shop/paystack/verify", shopController.paystackVerify);
   app.get("/api/rewards/daily-claim/status", requireAuth, dailyClaimController.dailyClaimStatus);
   app.post("/api/rewards/daily-claim", requireAuth, dailyClaimController.dailyClaim);
 
