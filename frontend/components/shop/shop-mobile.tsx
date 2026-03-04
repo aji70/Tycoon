@@ -570,6 +570,7 @@ export default function GameShopMobile() {
                       src={item.image || '/game/shop/placeholder.jpg'}
                       alt={item.name}
                       fill
+                      sizes="50vw"
                       className="object-cover transition-transform duration-500 group-active:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />

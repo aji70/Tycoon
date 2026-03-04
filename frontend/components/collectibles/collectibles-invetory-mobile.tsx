@@ -765,11 +765,12 @@ export default function CollectibleInventoryBar({
                         transition={{ duration: 0.3 }}
                         className="bg-gradient-to-br from-[#0F1A1F] to-[#0A1418] rounded-2xl border border-cyan-900/30 overflow-hidden shadow-lg hover:shadow-cyan-500/20 transition-shadow"
                       >
-                        <div className="relative h-48">
+                        <div className="relative h-48 min-h-[12rem] overflow-hidden">
                           <Image
                             src={item.image || "/game/shop/placeholder.jpg"}
                             alt={item.name}
                             fill
+                            sizes="(max-width: 768px) 100vw, 50vw"
                             className="object-cover"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
