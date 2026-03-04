@@ -185,16 +185,16 @@ export default function AccountLinkWallet() {
         <p className="text-sm text-white/50">Connect a wallet to link it or sign in.</p>
       )}
 
-      {/* Connect email (when logged in) */}
+      {/* Connect email (when logged in): same profile for wallet or email login */}
       {guestUser && auth?.connectEmail && (
         <div className="pt-3 border-t border-white/10">
           {guestUser.email_verified ? (
-            <p className="text-sm text-emerald-400/90">Email connected and verified.</p>
+            <p className="text-sm text-emerald-400/90">Email connected and verified. You can sign in with wallet or email.</p>
           ) : guestUser.email ? (
             <p className="text-sm text-white/70">Email added. Check your inbox for the verification link.</p>
           ) : (
             <>
-              <p className="text-sm text-white/70 mb-2">Add an email to log in from any device.</p>
+              <p className="text-sm text-white/70 mb-2">Link your email to use the same profile when you sign in with wallet or email.</p>
               <form
                 className="flex flex-wrap gap-2"
                 onSubmit={async (e) => {
