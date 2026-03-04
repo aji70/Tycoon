@@ -950,7 +950,8 @@ export default function BoardScene({
       const z = camera.position.z;
       const y = camera.position.y;
       spinCurrentAngleRef.current = Math.atan2(x, z);
-      spinTargetAngleRef.current = spinCurrentAngleRef.current + (spinOrbitDegrees * Math.PI) / 180;
+      // Spin clockwise (negative) so the side you moved onto (e.g. 10–19 after passing 0 and 10) comes into view, not the opposite side (30–39)
+      spinTargetAngleRef.current = spinCurrentAngleRef.current - (spinOrbitDegrees * Math.PI) / 180;
       spinRadiusRef.current = Math.sqrt(x * x + z * z) || 1;
       spinHeightRef.current = y;
     }
