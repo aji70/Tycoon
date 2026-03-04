@@ -35,12 +35,37 @@ const GuestAuthContext = createContext<GuestAuthContextValue | null>(null);
 
 const TOKEN_KEY = "token";
 
+function safeGetToken(): string | null {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return null;
+    return window.localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetToken(value: string): void {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) window.localStorage.setItem(TOKEN_KEY, value);
+  } catch {
+    // ignore (e.g. mobile private mode)
+  }
+}
+
+function safeRemoveToken(): void {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) window.localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
   const [guestUser, setGuestUser] = useState<GuestUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refetchGuest = useCallback(async () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+    const token = safeGetToken();
     if (!token) {
       setGuestUser(null);
       setIsLoading(false);
@@ -65,7 +90,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       setGuestUser(null);
-      if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+      safeRemoveToken();
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +109,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = res?.data as any;
       if (data?.data?.token && data?.data?.user) {
-        if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
+        safeSetToken(data.data.token);
         setGuestUser(data.data.user);
         return { success: true };
       }
@@ -100,7 +125,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/guest-login", { username: username.trim(), password });
       const data = res?.data as any;
       if (data?.data?.token && data?.data?.user) {
-        if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
+        safeSetToken(data.data.token);
         setGuestUser(data.data.user);
         return { success: true };
       }
@@ -112,7 +137,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logoutGuest = useCallback(() => {
-    if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+    safeRemoveToken();
     setGuestUser(null);
   }, []);
 
@@ -173,7 +198,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
         const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/merge-guest-into-wallet", params);
         const data = res?.data as { data?: { token: string; user: GuestUser }; message?: string };
         if (data?.data?.token && data?.data?.user) {
-          if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
+          safeSetToken(data.data.token);
           setGuestUser({
             id: data.data.user.id,
             username: data.data.user.username,
@@ -201,7 +226,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
         const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/login-by-wallet", params);
         const data = res?.data as { data?: { token: string; user: GuestUser } };
         if (data?.data?.token && data?.data?.user) {
-          if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
+          safeSetToken(data.data.token);
           setGuestUser(data.data.user);
           return { success: true };
         }
@@ -245,7 +270,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/login-email", { email: email.trim(), password });
       const data = res?.data as { data?: { token: string; user: GuestUser } };
       if (data?.data?.token && data?.data?.user) {
-        if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, data.data.token);
+        safeSetToken(data.data.token);
         setGuestUser(data.data.user);
         return { success: true };
       }
