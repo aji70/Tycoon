@@ -51,6 +51,15 @@ export async function up(knex) {
       price_usdc: 2.5,
       active: true,
     },
+    {
+      name: "Ultimate Pack",
+      description: "Extra Turn, Double Rent, Shield, and Lucky 7. A bit of everything to dominate the board.",
+      token_ids: JSON.stringify([]),
+      amounts: JSON.stringify([]),
+      price_tyc: 80,
+      price_usdc: 4.5,
+      active: true,
+    },
   ];
 
   for (const b of bundles) {
@@ -68,6 +77,7 @@ export async function down(knex) {
     "Cash Flow",
     "Chaos Bundle",
     "Landlord's Choice",
+    "Ultimate Pack",
   ];
   await knex("perk_bundles").whereIn("name", toRemove).del();
 }

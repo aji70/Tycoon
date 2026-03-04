@@ -68,6 +68,7 @@ const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | 
   { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5" },
   { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4" },
   { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5" },
+  { name: "Ultimate Pack", description: "Extra Turn, Double Rent, Shield, and Lucky 7. A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5" },
 ];
 
 const perkMetadata = [
@@ -445,7 +446,7 @@ export default function GameShopMobile() {
                   <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
                   <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
                   <p className="text-[#00F0FF] font-semibold text-sm mt-2">
-                    {b.price_tyc} TYC or ${b.price_usdc} USDC
+                    ${b.price_usdc} USDC
                     {b.price_ngn != null && b.price_ngn > 0 && (
                       <> or ₦{(b.price_ngn / 100).toLocaleString()} NGN</>
                     )}
@@ -659,7 +660,7 @@ export default function GameShopMobile() {
                       >
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <p className="text-2xl font-bold text-amber-300 font-[family-name:var(--font-orbitron-sans)]">{v.value} TYC</p>
+                            <p className="text-2xl font-bold text-amber-300 font-[family-name:var(--font-orbitron-sans)]">Value: {v.value}</p>
                             <p className="text-sm text-slate-500 mt-1">ID: {v.tokenId.toString()}</p>
                           </div>
                           <Ticket className="text-amber-400" size={36} />

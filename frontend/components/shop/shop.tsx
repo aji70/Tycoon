@@ -69,6 +69,7 @@ const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | 
   { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5" },
   { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4" },
   { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5" },
+  { name: "Ultimate Pack", description: "Extra Turn, Double Rent, Shield, and Lucky 7. A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5" },
 ];
 
 // Perk metadata — real descriptions for shop and collectibles
@@ -97,7 +98,6 @@ export default function GameShop() {
 
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
-  const [useUsdc, setUseUsdc] = useState(false);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
 
@@ -328,9 +328,9 @@ const { data: usdcAllowance } = useReadContract({
       return;
     }
 
-    const isPayingWithUsdc = useUsdc;
-    const priceNum = isPayingWithUsdc ? Number(item.usdcPrice) : Number(item.tycPrice);
-    const balanceNum = isPayingWithUsdc ? Number(usdcBalance) : Number(tycBalance);
+    const isPayingWithUsdc = true;
+    const priceNum = Number(item.usdcPrice);
+    const balanceNum = Number(usdcBalance);
     if (balanceNum < priceNum) {
       toast.error(isPayingWithUsdc ? 'Insufficient USDC balance' : 'Insufficient TYC balance');
       return;
@@ -460,29 +460,11 @@ const { data: usdcAllowance } = useReadContract({
           </button>
         </div>
 
-        {/* Balances + Payment — compact single row */}
-        <div className="flex flex-wrap items-center justify-center gap-4 mb-10">
+        {/* Balance — USDC only */}
+        <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="rounded-xl px-4 py-3 flex items-center gap-3 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
-          >
-            <Wallet className="w-5 h-5 text-[#00F0FF] shrink-0" />
-            <div className="text-left">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">TYC</p>
-              <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                {tycLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `${tycBalance}`}
-              </p>
-            </div>
-            <button onClick={() => refetchTyc()} className="p-1 rounded text-slate-500 hover:text-[#00F0FF]">
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.05 }}
             className="rounded-xl px-4 py-3 flex items-center gap-3 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
           >
             <CreditCard className="w-5 h-5 text-[#00F0FF] shrink-0" />
@@ -496,88 +478,71 @@ const { data: usdcAllowance } = useReadContract({
               <RefreshCw className="w-4 h-4" />
             </button>
           </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            className="rounded-xl px-4 py-3 border border-[#00F0FF]/20 bg-[#003B3E]/30 flex items-center gap-3"
-          >
-            <span className="text-xs text-slate-500 uppercase tracking-wider">Pay with</span>
-            <button
-              type="button"
-              onClick={() => setUseUsdc(!useUsdc)}
-              className="flex items-center gap-2 font-semibold text-sm text-[#00F0FF] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] rounded-lg px-2 py-1 transition"
-              aria-pressed={useUsdc}
-              aria-label={useUsdc ? 'Paying with USDC; click to switch to TYC' : 'Paying with TYC; click to switch to USDC'}
-            >
-              {useUsdc ? <CreditCard className="w-4 h-4" /> : <Coins className="w-4 h-4" />}
-              {useUsdc ? 'USDC' : 'TYC'}
-            </button>
-          </motion.div>
         </div>
 
-        {/* Bundles */}
-        {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).length > 0 && (
-          <div className="mb-16">
+        {/* Two sides: Bundles | Perks */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 xl:gap-12">
+          {/* Left: Bundles */}
+          <div>
             <div className="flex items-center gap-4 mb-6">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
-              <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Perk bundles</span>
+              <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Bundles</span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-6">
-              {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).map((b, idx) => (
-                <motion.div
-                  key={b.id ?? b.name ?? idx}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
-                >
-                  <div className="p-5 flex flex-col flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-[10px] font-semibold text-amber-300 uppercase">Bundle</span>
+            {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+                {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).map((b, idx) => (
+                  <motion.div
+                    key={b.id ?? b.name ?? idx}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
+                  >
+                    <div className="p-5 flex flex-col flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-[10px] font-semibold text-amber-300 uppercase">Bundle</span>
+                      </div>
+                      <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
+                      <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
+                        <span className="text-lg font-bold">${b.price_usdc} USDC</span>
+                        {b.price_ngn != null && b.price_ngn > 0 && (
+                          <>
+                            <span className="text-slate-500">or</span>
+                            <span className="text-lg font-bold">₦{(b.price_ngn / 100).toLocaleString()} NGN</span>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        disabled
+                        className="w-full py-3 rounded-xl font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed"
+                      >
+                        Coming soon
+                      </button>
+                      <button
+                        disabled
+                        className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <Banknote className="w-4 h-4" />
+                        Pay with NGN — Coming soon
+                      </button>
                     </div>
-                    <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
-                      <span className="text-lg font-bold">{b.price_tyc} TYC</span>
-                      <span className="text-slate-500">or</span>
-                      <span className="text-lg font-bold">${b.price_usdc} USDC</span>
-                      {b.price_ngn != null && b.price_ngn > 0 && (
-                        <>
-                          <span className="text-slate-500">or</span>
-                          <span className="text-lg font-bold">₦{(b.price_ngn / 100).toLocaleString()} NGN</span>
-                        </>
-                      )}
-                    </div>
-                    <button
-                      disabled
-                      className="w-full py-3 rounded-xl font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed"
-                    >
-                      Coming soon
-                    </button>
-                    <button
-                      disabled
-                      className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <Banknote className="w-4 h-4" />
-                      Pay with NGN — Coming soon
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : null}
           </div>
-        )}
 
-        {/* Section label */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
-          <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Available perks</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
-        </div>
+          {/* Right: Perks */}
+          <div>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+              <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Perks</span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+            </div>
 
-        {/* Shop Grid — rows & columns */}
-        {isLoadingShop ? (
+            {/* Perks grid */}
+            {isLoadingShop ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -597,7 +562,7 @@ const { data: usdcAllowance } = useReadContract({
             <p className="text-slate-500 max-w-md mx-auto">New perks will appear here. Check back soon!</p>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-6 gap-y-8 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-6 items-stretch">
             {allShopItems.map((item, index) => {
               const isProcessing = buyingPending || buyingConfirming;
               const isComingSoon = 'comingSoon' in item && item.comingSoon;
@@ -653,17 +618,7 @@ const { data: usdcAllowance } = useReadContract({
                       <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
                         <div className="flex flex-col gap-1">
                           <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
-                          <div className="flex items-baseline gap-3 flex-wrap">
-                            <span className={useUsdc ? 'text-slate-400 text-sm' : ''}>
-                              <span className="text-sm text-slate-500">TYC </span>
-                              <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">{item.tycPrice}</span>
-                            </span>
-                            <span className={!useUsdc ? 'text-slate-400 text-sm' : ''}>
-                              <span className="text-sm text-slate-500">USDC </span>
-                              <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</span>
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-0.5">Paying with {useUsdc ? 'USDC' : 'TYC'}</p>
+                          <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice} USDC</p>
                         </div>
                       </div>
                     )}
@@ -677,8 +632,8 @@ const { data: usdcAllowance } = useReadContract({
                       </button>
                     ) : (
                       (() => {
-                        const balance = useUsdc ? Number(usdcBalance) : Number(tycBalance);
-                        const price = useUsdc ? Number(item.usdcPrice) : Number(item.tycPrice);
+                        const balance = Number(usdcBalance);
+                        const price = Number(item.usdcPrice);
                         const insufficientFunds = balance < price;
                         return (
                           <button
@@ -699,9 +654,9 @@ const { data: usdcAllowance } = useReadContract({
                             ) : item.stock === 0 ? (
                               'Sold Out'
                             ) : insufficientFunds ? (
-                              <>Insufficient {useUsdc ? 'USDC' : 'TYC'}</>
+                              <>Insufficient USDC</>
                             ) : (
-                              <> <Coins className="w-5 h-5" /> Buy with {useUsdc ? 'USDC' : 'TYC'} </>
+                              <> <CreditCard className="w-5 h-5" /> Buy with USDC </>
                             )}
                           </button>
                         );
@@ -713,6 +668,8 @@ const { data: usdcAllowance } = useReadContract({
             })}
           </div>
         )}
+          </div>
+        </div>
 
         {/* Voucher Teaser FAB */}
         <AnimatePresence>
@@ -783,7 +740,7 @@ const { data: usdcAllowance } = useReadContract({
                             className="rounded-2xl p-6 border border-amber-600/40 bg-gradient-to-br from-amber-950/30 to-orange-950/20 flex flex-col items-center text-center"
                           >
                             <Ticket className="w-14 h-14 text-amber-400 mb-4" />
-                            <p className="text-2xl font-bold text-amber-300 font-[family-name:var(--font-orbitron-sans)]">{voucher.value} TYC</p>
+                            <p className="text-2xl font-bold text-amber-300 font-[family-name:var(--font-orbitron-sans)]">Value: {voucher.value}</p>
                             <p className="text-sm text-slate-500 mt-2 mb-6">ID: {voucher.tokenId.toString()}</p>
 
                             <button
