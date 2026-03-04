@@ -11,7 +11,7 @@ import {
 import { formatUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import EmptyState from '@/components/ui/EmptyState';
 import {
@@ -91,6 +91,7 @@ const perkMetadata = [
 
 export default function GameShopMobile() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
@@ -372,7 +373,18 @@ export default function GameShopMobile() {
     if (redeemError) toast.error(redeemError.message || 'Redemption failed');
   }, [buyError, redeemError]);
 
-  const handleBack = () => router.push('/');
+  const handleBack = () => {
+    const returnTo = searchParams.get('returnTo');
+    if (returnTo && typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+      router.push(returnTo);
+      return;
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/');
+  };
 
   return (
     <div className="min-h-screen text-white pb-24 relative">

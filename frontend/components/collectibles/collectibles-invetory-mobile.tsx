@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   useAccount,
   useChainId,
@@ -33,6 +33,7 @@ import {
   MapPin,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
@@ -106,6 +107,9 @@ export default function CollectibleInventoryBar({
   const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
   const [showMiniShop, setShowMiniShop] = useState(false);
+  const miniShopSheetRef = useRef<HTMLDivElement>(null);
+  const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
+  useFocusTrap(miniShopSheetRef, showMiniShop, buyPerksTriggerRef);
   const [useUsdc, setUseUsdc] = useState(true);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
@@ -619,8 +623,11 @@ export default function CollectibleInventoryBar({
 
           <div className="flex flex-col items-stretch sm:items-end gap-1">
             <button
+              ref={buyPerksTriggerRef}
               onClick={() => setShowMiniShop(true)}
               className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/50 transition active:scale-95"
+              aria-haspopup="dialog"
+              aria-expanded={showMiniShop}
             >
               <ShoppingBag className="w-5 h-5" />
               Buy perks
@@ -683,6 +690,10 @@ export default function CollectibleInventoryBar({
             />
 
             <motion.div
+              ref={miniShopSheetRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="perk-shop-sheet-title"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
@@ -700,11 +711,11 @@ export default function CollectibleInventoryBar({
               "
             >
               <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/30 px-5 py-4 flex items-center justify-between">
-                <h2 className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
+                <h2 id="perk-shop-sheet-title" className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
                   <ShoppingBag className="w-6 h-6" />
                   Perk Shop
                 </h2>
-                <button onClick={() => setShowMiniShop(false)} className="p-2 rounded-full hover:bg-white/5 transition">
+                <button onClick={() => setShowMiniShop(false)} className="p-2 rounded-full hover:bg-white/5 transition" aria-label="Close Perk Shop">
                   <X className="w-6 h-6 text-gray-300" />
                 </button>
               </div>

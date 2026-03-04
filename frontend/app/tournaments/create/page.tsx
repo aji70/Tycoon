@@ -160,6 +160,13 @@ export default function CreateTournamentPage() {
     const chainName = createdResult?.chain ?? chain;
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white flex flex-col items-center justify-center px-4">
+        <nav aria-label="Breadcrumb" className="absolute top-6 left-4 text-xs text-slate-500 flex items-center gap-1.5">
+          <Link href="/tournaments" className="text-cyan-400/80 hover:text-cyan-400 transition">Tournaments</Link>
+          <span aria-hidden className="text-slate-600">›</span>
+          <Link href="/tournaments/create" className="text-cyan-400/80 hover:text-cyan-400 transition">Create</Link>
+          <span aria-hidden className="text-slate-600">›</span>
+          <span className="text-slate-400">Success</span>
+        </nav>
         <CheckCircle2 className="w-16 h-16 text-emerald-400 mb-4" />
         <h2 className="text-xl font-bold text-white mb-2">Tournament created</h2>
         {onChain && (
@@ -187,18 +194,27 @@ export default function CreateTournamentPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#010F10] to-[#0E1415] text-white pt-[80px] md:pt-0">
-      <header className="sticky top-0 z-40 flex items-center gap-4 px-4 py-4 pr-20 md:pr-8 md:px-8 border-b border-white/10 bg-[#010F10]/90 backdrop-blur-md">
-        <Link
-          href="/tournaments"
-          className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-semibold text-sm"
-        >
-          <ChevronLeft className="w-5 h-5" />
-          Tournaments
-        </Link>
-        <h1 className="text-xl md:text-2xl font-bold text-cyan-400 flex items-center gap-2">
-          <Swords className="w-6 h-6 text-cyan-400" />
-          Create tournament
-        </h1>
+      <header className="sticky top-0 z-40 px-4 py-4 pr-20 md:pr-8 md:px-8 border-b border-white/10 bg-[#010F10]/90 backdrop-blur-md space-y-1">
+        <nav aria-label="Breadcrumb" className="text-xs text-slate-500 flex items-center gap-1.5">
+          <Link href="/tournaments" className="text-cyan-400/80 hover:text-cyan-400 transition">
+            Tournaments
+          </Link>
+          <span aria-hidden className="text-slate-600">›</span>
+          <span className="text-slate-400">Create</span>
+        </nav>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/tournaments"
+            className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-semibold text-sm"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            Tournaments
+          </Link>
+          <h1 className="text-xl md:text-2xl font-bold text-cyan-400 flex items-center gap-2">
+            <Swords className="w-6 h-6 text-cyan-400" />
+            Create tournament
+          </h1>
+        </div>
       </header>
 
       <main className="max-w-xl mx-auto px-4 py-8 pb-24 md:pb-8">

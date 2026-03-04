@@ -5,6 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords, BookOpen } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
@@ -30,7 +31,14 @@ interface NavBarMobileProps {
 }
 
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { scrollY, scrollYProgress } = useScroll();
+
+  const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
+  const shopHref = isGamePage && pathname
+    ? `/game-shop?returnTo=${encodeURIComponent(pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ''))}`
+    : '/game-shop';
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
@@ -293,7 +301,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                     </Link>
 
                     <Link
-                      href="/game-shop"
+                      href={shopHref}
                       onClick={closeMobileMenu}
                       className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#0FF0FC] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
                     >
