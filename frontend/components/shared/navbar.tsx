@@ -138,14 +138,14 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Shop button (only when connected) */}
+          {/* Perk Shop button (only when connected) */}
           {isConnected && (
             <Link
               href={shopHref}
-              className="w-[70px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]"
+              className="min-w-[90px] h-[40px] px-3 border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]"
             >
               <ShoppingBag className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">Shop</span>
+              <span className="text-[12px] font-[400] font-dmSans">Perk Shop</span>
             </Link>
           )}
 

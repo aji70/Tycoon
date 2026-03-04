@@ -310,7 +310,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                       <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-emerald-400/90">
                         <ShoppingBag size={20} />
                       </div>
-                      Shop
+                      Perk Shop
                     </Link>
                   </>
                 )}

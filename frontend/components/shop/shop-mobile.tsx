@@ -539,7 +539,7 @@ export default function GameShopMobile() {
             className="text-center py-20 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40"
           >
             <ShoppingBag size={56} className="mx-auto mb-6 text-slate-600" />
-            <p className="text-lg font-medium text-slate-400">Shop is currently empty</p>
+            <p className="text-lg font-medium text-slate-400">Perk Shop is currently empty</p>
             <p className="text-sm text-slate-500 mt-2">New perks will appear here when available. Play games or check back later!</p>
           </motion.div>
         ) : (
