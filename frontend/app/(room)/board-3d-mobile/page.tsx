@@ -13,6 +13,7 @@ import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
+import { getCornersPassed } from "@/components/game/board3d/positions";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -272,6 +273,7 @@ function Board3DMobileContent() {
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
+  const [spinOrbitDegrees, setSpinOrbitDegrees] = useState(0);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
   const [viewTradesRequested, setViewTradesRequested] = useState(false);
@@ -1196,6 +1198,11 @@ function Board3DMobileContent() {
         return next;
       });
       setLandedPositionForBuy(finalPosition);
+      const cornersPassed = getCornersPassed(currentPos, finalPosition);
+      if (cornersPassed.length > 0) {
+        setSpinOrbitDegrees(cornersPassed.length * 90);
+        setTimeout(() => setSpinOrbitDegrees(0), 3000);
+      }
       if (data?.card) {
         const cardText = (data.card.display_instruction ?? data.card.instruction ?? "Card drawn").trim() || "Card drawn";
         const lowerText = cardText.toLowerCase();
@@ -2034,6 +2041,8 @@ function Board3DMobileContent() {
                 smallTokens={true}
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
                 resetViewTrigger={resetViewTrigger}
+                focusTilePosition={landedPositionForBuy}
+                spinOrbitDegrees={spinOrbitDegrees}
               />
             </Canvas>
           </div>

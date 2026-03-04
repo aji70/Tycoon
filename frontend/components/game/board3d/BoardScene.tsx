@@ -63,6 +63,10 @@ type BoardSceneProps = {
   smallTokens?: boolean;
   /** When this number changes, reset camera and controls to default view */
   resetViewTrigger?: number;
+  /** When set, smoothly zoom the camera to this board position (0–39), e.g. when a player lands */
+  focusTilePosition?: number | null;
+  /** When set to a positive value (e.g. 90), orbit the camera by that many degrees (e.g. when passing corners 0, 10, 20, 30) */
+  spinOrbitDegrees?: number;
 };
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -909,15 +913,91 @@ export default function BoardScene({
   smallTokens = false,
   resetViewTrigger = 0,
   ownerSymbolByPropertyId,
+  focusTilePosition = null,
+  spinOrbitDegrees = 0,
 }: BoardSceneProps) {
   const camera = useThree((s) => s.camera);
   const controlsRef = useRef<any>(null);
+  const focusTargetRef = useRef<THREE.Vector3 | null>(null);
+  const focusCameraRef = useRef<THREE.Vector3 | null>(null);
+  const lastSpinPropRef = useRef(0);
+  const spinTargetAngleRef = useRef<number | null>(null);
+  const spinCurrentAngleRef = useRef(0);
+  const spinRadiusRef = useRef(0);
+  const spinHeightRef = useRef(0);
+
   useEffect(() => {
     if (resetViewTrigger > 0 && controlsRef.current) {
       camera.position.set(0, 12, 12);
       controlsRef.current.target.set(0, 0, 0);
+      focusTargetRef.current = null;
+      focusCameraRef.current = null;
+      spinTargetAngleRef.current = null;
+      lastSpinPropRef.current = 0;
     }
   }, [resetViewTrigger, camera]);
+
+  useEffect(() => {
+    if (spinOrbitDegrees > 0 && spinOrbitDegrees !== lastSpinPropRef.current) {
+      lastSpinPropRef.current = spinOrbitDegrees;
+      const x = camera.position.x;
+      const z = camera.position.z;
+      const y = camera.position.y;
+      spinCurrentAngleRef.current = Math.atan2(x, z);
+      spinTargetAngleRef.current = spinCurrentAngleRef.current + (spinOrbitDegrees * Math.PI) / 180;
+      spinRadiusRef.current = Math.sqrt(x * x + z * z) || 1;
+      spinHeightRef.current = y;
+    }
+    if (spinOrbitDegrees === 0) lastSpinPropRef.current = 0;
+  }, [spinOrbitDegrees, camera]);
+
+  useEffect(() => {
+    if (focusTilePosition == null) {
+      focusTargetRef.current = null;
+      focusCameraRef.current = null;
+      return;
+    }
+    const [x, , z] = getPosition3D(focusTilePosition);
+    const target = new THREE.Vector3(x, 0, z);
+    const offset = 3;
+    const height = 6;
+    const camPos = new THREE.Vector3(x + offset, height, z + offset);
+    focusTargetRef.current = target;
+    focusCameraRef.current = camPos;
+  }, [focusTilePosition]);
+
+  useFrame(() => {
+    if (!controlsRef.current) return;
+    const spinTarget = spinTargetAngleRef.current;
+    if (spinTarget != null) {
+      const current = spinCurrentAngleRef.current;
+      const r = spinRadiusRef.current;
+      const h = spinHeightRef.current;
+      spinCurrentAngleRef.current = current + (spinTarget - current) * 0.06;
+      const angle = spinCurrentAngleRef.current;
+      camera.position.set(r * Math.sin(angle), h, r * Math.cos(angle));
+      if (Math.abs(angle - spinTarget) < 0.02) {
+        spinCurrentAngleRef.current = spinTarget;
+        camera.position.set(r * Math.sin(spinTarget), h, r * Math.cos(spinTarget));
+        spinTargetAngleRef.current = null;
+      }
+      return;
+    }
+    const target = focusTargetRef.current;
+    const camPos = focusCameraRef.current;
+    if (target && camPos) {
+      const t = controlsRef.current.target;
+      const p = camera.position;
+      t.lerp(target, 0.08);
+      p.lerp(camPos, 0.08);
+      if (t.distanceTo(target) < 0.05 && p.distanceTo(camPos) < 0.05) {
+        t.copy(target);
+        p.copy(camPos);
+        focusTargetRef.current = null;
+        focusCameraRef.current = null;
+      }
+    }
+  });
 
   const playerTokens = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -996,7 +1076,7 @@ export default function BoardScene({
       ref: controlsRef,
       enablePan: true,
       enableZoom: true,
-      minDistance: 8,
+      minDistance: 5,
       maxDistance: 25,
       maxPolarAngle: Math.PI / 2 - 0.1,
     })

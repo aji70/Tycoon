@@ -45,3 +45,21 @@ export function getTokenOffset(playerIndex: number, totalOnSquare: number): [num
   const offset = (playerIndex - (totalOnSquare - 1) / 2) * step;
   return [offset, 0, 0]; // spread along X
 }
+
+/** Corners (0, 10, 20, 30) passed when moving forward from `from` to `to`. Used to spin the 3D camera. */
+export function getCornersPassed(from: number, to: number): number[] {
+  const f = ((from % 40) + 40) % 40;
+  const t = ((to % 40) + 40) % 40;
+  const passed: number[] = [];
+  if (f > t) {
+    passed.push(0);
+    if (t >= 10) passed.push(10);
+    if (t >= 20) passed.push(20);
+    if (t >= 30) passed.push(30);
+  } else {
+    if (f < 10 && t >= 10) passed.push(10);
+    if (f < 20 && t >= 20) passed.push(20);
+    if (f < 30 && t >= 30) passed.push(30);
+  }
+  return passed;
+}

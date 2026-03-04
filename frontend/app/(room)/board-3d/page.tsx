@@ -12,6 +12,7 @@ import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
 import { PROPERTY_ACTION } from "@/types/game";
 import { getSquareName, getSquareNameFromProperties } from "@/components/game/board3d/squareNames";
+import { getCornersPassed } from "@/components/game/board3d/positions";
 import { getPlayerSymbol } from "@/lib/types/symbol";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getDiceValues } from "@/components/game/constants";
@@ -260,6 +261,7 @@ function Board3DPageContent() {
   const [showBankruptcyModal, setShowBankruptcyModal] = useState(false);
   const [winner, setWinner] = useState<Player | null>(null);
   const [landedPositionForBuy, setLandedPositionForBuy] = useState<number | null>(null);
+  const [spinOrbitDegrees, setSpinOrbitDegrees] = useState(0);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedGameProperty, setSelectedGameProperty] = useState<GameProperty | undefined>(undefined);
   const [endByNetWorthStatus, setEndByNetWorthStatus] = useState<{
@@ -1255,6 +1257,11 @@ function Board3DPageContent() {
         return next;
       });
       setLandedPositionForBuy(finalPosition);
+      const cornersPassed = getCornersPassed(currentPos, finalPosition);
+      if (cornersPassed.length > 0) {
+        setSpinOrbitDegrees(cornersPassed.length * 90);
+        setTimeout(() => setSpinOrbitDegrees(0), 3000);
+      }
       // Show Chance/Community Chest card modal from API response (so it works even before history refetch)
       if (data?.card) {
         const cardText = (data.card.display_instruction ?? data.card.instruction ?? "Card drawn").trim() || "Card drawn";
@@ -2009,6 +2016,8 @@ function Board3DPageContent() {
                   history={historyToShow}
                   aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
                   resetViewTrigger={resetViewTrigger}
+                  focusTilePosition={landedPositionForBuy}
+                  spinOrbitDegrees={spinOrbitDegrees}
                 />
               </Canvas>
             </div>
