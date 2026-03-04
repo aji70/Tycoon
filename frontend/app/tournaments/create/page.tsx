@@ -268,14 +268,14 @@ export default function CreateTournamentPage() {
                   placeholder="Username"
                   value={guestUsername}
                   onChange={(e) => setGuestUsername(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#0E282A] border border-white/10 text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#0E282A] border border-white/10 text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819] text-sm"
                 />
                 <input
                   type="password"
                   placeholder="Password"
                   value={guestPassword}
                   onChange={(e) => setGuestPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#0E282A] border border-white/10 text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#0E282A] border border-white/10 text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819] text-sm"
                 />
                 <button
                   type="submit"
@@ -308,7 +308,7 @@ export default function CreateTournamentPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Weekend Cup"
-                className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none"
+                className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
                 maxLength={200}
               />
             </div>
@@ -356,7 +356,7 @@ export default function CreateTournamentPage() {
                   max={512}
                   value={maxPlayers}
                   onChange={(e) => setMaxPlayers(Number(e.target.value) || 32)}
-                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none"
+                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
                 />
                 <p className="text-xs text-white/50 mt-1">e.g. 8, 32, or 512 for single-elimination (max 512)</p>
               </div>
@@ -371,7 +371,7 @@ export default function CreateTournamentPage() {
                   max={maxPlayers}
                   value={minPlayers}
                   onChange={(e) => setMinPlayers(Number(e.target.value) || 2)}
-                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none"
+                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
                 />
               </div>
             </div>
@@ -389,7 +389,7 @@ export default function CreateTournamentPage() {
                   value={entryFeeUsd}
                   onChange={(e) => setEntryFeeUsd(e.target.value)}
                   placeholder="0 for free, e.g. 1 for $1"
-                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none"
+                  className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
                 />
                 <p className="text-xs text-white/50 mt-1">Amount in USDC (e.g. 1 = $1)</p>
               </div>

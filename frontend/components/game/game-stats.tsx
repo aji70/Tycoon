@@ -368,7 +368,7 @@ const GameStats: React.FC = () => {
                   onKeyDown={(e) => e.key === "Enter" && handleGameIdQuery()}
                   placeholder="Enter 6-character game code (e.g. ABC123)"
                   maxLength={7}
-                  className="flex-1 h-[48px] bg-[#0E1415]/50 rounded-[12px] border border-[#003B3E] outline-none px-4 text-[#17ffff] font-orbitron font-[400] text-[16px] placeholder:text-[#455A64] placeholder:font-dmSans focus:border-[#00F0FF] transition-colors"
+                  className="flex-1 h-[48px] bg-[#0E1415]/50 rounded-[12px] border border-[#003B3E] outline-none px-4 text-[#17ffff] font-orbitron font-[400] text-[16px] placeholder:text-[#455A64] placeholder:font-dmSans focus:border-[#00F0FF] focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0E1415] transition-colors"
                 />
                 <button
                   type="button"

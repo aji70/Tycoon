@@ -629,7 +629,7 @@ export default function ProfilePageMobile() {
                         value={localDisplayName}
                         onChange={(e) => setLocalDisplayName(e.target.value)}
                         onBlur={saveDisplayName}
-                        className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm min-w-0"
+                        className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1819] rounded text-sm min-w-0"
                       />
                       <button type="button" onClick={saveDisplayName} className="shrink-0 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-xs font-semibold">Save</button>
                     </div>
@@ -643,7 +643,7 @@ export default function ProfilePageMobile() {
                           value={localBio}
                           onChange={(e) => setLocalBio(e.target.value)}
                           rows={3}
-                          className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none text-sm resize-none leading-relaxed"
+                          className="w-full bg-transparent text-white placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1819] rounded text-sm resize-none leading-relaxed"
                           autoFocus
                         />
                         <div className="flex justify-end gap-2 mt-2">
