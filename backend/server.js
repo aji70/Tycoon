@@ -328,9 +328,11 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 
 app.post("/api/perks/activate", gamePerkController.activatePerk);
-app.post("/api/perks/teleport", gamePerkController.teleport);
-app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
-app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
+  app.post("/api/perks/teleport", gamePerkController.teleport);
+  app.post("/api/perks/exact-roll", gamePerkController.exactRoll);
+  app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
+  app.post("/api/perks/use-jail-free", gamePerkController.useJailFree);
+  app.post("/api/perks/apply-cash", gamePerkController.applyCash);
 
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);

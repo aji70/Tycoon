@@ -8,9 +8,11 @@ const router = express.Router();
 // General activation for most perks (Extra Turn, Jail Free, Double Rent, etc.)
 router.post("/perks/activate", gamePerkController.activatePerk);
 
-// Special perks requiring extra input
-router.post("/perks/teleport", gamePerkController.teleport);           // Teleport to any position
-router.post("/perks/exact-roll", gamePerkController.exactRoll);        // Choose exact dice total
-router.post("/perks/burn-cash", gamePerkController.burnForCash);       // Instant Cash → tiered TYC reward
+// Special perks requiring extra input (optional from_collectible: use perk without active_perks)
+router.post("/perks/teleport", gamePerkController.teleport);
+router.post("/perks/exact-roll", gamePerkController.exactRoll);
+router.post("/perks/burn-cash", gamePerkController.burnForCash);
+router.post("/perks/use-jail-free", gamePerkController.useJailFree);
+router.post("/perks/apply-cash", gamePerkController.applyCash);
 
 export default router;

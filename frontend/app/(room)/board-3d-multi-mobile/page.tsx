@@ -830,16 +830,12 @@ function Board3DMobilePageContent() {
             }
             break;
           case 2: {
-            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
-            if (realId != null) {
-              await apiClient.put(`/game-players/${realId}`, {
-                game_id: game.id,
-                user_id: me.user_id,
-                in_jail: false,
-              });
-              success = true;
-              toast.success("Escaped jail!", { id: toastId });
-            }
+            const res = await apiClient.post<{ success?: boolean }>("/perks/use-jail-free", {
+              game_id: game.id,
+              from_collectible: true,
+            });
+            success = res?.data?.success ?? false;
+            if (success) toast.success("Escaped jail!", { id: toastId });
             break;
           }
           case 3:
@@ -855,43 +851,41 @@ function Board3DMobilePageContent() {
           }
           case 5: {
             const amount = PERK_CASH_TIERS[Math.min(strength, PERK_CASH_TIERS.length - 1)];
-            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
-            if (realId != null && amount > 0) {
-              await apiClient.put(`/game-players/${realId}`, {
-                game_id: game.id,
-                user_id: me.user_id,
-                balance: (me.balance ?? 0) + amount,
-              });
-              success = true;
-              toast.success(`+$${amount} Instant Cash!`, { id: toastId });
-            }
+            const res = await apiClient.post<{ success?: boolean; data?: { reward?: number } }>("/perks/burn-cash", {
+              game_id: game.id,
+              from_collectible: true,
+              amount,
+            });
+            success = res?.data?.success ?? false;
+            const reward = res?.data?.reward ?? amount;
+            if (success) toast.success(`+$${reward} Instant Cash!`, { id: toastId });
             break;
           }
           case 8: {
             const discount = PERK_DISCOUNT_TIERS[Math.min(strength, PERK_DISCOUNT_TIERS.length - 1)];
-            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
-            if (realId != null && discount > 0) {
-              await apiClient.put(`/game-players/${realId}`, {
+            if (discount > 0) {
+              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
                 game_id: game.id,
-                user_id: me.user_id,
-                balance: (me.balance ?? 0) + discount,
+                perk_id: 8,
+                amount: discount,
+                from_collectible: true,
               });
-              success = true;
-              toast.success(`+$${discount} Property Discount!`, { id: toastId });
+              success = res?.data?.success ?? false;
+              if (success) toast.success(`+$${discount} Property Discount!`, { id: toastId });
             }
             break;
           }
           case 9: {
             const refund = PERK_REFUND_TIERS[Math.min(strength, PERK_REFUND_TIERS.length - 1)];
-            const realId = me.id ?? game.players?.find((p) => p.user_id === me.user_id)?.id;
-            if (realId != null && refund > 0) {
-              await apiClient.put(`/game-players/${realId}`, {
+            if (refund > 0) {
+              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
                 game_id: game.id,
-                user_id: me.user_id,
-                balance: (me.balance ?? 0) + refund,
+                perk_id: 9,
+                amount: refund,
+                from_collectible: true,
               });
-              success = true;
-              toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+              success = res?.data?.success ?? false;
+              if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
             }
             break;
           }

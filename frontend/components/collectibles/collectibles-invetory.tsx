@@ -424,24 +424,62 @@ export default function CollectibleInventoryBar({
               success = true;
             }
             break;
-          case 2: // Jail Free Card
-            success = await escapeJail(currentPlayer.user_id);
-            if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
+          case 2: // Jail Free Card — unified perk API
+            try {
+              const res = await apiClient.post<{ success?: boolean }>("/perks/use-jail-free", {
+                game_id: game.id,
+                from_collectible: true,
+              });
+              success = res?.data?.success ?? false;
+              if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
+            } catch {
+              toast.error("Failed to use Jail Free", { id: toastId });
+            }
             break;
-          case 5: // Instant Cash
-            const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
-            success = await applyCashAdjustment(currentPlayer.user_id, amount);
-            if (success) toast.success(`+$${amount} Instant Cash!`, { id: toastId });
+          case 5: // Instant Cash — unified perk API (backend applies tier amount)
+            try {
+              const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
+              const res = await apiClient.post<{ success?: boolean; data?: { reward?: number } }>("/perks/burn-cash", {
+                game_id: game.id,
+                from_collectible: true,
+                amount,
+              });
+              success = res?.data?.success ?? false;
+              const reward = res?.data?.reward ?? amount;
+              if (success) toast.success(`+$${reward} Instant Cash!`, { id: toastId });
+            } catch {
+              toast.error("Failed to use Instant Cash", { id: toastId });
+            }
             break;
-          case 8: // Property Discount
-            const discount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
-            success = await applyCashAdjustment(currentPlayer.user_id, discount);
-            if (success && discount > 0) toast.success(`+$${discount} Property Discount!`, { id: toastId });
+          case 8: // Property Discount — unified perk API
+            try {
+              const discount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
+              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
+                game_id: game.id,
+                perk_id: 8,
+                amount: discount,
+                from_collectible: true,
+              });
+              success = res?.data?.success ?? false;
+              if (success && discount > 0) toast.success(`+$${discount} Property Discount!`, { id: toastId });
+            } catch {
+              toast.error("Failed to use Property Discount", { id: toastId });
+            }
             break;
-          case 9: // Tax Refund
-            const refund = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
-            success = await applyCashAdjustment(currentPlayer.user_id, refund);
-            if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+          case 9: // Tax Refund — unified perk API
+            try {
+              const refund = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
+              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
+                game_id: game.id,
+                perk_id: 9,
+                amount: refund,
+                from_collectible: true,
+              });
+              success = res?.data?.success ?? false;
+              if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+            } catch {
+              toast.error("Failed to use Tax Refund", { id: toastId });
+            }
             break;
           case 3: // Double Rent
           case 4: // Roll Boost
@@ -457,18 +495,36 @@ export default function CollectibleInventoryBar({
               toast.error("Failed to activate perk", { id: toastId });
             }
             break;
-          case 6: // Teleport
-          case 10: // Exact Roll
-            if (triggerSpecialLanding && selectedPositionIndex !== null) {
-              const targetPos = perkId === 6
-                ? selectedPositionIndex
-                : (currentPlayer.position + selectedRollTotal!) % 40;
-
-              const posSuccess = await applyPositionChange(currentPlayer.user_id, targetPos);
-              if (posSuccess) {
-                triggerSpecialLanding(targetPos, true);
-                toast.success(`${name} activated! Moved!`, { id: toastId });
-                success = true;
+          case 6: // Teleport — unified perk API
+            if (selectedPositionIndex !== null) {
+              try {
+                const res = await apiClient.post<{ success?: boolean; data?: { new_position?: number } }>("/perks/teleport", {
+                  game_id: game.id,
+                  target_position: selectedPositionIndex,
+                  from_collectible: true,
+                });
+                success = res?.data?.success ?? false;
+                if (success) {
+                  if (triggerSpecialLanding) triggerSpecialLanding(selectedPositionIndex, true);
+                  toast.success(`${name} activated! Moved!`, { id: toastId });
+                }
+              } catch {
+                toast.error("Teleport failed", { id: toastId });
+              }
+            }
+            break;
+          case 10: // Exact Roll — unified perk API
+            if (selectedRollTotal != null && selectedRollTotal >= 2 && selectedRollTotal <= 12) {
+              try {
+                const res = await apiClient.post<{ success?: boolean }>("/perks/exact-roll", {
+                  game_id: game.id,
+                  chosen_total: selectedRollTotal,
+                  from_collectible: true,
+                });
+                success = res?.data?.success ?? false;
+                if (success) toast.success(`Next roll will be ${selectedRollTotal}!`, { id: toastId });
+              } catch {
+                toast.error("Exact Roll failed", { id: toastId });
               }
             }
             break;
