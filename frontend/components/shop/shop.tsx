@@ -11,7 +11,7 @@ import {
 import { formatUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
   ShoppingBag,
@@ -94,6 +94,7 @@ const perkMetadata = [
 
 export default function GameShop() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
@@ -406,7 +407,18 @@ const { data: usdcAllowance } = useReadContract({
     if (redeemError) toast.error(redeemError.message || 'Redemption failed');
   }, [buyError, redeemError]);
 
-  const handleBack = () => router.push('/');
+  const handleBack = () => {
+    const returnTo = searchParams.get('returnTo');
+    if (returnTo && typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+      router.push(returnTo);
+      return;
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/');
+  };
 
   const hasVouchers = myVouchers.length > 0;
   const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
@@ -458,7 +470,7 @@ const { data: usdcAllowance } = useReadContract({
             onClick={handleBack}
             className="group flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#003B3E] bg-[#0E1415]/80 text-[#00F0FF] hover:border-[#00F0FF]/50 hover:bg-[#00F0FF]/10 transition-all duration-300 font-medium"
           >
-            <span className="group-hover:-translate-x-0.5 transition-transform">←</span> Back to Game
+            <span className="group-hover:-translate-x-0.5 transition-transform">←</span> Back
           </button>
         </div>
 

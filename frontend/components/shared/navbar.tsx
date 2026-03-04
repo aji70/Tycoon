@@ -5,6 +5,7 @@ import { motion, useScroll, useSpring } from 'framer-motion';
 import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
@@ -20,7 +21,14 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
 const NavBar = () => {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { scrollYProgress } = useScroll();
+
+  const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
+  const shopHref = isGamePage && pathname
+    ? `/game-shop?returnTo=${encodeURIComponent(pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ''))}`
+    : '/game-shop';
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
@@ -133,7 +141,7 @@ const NavBar = () => {
           {/* Shop button (only when connected) */}
           {isConnected && (
             <Link
-              href="/game-shop"
+              href={shopHref}
               className="w-[70px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#0FF0FC]"
             >
               <ShoppingBag className="w-[16px] h-[16px]" />

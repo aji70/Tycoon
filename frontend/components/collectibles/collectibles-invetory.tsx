@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useChainId, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt, useBalance } from "wagmi";
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +11,7 @@ import {
   Zap, Crown, Coins, Sparkles, Gem, Shield, ShoppingBag, Loader2, X, Wallet, Clock, Flame, Percent, CircleDollarSign, MapPin
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES, TYC_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
@@ -87,6 +88,9 @@ export default function CollectibleInventoryBar({
   const [showMiniShop, setShowMiniShop] = useState(false);
   const [useUsdc, setUseUsdc] = useState(true);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
+  const miniShopModalRef = useRef<HTMLDivElement>(null);
+  const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
+  useFocusTrap(miniShopModalRef, showMiniShop, buyPerksTriggerRef);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
 
   const [pendingPerk, setPendingPerk] = useState<{
@@ -583,8 +587,11 @@ export default function CollectibleInventoryBar({
             </p>
             <div className="flex flex-col items-end gap-1">
               <button
+                ref={buyPerksTriggerRef}
                 onClick={() => setShowMiniShop(true)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-lg text-black text-xs font-bold hover:shadow-lg hover:shadow-cyan-500/50 transition"
+                aria-haspopup="dialog"
+                aria-expanded={showMiniShop}
               >
                 <ShoppingBag className="w-4 h-4" /> Buy perks
               </button>
@@ -641,17 +648,21 @@ export default function CollectibleInventoryBar({
               className="fixed inset-0 bg-black/70 z-50"
             />
             <motion.div
+              ref={miniShopModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="quick-perk-shop-title"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="fixed inset-x-4 top-20 bottom-20 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 bg-[#0A1C1E] rounded-3xl border border-cyan-500/50 overflow-hidden shadow-2xl"
             >
               <div className="p-6 border-b border-cyan-900/50 flex justify-between items-center">
-                <h2 className="text-3xl font-bold flex items-center gap-3">
+                <h2 id="quick-perk-shop-title" className="text-3xl font-bold flex items-center gap-3">
                   <ShoppingBag className="w-10 h-10 text-[#00F0FF]" />
                   Quick Perk Shop
                 </h2>
-                <button onClick={() => setShowMiniShop(false)} className="text-gray-400 hover:text-white">
+                <button onClick={() => setShowMiniShop(false)} className="text-gray-400 hover:text-white" aria-label="Close Quick Perk Shop">
                   <X className="w-8 h-8" />
                 </button>
               </div>
