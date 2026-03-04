@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { formatUnits } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -22,6 +22,9 @@ import {
   Star,
   Gamepad2,
   Shield,
+  Swords,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 
 import {
@@ -32,6 +35,7 @@ import {
 import { AnimatedCounter } from '@/components/rewards/AnimatedCounter';
 import { useRewardsAdmin } from './useRewardsAdmin';
 import EscrowAdminSection from '@/components/admin/EscrowAdminSection';
+import { apiClient } from '@/lib/api';
 
 export default function RewardAdminPanel() {
   const {
@@ -87,6 +91,45 @@ export default function RewardAdminPanel() {
     setTycoonGameController,
     tycoonReads,
   } = state;
+
+  const [adminTournaments, setAdminTournaments] = useState<{ id: number; name: string; code?: string; status: string; participant_count?: number; max_players: number }[]>([]);
+  const [adminTournamentsLoading, setAdminTournamentsLoading] = useState(false);
+  const [adminTournamentsError, setAdminTournamentsError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const fetchAdminTournaments = useCallback(async () => {
+    setAdminTournamentsLoading(true);
+    setAdminTournamentsError(null);
+    try {
+      const res = await apiClient.get<{ id: number; name: string; code?: string; status: string; participant_count?: number; max_players: number }[]>("tournaments", { limit: 100 });
+      const data = res?.data;
+      const list = Array.isArray(data) ? data : [];
+      setAdminTournaments(list);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (err as { message?: string })?.message ?? "Failed to load tournaments";
+      setAdminTournamentsError(msg);
+      setAdminTournaments([]);
+    } finally {
+      setAdminTournamentsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "tournaments") fetchAdminTournaments();
+  }, [activeSection, fetchAdminTournaments]);
+
+  const handleDeleteTournament = useCallback(async (id: number) => {
+    setDeletingId(id);
+    try {
+      await apiClient.delete(`tournaments/${id}`);
+      setAdminTournaments((prev) => prev.filter((t) => t.id !== id));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (err as { message?: string })?.message ?? "Delete failed";
+      setAdminTournamentsError(msg);
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
 
   const { tokenCount, allTokens, tycBalance, usdcBalance } = contract;
   const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController } = pending;
@@ -148,7 +191,7 @@ export default function RewardAdminPanel() {
         </motion.div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-10">
-          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'escrow', 'funds'] as const).map((section) => (
+          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'escrow', 'tournaments', 'funds'] as const).map((section) => (
             <button
               key={section}
               onClick={() => setActiveSection(section)}
@@ -164,8 +207,9 @@ export default function RewardAdminPanel() {
               {section === 'manage' && <Edit2 className="w-5 h-5" />}
               {section === 'tycoon' && <Gamepad2 className="w-5 h-5" />}
               {section === 'escrow' && <Shield className="w-5 h-5" />}
+              {section === 'tournaments' && <Swords className="w-5 h-5" />}
               {section === 'funds' && <Wallet className="w-5 h-5" />}
-              {section === 'tycoon' ? 'Game Contract' : section === 'escrow' ? 'Tournament Escrow' : section.charAt(0).toUpperCase() + section.slice(1)}
+              {section === 'tycoon' ? 'Game Contract' : section === 'escrow' ? 'Tournament Escrow' : section === 'tournaments' ? 'Tournaments' : section.charAt(0).toUpperCase() + section.slice(1)}
             </button>
           ))}
         </div>
@@ -524,6 +568,62 @@ export default function RewardAdminPanel() {
         {activeSection === 'escrow' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-5xl mx-auto">
             <EscrowAdminSection />
+          </motion.div>
+        )}
+
+        {activeSection === 'tournaments' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto">
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <Swords className="w-8 h-8 text-cyan-400" /> Manage Tournaments
+              </h3>
+              <p className="text-gray-400 mb-6">Delete tournaments from the database. This cannot be undone.</p>
+              {adminTournamentsLoading && (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                </div>
+              )}
+              {adminTournamentsError && (
+                <p className="text-red-400 py-4">{adminTournamentsError}</p>
+              )}
+              {!adminTournamentsLoading && adminTournaments.length === 0 && !adminTournamentsError && (
+                <p className="text-center text-white/60 py-12">No tournaments.</p>
+              )}
+              {!adminTournamentsLoading && adminTournaments.length > 0 && (
+                <div className="space-y-3">
+                  {adminTournaments.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between gap-4 py-3 px-4 rounded-xl bg-gray-800/60 border border-gray-700/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-white truncate">{t.name}</p>
+                        <p className="text-sm text-gray-400">
+                          ID: {t.id}
+                          {t.code != null && t.code !== "" && ` · Code: ${t.code}`}
+                          {" · "}
+                          {t.status.replace(/_/g, " ")}
+                          {typeof t.participant_count === "number" && ` · ${t.participant_count}/${t.max_players} players`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTournament(t.id)}
+                        disabled={deletingId !== null}
+                        className="shrink-0 px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-500 text-white font-medium transition disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {deletingId === t.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
 
