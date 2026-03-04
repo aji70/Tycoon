@@ -27,17 +27,21 @@ export default function RoomError({ error, reset }: RoomErrorProps) {
           Something went wrong
         </h2>
         <p className="text-slate-300 text-sm font-dmSans">
-          The board may have had trouble loading after you pressed back. Try again or go home.
+          The board may have had trouble loading after you pressed back. Reload the page or go home.
         </p>
         <div className="flex flex-col gap-3 pt-2">
           <button
             type="button"
             onClick={() => {
-              reset();
+              if (typeof window !== "undefined") {
+                window.location.reload();
+              } else {
+                reset();
+              }
             }}
             className="w-full py-3 px-4 rounded-xl bg-[#00F0FF] text-[#010F10] font-semibold font-orbitron hover:bg-[#00F0FF]/90 transition-colors"
           >
-            Try again
+            Reload page
           </button>
           <button
             type="button"
