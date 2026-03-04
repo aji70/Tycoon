@@ -709,13 +709,17 @@ export default function CollectibleInventoryBar({
                 shadow-2xl shadow-black/50
                 overflow-hidden
               "
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
+              <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]/95" aria-hidden>
+                <div className="w-10 h-1 rounded-full bg-slate-500/60" title="Swipe down to close" />
+              </div>
               <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/30 px-5 py-4 flex items-center justify-between">
                 <h2 id="perk-shop-sheet-title" className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
                   <ShoppingBag className="w-6 h-6" />
                   Perk Shop
                 </h2>
-                <button onClick={() => setShowMiniShop(false)} className="p-2 rounded-full hover:bg-white/5 transition" aria-label="Close Perk Shop">
+                <button onClick={() => setShowMiniShop(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/5 transition" aria-label="Close Perk Shop">
                   <X className="w-6 h-6 text-gray-300" />
                 </button>
               </div>
@@ -839,7 +843,11 @@ export default function CollectibleInventoryBar({
                 shadow-2xl shadow-black/50
                 overflow-y-auto
               "
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
+              <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]" aria-hidden>
+                <div className="w-10 h-1 rounded-full bg-slate-500/60" />
+              </div>
               <div className="p-6 text-center mb-15">
                 <Flame className="w-20 h-20 text-red-500 mx-auto mb-6 animate-pulse" />
                 <h2 className="text-3xl font-bold text-white mb-4">Burn Collectible?</h2>

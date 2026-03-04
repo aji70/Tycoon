@@ -102,7 +102,7 @@ export default function Mobile3DGameUI({
           type="button"
           onClick={() => setShowPerksModal(true)}
           aria-label="My Perks"
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/90 text-violet-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Sparkles className="w-5 h-5" />
           <span className="text-xs font-medium">Perks</span>
@@ -111,7 +111,7 @@ export default function Mobile3DGameUI({
           type="button"
           onClick={() => setShowEmpireModal(true)}
           aria-label="My Empire"
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Landmark className="w-5 h-5" />
           <span className="text-xs font-medium">Empire</span>
@@ -120,7 +120,7 @@ export default function Mobile3DGameUI({
           type="button"
           onClick={openBellModal}
           aria-label={incomingTradeCount > 0 ? `Trades (${incomingTradeCount} pending)` : "Trades"}
-          className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          className="relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-600/80 hover:bg-amber-500/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Bell className="w-5 h-5" />
           <span className="text-xs font-medium">Trades</span>
@@ -134,7 +134,7 @@ export default function Mobile3DGameUI({
           type="button"
           onClick={openPlayerModal}
           aria-label="Players"
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-cyan-600/80 hover:bg-cyan-500/90 text-cyan-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
         >
           <Users className="w-5 h-5" />
           <span className="text-xs font-medium">Players</span>
@@ -143,7 +143,7 @@ export default function Mobile3DGameUI({
           <button
             type="button"
             onClick={onOpenChat}
-            className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/80 hover:bg-amber-400/90 text-amber-100 transition shrink-0"
+            className="relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/80 hover:bg-amber-400/90 text-amber-100 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             aria-label={chatUnreadCount > 0 ? `Open chat (${chatUnreadCount} new)` : "Open chat"}
           >
             <MessageCircle className="w-5 h-5" />
@@ -175,8 +175,11 @@ export default function Mobile3DGameUI({
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", transform: "translateZ(0)" }}
             >
+              <div className="flex items-center justify-center pt-2 pb-1 shrink-0" aria-hidden>
+                <div className="w-10 h-1 rounded-full bg-slate-500/60" />
+              </div>
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
                 <h2 className="text-lg font-bold text-amber-200 flex items-center gap-2">
                   <Landmark className="w-5 h-5" />
@@ -185,7 +188,7 @@ export default function Mobile3DGameUI({
                 <button
                   type="button"
                   onClick={() => setShowEmpireModal(false)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                  className="min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
@@ -234,8 +237,11 @@ export default function Mobile3DGameUI({
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", transform: "translateZ(0)" }}
             >
+              <div className="flex items-center justify-center pt-2 pb-1 shrink-0" aria-hidden>
+                <div className="w-10 h-1 rounded-full bg-slate-500/60" />
+              </div>
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
                 <h2 className="text-lg font-bold text-amber-200">{tradesOnlyModal ? "Trades" : "Game"}</h2>
                 <button
@@ -244,7 +250,7 @@ export default function Mobile3DGameUI({
                     setInternalPlayerModalOpen(false);
                     setTradesOnlyModal(false);
                   }}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                  className="min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
@@ -302,8 +308,11 @@ export default function Mobile3DGameUI({
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)", transform: "translateZ(0)" }}
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", transform: "translateZ(0)" }}
             >
+              <div className="flex items-center justify-center pt-2 pb-1 shrink-0" aria-hidden>
+                <div className="w-10 h-1 rounded-full bg-slate-500/60" />
+              </div>
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
                 <h2 className="text-lg font-bold text-violet-200 flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
@@ -312,7 +321,7 @@ export default function Mobile3DGameUI({
                 <button
                   type="button"
                   onClick={() => setShowPerksModal(false)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                  className="min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
