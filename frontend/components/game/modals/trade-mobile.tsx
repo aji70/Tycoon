@@ -59,9 +59,8 @@ const PropertyCard = ({
 );
 
 export const TradeModal: React.FC<TradeModalProps> = (props) => {
-  if (!props.open) return null;
-
   const {
+    open,
     title,
     onClose,
     onSubmit,
@@ -81,15 +80,22 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     isAITrade = false,
   } = props;
 
+  const safeGameProps = Array.isArray(game_properties) ? game_properties : [];
+  const safeProperties = Array.isArray(properties) ? properties : [];
+  const safeMyProperties = Array.isArray(my_properties) ? my_properties.filter(Boolean) : [];
+
   const targetOwnedProps = useMemo(() => {
-    if (!targetPlayerAddress) return [];
-    const owned = game_properties.filter(
-      (gp: any) => gp.address === targetPlayerAddress
+    const addr = targetPlayerAddress ?? "";
+    if (!addr) return [];
+    const owned = safeGameProps.filter(
+      (gp: any) => (gp?.address ?? "") === addr
     );
-    return properties.filter((p: any) =>
-      owned.some((gp: any) => gp.property_id === p.id)
+    return safeProperties.filter((p: any) =>
+      owned.some((gp: any) => gp?.property_id === p?.id)
     );
-  }, [game_properties, properties, targetPlayerAddress]);
+  }, [safeGameProps, safeProperties, targetPlayerAddress]);
+
+  if (!open) return null;
 
   return (
     <motion.div
@@ -131,8 +137,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
                 You offer
               </h3>
               <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                {my_properties.length > 0 ? (
-                  my_properties.map((p) => (
+                {safeMyProperties.length > 0 ? (
+                  safeMyProperties.map((p) => (
                     <PropertyCard
                       key={p.id}
                       prop={p}

@@ -1627,12 +1627,12 @@ function Board3DPageContent() {
         )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && voteablePlayersList.length > 0 && (
-          <div className="rounded-xl border border-amber-500/40 bg-slate-900/90 p-3 space-y-2">
-            <p className="text-amber-200/90 font-orbitron text-xs font-bold uppercase tracking-wide">Vote player out</p>
+          <div className="rounded-xl border-2 border-amber-500/40 bg-slate-900/90 p-4 space-y-3">
+            <p className="text-amber-200/90 text-xs font-semibold uppercase tracking-wide">Timed out — vote to remove</p>
             {voteablePlayersList.map((p) => {
               const status = voteStatuses[p.user_id];
               const hasVoted = status?.voters?.some((v) => v.user_id === me?.user_id) ?? false;
-              const voteRatio = status ? ` ${status.vote_count}/${status.required_votes}` : "";
+              const voteRatio = status ? ` (${status.vote_count}/${status.required_votes})` : "";
               const isLoading = votingLoading[p.user_id];
               return (
                 <button
@@ -1640,15 +1640,15 @@ function Board3DPageContent() {
                   type="button"
                   onClick={() => voteToRemove(p.user_id)}
                   disabled={isLoading || hasVoted}
-                  className={`w-full text-left text-xs font-medium rounded-lg px-3 py-2 border transition-all ${
+                  className={`w-full text-center text-sm font-semibold rounded-xl px-4 py-3 border-2 transition-all shadow-lg ${
                     hasVoted
-                      ? "bg-emerald-900/60 text-emerald-200 border-emerald-500/50 cursor-not-allowed"
+                      ? "bg-emerald-900/70 text-emerald-100 border-emerald-400/50 cursor-default"
                       : isLoading
-                      ? "bg-amber-900/60 text-amber-200 border-amber-500/50 cursor-wait"
-                      : "bg-cyan-900/70 text-cyan-100 border-cyan-500/50 hover:bg-cyan-800/80"
+                      ? "bg-amber-900/70 text-amber-100 border-amber-400/50 cursor-wait"
+                      : "bg-rose-900/60 text-rose-100 border-rose-400/50 hover:bg-rose-800/70 hover:border-rose-300/60"
                   }`}
                 >
-                  {hasVoted ? `✓ Voted${voteRatio}` : isLoading ? "Voting…" : `Vote ${p.username ?? "Player"} out${voteRatio}`}
+                  {hasVoted ? `✓ Voted out${voteRatio}` : isLoading ? "Voting…" : `Vote ${p.username ?? "Player"} out${voteRatio}`}
                 </button>
               );
             })}
