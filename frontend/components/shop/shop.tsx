@@ -27,6 +27,9 @@ import {
   Wallet,
   RefreshCw,
   X,
+  Percent,
+  CircleDollarSign,
+  MapPin,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -39,6 +42,7 @@ import {
   useApprove,
   useRewardTokenAddresses,
 } from '@/context/ContractProvider';
+import { apiClient } from '@/lib/api';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -52,6 +56,9 @@ const isCollectibleToken = (tokenId: bigint): boolean =>
 // Tiered perks: show "Tier N" badge
 const TIERED_PERKS = new Set([5, 8, 9]);
 
+// New perks not yet in contract — show in shop as "Coming Soon"
+const COMING_SOON_PERK_IDS = [11, 12, 13, 14];
+
 // Perk metadata — real descriptions for shop and collectibles
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
@@ -64,6 +71,10 @@ const perkMetadata = [
   { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered). Stretch your cash and complete sets faster.", icon: <Coins className="w-12 h-12 text-orange-400" />, image: "/game/shop/b.jpeg" },
   { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered). Turn tax hits into partial recovery.", icon: <Gem className="w-12 h-12 text-teal-400" />, image: "/game/shop/c.jpeg" },
   { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice. Land on the exact space you need.", icon: <Sparkles className="w-12 h-12 text-amber-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra. Great for property owners.", icon: <Percent className="w-12 h-12 text-emerald-400" />, image: "/game/shop/a.jpeg" },
+  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200. A little boost when it's your turn.", icon: <CircleDollarSign className="w-12 h-12 text-lime-400" />, image: "/game/shop/b.jpeg" },
+  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7. The most common roll—land where you need.", icon: <Sparkles className="w-12 h-12 text-yellow-300" />, image: "/game/shop/c.jpeg" },
+  { perk: 14, name: "Free Parking Bonus", desc: "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", icon: <MapPin className="w-12 h-12 text-sky-400" />, image: "/game/shop/a.jpeg" },
 ];
 
 export default function GameShop() {
@@ -76,6 +87,7 @@ export default function GameShop() {
 
   const [useUsdc, setUseUsdc] = useState(false);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
+  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }>>([]);
 
   const { data: tycAllowance } = useReadContract({
   address: tycTokenAddress,
@@ -213,11 +225,22 @@ const { data: usdcAllowance } = useReadContract({
           tycPrice: formatUnits(tycPrice, 18),
           usdcPrice: formatUnits(usdcPrice, 6),
           stock: Number(stock),
+          comingSoon: false as const,
           ...meta,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
+
+  // New perks (11–14) always appear in the shop as "Coming soon" until stocked on contract
+  const allShopItems = useMemo(() => {
+    const stockedPerkIds = new Set(shopItems.map((s) => s.perk));
+    const comingSoonFromMeta = COMING_SOON_PERK_IDS.filter((pid) => !stockedPerkIds.has(pid)).map((pid) => {
+      const meta = perkMetadata.find((m) => m.perk === pid)!;
+      return { ...meta, perk: pid, comingSoon: true as const, tokenId: null as unknown as bigint, strength: 0, tycPrice: '—', usdcPrice: '—', stock: 0 };
+    });
+    return [...shopItems, ...comingSoonFromMeta];
+  }, [shopItems]);
 
   // ── User Vouchers ──
   const { data: userOwnedCount } = useReadContract({
@@ -374,6 +397,12 @@ const { data: usdcAllowance } = useReadContract({
   const hasVouchers = myVouchers.length > 0;
   const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
 
+  useEffect(() => {
+    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> }>('shop/bundles').then((r) => {
+      if (r?.data?.bundles) setBundles(r.data.bundles);
+    }).catch(() => {});
+  }, []);
+
   return (
     <section className="min-h-screen text-[#F0F7F7] py-8 px-4 relative overflow-hidden">
       {/* Background: gradient + subtle grid + soft glow */}
@@ -475,6 +504,46 @@ const { data: usdcAllowance } = useReadContract({
           </motion.div>
         </div>
 
+        {/* Bundles */}
+        {bundles.length > 0 && (
+          <div className="mb-16">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+              <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Perk bundles</span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-6">
+              {bundles.map((b) => (
+                <motion.div
+                  key={b.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col rounded-2xl overflow-hidden border border-amber-500/30 bg-[#0E1415]/60 backdrop-blur-sm"
+                >
+                  <div className="p-5 flex flex-col flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-[10px] font-semibold text-amber-300 uppercase">Bundle</span>
+                    </div>
+                    <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
+                    <div className="flex items-baseline gap-3 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
+                      <span className="text-lg font-bold">{b.price_tyc} TYC</span>
+                      <span className="text-slate-500">or</span>
+                      <span className="text-lg font-bold">${b.price_usdc} USDC</span>
+                    </div>
+                    <button
+                      disabled
+                      className="w-full py-3 rounded-xl font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed"
+                    >
+                      Coming soon
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Section label */}
         <div className="flex items-center gap-4 mb-8">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
@@ -492,7 +561,7 @@ const { data: usdcAllowance } = useReadContract({
             <div className="rounded-full border-2 border-[#00F0FF]/30 border-t-[#00F0FF] w-14 h-14 animate-spin mb-6" />
             <p className="text-slate-400 text-lg">Loading perks...</p>
           </motion.div>
-        ) : shopItems.length === 0 ? (
+        ) : allShopItems.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -504,18 +573,21 @@ const { data: usdcAllowance } = useReadContract({
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-6 gap-y-8 items-stretch">
-            {shopItems.map((item, index) => {
+            {allShopItems.map((item, index) => {
               const isProcessing = buyingPending || buyingConfirming;
+              const isComingSoon = 'comingSoon' in item && item.comingSoon;
 
               return (
                 <motion.div
-                  key={item.tokenId.toString()}
+                  key={isComingSoon ? `coming-soon-${item.perk}` : item.tokenId.toString()}
                   initial={{ opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-20px' }}
                   transition={{ duration: 0.35, delay: index * 0.04 }}
-                  whileHover={{ y: -4 }}
-                  className="group flex flex-col rounded-2xl overflow-hidden border border-[#003B3E]/80 bg-[#0E1415]/70 backdrop-blur-sm transition-all duration-300 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
+                  className={`group flex flex-col rounded-2xl overflow-hidden border backdrop-blur-sm transition-all duration-300 ${
+                    isComingSoon ? 'border-[#003B3E]/60 bg-[#0E1415]/50 opacity-90' : 'border-[#003B3E]/80 bg-[#0E1415]/70 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]'
+                  }`}
+                  whileHover={isComingSoon ? undefined : { y: -4 }}
                 >
                   <div className="relative h-48 min-h-[12rem] overflow-hidden flex-shrink-0">
                     <Image
@@ -526,14 +598,20 @@ const { data: usdcAllowance } = useReadContract({
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                     <div className="absolute top-3 right-3 flex items-center gap-2">
-                      {TIERED_PERKS.has(item.perk) && (
+                      {!isComingSoon && TIERED_PERKS.has(item.perk) && (
                         <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
                           Tier {item.strength}
                         </span>
                       )}
-                      <span className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
-                        {item.stock} left
-                      </span>
+                      {isComingSoon ? (
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-xs font-semibold text-amber-300 uppercase tracking-wider">
+                          Coming soon
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
+                          {item.stock} left
+                        </span>
+                      )}
                     </div>
                     <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
                       <div className="rounded-xl bg-black/30 backdrop-blur-sm p-2 border border-white/10">
@@ -546,53 +624,64 @@ const { data: usdcAllowance } = useReadContract({
                   <div className="p-5 flex flex-col flex-1 min-h-0">
                     <p className="text-slate-400 text-sm leading-relaxed mb-4 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
-                    <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
-                      <div className="flex flex-col gap-1">
-                        <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
-                        <div className="flex items-baseline gap-3 flex-wrap">
-                          <span className={useUsdc ? 'text-slate-400 text-sm' : ''}>
-                            <span className="text-sm text-slate-500">TYC </span>
-                            <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">{item.tycPrice}</span>
-                          </span>
-                          <span className={!useUsdc ? 'text-slate-400 text-sm' : ''}>
-                            <span className="text-sm text-slate-500">USDC </span>
-                            <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</span>
-                          </span>
+                    {!isComingSoon && (
+                      <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
+                        <div className="flex flex-col gap-1">
+                          <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
+                          <div className="flex items-baseline gap-3 flex-wrap">
+                            <span className={useUsdc ? 'text-slate-400 text-sm' : ''}>
+                              <span className="text-sm text-slate-500">TYC </span>
+                              <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">{item.tycPrice}</span>
+                            </span>
+                            <span className={!useUsdc ? 'text-slate-400 text-sm' : ''}>
+                              <span className="text-sm text-slate-500">USDC </span>
+                              <span className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice}</span>
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Paying with {useUsdc ? 'USDC' : 'TYC'}</p>
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Paying with {useUsdc ? 'USDC' : 'TYC'}</p>
                       </div>
-                    </div>
+                    )}
 
-                    {(() => {
-                      const balance = useUsdc ? Number(usdcBalance) : Number(tycBalance);
-                      const price = useUsdc ? Number(item.usdcPrice) : Number(item.tycPrice);
-                      const insufficientFunds = balance < price;
-                      return (
-                    <button
-                      onClick={() => handleBuy(item)}
-                      disabled={item.stock === 0 || isProcessing || insufficientFunds}
-                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
-                        item.stock === 0
-                          ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
-                          : insufficientFunds
-                          ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
-                          : isProcessing
-                          ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
-                          : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
-                      }`}
-                    >
-                      {isProcessing ? (
-                        <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
-                      ) : item.stock === 0 ? (
-                        'Sold Out'
-                      ) : insufficientFunds ? (
-                        <>Insufficient {useUsdc ? 'USDC' : 'TYC'}</>
-                      ) : (
-                        <> <Coins className="w-5 h-5" /> Buy with {useUsdc ? 'USDC' : 'TYC'} </>
-                      )}
-                    </button>
-                      );
-                    })()}
+                    {isComingSoon ? (
+                      <button
+                        disabled
+                        className="w-full py-4 rounded-xl font-bold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed mt-auto"
+                      >
+                        Coming soon
+                      </button>
+                    ) : (
+                      (() => {
+                        const balance = useUsdc ? Number(usdcBalance) : Number(tycBalance);
+                        const price = useUsdc ? Number(item.usdcPrice) : Number(item.tycPrice);
+                        const insufficientFunds = balance < price;
+                        return (
+                          <button
+                            onClick={() => handleBuy(item)}
+                            disabled={item.stock === 0 || isProcessing || insufficientFunds}
+                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
+                              item.stock === 0
+                                ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
+                                : insufficientFunds
+                                ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
+                                : isProcessing
+                                ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
+                                : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
+                            }`}
+                          >
+                            {isProcessing ? (
+                              <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
+                            ) : item.stock === 0 ? (
+                              'Sold Out'
+                            ) : insufficientFunds ? (
+                              <>Insufficient {useUsdc ? 'USDC' : 'TYC'}</>
+                            ) : (
+                              <> <Coins className="w-5 h-5" /> Buy with {useUsdc ? 'USDC' : 'TYC'} </>
+                            )}
+                          </button>
+                        );
+                      })()
+                    )}
                   </div>
                 </motion.div>
               );

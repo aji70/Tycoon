@@ -28,6 +28,9 @@ import {
   Wallet,
   Clock,
   Flame,
+  Percent,
+  CircleDollarSign,
+  MapPin,
 } from "lucide-react";
 
 import RewardABI from "@/context/abi/rewardabi.json";
@@ -72,6 +75,10 @@ const perkMetadata: Record<number, {
   8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "Get 30–50% off the next property you buy (tiered)." },
   9: { name: "Tax Refund", icon: <Gem className="w-10 h-10" />, gradient: "from-teal-600 to-cyan-600", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Receive TYC back when you pay Income or Luxury Tax (tiered)." },
   10: { name: "Exact Roll", icon: <Sparkles className="w-10 h-10" />, gradient: "from-amber-600 to-yellow-500", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Choose your next roll (2–12) instead of rolling the dice." },
+  11: { name: "Rent Cashback", icon: <Percent className="w-10 h-10" />, gradient: "from-emerald-600 to-green-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Next rent you receive is +25% extra." },
+  12: { name: "Interest", icon: <CircleDollarSign className="w-10 h-10" />, gradient: "from-lime-600 to-green-600", image: "/game/shop/b.jpeg", canBeActivated: true, fakeDescription: "At the start of your next turn, receive $200." },
+  13: { name: "Lucky 7", icon: <Sparkles className="w-10 h-10" />, gradient: "from-yellow-500 to-amber-500", image: "/game/shop/c.jpeg", canBeActivated: true, fakeDescription: "Your next roll will be 7." },
+  14: { name: "Free Parking Bonus", icon: <MapPin className="w-10 h-10" />, gradient: "from-sky-600 to-blue-600", image: "/game/shop/a.jpeg", canBeActivated: true, fakeDescription: "Land on Free Parking to collect $500." },
 };
 
 interface CollectibleInventoryBarProps {
@@ -511,13 +518,17 @@ export default function CollectibleInventoryBar({
           case 3: // Double Rent
           case 4: // Roll Boost
           case 7: // Shield
+          case 11: // Rent Cashback
+          case 12: // Interest
+          case 13: // Lucky 7
+          case 14: // Free Parking Bonus
             try {
               const res = await apiClient.post<{ success?: boolean }>("/perks/activate", {
                 game_id: game.id,
                 perk_id: perkId,
               });
-              success = res?.data?.success ?? false;
-              if (success) toast.success(`${name} activated for next use!`, { id: toastId });
+              success = res?.data?.success ?? res?.success ?? false;
+              if (success) toast.success(perkId === 13 ? "Lucky 7! Next roll will be 7." : `${name} activated!`, { id: toastId });
             } catch {
               toast.error("Failed to activate perk", { id: toastId });
             }

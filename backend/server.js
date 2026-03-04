@@ -38,6 +38,9 @@ import authRoutes from "./routes/auth.js";
 import tournamentsRoutes from "./routes/tournaments.js";
 
 import gamePerkController from "./controllers/gamePerkController.js";
+import * as shopController from "./controllers/shopController.js";
+import * as dailyClaimController from "./controllers/dailyClaimController.js";
+import { requireAuth } from "./middleware/auth.js";
 import { connectSocketRedis } from "./config/socketRedis.js";
 import logger from "./config/logger.js";
 import db from "./config/database.js";
@@ -333,6 +336,10 @@ app.post("/api/perks/activate", gamePerkController.activatePerk);
   app.post("/api/perks/burn-cash", gamePerkController.burnForCash);
   app.post("/api/perks/use-jail-free", gamePerkController.useJailFree);
   app.post("/api/perks/apply-cash", gamePerkController.applyCash);
+
+  app.get("/api/shop/bundles", shopController.listBundles);
+  app.get("/api/rewards/daily-claim/status", requireAuth, dailyClaimController.dailyClaimStatus);
+  app.post("/api/rewards/daily-claim", requireAuth, dailyClaimController.dailyClaim);
 
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);

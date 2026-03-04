@@ -3,7 +3,7 @@
 import React, { useMemo } from "react";
 import { useAccount, useChainId, useReadContract, useReadContracts } from "wagmi";
 import type { Address, Abi } from "viem";
-import { Zap, Crown, Coins, Sparkles, Gem, Shield } from "lucide-react";
+import { Zap, Crown, Coins, Sparkles, Gem, Shield, Percent, CircleDollarSign, MapPin } from "lucide-react";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
 
@@ -20,6 +20,10 @@ const PERK_ICONS: Record<number, React.ReactNode> = {
   8: <Coins className="w-4 h-4" />,
   9: <Gem className="w-4 h-4" />,
   10: <Sparkles className="w-4 h-4" />,
+  11: <Percent className="w-4 h-4" />,
+  12: <CircleDollarSign className="w-4 h-4" />,
+  13: <Sparkles className="w-4 h-4" />,
+  14: <MapPin className="w-4 h-4" />,
 };
 
 const PERK_NAMES: Record<number, string> = {
@@ -33,6 +37,10 @@ const PERK_NAMES: Record<number, string> = {
   8: "Discount",
   9: "Tax Refund",
   10: "Exact Roll",
+  11: "Rent Cashback",
+  12: "Interest",
+  13: "Lucky 7",
+  14: "Free Parking Bonus",
 };
 
 interface PerksBarProps {
@@ -101,7 +109,7 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "" }: Per
         if (tokenId == null || tokenId < COLLECTIBLE_ID_START) return null;
         const arr = res.result as [bigint, bigint?, ...unknown[]];
         const perk = Number(arr?.[0]);
-        if (Number.isNaN(perk) || perk < 1 || perk > 10) return null;
+        if (Number.isNaN(perk) || perk < 1 || perk > 14) return null;
         const strength = arr?.[1] != null ? Number(arr[1]) : 1;
         return { perk, tokenId, strength };
       })

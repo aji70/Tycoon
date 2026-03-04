@@ -20,9 +20,13 @@ export enum CollectiblePerk {
   PROPERTY_DISCOUNT = 8,
   TAX_REFUND = 9,
   ROLL_EXACT = 10,
+  RENT_CASHBACK = 11,
+  INTEREST = 12,
+  LUCKY_7 = 13,
+  FREE_PARKING_BONUS = 14,
 }
 
-export const PERK_NAMES: Record<CollectiblePerk, string> = {
+export const PERK_NAMES: Record<number, string> = {
   [CollectiblePerk.NONE]: "None",
   [CollectiblePerk.EXTRA_TURN]: "Extra Turn",
   [CollectiblePerk.JAIL_FREE]: "Get Out of Jail Free",
@@ -34,6 +38,10 @@ export const PERK_NAMES: Record<CollectiblePerk, string> = {
   [CollectiblePerk.PROPERTY_DISCOUNT]: "Property Discount",
   [CollectiblePerk.TAX_REFUND]: "Tax Refund (Tiered)",
   [CollectiblePerk.ROLL_EXACT]: "Exact Roll",
+  [CollectiblePerk.RENT_CASHBACK]: "Rent Cashback",
+  [CollectiblePerk.INTEREST]: "Interest",
+  [CollectiblePerk.LUCKY_7]: "Lucky 7",
+  [CollectiblePerk.FREE_PARKING_BONUS]: "Free Parking Bonus",
 };
 
 export const ERC20_ABI = [

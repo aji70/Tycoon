@@ -28,6 +28,9 @@ import {
   RefreshCw,
   X,
   ArrowLeft,
+  Percent,
+  CircleDollarSign,
+  MapPin,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -40,6 +43,7 @@ import {
   useApprove,
   useRewardTokenAddresses,
 } from '@/context/ContractProvider';
+import { apiClient } from '@/lib/api';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -50,6 +54,9 @@ const isVoucherToken = (tokenId: bigint) =>
 const isCollectibleToken = (tokenId: bigint) => tokenId >= COLLECTIBLE_ID_START;
 
 const TIERED_PERKS = new Set([5, 8, 9]);
+
+// New perks not yet in contract — show in shop as "Coming Soon"
+const COMING_SOON_PERK_IDS = [11, 12, 13, 14];
 
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one.", icon: <Zap />, image: "/game/shop/a.jpeg" },
@@ -62,6 +69,10 @@ const perkMetadata = [
   { perk: 8, name: "Property Discount", desc: "Get 30–50% off the next property you buy (tiered).", icon: <Coins />, image: "/game/shop/b.jpeg" },
   { perk: 9, name: "Tax Refund", desc: "Receive TYC back when you pay Income or Luxury Tax (tiered).", icon: <Gem />, image: "/game/shop/c.jpeg" },
   { perk: 10, name: "Exact Roll", desc: "Choose your next roll (2–12) instead of rolling the dice.", icon: <Sparkles />, image: "/game/shop/a.jpeg" },
+  { perk: 11, name: "Rent Cashback", desc: "Next rent you receive is +25% extra.", icon: <Percent />, image: "/game/shop/a.jpeg" },
+  { perk: 12, name: "Interest", desc: "At the start of your next turn, receive $200.", icon: <CircleDollarSign />, image: "/game/shop/b.jpeg" },
+  { perk: 13, name: "Lucky 7", desc: "Your next roll will be 7.", icon: <Sparkles />, image: "/game/shop/c.jpeg" },
+  { perk: 14, name: "Free Parking Bonus", desc: "Land on Free Parking to collect $500.", icon: <MapPin />, image: "/game/shop/a.jpeg" },
 ];
 
 export default function GameShopMobile() {
@@ -73,6 +84,13 @@ export default function GameShopMobile() {
   const { usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
+  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }>>([]);
+
+  useEffect(() => {
+    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> }>('shop/bundles').then((r) => {
+      if (r?.data?.bundles) setBundles(r.data.bundles);
+    }).catch(() => {});
+  }, []);
 
   // Prevent body scroll when voucher panel is open
   useEffect(() => {
@@ -184,11 +202,22 @@ export default function GameShopMobile() {
           tycPrice: formatUnits(tycPrice, 18),
           usdcPrice: formatUnits(usdcPrice, 6),
           stock: Number(stock),
+          comingSoon: false as const,
           ...meta,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
+
+  // New perks (11–14) always in shop as "Coming soon" until stocked
+  const allShopItems = useMemo(() => {
+    const stockedPerkIds = new Set(shopItems.map((s) => s.perk));
+    const comingSoonFromMeta = COMING_SOON_PERK_IDS.filter((pid) => !stockedPerkIds.has(pid)).map((pid) => {
+      const meta = perkMetadata.find((m) => m.perk === pid)!;
+      return { ...meta, perk: pid, comingSoon: true as const, tokenId: null as unknown as bigint, strength: 0, tycPrice: '—', usdcPrice: '—', stock: 0 };
+    });
+    return [...shopItems, ...comingSoonFromMeta];
+  }, [shopItems]);
 
   // User Vouchers
   const { data: userOwnedCount } = useReadContract({
@@ -384,6 +413,33 @@ export default function GameShopMobile() {
           </button>
         </motion.div>
 
+        {/* Bundles */}
+        {bundles.length > 0 && (
+          <div className="space-y-4 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-[#003B3E]/80" />
+              <span className="text-xs text-slate-500 uppercase tracking-widest">Bundles</span>
+              <div className="h-px flex-1 bg-[#003B3E]/80" />
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {bundles.map((b) => (
+                <motion.div
+                  key={b.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl p-4 border border-amber-500/20 bg-[#0E1415]/50"
+                >
+                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-[9px] font-semibold text-amber-300 uppercase">Bundle</span>
+                  <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
+                  <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
+                  <p className="text-[#00F0FF] font-semibold text-sm mt-2">{b.price_tyc} TYC or ${b.price_usdc} USDC</p>
+                  <button disabled className="w-full mt-3 py-2.5 rounded-lg bg-slate-800/80 text-slate-500 text-sm font-medium">Coming soon</button>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Section label */}
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-[#003B3E]/80" />
@@ -404,7 +460,7 @@ export default function GameShopMobile() {
               Connect your wallet to purchase game perks with USDC
             </p>
           </motion.div>
-        ) : shopItems.length === 0 ? (
+        ) : allShopItems.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -416,78 +472,97 @@ export default function GameShopMobile() {
           </motion.div>
         ) : (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5">
-            {shopItems.map((item, index) => (
-              <motion.div
-                key={item.tokenId.toString()}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.03 }}
-                className="group flex flex-col rounded-xl overflow-hidden border border-[#003B3E]/70 bg-[#0E1415]/70 backdrop-blur-sm transition-all active:scale-[0.98]"
-              >
-                <div className="relative aspect-[4/3] w-full flex-shrink-0">
-                  <Image
-                    src={item.image || '/game/shop/placeholder.jpg'}
-                    alt={item.name}
-                    fill
-                    className="object-cover transition-transform duration-500 group-active:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                    {TIERED_PERKS.has(item.perk) && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
-                        T{item.strength}
-                      </span>
-                    )}
-                    <span className="px-2 py-0.5 rounded-md bg-black/50 text-[10px] font-medium text-slate-300">
-                      {item.stock} left
-                    </span>
-                  </div>
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="font-bold text-base leading-tight text-white drop-shadow-lg">{item.name}</p>
-                  </div>
-                </div>
-
-                <div className="p-3 flex flex-col flex-1 min-h-0">
-                  <p className="text-[11px] text-slate-500 mb-2 line-clamp-2 flex-shrink-0">{item.desc}</p>
-
-                  <div className="flex justify-between items-end mb-3 mt-auto">
-                    <div>
-                      <p className="text-[10px] text-slate-500 uppercase">Price</p>
-                      <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice} USDC</p>
+            {allShopItems.map((item, index) => {
+              const isComingSoon = 'comingSoon' in item && item.comingSoon;
+              return (
+                <motion.div
+                  key={isComingSoon ? `coming-soon-${item.perk}` : item.tokenId.toString()}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.03 }}
+                  className={`group flex flex-col rounded-xl overflow-hidden border backdrop-blur-sm transition-all ${
+                    isComingSoon ? 'border-[#003B3E]/50 bg-[#0E1415]/40 opacity-90' : 'border-[#003B3E]/70 bg-[#0E1415]/70 active:scale-[0.98]'
+                  }`}
+                >
+                  <div className="relative aspect-[4/3] w-full flex-shrink-0">
+                    <Image
+                      src={item.image || '/game/shop/placeholder.jpg'}
+                      alt={item.name}
+                      fill
+                      className="object-cover transition-transform duration-500 group-active:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                      {!isComingSoon && TIERED_PERKS.has(item.perk) && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
+                          T{item.strength}
+                        </span>
+                      )}
+                      {isComingSoon ? (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-[9px] font-semibold text-amber-300 uppercase">
+                          Coming soon
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md bg-black/50 text-[10px] font-medium text-slate-300">
+                          {item.stock} left
+                        </span>
+                      )}
+                    </div>
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="font-bold text-base leading-tight text-white drop-shadow-lg">{item.name}</p>
                     </div>
                   </div>
 
-                  {(() => {
-                    const insufficientUsdc = Number(usdcBalance) < Number(item.usdcPrice);
-                    return (
-                      <button
-                        onClick={() => handleBuy(item)}
-                        disabled={item.stock === 0 || buyingPending || buyingConfirming || insufficientUsdc}
-                        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
-                          ${item.stock === 0
-                            ? 'bg-slate-800/80 text-slate-500'
-                            : insufficientUsdc
-                            ? 'bg-slate-700/80 text-slate-400'
-                            : buyingPending || buyingConfirming
-                            ? 'bg-amber-600/90 text-black'
-                            : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
-                      >
-                        {buyingPending || buyingConfirming ? (
-                          <Loader2 className="inline animate-spin mr-2" size={16} />
-                        ) : item.stock === 0 ? (
-                          'Sold Out'
-                        ) : insufficientUsdc ? (
-                          'Insufficient USDC'
-                        ) : (
-                          'Buy Now'
-                        )}
+                  <div className="p-3 flex flex-col flex-1 min-h-0">
+                    <p className="text-[11px] text-slate-500 mb-2 line-clamp-2 flex-shrink-0">{item.desc}</p>
+
+                    {!isComingSoon && (
+                      <div className="flex justify-between items-end mb-3 mt-auto">
+                        <div>
+                          <p className="text-[10px] text-slate-500 uppercase">Price</p>
+                          <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice} USDC</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {isComingSoon ? (
+                      <button disabled className="w-full py-3 rounded-xl font-semibold text-sm bg-slate-800/80 text-slate-500 border border-slate-700/80">
+                        Coming soon
                       </button>
-                    );
-                  })()}
-                </div>
-              </motion.div>
-            ))}
+                    ) : (
+                      (() => {
+                        const insufficientUsdc = Number(usdcBalance) < Number(item.usdcPrice);
+                        return (
+                          <button
+                            onClick={() => handleBuy(item)}
+                            disabled={item.stock === 0 || buyingPending || buyingConfirming || insufficientUsdc}
+                            className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
+                              ${item.stock === 0
+                                ? 'bg-slate-800/80 text-slate-500'
+                                : insufficientUsdc
+                                ? 'bg-slate-700/80 text-slate-400'
+                                : buyingPending || buyingConfirming
+                                ? 'bg-amber-600/90 text-black'
+                                : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
+                          >
+                            {buyingPending || buyingConfirming ? (
+                              <Loader2 className="inline animate-spin mr-2" size={16} />
+                            ) : item.stock === 0 ? (
+                              'Sold Out'
+                            ) : insufficientUsdc ? (
+                              'Insufficient USDC'
+                            ) : (
+                              'Buy Now'
+                            )}
+                          </button>
+                        );
+                      })()
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
