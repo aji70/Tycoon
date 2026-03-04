@@ -249,9 +249,47 @@ export async function privySignin(req, res) {
         success: true,
         data: {
           token,
-          user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did },
+          user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did, email: safe.email, email_verified: safe.email_verified },
         },
       });
+    }
+
+    // Sync existing account by email: if Privy user has email, find our user by that email and link privy_did
+    let privyEmail = null;
+    try {
+      const privyUser = await privyClient.users()._get(privyDid);
+      if (privyUser && privyUser.linked_accounts && Array.isArray(privyUser.linked_accounts)) {
+        const emailAccount = privyUser.linked_accounts.find((a) => a && a.type === "email" && a.address);
+        if (emailAccount) {
+          privyEmail = String(emailAccount.address).trim().toLowerCase();
+        }
+      }
+      if (!privyEmail && privyUser?.email?.address) {
+        privyEmail = String(privyUser.email.address).trim().toLowerCase();
+      }
+    } catch (e) {
+      logger.debug({ err: e?.message }, "Privy get user by id failed (optional for email sync)");
+    }
+    if (privyEmail) {
+      const existingByEmail = await User.findByEmail(privyEmail);
+      if (existingByEmail && !existingByEmail.privy_did) {
+        await User.update(existingByEmail.id, { privy_did: privyDid });
+        user = await User.findById(existingByEmail.id);
+        const token = jwt.sign(
+          { userId: user.id, address: user.address, username: user.username, isGuest: !!user.is_guest },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRY }
+        );
+        const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
+        return res.status(200).json({
+          success: true,
+          message: "Existing account linked with Privy.",
+          data: {
+            token,
+            user: { id: safe.id, username: safe.username, address: safe.address, is_guest: !!safe.is_guest, privy_did: safe.privy_did, email: safe.email, email_verified: safe.email_verified },
+          },
+        });
+      }
     }
 
     const username = req.body?.username;
@@ -281,10 +319,10 @@ export async function privySignin(req, res) {
     const { password_hash, password_hash_email, email_verification_token, ...safe } = user;
     return res.status(201).json({
       success: true,
-      message: "Account created. You can link a wallet later.",
+      message: "Account created. You can link a wallet and email in profile.",
       data: {
         token,
-        user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did },
+        user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did, email: safe.email, email_verified: safe.email_verified },
       },
     });
   } catch (err) {

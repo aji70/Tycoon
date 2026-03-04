@@ -35,7 +35,8 @@ Use this checklist to pick what to implement next. Say the **number or title** (
 
 | # | Item | Notes |
 |---|------|--------|
-| 3.1 | **Guest account merge** ✅ | Merge guest into wallet: `POST /auth/merge-guest-into-wallet`; “merge guest into existing wallet account” frontend in AccountLinkWallet. |
+| 3.1 | **Guest account merge** ✅ | Merge guest into wallet: `POST /auth/merge-guest-into-wallet`; “merge guest into existing wallet account” frontend in AccountLinkWallet. DB state (games, stats, votes) is transferred; guest’s on-chain winnings (vouchers) remain in custodial wallet unless a separate transfer flow is added. |
+| 3.1b | **Wallet & email reconciliation** ✅ | Same profile for wallet or email login: user table has `email`; connect-email in profile; Privy sign-in syncs existing email users (findByEmail → link privy_did). Guest/wallet users are prompted to link email so login-by-wallet and login-email resolve to the same profile. |
 | 3.2 | **Auction edge cases** ✅ | See `doc/auction-edge-cases.md`: timeout, reconnection, ties. |
 | 3.3 | **N+1 / query optimization** ✅ | Batch load: `GameSetting.findByGameIds`, `GamePlayer.findByGameIds`; see `doc/data-optimization.md`. |
 
