@@ -108,8 +108,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [props.open, handleKeyDown]);
 
-  if (!props.open) return null;
-
+  // All hooks must run every render (before any early return) to satisfy Rules of Hooks
   const safeGameProps = Array.isArray(game_properties) ? game_properties : [];
   const safeProperties = Array.isArray(properties) ? properties : [];
   const safeMyProperties = Array.isArray(my_properties) ? my_properties.filter(Boolean) : [];
@@ -135,6 +134,8 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
   );
   const hasOffer = offerPropNames.length > 0 || (offerCash ?? 0) > 0;
   const hasRequest = requestPropNames.length > 0 || (requestCash ?? 0) > 0;
+
+  if (!props.open) return null;
 
   const modalContent = (
     <motion.div
