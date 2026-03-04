@@ -943,20 +943,20 @@ export default function BoardScene({
     }
   }, [resetViewTrigger, camera]);
 
-  useEffect(() => {
-    if (spinOrbitDegrees > 0 && spinOrbitDegrees !== lastSpinPropRef.current) {
-      lastSpinPropRef.current = spinOrbitDegrees;
-      const x = camera.position.x;
-      const z = camera.position.z;
-      const y = camera.position.y;
-      spinCurrentAngleRef.current = Math.atan2(x, z);
-      // Spin clockwise (negative) so the side you moved onto (e.g. 10–19 after passing 0 and 10) comes into view, not the opposite side (30–39)
-      spinTargetAngleRef.current = spinCurrentAngleRef.current - (spinOrbitDegrees * Math.PI) / 180;
-      spinRadiusRef.current = Math.sqrt(x * x + z * z) || 1;
-      spinHeightRef.current = y;
-    }
-    if (spinOrbitDegrees === 0) lastSpinPropRef.current = 0;
-  }, [spinOrbitDegrees, camera]);
+  // Spinning on corner pass (0, 10, 20, 30) — commented out for now; zoom in/out is used instead.
+  // useEffect(() => {
+  //   if (spinOrbitDegrees > 0 && spinOrbitDegrees !== lastSpinPropRef.current) {
+  //     lastSpinPropRef.current = spinOrbitDegrees;
+  //     const x = camera.position.x;
+  //     const z = camera.position.z;
+  //     const y = camera.position.y;
+  //     spinCurrentAngleRef.current = Math.atan2(x, z);
+  //     spinTargetAngleRef.current = spinCurrentAngleRef.current - (spinOrbitDegrees * Math.PI) / 180;
+  //     spinRadiusRef.current = Math.sqrt(x * x + z * z) || 1;
+  //     spinHeightRef.current = y;
+  //   }
+  //   if (spinOrbitDegrees === 0) lastSpinPropRef.current = 0;
+  // }, [spinOrbitDegrees, camera]);
 
   useEffect(() => {
     if (focusTilePosition == null) {
@@ -976,21 +976,22 @@ export default function BoardScene({
   useFrame((_, delta, xrFrame) => {
     if (!controlsRef.current) return;
     const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-    const spinTarget = spinTargetAngleRef.current;
-    if (spinTarget != null) {
-      const current = spinCurrentAngleRef.current;
-      const r = spinRadiusRef.current;
-      const h = spinHeightRef.current;
-      spinCurrentAngleRef.current = current + (spinTarget - current) * 0.06;
-      const angle = spinCurrentAngleRef.current;
-      camera.position.set(r * Math.sin(angle), h, r * Math.cos(angle));
-      if (Math.abs(angle - spinTarget) < 0.02) {
-        spinCurrentAngleRef.current = spinTarget;
-        camera.position.set(r * Math.sin(spinTarget), h, r * Math.cos(spinTarget));
-        spinTargetAngleRef.current = null;
-      }
-      return;
-    }
+    // Spin on corner pass — commented out for now
+    // const spinTarget = spinTargetAngleRef.current;
+    // if (spinTarget != null) {
+    //   const current = spinCurrentAngleRef.current;
+    //   const r = spinRadiusRef.current;
+    //   const h = spinHeightRef.current;
+    //   spinCurrentAngleRef.current = current + (spinTarget - current) * 0.06;
+    //   const angle = spinCurrentAngleRef.current;
+    //   camera.position.set(r * Math.sin(angle), h, r * Math.cos(angle));
+    //   if (Math.abs(angle - spinTarget) < 0.02) {
+    //     spinCurrentAngleRef.current = spinTarget;
+    //     camera.position.set(r * Math.sin(spinTarget), h, r * Math.cos(spinTarget));
+    //     spinTargetAngleRef.current = null;
+    //   }
+    //   return;
+    // }
     if (zoomBackOutRef.current) {
       const t = controlsRef.current.target;
       const p = camera.position;
