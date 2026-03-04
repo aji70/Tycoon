@@ -30,6 +30,7 @@ import {
   Percent,
   CircleDollarSign,
   MapPin,
+  Banknote,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -60,7 +61,7 @@ const TIERED_PERKS = new Set([5, 8, 9]);
 const COMING_SOON_PERK_IDS = [11, 12, 13, 14];
 
 // Default bundles shown in UI (used when API returns empty or before migration)
-const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> = [
+const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> = [
   { name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5" },
   { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3" },
   { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75" },
@@ -98,7 +99,7 @@ export default function GameShop() {
 
   const [useUsdc, setUseUsdc] = useState(false);
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
-  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }>>([]);
+  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
 
   const { data: tycAllowance } = useReadContract({
   address: tycTokenAddress,
@@ -409,7 +410,7 @@ const { data: usdcAllowance } = useReadContract({
   const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
 
   useEffect(() => {
-    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> }>('shop/bundles').then((r) => {
+    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> }>('shop/bundles').then((r) => {
       if (r?.data?.bundles) setBundles(r.data.bundles);
     }).catch(() => {});
   }, []);
@@ -537,16 +538,29 @@ const { data: usdcAllowance } = useReadContract({
                     </div>
                     <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
                     <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
-                    <div className="flex items-baseline gap-3 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
                       <span className="text-lg font-bold">{b.price_tyc} TYC</span>
                       <span className="text-slate-500">or</span>
                       <span className="text-lg font-bold">${b.price_usdc} USDC</span>
+                      {b.price_ngn != null && b.price_ngn > 0 && (
+                        <>
+                          <span className="text-slate-500">or</span>
+                          <span className="text-lg font-bold">₦{(b.price_ngn / 100).toLocaleString()} NGN</span>
+                        </>
+                      )}
                     </div>
                     <button
                       disabled
                       className="w-full py-3 rounded-xl font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed"
                     >
                       Coming soon
+                    </button>
+                    <button
+                      disabled
+                      className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Banknote className="w-4 h-4" />
+                      Pay with NGN — Coming soon
                     </button>
                   </div>
                 </motion.div>
