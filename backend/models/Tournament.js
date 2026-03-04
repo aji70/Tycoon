@@ -65,8 +65,30 @@ const Tournament = {
     return this.findById(id);
   },
 
+  /**
+   * Delete a tournament and all related rows in dependency order to satisfy FKs.
+   * tournament_matches references tournament_entries (no CASCADE), so we must delete
+   * match_start_requests → matches → rounds → entries → tournament.
+   */
   async delete(id) {
-    return db("tournaments").where({ id }).del();
+    const tournamentId = Number(id);
+    if (!Number.isInteger(tournamentId)) return 0;
+
+    return db.transaction(async (trx) => {
+      const matchRows = await trx("tournament_matches")
+        .where({ tournament_id: tournamentId })
+        .select("id");
+      const matchIds = matchRows.map((r) => r.id);
+
+      if (matchIds.length > 0) {
+        await trx("tournament_match_start_requests").whereIn("match_id", matchIds).del();
+      }
+      await trx("tournament_matches").where({ tournament_id: tournamentId }).del();
+      await trx("tournament_rounds").where({ tournament_id: tournamentId }).del();
+      await trx("tournament_entries").where({ tournament_id: tournamentId }).del();
+      const deleted = await trx("tournaments").where({ id: tournamentId }).del();
+      return deleted;
+    });
   },
 };
 
