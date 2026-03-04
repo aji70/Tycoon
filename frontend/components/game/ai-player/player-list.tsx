@@ -52,10 +52,13 @@ const PlayerList: React.FC<PlayerListProps> = ({
 
   const handlePlayerTap = (player: Player) => {
     if (compact) {
-      // In compact mode, tap directly starts trade if possible
-      const canTrade = isNext && !player.in_jail && player !== myPlayer;
+      const canTrade = isNext && !player?.in_jail && player !== myPlayer && player?.user_id != null;
       if (canTrade) {
-        startTrade(player);
+        try {
+          startTrade(player);
+        } catch (err) {
+          console.error("[PlayerList] startTrade error:", err);
+        }
       }
       return;
     }
@@ -151,8 +154,12 @@ const PlayerList: React.FC<PlayerListProps> = ({
                     whileTap={{ scale: 0.95 }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      startTrade(p);
-                      setSelectedPlayerId(null);
+                      try {
+                        startTrade(p);
+                        setSelectedPlayerId(null);
+                      } catch (err) {
+                        console.error("[PlayerList] startTrade error:", err);
+                      }
                     }}
                     className="
                       w-full py-2 text-sm font-bold rounded-lg

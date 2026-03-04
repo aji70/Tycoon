@@ -110,17 +110,18 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
 
   if (!props.open) return null;
 
-  const safeGameProps = game_properties ?? [];
-  const safeProperties = properties ?? [];
-  const safeMyProperties = my_properties ?? [];
+  const safeGameProps = Array.isArray(game_properties) ? game_properties : [];
+  const safeProperties = Array.isArray(properties) ? properties : [];
+  const safeMyProperties = Array.isArray(my_properties) ? my_properties.filter(Boolean) : [];
 
   const targetOwnedProps = useMemo(() => {
-    if (!targetPlayerAddress) return [];
+    const addr = targetPlayerAddress ?? "";
+    if (!addr) return [];
     const ownedGameProps = safeGameProps.filter(
-      (gp: any) => gp.address === targetPlayerAddress
+      (gp: any) => (gp?.address ?? "") === addr
     );
     return safeProperties.filter((p: any) =>
-      ownedGameProps.some((gp: any) => gp.property_id === p.id)
+      ownedGameProps.some((gp: any) => gp?.property_id === p?.id)
     );
   }, [safeGameProps, safeProperties, targetPlayerAddress]);
 
@@ -226,7 +227,7 @@ export const TradeModal: React.FC<TradeModalProps> = (props) => {
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {(targetOwnedProps ?? []).length > 0 ? (
-                  (targetOwnedProps ?? []).map((p) => (
+                  (targetOwnedProps ?? []).filter((p) => p != null && p.id != null).map((p) => (
                     <PropertyCard
                       key={p.id}
                       prop={p}

@@ -104,7 +104,19 @@ export function useAiPlayerLogic({
         toast.error("Not your turn!");
         return;
       }
-      setTradeModal({ open: true, target: targetPlayer });
+      if (!targetPlayer || targetPlayer.user_id == null) {
+        toast.error("Invalid player");
+        return;
+      }
+      // Clone to a plain object so modal/children don't hit reactive proxy or missing-field issues
+      const target: Player = {
+        ...targetPlayer,
+        address: targetPlayer.address ?? "",
+        username: targetPlayer.username ?? "Player",
+        balance: targetPlayer.balance ?? 0,
+        symbol: targetPlayer.symbol ?? "hat",
+      };
+      setTradeModal({ open: true, target });
       resetTradeFields();
     },
     [isNext, resetTradeFields]
