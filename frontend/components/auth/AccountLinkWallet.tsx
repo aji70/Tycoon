@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { Link2, Unlink, LogIn, Loader2, Mail, Merge } from "lucide-react";
+import { Link2, Unlink, Loader2, Mail, Merge } from "lucide-react";
 
 /** Chain id to backend chain name */
 function chainIdToBackendChain(chainId: number): string {
@@ -58,28 +58,6 @@ export default function AccountLinkWallet() {
       if (!res.success) setError(res.message ?? "Unlink failed");
     } catch (e) {
       setError((e as Error)?.message ?? "Unlink failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLoginByWallet = async () => {
-    if (!address || !auth?.loginByWallet) return;
-    setError(null);
-    setLoading(true);
-    try {
-      const message = `Sign in to Tycoon at ${Date.now()}`;
-      const signature = await signMessageAsync({ message });
-      const res = await auth.loginByWallet({
-        address,
-        chain,
-        message,
-        signature,
-      });
-      if (res.success) setError(null);
-      else setError(res.message ?? "Sign in failed");
-    } catch (e) {
-      setError((e as Error)?.message ?? "Failed to sign in");
     } finally {
       setLoading(false);
     }
@@ -165,36 +143,19 @@ export default function AccountLinkWallet() {
         </>
       )}
 
-      {/* Wallet connected but no session: Sign in with wallet */}
-      {!guestUser && isConnected && address && auth?.loginByWallet && (
-        <div>
-          <p className="text-sm text-white/70 mb-2">Get a session so you can use the app without keeping the wallet connected.</p>
-          <button
-            type="button"
-            onClick={handleLoginByWallet}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-            Sign in with wallet
-          </button>
-        </div>
-      )}
-
-      {!guestUser && !isConnected && (
-        <p className="text-sm text-white/50">Connect a wallet to link it or sign in.</p>
-      )}
-
-      {/* Connect email (when logged in): same profile for wallet or email login */}
-      {guestUser && auth?.connectEmail && (
+      {/* Email: one line when logged in — connected email or prompt to link */}
+      {guestUser && (
         <div className="pt-3 border-t border-white/10">
-          {guestUser.email_verified ? (
-            <p className="text-sm text-emerald-400/90">Email connected and verified. You can sign in with wallet or email.</p>
-          ) : guestUser.email ? (
-            <p className="text-sm text-white/70">Email added. Check your inbox for the verification link.</p>
-          ) : (
+          {guestUser.email || guestUser.email_verified ? (
+            <p className="text-sm text-white/90">
+              Connected email: <span className="text-cyan-300">{guestUser.email ?? "—"}</span>
+              {!guestUser.email_verified && guestUser.email && (
+                <span className="text-white/60 text-xs ml-1">(check inbox to verify)</span>
+              )}
+            </p>
+          ) : auth?.connectEmail ? (
             <>
-              <p className="text-sm text-white/70 mb-2">Link your email to use the same profile when you sign in with wallet or email.</p>
+              <p className="text-sm text-white/70 mb-2">Link your email to use the same profile from any device.</p>
               <form
                 className="flex flex-wrap gap-2"
                 onSubmit={async (e) => {
@@ -227,53 +188,11 @@ export default function AccountLinkWallet() {
                   className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50"
                 >
                   {emailLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                  Connect email
+                  Link email
                 </button>
               </form>
             </>
-          )}
-        </div>
-      )}
-
-      {/* Login with email (when not logged in) */}
-      {!guestUser && auth?.loginEmail && (
-        <div className="pt-3 border-t border-white/10">
-          <p className="text-sm text-white/70 mb-2">Already have an email connected? Log in here.</p>
-          <form
-            className="flex flex-wrap gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!email.trim() || !emailPassword) return;
-              setEmailLoading(true);
-              setError(null);
-              const res = await auth.loginEmail(email.trim(), emailPassword);
-              setEmailLoading(false);
-              if (!res.success) setError(res.message ?? "Login failed");
-            }}
-          >
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 min-w-[140px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={emailPassword}
-              onChange={(e) => setEmailPassword(e.target.value)}
-              className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={emailLoading}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50"
-            >
-              {emailLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-              Login with email
-            </button>
-          </form>
+          ) : null}
         </div>
       )}
     </div>
