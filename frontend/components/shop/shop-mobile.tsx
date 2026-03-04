@@ -31,6 +31,7 @@ import {
   Percent,
   CircleDollarSign,
   MapPin,
+  Banknote,
 } from 'lucide-react';
 
 import RewardABI from '@/context/abi/rewardabi.json';
@@ -59,7 +60,7 @@ const TIERED_PERKS = new Set([5, 8, 9]);
 const COMING_SOON_PERK_IDS = [11, 12, 13, 14];
 
 // Default bundles shown in UI (used when API returns empty or before migration)
-const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> = [
+const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> = [
   { name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5" },
   { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3" },
   { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75" },
@@ -95,10 +96,10 @@ export default function GameShopMobile() {
   const { usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
-  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }>>([]);
+  const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
 
   useEffect(() => {
-    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string }> }>('shop/bundles').then((r) => {
+    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> }>('shop/bundles').then((r) => {
       if (r?.data?.bundles) setBundles(r.data.bundles);
     }).catch(() => {});
   }, []);
@@ -443,8 +444,20 @@ export default function GameShopMobile() {
                   <span className="px-2 py-0.5 rounded bg-amber-500/20 text-[9px] font-semibold text-amber-300 uppercase">Bundle</span>
                   <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
                   <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
-                  <p className="text-[#00F0FF] font-semibold text-sm mt-2">{b.price_tyc} TYC or ${b.price_usdc} USDC</p>
+                  <p className="text-[#00F0FF] font-semibold text-sm mt-2">
+                    {b.price_tyc} TYC or ${b.price_usdc} USDC
+                    {b.price_ngn != null && b.price_ngn > 0 && (
+                      <> or ₦{(b.price_ngn / 100).toLocaleString()} NGN</>
+                    )}
+                  </p>
                   <button disabled className="w-full mt-3 py-2.5 rounded-lg bg-slate-800/80 text-slate-500 text-sm font-medium">Coming soon</button>
+                  <button
+                    disabled
+                    className="w-full mt-2 py-2 rounded-lg text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/60 flex items-center justify-center gap-1.5"
+                  >
+                    <Banknote size={14} />
+                    Pay with NGN — Coming soon
+                  </button>
                 </motion.div>
               ))}
             </div>
