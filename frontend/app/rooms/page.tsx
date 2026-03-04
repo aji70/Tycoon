@@ -90,7 +90,7 @@ export default function RoomsPage() {
             <RoomsLoadingPlaceholder />
           ) : (
             <ModalErrorBoundary
-              fallbackTitle="Something went wrong loading the room."
+              fallbackTitle="Couldn't load the room. Try again or refresh the page."
               fallbackSubtext="Try refreshing the page. If it keeps happening, check the browser console for details."
               showStack
             >

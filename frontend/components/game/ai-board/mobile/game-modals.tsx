@@ -125,7 +125,7 @@ const GameModals: React.FC<GameModalsProps> = ({
       } catch (_) {}
     } catch (err: any) {
       toast.error(
-        getContractErrorMessage(err, "Something went wrong — you can try again later"),
+        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
         { id: toastId, duration: 8000 }
       );
     }
@@ -157,7 +157,7 @@ const GameModals: React.FC<GameModalsProps> = ({
       window.location.href = "/";
     } catch (err: any) {
       toast.error(
-        getContractErrorMessage(err, "Something went wrong — try again later"),
+        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
         { id: toastId, duration: 8000 }
       );
       setClaimAndLeaveInProgress(false);

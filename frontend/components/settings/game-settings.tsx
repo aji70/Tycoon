@@ -85,6 +85,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
   });
 
   const [customStake, setCustomStake] = useState<string>("");
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES] as Address | undefined;
   const usdcTokenAddress = USDC_TOKEN_ADDRESS[wagmiChainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
@@ -260,7 +261,7 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
     } catch (err: any) {
       console.error("Create game error:", err);
       const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
-
+      setCreateError(message);
       toast.update(toastId, {
         render: message,
         type: "error",
@@ -520,10 +521,21 @@ export default function GameSettings({ redirectToWaitingRoom = "/game-waiting" }
           </div>
         </div>
 
+        {/* Create error — inline above submit */}
+        {createError && (
+          <div className="mt-8 p-4 rounded-xl bg-red-950/30 border border-red-500/30" role="alert">
+            <p className="text-red-400 text-sm font-medium text-center">{createError}</p>
+            <p className="text-slate-500 text-xs text-center mt-1">Fix any issues above or try again.</p>
+          </div>
+        )}
+
         {/* Create Button */}
         <div className="flex justify-center mt-12">
           <button
-            onClick={() => playGuard.submit(() => handlePlay())}
+            onClick={() => {
+              setCreateError(null);
+              playGuard.submit(() => handlePlay());
+            }}
             disabled={!canCreate || playGuard.isSubmitting || (!isGuest && (isCreatePending || ((approvePending || approveConfirming) && !isFreeGame)))}
             className="relative px-24 py-6 text-3xl font-orbitron font-black tracking-widest
                        bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10]

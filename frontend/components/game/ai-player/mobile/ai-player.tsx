@@ -153,7 +153,7 @@ export default function MobileGamePlayers({
       }, 1500);
     } catch (err: any) {
       toast.error(
-        getContractErrorMessage(err, "Something went wrong — try again later"),
+        getContractErrorMessage(err, "Something went wrong. Try again or refresh the page."),
         { id: toastId, duration: 8000 }
       );
     }

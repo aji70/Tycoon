@@ -1770,7 +1770,7 @@ function Board3DPageContent() {
       }
       window.location.href = "/";
     } catch (err) {
-      toast.error(getContractErrorMessage(err as Error, "Something went wrong — try again later"));
+      toast.error(getContractErrorMessage(err as Error, "Something went wrong. Try again or refresh the page."));
       setClaimAndLeaveInProgress(false);
     } finally {
       setClaimAndLeaveInProgress(false);
