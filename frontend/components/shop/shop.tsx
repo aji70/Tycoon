@@ -46,6 +46,7 @@ import {
 import { apiClient } from '@/lib/api';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
+import FirstTimeHint from '@/components/ui/FirstTimeHint';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -522,6 +523,16 @@ const { data: usdcAllowance } = useReadContract({
         </div>
 
         <div className="min-h-[320px]">
+          {shopTab === 'perks' && (
+            <div className="mb-4">
+              <FirstTimeHint
+                storageKey="perks_in_game"
+                message="You can also buy perks during a game from the My Perks button in the bottom bar."
+                link={{ href: '/how-to-play', label: 'How to Play' }}
+                compact
+              />
+            </div>
+          )}
           {shopTab === 'bundles' && (
           <div>
             <div className="flex items-center gap-4 mb-6">
@@ -597,7 +608,7 @@ const { data: usdcAllowance } = useReadContract({
             <EmptyState
               icon={<ShoppingBag className="w-16 h-16 text-slate-500" />}
               title="No perks in stock yet"
-              description="New perks will appear here when they’re added. Check back soon or play games to earn vouchers."
+              description="Perks give you in-game advantages. Buy them here or in the Perk Shop during a game. New perks will appear when they're added—check back soon or play games to earn vouchers."
             />
           </motion.div>
         ) : (
@@ -770,7 +781,7 @@ const { data: usdcAllowance } = useReadContract({
                     <EmptyState
                       icon={<Ticket className="w-14 h-14 text-amber-500/70" />}
                       title="No vouchers yet"
-                      description="Win games to earn reward vouchers, or buy perks in the shop to get in-game advantages."
+                      description="Win games to earn reward vouchers, or buy perks in the Perk Shop to get in-game advantages."
                       compact
                       className="border-amber-500/20 bg-amber-950/10"
                     />

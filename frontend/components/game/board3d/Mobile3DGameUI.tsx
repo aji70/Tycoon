@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Bell, Users, X, Landmark, MessageCircle } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, Bell, Users, X, Landmark, MessageCircle, HelpCircle } from "lucide-react";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import PlayerSection3D from "./PlayerSection3D";
 import MyEmpire3D from "./MyEmpire3D";
@@ -155,6 +156,15 @@ export default function Mobile3DGameUI({
             )}
           </button>
         )}
+        <Link
+          href="/how-to-play"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-slate-600/80 hover:bg-slate-500/90 text-slate-200 transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          aria-label="How to Play"
+          title="How to Play"
+        >
+          <HelpCircle className="w-5 h-5" />
+          <span className="text-xs font-medium">?</span>
+        </Link>
       </div>
 
       {/* My Empire modal */}

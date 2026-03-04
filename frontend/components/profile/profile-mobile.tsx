@@ -27,6 +27,7 @@ import { getLevelFromActivity } from '@/lib/level';
 import { DailyClaim } from '@/components/rewards/DailyClaim';
 import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
+import FirstTimeHint from '@/components/ui/FirstTimeHint';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -545,6 +546,13 @@ export default function ProfilePageMobile() {
           <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[220px] max-h-[50vh] overflow-y-auto">
             {profileTab === 'stats' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <FirstTimeHint
+                  storageKey="profile_stats"
+                  message="Your stats and level progress live here. Claim rewards after games from the results screen."
+                  link={{ href: '/how-to-play', label: 'How to Play' }}
+                  compact
+                  className="mb-4"
+                />
                 <div className="mb-4">
                   <DailyClaim />
                 </div>
@@ -678,7 +686,7 @@ export default function ProfilePageMobile() {
                   <EmptyState
                     icon={<ShoppingBag className="w-12 h-12 text-purple-400/70" />}
                     title="No perks yet"
-                    description="Buy perks in the Perk Shop or during a game from My Perks."
+                    description="Perks give you in-game advantages. Buy them in the Perk Shop or during a game from My Perks."
                     action={{ label: 'Visit Perk Shop', href: '/game-shop' }}
                     compact
                     className="border-purple-500/20 bg-black/20 py-6"

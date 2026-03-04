@@ -29,7 +29,7 @@ import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X } from "lucide-react";
+import { Crown, Trophy, Sparkles, HeartHandshake, Loader2, X, HelpCircle } from "lucide-react";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
@@ -1757,7 +1757,7 @@ function Board3DPageContent() {
           </div>
         )}
 
-        {/* Reset view + Fullscreen — above the board */}
+        {/* Reset view + Fullscreen + How to Play — above the board */}
         {!(gameCode && gameError) && !(isLoading || (gameCode && gameLoading)) && (
           <div className="flex items-center justify-center gap-2 w-full max-w-[1200px] py-2 shrink-0">
             <button
@@ -1776,6 +1776,14 @@ function Board3DPageContent() {
             >
               {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             </button>
+            <Link
+              href="/how-to-play"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-slate-700/95 hover:bg-slate-600 border border-slate-500/60 text-slate-200 font-medium shadow-lg"
+              title="How to Play"
+              aria-label="How to Play"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Link>
           </div>
         )}
 
