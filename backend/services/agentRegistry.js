@@ -119,6 +119,7 @@ async function getAIDecision(gameId, slot, decisionType, context) {
       propertyId: data.propertyId,
       reasoning: data.reasoning,
       confidence: data.confidence,
+      counterOffer: data.counterOffer,
     };
   } catch (err) {
     clearTimeout(timeout);

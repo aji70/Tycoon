@@ -58,7 +58,7 @@ function buildTradePrompt(context) {
   const trade = context.tradeOffer || {};
   const { myBalance = 0, myProperties = [], opponents = [] } = context;
   const monopolies = getMonopolies(myProperties || []).join(", ") || "None";
-  return `Monopoly trade. Receive: $${trade.offer_amount ?? 0}, props ${(trade.offer_properties || []).join(",") || "none"}. Give: $${trade.requested_amount ?? 0}, props ${(trade.requested_properties || []).join(",") || "none"}. Balance: $${myBalance}. My monopolies: ${monopolies}. Does it complete my monopoly? Theirs? Fair? JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85}`;
+  return `Monopoly trade. Receive: $${trade.offer_amount ?? 0}, props ${(trade.offer_properties || []).join(",") || "none"}. Give: $${trade.requested_amount ?? 0}, props ${(trade.requested_properties || []).join(",") || "none"}. Balance: $${myBalance}. My monopolies: ${monopolies}. Does it complete my monopoly? Theirs? Fair? If you counter, suggest how much extra cash you want (positive) or give (negative). JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (cashAdjustment only if action is "counter"; e.g. 100 = I want $100 more from them, -50 = I'll add $50)`;
 }
 
 function buildBuildingPrompt(context) {
@@ -176,6 +176,9 @@ async function getDecision(gameId, slot, decisionType, context) {
       confidence: Number(parsed.confidence) ?? fallback.confidence,
     };
     if (parsed.propertyId != null) out.propertyId = Number(parsed.propertyId);
+    if (parsed.counterOffer && typeof parsed.counterOffer === "object") {
+      out.counterOffer = { cashAdjustment: Number(parsed.counterOffer.cashAdjustment) || 0 };
+    }
     return out;
   } catch (err) {
     console.error("[internalAgent] LLM request failed:", err.message);

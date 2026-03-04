@@ -35,6 +35,7 @@ export const AiResponsePopup: React.FC<AiResponsePopupProps> = ({ popup, propert
   const hasRequestedCash = (trade.requested_amount ?? 0) > 0;
 
   const isAccepted = decision === "accepted";
+  const isCountered = decision === "countered";
 
   return (
     <AnimatePresence>
@@ -93,15 +94,20 @@ export const AiResponsePopup: React.FC<AiResponsePopupProps> = ({ popup, propert
                 animate={{ scale: 1 }}
                 transition={{ duration: 0.4 }}
                 className={`text-4xl sm:text-5xl font-black mb-6 drop-shadow-lg ${
-                  isAccepted ? "text-emerald-400" : "text-rose-500"
+                  isAccepted ? "text-emerald-400" : isCountered ? "text-amber-400" : "text-rose-500"
                 }`}
               >
-                {isAccepted ? "ACCEPTED ✓" : "DECLINED ✗"}
+                {isAccepted ? "ACCEPTED ✓" : isCountered ? "COUNTERED" : "DECLINED ✗"}
               </motion.div>
 
               <p className="text-xl sm:text-2xl italic text-gray-200/90 leading-relaxed max-w-prose mx-auto">
                 "{remark}"
               </p>
+              {isCountered && (
+                <p className="text-base text-amber-200/90 mt-3">
+                  Check your incoming trades to accept or counter.
+                </p>
+              )}
             </div>
 
             {/* Trade summary - only show sections with content */}

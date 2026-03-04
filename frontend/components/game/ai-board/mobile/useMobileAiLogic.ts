@@ -558,7 +558,8 @@ export function useMobileAiBankruptcy({
   );
 
   const aiSellHouses = useCallback(
-    async (player: Player) => {
+    async (player: Player): Promise<number> => {
+      let raised = 0;
       const improved = currentGameProperties.filter(
         (gp) =>
           gp.address === player.address && (gp.development ?? 0) > 0
@@ -566,6 +567,7 @@ export function useMobileAiBankruptcy({
       for (const gp of improved) {
         const prop = properties.find((p) => p.id === gp.property_id);
         if (!prop?.cost_of_house) continue;
+        const sellValue = Math.floor(prop.cost_of_house / 2);
         const houses = gp.development ?? 0;
         for (let i = 0; i < houses; i++) {
           try {
@@ -574,6 +576,7 @@ export function useMobileAiBankruptcy({
               user_id: player.user_id,
               property_id: gp.property_id,
             });
+            raised += sellValue;
             await new Promise((r) => setTimeout(r, 600));
           } catch (err) {
             console.error("AI failed to sell house", err);
@@ -582,12 +585,14 @@ export function useMobileAiBankruptcy({
         }
       }
       await fetchUpdatedGame();
+      return raised;
     },
     [currentGame.id, currentGameProperties, properties, fetchUpdatedGame]
   );
 
   const aiMortgageProperties = useCallback(
-    async (player: Player) => {
+    async (player: Player): Promise<number> => {
+      let raised = 0;
       const unmortgaged = currentGameProperties.filter(
         (gp) =>
           gp.address === player.address &&
@@ -595,20 +600,24 @@ export function useMobileAiBankruptcy({
           gp.development === 0
       );
       for (const gp of unmortgaged) {
+        const prop = properties.find((p) => p.id === gp.property_id);
+        const mortgageValue = prop?.price ? Math.floor(prop.price / 2) : 0;
         try {
           await apiClient.post("/game-properties/mortgage", {
             game_id: currentGame.id,
             user_id: player.user_id,
             property_id: gp.property_id,
           });
+          raised += mortgageValue;
           await new Promise((r) => setTimeout(r, 600));
         } catch (err) {
           console.error("AI failed to mortgage", err);
         }
       }
       await fetchUpdatedGame();
+      return raised;
     },
-    [currentGame.id, currentGameProperties, fetchUpdatedGame]
+    [currentGame.id, currentGameProperties, properties, fetchUpdatedGame]
   );
 
   useEffect(() => {
@@ -659,8 +668,21 @@ export function useMobileAiBankruptcy({
       );
       try {
         setIsRaisingFunds(true);
-        await aiSellHouses(currentPlayer);
-        await aiMortgageProperties(currentPlayer);
+        const initialBalance = Number(currentPlayer.balance ?? 0);
+        const raisedFromHouses = await aiSellHouses(currentPlayer);
+        const raisedFromMortgages = await aiMortgageProperties(currentPlayer);
+        const totalRaised = raisedFromHouses + raisedFromMortgages;
+        const computedBalance = initialBalance + totalRaised;
+
+        if (computedBalance >= 0) {
+          toast.dismiss(mainToastId);
+          toast.success(
+            `${currentPlayer.username} raised $${totalRaised} and stayed in the game.`,
+            { duration: 4000 }
+          );
+          return;
+        }
+
         await fetchUpdatedGame();
         const aiProps = currentGameProperties.filter(
           (gp) => gp.address === currentPlayer.address
