@@ -294,7 +294,7 @@ export default function JoinRoom({
                 <button
                   type="button"
                   onClick={() => fetchGames()}
-                  className="shrink-0 px-4 py-2 rounded-lg bg-[#00F0FF] text-[#010F10] font-bold font-orbitron text-sm hover:bg-[#00F0FF]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1A1B]"
+                  className="shrink-0 min-h-[44px] px-4 py-2 rounded-lg bg-[#00F0FF] text-[#010F10] font-bold font-orbitron text-sm hover:bg-[#00F0FF]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1A1B]"
                 >
                   Try again
                 </button>

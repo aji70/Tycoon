@@ -79,7 +79,7 @@ export function EmptyState({
           {action.href ? (
             <Link
               href={action.href}
-              className="inline-flex items-center justify-center rounded-xl font-bold px-6 py-3 bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_24px_rgba(0,240,255,0.35)] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl font-bold px-6 py-3 bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_24px_rgba(0,240,255,0.35)] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]"
             >
               {action.label}
             </Link>
@@ -87,7 +87,7 @@ export function EmptyState({
             <button
               type="button"
               onClick={action.onClick}
-              className="inline-flex items-center justify-center rounded-xl font-bold px-6 py-3 bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_24px_rgba(0,240,255,0.35)] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl font-bold px-6 py-3 bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_24px_rgba(0,240,255,0.35)] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]"
             >
               {action.label}
             </button>

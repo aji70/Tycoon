@@ -383,7 +383,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                 type="button"
                 onClick={closeMobileMenu}
                 aria-label="Close menu"
-                className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-[#011112]/90 border border-[#003B3E]/60 flex items-center justify-center text-white/90 hover:bg-[#022a2c] hover:border-[#00F0FF]/25 hover:text-[#00F0FF] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10]"
+                className="absolute top-4 right-4 min-w-[44px] min-h-[44px] rounded-xl bg-[#011112]/90 border border-[#003B3E]/60 flex items-center justify-center text-white/90 hover:bg-[#022a2c] hover:border-[#00F0FF]/25 hover:text-[#00F0FF] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#010F10]"
               >
                 <X size={22} />
               </button>
