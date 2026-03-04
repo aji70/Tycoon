@@ -19,7 +19,8 @@ export const getPlayerSymbolData = (value: string) => {
   return symbols.find((s) => s.value === value);
 };
 
-export const getPlayerSymbol = (value: string) => {
-  const symbol = symbols.find((s) => s.value === value);
-  return symbol?.emoji;
+export const getPlayerSymbol = (value: string | undefined | null): string => {
+  const v = value ?? "";
+  const symbol = symbols.find((s) => s.value === v);
+  return symbol?.emoji ?? symbols[0]?.emoji ?? "🧢";
 };
