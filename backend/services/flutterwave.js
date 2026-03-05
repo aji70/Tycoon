@@ -59,6 +59,7 @@ export async function initializePayment({
     amount: String(Math.round(amount)),
     currency: "NGN",
     redirect_url: String(redirectUrl),
+    payment_options: "card, ussd, account",
     customer: {
       email: customerEmail,
       name: (customerName && String(customerName).trim()) || "Tycoon Player",
@@ -82,8 +83,15 @@ export async function initializePayment({
   const data = await res.json();
   if (data.status !== "success" || !data.data?.link) {
     const msg = data.message || data.data?.message || "Flutterwave initialize failed";
-    const validation = data.data?.validation_errors || data.validation_errors;
-    const detail = validation && Array.isArray(validation) ? `${msg}: ${validation.map((v) => v.field || v).join(", ")}` : msg;
+    const validation =
+      data.data?.validation_errors ||
+      data.validation_errors ||
+      data.error?.validation_errors ||
+      [];
+    const parts = Array.isArray(validation)
+      ? validation.map((v) => v.field_name || v.field || v.message || String(v))
+      : [];
+    const detail = parts.length ? `${msg}: ${parts.join(", ")}` : msg;
     throw new Error(detail);
   }
   return {
