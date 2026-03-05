@@ -150,7 +150,12 @@ export default function GameShopMobile() {
       if (status === 401) {
         toast.error('Please sign in to pay with NGN.');
       } else {
-        toast.error(e?.message || e?.response?.data?.message || 'Failed to initialize NGN payment');
+        const msg =
+          e?.message ??
+          e?.data?.message ??
+          e?.response?.data?.message ??
+          'Failed to initialize NGN payment';
+        toast.error(msg);
       }
     } finally {
       setNgnLoadingBundleId(null);
