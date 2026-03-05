@@ -243,15 +243,83 @@ export async function flutterwaveStatus(req, res) {
 
 /**
  * POST /api/shop/flutterwave/initialize-test
- * No auth, no DB. Body: { callback_url?, amount? } (amount in Naira, default 200).
- * Creates a Flutterwave payment link with fixed test customer. For debugging only.
+ * Single Flutterwave entry point (same as test page).
+ * - With auth + bundle_id: shop purchase (looks up bundle/user, stores in DB, same payload as test).
+ * - Without auth or without bundle_id: test mode (amount 200, test customer, no DB).
+ * Body: { bundle_id?, callback_url?, amount? } (amount only for test mode; default 200).
  */
 export async function flutterwaveInitializeTest(req, res) {
   try {
     if (!isFlutterwaveConfigured()) {
       return res.status(503).json({ success: false, message: "Flutterwave not configured (FLW_SECRET_KEY)" });
     }
-    const { callback_url, amount } = req.body || {};
+    const { bundle_id, callback_url, amount } = req.body || {};
+    const user_id = req.user?.id;
+    const wantsShop = Number.isInteger(Number(bundle_id)) && Number(bundle_id) >= 1;
+    const hasShopRequest = wantsShop && user_id;
+
+    if (wantsShop && !user_id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    if (hasShopRequest) {
+      // Shop flow: same function as test page but with bundle + user, store in DB
+      const bundleId = Number(bundle_id);
+      const bundle = await db("perk_bundles").where({ id: bundleId, active: true }).first();
+      if (!bundle) {
+        return res.status(404).json({ success: false, message: "Bundle not found or inactive" });
+      }
+      const priceNgn = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
+      if (priceNgn == null || priceNgn < 200) {
+        return res.status(400).json({ success: false, message: "NGN amount must be at least 200. This bundle is not available for NGN purchase." });
+      }
+      const user = await db("users").where({ id: user_id }).first();
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+      const email =
+        (user.email && String(user.email).trim()) ||
+        (user.username ? `${String(user.username).trim()}@tycoon.placeholder` : null) ||
+        "test@example.com";
+      const customerName =
+        (user.username && String(user.username).trim()) ||
+        (user.email && String(user.email).trim()) ||
+        "Tycoon Player";
+      let redirectUrl = (callback_url && String(callback_url).trim()) || "";
+      if (!redirectUrl.startsWith("http")) {
+        const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+        redirectUrl = base ? `${base}/game-shop` : "";
+      }
+      if (!redirectUrl || !redirectUrl.startsWith("http")) {
+        return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL is required for NGN payment redirect" });
+      }
+      const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+      const { link, tx_ref } = await initializePayment({
+        amountNaira: Number(priceNgn),
+        email,
+        txRef,
+        redirectUrl,
+        meta: {},
+        customerName,
+      });
+      try {
+        await db("flutterwave_payments").insert({
+          tx_ref,
+          user_id,
+          bundle_id: bundleId,
+          amount_kobo: Math.round(priceNgn * 100),
+          status: "pending",
+        });
+      } catch (dbErr) {
+        logger.error({ err: dbErr.message, tx_ref }, "flutterwave_payments insert failed");
+        return res.status(500).json({
+          success: false,
+          message: "Payment created but failed to record. Support may confirm via reference.",
+        });
+      }
+      return res.json({ success: true, link, reference: tx_ref });
+    }
+
+    // Test mode: no auth or no bundle_id – same as test page
     const amountNaira = amount != null ? Number(amount) : 200;
     if (!Number.isFinite(amountNaira) || amountNaira < 200) {
       return res.status(400).json({ success: false, message: "amount must be at least 200 Naira" });
@@ -270,15 +338,15 @@ export async function flutterwaveInitializeTest(req, res) {
       email: "test@example.com",
       txRef,
       redirectUrl,
-      meta: { test: "true" },
+      meta: {},
       customerName: "Test Customer",
     });
     return res.json({ success: true, link, reference: tx_ref });
   } catch (err) {
-    logger.error({ err: err.message, stack: err.stack }, "flutterwaveInitializeTest error");
+    logger.error({ err: err.message, stack: err.stack, userId: req.user?.id }, "flutterwaveInitializeTest error");
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to initialize test payment",
+      message: err.message || "Failed to initialize payment",
     });
   }
 }
@@ -286,98 +354,11 @@ export async function flutterwaveInitializeTest(req, res) {
 /**
  * POST /api/shop/flutterwave/initialize
  * Body: { bundle_id, callback_url? }
- * Auth required. Creates Flutterwave payment and returns link + tx_ref.
+ * Auth required. Delegates to same handler as test (initialize-test).
+ * @deprecated Use POST /api/shop/flutterwave/initialize-test with bundle_id + auth instead.
  */
 export async function flutterwaveInitialize(req, res) {
-  try {
-    const user_id = req.user?.id;
-    if (!user_id) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
-    if (!isFlutterwaveConfigured()) {
-      return res.status(503).json({ success: false, message: "NGN payments (Flutterwave) are not configured" });
-    }
-
-    const { bundle_id, callback_url } = req.body || {};
-    const bundleId = bundle_id != null ? Number(bundle_id) : NaN;
-    if (!Number.isInteger(bundleId) || bundleId < 1) {
-      return res.status(400).json({ success: false, message: "Valid bundle_id is required" });
-    }
-
-    const bundle = await db("perk_bundles").where({ id: bundleId, active: true }).first();
-    if (!bundle) {
-      return res.status(404).json({ success: false, message: "Bundle not found or inactive" });
-    }
-    const priceNgn = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
-    if (priceNgn == null || priceNgn < 200) {
-      return res.status(400).json({ success: false, message: "NGN amount must be at least 200. This bundle is not available for NGN purchase." });
-    }
-
-    const user = await db("users").where({ id: user_id }).first();
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-    // Same fallbacks as working test flow so Flutterwave always gets non-empty values
-    const email =
-      (user.email && String(user.email).trim()) ||
-      (user.username ? `${String(user.username).trim()}@tycoon.placeholder` : null) ||
-      "test@example.com";
-    const customerName =
-      (user.username && String(user.username).trim()) ||
-      (user.email && String(user.email).trim()) ||
-      "Tycoon Player";
-
-    const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
-    let redirectUrl = (callback_url && String(callback_url).trim()) || "";
-    if (!redirectUrl.startsWith("http")) {
-      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
-      redirectUrl = base ? `${base}/game-shop` : "";
-    }
-    if (!redirectUrl || !redirectUrl.startsWith("http")) {
-      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL is required for NGN payment redirect" });
-    }
-    // Omit meta so payload matches working test (Flutterwave can reject some meta keys)
-    const { link, tx_ref } = await initializePayment({
-      amountNaira: Number(priceNgn),
-      email,
-      txRef,
-      redirectUrl,
-      meta: {},
-      customerName,
-    });
-
-    // Store amount in kobo (priceNgn * 100) for flutterwave_payments; webhook uses amount_ngn ?? amount_kobo/100
-    try {
-      await db("flutterwave_payments").insert({
-        tx_ref,
-        user_id,
-        bundle_id: bundleId,
-        amount_kobo: Math.round(priceNgn * 100),
-        status: "pending",
-      });
-    } catch (dbErr) {
-      logger.error({ err: dbErr.message, tx_ref }, "flutterwave_payments insert failed");
-      return res.status(500).json({
-        success: false,
-        message: "Payment created but failed to record. Support may confirm via reference.",
-      });
-    }
-
-    return res.json({
-      success: true,
-      link,
-      reference: tx_ref,
-    });
-  } catch (err) {
-    logger.error(
-      { err: err.message, stack: err.stack, userId: req.user?.id },
-      "flutterwaveInitialize error"
-    );
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Failed to initialize payment",
-    });
-  }
+  return flutterwaveInitializeTest(req, res);
 }
 
 /**
