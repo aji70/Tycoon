@@ -18,9 +18,22 @@ import { Toaster } from "react-hot-toast";
 import FarcasterReady from "@/components/FarcasterReady"; 
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
+import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
 import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
+
+// Run before React: when board is restored from bfcache (device back), reload so WebGL context is fresh and R3F connect() doesn't read .style on detached node
+const BFCACHE_RELOAD_SCRIPT = `
+(function(){
+  var boardPath = /\\/board-3d-(mobile|multi-mobile)(\\/|$)/;
+  window.addEventListener('pageshow', function(e) {
+    if (e.persisted && boardPath.test(window.location.pathname)) {
+      window.location.reload();
+    }
+  });
+})();
+`;
 
 // Remove the duplicate 'cookies' global variable—it's not needed
 
@@ -65,6 +78,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased bg-[#010F10] w-full">
+        <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <FarcasterReady />
         <PrivyProviderWrapper>
           <ContextProvider cookies={cookies}>
