@@ -487,7 +487,7 @@ export default function GameShopMobile() {
                   <h3 className="font-bold text-base text-white mt-2">{b.name}</h3>
                   <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || ''}</p>
                   <p className="text-[#00F0FF] font-semibold text-sm mt-2">
-                    ${b.price_usdc} USDC
+                    ${Number(b.price_usdc).toFixed(2)} USDC
                     {b.price_ngn != null && b.price_ngn > 0 && (
                       <> or ₦{(b.price_ngn / 100).toLocaleString()} NGN</>
                     )}
@@ -602,41 +602,59 @@ export default function GameShopMobile() {
                       <div className="flex justify-between items-end mb-3 mt-auto">
                         <div>
                           <p className="text-[10px] text-slate-500 uppercase">Price</p>
-                          <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice} USDC</p>
+                          <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${Number(item.usdcPrice).toFixed(2)} USDC</p>
                         </div>
                       </div>
                     )}
 
                     {isComingSoon ? (
-                      <button disabled className="w-full py-3 rounded-xl font-semibold text-sm bg-slate-800/80 text-slate-500 border border-slate-700/80">
-                        Coming soon
-                      </button>
+                      <>
+                        <button disabled className="w-full py-3 rounded-xl font-semibold text-sm bg-slate-800/80 text-slate-500 border border-slate-700/80">
+                          Coming soon
+                        </button>
+                        <button
+                          disabled
+                          className="w-full mt-2 py-2 rounded-lg text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/60 flex items-center justify-center gap-1.5"
+                        >
+                          <Banknote size={14} />
+                          NGN payment coming soon
+                        </button>
+                      </>
                     ) : (
                       (() => {
                         const insufficientUsdc = Number(usdcBalance) < Number(item.usdcPrice);
                         return (
-                          <button
-                            onClick={() => handleBuy(item)}
-                            disabled={item.stock === 0 || buyingPending || buyingConfirming || insufficientUsdc}
-                            className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
-                              ${item.stock === 0
-                                ? 'bg-slate-800/80 text-slate-500'
-                                : insufficientUsdc
-                                ? 'bg-slate-700/80 text-slate-400'
-                                : buyingPending || buyingConfirming
-                                ? 'bg-amber-600/90 text-black'
-                                : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
-                          >
-                            {buyingPending || buyingConfirming ? (
-                              <Loader2 className="inline animate-spin mr-2" size={16} />
-                            ) : item.stock === 0 ? (
-                              'Sold Out'
-                            ) : insufficientUsdc ? (
-                              'Insufficient USDC'
-                            ) : (
-                              'Buy Now'
-                            )}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleBuy(item)}
+                              disabled={item.stock === 0 || buyingPending || buyingConfirming || insufficientUsdc}
+                              className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
+                                ${item.stock === 0
+                                  ? 'bg-slate-800/80 text-slate-500'
+                                  : insufficientUsdc
+                                  ? 'bg-slate-700/80 text-slate-400'
+                                  : buyingPending || buyingConfirming
+                                  ? 'bg-amber-600/90 text-black'
+                                  : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
+                            >
+                              {buyingPending || buyingConfirming ? (
+                                <Loader2 className="inline animate-spin mr-2" size={16} />
+                              ) : item.stock === 0 ? (
+                                'Sold Out'
+                              ) : insufficientUsdc ? (
+                                'Insufficient USDC'
+                              ) : (
+                                'Buy Now'
+                              )}
+                            </button>
+                            <button
+                              disabled
+                              className="w-full mt-2 py-2 rounded-lg text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/60 flex items-center justify-center gap-1.5"
+                            >
+                              <Banknote size={14} />
+                              NGN payment coming soon
+                            </button>
+                          </>
                         );
                       })()
                     )}
