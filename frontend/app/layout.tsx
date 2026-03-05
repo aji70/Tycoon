@@ -20,6 +20,7 @@ import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrapper
 import QueryProvider from "./QueryProvider";
+import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 
 // Remove the duplicate 'cookies' global variable—it's not needed
 
@@ -77,6 +78,7 @@ export default async function RootLayout({
                 
                 {/* ← Use the client wrapper here—no more useMediaQuery! */}
                 <QueryProvider>
+                <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
                   {children}
                 </ClientLayout>
