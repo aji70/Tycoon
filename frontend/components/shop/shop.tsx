@@ -556,7 +556,7 @@ const { data: usdcAllowance } = useReadContract({
                       <h3 className="font-bold text-lg text-white mb-2">{b.name}</h3>
                       <p className="text-slate-400 text-sm leading-relaxed mb-4 flex-1">{b.description || ''}</p>
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)] mb-4">
-                        <span className="text-lg font-bold">${b.price_usdc} USDC</span>
+                        <span className="text-lg font-bold">${(typeof b.price_usdc === 'string' ? Number(b.price_usdc) : b.price_usdc).toFixed(2)} USDC</span>
                         {b.price_ngn != null && b.price_ngn > 0 && (
                           <>
                             <span className="text-slate-500">or</span>
@@ -601,7 +601,7 @@ const { data: usdcAllowance } = useReadContract({
             className="space-y-4"
           >
             <p className="text-slate-400 text-sm text-center">Loading perks...</p>
-            <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-6 items-stretch" />
+            <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-x-4 gap-y-6 items-stretch" />
           </motion.div>
         ) : allShopItems.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -612,7 +612,7 @@ const { data: usdcAllowance } = useReadContract({
             />
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-6 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-x-4 gap-y-6 items-stretch">
             {allShopItems.map((item, index) => {
               const isProcessing = buyingPending || buyingConfirming;
               const isComingSoon = 'comingSoon' in item && item.comingSoon;
@@ -669,47 +669,65 @@ const { data: usdcAllowance } = useReadContract({
                       <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
                         <div className="flex flex-col gap-1">
                           <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
-                          <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${item.usdcPrice} USDC</p>
+                          <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${Number(item.usdcPrice).toFixed(2)} USDC</p>
                         </div>
                       </div>
                     )}
 
                     {isComingSoon ? (
-                      <button
-                        disabled
-                        className="w-full py-4 rounded-xl font-bold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed mt-auto"
-                      >
-                        Coming soon
-                      </button>
+                      <>
+                        <button
+                          disabled
+                          className="w-full py-4 rounded-xl font-bold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed mt-auto"
+                        >
+                          Coming soon
+                        </button>
+                        <button
+                          disabled
+                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          <Banknote className="w-4 h-4" />
+                          NGN payment coming soon
+                        </button>
+                      </>
                     ) : (
                       (() => {
                         const balance = Number(usdcBalance);
                         const price = Number(item.usdcPrice);
                         const insufficientFunds = balance < price;
                         return (
-                          <button
-                            onClick={() => handleBuy(item)}
-                            disabled={item.stock === 0 || isProcessing || insufficientFunds}
-                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
-                              item.stock === 0
-                                ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
-                                : insufficientFunds
-                                ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
-                                : isProcessing
-                                ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
-                                : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
-                            }`}
-                          >
-                            {isProcessing ? (
-                              <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
-                            ) : item.stock === 0 ? (
-                              'Sold Out'
-                            ) : insufficientFunds ? (
-                              <>Insufficient USDC</>
-                            ) : (
-                              <> <CreditCard className="w-5 h-5" /> Buy with USDC </>
-                            )}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleBuy(item)}
+                              disabled={item.stock === 0 || isProcessing || insufficientFunds}
+                              className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
+                                item.stock === 0
+                                  ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
+                                  : insufficientFunds
+                                  ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
+                                  : isProcessing
+                                  ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
+                                  : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
+                              }`}
+                            >
+                              {isProcessing ? (
+                                <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
+                              ) : item.stock === 0 ? (
+                                'Sold Out'
+                              ) : insufficientFunds ? (
+                                <>Insufficient USDC</>
+                              ) : (
+                                <> <CreditCard className="w-5 h-5" /> Buy with USDC </>
+                              )}
+                            </button>
+                            <button
+                              disabled
+                              className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                              <Banknote className="w-4 h-4" />
+                              NGN payment coming soon
+                            </button>
+                          </>
                         );
                       })()
                     )}
