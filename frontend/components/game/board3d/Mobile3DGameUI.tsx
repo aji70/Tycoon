@@ -300,7 +300,7 @@ export default function Mobile3DGameUI({
         )}
       </AnimatePresence>
 
-      {/* Perks modal */}
+      {/* Perks modal — cyan theme to match board */}
       <AnimatePresence>
         {showPerksModal && (
           <>
@@ -309,7 +309,7 @@ export default function Mobile3DGameUI({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowPerksModal(false)}
-              className="fixed inset-0 bg-black/60 z-[9999]"
+              className="fixed inset-0 bg-black/70 z-[9999] backdrop-blur-sm"
               style={{ transform: "translateZ(0)" }}
             />
             <motion.div
@@ -317,27 +317,27 @@ export default function Mobile3DGameUI({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-violet-500/40 bg-gradient-to-b from-slate-900 to-slate-950 shadow-2xl flex flex-col max-h-[85dvh]"
+              className="fixed inset-x-0 bottom-0 z-[9999] rounded-t-2xl border-t-2 border-[#00F0FF]/30 bg-[#010F10] shadow-2xl flex flex-col max-h-[85dvh]"
               style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", transform: "translateZ(0)" }}
             >
               <div className="flex items-center justify-center pt-2 pb-1 shrink-0" aria-hidden>
-                <div className="w-10 h-1 rounded-full bg-slate-500/60" />
+                <div className="w-10 h-1 rounded-full bg-[#00F0FF]/40" />
               </div>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/50 shrink-0">
-                <h2 className="text-lg font-bold text-violet-200 flex items-center gap-2">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#003B3E]/80 shrink-0">
+                <h2 className="text-lg font-bold text-[#00F0FF] flex items-center gap-2">
                   <Sparkles className="w-5 h-5" />
-                  Perks & collectibles
+                  My Perks
                 </h2>
                 <button
                   type="button"
                   onClick={() => setShowPerksModal(false)}
-                  className="min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                  className="min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-[#00F0FF] hover:bg-[#00F0FF]/10 transition"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4">
                 {hasGame && game && onRollDice ? (
                   <CollectibleInventoryBar
                     game={game}

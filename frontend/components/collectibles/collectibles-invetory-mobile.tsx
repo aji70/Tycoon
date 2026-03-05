@@ -614,62 +614,58 @@ export default function CollectibleInventoryBar({
 
   return (
     <>
-      {/* PERKS LIST - Improved with better spacing and card styles for friendliness */}
-      <div className="space-y-6 pb-40 md:pb-32 px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h3 className="text-2xl md:text-3xl font-bold text-cyan-300">
-            Your Perks ({totalOwned})
+      {/* PERKS LIST — mobile-optimized: compact header, 2-col grid, clear cards */}
+      <div className="space-y-4 pb-8 px-1 sm:px-4 md:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base sm:text-xl font-bold text-[#00F0FF] flex items-center gap-2">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-[#00F0FF]" />
+            My Perks
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] text-xs font-bold">
+              {totalOwned}
+            </span>
           </h3>
-
-          <div className="flex flex-col items-stretch sm:items-end gap-1">
-            <button
-              ref={buyPerksTriggerRef}
-              onClick={() => setShowMiniShop(true)}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-full text-white font-semibold shadow-lg hover:shadow-cyan-500/50 transition active:scale-95"
-              aria-haspopup="dialog"
-              aria-expanded={showMiniShop}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              Buy perks
-            </button>
-            <span className="text-xs text-slate-500 text-center sm:text-right">Without leaving the game</span>
-          </div>
+          <button
+            ref={buyPerksTriggerRef}
+            onClick={() => setShowMiniShop(true)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-[#003B3E] border border-[#00F0FF]/30 text-[#00F0FF] text-sm font-semibold hover:bg-[#00F0FF]/10 hover:border-[#00F0FF]/50 transition active:scale-[0.98]"
+            aria-haspopup="dialog"
+            aria-expanded={showMiniShop}
+          >
+            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
+            Buy more
+          </button>
         </div>
 
         {totalOwned === 0 && (
-          <p className="text-slate-400 text-sm mb-4 text-center sm:text-left">Buy perks above to use during this game.</p>
+          <p className="text-slate-400 text-sm py-3">No perks yet. Tap &quot;Buy more&quot; to get some.</p>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
           {ownedCollectibles.map((item) => (
             <motion.button
               key={item.tokenId.toString()}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
               disabled={!isMyTurn || !item.canBeActivated}
-              className={`relative overflow-hidden rounded-2xl p-5 text-left transition-all shadow-md
-                bg-gradient-to-br ${item.gradient} opacity-90
+              className={`relative overflow-hidden rounded-xl p-3 sm:p-4 text-left transition-all border
+                bg-gradient-to-br ${item.gradient} border-white/10
                 ${!isMyTurn || !item.canBeActivated
                   ? "opacity-60 cursor-not-allowed"
-                  : "hover:shadow-xl hover:shadow-cyan-500/40 hover:opacity-100 active:scale-98"}
+                  : "hover:ring-2 hover:ring-[#00F0FF]/50 active:scale-[0.98]"}
               `}
             >
-              <div className="flex items-center gap-4">
-                <div className="text-white shrink-0">
-                  {React.cloneElement(item.icon as React.ReactElement, { className: "w-12 h-12" })}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-white text-lg md:text-xl leading-tight">{item.name}</p>
-                  {!item.canBeActivated && (
-                    <p className="text-sm text-gray-100 mt-1">
-                      {item.fakeDescription || "Use during a game for its effect."}
-                    </p>
+              <div className="flex flex-col gap-1.5 min-h-[72px] sm:min-h-0">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-white/90 shrink-0 [&>svg]:w-8 [&>svg]:h-8 sm:[&>svg]:w-10 sm:[&>svg]:h-10">
+                    {React.cloneElement(item.icon as React.ReactElement, { className: "w-8 h-8 sm:w-10 sm:h-10" })}
+                  </span>
+                  {!isMyTurn && (
+                    <span className="text-[10px] sm:text-xs text-white/80 whitespace-nowrap">Wait</span>
                   )}
                 </div>
-
-                {!isMyTurn && (
-                  <div className="text-sm text-gray-100 whitespace-nowrap">Wait for Turn</div>
+                <p className="font-semibold text-white text-xs sm:text-sm leading-tight line-clamp-2">{item.name}</p>
+                {item.canBeActivated && isMyTurn && (
+                  <span className="text-[10px] sm:text-xs text-white/70">Tap to use</span>
                 )}
               </div>
             </motion.button>
