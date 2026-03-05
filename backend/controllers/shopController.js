@@ -288,11 +288,12 @@ export async function flutterwaveInitialize(req, res) {
       customerName: user.username || user.email || undefined,
     });
 
+    // Store amount in kobo (priceNgn * 100) for flutterwave_payments; webhook uses amount_ngn ?? amount_kobo/100
     await db("flutterwave_payments").insert({
       tx_ref,
       user_id,
       bundle_id: bundleId,
-      amount_ngn: priceNgn,
+      amount_kobo: Math.round(priceNgn * 100),
       status: "pending",
     });
 
