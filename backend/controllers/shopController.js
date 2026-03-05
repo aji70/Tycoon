@@ -317,7 +317,15 @@ export async function flutterwaveInitialize(req, res) {
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
+    // Same fallbacks as working test flow so Flutterwave always gets non-empty values
+    const email =
+      (user.email && String(user.email).trim()) ||
+      (user.username ? `${String(user.username).trim()}@tycoon.placeholder` : null) ||
+      "test@example.com";
+    const customerName =
+      (user.username && String(user.username).trim()) ||
+      (user.email && String(user.email).trim()) ||
+      "Tycoon Player";
 
     const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     let redirectUrl = (callback_url && String(callback_url).trim()) || "";
@@ -328,13 +336,14 @@ export async function flutterwaveInitialize(req, res) {
     if (!redirectUrl || !redirectUrl.startsWith("http")) {
       return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL is required for NGN payment redirect" });
     }
+    // Omit meta so payload matches working test (Flutterwave can reject some meta keys)
     const { link, tx_ref } = await initializePayment({
-      amountNaira: priceNgn,
+      amountNaira: Number(priceNgn),
       email,
       txRef,
       redirectUrl,
-      meta: { user_id: String(user_id), bundle_id: String(bundleId) },
-      customerName: user.username || user.email || undefined,
+      meta: {},
+      customerName,
     });
 
     // Store amount in kobo (priceNgn * 100) for flutterwave_payments; webhook uses amount_ngn ?? amount_kobo/100
