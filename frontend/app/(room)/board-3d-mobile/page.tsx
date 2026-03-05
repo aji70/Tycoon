@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -376,17 +376,25 @@ function Board3DMobileContent() {
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const [canvasKey, setCanvasKey] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [canvasMounted, setCanvasMounted] = useState(false);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const pendingShowCardModalRef = useRef(false);
   const pendingBuyPromptRef = useRef(false);
 
-  // When user navigates away and back (or bfcache/visibility): avoid R3F connect() reading .style on undefined. Unmount Canvas first, then remount after container is in DOM.
+  // When user navigates away and back: reset so we remount Canvas only after container is in DOM (avoids R3F connect() reading .style on undefined).
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setCanvasReady(false);
+      if (e.persisted) {
+        setCanvasMounted(false);
+        setCanvasReady(false);
+      }
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") setCanvasReady(false);
+      if (document.visibilityState === "visible") {
+        setCanvasMounted(false);
+        setCanvasReady(false);
+      }
     };
     window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -395,14 +403,34 @@ function Board3DMobileContent() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
+  // Phase 1: after a short delay, show the container div (so ref can attach).
   useEffect(() => {
     if (!canvasReady) {
       const t = window.setTimeout(() => {
         setCanvasKey((k) => k + 1);
         setCanvasReady(true);
-      }, 50);
+      }, 100);
       return () => window.clearTimeout(t);
     }
+  }, [canvasReady]);
+  // Phase 2: only mount Canvas after container ref is set and we've had two frames (ensures DOM is committed and laid out).
+  useLayoutEffect(() => {
+    if (!canvasReady) {
+      setCanvasMounted(false);
+      return;
+    }
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) setCanvasMounted(true);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
   }, [canvasReady]);
 
   const timeUpHandledRef = useRef(false);
@@ -2045,9 +2073,11 @@ function Board3DMobileContent() {
           </div>
         ) : canvasReady ? (
           <div
+            ref={canvasContainerRef}
             className="absolute inset-0 w-full h-full overflow-hidden"
             style={{ touchAction: "none", zIndex: 0, isolation: "isolate" }}
           >
+            {canvasMounted ? (
             <Canvas
               key={canvasKey}
               camera={{ position: [0, 12, 12], fov: 45 }}
@@ -2085,6 +2115,12 @@ function Board3DMobileContent() {
                 spinOrbitDegrees={spinOrbitDegrees}
               />
             </Canvas>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
+                <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+                <p className="text-sm">Loading 3D board…</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">

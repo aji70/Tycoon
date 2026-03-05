@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -412,18 +412,26 @@ function Board3DPageContent() {
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const [canvasKey, setCanvasKey] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [canvasMounted, setCanvasMounted] = useState(false);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const pendingShowCardModalRef = useRef(false);
   const pendingBuyPromptRef = useRef(false);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
 
-  // Defer Canvas mount until container is in DOM (avoids "reading 'style' of undefined" when navigating back)
+  // When navigating back: remount Canvas only after container is in DOM (avoids R3F connect() .style on undefined).
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setCanvasReady(false);
+      if (e.persisted) {
+        setCanvasMounted(false);
+        setCanvasReady(false);
+      }
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") setCanvasReady(false);
+      if (document.visibilityState === "visible") {
+        setCanvasMounted(false);
+        setCanvasReady(false);
+      }
     };
     window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -437,9 +445,27 @@ function Board3DPageContent() {
       const t = window.setTimeout(() => {
         setCanvasKey((k) => k + 1);
         setCanvasReady(true);
-      }, 50);
+      }, 100);
       return () => window.clearTimeout(t);
     }
+  }, [canvasReady]);
+  useLayoutEffect(() => {
+    if (!canvasReady) {
+      setCanvasMounted(false);
+      return;
+    }
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) setCanvasMounted(true);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
   }, [canvasReady]);
   const doublesCountRef = useRef(0);
   const runningTotalRef = useRef(0);
@@ -1850,34 +1876,43 @@ function Board3DPageContent() {
               style={{ zIndex: 0, isolation: "isolate" }}
             >
               {canvasReady ? (
-                <Canvas
-                  key={canvasKey}
-                  camera={{ position: [0, 12, 12], fov: 45 }}
-                  shadows
-                  gl={{ antialias: true, alpha: false }}
-                >
-                  <BoardScene
-                  properties={properties}
-                  players={players}
-                  animatedPositions={positions}
-                  currentPlayerId={isLiveGame ? currentPlayerId : 1}
-                  developmentByPropertyId={developmentByPropertyId}
-                  ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
-                  onSquareClick={handlePropertyClick}
-                  rollingDice={rollingDice ?? undefined}
-                  onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
-                  lastRollResult={lastRollResultToShow}
-                  rollLabel={rollLabel}
-                  onRoll={showRollUi ? onRollClick : undefined}
-                  history={historyToShow}
-                  aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
-                  thinkingLabel={isLiveGame && !isMyTurn && currentPlayer ? `${currentPlayer.username || "Player"} is thinking...` : undefined}
-                  resetViewTrigger={resetViewTrigger}
-                  focusTilePosition={landedPositionForBuy}
-                  onFocusComplete={onFocusComplete}
-                  spinOrbitDegrees={spinOrbitDegrees}
-                  />
-                </Canvas>
+                <div ref={canvasContainerRef} className="absolute inset-0 w-full h-full min-h-0">
+                  {canvasMounted ? (
+                    <Canvas
+                      key={canvasKey}
+                      camera={{ position: [0, 12, 12], fov: 45 }}
+                      shadows
+                      gl={{ antialias: true, alpha: false }}
+                    >
+                      <BoardScene
+                        properties={properties}
+                        players={players}
+                        animatedPositions={positions}
+                        currentPlayerId={isLiveGame ? currentPlayerId : 1}
+                        developmentByPropertyId={developmentByPropertyId}
+                        ownerByPropertyId={isLiveGame ? ownerByPropertyId : undefined}
+                        onSquareClick={handlePropertyClick}
+                        rollingDice={rollingDice ?? undefined}
+                        onDiceComplete={isLiveGame ? onDiceCompleteClick : (showRollUi ? onDiceCompleteClick : undefined)}
+                        lastRollResult={lastRollResultToShow}
+                        rollLabel={rollLabel}
+                        onRoll={showRollUi ? onRollClick : undefined}
+                        history={historyToShow}
+                        aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
+                        thinkingLabel={isLiveGame && !isMyTurn && currentPlayer ? `${currentPlayer.username || "Player"} is thinking...` : undefined}
+                        resetViewTrigger={resetViewTrigger}
+                        focusTilePosition={landedPositionForBuy}
+                        onFocusComplete={onFocusComplete}
+                        spinOrbitDegrees={spinOrbitDegrees}
+                      />
+                    </Canvas>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
+                      <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+                      <p className="text-sm">Loading 3D board…</p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
                   <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
