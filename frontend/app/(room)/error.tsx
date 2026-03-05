@@ -32,13 +32,7 @@ export default function RoomError({ error, reset }: RoomErrorProps) {
         <div className="flex flex-col gap-3 pt-2">
           <button
             type="button"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                window.location.reload();
-              } else {
-                reset();
-              }
-            }}
+            onClick={() => window.location.reload()}
             className="w-full py-3 px-4 rounded-xl bg-[#00F0FF] text-[#010F10] font-semibold font-orbitron hover:bg-[#00F0FF]/90 transition-colors"
           >
             Reload page
