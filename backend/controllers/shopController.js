@@ -243,7 +243,7 @@ export async function flutterwaveStatus(req, res) {
 
 /**
  * POST /api/shop/flutterwave/initialize-test
- * No auth, no DB. Body: { callback_url?, amount? } (amount in Naira, default 50).
+ * No auth, no DB. Body: { callback_url?, amount? } (amount in Naira, default 200).
  * Creates a Flutterwave payment link with fixed test customer. For debugging only.
  */
 export async function flutterwaveInitializeTest(req, res) {
@@ -252,9 +252,9 @@ export async function flutterwaveInitializeTest(req, res) {
       return res.status(503).json({ success: false, message: "Flutterwave not configured (FLW_SECRET_KEY)" });
     }
     const { callback_url, amount } = req.body || {};
-    const amountNaira = amount != null ? Number(amount) : 50;
-    if (!Number.isFinite(amountNaira) || amountNaira < 1) {
-      return res.status(400).json({ success: false, message: "amount must be a positive number (Naira)" });
+    const amountNaira = amount != null ? Number(amount) : 200;
+    if (!Number.isFinite(amountNaira) || amountNaira < 200) {
+      return res.status(400).json({ success: false, message: "amount must be at least 200 Naira" });
     }
     let redirectUrl = (callback_url && String(callback_url).trim()) || "";
     if (!redirectUrl.startsWith("http")) {
