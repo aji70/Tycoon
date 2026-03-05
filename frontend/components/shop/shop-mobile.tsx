@@ -139,7 +139,7 @@ export default function GameShopMobile() {
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : '';
       const callbackUrl = `${base}/game-shop`;
-      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>('shop/flutterwave/initialize', { bundle_id: bundleId, callback_url: callbackUrl });
+      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>('shop/flutterwave/initialize-test', { bundle_id: bundleId, callback_url: callbackUrl });
       if (res?.data?.link) {
         window.location.href = res.data.link;
         return;
