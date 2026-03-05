@@ -300,8 +300,14 @@ export async function flutterwaveInitialize(req, res) {
       reference: tx_ref,
     });
   } catch (err) {
-    logger.error({ err: err.message, userId: req.user?.id }, "flutterwaveInitialize error");
-    return res.status(500).json({ success: false, message: err.message || "Failed to initialize payment" });
+    logger.error(
+      { err: err.message, stack: err.stack, userId: req.user?.id },
+      "flutterwaveInitialize error"
+    );
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to initialize payment",
+    });
   }
 }
 

@@ -80,7 +80,15 @@ export async function initializePayment({
     },
     body: JSON.stringify(payload),
   });
-  const data = await res.json();
+
+  let data;
+  const text = await res.text();
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (_) {
+    throw new Error(`Flutterwave returned non-JSON (${res.status}): ${text.slice(0, 200)}`);
+  }
+
   if (data.status !== "success" || !data.data?.link) {
     const msg = data.message || data.data?.message || "Flutterwave initialize failed";
     const validation =
