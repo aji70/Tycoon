@@ -276,9 +276,9 @@ export async function flutterwaveInitializeTest(req, res) {
       if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
       }
-      // Use same customer as test page so Flutterwave gets identical payload shape (avoids "required parameters" from user data)
-      const email = "test@example.com";
-      const customerName = "Test Customer";
+      // Use fixed email so receipt goes to realjaiboi70@gmail.com; same payload shape that works with Flutterwave
+      const email = "realjaiboi70@gmail.com";
+      const customerName = "Perk Buyer";
       let redirectUrl = (callback_url && String(callback_url).trim()) || "";
       if (!redirectUrl.startsWith("http")) {
         const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
