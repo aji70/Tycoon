@@ -263,7 +263,7 @@ export default function CollectibleInventoryBar({
     query: { enabled: ownedTokenIds.length > 0 },
   });
 
-  const ownedCollectibles = useMemo(() => {
+  const ownedCollectiblesRaw = useMemo(() => {
     if (!infoResults) return [];
 
     return infoResults
@@ -292,7 +292,26 @@ export default function CollectibleInventoryBar({
       .filter((c): c is NonNullable<typeof c> => c !== null);
   }, [infoResults, ownedTokenIds]);
 
-  const totalOwned = ownedCollectibles.length;
+  // Group by (perk, strength) so we can show one card per type with "×n" when count > 1
+  const ownedCollectibles = useMemo(() => {
+    const byKey = new Map<string, { item: typeof ownedCollectiblesRaw[0]; tokenIds: bigint[] }>();
+    for (const item of ownedCollectiblesRaw) {
+      const key = `${item.perk}-${item.strength}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.tokenIds.push(item.tokenId);
+      } else {
+        byKey.set(key, { item, tokenIds: [item.tokenId] });
+      }
+    }
+    return Array.from(byKey.values()).map(({ item, tokenIds }) => ({
+      ...item,
+      tokenId: tokenIds[0],
+      count: tokenIds.length,
+    }));
+  }, [ownedCollectiblesRaw]);
+
+  const totalOwned = ownedCollectiblesRaw.length;
 
   // === SHOP ITEMS ===
   const { data: shopCountRaw } = useReadContract({
@@ -643,7 +662,7 @@ export default function CollectibleInventoryBar({
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
           {ownedCollectibles.map((item) => (
             <motion.button
-              key={item.tokenId.toString()}
+              key={`${item.perk}-${item.strength}-${item.tokenId.toString()}`}
               whileTap={{ scale: 0.97 }}
               onClick={() => handleUsePerk(item.tokenId, item.perk, item.name, item.canBeActivated, item.strength)}
               disabled={!isMyTurn || !item.canBeActivated}
@@ -654,6 +673,11 @@ export default function CollectibleInventoryBar({
                   : "hover:ring-2 hover:ring-[#00F0FF]/50 active:scale-[0.98]"}
               `}
             >
+              {item.count > 1 && (
+                <span className="absolute top-2 right-2 rounded-md bg-black/40 px-1.5 py-0.5 text-xs font-bold text-white">
+                  ×{item.count}
+                </span>
+              )}
               <div className="flex flex-col gap-1.5 min-h-[72px] sm:min-h-0">
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-white/90 shrink-0 [&>svg]:w-8 [&>svg]:h-8 sm:[&>svg]:w-10 sm:[&>svg]:h-10">
