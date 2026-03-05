@@ -309,8 +309,8 @@ export async function flutterwaveInitialize(req, res) {
       return res.status(404).json({ success: false, message: "Bundle not found or inactive" });
     }
     const priceNgn = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
-    if (priceNgn == null || priceNgn < 1) {
-      return res.status(400).json({ success: false, message: "This bundle is not available for NGN purchase" });
+    if (priceNgn == null || priceNgn < 200) {
+      return res.status(400).json({ success: false, message: "NGN amount must be at least 200. This bundle is not available for NGN purchase." });
     }
 
     const user = await db("users").where({ id: user_id }).first();
