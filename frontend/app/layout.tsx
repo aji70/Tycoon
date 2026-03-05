@@ -23,15 +23,17 @@ import ClientLayout from "../clients/ClientLayout"; // ← Import the new wrappe
 import QueryProvider from "./QueryProvider";
 import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 
-// Run before React: when board is restored from bfcache (device back), reload so WebGL context is fresh and R3F connect() doesn't read .style on detached node
+// Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
 (function(){
   var boardPath = /\\/board-3d-(mobile|multi-mobile)(\\/|$)/;
+  function isBoard() { return boardPath.test(window.location.pathname); }
   window.addEventListener('pageshow', function(e) {
-    if (e.persisted && boardPath.test(window.location.pathname)) {
-      window.location.reload();
-    }
+    if (e.persisted && isBoard()) { window.location.reload(); }
   });
+  if (isBoard()) {
+    window.addEventListener('unload', function() {});
+  }
 })();
 `;
 
