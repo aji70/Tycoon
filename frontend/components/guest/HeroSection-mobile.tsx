@@ -286,7 +286,7 @@ const handleContinuePrevious = () => {
     return;
   }
   if (isAi) {
-    router.push(`/ai-play-3d?gameCode=${encodeURIComponent(code)}`);
+    router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
     return;
   }
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
