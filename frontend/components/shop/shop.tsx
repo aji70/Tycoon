@@ -454,12 +454,12 @@ const { data: usdcAllowance } = useReadContract({
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : '';
       const callbackUrl = `${base}/game-shop`;
-      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string }>('shop/flutterwave/initialize', { bundle_id: bundleId, callback_url: callbackUrl });
+      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>('shop/flutterwave/initialize', { bundle_id: bundleId, callback_url: callbackUrl });
       if (res?.data?.link) {
         window.location.href = res.data.link;
         return;
       }
-      toast.error(res?.data?.message || 'Could not start payment');
+      toast.error(res?.data?.message ?? 'Could not start payment');
     } catch (e: any) {
       toast.error(e?.message || e?.response?.data?.message || 'Failed to initialize NGN payment');
     } finally {
