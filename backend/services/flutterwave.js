@@ -44,27 +44,37 @@ export async function initializePayment({
   if (!isFlutterwaveConfigured()) {
     throw new Error("Flutterwave is not configured (FLW_SECRET_KEY)");
   }
+  if (!redirectUrl || typeof redirectUrl !== "string" || !redirectUrl.startsWith("http")) {
+    throw new Error("redirect_url is required and must be a valid URL");
+  }
+  const amount = Number(amountNaira);
+  if (!Number.isFinite(amount) || amount < 1) {
+    throw new Error("amount must be at least 1 Naira");
+  }
+  const payload = {
+    tx_ref: String(txRef),
+    amount: String(Math.round(amount)),
+    currency: "NGN",
+    redirect_url: redirectUrl,
+    customer: {
+      email: String(email).trim(),
+      name: (customerName && String(customerName).trim()) || "Tycoon Player",
+    },
+    customizations: {
+      title: "Tycoon Perk Bundle",
+      description: "Perk bundle purchase",
+    },
+  };
+  if (meta && typeof meta === "object" && Object.keys(meta).length > 0) {
+    payload.meta = meta;
+  }
   const res = await fetch(`${FLW_BASE}/payments`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${FLW_SECRET}`,
     },
-    body: JSON.stringify({
-      tx_ref: txRef,
-      amount: Number(amountNaira),
-      currency: "NGN",
-      redirect_url: redirectUrl || undefined,
-      customer: {
-        email,
-        name: customerName || "Tycoon Player",
-      },
-      customizations: {
-        title: "Tycoon Perk Bundle",
-        description: "Perk bundle purchase",
-      },
-      meta: Object.keys(meta).length ? meta : undefined,
-    }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (data.status !== "success" || !data.data?.link) {

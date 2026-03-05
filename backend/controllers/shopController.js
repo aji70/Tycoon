@@ -271,11 +271,19 @@ export async function flutterwaveInitialize(req, res) {
     }
 
     const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    let redirectUrl = (callback_url && String(callback_url).trim()) || "";
+    if (!redirectUrl.startsWith("http")) {
+      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+      redirectUrl = base ? `${base}/game-shop` : "";
+    }
+    if (!redirectUrl || !redirectUrl.startsWith("http")) {
+      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL is required for NGN payment redirect" });
+    }
     const { link, tx_ref } = await initializePayment({
       amountNaira: priceNgn,
       email,
       txRef,
-      redirectUrl: callback_url || undefined,
+      redirectUrl,
       meta: { user_id: String(user_id), bundle_id: String(bundleId) },
       customerName: user.username || user.email || undefined,
     });
