@@ -242,6 +242,48 @@ export async function flutterwaveStatus(req, res) {
 }
 
 /**
+ * POST /api/shop/flutterwave/initialize-test
+ * No auth, no DB. Body: { callback_url?, amount? } (amount in Naira, default 50).
+ * Creates a Flutterwave payment link with fixed test customer. For debugging only.
+ */
+export async function flutterwaveInitializeTest(req, res) {
+  try {
+    if (!isFlutterwaveConfigured()) {
+      return res.status(503).json({ success: false, message: "Flutterwave not configured (FLW_SECRET_KEY)" });
+    }
+    const { callback_url, amount } = req.body || {};
+    const amountNaira = amount != null ? Number(amount) : 50;
+    if (!Number.isFinite(amountNaira) || amountNaira < 1) {
+      return res.status(400).json({ success: false, message: "amount must be a positive number (Naira)" });
+    }
+    let redirectUrl = (callback_url && String(callback_url).trim()) || "";
+    if (!redirectUrl.startsWith("http")) {
+      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+      redirectUrl = `${base}/flutterwave-test`;
+    }
+    if (!redirectUrl.startsWith("http")) {
+      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL required" });
+    }
+    const txRef = `tycoon_test_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const { link, tx_ref } = await initializePayment({
+      amountNaira,
+      email: "test@example.com",
+      txRef,
+      redirectUrl,
+      meta: { test: "true" },
+      customerName: "Test Customer",
+    });
+    return res.json({ success: true, link, reference: tx_ref });
+  } catch (err) {
+    logger.error({ err: err.message, stack: err.stack }, "flutterwaveInitializeTest error");
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to initialize test payment",
+    });
+  }
+}
+
+/**
  * POST /api/shop/flutterwave/initialize
  * Body: { bundle_id, callback_url? }
  * Auth required. Creates Flutterwave payment and returns link + tx_ref.
