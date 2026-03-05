@@ -440,7 +440,7 @@ const { data: usdcAllowance } = useReadContract({
     if (!ref) return;
     apiClient.get<{ success?: boolean; found?: boolean; fulfilled?: boolean; status?: string }>(`shop/flutterwave/verify?reference=${encodeURIComponent(ref)}`).then((r) => {
       if (r?.data?.found && r?.data?.fulfilled) {
-        toast.success('Payment successful! Your bundle will be available in-game.');
+        toast.success('Perk bought successfully! Your bundle will be available in-game.');
       } else if (r?.data?.found && r?.data?.status === 'failed') {
         toast.error('Payment failed or was not completed.');
       }
