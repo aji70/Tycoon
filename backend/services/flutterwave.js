@@ -52,8 +52,8 @@ export async function initializePayment({
     throw new Error("redirect_url is required and must be a valid URL");
   }
   const amount = Number(amountNaira);
-  if (!Number.isFinite(amount) || amount < 1) {
-    throw new Error("amount must be at least 1 Naira");
+  if (!Number.isFinite(amount) || amount < 200) {
+    throw new Error("amount must be at least 200 Naira");
   }
   const customerEmail = (email && String(email).trim()) || FLW_DEFAULT_EMAIL;
   const customerNameStr = (customerName && String(customerName).trim()) || "Tycoon Player";
