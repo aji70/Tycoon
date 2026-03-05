@@ -84,8 +84,9 @@ export async function paystackInitialize(req, res) {
     }
 
     const reference = `bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const amountKobo = Math.round(priceNgn * 100);
     const { authorization_url, reference: ref } = await initializeTransaction({
-      amountKobo: priceNgn,
+      amountKobo,
       email,
       reference,
       callbackUrl: callback_url || undefined,
@@ -96,7 +97,7 @@ export async function paystackInitialize(req, res) {
       reference: ref,
       user_id: user_id,
       bundle_id: bundleId,
-      amount_kobo: priceNgn,
+      amount_kobo: amountKobo,
       status: "pending",
     });
 
@@ -255,8 +256,8 @@ export async function flutterwaveInitialize(req, res) {
     if (!bundle) {
       return res.status(404).json({ success: false, message: "Bundle not found or inactive" });
     }
-    const priceNgnKobo = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
-    if (priceNgnKobo == null || priceNgnKobo < 100) {
+    const priceNgn = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
+    if (priceNgn == null || priceNgn < 1) {
       return res.status(400).json({ success: false, message: "This bundle is not available for NGN purchase" });
     }
 
@@ -270,9 +271,8 @@ export async function flutterwaveInitialize(req, res) {
     }
 
     const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
-    const amountNaira = Math.round(priceNgnKobo / 100);
     const { link, tx_ref } = await initializePayment({
-      amountNaira,
+      amountNaira: priceNgn,
       email,
       txRef,
       redirectUrl: callback_url || undefined,
@@ -284,7 +284,7 @@ export async function flutterwaveInitialize(req, res) {
       tx_ref,
       user_id,
       bundle_id: bundleId,
-      amount_kobo: priceNgnKobo,
+      amount_ngn: priceNgn,
       status: "pending",
     });
 
@@ -338,7 +338,7 @@ export async function flutterwaveWebhook(req, res) {
       if (existing.status === "completed") return;
 
       const amountPaid = data.amount != null ? Number(data.amount) : 0;
-      const expectedNaira = Math.round(existing.amount_kobo / 100);
+      const expectedNaira = existing.amount_ngn != null ? Number(existing.amount_ngn) : Math.round(Number(existing.amount_kobo || 0) / 100);
       if (amountPaid < expectedNaira) {
         logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave amount mismatch");
         await db("flutterwave_payments").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
