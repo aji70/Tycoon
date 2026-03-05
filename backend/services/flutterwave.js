@@ -78,6 +78,11 @@ export async function initializePayment({
     payload.meta = meta;
   }
 
+  logger.info(
+    { amount: payload.amount, redirect_len: payload.redirect_url?.length, customer_email: payload.customer?.email?.slice(0, 20) },
+    "Flutterwave payload (no secret)"
+  );
+
   let res;
   let text;
   try {

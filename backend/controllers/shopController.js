@@ -276,14 +276,9 @@ export async function flutterwaveInitializeTest(req, res) {
       if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
       }
-      const email =
-        (user.email && String(user.email).trim()) ||
-        (user.username ? `${String(user.username).trim()}@tycoon.placeholder` : null) ||
-        "test@example.com";
-      const customerName =
-        (user.username && String(user.username).trim()) ||
-        (user.email && String(user.email).trim()) ||
-        "Tycoon Player";
+      // Use same customer as test page so Flutterwave gets identical payload shape (avoids "required parameters" from user data)
+      const email = "test@example.com";
+      const customerName = "Test Customer";
       let redirectUrl = (callback_url && String(callback_url).trim()) || "";
       if (!redirectUrl.startsWith("http")) {
         const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
@@ -293,6 +288,7 @@ export async function flutterwaveInitializeTest(req, res) {
         return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL is required for NGN payment redirect" });
       }
       const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+      logger.info({ flow: "shop", amountNaira: Number(priceNgn), redirectUrl: redirectUrl.slice(0, 60) }, "Flutterwave shop init");
       const { link, tx_ref } = await initializePayment({
         amountNaira: Number(priceNgn),
         email,
