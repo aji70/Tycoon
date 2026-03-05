@@ -450,6 +450,14 @@ const { data: usdcAllowance } = useReadContract({
 
   const handlePayWithNgn = async (bundleId: number) => {
     if (!bundleId || ngnLoadingBundleId != null) return;
+    try {
+      if (typeof window !== 'undefined' && !window.localStorage?.getItem('token')) {
+        toast.error('Please sign in to pay with NGN.');
+        return;
+      }
+    } catch {
+      // localStorage may be unavailable
+    }
     setNgnLoadingBundleId(bundleId);
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : '';
@@ -461,7 +469,12 @@ const { data: usdcAllowance } = useReadContract({
       }
       toast.error(res?.data?.message ?? 'Could not start payment');
     } catch (e: any) {
-      toast.error(e?.message || e?.response?.data?.message || 'Failed to initialize NGN payment');
+      const status = e?.status ?? e?.response?.status;
+      if (status === 401) {
+        toast.error('Please sign in to pay with NGN.');
+      } else {
+        toast.error(e?.message || e?.response?.data?.message || 'Failed to initialize NGN payment');
+      }
     } finally {
       setNgnLoadingBundleId(null);
     }
