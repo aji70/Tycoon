@@ -6,8 +6,8 @@
  */
 const FLW_SECRET = process.env.FLW_SECRET_KEY || "";
 const FLW_BASE = "https://api.flutterwave.com/v3";
-const FLW_DEFAULT_EMAIL = process.env.FLW_DEFAULT_CUSTOMER_EMAIL || "realjaiboi70@gmail.com";
-const FLW_DEFAULT_PHONE = process.env.FLW_DEFAULT_CUSTOMER_PHONE || "08060332714";
+const FLW_DEFAULT_EMAIL = "realjaiboi70@gmail.com";
+const FLW_DEFAULT_PHONE = "08060332714";
 
 export function isFlutterwaveConfigured() {
   return Boolean(FLW_SECRET && (FLW_SECRET.startsWith("FLWSECK_TEST-") || FLW_SECRET.startsWith("FLWSECK-")));
