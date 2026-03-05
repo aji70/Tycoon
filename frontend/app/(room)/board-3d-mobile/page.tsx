@@ -375,18 +375,25 @@ function Board3DMobileContent() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const [canvasKey, setCanvasKey] = useState(0);
-  const [canvasReady, setCanvasReady] = useState(true);
+  const [canvasReady, setCanvasReady] = useState(false);
   const fullscreenRef = useRef<HTMLDivElement>(null);
+  const pendingShowCardModalRef = useRef(false);
+  const pendingBuyPromptRef = useRef(false);
 
-  // When user presses device back: bfcache restore can leave WebGL context lost and R3F's connect() may read .style on a detached node. Unmount Canvas first, then remount on next tick.
+  // When user navigates away and back (or bfcache/visibility): avoid R3F connect() reading .style on undefined. Unmount Canvas first, then remount after container is in DOM.
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        setCanvasReady(false);
-      }
+      if (e.persisted) setCanvasReady(false);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") setCanvasReady(false);
     };
     window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
   useEffect(() => {
     if (!canvasReady) {
@@ -1248,10 +1255,10 @@ function Board3DMobileContent() {
         });
         setCardPlayerName(String(me?.username ?? "").trim() || "Player");
         setCardIsCurrentPlayerDrawer(true);
-        setShowCardModal(true);
+        pendingShowCardModalRef.current = true;
       }
       if (data?.requires_buy && data?.property_for_buy) {
-        setBuyPrompted(true);
+        pendingBuyPromptRef.current = true;
       } else {
         const square = properties.find((p) => p.id === finalPosition);
         const freshGameProperties = gameProperties;
@@ -1259,7 +1266,7 @@ function Board3DMobileContent() {
         const action = PROPERTY_ACTION(finalPosition);
         const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
         const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-        if (needBuyPrompt) setBuyPrompted(true);
+        if (needBuyPrompt) pendingBuyPromptRef.current = true;
       }
     } catch (err) {
       try {
@@ -1455,6 +1462,17 @@ function Board3DMobileContent() {
     if (isLiveGame && playerCanRoll) handleRollForLive();
   }, [isLiveGame, playerCanRoll, handleRollForLive]);
 
+  const onFocusComplete = useCallback(() => {
+    if (pendingShowCardModalRef.current) {
+      pendingShowCardModalRef.current = false;
+      setShowCardModal(true);
+    }
+    if (pendingBuyPromptRef.current) {
+      pendingBuyPromptRef.current = false;
+      setBuyPrompted(true);
+    }
+  }, []);
+
   const onDiceCompleteClick = useCallback(() => {
     if (!isLiveGame) return;
     if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
@@ -1583,16 +1601,14 @@ function Board3DMobileContent() {
       if (me?.user_id != null) {
         setLiveMovementOverride((prev) => ({ ...prev, [me.user_id]: newPosition }));
       }
-      setTimeout(() => {
-        const square = properties.find((p) => p.id === newPosition);
-        if (square?.price != null) {
-          const isOwned = gameProperties.some((gp) => gp.property_id === newPosition);
-          const action = PROPERTY_ACTION(newPosition);
-          if (!isOwned && action && ["land", "railway", "utility"].includes(action)) {
-            setBuyPrompted(true);
-          }
+      const square = properties.find((p) => p.id === newPosition);
+      if (square?.price != null) {
+        const isOwned = gameProperties.some((gp) => gp.property_id === newPosition);
+        const action = PROPERTY_ACTION(newPosition);
+        if (!isOwned && action && ["land", "railway", "utility"].includes(action)) {
+          pendingBuyPromptRef.current = true;
         }
-      }, 300);
+      }
     },
     [properties, gameProperties, me?.user_id]
   );
@@ -2065,6 +2081,7 @@ function Board3DMobileContent() {
                 aiThinking={isLiveGame && !isMyTurn && currentPlayerId != null}
                 resetViewTrigger={resetViewTrigger}
                 focusTilePosition={landedPositionForBuy}
+                onFocusComplete={onFocusComplete}
                 spinOrbitDegrees={spinOrbitDegrees}
               />
             </Canvas>
