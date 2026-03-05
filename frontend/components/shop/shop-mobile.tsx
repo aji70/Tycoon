@@ -524,7 +524,7 @@ export default function GameShopMobile() {
                   <p className="text-[#00F0FF] font-semibold text-sm mt-2">
                     ${Number(b.price_usdc).toFixed(2)} USDC
                     {b.price_ngn != null && b.price_ngn > 0 && (
-                      <> or ₦{(b.price_ngn / 100).toLocaleString()} NGN</>
+                      <> or ₦{Number(b.price_ngn).toLocaleString()} NGN</>
                     )}
                   </p>
                   <button disabled className="w-full mt-3 py-2.5 rounded-lg bg-slate-800/80 text-slate-500 text-sm font-medium">Buy with USDC — Coming soon</button>
@@ -537,7 +537,7 @@ export default function GameShopMobile() {
                       {ngnLoadingBundleId === b.id ? (
                         <><Loader2 size={14} className="animate-spin" /> Redirecting...</>
                       ) : (
-                        <><Banknote size={14} /> Pay with NGN (₦{(b.price_ngn / 100).toLocaleString()})</>
+                        <><Banknote size={14} /> Pay with NGN (₦{Number(b.price_ngn).toLocaleString()})</>
                       )}
                     </button>
                   )}

@@ -24,7 +24,6 @@ export function verifyWebhookSignature(signature) {
 
 /**
  * Initialize a Flutterwave payment. Returns link for redirect.
- * Amount is in Naira; we store price in kobo in DB so pass amountNaira = amountKobo / 100.
  * @param {Object} params
  * @param {number} amountNaira - Amount in Naira (e.g. 50)
  * @param {string} email - Customer email

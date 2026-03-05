@@ -1,13 +1,13 @@
 /**
  * Add NGN pricing and Paystack payment tracking for perk bundles.
- * - perk_bundles: price_ngn (integer, kobo)
+ * - perk_bundles: price_ngn (numeric, Naira)
  * - paystack_payments: pending/completed Paystack transactions (reference, user_id, bundle_id, etc.)
  * - user_bundle_purchases: fulfilled NGN purchases (for in-game grant or future contract mint)
  */
 export async function up(knex) {
   if (!(await knex.schema.hasColumn("perk_bundles", "price_ngn"))) {
     await knex.schema.alterTable("perk_bundles", (table) => {
-      table.integer("price_ngn").unsigned().nullable().defaultTo(null).comment("Price in NGN kobo (e.g. 5000 = 50 NGN)");
+      table.decimal("price_ngn", 12, 2).nullable().defaultTo(null).comment("Price in Naira (e.g. 50)");
     });
   }
 

@@ -596,7 +596,7 @@ const { data: usdcAllowance } = useReadContract({
                         {b.price_ngn != null && b.price_ngn > 0 && (
                           <>
                             <span className="text-slate-500">or</span>
-                            <span className="text-lg font-bold">₦{(b.price_ngn / 100).toLocaleString()} NGN</span>
+                            <span className="text-lg font-bold">₦{Number(b.price_ngn).toLocaleString()} NGN</span>
                           </>
                         )}
                       </div>
@@ -615,7 +615,7 @@ const { data: usdcAllowance } = useReadContract({
                           {ngnLoadingBundleId === b.id ? (
                             <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to payment...</>
                           ) : (
-                            <><Banknote className="w-4 h-4" /> Pay with NGN (₦{(b.price_ngn / 100).toLocaleString()})</>
+                            <><Banknote className="w-4 h-4" /> Pay with NGN (₦{Number(b.price_ngn).toLocaleString()})</>
                           )}
                         </button>
                       )}
