@@ -966,6 +966,9 @@ export default function BoardScene({
     if (focusTilePosition == null) {
       focusTargetRef.current = null;
       focusCameraRef.current = null;
+      // Start zooming back out immediately when focus is cleared (e.g. modal closed); avoids staying zoomed in on mobile if frame loop was throttled.
+      zoomOutAfterTimeRef.current = null;
+      zoomBackOutRef.current = true;
       return;
     }
     const [x, , z] = getPosition3D(focusTilePosition);
@@ -999,8 +1002,9 @@ export default function BoardScene({
     if (zoomBackOutRef.current) {
       const t = controlsRef.current.target;
       const p = camera.position;
-      t.lerp(defaultTarget, 0.04);
-      p.lerp(defaultCameraPos, 0.04);
+      const lerpSpeed = 0.08;
+      t.lerp(defaultTarget, lerpSpeed);
+      p.lerp(defaultCameraPos, lerpSpeed);
       if (t.distanceTo(defaultTarget) < 0.05 && p.distanceTo(defaultCameraPos) < 0.05) {
         t.copy(defaultTarget);
         p.copy(defaultCameraPos);

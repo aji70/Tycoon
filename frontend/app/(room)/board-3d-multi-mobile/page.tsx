@@ -424,8 +424,9 @@ function Board3DMobilePageContent() {
       return () => window.clearTimeout(t);
     }
   }, [canvasReady]);
+  const showCanvasArea = canvasReady && !(isLoading || (gameCode && gameLoading));
   useLayoutEffect(() => {
-    if (!canvasReady) {
+    if (!showCanvasArea) {
       setCanvasMounted(false);
       return;
     }
@@ -441,7 +442,7 @@ function Board3DMobilePageContent() {
       cancelled = true;
       cancelAnimationFrame(id);
     };
-  }, [canvasReady]);
+  }, [showCanvasArea]);
 
   const timeUpHandledRef = useRef(false);
   const rollingForPlayerIdRef = useRef<number | null>(null);
