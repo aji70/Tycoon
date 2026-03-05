@@ -65,6 +65,8 @@ type BoardSceneProps = {
   resetViewTrigger?: number;
   /** When set, smoothly zoom the camera to this board position (0–39), e.g. when a player lands */
   focusTilePosition?: number | null;
+  /** Called once when the zoom-in to focusTilePosition has finished (so parent can show buy/card modals after) */
+  onFocusComplete?: () => void;
   /** When set to a positive value (e.g. 90), orbit the camera by that many degrees (e.g. when passing corners 0, 10, 20, 30) */
   spinOrbitDegrees?: number;
 };
@@ -915,6 +917,7 @@ export default function BoardScene({
   resetViewTrigger = 0,
   ownerSymbolByPropertyId,
   focusTilePosition = null,
+  onFocusComplete,
   spinOrbitDegrees = 0,
 }: BoardSceneProps) {
   const camera = useThree((s) => s.camera);
@@ -1018,6 +1021,7 @@ export default function BoardScene({
         focusTargetRef.current = null;
         focusCameraRef.current = null;
         zoomOutAfterTimeRef.current = now + 1500;
+        onFocusComplete?.();
       }
       return;
     }

@@ -410,8 +410,37 @@ function Board3DPageContent() {
   const [demoHistory, setDemoHistory] = useState<History[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
+  const [canvasKey, setCanvasKey] = useState(0);
+  const [canvasReady, setCanvasReady] = useState(false);
   const fullscreenRef = useRef<HTMLDivElement>(null);
+  const pendingShowCardModalRef = useRef(false);
+  const pendingBuyPromptRef = useRef(false);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
+
+  // Defer Canvas mount until container is in DOM (avoids "reading 'style' of undefined" when navigating back)
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setCanvasReady(false);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") setCanvasReady(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+  useEffect(() => {
+    if (!canvasReady) {
+      const t = window.setTimeout(() => {
+        setCanvasKey((k) => k + 1);
+        setCanvasReady(true);
+      }, 50);
+      return () => window.clearTimeout(t);
+    }
+  }, [canvasReady]);
   const doublesCountRef = useRef(0);
   const runningTotalRef = useRef(0);
   const expectingDoublesRollAgainRef = useRef(false);
@@ -877,16 +906,14 @@ function Board3DPageContent() {
       if (me?.user_id != null) {
         setLiveMovementOverride((prev) => ({ ...prev, [me.user_id]: newPosition }));
       }
-      setTimeout(() => {
-        const square = properties.find((p) => p.id === newPosition);
-        if (square?.price != null) {
-          const isOwned = gameProperties.some((gp) => gp.property_id === newPosition);
-          const action = PROPERTY_ACTION(newPosition);
-          if (!isOwned && action && ["land", "railway", "utility"].includes(action)) {
-            setBuyPrompted(true);
-          }
+      const square = properties.find((p) => p.id === newPosition);
+      if (square?.price != null) {
+        const isOwned = gameProperties.some((gp) => gp.property_id === newPosition);
+        const action = PROPERTY_ACTION(newPosition);
+        if (!isOwned && action && ["land", "railway", "utility"].includes(action)) {
+          pendingBuyPromptRef.current = true;
         }
-      }, 300);
+      }
     },
     [properties, gameProperties, me?.user_id]
   );
@@ -1125,18 +1152,18 @@ function Board3DPageContent() {
         });
         setCardPlayerName(String(me?.username ?? "").trim() || "Player");
         setCardIsCurrentPlayerDrawer(true);
-        setShowCardModal(true);
+        pendingShowCardModalRef.current = true;
       }
       // After a Chance/Community Chest card move, backend may require rent (already applied) or buy prompt
       if (data?.requires_buy && data?.property_for_buy) {
-        setBuyPrompted(true);
+        pendingBuyPromptRef.current = true;
       } else {
         const square = properties.find((p) => p.id === finalPosition);
         const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
         const action = PROPERTY_ACTION(finalPosition);
         const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
         const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-        if (needBuyPrompt) setBuyPrompted(true);
+        if (needBuyPrompt) pendingBuyPromptRef.current = true;
       }
       // Don't call END_TURN here — let the useEffect below handle auto end (matches 2D; avoids turn break on Chance/CC)
     } catch (err) {
@@ -1239,6 +1266,17 @@ function Board3DPageContent() {
     if (isLiveGame && playerCanRoll) handleRollForLive();
     else if (!isLiveGame) handleRoll();
   }, [isLiveGame, playerCanRoll, handleRollForLive, handleRoll]);
+
+  const onFocusComplete = useCallback(() => {
+    if (pendingShowCardModalRef.current) {
+      pendingShowCardModalRef.current = false;
+      setShowCardModal(true);
+    }
+    if (pendingBuyPromptRef.current) {
+      pendingBuyPromptRef.current = false;
+      setBuyPrompted(true);
+    }
+  }, []);
 
   const onDiceCompleteClick = useCallback(() => {
     if (!isLiveGame) {
@@ -1811,12 +1849,14 @@ function Board3DPageContent() {
               }`}
               style={{ zIndex: 0, isolation: "isolate" }}
             >
-              <Canvas
-                camera={{ position: [0, 12, 12], fov: 45 }}
-                shadows
-                gl={{ antialias: true, alpha: false }}
-              >
-                <BoardScene
+              {canvasReady ? (
+                <Canvas
+                  key={canvasKey}
+                  camera={{ position: [0, 12, 12], fov: 45 }}
+                  shadows
+                  gl={{ antialias: true, alpha: false }}
+                >
+                  <BoardScene
                   properties={properties}
                   players={players}
                   animatedPositions={positions}
@@ -1834,9 +1874,16 @@ function Board3DPageContent() {
                   thinkingLabel={isLiveGame && !isMyTurn && currentPlayer ? `${currentPlayer.username || "Player"} is thinking...` : undefined}
                   resetViewTrigger={resetViewTrigger}
                   focusTilePosition={landedPositionForBuy}
+                  onFocusComplete={onFocusComplete}
                   spinOrbitDegrees={spinOrbitDegrees}
-                />
-              </Canvas>
+                  />
+                </Canvas>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
+                  <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+                  <p className="text-sm">Loading 3D board…</p>
+                </div>
+              )}
             </div>
           </div>
         )}
