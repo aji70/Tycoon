@@ -406,9 +406,6 @@ function Board3DPageContent() {
   const [lastRollResultLive, setLastRollResultLive] = useState<{ die1: number; die2: number; total: number } | null>(null);
   const [rollingDice, setRollingDice] = useState<{ die1: number; die2: number } | null>(null);
   const [demoHistory, setDemoHistory] = useState<History[]>([]);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [resetViewTrigger, setResetViewTrigger] = useState(0);
-  const fullscreenRef = useRef<HTMLDivElement>(null);
   const pendingRollRef = useRef<{ die1: number; die2: number; total: number }>({ die1: 0, die2: 0, total: 0 });
   const doublesCountRef = useRef(0);
   const runningTotalRef = useRef(0);
