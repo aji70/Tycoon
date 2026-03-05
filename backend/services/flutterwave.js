@@ -4,6 +4,8 @@
  * - Verify webhook (verif-hash header)
  * - Verify transaction by id (optional, for webhook double-check)
  */
+import logger from "../config/logger.js";
+
 const FLW_SECRET = process.env.FLW_SECRET_KEY || "";
 const FLW_BASE = "https://api.flutterwave.com/v3";
 const FLW_DEFAULT_EMAIL = "realjaiboi70@gmail.com";
@@ -54,14 +56,18 @@ export async function initializePayment({
     throw new Error("amount must be at least 1 Naira");
   }
   const customerEmail = (email && String(email).trim()) || FLW_DEFAULT_EMAIL;
+  const customerNameStr = (customerName && String(customerName).trim()) || "Tycoon Player";
+  // Match Flutterwave doc exactly: tx_ref, amount, currency, redirect_url, customer (email, name, phonenumber)
+  // payment_options: comma-separated, no spaces – required by some account settings
   const payload = {
     tx_ref: String(txRef),
     amount: String(Math.round(amount)),
     currency: "NGN",
     redirect_url: String(redirectUrl),
+    payment_options: "card,ussd,account",
     customer: {
       email: customerEmail,
-      name: (customerName && String(customerName).trim()) || "Tycoon Player",
+      name: customerNameStr,
       phonenumber: FLW_DEFAULT_PHONE,
     },
     customizations: {
@@ -107,6 +113,7 @@ export async function initializePayment({
       ? validation.map((v) => v.field_name || v.field || v.message || String(v))
       : [];
     const detail = parts.length ? `${msg}: ${parts.join(", ")}` : msg;
+    logger.warn({ flwStatus: res.status, flwResponse: data }, "Flutterwave payments API error");
     throw new Error(detail);
   }
   return {
