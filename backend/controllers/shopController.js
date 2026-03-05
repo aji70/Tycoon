@@ -1,5 +1,5 @@
 /**
- * Shop: perk bundles (list; purchase via TYC/USDC on-chain or NGN via Paystack).
+ * Shop: perk bundles (list; purchase via TYC/USDC on-chain or NGN via Paystack/Flutterwave).
  */
 import db from "../config/database.js";
 import {
@@ -8,6 +8,11 @@ import {
   verifyWebhookSignature,
   verifyTransaction,
 } from "../services/paystack.js";
+import {
+  isFlutterwaveConfigured,
+  initializePayment,
+  verifyWebhookSignature as verifyFlutterwaveWebhookSignature,
+} from "../services/flutterwave.js";
 import logger from "../config/logger.js";
 import crypto from "crypto";
 
@@ -18,8 +23,10 @@ export async function listBundles(req, res) {
       .orderBy("id", "asc")
       .select("id", "name", "description", "token_ids", "amounts", "price_tyc", "price_usdc", "price_ngn", "created_at");
 
+    const ngnAvailable = isFlutterwaveConfigured() || isPaystackConfigured();
     return res.json({
       success: true,
+      ngn_available: ngnAvailable,
       bundles: bundles.map((b) => ({
         id: b.id,
         name: b.name,
@@ -217,6 +224,189 @@ export async function paystackVerify(req, res) {
     });
   } catch (err) {
     logger.error({ err: err.message }, "paystackVerify error");
+    return res.status(500).json({ success: false, message: "Verification failed" });
+  }
+}
+
+// ─── Flutterwave (NGN) ─────────────────────────────────────────────────────
+
+/**
+ * POST /api/shop/flutterwave/initialize
+ * Body: { bundle_id, callback_url? }
+ * Auth required. Creates Flutterwave payment and returns link + tx_ref.
+ */
+export async function flutterwaveInitialize(req, res) {
+  try {
+    const user_id = req.user?.id;
+    if (!user_id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    if (!isFlutterwaveConfigured()) {
+      return res.status(503).json({ success: false, message: "NGN payments (Flutterwave) are not configured" });
+    }
+
+    const { bundle_id, callback_url } = req.body || {};
+    const bundleId = bundle_id != null ? Number(bundle_id) : NaN;
+    if (!Number.isInteger(bundleId) || bundleId < 1) {
+      return res.status(400).json({ success: false, message: "Valid bundle_id is required" });
+    }
+
+    const bundle = await db("perk_bundles").where({ id: bundleId, active: true }).first();
+    if (!bundle) {
+      return res.status(404).json({ success: false, message: "Bundle not found or inactive" });
+    }
+    const priceNgnKobo = bundle.price_ngn != null ? Number(bundle.price_ngn) : null;
+    if (priceNgnKobo == null || priceNgnKobo < 100) {
+      return res.status(400).json({ success: false, message: "This bundle is not available for NGN purchase" });
+    }
+
+    const user = await db("users").where({ id: user_id }).first();
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
+    if (!email) {
+      return res.status(400).json({ success: false, message: "User must have an email for NGN payment" });
+    }
+
+    const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const amountNaira = Math.round(priceNgnKobo / 100);
+    const { link, tx_ref } = await initializePayment({
+      amountNaira,
+      email,
+      txRef,
+      redirectUrl: callback_url || undefined,
+      meta: { user_id: String(user_id), bundle_id: String(bundleId) },
+      customerName: user.username || user.email || undefined,
+    });
+
+    await db("flutterwave_payments").insert({
+      tx_ref,
+      user_id,
+      bundle_id: bundleId,
+      amount_kobo: priceNgnKobo,
+      status: "pending",
+    });
+
+    return res.json({
+      success: true,
+      link,
+      reference: tx_ref,
+    });
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.user?.id }, "flutterwaveInitialize error");
+    return res.status(500).json({ success: false, message: err.message || "Failed to initialize payment" });
+  }
+}
+
+/**
+ * POST /api/shop/flutterwave/webhook
+ * Raw body required. Verifies verif-hash, then processes charge.completed.
+ */
+export async function flutterwaveWebhook(req, res) {
+  const signature = req.headers["verif-hash"];
+  if (!verifyFlutterwaveWebhookSignature(signature)) {
+    logger.warn("Flutterwave webhook signature verification failed");
+    return res.status(401).send("Invalid signature");
+  }
+
+  let payload;
+  try {
+    payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  } catch (_) {
+    return res.status(400).send("Invalid JSON");
+  }
+
+  res.status(200).send("OK");
+
+  if (payload.event !== "charge.completed") {
+    return;
+  }
+
+  const data = payload.data;
+  const txRef = data?.tx_ref;
+  const status = data?.status;
+  if (!txRef || status !== "successful") return;
+
+  (async () => {
+    try {
+      const existing = await db("flutterwave_payments").where({ tx_ref: txRef }).first();
+      if (!existing) {
+        logger.warn({ tx_ref: txRef }, "Flutterwave webhook: unknown reference");
+        return;
+      }
+      if (existing.status === "completed") return;
+
+      const amountPaid = data.amount != null ? Number(data.amount) : 0;
+      const expectedNaira = Math.round(existing.amount_kobo / 100);
+      if (amountPaid < expectedNaira) {
+        logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave amount mismatch");
+        await db("flutterwave_payments").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+        return;
+      }
+
+      await db("flutterwave_payments").where({ tx_ref: txRef }).update({
+        status: "completed",
+        fulfilled_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      await db("user_bundle_purchases").insert({
+        user_id: existing.user_id,
+        bundle_id: existing.bundle_id,
+        payment_reference: txRef,
+        source: "ngn",
+      });
+
+      logger.info(
+        { tx_ref: txRef, user_id: existing.user_id, bundle_id: existing.bundle_id },
+        "Flutterwave payment fulfilled"
+      );
+    } catch (err) {
+      logger.error({ err: err.message, tx_ref: txRef }, "Flutterwave webhook fulfillment error");
+    }
+  })();
+}
+
+/**
+ * GET /api/shop/flutterwave/verify?reference=xxx
+ * Returns payment and fulfillment status for the given tx_ref (for redirect page / polling).
+ */
+export async function flutterwaveVerify(req, res) {
+  try {
+    const reference = req.query?.reference;
+    if (!reference || typeof reference !== "string") {
+      return res.status(400).json({ success: false, message: "reference query is required" });
+    }
+
+    const row = await db("flutterwave_payments")
+      .where({ tx_ref: reference })
+      .select("tx_ref", "user_id", "bundle_id", "status", "fulfilled_at", "created_at")
+      .first();
+
+    if (!row) {
+      return res.json({
+        success: true,
+        found: false,
+        reference,
+        status: null,
+        fulfilled: false,
+      });
+    }
+
+    const isOwn = req.user && Number(req.user.id) === Number(row.user_id);
+    return res.json({
+      success: true,
+      found: true,
+      reference: row.tx_ref,
+      status: row.status,
+      fulfilled: Boolean(row.fulfilled_at),
+      fulfilled_at: row.fulfilled_at,
+      bundle_id: row.bundle_id,
+      user_id: isOwn ? row.user_id : undefined,
+    });
+  } catch (err) {
+    logger.error({ err: err.message }, "flutterwaveVerify error");
     return res.status(500).json({ success: false, message: "Verification failed" });
   }
 }
