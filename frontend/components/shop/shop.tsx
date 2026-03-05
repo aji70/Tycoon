@@ -601,7 +601,7 @@ const { data: usdcAllowance } = useReadContract({
             className="space-y-4"
           >
             <p className="text-slate-400 text-sm text-center">Loading perks...</p>
-            <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-x-4 gap-y-6 items-stretch" />
+            <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6 items-stretch" />
           </motion.div>
         ) : allShopItems.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -612,7 +612,7 @@ const { data: usdcAllowance } = useReadContract({
             />
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-x-4 gap-y-6 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6 items-stretch">
             {allShopItems.map((item, index) => {
               const isProcessing = buyingPending || buyingConfirming;
               const isComingSoon = 'comingSoon' in item && item.comingSoon;
