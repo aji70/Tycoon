@@ -375,18 +375,28 @@ function Board3DMobileContent() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
   const [canvasKey, setCanvasKey] = useState(0);
+  const [canvasReady, setCanvasReady] = useState(true);
   const fullscreenRef = useRef<HTMLDivElement>(null);
 
-  // When user presses device back button, the page can be restored from bfcache with a lost WebGL context — remount Canvas to avoid crash
+  // When user presses device back: bfcache restore can leave WebGL context lost and R3F's connect() may read .style on a detached node. Unmount Canvas first, then remount on next tick.
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
-        setCanvasKey((k) => k + 1);
+        setCanvasReady(false);
       }
     };
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
+  useEffect(() => {
+    if (!canvasReady) {
+      const t = window.setTimeout(() => {
+        setCanvasKey((k) => k + 1);
+        setCanvasReady(true);
+      }, 50);
+      return () => window.clearTimeout(t);
+    }
+  }, [canvasReady]);
 
   const timeUpHandledRef = useRef(false);
   const rollingForPlayerIdRef = useRef<number | null>(null);
@@ -2017,7 +2027,7 @@ function Board3DMobileContent() {
             <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
             <p className="text-sm">{gameCode ? "Loading game…" : "Loading board…"}</p>
           </div>
-        ) : (
+        ) : canvasReady ? (
           <div
             className="absolute inset-0 w-full h-full overflow-hidden"
             style={{ touchAction: "none", zIndex: 0, isolation: "isolate" }}
@@ -2058,6 +2068,11 @@ function Board3DMobileContent() {
                 spinOrbitDegrees={spinOrbitDegrees}
               />
             </Canvas>
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 text-slate-400">
+            <div className="w-8 h-8 rounded-full border-2 border-cyan-500/50 border-t-cyan-400 animate-spin" />
+            <p className="text-sm">Reconnecting board…</p>
           </div>
         )}
       </main>
