@@ -121,7 +121,7 @@ export default function GameShopMobile() {
       } else if (r?.data?.found && r?.data?.status === 'failed') {
         toast.error('Payment failed or was not completed.');
       }
-      router.replace('/shop', { scroll: false });
+      router.replace('/game-shop', { scroll: false });
     }).catch(() => {});
   }, [searchParams, router]);
 
@@ -130,7 +130,7 @@ export default function GameShopMobile() {
     setNgnLoadingBundleId(bundleId);
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : '';
-      const callbackUrl = `${base}/shop`;
+      const callbackUrl = `${base}/game-shop`;
       const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>('shop/flutterwave/initialize', { bundle_id: bundleId, callback_url: callbackUrl });
       if (res?.data?.link) {
         window.location.href = res.data.link;
