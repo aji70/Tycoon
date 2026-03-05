@@ -131,6 +131,17 @@ These are the primary contract addresses used when the app runs on **Celo**. Set
 |----------|-------------|
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN for error tracking (client and/or server). |
 
+### NGN payments (Flutterwave) — backend only
+
+To accept **Naira (NGN)** for perk bundles in the Shop, set these in the **backend** `.env` (see `backend/.env.example`):
+
+| Variable | Description |
+|----------|-------------|
+| `FLW_SECRET_KEY` | Your Flutterwave secret key from [Dashboard](https://dashboard.flutterwave.com) → Settings → API Keys (use test key for development). |
+| `FLW_SECRET_HASH` | Optional but recommended: webhook secret from Dashboard → Settings → Webhooks. Used to verify that webhook callbacks are from Flutterwave. |
+
+Then in the Flutterwave dashboard, set your **Webhook URL** to `https://your-backend-url/api/shop/flutterwave/webhook`. After payment, users are redirected back to `/shop` and their bundle is fulfilled when the webhook is received.
+
 ### Minimal Celo `.env.local` snippet (addresses only)
 
 ```bash

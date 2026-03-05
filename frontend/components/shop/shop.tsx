@@ -105,6 +105,8 @@ export default function GameShop() {
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
   const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
+  const [ngnAvailable, setNgnAvailable] = useState(false);
+  const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
 
   const { data: tycAllowance } = useReadContract({
   address: tycTokenAddress,
@@ -426,10 +428,44 @@ const { data: usdcAllowance } = useReadContract({
   const isLoadingShop = contractTokenCount > 0 && shopItems.length === 0;
 
   useEffect(() => {
-    apiClient.get<{ success?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> }>('shop/bundles').then((r) => {
+    apiClient.get<{ success?: boolean; ngn_available?: boolean; bundles?: Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> }>('shop/bundles').then((r) => {
       if (r?.data?.bundles) setBundles(r.data.bundles);
+      if (typeof r?.data?.ngn_available === 'boolean') setNgnAvailable(r.data.ngn_available);
     }).catch(() => {});
   }, []);
+
+  // Handle return from Flutterwave payment (redirect with ?reference=tx_ref)
+  useEffect(() => {
+    const ref = searchParams.get('reference') ?? searchParams.get('tx_ref');
+    if (!ref) return;
+    apiClient.get<{ success?: boolean; found?: boolean; fulfilled?: boolean; status?: string }>(`shop/flutterwave/verify?reference=${encodeURIComponent(ref)}`).then((r) => {
+      if (r?.data?.found && r?.data?.fulfilled) {
+        toast.success('Payment successful! Your bundle will be available in-game.');
+      } else if (r?.data?.found && r?.data?.status === 'failed') {
+        toast.error('Payment failed or was not completed.');
+      }
+      router.replace('/shop', { scroll: false });
+    }).catch(() => {});
+  }, [searchParams, router]);
+
+  const handlePayWithNgn = async (bundleId: number) => {
+    if (!bundleId || ngnLoadingBundleId != null) return;
+    setNgnLoadingBundleId(bundleId);
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const callbackUrl = `${base}/shop`;
+      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string }>('shop/flutterwave/initialize', { bundle_id: bundleId, callback_url: callbackUrl });
+      if (res?.data?.link) {
+        window.location.href = res.data.link;
+        return;
+      }
+      toast.error(res?.data?.message || 'Could not start payment');
+    } catch (e: any) {
+      toast.error(e?.message || e?.response?.data?.message || 'Failed to initialize NGN payment');
+    } finally {
+      setNgnLoadingBundleId(null);
+    }
+  };
 
   return (
     <section className="min-h-screen text-[#F0F7F7] py-8 px-4 relative overflow-hidden">
@@ -568,15 +604,21 @@ const { data: usdcAllowance } = useReadContract({
                         disabled
                         className="w-full py-3 rounded-xl font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed"
                       >
-                        Coming soon
+                        Buy with USDC — Coming soon
                       </button>
-                      <button
-                        disabled
-                        className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        <Banknote className="w-4 h-4" />
-                        Pay with NGN — Coming soon
-                      </button>
+                      {b.price_ngn != null && b.price_ngn > 0 && (
+                        <button
+                          onClick={() => typeof b.id === 'number' && handlePayWithNgn(b.id)}
+                          disabled={!ngnAvailable || ngnLoadingBundleId != null}
+                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {ngnLoadingBundleId === b.id ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to payment...</>
+                          ) : (
+                            <><Banknote className="w-4 h-4" /> Pay with NGN (₦{(b.price_ngn / 100).toLocaleString()})</>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))}
