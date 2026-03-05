@@ -232,6 +232,16 @@ export async function paystackVerify(req, res) {
 // ─── Flutterwave (NGN) ─────────────────────────────────────────────────────
 
 /**
+ * GET /api/shop/flutterwave/status
+ * Returns whether Flutterwave is configured (no auth). For debugging.
+ */
+export async function flutterwaveStatus(req, res) {
+  return res.json({
+    configured: isFlutterwaveConfigured(),
+  });
+}
+
+/**
  * POST /api/shop/flutterwave/initialize
  * Body: { bundle_id, callback_url? }
  * Auth required. Creates Flutterwave payment and returns link + tx_ref.
@@ -286,13 +296,21 @@ export async function flutterwaveInitialize(req, res) {
     });
 
     // Store amount in kobo (priceNgn * 100) for flutterwave_payments; webhook uses amount_ngn ?? amount_kobo/100
-    await db("flutterwave_payments").insert({
-      tx_ref,
-      user_id,
-      bundle_id: bundleId,
-      amount_kobo: Math.round(priceNgn * 100),
-      status: "pending",
-    });
+    try {
+      await db("flutterwave_payments").insert({
+        tx_ref,
+        user_id,
+        bundle_id: bundleId,
+        amount_kobo: Math.round(priceNgn * 100),
+        status: "pending",
+      });
+    } catch (dbErr) {
+      logger.error({ err: dbErr.message, tx_ref }, "flutterwave_payments insert failed");
+      return res.status(500).json({
+        success: false,
+        message: "Payment created but failed to record. Support may confirm via reference.",
+      });
+    }
 
     return res.json({
       success: true,

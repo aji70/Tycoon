@@ -59,7 +59,6 @@ export async function initializePayment({
     amount: String(Math.round(amount)),
     currency: "NGN",
     redirect_url: String(redirectUrl),
-    payment_options: "card, ussd, account",
     customer: {
       email: customerEmail,
       name: (customerName && String(customerName).trim()) || "Tycoon Player",
@@ -72,17 +71,25 @@ export async function initializePayment({
   if (meta && typeof meta === "object" && Object.keys(meta).length > 0) {
     payload.meta = meta;
   }
-  const res = await fetch(`${FLW_BASE}/payments`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${FLW_SECRET}`,
-    },
-    body: JSON.stringify(payload),
-  });
+
+  let res;
+  let text;
+  try {
+    res = await fetch(`${FLW_BASE}/payments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${FLW_SECRET}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    text = await res.text();
+  } catch (networkErr) {
+    const msg = networkErr?.message || String(networkErr);
+    throw new Error(`Flutterwave request failed: ${msg}`);
+  }
 
   let data;
-  const text = await res.text();
   try {
     data = text ? JSON.parse(text) : {};
   } catch (_) {
