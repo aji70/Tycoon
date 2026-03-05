@@ -6,6 +6,8 @@
  */
 const FLW_SECRET = process.env.FLW_SECRET_KEY || "";
 const FLW_BASE = "https://api.flutterwave.com/v3";
+const FLW_DEFAULT_EMAIL = process.env.FLW_DEFAULT_CUSTOMER_EMAIL || "realjaiboi70@gmail.com";
+const FLW_DEFAULT_PHONE = process.env.FLW_DEFAULT_CUSTOMER_PHONE || "08060332714";
 
 export function isFlutterwaveConfigured() {
   return Boolean(FLW_SECRET && (FLW_SECRET.startsWith("FLWSECK_TEST-") || FLW_SECRET.startsWith("FLWSECK-")));
@@ -51,18 +53,19 @@ export async function initializePayment({
   if (!Number.isFinite(amount) || amount < 1) {
     throw new Error("amount must be at least 1 Naira");
   }
+  const customerEmail = (email && String(email).trim()) || FLW_DEFAULT_EMAIL;
   const payload = {
     tx_ref: String(txRef),
     amount: String(Math.round(amount)),
     currency: "NGN",
-    redirect_url: redirectUrl,
+    redirect_url: String(redirectUrl),
     customer: {
-      email: String(email).trim(),
+      email: customerEmail,
       name: (customerName && String(customerName).trim()) || "Tycoon Player",
+      phonenumber: FLW_DEFAULT_PHONE,
     },
     customizations: {
       title: "Tycoon Perk Bundle",
-      description: "Perk bundle purchase",
     },
   };
   if (meta && typeof meta === "object" && Object.keys(meta).length > 0) {
@@ -78,7 +81,10 @@ export async function initializePayment({
   });
   const data = await res.json();
   if (data.status !== "success" || !data.data?.link) {
-    throw new Error(data.message || data.data?.message || "Flutterwave initialize failed");
+    const msg = data.message || data.data?.message || "Flutterwave initialize failed";
+    const validation = data.data?.validation_errors || data.validation_errors;
+    const detail = validation && Array.isArray(validation) ? `${msg}: ${validation.map((v) => v.field || v).join(", ")}` : msg;
+    throw new Error(detail);
   }
   return {
     link: data.data.link,

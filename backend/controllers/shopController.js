@@ -266,9 +266,6 @@ export async function flutterwaveInitialize(req, res) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     const email = user.email || (user.username ? `${user.username}@tycoon.placeholder` : null);
-    if (!email) {
-      return res.status(400).json({ success: false, message: "User must have an email for NGN payment" });
-    }
 
     const txRef = `tycoon_bundle_${bundleId}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     let redirectUrl = (callback_url && String(callback_url).trim()) || "";
