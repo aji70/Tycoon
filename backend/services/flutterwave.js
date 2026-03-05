@@ -11,6 +11,15 @@ const FLW_BASE = "https://api.flutterwave.com/v3";
 const FLW_DEFAULT_EMAIL = "realjaiboi70@gmail.com";
 const FLW_DEFAULT_PHONE = "08060332714";
 
+/** Optional: full URL to your logo (e.g. https://yoursite.com/logo.png). Shown on Flutterwave checkout. */
+function getCheckoutLogoUrl() {
+  const fromEnv = process.env.FLW_LOGO_URL || process.env.FLUTTERWAVE_LOGO_URL;
+  if (fromEnv && String(fromEnv).trim().startsWith("http")) return String(fromEnv).trim();
+  const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+  if (base) return `${base}/game/rewardrealm.svg`;
+  return null;
+}
+
 export function isFlutterwaveConfigured() {
   return Boolean(FLW_SECRET && (FLW_SECRET.startsWith("FLWSECK_TEST-") || FLW_SECRET.startsWith("FLWSECK-")));
 }
@@ -71,7 +80,9 @@ export async function initializePayment({
       phonenumber: FLW_DEFAULT_PHONE,
     },
     customizations: {
-      title: "Tycoon Perk Bundle",
+      title: "Tycoon — Perk Bundle",
+      description: "Secure payment for your perk bundle. Your perks will be available in-game after purchase.",
+      ...(getCheckoutLogoUrl() && { logo: getCheckoutLogoUrl() }),
     },
   };
   if (meta && typeof meta === "object" && Object.keys(meta).length > 0) {
