@@ -1686,8 +1686,9 @@ function Board3DPageContent() {
       return () => window.clearTimeout(t);
     }
   }, [canvasReady]);
+  const showCanvasArea = canvasReady && !(isLoading || (gameCode && gameLoading));
   useLayoutEffect(() => {
-    if (!canvasReady) {
+    if (!showCanvasArea) {
       setCanvasMounted(false);
       return;
     }
@@ -1703,7 +1704,7 @@ function Board3DPageContent() {
       cancelled = true;
       cancelAnimationFrame(id);
     };
-  }, [canvasReady]);
+  }, [showCanvasArea]);
 
   useEffect(() => {
     setStrategyRanThisTurn(false);

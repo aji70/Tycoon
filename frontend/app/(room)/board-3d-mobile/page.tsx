@@ -413,9 +413,10 @@ function Board3DMobileContent() {
       return () => window.clearTimeout(t);
     }
   }, [canvasReady]);
-  // Phase 2: only mount Canvas after container ref is set and we've had two frames (ensures DOM is committed and laid out).
+  // Phase 2: mount Canvas only after the container is in the DOM (we show container when !loading and canvasReady). Re-run when loading finishes so ref is set.
+  const showCanvasArea = canvasReady && !isLoading && !(gameCode && gameLoading);
   useLayoutEffect(() => {
-    if (!canvasReady) {
+    if (!showCanvasArea) {
       setCanvasMounted(false);
       return;
     }
@@ -431,7 +432,7 @@ function Board3DMobileContent() {
       cancelled = true;
       cancelAnimationFrame(id);
     };
-  }, [canvasReady]);
+  }, [showCanvasArea]);
 
   const timeUpHandledRef = useRef(false);
   const rollingForPlayerIdRef = useRef<number | null>(null);

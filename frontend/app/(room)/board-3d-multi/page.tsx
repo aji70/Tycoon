@@ -449,8 +449,9 @@ function Board3DPageContent() {
       return () => window.clearTimeout(t);
     }
   }, [canvasReady]);
+  const showCanvasArea = canvasReady && !(isLoading || (gameCode && gameLoading));
   useLayoutEffect(() => {
-    if (!canvasReady) {
+    if (!showCanvasArea) {
       setCanvasMounted(false);
       return;
     }
@@ -466,7 +467,7 @@ function Board3DPageContent() {
       cancelled = true;
       cancelAnimationFrame(id);
     };
-  }, [canvasReady]);
+  }, [showCanvasArea]);
   const doublesCountRef = useRef(0);
   const runningTotalRef = useRef(0);
   const expectingDoublesRollAgainRef = useRef(false);
