@@ -47,6 +47,7 @@ import db from "./config/database.js";
 import redis from "./config/redis.js";
 import { getChainConfig } from "./config/chains.js";
 import { testContractConnection, callContractRead, callContractWrite } from "./services/tycoonContract.js";
+import { getStarknetConfig, isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -281,6 +282,21 @@ app.get("/api/config/test", async (req, res) => {
   }
   if (req.query.test_connection === "1") {
     result.connectionTest = await testContractConnection(norm);
+  }
+  res.json(result);
+});
+
+// Starknet (Cairo/Dojo) config and connection test
+app.get("/api/config/starknet", async (_req, res) => {
+  const { rpcUrl, gameAddress, playerAddress, isConfigured } = getStarknetConfig();
+  const result = {
+    isConfigured: !!isConfigured,
+    STARKNET_RPC_URL: rpcUrl || null,
+    STARKNET_DOJO_GAME_ADDRESS: gameAddress || null,
+    STARKNET_DOJO_PLAYER_ADDRESS: playerAddress || null,
+  };
+  if (_req.query.test_connection === "1") {
+    result.connectionTest = await testStarknetConnection();
   }
   res.json(result);
 });

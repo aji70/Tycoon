@@ -38,7 +38,8 @@
         "mysql2": "^3.6.0",
         "pino": "^10.3.1",
         "redis": "^5.8.3",
-        "socket.io": "^4.8.1"
+        "socket.io": "^4.8.1",
+        "starknet": "^6.23.0"
     },
     "devDependencies": {
         "nodemon": "^3.0.1"
