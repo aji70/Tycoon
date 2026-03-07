@@ -54,6 +54,7 @@ const User = {
     if (!address) return null;
     const normalizedChain = this.normalizeChain(chain);
     const chainsToTry = [normalizedChain];
+    if (normalizedChain === "STARKNET") chainsToTry.push("Starknet");
     if (normalizedChain !== "CELO") chainsToTry.push("CELO");
     if (normalizedChain !== "BASE") chainsToTry.push("BASE");
     if (normalizedChain !== "POLYGON") chainsToTry.push("POLYGON");
@@ -231,7 +232,8 @@ const User = {
 
   /**
    * Normalize chain from query (chain name or chainId number) to DB value.
-   * Supports: BASE, CELO, POLYGON; 8453/84531 -> BASE, 42220/44787 -> CELO, 137/80001 -> POLYGON.
+   * Supports: BASE, CELO, POLYGON, STARKNET; 8453/84531 -> BASE, 42220/44787 -> CELO, 137/80001 -> POLYGON.
+   * Starknet variants (Starknet Sepolia, STARKNETSEPOLIA, SN_SEPOLIA, etc.) -> STARKNET.
    */
   normalizeChain(chain) {
     if (chain == null || String(chain).trim() === "") return "BASE";
@@ -240,6 +242,7 @@ const User = {
     if (s === "BASE" || n === 8453 || n === 84531) return "BASE";
     if (s === "CELO" || n === 42220 || n === 44787) return "CELO";
     if (s === "POLYGON" || n === 137 || n === 80001) return "POLYGON";
+    if (s === "STARKNET" || s === "STARKNETSEPOLIA" || s === "SN_SEPOLIA" || /^STARKNET/.test(s)) return "STARKNET";
     return s;
   },
 
