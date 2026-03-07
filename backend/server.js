@@ -47,7 +47,8 @@ import db from "./config/database.js";
 import redis from "./config/redis.js";
 import { getChainConfig } from "./config/chains.js";
 import { testContractConnection, callContractRead, callContractWrite } from "./services/tycoonContract.js";
-import { getStarknetConfig, isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
+import { getStarknetConfig } from "./config/starknet.js";
+import { isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
 
 const app = express();
 app.set("trust proxy", 1);
