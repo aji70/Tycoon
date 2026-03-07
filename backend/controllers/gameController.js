@@ -24,6 +24,11 @@ import {
   removePlayerFromGame,
   isContractConfigured,
 } from "../services/tycoonContract.js";
+import {
+  getGameByCodeStarknet,
+  parseGameByCodeResult,
+  isStarknetConfigured,
+} from "../services/starknetContract.js";
 import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
@@ -815,7 +820,65 @@ const gameController = {
         });
       }
 
-      const game = await Game.findByCode(code);
+      let game = await Game.findByCode(code);
+      if (!game && isStarknetConfigured()) {
+        try {
+          const raw = await getGameByCodeStarknet(code);
+          const parsed = parseGameByCodeResult(raw);
+          if (parsed?.gameId && parsed?.creatorAddress) {
+            let creatorUser = await User.resolveUserByAddress(parsed.creatorAddress, "STARKNET");
+            if (!creatorUser) {
+              const addr = String(parsed.creatorAddress).trim().toLowerCase();
+              creatorUser = await User.create({
+                address: addr,
+                username: addr.slice(0, 16),
+                chain: "STARKNET",
+              });
+              logger.info({ address: addr }, "Created minimal user for sync-from-chain game creator");
+            }
+            game = await Game.create({
+              code,
+              mode: "PRIVATE",
+              creator_id: creatorUser.id,
+              next_player_id: creatorUser.id,
+              number_of_players: 4,
+              status: "PENDING",
+              is_minipay: false,
+              is_ai: false,
+              duration: 30,
+              chain: "STARKNET",
+              contract_game_id: parsed.gameId,
+            });
+            await Chat.create({ game_id: game.id, status: "open" });
+            await GameSetting.create({
+              game_id: game.id,
+              auction: true,
+              rent_in_prison: false,
+              mortgage: true,
+              even_build: true,
+              randomize_play_order: true,
+              starting_cash: 1500,
+            });
+            await GamePlayer.create({
+              game_id: game.id,
+              user_id: creatorUser.id,
+              address: creatorUser.address,
+              balance: 1500,
+              position: 0,
+              turn_order: 1,
+              symbol: "hat",
+              chance_jail_card: false,
+              community_chest_jail_card: false,
+            });
+            logger.info({ code, gameId: parsed.gameId }, "Synced game from Starknet to backend");
+          }
+        } catch (err) {
+          if (err?.message?.includes("not found") || err?.message?.includes("Not found")) {
+            return res.status(404).json({ error: "Game not found" });
+          }
+          logger.warn({ err: err?.message, code }, "Sync from Starknet failed, returning 404");
+        }
+      }
       if (!game) return res.status(404).json({ error: "Game not found" });
       // Return full game data for FINISHED/CANCELLED so the board can show winner modal; no "Game ended" error that would replace the page.
       const settings = await GameSetting.findByGameId(game.id);

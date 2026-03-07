@@ -278,13 +278,51 @@ function symbolNameToIndex(name) {
 }
 
 /**
- * Get game by code (read-only).
- * @param {string} code - Game code
+ * Get game by code (read-only). Use same code encoding as frontend (uppercase).
+ * @param {string} code - Game code (will be trimmed; pass uppercase to match chain)
  * @returns {Promise<unknown>} Raw result (felt/game id or struct)
  */
 export async function getGameByCodeStarknet(code) {
-  const codeFelt = stringToFelt(code);
+  const normalized = String(code ?? "").trim().toUpperCase();
+  if (!normalized) throw new Error("Empty code");
+  const codeFelt = stringToFelt(normalized);
   return starknetCall("game", "get_game_by_code", [codeFelt]);
+}
+
+/**
+ * Felt to Starknet address string (0x + 64 hex).
+ */
+function feltToAddress(felt) {
+  if (felt == null) return null;
+  const addr = BigInt(felt);
+  const hex = addr.toString(16);
+  return "0x" + hex.padStart(64, "0").toLowerCase();
+}
+
+/**
+ * Parse get_game_by_code result to { gameId, creatorAddress }.
+ * Handles array, wrapped .result, or object with id/creator; creator felt -> 0x hex address.
+ * @returns {{ gameId: string; creatorAddress: string } | null}
+ */
+export function parseGameByCodeResult(raw) {
+  if (raw == null) return null;
+  let gameId = null;
+  let creator = null;
+  if (typeof raw === "object" && raw.id != null && raw.creator != null) {
+    gameId = raw.id;
+    creator = raw.creator;
+  } else {
+    const arr = Array.isArray(raw) ? raw : raw?.result ?? (raw?.length != null ? [...raw] : null);
+    if (!arr || arr.length < 2) return null;
+    gameId = arr[0];
+    creator = arr[1];
+  }
+  if (gameId == null || creator == null) return null;
+  const id = BigInt(gameId);
+  if (id === 0n) return null;
+  const creatorAddress = feltToAddress(creator);
+  if (!creatorAddress) return null;
+  return { gameId: id.toString(), creatorAddress };
 }
 
 /**
