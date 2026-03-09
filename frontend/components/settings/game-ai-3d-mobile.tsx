@@ -61,7 +61,9 @@ export default function PlayWithAI3DMobile() {
           <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent">
             Play vs AI
           </h1>
-          <div className="w-14" />
+          <a href="/agents" className="text-cyan-400 hover:text-cyan-300 text-xs font-medium">
+            Agents
+          </a>
         </div>
       </div>
 

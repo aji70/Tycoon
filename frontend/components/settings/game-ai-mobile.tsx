@@ -58,7 +58,9 @@ export default function PlayWithAIMobile() {
           <h1 className="text-2xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             AI DUEL
           </h1>
-          <div className="w-14" />
+          <a href="/agents" className="text-cyan-400 hover:text-cyan-300 text-xs font-medium">
+            Agents
+          </a>
         </div>
       </div>
 
