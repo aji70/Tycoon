@@ -37,6 +37,7 @@ export default function AgentsPageMobile() {
   const { signMessageAsync } = useSignMessage();
   const guestAuth = useGuestAuthOptional();
   const triedWalletAutoLogin = React.useRef(false);
+  const [walletLinkRetry, setWalletLinkRetry] = useState(0);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [authFailed, setAuthFailed] = useState(false);
@@ -80,8 +81,9 @@ export default function AgentsPageMobile() {
   }, [fetchAgents]);
 
   React.useEffect(() => {
-    if (!authFailed || !isConnected || !address || triedWalletAutoLogin.current) return;
+    if (!authFailed || !isConnected || !address) return;
     if (!guestAuth?.loginByWallet || !signMessageAsync) return;
+    if (triedWalletAutoLogin.current && walletLinkRetry === 0) return;
     triedWalletAutoLogin.current = true;
     setLinkingWallet(true);
     const message = `Sign in to Tycoon at ${Date.now()}`;
@@ -91,9 +93,8 @@ export default function AgentsPageMobile() {
       .then(async (res) => {
         if (res.success) {
           await guestAuth.refetchGuest?.();
-          setAuthFailed(false);
           setWalletNotRegistered(false);
-          setAgents([]);
+          setAuthFailed(false);
           setLoading(true);
           try {
             const r = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
@@ -102,12 +103,24 @@ export default function AgentsPageMobile() {
             setLoading(false);
           }
         } else {
-          setWalletNotRegistered(true);
+          const msg = (res.message ?? "").toLowerCase();
+          const isNoAccount = msg.includes("no account") || msg.includes("not found") || msg.includes("register");
+          setWalletNotRegistered(isNoAccount);
+          if (!isNoAccount) {
+            triedWalletAutoLogin.current = false;
+            toast.error(res.message ?? "Could not link wallet");
+          }
         }
       })
-      .catch(() => setWalletNotRegistered(true))
+      .catch((err) => {
+        triedWalletAutoLogin.current = false;
+        const msg = (err as Error)?.message ?? "";
+        if (!msg.toLowerCase().includes("reject") && !msg.toLowerCase().includes("denied")) {
+          toast.error("Could not link wallet. Try again.");
+        }
+      })
       .finally(() => setLinkingWallet(false));
-  }, [authFailed, isConnected, address, chainId, guestAuth, signMessageAsync]);
+  }, [authFailed, isConnected, address, chainId, guestAuth, signMessageAsync, walletLinkRetry]);
 
   const resetForm = () => {
     setShowForm(false);
@@ -180,9 +193,24 @@ export default function AgentsPageMobile() {
       return (
         <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-4 pt-24">
           <div className="max-w-sm w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-6 text-center">
-            <Loader2 className="w-14 h-14 text-cyan-400 mx-auto mb-3 animate-spin" />
-            <p className="text-cyan-300 font-medium text-sm">{linkingWallet ? "Linking your wallet..." : "Loading..."}</p>
-            <p className="text-gray-400 text-xs mt-2">{linkingWallet ? "Approve the signature in your wallet" : ""}</p>
+            {linkingWallet ? (
+              <>
+                <Loader2 className="w-14 h-14 text-cyan-400 mx-auto mb-3 animate-spin" />
+                <p className="text-cyan-300 font-medium text-sm">Linking your wallet...</p>
+                <p className="text-gray-400 text-xs mt-2">Approve the signature in your wallet</p>
+              </>
+            ) : (
+              <>
+                <Bot className="w-14 h-14 text-cyan-400 mx-auto mb-3" />
+                <p className="text-cyan-300 font-medium text-sm mb-2">Approve the signature in your wallet to continue</p>
+                <button
+                  onClick={() => setWalletLinkRetry((n) => n + 1)}
+                  className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
+                >
+                  Try again
+                </button>
+              </>
+            )}
           </div>
         </div>
       );
