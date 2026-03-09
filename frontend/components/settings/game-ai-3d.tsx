@@ -61,7 +61,11 @@ export default function PlayWithAI3D() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-cyan-300 to-teal-400 bg-clip-text text-transparent">
             Play vs AI
           </h1>
-          <div className="w-24" />
+          <div className="w-24 flex justify-end">
+            <a href="/agents" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium">
+              Manage agents
+            </a>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 mb-10">

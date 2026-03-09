@@ -6,7 +6,7 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen } from 'lucide-react';
+import { House, Volume2, VolumeOff, User, ShoppingBag, Trophy, Globe, Swords, MessageCircle, Wallet, BookOpen, Bot } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { PiUserCircle } from 'react-icons/pi';
@@ -20,7 +20,7 @@ import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
-const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard', '/agents'] as const;
 
 const NavBar = () => {
   const pathname = usePathname();
@@ -193,6 +193,18 @@ const NavBar = () => {
             >
               <MessageCircle className="w-[16px] h-[16px]" />
               <span className="text-[12px] font-[400] font-dmSans">Rooms</span>
+            </Link>
+          )}
+
+          {/* My Agents (only when connected) */}
+          {isConnected && (
+            <Link
+              href="/agents"
+              onMouseEnter={() => router.prefetch('/agents')}
+              className="w-[90px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+            >
+              <Bot className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Agents</span>
             </Link>
           )}
 

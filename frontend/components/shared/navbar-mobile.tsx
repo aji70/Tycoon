@@ -6,7 +6,7 @@ import Logo from './logo';
 import LogoIcon from '@/public/logo.png';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords, BookOpen } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, User, ShoppingBag, Trophy, Swords, BookOpen, Bot } from 'lucide-react';
 import useSound from 'use-sound';
 import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
 import { useConnect } from 'wagmi';
@@ -30,7 +30,7 @@ interface NavBarMobileProps {
   minimal?: boolean;
 }
 
-const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard', '/agents'] as const;
 
 const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const pathname = usePathname();
@@ -322,6 +322,17 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
                         <ShoppingBag size={20} />
                       </div>
                       Perk Shop
+                    </Link>
+
+                    <Link
+                      href="/agents"
+                      onClick={closeMobileMenu}
+                      className="flex items-center gap-4 py-4 px-5 rounded-xl bg-[#011112]/70 hover:bg-[#022a2c]/80 border border-transparent hover:border-[#00F0FF]/25 text-[#00F0FF] font-medium transition-all duration-200 hover:shadow-[0_0_20px_rgba(0,240,255,0.08)]"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-[#003B3E]/50 flex items-center justify-center text-[#00F0FF]/90">
+                        <Bot size={20} />
+                      </div>
+                      My Agents
                     </Link>
                   </>
                 )}
