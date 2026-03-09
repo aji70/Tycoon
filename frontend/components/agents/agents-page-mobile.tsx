@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Wallet } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
@@ -36,10 +36,12 @@ export default function AgentsPageMobile() {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const guestAuth = useGuestAuthOptional();
+  const triedWalletAutoLogin = React.useRef(false);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [authFailed, setAuthFailed] = useState(false);
-  const [signInLoading, setSignInLoading] = useState(false);
+  const [linkingWallet, setLinkingWallet] = useState(false);
+  const [walletNotRegistered, setWalletNotRegistered] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formName, setFormName] = useState("");
@@ -51,6 +53,7 @@ export default function AgentsPageMobile() {
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
     setAuthFailed(false);
+    setWalletNotRegistered(false);
     try {
       const res = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
       if (res.data?.success && Array.isArray(res.data.data)) {
@@ -75,6 +78,36 @@ export default function AgentsPageMobile() {
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  React.useEffect(() => {
+    if (!authFailed || !isConnected || !address || triedWalletAutoLogin.current) return;
+    if (!guestAuth?.loginByWallet || !signMessageAsync) return;
+    triedWalletAutoLogin.current = true;
+    setLinkingWallet(true);
+    const message = `Sign in to Tycoon at ${Date.now()}`;
+    const chain = chainIdToBackendChain(chainId);
+    signMessageAsync({ message })
+      .then((signature) => guestAuth.loginByWallet!({ address, chain, message, signature }))
+      .then(async (res) => {
+        if (res.success) {
+          await guestAuth.refetchGuest?.();
+          setAuthFailed(false);
+          setWalletNotRegistered(false);
+          setAgents([]);
+          setLoading(true);
+          try {
+            const r = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
+            if (r.data?.success && Array.isArray(r.data.data)) setAgents(r.data.data);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          setWalletNotRegistered(true);
+        }
+      })
+      .catch(() => setWalletNotRegistered(true))
+      .finally(() => setLinkingWallet(false));
+  }, [authFailed, isConnected, address, chainId, guestAuth, signMessageAsync]);
 
   const resetForm = () => {
     setShowForm(false);
@@ -141,60 +174,57 @@ export default function AgentsPageMobile() {
     }
   };
 
-  const handleSignInWithWallet = async () => {
-    if (!address || !guestAuth?.loginByWallet || !signMessageAsync) return;
-    setSignInLoading(true);
-    try {
-      const message = `Sign in to Tycoon at ${Date.now()}`;
-      const signature = await signMessageAsync({ message });
-      const chain = chainIdToBackendChain(chainId);
-      const res = await guestAuth.loginByWallet({ address, chain, message, signature });
-      if (res.success) {
-        await guestAuth.refetchGuest?.();
-        setAuthFailed(false);
-        await fetchAgents();
-        toast.success("Signed in");
-      } else {
-        toast.error(res.message ?? "Sign in failed. Register on-chain first.");
-      }
-    } catch (err) {
-      toast.error((err as Error)?.message ?? "Sign in failed");
-    } finally {
-      setSignInLoading(false);
-    }
-  };
-
   if (authFailed) {
     const hasWallet = isConnected && !!address;
-    return (
-      <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-4 pt-24">
-        <div className="max-w-sm w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-6 text-center">
-          <Bot className="w-14 h-14 text-cyan-400 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-white mb-2">Sign in required</h2>
-          <p className="text-gray-400 text-sm mb-5">
-            Sign in or connect your wallet to manage your AI agents.
-          </p>
-          <div className="flex flex-col gap-3">
-            {hasWallet && guestAuth?.loginByWallet && (
-              <button
-                onClick={handleSignInWithWallet}
-                disabled={signInLoading}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
-              >
-                {signInLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
-                Sign in with wallet
-              </button>
-            )}
+    if (hasWallet && !walletNotRegistered) {
+      return (
+        <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-4 pt-24">
+          <div className="max-w-sm w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-6 text-center">
+            <Loader2 className="w-14 h-14 text-cyan-400 mx-auto mb-3 animate-spin" />
+            <p className="text-cyan-300 font-medium text-sm">{linkingWallet ? "Linking your wallet..." : "Loading..."}</p>
+            <p className="text-gray-400 text-xs mt-2">{linkingWallet ? "Approve the signature in your wallet" : ""}</p>
+          </div>
+        </div>
+      );
+    }
+    if (hasWallet && walletNotRegistered) {
+      return (
+        <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-4 pt-24">
+          <div className="max-w-sm w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-6 text-center">
+            <Bot className="w-14 h-14 text-cyan-400 mx-auto mb-3" />
+            <h2 className="text-lg font-bold text-white mb-2">Wallet not registered</h2>
+            <p className="text-gray-400 text-sm mb-5">
+              Register on-chain first (e.g. play one game via Play vs AI), then return here.
+            </p>
             <button
               onClick={() => router.push("/")}
-              className="w-full py-3 rounded-xl border border-cyan-500/50 text-cyan-400 text-sm font-medium"
+              className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
             >
               Go to Home
             </button>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+    if (!hasWallet) {
+      return (
+        <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-4 pt-24">
+          <div className="max-w-sm w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-6 text-center">
+            <Bot className="w-14 h-14 text-cyan-400 mx-auto mb-3" />
+            <h2 className="text-lg font-bold text-white mb-2">Connect your wallet</h2>
+            <p className="text-gray-400 text-sm mb-5">
+              Connect your wallet to create and manage your AI agents.
+            </p>
+            <button
+              onClick={() => router.push("/")}
+              className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      );
+    }
   }
 
   return (
