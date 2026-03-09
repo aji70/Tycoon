@@ -37,6 +37,7 @@ export default function AgentsPage() {
   const { signMessageAsync } = useSignMessage();
   const guestAuth = useGuestAuthOptional();
   const triedWalletAutoLogin = React.useRef(false);
+  const [walletLinkRetry, setWalletLinkRetry] = useState(0);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [authFailed, setAuthFailed] = useState(false);
@@ -79,10 +80,11 @@ export default function AgentsPage() {
     fetchAgents();
   }, [fetchAgents]);
 
-  // When a connected wallet user gets 401, automatically link wallet (one signature) so they can use Agents without a "sign in" prompt
+  // When a connected wallet user gets 401, automatically link wallet (one signature) so they can use Agents
   React.useEffect(() => {
-    if (!authFailed || !isConnected || !address || triedWalletAutoLogin.current) return;
+    if (!authFailed || !isConnected || !address) return;
     if (!guestAuth?.loginByWallet || !signMessageAsync) return;
+    if (triedWalletAutoLogin.current && walletLinkRetry === 0) return;
     triedWalletAutoLogin.current = true;
     setLinkingWallet(true);
     const message = `Sign in to Tycoon at ${Date.now()}`;
@@ -92,23 +94,38 @@ export default function AgentsPage() {
       .then(async (res) => {
         if (res.success) {
           await guestAuth.refetchGuest?.();
-          setAuthFailed(false);
           setWalletNotRegistered(false);
-          setAgents([]);
+          setAuthFailed(false);
           setLoading(true);
           try {
             const r = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
-            if (r.data?.success && Array.isArray(r.data.data)) setAgents(r.data.data);
+            if (r.data?.success && Array.isArray(r.data.data)) {
+              setAgents(r.data.data);
+            }
           } finally {
             setLoading(false);
           }
         } else {
-          setWalletNotRegistered(true);
+          // Only show "Account needed" when backend says no user (404 / "No account")
+          const msg = (res.message ?? "").toLowerCase();
+          const isNoAccount = msg.includes("no account") || msg.includes("not found") || msg.includes("register");
+          setWalletNotRegistered(isNoAccount);
+          if (!isNoAccount) {
+            triedWalletAutoLogin.current = false;
+            toast.error(res.message ?? "Could not link wallet");
+          }
         }
       })
-      .catch(() => setWalletNotRegistered(true))
+      .catch((err) => {
+        // User rejected signature or network error – don't treat as "not registered"; allow retry
+        triedWalletAutoLogin.current = false;
+        const msg = (err as Error)?.message ?? "";
+        if (!msg.toLowerCase().includes("reject") && !msg.toLowerCase().includes("denied")) {
+          toast.error("Could not link wallet. Try again.");
+        }
+      })
       .finally(() => setLinkingWallet(false));
-  }, [authFailed, isConnected, address, chainId, guestAuth, signMessageAsync]);
+  }, [authFailed, isConnected, address, chainId, guestAuth, signMessageAsync, walletLinkRetry]);
 
   const resetForm = () => {
     setShowForm(false);
@@ -181,9 +198,24 @@ export default function AgentsPage() {
       return (
         <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-6">
           <div className="max-w-md w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-8 text-center">
-            <Loader2 className="w-16 h-16 text-cyan-400 mx-auto mb-4 animate-spin" />
-            <p className="text-cyan-300 font-medium">{linkingWallet ? "Linking your wallet..." : "Loading..."}</p>
-            <p className="text-gray-400 text-sm mt-2">{linkingWallet ? "Approve the signature in your wallet" : ""}</p>
+            {linkingWallet ? (
+              <>
+                <Loader2 className="w-16 h-16 text-cyan-400 mx-auto mb-4 animate-spin" />
+                <p className="text-cyan-300 font-medium">Linking your wallet...</p>
+                <p className="text-gray-400 text-sm mt-2">Approve the signature in your wallet</p>
+              </>
+            ) : (
+              <>
+                <Bot className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
+                <p className="text-cyan-300 font-medium mb-2">Approve the signature in your wallet to continue</p>
+                <button
+                  onClick={() => setWalletLinkRetry((n) => n + 1)}
+                  className="px-6 py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl hover:bg-[#0FF0FC] transition"
+                >
+                  Try again
+                </button>
+              </>
+            )}
           </div>
         </div>
       );
