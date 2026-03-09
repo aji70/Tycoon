@@ -193,9 +193,9 @@ export default function AgentsPage() {
         <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-6">
           <div className="max-w-md w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-8 text-center">
             <Bot className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Wallet not registered</h2>
+            <h2 className="text-xl font-bold text-white mb-2">Account needed</h2>
             <p className="text-gray-400 mb-6">
-              Register on-chain first (e.g. play one game via Play vs AI), then return here to manage your agents.
+              This wallet isn’t linked to a Tycoon account yet. Create or link an account from the home page, then return here to manage your agents.
             </p>
             <button
               onClick={() => router.push("/")}
