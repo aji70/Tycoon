@@ -2,10 +2,19 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink } from "lucide-react";
+import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Wallet } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+
+function chainIdToBackendChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
+  return "CELO";
+}
 
 export interface UserAgent {
   id: number;
@@ -23,9 +32,14 @@ export interface UserAgent {
 
 export default function AgentsPageMobile() {
   const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { signMessageAsync } = useSignMessage();
+  const guestAuth = useGuestAuthOptional();
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [authFailed, setAuthFailed] = useState(false);
+  const [signInLoading, setSignInLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formName, setFormName] = useState("");
@@ -127,7 +141,31 @@ export default function AgentsPageMobile() {
     }
   };
 
+  const handleSignInWithWallet = async () => {
+    if (!address || !guestAuth?.loginByWallet || !signMessageAsync) return;
+    setSignInLoading(true);
+    try {
+      const message = `Sign in to Tycoon at ${Date.now()}`;
+      const signature = await signMessageAsync({ message });
+      const chain = chainIdToBackendChain(chainId);
+      const res = await guestAuth.loginByWallet({ address, chain, message, signature });
+      if (res.success) {
+        await guestAuth.refetchGuest?.();
+        setAuthFailed(false);
+        await fetchAgents();
+        toast.success("Signed in");
+      } else {
+        toast.error(res.message ?? "Sign in failed. Register on-chain first.");
+      }
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Sign in failed");
+    } finally {
+      setSignInLoading(false);
+    }
+  };
+
   if (authFailed) {
+    const hasWallet = isConnected && !!address;
     return (
       <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col items-center justify-center p-4 pt-24">
         <div className="max-w-sm w-full bg-black/80 backdrop-blur-xl rounded-2xl border border-cyan-500/30 p-6 text-center">
@@ -136,12 +174,24 @@ export default function AgentsPageMobile() {
           <p className="text-gray-400 text-sm mb-5">
             Sign in or connect your wallet to manage your AI agents.
           </p>
-          <button
-            onClick={() => router.push("/")}
-            className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl"
-          >
-            Go to Home
-          </button>
+          <div className="flex flex-col gap-3">
+            {hasWallet && guestAuth?.loginByWallet && (
+              <button
+                onClick={handleSignInWithWallet}
+                disabled={signInLoading}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-[#00F0FF] text-[#010F10] font-bold rounded-xl text-sm"
+              >
+                {signInLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+                Sign in with wallet
+              </button>
+            )}
+            <button
+              onClick={() => router.push("/")}
+              className="w-full py-3 rounded-xl border border-cyan-500/50 text-cyan-400 text-sm font-medium"
+            >
+              Go to Home
+            </button>
+          </div>
         </div>
       </div>
     );
