@@ -9,6 +9,50 @@ import UserAgent from "../models/UserAgent.js";
 
 const router = express.Router();
 
+// ERC-8004 Identity Registry on Celo (mainnet); Alfajores may use a different address
+const ERC8004_IDENTITY_MAINNET = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
+
+/**
+ * GET /api/agents/:id/erc8004-registration
+ * Public: returns the ERC-8004 agent registration file (JSON) for the given agent.
+ * Used as agentURI when calling the Identity Registry register(agentURI).
+ * See https://eips.ethereum.org/EIPS/eip-8004
+ */
+router.get("/:id/erc8004-registration", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ success: false, message: "Invalid agent id" });
+    }
+    const agent = await UserAgent.findById(id);
+    if (!agent) {
+      return res.status(404).json({ success: false, message: "Agent not found" });
+    }
+    const chainId = agent.chain_id === 44787 ? 44787 : 42220;
+    const agentRegistry = `eip155:${chainId}:${ERC8004_IDENTITY_MAINNET.toLowerCase()}`;
+    const callbackUrl = UserAgent.getCallbackUrl(agent);
+    const registration = {
+      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+      name: agent.name || "Tycoon Agent",
+      description: agent.name ? `Tycoon agent: ${agent.name}` : "AI agent for Tycoon (Monopoly-style game).",
+      image: "",
+      services: callbackUrl
+        ? [{ name: "web", endpoint: callbackUrl }]
+        : [{ name: "web", endpoint: "https://tycoon.game" }],
+      supportedTrust: ["reputation"],
+      registrations:
+        agent.erc8004_agent_id != null && String(agent.erc8004_agent_id) !== ""
+          ? [{ agentId: Number(agent.erc8004_agent_id), agentRegistry }]
+          : [],
+    };
+    res.set("Content-Type", "application/json");
+    res.set("Access-Control-Allow-Origin", "*");
+    res.send(JSON.stringify(registration, null, 2));
+  } catch (err) {
+    res.status(500).json({ success: false, message: err?.message || "Failed to load registration" });
+  }
+});
+
 router.use(requireAuth);
 
 /** List current user's agents */

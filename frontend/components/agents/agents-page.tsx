@@ -3,11 +3,12 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { useRegisterAgentERC8004 } from "@/context/ContractProvider";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -59,6 +60,9 @@ export default function AgentsPage() {
   const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
+  const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
+  const isCelo = chainId === 42220 || chainId === 44787;
 
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
@@ -222,6 +226,33 @@ export default function AgentsPage() {
     }
   };
 
+  const handleRegisterOnCelo = async (a: UserAgent) => {
+    if (!isCelo) {
+      toast.error("Switch to Celo network to register on ERC-8004");
+      return;
+    }
+    if (a.erc8004_agent_id) {
+      toast.info("Already registered on Celo");
+      return;
+    }
+    setRegisteringErc8004Id(a.id);
+    try {
+      const newAgentId = await registerOnCelo(a.id);
+      if (newAgentId != null) {
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { erc8004_agent_id: String(newAgentId) });
+        toast.success(`Registered on Celo. Agent ID: ${newAgentId}`);
+        await fetchAgents();
+      } else {
+        toast.error("Registration succeeded but could not read agent ID");
+      }
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? "Registration failed";
+      toast.error(msg);
+    } finally {
+      setRegisteringErc8004Id(null);
+    }
+  };
+
   if (authFailed) {
     const hasWallet = isConnected && !!address;
     if (hasWallet && !walletNotRegistered) {
@@ -359,6 +390,22 @@ export default function AgentsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {!a.erc8004_agent_id && isCelo && (
+                      <button
+                        type="button"
+                        onClick={() => handleRegisterOnCelo(a)}
+                        disabled={isRegisteringErc8004 && registeringErc8004Id === a.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/40 text-purple-400 hover:bg-purple-500/10 transition disabled:opacity-50 text-sm"
+                        title="Register on Celo (ERC-8004). You pay gas and own the NFT."
+                      >
+                        {isRegisteringErc8004 && registeringErc8004Id === a.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        )}
+                        Register on Celo
+                      </button>
+                    )}
                     <button
                       onClick={() => openEdit(a)}
                       className="p-2 rounded-lg border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 transition"
