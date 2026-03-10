@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Dices, Gamepad2, Wallet } from "lucide-react";
+import { Bot, Dices, Gamepad2, Wallet } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -529,132 +529,170 @@ const handleContinuePrevious = () => {
             </button>
           )}
 
-          {/* Action buttons: wallet registered, guest, or Privy */}
+          {/* Action buttons: wallet registered, guest, or Privy - Game menu style */}
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy" ? (
-            <div className="flex flex-wrap justify-center items-center gap-4">
-              {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
-              {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
-                (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
+            <div className="relative hero-game-frame rounded-lg px-6 py-5 mt-2 max-w-xl mx-auto">
+              {/* Primary: Challenge AI */}
+              <div className="flex flex-col items-center gap-4">
                 <button
-                  onClick={handleContinuePrevious}
-                  className="relative group w-[300px] h-[56px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+                  onClick={() => router.push("/play-ai-3d")}
+                  className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
                 >
                   <svg
-                    width="300"
-                    height="56"
-                    viewBox="0 0 300 56"
+                    width="260"
+                    height="52"
+                    viewBox="0 0 260 52"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                     className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
                   >
                     <path
-                      d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                      d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
                       fill="#00F0FF"
                       stroke="#0E282A"
-                      strokeWidth={2}
+                      strokeWidth={1}
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[20px] font-orbitron font-[700] z-2">
-                    <Gamepad2 className="mr-2 w-7 h-7" />
-                    Continue Game
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+                    Challenge AI!
                   </span>
                 </button>
-              )}
 
-              {/* Play with Friends */}
-              <button
-                onClick={() => router.push("/game-settings-3d")}
-                className="relative group w-[227px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="227"
-                  height="40"
-                  viewBox="0 0 227 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] scale-y-[-1]"
-                >
-                  <path
-                    d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                  Multiplayer
-                </span>
-              </button>
+                {/* Continue Previous Game - when available */}
+                {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
+                  (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
+                  <button
+                    onClick={handleContinuePrevious}
+                    className="relative group w-[280px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+                  >
+                    <svg
+                      width="280"
+                      height="44"
+                      viewBox="0 0 300 56"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute top-0 left-0 w-full h-full transform scale-x-[-1]"
+                    >
+                      <path
+                        d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                        fill="#00F0FF"
+                        stroke="#0E282A"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[14px] font-orbitron font-[700] z-2">
+                      <Gamepad2 className="mr-2 w-5 h-5" />
+                      Continue Game
+                    </span>
+                  </button>
+                )}
 
-              {/* Join Room */}
-              <button
-                onClick={() => router.push("/join-room-3d")}
-                className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="140"
-                  height="40"
-                  viewBox="0 0 140 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#0E1415"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Dices className="mr-1.5 w-[16px] h-[16px]" />
-                  Join Room
-                </span>
-              </button>
+                {/* Secondary menu row: Multiplayer, Join Room, Agents */}
+                <div className="flex flex-wrap justify-center items-center gap-3">
+                  <button
+                    onClick={() => router.push("/game-settings-3d")}
+                    className="relative group w-[140px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.03]"
+                  >
+                    <svg
+                      width="140"
+                      height="40"
+                      viewBox="0 0 227 40"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute top-0 left-0 w-full h-full"
+                    >
+                      <path
+                        d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                        fill="#003B3E"
+                        stroke="#003B3E"
+                        strokeWidth={1}
+                        className="group-hover:stroke-[#00F0FF] transition-all duration-300"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-[11px] font-orbitron font-[600] z-2">
+                      <Gamepad2 className="mr-1.5 w-[14px] h-[14px]" />
+                      Multiplayer
+                    </span>
+                  </button>
 
-              {(guestUser || registrationStatus === "privy") && (
-                <button
-                  onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
-                  className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
-                >
-                  {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
-                </button>
-              )}
+                  <button
+                    onClick={() => router.push("/join-room-3d")}
+                    className="relative group w-[120px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.03]"
+                  >
+                    <svg
+                      width="120"
+                      height="40"
+                      viewBox="0 0 140 40"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute top-0 left-0 w-full h-full"
+                    >
+                      <path
+                        d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                        fill="#0E1415"
+                        stroke="#003B3E"
+                        strokeWidth={1}
+                        className="group-hover:stroke-[#00F0FF] transition-all duration-300"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] text-[11px] font-orbitron font-[600] z-2">
+                      <Dices className="mr-1.5 w-[14px] h-[14px]" />
+                      Join Room
+                    </span>
+                  </button>
 
-              {/* Challenge AI */}
-              <button
-                onClick={() => router.push("/play-ai-3d")}
-                className="relative group w-[260px] h-[52px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
-              >
-                <svg
-                  width="260"
-                  height="52"
-                  viewBox="0 0 260 52"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full transform scale-x-[-1] group-hover:animate-pulse"
-                >
-                  <path
-                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                    fill="#00F0FF"
-                    stroke="#0E282A"
-                    strokeWidth={1}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
-                  Challenge AI!
-                </span>
-              </button>
+                  <button
+                    onClick={() => router.push("/agents")}
+                    className="relative group w-[120px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.03]"
+                  >
+                    <svg
+                      width="120"
+                      height="40"
+                      viewBox="0 0 140 40"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute top-0 left-0 w-full h-full"
+                    >
+                      <path
+                        d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                        fill="#0E1415"
+                        stroke="#003B3E"
+                        strokeWidth={1}
+                        className="group-hover:stroke-[#00F0FF] transition-all duration-300"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] text-[11px] font-orbitron font-[600] z-2">
+                      <Bot className="mr-1.5 w-[14px] h-[14px]" />
+                      Agents
+                    </span>
+                  </button>
+                </div>
+
+                {(guestUser || registrationStatus === "privy") && (
+                  <button
+                    onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
+                    className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs mt-1"
+                  >
+                    {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
+                  </button>
+                )}
+              </div>
             </div>
           ) : null}
 
           {!address && !guestUser && !isPrivyAuthed && (
-            <p className="text-gray-400 text-sm text-center mt-4">
-              Sign in or connect your wallet to play.
-            </p>
+            <div className="flex flex-col items-center gap-3 mt-4">
+              <p className="text-gray-400 text-sm text-center">
+                Sign in or connect your wallet to play.
+              </p>
+              <button
+                onClick={() => router.push("/agents")}
+                className="inline-flex items-center gap-2 text-[#00F0FF]/90 hover:text-[#00F0FF] font-orbitron text-sm font-[600] transition-colors"
+              >
+                <Bot className="w-4 h-4" />
+                Agents
+              </button>
+            </div>
           )}
         </div>
       </main>
