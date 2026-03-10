@@ -1645,8 +1645,9 @@ function Board3DPageContent() {
               property_id: square.id,
             });
           }
-        } catch {
-          /* skip buy on error */
+        } catch (err) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Agent decision failed";
+          toast.error(msg);
         }
         await refetchGame();
         setTimeout(() => END_TURN(), 900);
