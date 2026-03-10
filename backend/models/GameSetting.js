@@ -21,7 +21,8 @@ const GameSetting = {
         "mortgage",
         "even_build",
         "randomize_play_order",
-        "starting_cash"
+        "starting_cash",
+        "ai_difficulty"
       )
       .where({ game_id: gameId })
       .first();

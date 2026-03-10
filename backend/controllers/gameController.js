@@ -322,6 +322,7 @@ const gameController = {
         status: "open",
       });
 
+      const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
       const gameSettingsPayload = {
         game_id: game.id,
         auction: settings.auction,
@@ -330,7 +331,7 @@ const gameController = {
         even_build: settings.even_build,
         randomize_play_order: settings?.randomize_play_order ?? true,
         starting_cash: settings.starting_cash,
-        // turn_start: settings.turn_start,
+        ...(game.is_ai && { ai_difficulty: ["easy", "hard", "boss"].includes(aiDiff) ? aiDiff : "boss" }),
       };
 
       const game_settings = await GameSetting.create(gameSettingsPayload);
@@ -1123,6 +1124,7 @@ export const create = async (req, res) => {
       chain,
     });
 
+    const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
     const gameSettingsPayload = {
       game_id: game.id,
       auction: settings.auction,
@@ -1131,6 +1133,7 @@ export const create = async (req, res) => {
       even_build: settings.even_build,
       randomize_play_order: settings?.randomize_play_order ?? true,
       starting_cash: settings.starting_cash,
+      ...(is_ai && { ai_difficulty: ["easy", "hard", "boss"].includes(aiDiff) ? aiDiff : "boss" }),
     };
 
     const game_settings = await GameSetting.create(gameSettingsPayload);
@@ -1626,6 +1629,7 @@ export const createAIAsGuest = async (req, res) => {
       chain,
       is_minipay,
     } = req.body;
+    const aiDifficulty = settings?.ai_difficulty || req.body.ai_difficulty || "boss";
 
     const startingCash = settings?.starting_cash ?? 1500;
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
@@ -1694,6 +1698,7 @@ export const createAIAsGuest = async (req, res) => {
       even_build: settings?.even_build ?? true,
       randomize_play_order: settings?.randomize_play_order ?? true,
       starting_cash: startingCash,
+      ai_difficulty: ["easy", "hard", "boss"].includes(aiDifficulty) ? aiDifficulty : "boss",
     });
 
     await GamePlayer.create({

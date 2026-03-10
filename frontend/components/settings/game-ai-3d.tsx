@@ -127,7 +127,6 @@ export default function PlayWithAI3D() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="easy">Easy</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="hard">Hard</SelectItem>
                   <SelectItem value="boss" className="text-cyan-400 font-bold">BOSS MODE</SelectItem>
                 </SelectContent>
