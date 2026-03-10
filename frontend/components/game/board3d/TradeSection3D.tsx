@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Property } from "@/types/game";
 import { X, Handshake } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
+import { isAIPlayer } from "@/utils/gameUtils";
 
 type DeleteConfirmMode = "outgoing" | "all" | null;
 
@@ -55,16 +56,20 @@ export default function TradeSection3D({
     const offeredProps = properties.filter((p) => trade.offer_properties?.includes(p.id));
     const requestedProps = properties.filter((p) => trade.requested_properties?.includes(p.id));
     const player = game.players?.find((pl: any) =>
-      isIncoming ? pl.user_id === trade.player_id : pl.user_id === trade.target_player_id
+      isIncoming ? pl.user_id === trade.player_id || pl.id === trade.player_id : pl.user_id === trade.target_player_id || pl.id === trade.target_player_id
     );
+    const isFromAI = isIncoming && player && isAIPlayer(player);
+    const isToAI = !isIncoming && trade.status === "accepted" && player && isAIPlayer(player);
 
     return (
       <div
         key={trade.id}
         className="rounded-xl border border-cyan-500/30 bg-slate-800/60 p-2.5 text-xs"
       >
-        <p className="font-semibold text-cyan-200 mb-1">
+        <p className="font-semibold text-cyan-200 mb-1 flex items-center gap-1.5 flex-wrap">
           {isIncoming ? "From" : "To"} {player?.username || "Player"}
+          {isFromAI && <span className="px-1.5 py-0.5 rounded bg-violet-600/60 text-violet-200 text-[10px] font-bold">AI proposed</span>}
+          {isToAI && <span className="px-1.5 py-0.5 rounded bg-emerald-600/60 text-emerald-200 text-[10px] font-bold">AI accepted</span>}
         </p>
         <p className="text-emerald-400/90 mb-0.5">
           {isIncoming ? "Gives" : "Offer"}:{" "}

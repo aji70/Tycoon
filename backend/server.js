@@ -31,6 +31,7 @@ import propertiesRoutes from "./routes/properties.js";
 import gameTradeRequestRoutes from "./routes/game-trade-requests.js";
 import agentRegistryRoutes from "./routes/agent-registry.js";
 import userAgentsRoutes from "./routes/user-agents.js";
+import agentApiRoutes from "./routes/agent-api.js";
 import waitlistsRoutes from "./routes/waitlists.js";
 import chatsRoutes from "./routes/chats.js";
 import messagesRoutes from "./routes/messages.js";
@@ -351,6 +352,7 @@ app.use("/api/community-chests", communityChestsRoutes);
 app.use("/api/properties", propertiesRoutes);
 app.use("/api/agent-registry", agentRegistryRoutes);
 app.use("/api/agents", userAgentsRoutes);
+app.use("/api/agent-api", agentApiRoutes);
 app.use("/api/waitlist", waitlistsRoutes);
 app.use("/api/chats", chatsRoutes);
 app.use("/api/messages", messagesRoutes);
@@ -374,6 +376,10 @@ app.post("/api/perks/activate", gamePerkController.activatePerk);
   app.get("/api/shop/flutterwave/verify", shopController.flutterwaveVerify);
   app.get("/api/rewards/daily-claim/status", requireAuth, dailyClaimController.dailyClaimStatus);
   app.post("/api/rewards/daily-claim", requireAuth, dailyClaimController.dailyClaim);
+
+  // Agent discoverability: .well-known/skill → agent-api skill (markdown)
+  app.get("/.well-known/skill", (_req, res) => res.redirect(302, "/api/agent-api/skill"));
+  app.get("/.well-known/skill.md", (_req, res) => res.redirect(302, "/api/agent-api/skill"));
 
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);

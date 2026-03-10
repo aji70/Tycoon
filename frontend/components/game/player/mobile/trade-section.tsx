@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Property } from "@/types/game";
 import { Handshake } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
+import { isAIPlayer } from "@/utils/gameUtils";
 
 interface TradeSectionProps {
   showTrade: boolean;
@@ -31,13 +32,17 @@ export const TradeSection: React.FC<TradeSectionProps> = ({
       trade.requested_properties?.includes(p.id)
     );
     const player = game.players.find((pl: any) =>
-      isIncoming ? pl.user_id === trade.player_id : pl.user_id === trade.target_player_id
+      isIncoming ? pl.user_id === trade.player_id || pl.id === trade.player_id : pl.user_id === trade.target_player_id || pl.id === trade.target_player_id
     );
+    const isFromAI = isIncoming && player && isAIPlayer(player);
+    const isToAI = !isIncoming && trade.status === "accepted" && player && isAIPlayer(player);
 
     return (
       <div key={trade.id} className="bg-black/40 border border-cyan-800 rounded-lg p-4 text-sm shadow-md">
-        <div className="font-medium text-cyan-200 mb-2">
+        <div className="font-medium text-cyan-200 mb-2 flex items-center gap-1.5 flex-wrap">
           {isIncoming ? "From" : "To"} <span className="text-white">{player?.username || "Unknown Player"}</span>
+          {isFromAI && <span className="px-1.5 py-0.5 rounded bg-violet-600/60 text-violet-200 text-[10px] font-bold">AI proposed</span>}
+          {isToAI && <span className="px-1.5 py-0.5 rounded bg-emerald-600/60 text-emerald-200 text-[10px] font-bold">AI accepted</span>}
         </div>
         <div className="text-xs space-y-1.5 mb-3">
           <div className="text-green-400">

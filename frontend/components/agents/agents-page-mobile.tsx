@@ -390,7 +390,10 @@ export default function AgentsPageMobile() {
                       )}
                     </p>
                     {a.erc8004_agent_id && (
-                      <p className="text-xs text-purple-400">ERC-8004: {a.erc8004_agent_id}</p>
+                      <p className="text-xs text-purple-400 flex items-center gap-1 flex-wrap">
+                        <span>ERC-8004: {a.erc8004_agent_id}</span>
+                        <a href="https://www.8004scan.io/agents" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Reputation</a>
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
