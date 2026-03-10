@@ -8,6 +8,7 @@
 import Game from "../models/Game.js";
 import UserAgent from "../models/UserAgent.js";
 import internalAgent from "./internalAgent.js";
+import * as hostedAgentUsage from "./hostedAgentUsage.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
@@ -106,6 +107,12 @@ async function getAIDecision(gameId, slot, decisionType, context) {
       const skillPrompt = fullAgent?.config?.skill || fullAgent?.config?.system_prompt;
       const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
       if (fullAgent?.use_tycoon_key) {
+        const userId = fullAgent.user_id;
+        if (!(await hostedAgentUsage.isUnderCap(userId))) {
+          console.log("[agentRegistry] Tycoon-hosted daily cap reached for user", userId);
+          return null;
+        }
+        await hostedAgentUsage.incrementUsage(userId);
         const decision = await internalAgent.getDecision(
           Number(gameId),
           Number(slot),

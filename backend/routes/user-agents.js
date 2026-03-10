@@ -6,6 +6,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import UserAgent from "../models/UserAgent.js";
+import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 
 const router = express.Router();
 
@@ -54,6 +55,17 @@ router.get("/:id/erc8004-registration", async (req, res) => {
 });
 
 router.use(requireAuth);
+
+/** Get current user's Tycoon-hosted agent credits (daily cap). */
+router.get("/hosted-credits", async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const credits = await hostedAgentUsage.getCredits(userId);
+    res.json({ success: true, data: credits });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err?.message || "Failed to load credits" });
+  }
+});
 
 /** List current user's agents */
 router.get("/", async (req, res) => {

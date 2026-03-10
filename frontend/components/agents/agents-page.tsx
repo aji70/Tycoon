@@ -64,6 +64,7 @@ export default function AgentsPage() {
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const isCelo = chainId === 42220 || chainId === 44787;
+  const [hostedCredits, setHostedCredits] = useState<{ used: number; cap: number; remaining: number } | null>(null);
 
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
@@ -76,6 +77,9 @@ export default function AgentsPage() {
       } else {
         setAgents([]);
       }
+      const credRes = await apiClient.get<ApiResponse<{ used: number; cap: number; remaining: number }>>("/agents/hosted-credits");
+      if (credRes.data?.success && credRes.data.data) setHostedCredits(credRes.data.data);
+      else setHostedCredits(null);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
@@ -85,6 +89,7 @@ export default function AgentsPage() {
         toast.error("Failed to load agents");
         setAgents([]);
       }
+      setHostedCredits(null);
     } finally {
       setLoading(false);
     }
@@ -345,6 +350,25 @@ export default function AgentsPage() {
             MY AGENTS
           </h1>
           <div className="w-20" />
+        </div>
+        {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
+          <p className="text-sm text-cyan-400/90 mb-4 text-center">
+            Tycoon-hosted credits: <strong>{hostedCredits.remaining}</strong> / {hostedCredits.cap} left today
+            {hostedCredits.remaining === 0 && " — add your API key or try tomorrow"}
+          </p>
+        )}
+        <div className="flex justify-end mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30 transition"
+          >
+            <Plus className="w-4 h-4" />
+            Add agent
+          </button>
         </div>
 
         <p className="text-gray-400 text-sm mb-6">
