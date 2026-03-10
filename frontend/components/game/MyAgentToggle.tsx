@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Bot, Key, Loader2 } from "lucide-react";
@@ -145,31 +146,38 @@ export function MyAgentToggle({
           ) : (
             <>
               {agents.length > 0 ? (
-                <select
-                  value={selectedAgentId ?? ""}
-                  onChange={(e) => setSelectedAgentId(Number(e.target.value))}
-                  className="text-xs bg-slate-700 border border-slate-500 rounded px-1.5 py-0.5 text-slate-200"
-                >
-                  {agents.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              ) : null}
-              <button
-                type="button"
-                onClick={handleTurnOn}
-                disabled={busy || agents.length === 0}
-                className="text-xs px-2 py-1 rounded bg-slate-600 hover:bg-slate-500 text-white disabled:opacity-50"
-              >
-                {turningOn ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
-              </button>
+                <>
+                  <span className="text-[10px] text-slate-400 shrink-0">My Agents:</span>
+                  <select
+                    value={selectedAgentId ?? ""}
+                    onChange={(e) => setSelectedAgentId(Number(e.target.value))}
+                    className="text-xs bg-slate-700 border border-slate-500 rounded px-1.5 py-0.5 text-slate-200 min-w-0"
+                  >
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleTurnOn}
+                    disabled={busy}
+                    className="text-xs px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 shrink-0"
+                  >
+                    {turningOn ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use"}
+                  </button>
+                </>
+              ) : (
+                <span className="text-[10px] text-slate-500">
+                  <Link href="/agents" className="text-cyan-400 hover:underline">My Agents</Link> — add one to use here
+                </span>
+              )}
             </>
           )}
         </div>
         {!agentOn && onUseApiKey && (
           <div className="flex flex-col gap-1">
             <span className="text-[10px] text-slate-400 flex items-center gap-1">
-              <Key className="w-3 h-3" /> Or use your API key
+              <Key className="w-3 h-3" /> Or paste API key (no server)
             </span>
             <input
               type="password"
@@ -215,9 +223,9 @@ export function MyAgentToggle({
         </div>
       ) : (
         <>
-          {agents.length > 0 && (
+          {agents.length > 0 ? (
             <div className="flex flex-col gap-2">
-              <span className="text-xs text-slate-400">Hosted agent</span>
+              <span className="text-xs text-slate-400">Use an agent from <Link href="/agents" className="text-cyan-400 hover:underline">My Agents</Link></span>
               <select
                 value={selectedAgentId ?? ""}
                 onChange={(e) => setSelectedAgentId(Number(e.target.value))}
@@ -236,10 +244,15 @@ export function MyAgentToggle({
                 {turningOn ? <Loader2 className="w-4 h-4 animate-spin" /> : "Use this agent"}
               </button>
             </div>
+          ) : (
+            <p className="text-xs text-slate-400">
+              Add agents in <Link href="/agents" className="text-cyan-400 hover:underline">My Agents</Link> (name + URL) to use one here
+              {onUseApiKey ? " — or use your API key below." : "."}
+            </p>
           )}
           {onUseApiKey && (
             <div className="flex flex-col gap-2 pt-2 border-t border-slate-600">
-              <span className="text-xs text-slate-400 flex items-center gap-1"><Key className="w-3.5 h-3.5" /> Or use your API key</span>
+              <span className="text-xs text-slate-400 flex items-center gap-1"><Key className="w-3.5 h-3.5" /> Or paste your API key (not stored)</span>
               <select
                 value={apiKeyProvider}
                 onChange={(e) => setApiKeyProvider(e.target.value)}
@@ -266,9 +279,6 @@ export function MyAgentToggle({
                 Use my key
               </button>
             </div>
-          )}
-          {agents.length === 0 && !onUseApiKey && (
-            <p className="text-xs text-slate-400">Add an agent in My Agents or use your API key above.</p>
           )}
         </>
       )}
