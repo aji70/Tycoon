@@ -43,6 +43,13 @@ export const calculateFavorability = (trade: any, properties: Property[]) => {
   return Math.min(100, Math.max(-100, Math.round(ratio)));
 };
 
+/** Thresholds for built-in trade decisions. */
+export const TRADE_ACCEPT_THRESHOLD = 30; // Ratio-based (-100..100): accept if >= 30 (usePlayerSidebar)
+export const TRADE_ACCEPT_STRONG = 30; // "Fantastic deal" if >= 30
+export const TRADE_ACCEPT_FAIR = 10; // Consider accept if 10-30
+export const TRADE_COUNTER_THRESHOLD = -15; // Consider counter if >= -15 (usePlayerSidebar)
+export const TRADE_FAVORABILITY_ACCEPT_RAW = 50; // Raw score (ai-board monopoly-weighted): accept if >= 50
+
 export const calculateAiFavorability = (trade: any, properties: Property[]) => {
   const props = properties ?? [];
   const offerIds = Array.isArray(trade?.offer_properties) ? trade.offer_properties : [];

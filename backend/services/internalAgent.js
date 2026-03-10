@@ -60,17 +60,23 @@ function getMonopolies(properties) {
 }
 
 function buildPropertyPrompt(context) {
-  const { landedProperty = {}, myBalance = 0, myProperties = [], opponents = [] } = context;
+  const { landedProperty = {}, myBalance = 0, myProperties = [], opponents = [], turnCount, opponentMonopolies } = context;
   const monopolies = getMonopolies(myProperties || []);
-  const opps = (opponents || []).map((o) => `${o.username ?? "Opp"}: $${o.balance ?? 0}`).join("; ");
-  return `Monopoly: buy or skip? Property: ${landedProperty.name ?? "?"} $${landedProperty.price ?? 0} ${landedProperty.color ?? ""}. Rank #${landedProperty.landingRank ?? "?"} (lower=better). Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Your balance: $${myBalance} (after: $${myBalance - (landedProperty.price || 0)}). Own ${(myProperties || []).length} props, ${monopolies.length} monopolies. Opponents: ${opps}. Rules: orange/red/yellow best; complete monopolies critical; keep $500+; rank <10 good; railroads low priority. JSON only: {"action":"buy"|"skip","reasoning":"brief reason","confidence":85}`;
+  const opps = (opponents || []).map((o) => {
+    const mono = o.monopolies != null ? ` (${o.monopolies} monos)` : "";
+    return `${o.username ?? "Opp"}: $${o.balance ?? 0}${mono}`;
+  }).join("; ");
+  const phase = turnCount != null ? ` Turn ~${turnCount}.` : "";
+  const oppMonos = opponentMonopolies != null ? ` Opponent monopolies: ${opponentMonopolies}.` : "";
+  return `Monopoly: buy or skip? Property: ${landedProperty.name ?? "?"} $${landedProperty.price ?? 0} ${landedProperty.color ?? ""}. Rank #${landedProperty.landingRank ?? "?"} (lower=better). Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Your balance: $${myBalance} (after: $${myBalance - (landedProperty.price || 0)}). Own ${(myProperties || []).length} props, ${monopolies.length} monopolies. Opponents: ${opps}.${phase}${oppMonos} Rules: orange/red/yellow best; complete monopolies critical; keep $500+; rank <10 good; railroads low priority. If balance after buy < 300, prefer skip. JSON only: {"action":"buy"|"skip","reasoning":"brief reason","confidence":85}`;
 }
 
 function buildTradePrompt(context) {
   const trade = context.tradeOffer || {};
-  const { myBalance = 0, myProperties = [], opponents = [] } = context;
+  const { myBalance = 0, myProperties = [], opponents = [], opponentMonopolies } = context;
   const monopolies = getMonopolies(myProperties || []).join(", ") || "None";
-  return `Monopoly trade. Receive: $${trade.offer_amount ?? 0}, props ${(trade.offer_properties || []).join(",") || "none"}. Give: $${trade.requested_amount ?? 0}, props ${(trade.requested_properties || []).join(",") || "none"}. Balance: $${myBalance}. My monopolies: ${monopolies}. Does it complete my monopoly? Theirs? Fair? If you counter, suggest how much extra cash you want (positive) or give (negative). JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (cashAdjustment only if action is "counter"; e.g. 100 = I want $100 more from them, -50 = I'll add $50)`;
+  const oppMonos = opponentMonopolies != null ? ` Opponent monopolies: ${opponentMonopolies}.` : "";
+  return `Monopoly trade. Receive: $${trade.offer_amount ?? 0}, props ${(trade.offer_properties || []).join(",") || "none"}. Give: $${trade.requested_amount ?? 0}, props ${(trade.requested_properties || []).join(",") || "none"}. Balance: $${myBalance}. My monopolies: ${monopolies}.${oppMonos} Does it complete my monopoly? Theirs? Fair? Avoid giving them a monopoly. If you counter, suggest cashAdjustment: positive = I want more from them, negative = I add cash. JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (cashAdjustment only if action is "counter")`;
 }
 
 function buildBuildingPrompt(context) {
@@ -90,10 +96,12 @@ function buildStrategyPrompt(context) {
     canUnmortgage = false,
     canBuild = false,
     canSendTrade = false,
+    turnCount,
   } = context || {};
   const monopolies = getMonopolies(myProperties || []).join(", ") || "None";
   const opps = (opponents || []).map((o) => `${o.username ?? "Opp"}: $${o.balance ?? 0}`).join("; ");
-  return `Monopoly pre-roll. Pick ONE: liquidate|unmortgage|build|proposeTrade|roll. Balance: $${myBalance}. Debt: ${inDebt ? "Y" : "N"}. Monopolies: ${monopolies}. Can unmortgage: ${canUnmortgage}. Can build: ${canBuild}. Trade opportunity: ${canSendTrade}. Opponents: ${opps}. JSON only: {"action":"...","reasoning":"brief"}`;
+  const phase = turnCount != null ? ` Turn ~${turnCount}.` : "";
+  return `Monopoly pre-roll. Pick ONE: liquidate|unmortgage|build|proposeTrade|roll. Balance: $${myBalance}. Debt: ${inDebt ? "Y" : "N"}. Monopolies: ${monopolies}. Can unmortgage: ${canUnmortgage}. Can build: ${canBuild}. Trade opportunity: ${canSendTrade}. Opponents: ${opps}.${phase} Liquidate only if in debt. JSON only: {"action":"...","reasoning":"brief"}`;
 }
 
 function buildTipPrompt(context) {
@@ -162,13 +170,30 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
   if (systemPrompt && String(systemPrompt).trim()) {
     createParams.system = String(systemPrompt).trim();
   }
-  const createPromise = anthropic.messages.create(createParams);
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
-  );
-  const message = await Promise.race([createPromise, timeoutPromise]);
+
+  let message;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const createPromise = anthropic.messages.create(createParams);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
+      );
+      message = await Promise.race([createPromise, timeoutPromise]);
+      break;
+    } catch (err) {
+      const msg = (err && err.message) || "";
+      const isRetryable = /timeout|rate|5\d\d|overloaded/i.test(msg);
+      if (attempt < MAX_RETRIES && isRetryable) {
+        logger.warn({ attempt, decisionType, err: msg }, "Internal agent retry");
+        await new Promise((r) => setTimeout(r, 500 * attempt));
+      } else {
+        throw err;
+      }
+    }
+  }
 
   const text =
+    message &&
     message.content &&
     message.content
       .filter((b) => b.type === "text")
@@ -185,6 +210,18 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
   if (parsed.counterOffer && typeof parsed.counterOffer === "object") {
     out.counterOffer = { cashAdjustment: Number(parsed.counterOffer.cashAdjustment) || 0 };
   }
+
+  // Validate action is legal
+  if (decisionType === "property" && out.action === "buy") {
+    const price = Number((context.landedProperty || {}).price) || 0;
+    const balance = Number(context.myBalance) || 0;
+    if (price > balance || price <= 0) {
+      out.action = "skip";
+      out.reasoning = (out.reasoning || "") + " [Corrected: insufficient balance]";
+      logger.debug({ decisionType, price, balance }, "Internal agent: forced skip (can't afford)");
+    }
+  }
+
   return out;
 }
 
@@ -195,13 +232,15 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
 async function getDecision(gameId, slot, decisionType, context, opts = {}) {
   const anthropic = getClient();
   if (!anthropic) {
-    console.log("[internalAgent] No ANTHROPIC_API_KEY; internal agent disabled.");
+    logger.debug({ gameId, slot, decisionType }, "Internal agent disabled (no API key)");
     return null;
   }
   try {
-    return await runDecisionWithClient(anthropic, decisionType, context, opts);
+    const result = await runDecisionWithClient(anthropic, decisionType, context, opts);
+    logger.info({ gameId, slot, decisionType, action: result?.action, source: "internal" }, "AI decision");
+    return result;
   } catch (err) {
-    console.error("[internalAgent] LLM request failed:", err.message);
+    logger.warn({ gameId, slot, decisionType, err: err?.message }, "Internal agent LLM failed");
     return null;
   }
 }
@@ -222,7 +261,7 @@ async function getDecisionWithKey(apiKey, gameId, slot, decisionType, context, o
     const client = new Anthropic({ apiKey: apiKey.trim() });
     return await runDecisionWithClient(client, decisionType, context, opts);
   } catch (err) {
-    console.error("[internalAgent] decision-with-key failed:", err.message);
+    logger.warn({ gameId, slot, decisionType, err: err?.message }, "Internal agent (user key) failed");
     return null;
   }
 }

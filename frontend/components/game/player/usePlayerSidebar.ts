@@ -7,7 +7,13 @@ import { apiClient } from "@/lib/api";
 import { useExitGame, useGetGameByCode } from "@/context/ContractProvider";
 import { ApiResponse } from "@/types/api";
 import { useGameTrades } from "@/hooks/useGameTrades";
-import { isAIPlayer, calculateAiFavorability } from "@/utils/gameUtils";
+import {
+  isAIPlayer,
+  calculateAiFavorability,
+  TRADE_ACCEPT_STRONG,
+  TRADE_ACCEPT_FAIR,
+  TRADE_COUNTER_THRESHOLD,
+} from "@/utils/gameUtils";
 
 export interface UsePlayerSidebarProps {
   game: Game;
@@ -201,16 +207,16 @@ export function usePlayerSidebar({
           let decision: "accepted" | "declined" | "countered" = "declined";
           let remark = "";
 
-          if (favorability >= 30) {
+          if (favorability >= TRADE_ACCEPT_STRONG) {
             decision = "accepted";
             remark = "This is a fantastic deal! 🤖";
-          } else if (favorability >= 10) {
+          } else if (favorability >= TRADE_ACCEPT_FAIR) {
             decision = Math.random() < 0.7 ? "accepted" : "declined";
             remark = decision === "accepted" ? "Fair enough, I'll take it." : "Not quite good enough.";
           } else if (favorability >= 0) {
             decision = Math.random() < 0.3 ? "accepted" : "declined";
             remark = decision === "accepted" ? "Okay, deal." : "Nah, too weak.";
-          } else if (favorability >= -15 && Math.random() < 0.4) {
+          } else if (favorability >= TRADE_COUNTER_THRESHOLD && Math.random() < 0.4) {
             decision = "countered";
             remark = "How about this instead?";
           } else {
