@@ -34,6 +34,9 @@ import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 import PlayerSection3D from "@/components/game/board3d/PlayerSection3D";
 import PerksBar from "@/components/game/board3d/PerksBar";
 import GameyChatRoom from "@/components/game/board3d/GameyChatRoom";
+import { MyAgentToggle } from "@/components/game/MyAgentToggle";
+import { useAgentBindings } from "@/hooks/useAgentBindings";
+import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
 
 const MOVE_ANIMATION_MS_PER_SQUARE = 250;
 
@@ -332,6 +335,14 @@ function Board3DPageContent() {
   const [voteStatuses, setVoteStatuses] = useState<Record<number, { vote_count: number; required_votes: number; voters: Array<{ user_id: number; username: string }> }>>({});
   const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>({});
   const [showVotedOutModal, setShowVotedOutModal] = useState(false);
+  const { myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+  const [myAgentApiKey, setMyAgentApiKeyState] = useState<{ provider: string; apiKey: string } | null>(() => getStoredAgentApiKey());
+  const setMyAgentApiKey = useCallback((value: { provider: string; apiKey: string } | null) => {
+    setMyAgentApiKeyState(value);
+    setStoredAgentApiKey(value);
+  }, []);
+  const agentOn = myAgentOn || !!myAgentApiKey;
+
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
   const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
@@ -1236,6 +1247,166 @@ function Board3DPageContent() {
     }
   }, [game?.id, me, refetchGame, refetchGameProperties, properties, gameProperties, runMovementAnimation, END_TURN]);
 
+  /** When "my agent plays for me" is on: move then agent decision for buy/skip (multi board). */
+  const handleDiceCompleteForMyAgent = useCallback(async () => {
+    const value = pendingRollRef.current;
+    if (!game?.id || !me) {
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+    const playerId = me.user_id;
+    const currentPos = me.position ?? 0;
+    const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
+    const rolledDouble = value.die1 === value.die2;
+    const totalMove = isInJail ? (rolledDouble ? value.total : 0) : value.total;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + totalMove) % 40;
+    const totalSteps = (isInJail && !rolledDouble) ? 0 : totalMove;
+
+    try {
+      await runMovementAnimation(playerId, currentPos, totalSteps);
+      const res = await apiClient.post<{
+        data?: {
+          still_in_jail?: boolean;
+          new_position?: number;
+          requires_buy?: boolean;
+          property_for_buy?: Property;
+          passed_turn?: boolean;
+        };
+      }>("/game-players/change-position", {
+        user_id: playerId,
+        game_id: game.id,
+        position: newPos,
+        rolled: totalMove,
+        is_double: isInJail ? rolledDouble : false,
+        die1: value.die1,
+        die2: value.die2,
+      });
+      const data = res?.data?.data ?? (res as { data?: { passed_turn?: boolean; still_in_jail?: boolean; new_position?: number } })?.data;
+      if (data?.passed_turn) {
+        await refetchGame();
+        setRollingDice(null);
+        rollingForPlayerIdRef.current = null;
+        setTimeout(() => END_TURN(), 500);
+        return;
+      }
+      if (data?.still_in_jail) {
+        try {
+          await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: game.id });
+        } catch {
+          /* ignore */
+        }
+        await refetchGame();
+        setRollingDice(null);
+        rollingForPlayerIdRef.current = null;
+        setTimeout(() => END_TURN(), 500);
+        return;
+      }
+      const finalPosition = data?.new_position != null ? data.new_position : newPos;
+      setLastRollResultLive(value);
+      setLastVisibleRoll({ user_id: me.user_id, username: (me?.username ?? "Player").trim() || "Player", die1: value.die1, die2: value.die2, total: value.total });
+      landedPositionThisTurnRef.current = finalPosition;
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      const [, gpRes] = await Promise.all([refetchGame(), refetchGameProperties()]);
+      const freshGameProperties = (gpRes?.data as GameProperty[] | undefined) ?? gameProperties;
+      const square = properties.find((p) => p.id === finalPosition);
+      const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
+      const action = PROPERTY_ACTION(finalPosition);
+      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
+
+      if (needBuyPrompt && square) {
+        const refetchResult = await refetchGame();
+        const updatedGame = refetchResult?.data;
+        const updatedMe = updatedGame?.players?.find((p: Player) => p.user_id === playerId) ?? me;
+        const balanceAfterMove = updatedMe?.balance ?? me.balance ?? 0;
+        const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => ids.includes(square.id)) ?? [];
+        const ownedInGroup = groupIds.filter((id: number) =>
+          gameProperties.some(
+            (gp) => gp.property_id === id && gp.address?.toLowerCase() === me.address?.toLowerCase()
+          )
+        ).length;
+        const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+        const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[square.id] ?? 99;
+        const decisionContext = {
+          myBalance: balanceAfterMove,
+          myProperties: gameProperties
+            .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (game.players ?? []).filter((p) => p.user_id !== me.user_id),
+          landedProperty: { ...square, completesMonopoly, landingRank },
+        };
+        try {
+          let shouldBuy = false;
+          if (myAgentApiKey) {
+            const proxyRes = await apiClient.post<{ success?: boolean; data?: { action?: string } }>(
+              "/agent-registry/decision-with-key",
+              {
+                gameId: game.id,
+                decisionType: "property",
+                context: decisionContext,
+                provider: myAgentApiKey.provider,
+                apiKey: myAgentApiKey.apiKey,
+              }
+            );
+            shouldBuy = !!(proxyRes?.data?.success && proxyRes.data.data?.action?.toLowerCase() === "buy");
+          } else {
+            const agentRes = await apiClient.post<{
+              success?: boolean;
+              data?: { action?: string };
+            }>("/agent-registry/decision", {
+              gameId: game.id,
+              slot: 1,
+              decisionType: "property",
+              context: decisionContext,
+            });
+            shouldBuy = !!(agentRes?.data?.success && agentRes.data.data?.action?.toLowerCase() === "buy");
+          }
+          if (shouldBuy) {
+            await apiClient.post("/game-properties/buy", {
+              user_id: playerId,
+              game_id: game.id,
+              property_id: square.id,
+            });
+          }
+        } catch {
+          /* skip buy on error */
+        }
+        await refetchGame();
+        setTimeout(() => END_TURN(), 900);
+      } else {
+        setTimeout(() => END_TURN(), 1000);
+      }
+    } catch (err) {
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        if (me?.user_id != null) delete next[me.user_id];
+        return next;
+      });
+      toast.error(getContractErrorMessage(err as Error, "Agent move failed"));
+      setTimeout(() => END_TURN(), 500);
+    } finally {
+      doublesCountRef.current = 0;
+      runningTotalRef.current = 0;
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+    }
+  }, [
+    game,
+    me,
+    myAgentApiKey,
+    refetchGame,
+    refetchGameProperties,
+    properties,
+    gameProperties,
+    runMovementAnimation,
+    END_TURN,
+  ]);
+
   const calculateBuyScore = useCallback(
     (property: Property, player: Player, gameProps: GameProperty[], allProperties: Property[]): number => {
       if (!property.price || property.type !== "property") return 0;
@@ -1294,6 +1465,12 @@ function Board3DPageContent() {
     else if (!isLiveGame) handleRoll();
   }, [isLiveGame, playerCanRoll, handleRollForLive, handleRoll]);
 
+  // When "my agent" is on and it's my turn, auto-roll
+  useEffect(() => {
+    if (!isLiveGame || !isMyTurn || !agentOn || !playerCanRoll || rollingDice || !me) return;
+    handleRollForLive();
+  }, [isLiveGame, isMyTurn, agentOn, playerCanRoll, rollingDice, me, handleRollForLive]);
+
   const onFocusComplete = useCallback(() => {
     if (pendingShowCardModalRef.current) {
       pendingShowCardModalRef.current = false;
@@ -1310,8 +1487,12 @@ function Board3DPageContent() {
       handleDiceComplete();
       return;
     }
-    handleDiceCompleteForLive();
-  }, [isLiveGame, handleDiceComplete, handleDiceCompleteForLive]);
+    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current === me.user_id && agentOn) {
+      handleDiceCompleteForMyAgent();
+    } else {
+      handleDiceCompleteForLive();
+    }
+  }, [isLiveGame, handleDiceComplete, handleDiceCompleteForLive, handleDiceCompleteForMyAgent, me, agentOn]);
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
@@ -1690,6 +1871,17 @@ function Board3DPageContent() {
               />
             </div>
           </div>
+        )}
+        {isLiveGame && game && me && (
+          <MyAgentToggle
+            gameId={game.id}
+            myAgentOn={myAgentOn}
+            myAgentApiKey={myAgentApiKey}
+            onUseApiKey={setMyAgentApiKey}
+            onStopApiKey={() => setMyAgentApiKey(null)}
+            onBindingsChange={refetchAgentBindings}
+            compact
+          />
         )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && voteablePlayersList.length > 0 && (
