@@ -131,6 +131,18 @@ export default function PlayWithAI3D() {
                   <SelectItem value="boss" className="text-cyan-400 font-bold">BOSS MODE</SelectItem>
                 </SelectContent>
               </Select>
+              {settings.aiCount > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-sm text-cyan-200/90">Difficulty per opponent</span>
+                  <Switch
+                    checked={settings.aiDifficultyMode === "random"}
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, aiDifficultyMode: v ? "random" : "same" }))}
+                  />
+                  <span className="text-sm text-cyan-200/90">
+                    {settings.aiDifficultyMode === "random" ? "Randomize" : "Same"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

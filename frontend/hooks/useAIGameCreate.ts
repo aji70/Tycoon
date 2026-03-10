@@ -32,12 +32,14 @@ export const AI_ADDRESSES = [
 ];
 
 export type AIDifficulty = "easy" | "hard" | "boss";
+export type AIDifficultyMode = "same" | "random";
 
 export interface AIGameSettings {
   symbol: string;
   aiCount: number;
   startingCash: number;
   aiDifficulty: AIDifficulty;
+  aiDifficultyMode: AIDifficultyMode;
   auction: boolean;
   rentInPrison: boolean;
   mortgage: boolean;
@@ -50,6 +52,7 @@ const DEFAULT_SETTINGS: AIGameSettings = {
   aiCount: 1,
   startingCash: 1500,
   aiDifficulty: "boss",
+  aiDifficultyMode: "random",
   auction: true,
   rentInPrison: false,
   mortgage: true,
@@ -119,6 +122,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           chain: chainName,
           duration: settings.duration,
           ai_difficulty: ["easy", "hard", "boss"].includes(settings.aiDifficulty) ? settings.aiDifficulty : "boss",
+          ai_difficulty_mode: settings.aiDifficultyMode === "same" ? "same" : "random",
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,
@@ -191,6 +195,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           number_of_players: totalPlayers,
           ai_opponents: settings.aiCount,
           ai_difficulty: settings.aiDifficulty,
+          ai_difficulty_mode: settings.aiDifficultyMode === "same" ? "same" : "random",
           is_ai: true,
           is_minipay: isMiniPay,
           chain: chainName,
