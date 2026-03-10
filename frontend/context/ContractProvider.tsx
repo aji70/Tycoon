@@ -8,14 +8,16 @@ import {
   useAccount,
   useWaitForTransactionReceipt,
   useChainId,
+  usePublicClient,
 } from 'wagmi';
-import { Address } from 'viem';
+import { Address, decodeEventLog } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESS } from '@/constants/contracts';
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
+import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
 
 // Fixed stake amount (adjust if needed)
 const STAKE_AMOUNT = 1; // 1 wei for testing? Or change to actual value like 0.01 ether = 10000000000000000n
@@ -541,6 +543,50 @@ export function useGiveERC8004Feedback() {
   );
 
   return { giveFeedback, isPending, error: writeError, reset };
+}
+
+/**
+ * Register a Tycoon agent on Celo ERC-8004 Identity Registry.
+ * User owns the NFT and pays gas. Builds agentURI from backend registration file, calls register(agentURI), parses new agentId and returns it so caller can PATCH the agent.
+ */
+export function useRegisterAgentERC8004() {
+  const { writeContractAsync, isPending, error: writeError, reset } = useWriteContract();
+  const publicClient = usePublicClient();
+
+  const register = useCallback(
+    async (agentDbId: number): Promise<number | null> => {
+      const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+      if (!base) return null;
+      const agentURI = `${base}/agents/${agentDbId}/erc8004-registration`;
+      if (!ERC8004_IDENTITY_REGISTRY_ADDRESS) return null;
+      const hash = await writeContractAsync({
+        address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+        abi: ERC8004IdentityABI as never,
+        functionName: 'register',
+        args: [agentURI],
+      });
+      if (!publicClient || !hash) return null;
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: ERC8004IdentityABI as never,
+            data: log.data,
+            topics: log.topics,
+          });
+          if (decoded.eventName === 'Registered' && decoded.args && 'agentId' in decoded.args) {
+            return Number((decoded.args as { agentId: bigint }).agentId);
+          }
+        } catch {
+          // skip
+        }
+      }
+      return null;
+    },
+    [writeContractAsync, publicClient]
+  );
+
+  return { register, isPending, error: writeError, reset };
 }
 
 export function useExitGame(gameId: bigint) {
