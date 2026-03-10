@@ -30,6 +30,7 @@ import communityChestsRoutes from "./routes/community-chests.js";
 import propertiesRoutes from "./routes/properties.js";
 import gameTradeRequestRoutes from "./routes/game-trade-requests.js";
 import agentRegistryRoutes from "./routes/agent-registry.js";
+import agentRegistry from "./services/agentRegistry.js";
 import userAgentsRoutes from "./routes/user-agents.js";
 import agentApiRoutes from "./routes/agent-api.js";
 import waitlistsRoutes from "./routes/waitlists.js";
@@ -406,6 +407,13 @@ app.use((error, req, res, next) => {
 });
 
 async function start() {
+  // Rehydrate agent slot assignments from DB (survives restarts)
+  try {
+    await agentRegistry.rehydrateFromDb();
+  } catch (err) {
+    logger.warn({ err: err.message }, "Agent registry rehydrate skipped");
+  }
+
   // Step 5: Socket.io Redis adapter (when Redis is available)
   try {
     const adapter = await connectSocketRedis();

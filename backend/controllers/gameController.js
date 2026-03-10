@@ -194,6 +194,8 @@ export async function finishGameByNetWorthAndNotify(io, game) {
 
   if (rowCount === 0) return null;
 
+  await agentRegistry.cleanupGame(game.id);
+
   tournamentOnGameFinished(game.id).catch((err) =>
     logger.warn({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed")
   );
@@ -430,6 +432,7 @@ const gameController = {
       }
       if (payload.status === "FINISHED") {
         await recordEvent("game_finished", { entityType: "game", entityId: Number(req.params.id), payload: { winner_id: payload.winner_id ?? null } });
+        await agentRegistry.cleanupGame(req.params.id);
       }
       await invalidateGameById(req.params.id);
       const io = req.app.get("io");
@@ -670,6 +673,7 @@ const gameController = {
         });
       }
 
+      await agentRegistry.cleanupGame(game.id);
       await recordEvent("game_finished", { entityType: "game", entityId: game.id, payload: { winner_id: result.winner_id } });
       tournamentOnGameFinished(game.id).catch((err) =>
         logger.warn({ err: err?.message, gameId: game.id }, "tournament onGameFinished failed")
@@ -1874,7 +1878,7 @@ export const useMyAgent = async (req, res) => {
       });
     }
 
-    agentRegistry.registerAgent({
+    await agentRegistry.registerAgent({
       gameId,
       slot: USER_AGENT_SLOT,
       agentId: String(agent.erc8004_agent_id || agent.id),
@@ -1917,7 +1921,7 @@ export const stopUsingMyAgent = async (req, res) => {
       return res.status(403).json({ success: false, message: "You are not in this game" });
     }
 
-    agentRegistry.unregisterAgent(USER_AGENT_SLOT, gameId);
+    await agentRegistry.unregisterAgent(USER_AGENT_SLOT, gameId);
 
     return res.status(200).json({
       success: true,

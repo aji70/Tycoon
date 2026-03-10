@@ -3,8 +3,10 @@
  * Optional overlay: when an AI slot is backed by a registered agent, we ask it for decisions;
  * otherwise for AI games we use the internal LLM agent (assess state, think, decide); if that
  * is disabled or fails, existing built-in logic is used.
+ * Assignments are persisted to agent_slot_assignments and rehydrated on startup.
  */
 
+import db from "../config/database.js";
 import Game from "../models/Game.js";
 import UserAgent from "../models/UserAgent.js";
 import internalAgent from "./internalAgent.js";
@@ -12,45 +14,125 @@ import * as hostedAgentUsage from "./hostedAgentUsage.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
+const TABLE = "agent_slot_assignments";
 
-// In-memory: slot -> { agentId, callbackUrl?, user_agent_id?, chainId?, name? }
+// In-memory: slot -> { agentId, callbackUrl?, user_agent_id?, chainId?, name?, gameId?, slot? }
 // Keys: "slot_2", "slot_3", ... or "game_123_slot_2" for game-specific binding
 const slotRegistry = new Map();
 
+// Serialize getAIDecision per (gameId, slot) to avoid races
+const decisionLocks = new Map();
+
+function registryKey(gameId, slot) {
+  const gid = gameId != null ? Number(gameId) : 0;
+  return gid ? `game_${gid}_slot_${slot}` : `slot_${slot}`;
+}
+
+function rowToEntry(row) {
+  if (!row) return null;
+  const gameId = row.game_id === 0 ? null : row.game_id;
+  return {
+    agentId: String(row.agent_id || row.user_agent_id || ""),
+    callbackUrl: row.callback_url || null,
+    user_agent_id: row.user_agent_id ? Number(row.user_agent_id) : null,
+    chainId: Number(row.chain_id || 42220),
+    name: row.name || `Agent ${row.slot}`,
+    gameId,
+    slot: row.slot,
+    registeredAt: row.updated_at || row.created_at,
+  };
+}
+
 /**
- * Register an agent for a slot (global or per-game).
+ * Load all assignments from DB into in-memory registry (call on startup).
+ */
+async function rehydrateFromDb() {
+  try {
+    const rows = await db(TABLE).select("*");
+    slotRegistry.clear();
+    for (const row of rows) {
+      const key = registryKey(row.game_id === 0 ? null : row.game_id, row.slot);
+      slotRegistry.set(key, rowToEntry(row));
+    }
+    console.log("[agentRegistry] Rehydrated", slotRegistry.size, "slot assignment(s) from DB");
+  } catch (err) {
+    console.warn("[agentRegistry] Rehydrate from DB failed:", err?.message);
+  }
+}
+
+/**
+ * Register an agent for a slot (global or per-game). Persists to DB and in-memory.
  * Slot 2-8 = AI seats; slot 1 (only when gameId is set) = "my agent plays for me" (user's seat).
  * Either callbackUrl (external agent) or user_agent_id (saved API key) must be provided.
  * @param {object} opts - { slot, agentId, callbackUrl?, user_agent_id?, chainId?, name?, gameId? }
  */
-function registerAgent(opts) {
+async function registerAgent(opts) {
   const { slot, agentId, callbackUrl, user_agent_id, chainId = 42220, name, gameId } = opts;
   if (slot == null || slot < 1 || slot > 8) throw new Error("slot must be 1-8");
   if (gameId == null && slot === 1) throw new Error("slot 1 (user's agent) requires gameId");
   const hasCallback = callbackUrl && String(callbackUrl).startsWith("http");
   const hasUserAgentId = user_agent_id != null && Number(user_agent_id) > 0;
   if (!hasCallback && !hasUserAgentId) throw new Error("callbackUrl or user_agent_id required");
-  const key = gameId ? `game_${gameId}_slot_${slot}` : `slot_${slot}`;
-  slotRegistry.set(key, {
-    agentId: String(agentId),
-    callbackUrl: hasCallback ? String(callbackUrl).replace(/\/$/, "") : null,
+
+  const gid = gameId != null ? Number(gameId) : 0;
+  const key = registryKey(gameId, slot);
+  const payload = {
+    game_id: gid,
+    slot: Number(slot),
     user_agent_id: hasUserAgentId ? Number(user_agent_id) : null,
-    chainId: Number(chainId),
+    callback_url: hasCallback ? String(callbackUrl).replace(/\/$/, "") : null,
+    agent_id: String(agentId || ""),
     name: name || `Agent ${slot}`,
+    chain_id: Number(chainId) || 42220,
+    updated_at: db.fn.now(),
+  };
+
+  const existing = await db(TABLE).where({ game_id: gid, slot }).first();
+  if (existing) {
+    await db(TABLE).where({ id: existing.id }).update(payload);
+  } else {
+    await db(TABLE).insert({ ...payload, created_at: db.fn.now(), updated_at: db.fn.now() });
+  }
+
+  slotRegistry.set(key, {
+    agentId: payload.agent_id,
+    callbackUrl: payload.callback_url,
+    user_agent_id: payload.user_agent_id,
+    chainId: payload.chain_id,
+    name: payload.name,
     gameId: gameId ? Number(gameId) : null,
-    slot,
+    slot: Number(slot),
     registeredAt: new Date().toISOString(),
   });
   return { key, registered: true };
 }
 
 /**
- * Unregister agent for a slot (or game+slot).
+ * Unregister agent for a slot (or game+slot). Removes from DB and in-memory.
  */
-function unregisterAgent(slot, gameId = null) {
-  const key = gameId ? `game_${gameId}_slot_${slot}` : `slot_${slot}`;
+async function unregisterAgent(slot, gameId = null) {
+  const gid = gameId != null ? Number(gameId) : 0;
+  const key = registryKey(gameId, slot);
+  await db(TABLE).where({ game_id: gid, slot: Number(slot) }).del();
   const deleted = slotRegistry.delete(key);
   return { key, deleted: !!deleted };
+}
+
+/**
+ * Remove all agent assignments for a game (e.g. when game finishes).
+ */
+async function cleanupGame(gameId) {
+  const id = Number(gameId);
+  if (!id) return;
+  const keys = [];
+  for (const [key, entry] of slotRegistry) {
+    if (entry.gameId === id) keys.push(key);
+  }
+  keys.forEach((k) => slotRegistry.delete(k));
+  const deleted = await db(TABLE).where({ game_id: id }).del();
+  if (deleted > 0 || keys.length > 0) {
+    console.log("[agentRegistry] Cleaned up game", gameId, ":", keys.length, "in-memory,", deleted, "DB");
+  }
 }
 
 /**
@@ -82,7 +164,26 @@ function getAgentForSlot(gameId, slot) {
 }
 
 /**
+ * Acquire a lock for (gameId, slot) so only one decision runs at a time per slot.
+ */
+async function withSlotLock(gameId, slot, fn) {
+  const key = `decision_${Number(gameId)}_${Number(slot)}`;
+  const prev = decisionLocks.get(key);
+  let resolve;
+  const myDone = new Promise((r) => { resolve = r; });
+  decisionLocks.set(key, prev ? prev.then(() => myDone) : myDone);
+  await (prev || Promise.resolve());
+  try {
+    return await fn();
+  } finally {
+    resolve();
+    decisionLocks.delete(key);
+  }
+}
+
+/**
  * Ask the agent for a decision. Returns decision object or null (use built-in logic).
+ * Serialized per (gameId, slot) to avoid races.
  * Order: 1) registered external agent, 2) internal LLM agent for AI games, 3) null → built-in rules.
  * @param {number} gameId
  * @param {number} slot - AI slot 2-8
@@ -91,6 +192,10 @@ function getAgentForSlot(gameId, slot) {
  * @returns {Promise<object|null>} - { action, propertyId?, reasoning?, confidence? } or null
  */
 async function getAIDecision(gameId, slot, decisionType, context) {
+  return withSlotLock(gameId, slot, async () => getAIDecisionInner(gameId, slot, decisionType, context));
+}
+
+async function getAIDecisionInner(gameId, slot, decisionType, context) {
   const agent = getAgentForSlot(gameId, slot);
   console.log("[agentRegistry] getAIDecision:", {
     gameId,
@@ -248,4 +353,6 @@ export default {
   getAgentsForGame,
   getAgentForSlot,
   getAIDecision,
+  rehydrateFromDb,
+  cleanupGame,
 };
