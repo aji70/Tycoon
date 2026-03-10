@@ -1865,15 +1865,20 @@ export const useMyAgent = async (req, res) => {
     }
 
     const callbackUrl = UserAgent.getCallbackUrl(agent);
-    if (!callbackUrl) {
-      return res.status(400).json({ success: false, message: "Agent has no callback URL configured" });
+    const hasSavedKey = UserAgent.hasSavedApiKey(agent);
+    if (!callbackUrl && !hasSavedKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Agent needs a callback URL or a saved API key (add one in My Agents)",
+      });
     }
 
     agentRegistry.registerAgent({
       gameId,
       slot: USER_AGENT_SLOT,
       agentId: String(agent.erc8004_agent_id || agent.id),
-      callbackUrl,
+      callbackUrl: callbackUrl || undefined,
+      user_agent_id: hasSavedKey ? agent.id : undefined,
       chainId: agent.chain_id ?? 42220,
       name: agent.name || "My Agent",
     });

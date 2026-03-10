@@ -6,29 +6,34 @@
  */
 
 import Game from "../models/Game.js";
+import UserAgent from "../models/UserAgent.js";
 import internalAgent from "./internalAgent.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
 
-// In-memory: slot -> { agentId, callbackUrl, chainId?, name? }
+// In-memory: slot -> { agentId, callbackUrl?, user_agent_id?, chainId?, name? }
 // Keys: "slot_2", "slot_3", ... or "game_123_slot_2" for game-specific binding
 const slotRegistry = new Map();
 
 /**
  * Register an agent for a slot (global or per-game).
  * Slot 2-8 = AI seats; slot 1 (only when gameId is set) = "my agent plays for me" (user's seat).
- * @param {object} opts - { slot: number (1-8; 1 only with gameId), agentId: string, callbackUrl: string, chainId?: number, name?: string, gameId?: number }
+ * Either callbackUrl (external agent) or user_agent_id (saved API key) must be provided.
+ * @param {object} opts - { slot, agentId, callbackUrl?, user_agent_id?, chainId?, name?, gameId? }
  */
 function registerAgent(opts) {
-  const { slot, agentId, callbackUrl, chainId = 42220, name, gameId } = opts;
+  const { slot, agentId, callbackUrl, user_agent_id, chainId = 42220, name, gameId } = opts;
   if (slot == null || slot < 1 || slot > 8) throw new Error("slot must be 1-8");
   if (gameId == null && slot === 1) throw new Error("slot 1 (user's agent) requires gameId");
-  if (!callbackUrl?.startsWith("http")) throw new Error("callbackUrl must be HTTP(S)");
+  const hasCallback = callbackUrl && String(callbackUrl).startsWith("http");
+  const hasUserAgentId = user_agent_id != null && Number(user_agent_id) > 0;
+  if (!hasCallback && !hasUserAgentId) throw new Error("callbackUrl or user_agent_id required");
   const key = gameId ? `game_${gameId}_slot_${slot}` : `slot_${slot}`;
   slotRegistry.set(key, {
     agentId: String(agentId),
-    callbackUrl: callbackUrl.replace(/\/$/, ""),
+    callbackUrl: hasCallback ? String(callbackUrl).replace(/\/$/, "") : null,
+    user_agent_id: hasUserAgentId ? Number(user_agent_id) : null,
     chainId: Number(chainId),
     name: name || `Agent ${slot}`,
     gameId: gameId ? Number(gameId) : null,
@@ -86,56 +91,91 @@ function getAgentForSlot(gameId, slot) {
  */
 async function getAIDecision(gameId, slot, decisionType, context) {
   const agent = getAgentForSlot(gameId, slot);
-  console.log("[agentRegistry] getAIDecision:", { gameId, slot, hasAgent: !!agent, agentUrl: agent?.callbackUrl });
+  console.log("[agentRegistry] getAIDecision:", {
+    gameId,
+    slot,
+    hasAgent: !!agent,
+    agentUrl: agent?.callbackUrl,
+    user_agent_id: agent?.user_agent_id,
+  });
 
-  if (agent) {
-
-  const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  const deadline = new Date(Date.now() + AGENT_REQUEST_TIMEOUT_MS).toISOString();
-  const body = {
-    requestId,
-    gameId: Number(gameId),
-    slot: Number(slot),
-    decisionType,
-    context: context || {},
-    deadline,
-  };
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
-
-  try {
-    console.log("[agentRegistry] POSTing to agent:", `${agent.callbackUrl}/decision`);
-    const res = await fetch(`${agent.callbackUrl}/decision`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    console.log("[agentRegistry] Agent response status:", res.status);
-    if (!res.ok) {
-      console.warn("[agentRegistry] Agent returned non-OK status:", res.status);
-      return null;
+  // Stored API key: use internal agent with user's saved key
+  if (agent?.user_agent_id) {
+    try {
+      const keyPayload = await UserAgent.getDecryptedApiKey(agent.user_agent_id);
+      if (keyPayload && keyPayload.apiKey) {
+        const decision = await internalAgent.getDecisionWithKey(
+          keyPayload.apiKey,
+          Number(gameId),
+          Number(slot),
+          decisionType,
+          context || {}
+        );
+        if (decision) {
+          console.log(
+            "[agentRegistry] SAVED KEY AGENT | gameId=%s slot=%s type=%s action=%s",
+            gameId,
+            slot,
+            decisionType,
+            decision.action
+          );
+          return decision;
+        }
+      }
+    } catch (err) {
+      console.warn("[agentRegistry] Saved-key agent decision failed:", err?.message);
     }
-    const data = await res.json().catch(() => null);
-    console.log("[agentRegistry] Agent response data:", data);
-    if (!data || data.requestId !== requestId) {
-      console.warn("[agentRegistry] Invalid agent response (missing requestId or data)");
-      return null;
-    }
-    return {
-      action: data.action,
-      propertyId: data.propertyId,
-      reasoning: data.reasoning,
-      confidence: data.confidence,
-      counterOffer: data.counterOffer,
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    console.error("[agentRegistry] Agent decision request failed:", err.message);
     return null;
   }
+
+  // External callback URL
+  if (agent?.callbackUrl) {
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const deadline = new Date(Date.now() + AGENT_REQUEST_TIMEOUT_MS).toISOString();
+    const body = {
+      requestId,
+      gameId: Number(gameId),
+      slot: Number(slot),
+      decisionType,
+      context: context || {},
+      deadline,
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
+
+    try {
+      console.log("[agentRegistry] POSTing to agent:", `${agent.callbackUrl}/decision`);
+      const res = await fetch(`${agent.callbackUrl}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      console.log("[agentRegistry] Agent response status:", res.status);
+      if (!res.ok) {
+        console.warn("[agentRegistry] Agent returned non-OK status:", res.status);
+        return null;
+      }
+      const data = await res.json().catch(() => null);
+      console.log("[agentRegistry] Agent response data:", data);
+      if (!data || data.requestId !== requestId) {
+        console.warn("[agentRegistry] Invalid agent response (missing requestId or data)");
+        return null;
+      }
+      return {
+        action: data.action,
+        propertyId: data.propertyId,
+        reasoning: data.reasoning,
+        confidence: data.confidence,
+        counterOffer: data.counterOffer,
+      };
+    } catch (err) {
+      clearTimeout(timeout);
+      console.error("[agentRegistry] Agent decision request failed:", err.message);
+      return null;
+    }
   }
 
   // No external agent: use internal LLM agent for AI games (one logical agent per game), or for "tip" in any game

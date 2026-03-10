@@ -22,11 +22,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-/** Create agent (body: name, callback_url or config for future "create & deploy") */
+/** Create agent (body: name, callback_url, provider?, api_key? or config for future "create & deploy") */
 router.post("/", async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, callback_url, config, erc8004_agent_id, chain_id } = req.body || {};
+    const { name, callback_url, config, erc8004_agent_id, chain_id, provider, api_key } = req.body || {};
     if (!name || String(name).trim() === "") {
       return res.status(400).json({ success: false, message: "name is required" });
     }
@@ -36,6 +36,8 @@ router.post("/", async (req, res) => {
       config: config || null,
       erc8004_agent_id: erc8004_agent_id || null,
       chain_id: chain_id ?? 42220,
+      provider: provider?.trim() || null,
+      api_key: api_key != null ? api_key : undefined,
     });
     res.status(201).json({ success: true, data: agent });
   } catch (err) {

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
@@ -26,6 +26,8 @@ export interface UserAgent {
   hosted_url: string | null;
   erc8004_agent_id: string | null;
   chain_id: number | null;
+  provider?: string | null;
+  has_api_key?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +50,9 @@ export default function AgentsPageMobile() {
   const [formName, setFormName] = useState("");
   const [formCallbackUrl, setFormCallbackUrl] = useState("");
   const [formErc8004Id, setFormErc8004Id] = useState("");
+  const [formProvider, setFormProvider] = useState("anthropic");
+  const [formApiKey, setFormApiKey] = useState("");
+  const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -128,6 +133,9 @@ export default function AgentsPageMobile() {
     setFormName("");
     setFormCallbackUrl("");
     setFormErc8004Id("");
+    setFormProvider("anthropic");
+    setFormApiKey("");
+    setFormClearApiKey(false);
   };
 
   const openEdit = (a: UserAgent) => {
@@ -135,6 +143,9 @@ export default function AgentsPageMobile() {
     setFormName(a.name);
     setFormCallbackUrl(a.callback_url || "");
     setFormErc8004Id(a.erc8004_agent_id || "");
+    setFormProvider(a.provider || "anthropic");
+    setFormApiKey("");
+    setFormClearApiKey(false);
     setShowForm(true);
   };
 
@@ -147,20 +158,19 @@ export default function AgentsPageMobile() {
     }
     setSubmitting(true);
     try {
+      const payload: Record<string, unknown> = {
+        name,
+        callback_url: formCallbackUrl.trim() || null,
+        erc8004_agent_id: formErc8004Id.trim() || null,
+        provider: formProvider.trim() || "anthropic",
+      };
+      if (formApiKey.trim()) payload.api_key = formApiKey.trim();
+      else if (editingId && formClearApiKey) payload.api_key = null;
       if (editingId) {
-        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, {
-          name,
-          callback_url: formCallbackUrl.trim() || null,
-          erc8004_agent_id: formErc8004Id.trim() || null,
-        });
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
       } else {
-        await apiClient.post<ApiResponse<UserAgent>>("/agents", {
-          name,
-          callback_url: formCallbackUrl.trim() || null,
-          erc8004_agent_id: formErc8004Id.trim() || null,
-          chain_id: 42220,
-        });
+        await apiClient.post<ApiResponse<UserAgent>>("/agents", { ...payload, chain_id: 42220 });
         toast.success("Agent created");
       }
       resetForm();
@@ -304,8 +314,13 @@ export default function AgentsPageMobile() {
                           <ExternalLink className="w-3 h-3 shrink-0" />
                           {a.callback_url}
                         </span>
+                      ) : a.has_api_key ? (
+                        <span className="flex items-center gap-0.5 text-cyan-400/90">
+                          <Key className="w-3 h-3 shrink-0" />
+                          API key saved
+                        </span>
                       ) : (
-                        "No URL"
+                        "No URL or key"
                       )}
                     </p>
                     {a.erc8004_agent_id && (
@@ -351,6 +366,34 @@ export default function AgentsPageMobile() {
                   placeholder="Callback URL"
                   className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
                 />
+                <div>
+                  <select
+                    value={formProvider}
+                    onChange={(e) => setFormProvider(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
+                  >
+                    <option value="anthropic">Claude (Anthropic)</option>
+                  </select>
+                  <input
+                    type="password"
+                    value={formApiKey}
+                    onChange={(e) => setFormApiKey(e.target.value)}
+                    placeholder={editingId ? "Leave blank to keep key" : "API key (optional)"}
+                    className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm mt-1"
+                    autoComplete="off"
+                  />
+                  {editingId && (
+                    <label className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={formClearApiKey}
+                        onChange={(e) => setFormClearApiKey(e.target.checked)}
+                        className="rounded border-cyan-500/40"
+                      />
+                      Clear saved key
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={formErc8004Id}
