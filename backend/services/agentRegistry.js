@@ -9,6 +9,7 @@
 import db from "../config/database.js";
 import logger from "../config/logger.js";
 import Game from "../models/Game.js";
+import GameSetting from "../models/GameSetting.js";
 import UserAgent from "../models/UserAgent.js";
 import internalAgent from "./internalAgent.js";
 import * as hostedAgentUsage from "./hostedAgentUsage.js";
@@ -314,12 +315,20 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
     }
   }
 
-  // No external agent: use internal LLM agent for AI games (one logical agent per game), or for "tip" in any game
+  // No external agent: for AI games, route by ai_difficulty:
+  // - easy: built-in rules only (return null so caller uses fallback)
+  // - hard / boss: internal LLM agent (Claude)
   if (USE_INTERNAL_AGENT) {
     try {
       const game = await Game.findById(Number(gameId));
       const useInternal = game && (game.is_ai || decisionType === "tip");
       if (useInternal) {
+        const gs = game?.is_ai ? await GameSetting.findByGameId(Number(gameId)) : null;
+        const diff = (gs?.ai_difficulty || "boss").toLowerCase();
+        if (decisionType !== "tip" && game.is_ai && diff === "easy") {
+          logger.debug({ gameId, slot, decisionType, ai_difficulty: diff }, "Easy: using built-in rules");
+          return null;
+        }
         for (let attempt = 1; attempt <= 2; attempt++) {
           const decision = await internalAgent.getDecision(
             Number(gameId),
@@ -329,7 +338,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
           );
           if (decision) {
             logger.info(
-              { gameId, slot, decisionType, action: decision.action, source: "internal", attempt },
+              { gameId, slot, decisionType, action: decision.action, source: "internal", attempt, difficulty: diff },
               "AI decision (Claude)"
             );
             return decision;

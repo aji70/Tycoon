@@ -31,7 +31,7 @@ export const AI_ADDRESSES = [
   "0xB8FF2cEaCBb67DbB5bc14D570E7BbF339cE240F6",
 ];
 
-export type AIDifficulty = "easy" | "medium" | "hard" | "boss";
+export type AIDifficulty = "easy" | "hard" | "boss";
 
 export interface AIGameSettings {
   symbol: string;
@@ -118,6 +118,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
           is_minipay: isMiniPay,
           chain: chainName,
           duration: settings.duration,
+          ai_difficulty: ["easy", "hard", "boss"].includes(settings.aiDifficulty) ? settings.aiDifficulty : "boss",
           settings: {
             auction: settings.auction,
             rent_in_prison: settings.rentInPrison,

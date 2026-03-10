@@ -151,7 +151,6 @@ export default function PlayWithAI({ redirectTo3D = false, theme = "default" }: 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="easy">Easy</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="hard">Hard</SelectItem>
                   <SelectItem value="boss" className="text-pink-400 font-bold">BOSS MODE</SelectItem>
                 </SelectContent>
