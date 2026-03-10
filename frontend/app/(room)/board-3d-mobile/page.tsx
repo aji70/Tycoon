@@ -31,6 +31,7 @@ import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { MyAgentToggle } from "@/components/game/MyAgentToggle";
+import { getStoredAgentApiKey, setStoredAgentApiKey } from "@/lib/agentApiKeySession";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 const Mobile3DGameUI = dynamic(
   () => import("@/components/game/board3d/Mobile3DGameUI").then((m) => m.default),
@@ -480,6 +481,12 @@ function Board3DMobileContent() {
   }, [game?.players, currentPlayerId]);
 
   const { myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+  const [myAgentApiKey, setMyAgentApiKeyState] = useState<{ provider: string; apiKey: string } | null>(() => getStoredAgentApiKey());
+  const setMyAgentApiKey = useCallback((value: { provider: string; apiKey: string } | null) => {
+    setMyAgentApiKeyState(value);
+    setStoredAgentApiKey(value);
+  }, []);
+  const agentOn = myAgentOn || !!myAgentApiKey;
 
   const isAITurn = useMemo(() => {
     if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
@@ -1546,24 +1553,36 @@ function Board3DMobileContent() {
         ).length;
         const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
         const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[square.id] ?? 99;
+        const decisionContext = {
+          myBalance: balanceAfterMove,
+          myProperties: gameProperties
+            .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+            .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+          opponents: (game.players ?? []).filter((p) => p.user_id !== me.user_id),
+          landedProperty: { ...square, completesMonopoly, landingRank },
+        };
         try {
-          const agentRes = await apiClient.post<{
-            success?: boolean;
-            data?: { action?: string };
-          }>("/agent-registry/decision", {
-            gameId: game.id,
-            slot: 1,
-            decisionType: "property",
-            context: {
-              myBalance: balanceAfterMove,
-              myProperties: gameProperties
-                .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
-                .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
-              opponents: (game.players ?? []).filter((p) => p.user_id !== me.user_id),
-              landedProperty: { ...square, completesMonopoly, landingRank },
-            },
-          });
-          if (agentRes?.data?.success && agentRes.data.data?.action?.toLowerCase() === "buy") {
+          let shouldBuy: boolean = false;
+          if (myAgentApiKey) {
+            const proxyRes = await apiClient.post<{ success?: boolean; data?: { action?: string } }>(
+              "/agent-registry/decision-with-key",
+              {
+                gameId: game.id,
+                decisionType: "property",
+                context: decisionContext,
+                provider: myAgentApiKey.provider,
+                apiKey: myAgentApiKey.apiKey,
+              }
+            );
+            shouldBuy = !!(proxyRes?.data?.success && proxyRes.data.data?.action?.toLowerCase() === "buy");
+          } else {
+            const agentRes = await apiClient.post<{ success?: boolean; data?: { action?: string } }>(
+              "/agent-registry/decision",
+              { gameId: game.id, slot: 1, decisionType: "property", context: decisionContext }
+            );
+            shouldBuy = !!agentRes?.data?.success && agentRes.data.data?.action?.toLowerCase() === "buy";
+          }
+          if (shouldBuy) {
             await apiClient.post("/game-properties/buy", {
               user_id: playerId,
               game_id: game.id,
@@ -1590,7 +1609,7 @@ function Board3DMobileContent() {
       setRollingDice(null);
       rollingForPlayerIdRef.current = null;
     }
-  }, [game, me, refetchGame, properties, gameProperties, runMovementAnimation, END_TURN]);
+  }, [game, me, myAgentApiKey, refetchGame, properties, gameProperties, runMovementAnimation, END_TURN]);
 
   const onRollClick = useCallback(() => {
     if (isLiveGame && playerCanRoll) handleRollForLive();
@@ -1609,14 +1628,14 @@ function Board3DMobileContent() {
 
   const onDiceCompleteClick = useCallback(() => {
     if (!isLiveGame) return;
-    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current === me.user_id && myAgentOn) {
+    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current === me.user_id && agentOn) {
       handleDiceCompleteForMyAgent();
     } else if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
       handleDiceCompleteForAI();
     } else {
       handleDiceCompleteForLive();
     }
-  }, [isLiveGame, handleDiceCompleteForLive, handleDiceCompleteForAI, handleDiceCompleteForMyAgent, me, myAgentOn]);
+  }, [isLiveGame, handleDiceCompleteForLive, handleDiceCompleteForAI, handleDiceCompleteForMyAgent, me, agentOn]);
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
@@ -1768,10 +1787,10 @@ function Board3DMobileContent() {
   }, [isAITurn, currentPlayer, strategyRanThisTurn, isLiveGame, handleAiStrategy]);
 
   useEffect(() => {
-    if (!isLiveGame || !isMyTurn || !myAgentOn || rollingDice || !playerCanRoll || !me) return;
+    if (!isLiveGame || !isMyTurn || !agentOn || rollingDice || !playerCanRoll || !me) return;
     const t = setTimeout(() => handleRollForLive(), 1200);
     return () => clearTimeout(t);
-  }, [isLiveGame, isMyTurn, myAgentOn, rollingDice, playerCanRoll, me, handleRollForLive]);
+  }, [isLiveGame, isMyTurn, agentOn, rollingDice, playerCanRoll, me, handleRollForLive]);
 
   useEffect(() => {
     if (
@@ -2134,6 +2153,9 @@ function Board3DMobileContent() {
           <MyAgentToggle
             gameId={game.id}
             myAgentOn={myAgentOn}
+            myAgentApiKey={myAgentApiKey}
+            onUseApiKey={setMyAgentApiKey}
+            onStopApiKey={() => setMyAgentApiKey(null)}
             onBindingsChange={refetchAgentBindings}
             compact
           />

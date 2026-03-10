@@ -5,6 +5,9 @@
 
 import express from "express";
 import agentRegistry from "../services/agentRegistry.js";
+import internalAgent from "../services/internalAgent.js";
+import GamePlayer from "../models/GamePlayer.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -67,6 +70,49 @@ router.post("/decision", async (req, res) => {
     res.json({ success: true, data: null, useBuiltIn: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * Option B: Get decision using the user's own API key (no storage). Key is used only for this request.
+ * Body: { gameId, decisionType, context, provider: "anthropic", apiKey }
+ * Requires auth; verifies user is in the game.
+ */
+router.post("/decision-with-key", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const { gameId, decisionType, context, provider, apiKey } = req.body || {};
+    if (!gameId || !decisionType) {
+      return res.status(400).json({ success: false, message: "gameId and decisionType required" });
+    }
+    if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+      return res.status(400).json({ success: false, message: "apiKey required" });
+    }
+    const gid = Number(gameId);
+    const player = await GamePlayer.findByUserIdAndGameId(userId, gid);
+    if (!player) {
+      return res.status(403).json({ success: false, message: "You are not in this game" });
+    }
+    if (provider !== "anthropic") {
+      return res.status(400).json({ success: false, message: "Only provider 'anthropic' is supported" });
+    }
+    const decision = await internalAgent.getDecisionWithKey(
+      apiKey.trim(),
+      gid,
+      1,
+      decisionType,
+      context || {}
+    );
+    if (!decision) {
+      return res.status(502).json({ success: false, message: "Decision request failed (check your API key)" });
+    }
+    return res.json({ success: true, data: decision });
+  } catch (err) {
+    console.error("[agent-registry] decision-with-key error:", err?.message);
+    return res.status(500).json({ success: false, message: err?.message || "Decision failed" });
   }
 });
 
