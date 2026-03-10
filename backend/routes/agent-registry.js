@@ -136,9 +136,11 @@ router.post("/hosted/:agentId/decision", async (req, res) => {
     if (!agent) {
       return res.status(404).json({ success: false, message: "Agent not found" });
     }
+    const skillPrompt = agent.config?.skill || agent.config?.system_prompt;
+    const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
     let decision;
     if (agent.use_tycoon_key) {
-      decision = await internalAgent.getDecision(Number(gameId), Number(slot), decisionType, context || {});
+      decision = await internalAgent.getDecision(Number(gameId), Number(slot), decisionType, context || {}, opts);
     } else if (agent.has_api_key) {
       const keyPayload = await UserAgent.getDecryptedApiKey(agentId);
       if (keyPayload?.apiKey) {
@@ -147,7 +149,8 @@ router.post("/hosted/:agentId/decision", async (req, res) => {
           Number(gameId),
           Number(slot),
           decisionType,
-          context || {}
+          context || {},
+          opts
         );
       }
     }

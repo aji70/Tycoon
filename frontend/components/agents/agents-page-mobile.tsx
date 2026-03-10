@@ -58,6 +58,7 @@ export default function AgentsPageMobile() {
   const [formApiKey, setFormApiKey] = useState("");
   const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
+  const [formSkill, setFormSkill] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
@@ -145,6 +146,7 @@ export default function AgentsPageMobile() {
     setFormApiKey("");
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
+    setFormSkill("");
   };
 
   const openEdit = (a: UserAgent) => {
@@ -158,6 +160,7 @@ export default function AgentsPageMobile() {
     setFormHostingType(
       a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
     );
+    setFormSkill(typeof a.config?.skill === "string" ? a.config.skill : "");
     setShowForm(true);
   };
 
@@ -190,6 +193,11 @@ export default function AgentsPageMobile() {
         if (formApiKey.trim()) payload.api_key = formApiKey.trim();
         else if (editingId && formClearApiKey) payload.api_key = null;
       }
+      const existingConfig = editingId ? agents.find((x) => x.id === editingId)?.config : undefined;
+      const configPayload: Record<string, unknown> = existingConfig && typeof existingConfig === "object" ? { ...existingConfig } : {};
+      if (formSkill.trim()) configPayload.skill = formSkill.trim();
+      else delete configPayload.skill;
+      payload.config = Object.keys(configPayload).length > 0 ? configPayload : null;
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
@@ -478,6 +486,16 @@ export default function AgentsPageMobile() {
                     )}
                   </div>
                 )}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-0.5">Skill (optional)</label>
+                  <textarea
+                    value={formSkill}
+                    onChange={(e) => setFormSkill(e.target.value)}
+                    placeholder="How should the AI play?"
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
+                  />
+                </div>
                 <input
                   type="text"
                   value={formErc8004Id}
