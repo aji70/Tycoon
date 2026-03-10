@@ -122,8 +122,10 @@ function buildTipPrompt(context) {
 
 /**
  * Run Claude with the given client and return a decision. Shared by getDecision and getDecisionWithKey.
+ * @param {object} [opts] - Optional { systemPrompt } (user's skill / behavior instructions).
  */
-async function runDecisionWithClient(anthropic, decisionType, context) {
+async function runDecisionWithClient(anthropic, decisionType, context, opts = {}) {
+  const { systemPrompt } = opts;
   let prompt;
   let fallback;
 
@@ -152,11 +154,15 @@ async function runDecisionWithClient(anthropic, decisionType, context) {
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
   }
 
-  const createPromise = anthropic.messages.create({
+  const createParams = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
     messages: [{ role: "user", content: prompt }],
-  });
+  };
+  if (systemPrompt && String(systemPrompt).trim()) {
+    createParams.system = String(systemPrompt).trim();
+  }
+  const createPromise = anthropic.messages.create(createParams);
   const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
   );
@@ -184,15 +190,16 @@ async function runDecisionWithClient(anthropic, decisionType, context) {
 
 /**
  * Get a decision from the internal LLM agent (uses env ANTHROPIC_API_KEY).
+ * @param {object} [opts] - Optional { systemPrompt } from agent config (user's skill).
  */
-async function getDecision(gameId, slot, decisionType, context) {
+async function getDecision(gameId, slot, decisionType, context, opts = {}) {
   const anthropic = getClient();
   if (!anthropic) {
     console.log("[internalAgent] No ANTHROPIC_API_KEY; internal agent disabled.");
     return null;
   }
   try {
-    return await runDecisionWithClient(anthropic, decisionType, context);
+    return await runDecisionWithClient(anthropic, decisionType, context, opts);
   } catch (err) {
     console.error("[internalAgent] LLM request failed:", err.message);
     return null;
@@ -206,13 +213,14 @@ async function getDecision(gameId, slot, decisionType, context) {
  * @param {number} slot
  * @param {string} decisionType
  * @param {object} context
+ * @param {object} [opts] - Optional { systemPrompt } from agent config (user's skill).
  * @returns {Promise<{ action: string, propertyId?: number, reasoning?: string, confidence?: number } | null>}
  */
-async function getDecisionWithKey(apiKey, gameId, slot, decisionType, context) {
+async function getDecisionWithKey(apiKey, gameId, slot, decisionType, context, opts = {}) {
   if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) return null;
   try {
     const client = new Anthropic({ apiKey: apiKey.trim() });
-    return await runDecisionWithClient(client, decisionType, context);
+    return await runDecisionWithClient(client, decisionType, context, opts);
   } catch (err) {
     console.error("[internalAgent] decision-with-key failed:", err.message);
     return null;

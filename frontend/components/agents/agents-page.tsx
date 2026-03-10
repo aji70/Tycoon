@@ -58,6 +58,7 @@ export default function AgentsPage() {
   const [formApiKey, setFormApiKey] = useState("");
   const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
+  const [formSkill, setFormSkill] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
@@ -150,6 +151,7 @@ export default function AgentsPage() {
     setFormApiKey("");
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
+    setFormSkill("");
   };
 
   const openEdit = (a: UserAgent) => {
@@ -163,6 +165,7 @@ export default function AgentsPage() {
     setFormHostingType(
       a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
     );
+    setFormSkill(typeof a.config?.skill === "string" ? a.config.skill : "");
     setShowForm(true);
   };
 
@@ -195,6 +198,11 @@ export default function AgentsPage() {
         if (formApiKey.trim()) payload.api_key = formApiKey.trim();
         else if (editingId && formClearApiKey) payload.api_key = null;
       }
+      const existingConfig = editingId ? agents.find((x) => x.id === editingId)?.config : undefined;
+      const configPayload: Record<string, unknown> = existingConfig && typeof existingConfig === "object" ? { ...existingConfig } : {};
+      if (formSkill.trim()) configPayload.skill = formSkill.trim();
+      else delete configPayload.skill;
+      payload.config = Object.keys(configPayload).length > 0 ? configPayload : null;
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
@@ -505,6 +513,17 @@ export default function AgentsPage() {
                 {formHostingType === "tycoon" && (
                   <p className="text-sm text-cyan-400/90">We run the AI for this agent. Just name it and use it in game — no setup.</p>
                 )}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Skill / behavior (optional)</label>
+                  <textarea
+                    value={formSkill}
+                    onChange={(e) => setFormSkill(e.target.value)}
+                    placeholder="e.g. Play aggressively. Prefer orange and red sets. Never accept trades that give away a monopoly."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none resize-y text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Used for Tycoon-hosted and My API key agents. Tells the AI how to play (style, priorities).</p>
+                </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">ERC-8004 Agent ID (optional)</label>
                   <input

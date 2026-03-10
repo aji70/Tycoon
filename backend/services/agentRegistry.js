@@ -99,16 +99,19 @@ async function getAIDecision(gameId, slot, decisionType, context) {
     user_agent_id: agent?.user_agent_id,
   });
 
-  // User agent (saved key or Tycoon-hosted): use internal agent
+  // User agent (saved key or Tycoon-hosted): use internal agent, optionally with user's skill
   if (agent?.user_agent_id) {
     try {
       const fullAgent = await UserAgent.findById(agent.user_agent_id);
+      const skillPrompt = fullAgent?.config?.skill || fullAgent?.config?.system_prompt;
+      const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
       if (fullAgent?.use_tycoon_key) {
         const decision = await internalAgent.getDecision(
           Number(gameId),
           Number(slot),
           decisionType,
-          context || {}
+          context || {},
+          opts
         );
         if (decision) {
           console.log(
@@ -128,7 +131,8 @@ async function getAIDecision(gameId, slot, decisionType, context) {
             Number(gameId),
             Number(slot),
             decisionType,
-            context || {}
+            context || {},
+            opts
           );
           if (decision) {
             console.log(
