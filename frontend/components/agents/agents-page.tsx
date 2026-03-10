@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -36,8 +36,19 @@ export interface UserAgent {
 
 type HostingType = "tycoon" | "my_key" | "my_url";
 
+type HostedCreditsData = {
+  balance: number;
+  daily: { used: number; cap: number; remaining: number };
+  purchase_usdc_available?: boolean;
+  purchase_ngn_available?: boolean;
+  credits_per_usdc?: number;
+  credits_per_1000_ngn?: number;
+  usdc_recipient?: string | null;
+};
+
 export default function AgentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -64,7 +75,11 @@ export default function AgentsPage() {
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const isCelo = chainId === 42220 || chainId === 44787;
-  const [hostedCredits, setHostedCredits] = useState<{ used: number; cap: number; remaining: number } | null>(null);
+  const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
+  const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
+  const [usdcTxHash, setUsdcTxHash] = useState("");
+  const [purchasingUsdc, setPurchasingUsdc] = useState(false);
+  const [purchasingNgn, setPurchasingNgn] = useState(false);
 
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
@@ -77,7 +92,7 @@ export default function AgentsPage() {
       } else {
         setAgents([]);
       }
-      const credRes = await apiClient.get<ApiResponse<{ used: number; cap: number; remaining: number }>>("/agents/hosted-credits");
+      const credRes = await apiClient.get<ApiResponse<HostedCreditsData>>("/agents/hosted-credits");
       if (credRes.data?.success && credRes.data.data) setHostedCredits(credRes.data.data);
       else setHostedCredits(null);
     } catch (err: unknown) {
@@ -98,6 +113,69 @@ export default function AgentsPage() {
   React.useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  // Check for NGN redirect (reference from Flutterwave)
+  React.useEffect(() => {
+    const ref = searchParams.get("reference") ?? searchParams.get("tx_ref");
+    if (!ref) return;
+    apiClient
+      .get<{ success: boolean; found?: boolean; fulfilled?: boolean }>(`/agents/hosted-credits/purchase/ngn/verify?reference=${encodeURIComponent(ref)}`)
+      .then((r) => {
+        if (r.data?.success && r.data.fulfilled) {
+          toast.success("Credits added!");
+          fetchAgents();
+          router.replace("/agents", { scroll: false });
+        }
+      })
+      .catch(() => {});
+  }, [fetchAgents, router, searchParams]);
+
+  const handlePurchaseUsdc = async () => {
+    if (!usdcTxHash.trim()) {
+      toast.error("Paste your transaction hash");
+      return;
+    }
+    setPurchasingUsdc(true);
+    try {
+      const res = await apiClient.post<{ success: boolean; credits?: number; balance?: number; already_credited?: boolean }>(
+        "/agents/hosted-credits/purchase/usdc",
+        { tx_hash: usdcTxHash.trim() }
+      );
+      if (res.data?.success) {
+        if (res.data.already_credited) toast.info("Credits already added for this transaction");
+        else toast.success(`Added ${res.data.credits ?? 100} credits!`);
+        setBuyCreditsOpen(false);
+        setUsdcTxHash("");
+        fetchAgents();
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Purchase failed";
+      toast.error(msg);
+    } finally {
+      setPurchasingUsdc(false);
+    }
+  };
+
+  const handlePurchaseNgn = async () => {
+    setPurchasingNgn(true);
+    try {
+      const base = typeof window !== "undefined" ? window.location.origin : "";
+      const res = await apiClient.post<{ success: boolean; link?: string; reference?: string }>(
+        "/agents/hosted-credits/purchase/ngn/initialize",
+        { callback_url: `${base}/agents` }
+      );
+      if (res.data?.success && res.data.link) {
+        window.location.href = res.data.link;
+      } else {
+        toast.error("Could not start NGN payment");
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "NGN purchase failed";
+      toast.error(msg);
+    } finally {
+      setPurchasingNgn(false);
+    }
+  };
 
   // When a connected wallet user gets 401, automatically link wallet (one signature) so they can use Agents
   React.useEffect(() => {
@@ -352,10 +430,29 @@ export default function AgentsPage() {
           <div className="w-20" />
         </div>
         {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
-          <p className="text-sm text-cyan-400/90 mb-4 text-center">
-            Tycoon-hosted credits: <strong>{hostedCredits.remaining}</strong> / {hostedCredits.cap} left today
-            {hostedCredits.remaining === 0 && " — add your API key or try tomorrow"}
-          </p>
+          <div className="flex flex-col items-center gap-2 mb-4">
+            <p className="text-sm text-cyan-400/90 text-center">
+              Tycoon-hosted credits: {hostedCredits.balance > 0 && <strong>{hostedCredits.balance} purchased</strong>}
+              {hostedCredits.balance > 0 && hostedCredits.daily.remaining > 0 && " + "}
+              {hostedCredits.daily.remaining > 0 && (
+                <>
+                  <strong>{hostedCredits.daily.remaining}</strong> / {hostedCredits.daily.cap} free today
+                </>
+              )}
+              {hostedCredits.balance === 0 && hostedCredits.daily.remaining === 0 && (
+                <>No credits — add API key, try tomorrow, or buy credits</>
+              )}
+            </p>
+            {(hostedCredits.purchase_usdc_available || hostedCredits.purchase_ngn_available) && (
+              <button
+                type="button"
+                onClick={() => setBuyCreditsOpen(true)}
+                className="text-xs text-cyan-400 hover:underline"
+              >
+                Buy credits ($1 USDC or ₦1000)
+              </button>
+            )}
+          </div>
         )}
         <div className="flex justify-end mb-4">
           <button
@@ -597,6 +694,61 @@ export default function AgentsPage() {
         <p className="text-gray-500 text-sm mt-6">
           <a href="/play-ai" className="text-cyan-400 hover:underline">Play vs AI</a> — use one of your agents when creating a game (coming soon).
         </p>
+
+        {buyCreditsOpen && hostedCredits && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setBuyCreditsOpen(false)}>
+            <div className="bg-[#0d1117] rounded-2xl border border-cyan-500/40 p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-xl font-bold text-white mb-4">Buy hosted agent credits</h3>
+              <p className="text-gray-400 text-sm mb-4">100 credits = 100 AI decisions. $1 USDC or ₦1000 NGN.</p>
+
+              {hostedCredits.purchase_usdc_available && (
+                <div className="mb-4">
+                  <p className="text-sm text-cyan-400 font-medium mb-2">Pay with USDC (Celo)</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Send $1 USDC to <code className="bg-black/50 px-1 rounded text-cyan-300 truncate block">{hostedCredits.usdc_recipient || "…"}</code> on Celo, then paste the transaction hash:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={usdcTxHash}
+                      onChange={(e) => setUsdcTxHash(e.target.value)}
+                      placeholder="0x..."
+                      className="flex-1 px-3 py-2 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm font-mono placeholder-gray-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handlePurchaseUsdc}
+                      disabled={purchasingUsdc || !usdcTxHash.trim()}
+                      className="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {purchasingUsdc && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Verify
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {hostedCredits.purchase_ngn_available && (
+                <div className="mb-4">
+                  <p className="text-sm text-cyan-400 font-medium mb-2">Pay with Naira (NGN)</p>
+                  <button
+                    type="button"
+                    onClick={handlePurchaseNgn}
+                    disabled={purchasingNgn}
+                    className="w-full px-4 py-3 rounded-lg bg-green-600/20 border border-green-500/50 text-green-400 hover:bg-green-600/30 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {purchasingNgn && <Loader2 className="w-5 h-5 animate-spin" />}
+                    Pay ₦1000
+                  </button>
+                </div>
+              )}
+
+              <button type="button" onClick={() => setBuyCreditsOpen(false)} className="w-full py-2 text-gray-400 hover:text-white">
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

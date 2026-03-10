@@ -8,6 +8,7 @@ import agentRegistry from "../services/agentRegistry.js";
 import internalAgent from "../services/internalAgent.js";
 import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
+import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -142,10 +143,16 @@ router.post("/hosted/:agentId/decision", async (req, res) => {
     let decision;
     if (agent.use_tycoon_key) {
       const userId = agent.user_id;
-      if (!(await hostedAgentUsage.isUnderCap(userId))) {
-        return res.status(429).json({ success: false, message: "Daily hosted agent limit reached. Use “My API key” or try again tomorrow." });
+      const hasPurchased = await hostedAgentCredits.hasCredits(userId);
+      const hasFree = await hostedAgentUsage.isUnderCap(userId);
+      if (hasPurchased) {
+        const ok = await hostedAgentCredits.deductCredit(userId);
+        if (!ok) return res.status(429).json({ success: false, message: "No credits. Buy more or use My API key." });
+      } else if (hasFree) {
+        await hostedAgentUsage.incrementUsage(userId);
+      } else {
+        return res.status(429).json({ success: false, message: "Daily hosted limit reached. Buy credits or use My API key." });
       }
-      await hostedAgentUsage.incrementUsage(userId);
       decision = await internalAgent.getDecision(Number(gameId), Number(slot), decisionType, context || {}, opts);
     } else if (agent.has_api_key) {
       const keyPayload = await UserAgent.getDecryptedApiKey(agentId);

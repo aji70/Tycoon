@@ -11,6 +11,7 @@ import Game from "../models/Game.js";
 import UserAgent from "../models/UserAgent.js";
 import internalAgent from "./internalAgent.js";
 import * as hostedAgentUsage from "./hostedAgentUsage.js";
+import * as hostedAgentCredits from "./hostedAgentCredits.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
@@ -213,11 +214,21 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
       if (fullAgent?.use_tycoon_key) {
         const userId = fullAgent.user_id;
-        if (!(await hostedAgentUsage.isUnderCap(userId))) {
-          console.log("[agentRegistry] Tycoon-hosted daily cap reached for user", userId);
+        // Prefer purchased credits; fallback to daily cap (free tier)
+        const hasPurchased = await hostedAgentCredits.hasCredits(userId);
+        const hasFree = await hostedAgentUsage.isUnderCap(userId);
+        if (hasPurchased) {
+          const ok = await hostedAgentCredits.deductCredit(userId);
+          if (!ok) {
+            console.log("[agentRegistry] Tycoon-hosted credits exhausted for user", userId);
+            return null;
+          }
+        } else if (hasFree) {
+          await hostedAgentUsage.incrementUsage(userId);
+        } else {
+          console.log("[agentRegistry] Tycoon-hosted no credits or daily cap reached for user", userId);
           return null;
         }
-        await hostedAgentUsage.incrementUsage(userId);
         const decision = await internalAgent.getDecision(
           Number(gameId),
           Number(slot),
