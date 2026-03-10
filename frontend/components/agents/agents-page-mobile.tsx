@@ -36,6 +36,14 @@ export interface UserAgent {
 
 type HostingType = "tycoon" | "my_key" | "my_url";
 
+type HostedCreditsData = {
+  balance: number;
+  daily: { used: number; cap: number; remaining: number };
+  purchase_usdc_available?: boolean;
+  purchase_ngn_available?: boolean;
+  usdc_recipient?: string | null;
+};
+
 export default function AgentsPageMobile() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
@@ -64,7 +72,7 @@ export default function AgentsPageMobile() {
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const isCelo = chainId === 42220 || chainId === 44787;
-  const [hostedCredits, setHostedCredits] = useState<{ used: number; cap: number; remaining: number } | null>(null);
+  const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
 
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
@@ -77,7 +85,7 @@ export default function AgentsPageMobile() {
       } else {
         setAgents([]);
       }
-      const credRes = await apiClient.get<ApiResponse<{ used: number; cap: number; remaining: number }>>("/agents/hosted-credits");
+      const credRes = await apiClient.get<ApiResponse<HostedCreditsData>>("/agents/hosted-credits");
       if (credRes.data?.success && credRes.data.data) setHostedCredits(credRes.data.data);
       else setHostedCredits(null);
     } catch (err: unknown) {
@@ -347,8 +355,10 @@ export default function AgentsPageMobile() {
         </div>
         {hostedCredits != null && agents.some((a) => a.use_tycoon_key) && (
           <p className="text-xs text-cyan-400/90 mb-3 text-center">
-            Credits: <strong>{hostedCredits.remaining}</strong> / {hostedCredits.cap} today
-            {hostedCredits.remaining === 0 && " — add API key or try tomorrow"}
+            Credits: {hostedCredits.balance > 0 && <strong>{hostedCredits.balance} purchased</strong>}
+            {hostedCredits.balance > 0 && hostedCredits.daily.remaining > 0 && " + "}
+            {hostedCredits.daily.remaining > 0 && <><strong>{hostedCredits.daily.remaining}</strong> / {hostedCredits.daily.cap} free today</>}
+            {hostedCredits.balance === 0 && hostedCredits.daily.remaining === 0 && " — buy credits or try tomorrow"}
           </p>
         )}
         {loading ? (

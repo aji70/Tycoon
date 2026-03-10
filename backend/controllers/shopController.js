@@ -389,37 +389,59 @@ export async function flutterwaveWebhook(req, res) {
   (async () => {
     try {
       const existing = await db("flutterwave_payments").where({ tx_ref: txRef }).first();
-      if (!existing) {
-        logger.warn({ tx_ref: txRef }, "Flutterwave webhook: unknown reference");
+      if (existing) {
+        if (existing.status === "completed") return;
+
+        const amountPaid = data.amount != null ? Number(data.amount) : 0;
+        const expectedNaira = existing.amount_ngn != null ? Number(existing.amount_ngn) : Math.round(Number(existing.amount_kobo || 0) / 100);
+        if (amountPaid < expectedNaira) {
+          logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave amount mismatch");
+          await db("flutterwave_payments").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+          return;
+        }
+
+        await db("flutterwave_payments").where({ tx_ref: txRef }).update({
+          status: "completed",
+          fulfilled_at: new Date(),
+          updated_at: new Date(),
+        });
+
+        await db("user_bundle_purchases").insert({
+          user_id: existing.user_id,
+          bundle_id: existing.bundle_id,
+          payment_reference: txRef,
+          source: "ngn",
+        });
+
+        logger.info(
+          { tx_ref: txRef, user_id: existing.user_id, bundle_id: existing.bundle_id },
+          "Flutterwave payment fulfilled"
+        );
         return;
       }
-      if (existing.status === "completed") return;
 
-      const amountPaid = data.amount != null ? Number(data.amount) : 0;
-      const expectedNaira = existing.amount_ngn != null ? Number(existing.amount_ngn) : Math.round(Number(existing.amount_kobo || 0) / 100);
-      if (amountPaid < expectedNaira) {
-        logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave amount mismatch");
-        await db("flutterwave_payments").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+      // Check hosted agent credits purchase
+      const creditsPending = await db("hosted_agent_credits_ngn_pending").where({ tx_ref: txRef }).first();
+      if (creditsPending && creditsPending.status === "pending") {
+        const amountPaid = data.amount != null ? Number(data.amount) : 0;
+        const expectedNaira = Number(creditsPending.amount_ngn);
+        if (amountPaid < expectedNaira) {
+          logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave credits: amount mismatch");
+          await db("hosted_agent_credits_ngn_pending").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+          return;
+        }
+        const { addCredits } = await import("../services/hostedAgentCredits.js");
+        await addCredits(creditsPending.user_id, creditsPending.credits, {
+          source: "ngn",
+          price_ngn: expectedNaira,
+          tx_ref: txRef,
+        });
+        await db("hosted_agent_credits_ngn_pending").where({ tx_ref: txRef }).update({ status: "completed", updated_at: new Date() });
+        logger.info({ tx_ref: txRef, user_id: creditsPending.user_id, credits: creditsPending.credits }, "Hosted agent credits NGN fulfilled");
         return;
       }
 
-      await db("flutterwave_payments").where({ tx_ref: txRef }).update({
-        status: "completed",
-        fulfilled_at: new Date(),
-        updated_at: new Date(),
-      });
-
-      await db("user_bundle_purchases").insert({
-        user_id: existing.user_id,
-        bundle_id: existing.bundle_id,
-        payment_reference: txRef,
-        source: "ngn",
-      });
-
-      logger.info(
-        { tx_ref: txRef, user_id: existing.user_id, bundle_id: existing.bundle_id },
-        "Flutterwave payment fulfilled"
-      );
+      if (!existing) logger.warn({ tx_ref: txRef }, "Flutterwave webhook: unknown reference");
     } catch (err) {
       logger.error({ err: err.message, tx_ref: txRef }, "Flutterwave webhook fulfillment error");
     }

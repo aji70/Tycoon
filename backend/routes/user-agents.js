@@ -6,7 +6,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import UserAgent from "../models/UserAgent.js";
-import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
+import * as hostedAgentCreditsController from "../controllers/hostedAgentCreditsController.js";
 
 const router = express.Router();
 
@@ -56,16 +56,17 @@ router.get("/:id/erc8004-registration", async (req, res) => {
 
 router.use(requireAuth);
 
-/** Get current user's Tycoon-hosted agent credits (daily cap). */
-router.get("/hosted-credits", async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const credits = await hostedAgentUsage.getCredits(userId);
-    res.json({ success: true, data: credits });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err?.message || "Failed to load credits" });
-  }
-});
+/** Get current user's hosted agent credits (balance + daily free tier). */
+router.get("/hosted-credits", hostedAgentCreditsController.getCredits);
+
+/** Purchase credits with USDC (verify tx_hash) */
+router.post("/hosted-credits/purchase/usdc", hostedAgentCreditsController.purchaseUsdc);
+
+/** Initialize NGN purchase via Flutterwave */
+router.post("/hosted-credits/purchase/ngn/initialize", hostedAgentCreditsController.purchaseNgnInitialize);
+
+/** Verify NGN purchase status (for redirect page) */
+router.get("/hosted-credits/purchase/ngn/verify", hostedAgentCreditsController.purchaseNgnVerify);
 
 /** List current user's agents */
 router.get("/", async (req, res) => {
