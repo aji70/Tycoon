@@ -7,6 +7,9 @@ import gameController, {
   joinAsGuest,
   createAIAsGuest,
   addAIPlayers,
+  useMyAgent,
+  stopUsingMyAgent,
+  getAgentBindings,
 } from "../controllers/gameController.js";
 import { placeBid } from "../controllers/auctionController.js";
 import { requireAuth, optionalAuth } from "../middleware/auth.js";
@@ -44,6 +47,9 @@ router.post("/create-as-guest", requireAuth, createAsGuest);
 router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
 router.post("/join-as-guest", requireAuth, joinAsGuest);
 router.post("/:id/add-ai-players", addAIPlayers);
+router.get("/:id/agent-bindings", getAgentBindings);
+router.post("/:id/use-my-agent", requireAuth, useMyAgent);
+router.post("/:id/stop-using-my-agent", requireAuth, stopUsingMyAgent);
 
 router.post("/auction/bid", placeBid);
 

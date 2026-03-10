@@ -33,6 +33,8 @@ import { ensureUserHasContractPassword } from "../utils/ensureContractAuth.js";
 import { onGameFinished as tournamentOnGameFinished } from "../services/tournamentService.js";
 import { submitErc8004Feedback as submitErc8004FeedbackTx } from "../services/erc8004Feedback.js";
 import { getActiveByGameId } from "./auctionController.js";
+import UserAgent from "../models/UserAgent.js";
+import agentRegistry from "../services/agentRegistry.js";
 
 // AI bot addresses (must match frontend) — used to create DB players for guest AI games so we have 2+ players from the start.
 const AI_ADDRESSES = [
@@ -1824,6 +1826,130 @@ export const addAIPlayers = async (req, res) => {
   } catch (err) {
     logger.error({ err: err?.message }, "addAIPlayers failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to add AI players" });
+  }
+};
+
+/** Slot used for "my agent plays for me" (user's seat) in the agent registry. */
+const USER_AGENT_SLOT = 1;
+
+/**
+ * POST /games/:id/use-my-agent
+ * Body: { user_agent_id: number }
+ * Registers the authenticated user's agent for their seat in this game (slot 1). Requires auth; user must be in the game.
+ */
+export const useMyAgent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const gameId = Number(req.params.id);
+    const { user_agent_id } = req.body || {};
+    if (!user_agent_id) {
+      return res.status(400).json({ success: false, message: "user_agent_id is required" });
+    }
+
+    const game = await Game.findById(gameId);
+    if (!game) {
+      return res.status(404).json({ success: false, message: "Game not found" });
+    }
+
+    const player = await GamePlayer.findByUserIdAndGameId(userId, gameId);
+    if (!player) {
+      return res.status(403).json({ success: false, message: "You are not in this game" });
+    }
+
+    const agent = await UserAgent.findByIdAndUser(Number(user_agent_id), userId);
+    if (!agent) {
+      return res.status(404).json({ success: false, message: "Agent not found" });
+    }
+
+    const callbackUrl = UserAgent.getCallbackUrl(agent);
+    if (!callbackUrl) {
+      return res.status(400).json({ success: false, message: "Agent has no callback URL configured" });
+    }
+
+    agentRegistry.registerAgent({
+      gameId,
+      slot: USER_AGENT_SLOT,
+      agentId: String(agent.erc8004_agent_id || agent.id),
+      callbackUrl,
+      chainId: agent.chain_id ?? 42220,
+      name: agent.name || "My Agent",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Your agent is now playing for you in this game",
+      data: { gameId, slot: USER_AGENT_SLOT, agentName: agent.name },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "useMyAgent failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to use your agent" });
+  }
+};
+
+/**
+ * POST /games/:id/stop-using-my-agent
+ * Unregisters the user's agent for this game (slot 1). Requires auth.
+ */
+export const stopUsingMyAgent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const gameId = Number(req.params.id);
+
+    const game = await Game.findById(gameId);
+    if (!game) {
+      return res.status(404).json({ success: false, message: "Game not found" });
+    }
+
+    const player = await GamePlayer.findByUserIdAndGameId(userId, gameId);
+    if (!player) {
+      return res.status(403).json({ success: false, message: "You are not in this game" });
+    }
+
+    agentRegistry.unregisterAgent(USER_AGENT_SLOT, gameId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Your agent is no longer playing for you in this game",
+      data: { gameId },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "stopUsingMyAgent failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to stop using your agent" });
+  }
+};
+
+/**
+ * GET /games/:id/agent-bindings
+ * Returns which agents are registered for this game (including slot 1 = "my agent plays for me").
+ * Optional auth: if authenticated, includes myAgentOn (true if slot 1 is registered for this game).
+ */
+export const getAgentBindings = async (req, res) => {
+  try {
+    const gameId = Number(req.params.id);
+    const game = await Game.findById(gameId);
+    if (!game) {
+      return res.status(404).json({ success: false, message: "Game not found" });
+    }
+
+    const bindings = agentRegistry.getAgentsForGame(gameId);
+    const myAgentOn = bindings.some((b) => b.slot === USER_AGENT_SLOT);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        bindings,
+        myAgentOn,
+      },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "getAgentBindings failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to get agent bindings" });
   }
 };
 
