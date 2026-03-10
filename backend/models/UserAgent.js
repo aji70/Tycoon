@@ -1,13 +1,31 @@
 /**
  * UserAgent model — agents created or connected by users (for Tycoon and later other use cases).
  * See docs/USER_AGENT_CREATION_SPEC.md.
+ * Optional API key (provider + api_key_encrypted) for "call via API key" without callback URL.
  */
 
 import db from "../config/database.js";
+import { encrypt, decrypt, isEncryptionAvailable } from "../lib/agentKeyEncryption.js";
 
 const UserAgent = {
   async create(userId, data) {
-    const { name, callback_url, config, status = "draft", hosted_url, erc8004_agent_id, chain_id } = data;
+    const {
+      name,
+      callback_url,
+      config,
+      status = "draft",
+      hosted_url,
+      erc8004_agent_id,
+      chain_id,
+      provider,
+      api_key,
+    } = data;
+    let apiKeyEncrypted = null;
+    if (api_key && String(api_key).trim()) {
+      if (!isEncryptionAvailable()) throw new Error("API key storage is not configured (set AGENT_API_KEY_SECRET)");
+      apiKeyEncrypted = encrypt(String(api_key).trim());
+      if (!apiKeyEncrypted) throw new Error("API key storage is not configured");
+    }
     const [id] = await db("user_agents").insert({
       user_id: userId,
       name: name || "My Agent",
@@ -17,6 +35,8 @@ const UserAgent = {
       hosted_url: hosted_url || null,
       erc8004_agent_id: erc8004_agent_id || null,
       chain_id: chain_id ?? 42220,
+      provider: apiKeyEncrypted ? (provider && String(provider).trim()) || "anthropic" : null,
+      api_key_encrypted: apiKeyEncrypted,
     });
     return this.findById(id);
   },
@@ -43,10 +63,31 @@ const UserAgent = {
   },
 
   async update(id, userId, data) {
-    const allowed = ["name", "callback_url", "config", "status", "hosted_url", "erc8004_agent_id", "chain_id"];
+    const allowed = [
+      "name",
+      "callback_url",
+      "config",
+      "status",
+      "hosted_url",
+      "erc8004_agent_id",
+      "chain_id",
+      "provider",
+    ];
     const payload = {};
     for (const key of allowed) {
       if (data[key] !== undefined) payload[key] = data[key];
+    }
+    if (data.api_key !== undefined) {
+      if (data.api_key === null || data.api_key === "") {
+        payload.api_key_encrypted = null;
+        payload.provider = null;
+      } else {
+        if (!isEncryptionAvailable()) throw new Error("API key storage is not configured (set AGENT_API_KEY_SECRET)");
+        const enc = encrypt(String(data.api_key).trim());
+        if (!enc) throw new Error("API key storage is not configured");
+        payload.api_key_encrypted = enc;
+        payload.provider = (data.provider && String(data.provider).trim()) || "anthropic";
+      }
     }
     if (Object.keys(payload).length === 0) return this.findByIdAndUser(id, userId);
     await db("user_agents").where({ id, user_id: userId }).update({
@@ -68,6 +109,24 @@ const UserAgent = {
     return url && url.startsWith("http") ? url.replace(/\/$/, "") : null;
   },
 
+  /** Whether this agent can be used via saved API key (no callback URL needed). */
+  hasSavedApiKey(agent) {
+    return !!(agent && agent.has_api_key);
+  },
+
+  /**
+   * Get decrypted API key for a user agent by id. Used by agent registry when slot is backed by saved key.
+   * @param {number} id - user_agents.id
+   * @returns {Promise<{ provider: string, apiKey: string }|null>}
+   */
+  async getDecryptedApiKey(id) {
+    const row = await db("user_agents").where({ id }).first();
+    if (!row || !row.api_key_encrypted) return null;
+    const apiKey = decrypt(row.api_key_encrypted);
+    if (!apiKey) return null;
+    return { provider: row.provider || "anthropic", apiKey };
+  },
+
   _normalize(row) {
     if (!row) return null;
     const config = row.config;
@@ -81,6 +140,8 @@ const UserAgent = {
       hosted_url: row.hosted_url,
       erc8004_agent_id: row.erc8004_agent_id,
       chain_id: row.chain_id,
+      provider: row.provider || null,
+      has_api_key: !!(row.api_key_encrypted != null && row.api_key_encrypted !== ""),
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

@@ -11,6 +11,7 @@ export interface UserAgentOption {
   name: string;
   callback_url: string | null;
   hosted_url: string | null;
+  has_api_key?: boolean;
 }
 
 /** When user chooses "Use my API key" (Option B) — key is not stored, only passed to parent for the session. */
@@ -56,11 +57,11 @@ export function MyAgentToggle({
     try {
       const res = await apiClient.get<ApiResponse<UserAgentOption[]>>("/agents");
       if (res.data?.success && Array.isArray(res.data.data)) {
-        const withUrl = (res.data.data as UserAgentOption[]).filter(
-          (a) => (a.hosted_url || a.callback_url)?.startsWith("http")
+        const usable = (res.data.data as UserAgentOption[]).filter(
+          (a) => (a.hosted_url || a.callback_url)?.startsWith("http") || a.has_api_key
         );
-        setAgents(withUrl);
-        if (withUrl.length > 0 && !selectedAgentId) setSelectedAgentId(withUrl[0].id);
+        setAgents(usable);
+        if (usable.length > 0 && !selectedAgentId) setSelectedAgentId(usable[0].id);
       } else {
         setAgents([]);
       }

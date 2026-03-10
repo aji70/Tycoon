@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
@@ -26,6 +26,8 @@ export interface UserAgent {
   hosted_url: string | null;
   erc8004_agent_id: string | null;
   chain_id: number | null;
+  provider?: string | null;
+  has_api_key?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +50,9 @@ export default function AgentsPage() {
   const [formName, setFormName] = useState("");
   const [formCallbackUrl, setFormCallbackUrl] = useState("");
   const [formErc8004Id, setFormErc8004Id] = useState("");
+  const [formProvider, setFormProvider] = useState("anthropic");
+  const [formApiKey, setFormApiKey] = useState("");
+  const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -133,6 +138,9 @@ export default function AgentsPage() {
     setFormName("");
     setFormCallbackUrl("");
     setFormErc8004Id("");
+    setFormProvider("anthropic");
+    setFormApiKey("");
+    setFormClearApiKey(false);
   };
 
   const openEdit = (a: UserAgent) => {
@@ -140,6 +148,9 @@ export default function AgentsPage() {
     setFormName(a.name);
     setFormCallbackUrl(a.callback_url || "");
     setFormErc8004Id(a.erc8004_agent_id || "");
+    setFormProvider(a.provider || "anthropic");
+    setFormApiKey(""); // never show existing key; leave blank to keep
+    setFormClearApiKey(false);
     setShowForm(true);
   };
 
@@ -152,20 +163,19 @@ export default function AgentsPage() {
     }
     setSubmitting(true);
     try {
+      const payload: Record<string, unknown> = {
+        name,
+        callback_url: formCallbackUrl.trim() || null,
+        erc8004_agent_id: formErc8004Id.trim() || null,
+        provider: formProvider.trim() || "anthropic",
+      };
+      if (formApiKey.trim()) payload.api_key = formApiKey.trim();
+      else if (editingId && formClearApiKey) payload.api_key = null; // clear saved key
       if (editingId) {
-        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, {
-          name,
-          callback_url: formCallbackUrl.trim() || null,
-          erc8004_agent_id: formErc8004Id.trim() || null,
-        });
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
       } else {
-        await apiClient.post<ApiResponse<UserAgent>>("/agents", {
-          name,
-          callback_url: formCallbackUrl.trim() || null,
-          erc8004_agent_id: formErc8004Id.trim() || null,
-          chain_id: 42220,
-        });
+        await apiClient.post<ApiResponse<UserAgent>>("/agents", { ...payload, chain_id: 42220 });
         toast.success("Agent created");
       }
       resetForm();
@@ -310,10 +320,18 @@ export default function AgentsPage() {
                           <ExternalLink className="w-3 h-3 shrink-0" />
                           {a.callback_url}
                         </span>
+                      ) : a.has_api_key ? (
+                        <span className="flex items-center gap-1 text-cyan-400/90">
+                          <Key className="w-3 h-3 shrink-0" />
+                          API key saved
+                        </span>
                       ) : (
-                        "No URL (draft)"
+                        "No URL or API key (draft)"
                       )}
                     </p>
+                    {a.has_api_key && !a.callback_url && (
+                      <p className="text-xs text-cyan-400/80 mt-0.5">Uses saved key (e.g. Claude)</p>
+                    )}
                     {a.erc8004_agent_id && (
                       <p className="text-xs text-purple-400 mt-1">ERC-8004: {a.erc8004_agent_id}</p>
                     )}
@@ -363,6 +381,39 @@ export default function AgentsPage() {
                     placeholder="https://your-agent.example.com"
                     className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Provider (for API key)</label>
+                  <select
+                    value={formProvider}
+                    onChange={(e) => setFormProvider(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white focus:border-cyan-400 outline-none"
+                  >
+                    <option value="anthropic">Claude (Anthropic)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">API key (optional)</label>
+                  <input
+                    type="password"
+                    value={formApiKey}
+                    onChange={(e) => setFormApiKey(e.target.value)}
+                    placeholder={editingId ? "Leave blank to keep existing; enter new to change" : "Save a key to use agent without callback URL"}
+                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Stored encrypted. Used when you choose this agent on the board (no callback URL needed).</p>
+                  {editingId && (
+                    <label className="flex items-center gap-2 mt-2 text-sm text-gray-400">
+                      <input
+                        type="checkbox"
+                        checked={formClearApiKey}
+                        onChange={(e) => setFormClearApiKey(e.target.checked)}
+                        className="rounded border-cyan-500/40"
+                      />
+                      Clear saved API key
+                    </label>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">ERC-8004 Agent ID (optional)</label>
