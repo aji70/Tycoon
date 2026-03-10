@@ -99,13 +99,12 @@ async function getAIDecision(gameId, slot, decisionType, context) {
     user_agent_id: agent?.user_agent_id,
   });
 
-  // Stored API key: use internal agent with user's saved key
+  // User agent (saved key or Tycoon-hosted): use internal agent
   if (agent?.user_agent_id) {
     try {
-      const keyPayload = await UserAgent.getDecryptedApiKey(agent.user_agent_id);
-      if (keyPayload && keyPayload.apiKey) {
-        const decision = await internalAgent.getDecisionWithKey(
-          keyPayload.apiKey,
+      const fullAgent = await UserAgent.findById(agent.user_agent_id);
+      if (fullAgent?.use_tycoon_key) {
+        const decision = await internalAgent.getDecision(
           Number(gameId),
           Number(slot),
           decisionType,
@@ -113,7 +112,7 @@ async function getAIDecision(gameId, slot, decisionType, context) {
         );
         if (decision) {
           console.log(
-            "[agentRegistry] SAVED KEY AGENT | gameId=%s slot=%s type=%s action=%s",
+            "[agentRegistry] TYCOON-HOSTED AGENT | gameId=%s slot=%s type=%s action=%s",
             gameId,
             slot,
             decisionType,
@@ -121,9 +120,30 @@ async function getAIDecision(gameId, slot, decisionType, context) {
           );
           return decision;
         }
+      } else {
+        const keyPayload = await UserAgent.getDecryptedApiKey(agent.user_agent_id);
+        if (keyPayload?.apiKey) {
+          const decision = await internalAgent.getDecisionWithKey(
+            keyPayload.apiKey,
+            Number(gameId),
+            Number(slot),
+            decisionType,
+            context || {}
+          );
+          if (decision) {
+            console.log(
+              "[agentRegistry] SAVED KEY AGENT | gameId=%s slot=%s type=%s action=%s",
+              gameId,
+              slot,
+              decisionType,
+              decision.action
+            );
+            return decision;
+          }
+        }
       }
     } catch (err) {
-      console.warn("[agentRegistry] Saved-key agent decision failed:", err?.message);
+      console.warn("[agentRegistry] User agent decision failed:", err?.message);
     }
     return null;
   }
