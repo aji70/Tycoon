@@ -351,10 +351,6 @@ export default function AgentsPageMobile() {
             {hostedCredits.remaining === 0 && " — add API key or try tomorrow"}
           </p>
         )}
-        <p className="text-gray-400 text-xs mb-4">
-          Add agents by URL to use in AI games. Agent must expose <code className="text-cyan-400/90">POST /decision</code>.
-        </p>
-
         {loading ? (
           <div className="flex items-center justify-center py-12 gap-2 text-cyan-400 text-sm">
             <Loader2 className="w-6 h-6 animate-spin" />
