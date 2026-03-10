@@ -109,20 +109,9 @@ function buildTipPrompt(context) {
 }
 
 /**
- * Get a decision from the internal LLM agent.
- * @param {number} gameId
- * @param {number} slot
- * @param {string} decisionType - "property" | "trade" | "building" | "strategy" | "tip"
- * @param {object} context - game context (myBalance, myProperties, opponents, landedProperty, tradeOffer, gameState, etc.)
- * @returns {Promise<{ action: string, propertyId?: number, reasoning?: string, confidence?: number } | null>}
+ * Run Claude with the given client and return a decision. Shared by getDecision and getDecisionWithKey.
  */
-async function getDecision(gameId, slot, decisionType, context) {
-  const anthropic = getClient();
-  if (!anthropic) {
-    console.log("[internalAgent] No ANTHROPIC_API_KEY; internal agent disabled.");
-    return null;
-  }
-
+async function runDecisionWithClient(anthropic, decisionType, context) {
   let prompt;
   let fallback;
 
@@ -151,41 +140,74 @@ async function getDecision(gameId, slot, decisionType, context) {
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
   }
 
+  const createPromise = anthropic.messages.create({
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
+  );
+  const message = await Promise.race([createPromise, timeoutPromise]);
+
+  const text =
+    message.content &&
+    message.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
+  const parsed = parseJsonResponse(text, fallback);
+
+  const out = {
+    action: String(parsed.action || fallback.action).toLowerCase(),
+    reasoning: parsed.reasoning ?? fallback.reasoning,
+    confidence: Number(parsed.confidence) ?? fallback.confidence,
+  };
+  if (parsed.propertyId != null) out.propertyId = Number(parsed.propertyId);
+  if (parsed.counterOffer && typeof parsed.counterOffer === "object") {
+    out.counterOffer = { cashAdjustment: Number(parsed.counterOffer.cashAdjustment) || 0 };
+  }
+  return out;
+}
+
+/**
+ * Get a decision from the internal LLM agent (uses env ANTHROPIC_API_KEY).
+ */
+async function getDecision(gameId, slot, decisionType, context) {
+  const anthropic = getClient();
+  if (!anthropic) {
+    console.log("[internalAgent] No ANTHROPIC_API_KEY; internal agent disabled.");
+    return null;
+  }
   try {
-    const createPromise = anthropic.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Request timeout")), REQUEST_TIMEOUT_MS)
-    );
-    const message = await Promise.race([createPromise, timeoutPromise]);
-
-    const text =
-      message.content &&
-      message.content
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n");
-    const parsed = parseJsonResponse(text, fallback);
-
-    const out = {
-      action: String(parsed.action || fallback.action).toLowerCase(),
-      reasoning: parsed.reasoning ?? fallback.reasoning,
-      confidence: Number(parsed.confidence) ?? fallback.confidence,
-    };
-    if (parsed.propertyId != null) out.propertyId = Number(parsed.propertyId);
-    if (parsed.counterOffer && typeof parsed.counterOffer === "object") {
-      out.counterOffer = { cashAdjustment: Number(parsed.counterOffer.cashAdjustment) || 0 };
-    }
-    return out;
+    return await runDecisionWithClient(anthropic, decisionType, context);
   } catch (err) {
     console.error("[internalAgent] LLM request failed:", err.message);
     return null;
   }
 }
 
+/**
+ * Get a decision using the caller's API key (Option B: no key storage). Key is not stored.
+ * @param {string} apiKey - User's Anthropic API key (sent in request, used only for this call).
+ * @param {number} gameId
+ * @param {number} slot
+ * @param {string} decisionType
+ * @param {object} context
+ * @returns {Promise<{ action: string, propertyId?: number, reasoning?: string, confidence?: number } | null>}
+ */
+async function getDecisionWithKey(apiKey, gameId, slot, decisionType, context) {
+  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) return null;
+  try {
+    const client = new Anthropic({ apiKey: apiKey.trim() });
+    return await runDecisionWithClient(client, decisionType, context);
+  } catch (err) {
+    console.error("[internalAgent] decision-with-key failed:", err.message);
+    return null;
+  }
+}
+
 export default {
   getDecision,
+  getDecisionWithKey,
 };

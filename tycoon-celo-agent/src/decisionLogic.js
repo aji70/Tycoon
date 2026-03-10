@@ -1,7 +1,7 @@
 /**
- * Default decision logic for Tycoon Celo Agent.
- * Mirrors Tycoon's built-in rules (see frontend utils/gameUtils calculateAiFavorability, etc.)
- * so the agent "wraps" the same behavior. Replace with MonopolyAIDecisionEngine or your own LLM.
+ * Placeholder decision logic — fixed rules only, no intelligence.
+ * Tycoon's main default is the built-in rule-based logic (in-app); that stays the primary behavior.
+ * This file is here so the agent server has something to run; replace it with real logic (LLM, etc.) when you're ready.
  */
 
 function propertyDecision(context) {

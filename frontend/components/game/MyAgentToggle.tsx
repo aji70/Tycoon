@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import { Bot, Loader2 } from "lucide-react";
+import { Bot, Key, Loader2 } from "lucide-react";
 
 export interface UserAgentOption {
   id: number;
@@ -12,20 +12,43 @@ export interface UserAgentOption {
   hosted_url: string | null;
 }
 
+/** When user chooses "Use my API key" (Option B) — key is not stored, only passed to parent for the session. */
+export interface MyAgentApiKeyState {
+  provider: string;
+  apiKey: string;
+}
+
 interface MyAgentToggleProps {
   gameId: number | null | undefined;
   myAgentOn: boolean;
   onBindingsChange?: () => void;
+  /** API key mode (user's key in memory). When set, "my agent" is on via proxy. */
+  myAgentApiKey?: MyAgentApiKeyState | null;
+  onUseApiKey?: (opts: MyAgentApiKeyState) => void;
+  onStopApiKey?: () => void;
   /** Compact style for sidebar */
   compact?: boolean;
 }
 
-export function MyAgentToggle({ gameId, myAgentOn, onBindingsChange, compact }: MyAgentToggleProps) {
+const PROVIDERS = [{ id: "anthropic", name: "Claude (Anthropic)" }];
+
+export function MyAgentToggle({
+  gameId,
+  myAgentOn,
+  onBindingsChange,
+  myAgentApiKey = null,
+  onUseApiKey,
+  onStopApiKey,
+  compact,
+}: MyAgentToggleProps) {
   const [agents, setAgents] = useState<UserAgentOption[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
   const [turningOn, setTurningOn] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
+  const [apiKeyProvider, setApiKeyProvider] = useState("anthropic");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [useApiKeyBusy, setUseApiKeyBusy] = useState(false);
 
   const fetchAgents = useCallback(async () => {
     setLoadingAgents(true);
@@ -79,22 +102,41 @@ export function MyAgentToggle({ gameId, myAgentOn, onBindingsChange, compact }: 
     }
   }, [gameId, onBindingsChange]);
 
+  const agentOn = myAgentOn || !!myAgentApiKey;
+
+  const handleTurnOffAny = useCallback(() => {
+    if (myAgentApiKey) {
+      onStopApiKey?.();
+    } else {
+      handleTurnOff();
+    }
+  }, [myAgentApiKey, onStopApiKey, handleTurnOff]);
+
+  const handleUseApiKey = useCallback(() => {
+    const key = apiKeyInput.trim();
+    if (!key || !onUseApiKey) return;
+    setUseApiKeyBusy(true);
+    onUseApiKey({ provider: apiKeyProvider, apiKey: key });
+    setApiKeyInput("");
+    setUseApiKeyBusy(false);
+  }, [apiKeyInput, apiKeyProvider, onUseApiKey]);
+
   if (!gameId) return null;
 
   const busy = turningOn || turningOff;
 
   if (compact) {
     return (
-      <div className="rounded-lg border border-slate-600/60 bg-slate-800/60 p-2">
+      <div className="rounded-lg border border-slate-600/60 bg-slate-800/60 p-2 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-slate-300 flex items-center gap-1">
             <Bot className="w-3.5 h-3.5" />
             My agent
           </span>
-          {myAgentOn ? (
+          {agentOn ? (
             <button
               type="button"
-              onClick={handleTurnOff}
+              onClick={handleTurnOffAny}
               disabled={busy}
               className="text-xs px-2 py-1 rounded bg-amber-600/80 hover:bg-amber-600 text-white disabled:opacity-50"
             >
@@ -124,6 +166,29 @@ export function MyAgentToggle({ gameId, myAgentOn, onBindingsChange, compact }: 
             </>
           )}
         </div>
+        {!agentOn && onUseApiKey && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-slate-400 flex items-center gap-1">
+              <Key className="w-3 h-3" /> Or use your API key
+            </span>
+            <input
+              type="password"
+              placeholder="Claude API key"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              className="text-xs bg-slate-700 border border-slate-500 rounded px-2 py-1 text-slate-200 placeholder:text-slate-500"
+            />
+            <p className="text-[10px] text-slate-500">Remembered until you close this tab. Not stored on our servers.</p>
+            <button
+              type="button"
+              onClick={handleUseApiKey}
+              disabled={useApiKeyBusy || !apiKeyInput.trim()}
+              className="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50"
+            >
+              Use key
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -136,40 +201,76 @@ export function MyAgentToggle({ gameId, myAgentOn, onBindingsChange, compact }: 
       </div>
       {loadingAgents ? (
         <p className="text-xs text-slate-400 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading agents...</p>
-      ) : myAgentOn ? (
+      ) : agentOn ? (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-emerald-400">Agent is playing</span>
+          <span className="text-xs text-emerald-400">{myAgentApiKey ? "Playing with your API key" : "Agent is playing"}</span>
           <button
             type="button"
-            onClick={handleTurnOff}
+            onClick={handleTurnOffAny}
             disabled={busy}
             className="text-xs px-2 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white disabled:opacity-50"
           >
             {turningOff ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Turn off"}
           </button>
         </div>
-      ) : agents.length === 0 ? (
-        <p className="text-xs text-slate-400">Add an agent in My Agents and set its URL to use it here.</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          <select
-            value={selectedAgentId ?? ""}
-            onChange={(e) => setSelectedAgentId(Number(e.target.value))}
-            className="text-sm bg-slate-700 border border-slate-500 rounded-lg px-2 py-1.5 text-slate-200"
-          >
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleTurnOn}
-            disabled={busy}
-            className="text-sm px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 flex items-center justify-center gap-1"
-          >
-            {turningOn ? <Loader2 className="w-4 h-4 animate-spin" /> : "Use this agent"}
-          </button>
-        </div>
+        <>
+          {agents.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-slate-400">Hosted agent</span>
+              <select
+                value={selectedAgentId ?? ""}
+                onChange={(e) => setSelectedAgentId(Number(e.target.value))}
+                className="text-sm bg-slate-700 border border-slate-500 rounded-lg px-2 py-1.5 text-slate-200"
+              >
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleTurnOn}
+                disabled={busy}
+                className="text-sm px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {turningOn ? <Loader2 className="w-4 h-4 animate-spin" /> : "Use this agent"}
+              </button>
+            </div>
+          )}
+          {onUseApiKey && (
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-600">
+              <span className="text-xs text-slate-400 flex items-center gap-1"><Key className="w-3.5 h-3.5" /> Or use your API key</span>
+              <select
+                value={apiKeyProvider}
+                onChange={(e) => setApiKeyProvider(e.target.value)}
+                className="text-sm bg-slate-700 border border-slate-500 rounded-lg px-2 py-1.5 text-slate-200"
+              >
+                {PROVIDERS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <input
+                type="password"
+                placeholder="Paste your API key"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                className="text-sm bg-slate-700 border border-slate-500 rounded-lg px-2 py-1.5 text-slate-200 placeholder:text-slate-500"
+              />
+              <p className="text-xs text-slate-500">Remembered until you close this tab. Not stored on our servers.</p>
+              <button
+                type="button"
+                onClick={handleUseApiKey}
+                disabled={useApiKeyBusy || !apiKeyInput.trim()}
+                className="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+              >
+                Use my key
+              </button>
+            </div>
+          )}
+          {agents.length === 0 && !onUseApiKey && (
+            <p className="text-xs text-slate-400">Add an agent in My Agents or use your API key above.</p>
+          )}
+        </>
       )}
     </div>
   );

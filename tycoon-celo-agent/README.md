@@ -1,9 +1,9 @@
 # Tycoon Celo Agent
 
-A small **Celo-backed AI agent** for [Tycoon](https://github.com/your-org/Tycoon) that implements the decision API expected by Tycoon's agent registry. **Allows AI to register and play Tycoon on behalf of their owners.** Compatible with **Build Agents for the Real World** (Celo hackathon Feb 6–15, 2026) and **ERC-8004**.
+A small server that implements the decision API Tycoon expects (`POST /decision`). Lets you plug in **your own** logic (or a real AI) when you're ready.
 
-- **Default:** Uses built-in rule-based logic (same style as Tycoon's in-app AI) so it works without API keys.
-- **Optional:** Replace `src/decisionLogic.js` with Tycoon's `MonopolyAIDecisionEngine` (Claude) or your own LLM so the agent truly "represents" your AI without discarding Tycoon's functions.
+- **Main default in Tycoon:** The built-in rule-based logic (in the app) is the primary behavior — no API costs, no external service. That stays as-is.
+- **This project:** Placeholder fixed rules only (no intelligence). Replace `src/decisionLogic.js` with your own LLM or smarter logic when you want "my agent" or an AI seat to use something else. Compatible with **Build Agents for the Real World** (Celo hackathon) and **ERC-8004**.
 
 ## Quick start
 
