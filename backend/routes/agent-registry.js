@@ -24,9 +24,9 @@ router.get("/", (req, res) => {
 });
 
 /** Register an agent for an AI slot (body: slot, agentId, callbackUrl, chainId?, name?, gameId?) */
-router.post("/register", (req, res) => {
+router.post("/register", async (req, res) => {
   try {
-    const result = agentRegistry.registerAgent(req.body);
+    const result = await agentRegistry.registerAgent(req.body);
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -34,10 +34,10 @@ router.post("/register", (req, res) => {
 });
 
 /** Unregister (query: slot, gameId?) */
-router.post("/unregister", (req, res) => {
+router.post("/unregister", async (req, res) => {
   try {
     const { slot, gameId } = req.body || req.query;
-    const result = agentRegistry.unregisterAgent(Number(slot), gameId ? Number(gameId) : null);
+    const result = await agentRegistry.unregisterAgent(Number(slot), gameId ? Number(gameId) : null);
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
