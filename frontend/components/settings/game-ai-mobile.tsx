@@ -174,6 +174,18 @@ export default function PlayWithAIMobile() {
                 <SelectItem value="boss" className="text-pink-400 font-bold">BOSS</SelectItem>
               </SelectContent>
             </Select>
+            {settings.aiCount > 1 && (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-red-200/90">Per opponent</span>
+                <Switch
+                  checked={settings.aiDifficultyMode === "random"}
+                  onCheckedChange={(v) => setSettings((p) => ({ ...p, aiDifficultyMode: v ? "random" : "same" }))}
+                />
+                <span className="text-xs text-red-200/90">
+                  {settings.aiDifficultyMode === "random" ? "Randomize" : "Same"}
+                </span>
+              </div>
+            )}
           </div>
 
           {registrySupported && registeredAgents.length > 0 && !agentsLoading && (

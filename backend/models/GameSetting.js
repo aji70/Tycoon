@@ -22,7 +22,9 @@ const GameSetting = {
         "even_build",
         "randomize_play_order",
         "starting_cash",
-        "ai_difficulty"
+        "ai_difficulty",
+        "ai_difficulty_mode",
+        "ai_difficulty_per_slot"
       )
       .where({ game_id: gameId })
       .first();

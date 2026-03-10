@@ -324,7 +324,13 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       const useInternal = game && (game.is_ai || decisionType === "tip");
       if (useInternal) {
         const gs = game?.is_ai ? await GameSetting.findByGameId(Number(gameId)) : null;
-        const diff = (gs?.ai_difficulty || "boss").toLowerCase();
+        let diff = (gs?.ai_difficulty || "boss").toLowerCase();
+        if (gs?.ai_difficulty_mode === "random" && gs?.ai_difficulty_per_slot && typeof gs.ai_difficulty_per_slot === "object") {
+          const slotDiff = gs.ai_difficulty_per_slot[String(slot)];
+          if (["easy", "hard", "boss"].includes(String(slotDiff).toLowerCase())) {
+            diff = String(slotDiff).toLowerCase();
+          }
+        }
         if (decisionType !== "tip" && game.is_ai && diff === "easy") {
           logger.debug({ gameId, slot, decisionType, ai_difficulty: diff }, "Easy: using built-in rules");
           return null;

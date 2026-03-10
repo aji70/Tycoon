@@ -69,6 +69,24 @@ async function getOrCreateAIUser(aiIndex, chain = "CELO") {
   }
 }
 
+const AI_DIFFICULTIES = ["easy", "hard", "boss"];
+
+/** Build ai_difficulty payload for game_settings: ai_difficulty, ai_difficulty_mode, ai_difficulty_per_slot. */
+function buildAiDifficultyPayload(aiDiff, aiDiffMode, aiCount, isAi) {
+  if (!isAi) return {};
+  const diff = AI_DIFFICULTIES.includes(aiDiff) ? aiDiff : "boss";
+  const mode = aiDiffMode === "same" ? "same" : "random";
+  const payload = { ai_difficulty: diff, ai_difficulty_mode: mode };
+  if (mode === "random" && aiCount > 0) {
+    const perSlot = {};
+    for (let s = 2; s < 2 + aiCount && s <= 8; s++) {
+      perSlot[String(s)] = AI_DIFFICULTIES[Math.floor(Math.random() * AI_DIFFICULTIES.length)];
+    }
+    payload.ai_difficulty_per_slot = perSlot;
+  }
+  return payload;
+}
+
 const PROPERTY_TYPES = {
   RAILWAY: [5, 15, 25, 35],
   UTILITY: [12, 28],
@@ -323,6 +341,8 @@ const gameController = {
       });
 
       const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
+      const aiDiffMode = req.body.ai_difficulty_mode || settings?.ai_difficulty_mode || "random";
+      const aiCount = game.is_ai ? Math.max(0, (number_of_players || 2) - 1) : 0;
       const gameSettingsPayload = {
         game_id: game.id,
         auction: settings.auction,
@@ -331,7 +351,7 @@ const gameController = {
         even_build: settings.even_build,
         randomize_play_order: settings?.randomize_play_order ?? true,
         starting_cash: settings.starting_cash,
-        ...(game.is_ai && { ai_difficulty: ["easy", "hard", "boss"].includes(aiDiff) ? aiDiff : "boss" }),
+        ...buildAiDifficultyPayload(aiDiff, aiDiffMode, aiCount, game.is_ai),
       };
 
       const game_settings = await GameSetting.create(gameSettingsPayload);
@@ -1125,6 +1145,8 @@ export const create = async (req, res) => {
     });
 
     const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";
+    const aiDiffMode = req.body.ai_difficulty_mode || settings?.ai_difficulty_mode || "random";
+    const aiCount = is_ai ? Math.max(0, (number_of_players || 2) - 1) : 0;
     const gameSettingsPayload = {
       game_id: game.id,
       auction: settings.auction,
@@ -1133,7 +1155,7 @@ export const create = async (req, res) => {
       even_build: settings.even_build,
       randomize_play_order: settings?.randomize_play_order ?? true,
       starting_cash: settings.starting_cash,
-      ...(is_ai && { ai_difficulty: ["easy", "hard", "boss"].includes(aiDiff) ? aiDiff : "boss" }),
+      ...buildAiDifficultyPayload(aiDiff, aiDiffMode, aiCount, is_ai),
     };
 
     const game_settings = await GameSetting.create(gameSettingsPayload);
@@ -1630,6 +1652,7 @@ export const createAIAsGuest = async (req, res) => {
       is_minipay,
     } = req.body;
     const aiDifficulty = settings?.ai_difficulty || req.body.ai_difficulty || "boss";
+    const aiDiffMode = settings?.ai_difficulty_mode || req.body.ai_difficulty_mode || "random";
 
     const startingCash = settings?.starting_cash ?? 1500;
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
@@ -1690,6 +1713,7 @@ export const createAIAsGuest = async (req, res) => {
 
     const chat = await Chat.create({ game_id: game.id, status: "open" });
 
+    const aiDiffPayload = buildAiDifficultyPayload(aiDifficulty, aiDiffMode, numberOfAI, true);
     await GameSetting.create({
       game_id: game.id,
       auction: settings?.auction ?? true,
@@ -1698,7 +1722,7 @@ export const createAIAsGuest = async (req, res) => {
       even_build: settings?.even_build ?? true,
       randomize_play_order: settings?.randomize_play_order ?? true,
       starting_cash: startingCash,
-      ai_difficulty: ["easy", "hard", "boss"].includes(aiDifficulty) ? aiDifficulty : "boss",
+      ...aiDiffPayload,
     });
 
     await GamePlayer.create({
