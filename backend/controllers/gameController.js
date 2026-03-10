@@ -1866,10 +1866,11 @@ export const useMyAgent = async (req, res) => {
 
     const callbackUrl = UserAgent.getCallbackUrl(agent);
     const hasSavedKey = UserAgent.hasSavedApiKey(agent);
-    if (!callbackUrl && !hasSavedKey) {
+    const usesTycoonKey = UserAgent.usesTycoonKey(agent);
+    if (!callbackUrl && !hasSavedKey && !usesTycoonKey) {
       return res.status(400).json({
         success: false,
-        message: "Agent needs a callback URL or a saved API key (add one in My Agents)",
+        message: "Agent needs a callback URL, saved API key, or Tycoon hosting (set in My Agents)",
       });
     }
 
@@ -1878,7 +1879,7 @@ export const useMyAgent = async (req, res) => {
       slot: USER_AGENT_SLOT,
       agentId: String(agent.erc8004_agent_id || agent.id),
       callbackUrl: callbackUrl || undefined,
-      user_agent_id: hasSavedKey ? agent.id : undefined,
+      user_agent_id: hasSavedKey || usesTycoonKey ? agent.id : undefined,
       chainId: agent.chain_id ?? 42220,
       name: agent.name || "My Agent",
     });

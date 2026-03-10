@@ -28,9 +28,12 @@ export interface UserAgent {
   chain_id: number | null;
   provider?: string | null;
   has_api_key?: boolean;
+  use_tycoon_key?: boolean;
   created_at: string;
   updated_at: string;
 }
+
+type HostingType = "tycoon" | "my_key" | "my_url";
 
 export default function AgentsPage() {
   const router = useRouter();
@@ -53,6 +56,7 @@ export default function AgentsPage() {
   const [formProvider, setFormProvider] = useState("anthropic");
   const [formApiKey, setFormApiKey] = useState("");
   const [formClearApiKey, setFormClearApiKey] = useState(false);
+  const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -141,6 +145,7 @@ export default function AgentsPage() {
     setFormProvider("anthropic");
     setFormApiKey("");
     setFormClearApiKey(false);
+    setFormHostingType("tycoon");
   };
 
   const openEdit = (a: UserAgent) => {
@@ -149,8 +154,11 @@ export default function AgentsPage() {
     setFormCallbackUrl(a.callback_url || "");
     setFormErc8004Id(a.erc8004_agent_id || "");
     setFormProvider(a.provider || "anthropic");
-    setFormApiKey(""); // never show existing key; leave blank to keep
+    setFormApiKey("");
     setFormClearApiKey(false);
+    setFormHostingType(
+      a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
+    );
     setShowForm(true);
   };
 
@@ -161,16 +169,28 @@ export default function AgentsPage() {
       toast.error("Name is required");
       return;
     }
+    if (formHostingType === "my_url" && !formCallbackUrl.trim()) {
+      toast.error("Callback URL is required for “My callback URL”");
+      return;
+    }
+    if (formHostingType === "my_key" && !editingId && !formApiKey.trim()) {
+      toast.error("API key is required for “My API key”");
+      return;
+    }
     setSubmitting(true);
     try {
+      const useTycoonKey = formHostingType === "tycoon";
       const payload: Record<string, unknown> = {
         name,
-        callback_url: formCallbackUrl.trim() || null,
+        callback_url: formHostingType === "my_url" ? formCallbackUrl.trim() || null : null,
         erc8004_agent_id: formErc8004Id.trim() || null,
         provider: formProvider.trim() || "anthropic",
+        use_tycoon_key: useTycoonKey,
       };
-      if (formApiKey.trim()) payload.api_key = formApiKey.trim();
-      else if (editingId && formClearApiKey) payload.api_key = null; // clear saved key
+      if (formHostingType === "my_key") {
+        if (formApiKey.trim()) payload.api_key = formApiKey.trim();
+        else if (editingId && formClearApiKey) payload.api_key = null;
+      }
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
@@ -315,7 +335,9 @@ export default function AgentsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white truncate">{a.name}</p>
                     <p className="text-sm text-gray-500 truncate">
-                      {a.callback_url ? (
+                      {a.use_tycoon_key ? (
+                        <span className="flex items-center gap-1 text-cyan-400/90">Tycoon-hosted (we run the AI)</span>
+                      ) : a.callback_url ? (
                         <span className="flex items-center gap-1">
                           <ExternalLink className="w-3 h-3 shrink-0" />
                           {a.callback_url}
@@ -329,7 +351,7 @@ export default function AgentsPage() {
                         "No URL or API key (draft)"
                       )}
                     </p>
-                    {a.has_api_key && !a.callback_url && (
+                    {a.has_api_key && !a.callback_url && !a.use_tycoon_key && (
                       <p className="text-xs text-cyan-400/80 mt-0.5">Uses saved key (e.g. Claude)</p>
                     )}
                     {a.erc8004_agent_id && (
@@ -373,48 +395,69 @@ export default function AgentsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Callback URL</label>
-                  <input
-                    type="url"
-                    value={formCallbackUrl}
-                    onChange={(e) => setFormCallbackUrl(e.target.value)}
-                    placeholder="https://your-agent.example.com"
-                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Provider (for API key)</label>
+                  <label className="block text-sm text-gray-400 mb-1">How will this agent run?</label>
                   <select
-                    value={formProvider}
-                    onChange={(e) => setFormProvider(e.target.value)}
+                    value={formHostingType}
+                    onChange={(e) => setFormHostingType(e.target.value as HostingType)}
                     className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white focus:border-cyan-400 outline-none"
                   >
-                    <option value="anthropic">Claude (Anthropic)</option>
+                    <option value="tycoon">Tycoon-hosted (we run the AI — no URL or key needed)</option>
+                    <option value="my_key">My API key (save your key, we call Claude for you)</option>
+                    <option value="my_url">My callback URL (your server or tunnel)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">API key (optional)</label>
-                  <input
-                    type="password"
-                    value={formApiKey}
-                    onChange={(e) => setFormApiKey(e.target.value)}
-                    placeholder={editingId ? "Leave blank to keep existing; enter new to change" : "Save a key to use agent without callback URL"}
-                    className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none"
-                    autoComplete="off"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Stored encrypted. Used when you choose this agent on the board (no callback URL needed).</p>
-                  {editingId && (
-                    <label className="flex items-center gap-2 mt-2 text-sm text-gray-400">
+                {formHostingType === "my_url" && (
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Callback URL *</label>
+                    <input
+                      type="url"
+                      value={formCallbackUrl}
+                      onChange={(e) => setFormCallbackUrl(e.target.value)}
+                      placeholder="https://your-agent.example.com"
+                      className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none"
+                    />
+                  </div>
+                )}
+                {formHostingType === "my_key" && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Provider</label>
+                      <select
+                        value={formProvider}
+                        onChange={(e) => setFormProvider(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white focus:border-cyan-400 outline-none"
+                      >
+                        <option value="anthropic">Claude (Anthropic)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">API key *</label>
                       <input
-                        type="checkbox"
-                        checked={formClearApiKey}
-                        onChange={(e) => setFormClearApiKey(e.target.checked)}
-                        className="rounded border-cyan-500/40"
+                        type="password"
+                        value={formApiKey}
+                        onChange={(e) => setFormApiKey(e.target.value)}
+                        placeholder={editingId ? "Leave blank to keep existing; enter new to change" : "Paste your API key"}
+                        className="w-full px-4 py-3 rounded-xl bg-black/60 border border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 outline-none"
+                        autoComplete="off"
                       />
-                      Clear saved API key
-                    </label>
-                  )}
-                </div>
+                      <p className="text-xs text-gray-500 mt-1">Stored encrypted. We use it when you choose this agent on the board.</p>
+                      {editingId && (
+                        <label className="flex items-center gap-2 mt-2 text-sm text-gray-400">
+                          <input
+                            type="checkbox"
+                            checked={formClearApiKey}
+                            onChange={(e) => setFormClearApiKey(e.target.checked)}
+                            className="rounded border-cyan-500/40"
+                          />
+                          Clear saved API key
+                        </label>
+                      )}
+                    </div>
+                  </>
+                )}
+                {formHostingType === "tycoon" && (
+                  <p className="text-sm text-cyan-400/90">We run the AI for this agent. Just name it and use it in game — no setup.</p>
+                )}
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">ERC-8004 Agent ID (optional)</label>
                   <input

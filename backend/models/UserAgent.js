@@ -19,7 +19,9 @@ const UserAgent = {
       chain_id,
       provider,
       api_key,
+      use_tycoon_key,
     } = data;
+    const useTycoonKey = !!use_tycoon_key;
     let apiKeyEncrypted = null;
     if (api_key && String(api_key).trim()) {
       if (!isEncryptionAvailable()) throw new Error("API key storage is not configured (set AGENT_API_KEY_SECRET)");
@@ -37,8 +39,18 @@ const UserAgent = {
       chain_id: chain_id ?? 42220,
       provider: apiKeyEncrypted ? (provider && String(provider).trim()) || "anthropic" : null,
       api_key_encrypted: apiKeyEncrypted,
+      use_tycoon_key: useTycoonKey,
     });
-    return this.findById(id);
+    const agent = await this.findById(id);
+    if (useTycoonKey && agent && !agent.callback_url && !agent.hosted_url) {
+      const base = process.env.BACKEND_PUBLIC_URL || "";
+      if (base) {
+        const url = `${base.replace(/\/$/, "")}/api/agent-registry/hosted/${id}/decision`;
+        await db("user_agents").where({ id }).update({ hosted_url: url, updated_at: db.fn.now() });
+        return this.findById(id);
+      }
+    }
+    return agent;
   },
 
   async findById(id) {
@@ -72,10 +84,15 @@ const UserAgent = {
       "erc8004_agent_id",
       "chain_id",
       "provider",
+      "use_tycoon_key",
     ];
     const payload = {};
     for (const key of allowed) {
       if (data[key] !== undefined) payload[key] = data[key];
+    }
+    if (data.use_tycoon_key === true) {
+      const base = process.env.BACKEND_PUBLIC_URL || "";
+      if (base) payload.hosted_url = `${base.replace(/\/$/, "")}/api/agent-registry/hosted/${id}/decision`;
     }
     if (data.api_key !== undefined) {
       if (data.api_key === null || data.api_key === "") {
@@ -114,6 +131,11 @@ const UserAgent = {
     return !!(agent && agent.has_api_key);
   },
 
+  /** Whether this agent uses Tycoon's key (we run the AI; no URL or user key required). */
+  usesTycoonKey(agent) {
+    return !!(agent && agent.use_tycoon_key);
+  },
+
   /**
    * Get decrypted API key for a user agent by id. Used by agent registry when slot is backed by saved key.
    * @param {number} id - user_agents.id
@@ -142,6 +164,7 @@ const UserAgent = {
       chain_id: row.chain_id,
       provider: row.provider || null,
       has_api_key: !!(row.api_key_encrypted != null && row.api_key_encrypted !== ""),
+      use_tycoon_key: !!(row.use_tycoon_key),
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

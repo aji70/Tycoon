@@ -12,6 +12,7 @@ export interface UserAgentOption {
   callback_url: string | null;
   hosted_url: string | null;
   has_api_key?: boolean;
+  use_tycoon_key?: boolean;
 }
 
 /** When user chooses "Use my API key" (Option B) — key is not stored, only passed to parent for the session. */
@@ -58,7 +59,7 @@ export function MyAgentToggle({
       const res = await apiClient.get<ApiResponse<UserAgentOption[]>>("/agents");
       if (res.data?.success && Array.isArray(res.data.data)) {
         const usable = (res.data.data as UserAgentOption[]).filter(
-          (a) => (a.hosted_url || a.callback_url)?.startsWith("http") || a.has_api_key
+          (a) => a.use_tycoon_key || (a.hosted_url || a.callback_url)?.startsWith("http") || a.has_api_key
         );
         setAgents(usable);
         if (usable.length > 0 && !selectedAgentId) setSelectedAgentId(usable[0].id);

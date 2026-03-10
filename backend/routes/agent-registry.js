@@ -6,6 +6,7 @@
 import express from "express";
 import agentRegistry from "../services/agentRegistry.js";
 import internalAgent from "../services/internalAgent.js";
+import UserAgent from "../models/UserAgent.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -112,6 +113,50 @@ router.post("/decision-with-key", requireAuth, async (req, res) => {
     return res.json({ success: true, data: decision });
   } catch (err) {
     console.error("[agent-registry] decision-with-key error:", err?.message);
+    return res.status(500).json({ success: false, message: err?.message || "Decision failed" });
+  }
+});
+
+/**
+ * Tycoon-hosted agent decision endpoint.
+ * Called when a user's agent has hosted_url pointing here (use_tycoon_key or template).
+ * Body: { requestId, gameId, slot, decisionType, context, deadline } (same as external agent).
+ */
+router.post("/hosted/:agentId/decision", async (req, res) => {
+  try {
+    const agentId = Number(req.params.agentId);
+    if (!Number.isInteger(agentId)) {
+      return res.status(400).json({ success: false, message: "Invalid agent id" });
+    }
+    const { requestId, gameId, slot, decisionType, context } = req.body || {};
+    if (!requestId || !gameId || !slot || !decisionType) {
+      return res.status(400).json({ success: false, message: "requestId, gameId, slot, decisionType required" });
+    }
+    const agent = await UserAgent.findById(agentId);
+    if (!agent) {
+      return res.status(404).json({ success: false, message: "Agent not found" });
+    }
+    let decision;
+    if (agent.use_tycoon_key) {
+      decision = await internalAgent.getDecision(Number(gameId), Number(slot), decisionType, context || {});
+    } else if (agent.has_api_key) {
+      const keyPayload = await UserAgent.getDecryptedApiKey(agentId);
+      if (keyPayload?.apiKey) {
+        decision = await internalAgent.getDecisionWithKey(
+          keyPayload.apiKey,
+          Number(gameId),
+          Number(slot),
+          decisionType,
+          context || {}
+        );
+      }
+    }
+    if (!decision) {
+      return res.status(502).json({ success: false, message: "Decision failed" });
+    }
+    return res.json({ requestId, ...decision });
+  } catch (err) {
+    console.error("[agent-registry] hosted decision error:", err?.message);
     return res.status(500).json({ success: false, message: err?.message || "Decision failed" });
   }
 });

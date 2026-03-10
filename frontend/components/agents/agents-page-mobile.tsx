@@ -28,9 +28,12 @@ export interface UserAgent {
   chain_id: number | null;
   provider?: string | null;
   has_api_key?: boolean;
+  use_tycoon_key?: boolean;
   created_at: string;
   updated_at: string;
 }
+
+type HostingType = "tycoon" | "my_key" | "my_url";
 
 export default function AgentsPageMobile() {
   const router = useRouter();
@@ -53,6 +56,7 @@ export default function AgentsPageMobile() {
   const [formProvider, setFormProvider] = useState("anthropic");
   const [formApiKey, setFormApiKey] = useState("");
   const [formClearApiKey, setFormClearApiKey] = useState(false);
+  const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -136,6 +140,7 @@ export default function AgentsPageMobile() {
     setFormProvider("anthropic");
     setFormApiKey("");
     setFormClearApiKey(false);
+    setFormHostingType("tycoon");
   };
 
   const openEdit = (a: UserAgent) => {
@@ -146,6 +151,9 @@ export default function AgentsPageMobile() {
     setFormProvider(a.provider || "anthropic");
     setFormApiKey("");
     setFormClearApiKey(false);
+    setFormHostingType(
+      a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
+    );
     setShowForm(true);
   };
 
@@ -156,16 +164,28 @@ export default function AgentsPageMobile() {
       toast.error("Name is required");
       return;
     }
+    if (formHostingType === "my_url" && !formCallbackUrl.trim()) {
+      toast.error("Callback URL required");
+      return;
+    }
+    if (formHostingType === "my_key" && !editingId && !formApiKey.trim()) {
+      toast.error("API key required");
+      return;
+    }
     setSubmitting(true);
     try {
+      const useTycoonKey = formHostingType === "tycoon";
       const payload: Record<string, unknown> = {
         name,
-        callback_url: formCallbackUrl.trim() || null,
+        callback_url: formHostingType === "my_url" ? formCallbackUrl.trim() || null : null,
         erc8004_agent_id: formErc8004Id.trim() || null,
         provider: formProvider.trim() || "anthropic",
+        use_tycoon_key: useTycoonKey,
       };
-      if (formApiKey.trim()) payload.api_key = formApiKey.trim();
-      else if (editingId && formClearApiKey) payload.api_key = null;
+      if (formHostingType === "my_key") {
+        if (formApiKey.trim()) payload.api_key = formApiKey.trim();
+        else if (editingId && formClearApiKey) payload.api_key = null;
+      }
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
         toast.success("Agent updated");
@@ -309,7 +329,9 @@ export default function AgentsPageMobile() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white text-sm truncate">{a.name}</p>
                     <p className="text-xs text-gray-500 truncate">
-                      {a.callback_url ? (
+                      {a.use_tycoon_key ? (
+                        <span className="text-cyan-400/90">Tycoon-hosted</span>
+                      ) : a.callback_url ? (
                         <span className="flex items-center gap-0.5">
                           <ExternalLink className="w-3 h-3 shrink-0" />
                           {a.callback_url}
@@ -359,41 +381,57 @@ export default function AgentsPageMobile() {
                   className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
                   required
                 />
-                <input
-                  type="url"
-                  value={formCallbackUrl}
-                  onChange={(e) => setFormCallbackUrl(e.target.value)}
-                  placeholder="Callback URL"
-                  className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
-                />
                 <div>
+                  <label className="block text-xs text-gray-400 mb-0.5">How it runs</label>
                   <select
-                    value={formProvider}
-                    onChange={(e) => setFormProvider(e.target.value)}
+                    value={formHostingType}
+                    onChange={(e) => setFormHostingType(e.target.value as HostingType)}
                     className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
                   >
-                    <option value="anthropic">Claude (Anthropic)</option>
+                    <option value="tycoon">Tycoon-hosted</option>
+                    <option value="my_key">My API key</option>
+                    <option value="my_url">My URL</option>
                   </select>
-                  <input
-                    type="password"
-                    value={formApiKey}
-                    onChange={(e) => setFormApiKey(e.target.value)}
-                    placeholder={editingId ? "Leave blank to keep key" : "API key (optional)"}
-                    className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm mt-1"
-                    autoComplete="off"
-                  />
-                  {editingId && (
-                    <label className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                      <input
-                        type="checkbox"
-                        checked={formClearApiKey}
-                        onChange={(e) => setFormClearApiKey(e.target.checked)}
-                        className="rounded border-cyan-500/40"
-                      />
-                      Clear saved key
-                    </label>
-                  )}
                 </div>
+                {formHostingType === "my_url" && (
+                  <input
+                    type="url"
+                    value={formCallbackUrl}
+                    onChange={(e) => setFormCallbackUrl(e.target.value)}
+                    placeholder="Callback URL *"
+                    className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
+                  />
+                )}
+                {formHostingType === "my_key" && (
+                  <div>
+                    <select
+                      value={formProvider}
+                      onChange={(e) => setFormProvider(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
+                    >
+                      <option value="anthropic">Claude (Anthropic)</option>
+                    </select>
+                    <input
+                      type="password"
+                      value={formApiKey}
+                      onChange={(e) => setFormApiKey(e.target.value)}
+                      placeholder={editingId ? "Leave blank to keep" : "API key *"}
+                      className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm mt-1"
+                      autoComplete="off"
+                    />
+                    {editingId && (
+                      <label className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                        <input
+                          type="checkbox"
+                          checked={formClearApiKey}
+                          onChange={(e) => setFormClearApiKey(e.target.checked)}
+                          className="rounded border-cyan-500/40"
+                        />
+                        Clear saved key
+                      </label>
+                    )}
+                  </div>
+                )}
                 <input
                   type="text"
                   value={formErc8004Id}
