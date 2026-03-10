@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Bot, Dices, Gamepad2 } from "lucide-react";
+import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -286,7 +286,7 @@ const handleContinuePrevious = () => {
     return;
   }
   if (isAi) {
-    router.push(`/ai-play-3d?gameCode=${encodeURIComponent(code)}`);
+    router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
     return;
   }
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
@@ -456,12 +456,12 @@ const handleContinuePrevious = () => {
 
           {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy" ? (
             <div className="w-full flex flex-col items-center gap-5">
-              {/* Game menu frame */}
-              <div className="relative hero-game-frame rounded-xl px-5 py-4 w-full max-w-[320px]">
-                {/* Primary: Challenge AI */}
+              {/* Continue Previous Game - prominent when available, not full width */}
+              {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
+                (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
                 <button
-                  onClick={() => router.push("/play-ai-3d")}
-                  className="relative w-full h-12 mb-3 transition-transform active:scale-[0.98]"
+                  onClick={handleContinuePrevious}
+                  className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
                 >
                   <svg
                     className="absolute inset-0 w-full h-full"
@@ -476,132 +476,97 @@ const handleContinuePrevious = () => {
                       strokeWidth="2.5"
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold uppercase">
-                    Challenge AI!
+                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold gap-2">
+                    <Gamepad2 size={18} />
+                    Continue Game
+                  </span>
+                </button>
+              )}
+
+              {/* Secondary buttons grid */}
+              <div className="grid grid-cols-2 gap-4 w-full max-w-[280px]">
+                <button
+                  onClick={() => router.push("/game-settings-3d")}
+                  className="relative h-12 transition-transform active:scale-[0.97]"
+                >
+                  <svg
+                    className="absolute inset-0 w-full h-full"
+                    viewBox="0 0 227 48"
+                    fill="none"
+                    preserveAspectRatio="none"
+                  >
+                    <path
+                      d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                      fill="#003B3E"
+                      stroke="#004B4F"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-xs font-medium gap-1.5">
+                    <Gamepad2 size={16} />
+                    Multiplayer
                   </span>
                 </button>
 
-                {/* Continue Previous Game - when available */}
-                {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
-                  (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
-                  <button
-                    onClick={handleContinuePrevious}
-                    className="relative w-full h-11 mb-3 transition-transform active:scale-[0.98]"
+                <button
+                  onClick={() => router.push("/join-room-3d")}
+                  className="relative h-12 transition-transform active:scale-[0.97]"
+                >
+                  <svg
+                    className="absolute inset-0 w-full h-full"
+                    viewBox="0 0 140 48"
+                    fill="none"
+                    preserveAspectRatio="none"
                   >
-                    <svg
-                      className="absolute inset-0 w-full h-full"
-                      viewBox="0 0 300 56"
-                      fill="none"
-                      preserveAspectRatio="none"
-                    >
-                      <path
-                        d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
-                        fill="#00F0FF"
-                        stroke="#0E282A"
-                        strokeWidth="2.5"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-xs font-orbitron font-bold gap-2">
-                      <Gamepad2 size={18} />
-                      Continue Game
-                    </span>
-                  </button>
-                )}
-
-                {/* Secondary: 3-column game menu grid */}
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    onClick={() => router.push("/game-settings-3d")}
-                    className="relative h-10 transition-transform active:scale-[0.97]"
-                  >
-                    <svg
-                      className="absolute inset-0 w-full h-full"
-                      viewBox="0 0 227 48"
-                      fill="none"
-                      preserveAspectRatio="none"
-                    >
-                      <path
-                        d="M6 1H221C225.373 1 227.996 5.85486 225.601 9.5127L207.167 37.5127C206.151 39.0646 204.42 40 202.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                        fill="#003B3E"
-                        stroke="#004B4F"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex flex-col items-center justify-center text-[#00F0FF] text-[10px] font-medium gap-0.5">
-                      <Gamepad2 size={14} />
-                      Multi
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => router.push("/join-room-3d")}
-                    className="relative h-10 transition-transform active:scale-[0.97]"
-                  >
-                    <svg
-                      className="absolute inset-0 w-full h-full"
-                      viewBox="0 0 140 48"
-                      fill="none"
-                      preserveAspectRatio="none"
-                    >
-                      <path
-                        d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                        fill="#0E1415"
-                        stroke="#004B4F"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex flex-col items-center justify-center text-[#0FF0FC] text-[10px] font-medium gap-0.5">
-                      <Dices size={14} />
-                      Join
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => router.push("/agents")}
-                    className="relative h-10 transition-transform active:scale-[0.97]"
-                  >
-                    <svg
-                      className="absolute inset-0 w-full h-full"
-                      viewBox="0 0 140 48"
-                      fill="none"
-                      preserveAspectRatio="none"
-                    >
-                      <path
-                        d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                        fill="#0E1415"
-                        stroke="#004B4F"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex flex-col items-center justify-center text-[#0FF0FC] text-[10px] font-medium gap-0.5">
-                      <Bot size={14} />
-                      Agents
-                    </span>
-                  </button>
-                </div>
-
-                {(guestUser || registrationStatus === "privy") && (
-                  <button
-                    onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
-                    className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs mt-3"
-                  >
-                    {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
-                  </button>
-                )}
+                    <path
+                      d="M6 1H134C138.373 1 140.996 5.85486 138.601 9.5127L120.167 37.5127C119.151 39.0646 117.42 40 115.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                      fill="#0E1415"
+                      stroke="#004B4F"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#0FF0FC] text-xs font-medium gap-1.5">
+                    <Dices size={16} />
+                    Join
+                  </span>
+                </button>
               </div>
+
+              {/* Challenge AI - prominent but not full width */}
+              <button
+                onClick={() => router.push("/play-ai-3d")}
+                className="relative w-full max-w-[280px] h-12 transition-transform active:scale-[0.98]"
+              >
+                <svg
+                  className="absolute inset-0 w-full h-full"
+                  viewBox="0 0 300 56"
+                  fill="none"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M12 1H288C293.373 1 296 7.85486 293.601 12.5127L270.167 54.5127C269.151 56.0646 267.42 57 265.565 57H12C8.96244 57 6.5 54.5376 6.5 51.5V9.5C6.5 6.46243 8.96243 4 12 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth="2.5"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold uppercase">
+                  Challenge AI!
+                </span>
+              </button>
+              {(guestUser || registrationStatus === "privy") && (
+                <button
+                  onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
+                  className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
+                >
+                  {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
+                </button>
+              )}
             </div>
           ) : null}
 
           {!address && !guestUser && !isPrivyAuthed && !loading && (
-            <div className="flex flex-col items-center gap-3 mt-4 px-2">
-              <p className="text-gray-400 text-sm text-center">
-                Sign in or connect your wallet (menu) to play.
-              </p>
-              <button
-                onClick={() => router.push("/agents")}
-                className="inline-flex items-center gap-2 text-[#00F0FF]/90 active:text-[#00F0FF] font-orbitron text-sm font-[600]"
-              >
-                <Bot size={18} />
-                Agents
-              </button>
-            </div>
+            <p className="text-gray-400 text-sm text-center mt-4 px-2">
+              Sign in or connect your wallet (menu) to play.
+            </p>
           )}
         </div>
       </div>
