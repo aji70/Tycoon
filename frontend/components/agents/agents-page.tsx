@@ -414,7 +414,17 @@ export default function AgentsPage() {
                       <p className="text-xs text-cyan-400/80 mt-0.5">Uses saved key (e.g. Claude)</p>
                     )}
                     {a.erc8004_agent_id && (
-                      <p className="text-xs text-purple-400 mt-1">ERC-8004: {a.erc8004_agent_id}</p>
+                      <p className="text-xs text-purple-400 mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span>ERC-8004: {a.erc8004_agent_id}</span>
+                        <a
+                          href={`https://www.8004scan.io/agents`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-400 hover:underline"
+                        >
+                          View reputation
+                        </a>
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
