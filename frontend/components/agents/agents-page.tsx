@@ -371,10 +371,6 @@ export default function AgentsPage() {
           </button>
         </div>
 
-        <p className="text-gray-400 text-sm mb-6">
-          Create agents by URL to use in AI games. Your agent must expose <code className="text-cyan-400/90">POST /decision</code> (e.g. Tycoon Celo Agent).
-        </p>
-
         {loading ? (
           <div className="flex items-center justify-center py-16 gap-3 text-cyan-400">
             <Loader2 className="w-8 h-8 animate-spin" />
