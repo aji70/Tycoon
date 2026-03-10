@@ -7,6 +7,7 @@
  */
 
 import db from "../config/database.js";
+import logger from "../config/logger.js";
 import Game from "../models/Game.js";
 import UserAgent from "../models/UserAgent.js";
 import internalAgent from "./internalAgent.js";
@@ -198,13 +199,13 @@ async function getAIDecision(gameId, slot, decisionType, context) {
 
 async function getAIDecisionInner(gameId, slot, decisionType, context) {
   const agent = getAgentForSlot(gameId, slot);
-  console.log("[agentRegistry] getAIDecision:", {
+  logger.debug({
     gameId,
     slot,
     hasAgent: !!agent,
     agentUrl: agent?.callbackUrl,
     user_agent_id: agent?.user_agent_id,
-  });
+  }, "getAIDecision");
 
   // User agent (saved key or Tycoon-hosted): use internal agent, optionally with user's skill
   if (agent?.user_agent_id) {
@@ -220,13 +221,13 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
         if (hasPurchased) {
           const ok = await hostedAgentCredits.deductCredit(userId);
           if (!ok) {
-            console.log("[agentRegistry] Tycoon-hosted credits exhausted for user", userId);
+            logger.debug({ userId, gameId, slot }, "Tycoon-hosted credits exhausted");
             return null;
           }
         } else if (hasFree) {
           await hostedAgentUsage.incrementUsage(userId);
         } else {
-          console.log("[agentRegistry] Tycoon-hosted no credits or daily cap reached for user", userId);
+          logger.debug({ userId, gameId, slot }, "Tycoon-hosted no credits or daily cap");
           return null;
         }
         const decision = await internalAgent.getDecision(
@@ -237,13 +238,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
           opts
         );
         if (decision) {
-          console.log(
-            "[agentRegistry] TYCOON-HOSTED AGENT | gameId=%s slot=%s type=%s action=%s",
-            gameId,
-            slot,
-            decisionType,
-            decision.action
-          );
+          logger.info({ gameId, slot, decisionType, action: decision.action, source: "tycoon-hosted" }, "AI decision");
           return decision;
         }
       } else {
@@ -258,19 +253,13 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
             opts
           );
           if (decision) {
-            console.log(
-              "[agentRegistry] SAVED KEY AGENT | gameId=%s slot=%s type=%s action=%s",
-              gameId,
-              slot,
-              decisionType,
-              decision.action
-            );
+            logger.info({ gameId, slot, decisionType, action: decision.action, source: "saved-key" }, "AI decision");
             return decision;
           }
         }
       }
     } catch (err) {
-      console.warn("[agentRegistry] User agent decision failed:", err?.message);
+      logger.warn({ gameId, slot, err: err?.message }, "User agent decision failed");
     }
     return null;
   }
@@ -292,7 +281,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
     const timeout = setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
 
     try {
-      console.log("[agentRegistry] POSTing to agent:", `${agent.callbackUrl}/decision`);
+      logger.debug({ url: `${agent.callbackUrl}/decision`, gameId, slot }, "POSTing to external agent");
       const res = await fetch(`${agent.callbackUrl}/decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -320,7 +309,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       };
     } catch (err) {
       clearTimeout(timeout);
-      console.error("[agentRegistry] Agent decision request failed:", err.message);
+      logger.warn({ gameId, slot, err: err?.message }, "External agent decision failed");
       return null;
     }
   }
@@ -331,26 +320,27 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       const game = await Game.findById(Number(gameId));
       const useInternal = game && (game.is_ai || decisionType === "tip");
       if (useInternal) {
-        const decision = await internalAgent.getDecision(
-          Number(gameId),
-          Number(slot),
-          decisionType,
-          context || {}
-        );
-        if (decision) {
-          console.log(
-            "[agentRegistry] CLAUDE INTERNAL AGENT | gameId=%s slot=%s type=%s action=%s reasoning=%s",
-            gameId,
-            slot,
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const decision = await internalAgent.getDecision(
+            Number(gameId),
+            Number(slot),
             decisionType,
-            decision.action,
-            (decision.reasoning || "").slice(0, 80)
+            context || {}
           );
-          return decision;
+          if (decision) {
+            logger.info(
+              { gameId, slot, decisionType, action: decision.action, source: "internal", attempt },
+              "AI decision (Claude)"
+            );
+            return decision;
+          }
+          if (attempt === 1) {
+            logger.debug({ gameId, slot, decisionType, attempt }, "Internal agent returned null, retrying");
+          }
         }
       }
     } catch (err) {
-      console.warn("[agentRegistry] Internal agent fallback failed:", err.message);
+      logger.warn({ gameId, slot, decisionType, err: err?.message }, "Internal agent fallback failed");
     }
   }
 

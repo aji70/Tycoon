@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { ApiResponse } from "@/types/api";
-import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "./constants";
 
 interface UseMobileAiLogicParams {
@@ -432,7 +432,7 @@ export function useMobileAiLogic({
                 { ...payload, requested_amount: 0 },
                 targetPlayer.address!
               );
-              if (favorability >= 50) {
+              if (favorability >= TRADE_FAVORABILITY_ACCEPT_RAW) {
                 await apiClient.post("/game-trade-requests/accept", {
                   id: res.data.data.id,
                 });

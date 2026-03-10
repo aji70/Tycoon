@@ -45,7 +45,7 @@ function totalToDice(total: number): { die1: number; die2: number; total: number
 }
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW } from "@/utils/gameUtils";
 
 const calculateBuyScore = (
   property: Property,
@@ -817,7 +817,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
                 targetPlayer.address!
               );
 
-              if (favorability >= 50) {
+              if (favorability >= TRADE_FAVORABILITY_ACCEPT_RAW) {
                 await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
                 showToast(`${targetPlayer.username} accepted deal! 🤝`, "success");
                 await refreshGame();

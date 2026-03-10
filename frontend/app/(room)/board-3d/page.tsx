@@ -28,7 +28,7 @@ import { useGameTrades } from "@/hooks/useGameTrades";
 import TradeAlertPill from "@/components/game/TradeAlertPill";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Toaster, toast } from "react-hot-toast";
-import { isAIPlayer, getAiSlotFromPlayer } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
@@ -916,7 +916,7 @@ function Board3DPageContent() {
             if (isAIPlayer(targetPlayer)) {
               await new Promise((r) => setTimeout(r, 800));
               const favorability = calculateTradeFavorability({ ...payload, requested_amount: 0 }, targetPlayer.address!);
-              if (favorability >= 50) {
+              if (favorability >= TRADE_FAVORABILITY_ACCEPT_RAW) {
                 await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
                 await refetchGame();
               } else {
