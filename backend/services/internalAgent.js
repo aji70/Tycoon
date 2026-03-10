@@ -22,10 +22,22 @@ function parseJsonResponse(text, fallback) {
   if (!text || typeof text !== "string") return fallback;
   const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   try {
-    return JSON.parse(stripped);
+    const parsed = JSON.parse(stripped);
+    if (parsed && typeof parsed === "object") return parsed;
   } catch {
-    return fallback;
+    /* try extracting JSON object */
   }
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      const parsed = JSON.parse(stripped.slice(start, end + 1));
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      /* ignore */
+    }
+  }
+  return fallback;
 }
 
 function getMonopolies(properties) {

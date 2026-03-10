@@ -1589,8 +1589,9 @@ function Board3DMobileContent() {
               property_id: square.id,
             });
           }
-        } catch {
-          /* skip */
+        } catch (err) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Agent decision failed";
+          toast.error(msg);
         }
         await refetchGame();
         setTimeout(() => END_TURN(), 900);
