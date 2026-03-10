@@ -2149,17 +2149,6 @@ function Board3DMobileContent() {
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
-        {isLiveGame && game && me && (
-          <MyAgentToggle
-            gameId={game.id}
-            myAgentOn={myAgentOn}
-            myAgentApiKey={myAgentApiKey}
-            onUseApiKey={setMyAgentApiKey}
-            onStopApiKey={() => setMyAgentApiKey(null)}
-            onBindingsChange={refetchAgentBindings}
-            compact
-          />
-        )}
         {isLiveGame && isMultiplayer && gameCode && (
           <button
             type="button"

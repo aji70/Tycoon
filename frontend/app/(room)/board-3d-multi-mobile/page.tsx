@@ -1941,17 +1941,6 @@ function Board3DMobilePageContent() {
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
         )}
-        {isLiveGame && game && me && (
-          <MyAgentToggle
-            gameId={game.id}
-            myAgentOn={myAgentOn}
-            myAgentApiKey={myAgentApiKey}
-            onUseApiKey={setMyAgentApiKey}
-            onStopApiKey={() => setMyAgentApiKey(null)}
-            onBindingsChange={refetchAgentBindings}
-            compact
-          />
-        )}
         {/* Vote player out — same as 2D board */}
         {isLiveGame && game && voteablePlayersList.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto shrink min-w-0">
