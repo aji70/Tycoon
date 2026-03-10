@@ -21,6 +21,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
+import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
@@ -29,6 +30,7 @@ import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
+import { MyAgentToggle } from "@/components/game/MyAgentToggle";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 const Mobile3DGameUI = dynamic(
   () => import("@/components/game/board3d/Mobile3DGameUI").then((m) => m.default),
@@ -476,6 +478,8 @@ function Board3DMobileContent() {
     if (!game?.players || currentPlayerId == null) return null;
     return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
   }, [game?.players, currentPlayerId]);
+
+  const { myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
 
   const isAITurn = useMemo(() => {
     if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
@@ -1487,6 +1491,107 @@ function Board3DMobileContent() {
     END_TURN,
   ]);
 
+  const handleDiceCompleteForMyAgent = useCallback(async () => {
+    const value = pendingRollRef.current;
+    if (!game?.id || !me) {
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+      return;
+    }
+    const playerId = me.user_id;
+    const currentPos = me.position ?? 0;
+    const isInJail = !!(me.in_jail && currentPos === JAIL_POSITION);
+    const rolledDouble = value.die1 === value.die2;
+    const newPos = (isInJail && !rolledDouble) ? currentPos : (currentPos + value.total) % 40;
+    const totalSteps = (isInJail && !rolledDouble) ? 0 : value.total;
+    try {
+      await runMovementAnimation(playerId, currentPos, totalSteps);
+      const res = await apiClient.post<{ data?: { still_in_jail?: boolean } }>(
+        "/game-players/change-position",
+        { user_id: playerId, game_id: game.id, position: newPos, rolled: value.total, is_double: rolledDouble }
+      );
+      const data = res?.data?.data ?? (res as { data?: { still_in_jail?: boolean } })?.data;
+      if (data?.still_in_jail) {
+        await apiClient.post("/game-players/stay-in-jail", { user_id: playerId, game_id: game.id });
+        await refetchGame();
+        setRollingDice(null);
+        rollingForPlayerIdRef.current = null;
+        setTimeout(() => END_TURN(), 500);
+        return;
+      }
+      setLastRollResultLive(value);
+      landedPositionThisTurnRef.current = newPos;
+      rolledForPlayerIdRef.current = playerId;
+      const refetchResult = await refetchGame();
+      const updatedGame = refetchResult?.data;
+      const updatedMe = updatedGame?.players?.find((p: Player) => p.user_id === playerId) ?? me;
+      const balanceAfterMove = updatedMe?.balance ?? me.balance ?? 0;
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      const square = properties.find((p) => p.id === newPos);
+      const isOwned = gameProperties.some((gp: GameProperty) => gp.property_id === newPos);
+      const action = PROPERTY_ACTION(newPos);
+      const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
+      const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
+      if (needBuyPrompt && square) {
+        const groupIds =
+          Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => ids.includes(square.id)) ?? [];
+        const ownedInGroup = groupIds.filter((id: number) =>
+          gameProperties.some(
+            (gp) => gp.property_id === id && gp.address?.toLowerCase() === me.address?.toLowerCase()
+          )
+        ).length;
+        const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
+        const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[square.id] ?? 99;
+        try {
+          const agentRes = await apiClient.post<{
+            success?: boolean;
+            data?: { action?: string };
+          }>("/agent-registry/decision", {
+            gameId: game.id,
+            slot: 1,
+            decisionType: "property",
+            context: {
+              myBalance: balanceAfterMove,
+              myProperties: gameProperties
+                .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+                .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+              opponents: (game.players ?? []).filter((p) => p.user_id !== me.user_id),
+              landedProperty: { ...square, completesMonopoly, landingRank },
+            },
+          });
+          if (agentRes?.data?.success && agentRes.data.data?.action?.toLowerCase() === "buy") {
+            await apiClient.post("/game-properties/buy", {
+              user_id: playerId,
+              game_id: game.id,
+              property_id: square.id,
+            });
+          }
+        } catch {
+          /* skip */
+        }
+        await refetchGame();
+        setTimeout(() => END_TURN(), 900);
+      } else {
+        setTimeout(() => END_TURN(), 1000);
+      }
+    } catch (err) {
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        delete next[me.user_id];
+        return next;
+      });
+      toast.error(getContractErrorMessage(err, "Agent move failed"));
+      setTimeout(() => END_TURN(), 500);
+    } finally {
+      setRollingDice(null);
+      rollingForPlayerIdRef.current = null;
+    }
+  }, [game, me, refetchGame, properties, gameProperties, runMovementAnimation, END_TURN]);
+
   const onRollClick = useCallback(() => {
     if (isLiveGame && playerCanRoll) handleRollForLive();
   }, [isLiveGame, playerCanRoll, handleRollForLive]);
@@ -1504,12 +1609,14 @@ function Board3DMobileContent() {
 
   const onDiceCompleteClick = useCallback(() => {
     if (!isLiveGame) return;
-    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
+    if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current === me.user_id && myAgentOn) {
+      handleDiceCompleteForMyAgent();
+    } else if (rollingForPlayerIdRef.current !== null && me && rollingForPlayerIdRef.current !== me.user_id) {
       handleDiceCompleteForAI();
     } else {
       handleDiceCompleteForLive();
     }
-  }, [isLiveGame, handleDiceCompleteForLive, handleDiceCompleteForAI, me]);
+  }, [isLiveGame, handleDiceCompleteForLive, handleDiceCompleteForAI, handleDiceCompleteForMyAgent, me, myAgentOn]);
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
@@ -1659,6 +1766,12 @@ function Board3DMobileContent() {
     const t = setTimeout(handleAiStrategy, 1000);
     return () => clearTimeout(t);
   }, [isAITurn, currentPlayer, strategyRanThisTurn, isLiveGame, handleAiStrategy]);
+
+  useEffect(() => {
+    if (!isLiveGame || !isMyTurn || !myAgentOn || rollingDice || !playerCanRoll || !me) return;
+    const t = setTimeout(() => handleRollForLive(), 1200);
+    return () => clearTimeout(t);
+  }, [isLiveGame, isMyTurn, myAgentOn, rollingDice, playerCanRoll, me, handleRollForLive]);
 
   useEffect(() => {
     if (
@@ -2016,6 +2129,14 @@ function Board3DMobileContent() {
           >
             ${Number(me.balance ?? 0).toLocaleString()}
           </div>
+        )}
+        {isLiveGame && game && me && (
+          <MyAgentToggle
+            gameId={game.id}
+            myAgentOn={myAgentOn}
+            onBindingsChange={refetchAgentBindings}
+            compact
+          />
         )}
         {isLiveGame && isMultiplayer && gameCode && (
           <button

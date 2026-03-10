@@ -16,12 +16,14 @@ const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
 const slotRegistry = new Map();
 
 /**
- * Register an agent for an AI slot (global or per-game).
- * @param {object} opts - { slot: number (2-8), agentId: string, callbackUrl: string, chainId?: number, name?: string, gameId?: number }
+ * Register an agent for a slot (global or per-game).
+ * Slot 2-8 = AI seats; slot 1 (only when gameId is set) = "my agent plays for me" (user's seat).
+ * @param {object} opts - { slot: number (1-8; 1 only with gameId), agentId: string, callbackUrl: string, chainId?: number, name?: string, gameId?: number }
  */
 function registerAgent(opts) {
   const { slot, agentId, callbackUrl, chainId = 42220, name, gameId } = opts;
-  if (!slot || slot < 2 || slot > 8) throw new Error("slot must be 2-8");
+  if (slot == null || slot < 1 || slot > 8) throw new Error("slot must be 1-8");
+  if (gameId == null && slot === 1) throw new Error("slot 1 (user's agent) requires gameId");
   if (!callbackUrl?.startsWith("http")) throw new Error("callbackUrl must be HTTP(S)");
   const key = gameId ? `game_${gameId}_slot_${slot}` : `slot_${slot}`;
   slotRegistry.set(key, {
@@ -53,6 +55,14 @@ function listAgents() {
     key,
     ...v,
   }));
+}
+
+/**
+ * List agents registered for a specific game (for agent-bindings / "my agent" UI).
+ */
+function getAgentsForGame(gameId) {
+  const id = Number(gameId);
+  return listAgents().filter((a) => a.gameId === id);
 }
 
 /**
@@ -164,6 +174,7 @@ export default {
   registerAgent,
   unregisterAgent,
   listAgents,
+  getAgentsForGame,
   getAgentForSlot,
   getAIDecision,
 };
