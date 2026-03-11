@@ -212,13 +212,17 @@ export function useMobileAiLogic({
       ) {
         shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
       } else {
-        const goodLandingRank = landingRank <= 15;
-        const affordable = balance >= price + 200;
+        const balanceAfter = balance - price;
+        const reserveOk = balanceAfter >= 500;
+        const goodLandingRank = landingRank <= 12;
+        const affordable = balance >= price * 2.2 && reserveOk;
         shouldBuy = completesMonopoly || (goodLandingRank && affordable);
       }
     } catch (_) {
-      const goodLandingRank = landingRank <= 15;
-      const affordable = balance >= price + 200;
+      const balanceAfter = balance - price;
+      const reserveOk = balanceAfter >= 500;
+      const goodLandingRank = landingRank <= 12;
+      const affordable = balance >= price * 2.2 && reserveOk;
       shouldBuy = completesMonopoly || (goodLandingRank && affordable);
     }
 

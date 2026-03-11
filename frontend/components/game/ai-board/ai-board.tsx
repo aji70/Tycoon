@@ -1314,9 +1314,12 @@ const endTurnAfterSpecialMove = useCallback(() => {
             );
           }
         } else {
+          const balanceAfter = (currentPlayer.balance ?? 0) - justLandedProperty.price;
+          const reserveOk = balanceAfter >= 500;
           shouldBuy =
-            buyScore >= 72 &&
-            (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
+            buyScore >= 78 &&
+            (currentPlayer.balance ?? 0) >= justLandedProperty.price * 2.2 &&
+            (reserveOk || (groupIds.length > 0 && ownedInGroup === groupIds.length - 1));
           if (shouldBuy) {
             showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
           } else {
@@ -1324,9 +1327,12 @@ const endTurnAfterSpecialMove = useCallback(() => {
           }
         }
       } catch (_) {
+        const balanceAfter = (currentPlayer.balance ?? 0) - justLandedProperty.price;
+        const reserveOk = balanceAfter >= 500;
         shouldBuy =
-          buyScore >= 72 &&
-          (currentPlayer.balance ?? 0) > justLandedProperty.price * 1.8;
+          buyScore >= 78 &&
+          (currentPlayer.balance ?? 0) >= justLandedProperty.price * 2.2 &&
+          (reserveOk || (groupIds.length > 0 && ownedInGroup === groupIds.length - 1));
         if (shouldBuy) {
           showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
         } else {

@@ -100,31 +100,31 @@ Respond ONLY with JSON:
 
   private buildPropertyPrompt(context: GameContext): string {
     const { landedProperty, myBalance, myProperties, opponents } = context;
+    const price = landedProperty?.price ?? 0;
+    const balanceAfter = myBalance - price;
 
-    return `You're an expert Monopoly AI player. Decide whether to buy this property.
+    return `You're an expert Monopoly AI player. Be SELECTIVE — default to skip unless the property is clearly good value or completes a monopoly.
 
 LANDED ON: ${landedProperty?.name}
-- Price: $${landedProperty?.price}
+- Price: $${price}
 - Color: ${landedProperty?.color}
 - Landing frequency rank: #${landedProperty?.landingRank} (lower = better, top 10 is excellent)
 - Would complete monopoly: ${landedProperty?.completesMonopoly ? 'YES ⭐⭐⭐' : 'No'}
 
 YOUR STATUS:
 - Current balance: $${myBalance}
-- After purchase: $${myBalance - (landedProperty?.price || 0)}
+- After purchase: $${balanceAfter}
 - Properties owned: ${myProperties.length}
 - Complete monopolies: ${this.getMonopolies(myProperties).length}
 
 OPPONENTS:
 ${opponents.map((opp: any) => `- ${opp.username ?? 'Opponent'}: $${opp.balance ?? 0}`).join('\n')}
 
-MONOPOLY STRATEGY RULES:
-1. Orange/Red/Yellow groups = highest ROI (most landed on)
-2. Completing monopolies is CRITICAL - worth overpaying
-3. Keep $500+ cash reserve minimum
-4. Properties with landing rank <10 are excellent investments
-5. Railroads are consistent income but low priority
-6. Dark blue is expensive but low traffic
+HARD RULES:
+1. MUST skip if balance after buy would be under $500 unless this completes a monopoly.
+2. Prefer skip for weak sets (brown, dark blue), high landing rank (>15), or when you already have many properties.
+3. Buy mainly when: (a) it completes a monopoly, or (b) strong set (orange/red/yellow) with rank <10 and balance after stays >= $500.
+4. Orange/Red/Yellow = best ROI; railroads low priority; dark blue expensive and low traffic.
 
 Respond ONLY with valid JSON (no markdown, no extra text):
 {

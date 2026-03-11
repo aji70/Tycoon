@@ -6,10 +6,13 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import logger from "../config/logger.js";
 
 const MODEL = process.env.INTERNAL_AGENT_MODEL || "claude-sonnet-4-20250514";
 const MAX_TOKENS = Number(process.env.INTERNAL_AGENT_MAX_TOKENS) || 256;
 const REQUEST_TIMEOUT_MS = Number(process.env.INTERNAL_AGENT_TIMEOUT_MS) || 15000;
+const MAX_RETRIES = 2;
+const CASH_RESERVE_MIN = 500;
 
 let client = null;
 function getClient() {
@@ -68,7 +71,9 @@ function buildPropertyPrompt(context) {
   }).join("; ");
   const phase = turnCount != null ? ` Turn ~${turnCount}.` : "";
   const oppMonos = opponentMonopolies != null ? ` Opponent monopolies: ${opponentMonopolies}.` : "";
-  return `Monopoly: buy or skip? Property: ${landedProperty.name ?? "?"} $${landedProperty.price ?? 0} ${landedProperty.color ?? ""}. Rank #${landedProperty.landingRank ?? "?"} (lower=better). Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Your balance: $${myBalance} (after: $${myBalance - (landedProperty.price || 0)}). Own ${(myProperties || []).length} props, ${monopolies.length} monopolies. Opponents: ${opps}.${phase}${oppMonos} Rules: orange/red/yellow best; complete monopolies critical; keep $500+; rank <10 good; railroads low priority. If balance after buy < 300, prefer skip. JSON only: {"action":"buy"|"skip","reasoning":"brief reason","confidence":85}`;
+  const price = Number(landedProperty.price) || 0;
+  const balanceAfter = myBalance - price;
+  return `Monopoly: buy or skip? Be SELECTIVE — default to skip unless clearly good value or completing a monopoly. Property: ${landedProperty.name ?? "?"} $${price} ${landedProperty.color ?? ""}. Rank #${landedProperty.landingRank ?? "?"} (lower=better). Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Your balance: $${myBalance} (after buy: $${balanceAfter}). Own ${(myProperties || []).length} props, ${monopolies.length} monopolies. Opponents: ${opps}.${phase}${oppMonos} HARD RULES: (1) MUST skip if balance after buy would be under $${CASH_RESERVE_MIN} unless this completes a monopoly. (2) Prefer skip for weak sets (brown, dark blue), high rank (>15), or when you already have many properties. (3) Buy mainly when: completes monopoly, or strong set (orange/red/yellow) with rank <10 and balance after stays >= $${CASH_RESERVE_MIN}. JSON only: {"action":"buy"|"skip","reasoning":"brief reason","confidence":85}`;
 }
 
 function buildTradePrompt(context) {
@@ -218,14 +223,20 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
     out.counterOffer = { cashAdjustment: Number(parsed.counterOffer.cashAdjustment) || 0 };
   }
 
-  // Validate action is legal
+  // Validate action is legal and enforce cash reserve
   if (decisionType === "property" && out.action === "buy") {
     const price = Number((context.landedProperty || {}).price) || 0;
     const balance = Number(context.myBalance) || 0;
+    const balanceAfter = balance - price;
+    const completesMonopoly = !!context.landedProperty?.completesMonopoly;
     if (price > balance || price <= 0) {
       out.action = "skip";
       out.reasoning = (out.reasoning || "") + " [Corrected: insufficient balance]";
       logger.debug({ decisionType, price, balance }, "Internal agent: forced skip (can't afford)");
+    } else if (balanceAfter < CASH_RESERVE_MIN && !completesMonopoly) {
+      out.action = "skip";
+      out.reasoning = (out.reasoning || "") + ` [Corrected: reserve $${CASH_RESERVE_MIN} required; would have $${balanceAfter}]`;
+      logger.debug({ decisionType, balanceAfter, CASH_RESERVE_MIN }, "Internal agent: forced skip (reserve)");
     }
   }
 
