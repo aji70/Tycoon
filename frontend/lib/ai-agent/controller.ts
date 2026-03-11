@@ -87,7 +87,12 @@ export class MonopolyAIController {
       gameState,
     });
 
-    if (decision.action === 'buy' && aiPlayer.balance >= property.price) {
+    const price = property.price ?? 0;
+    const balanceAfter = (aiPlayer.balance ?? 0) - price;
+    const completesMonopoly = this.wouldCompleteMonopoly(gameState, aiPlayer, property);
+    const reserveOk = balanceAfter >= 500;
+    const canBuy = aiPlayer.balance >= price && (reserveOk || completesMonopoly);
+    if (decision.action === 'buy' && canBuy) {
       const order = aiPlayer.turn_order ?? aiPlayer.order;
       if (order != null) this.walletManager.getWallet(order);
 
