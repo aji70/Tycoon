@@ -10,6 +10,8 @@ import {
   incrementTradesAccepted,
 } from "../utils/userPropertyStats.js";
 import logger from "../config/logger.js";
+import { invalidateGameById } from "../utils/gameCache.js";
+import { emitGameUpdateByGameId } from "../utils/socketHelpers.js";
 
 const gameTradeController = {
   async create(req, res) {
@@ -111,6 +113,16 @@ const gameTradeController = {
         })();
       }
 
+      // Notify clients so game state (including property ownership) refreshes
+      if (result?.success) {
+        const trade = await GameTrade.findById(tradeId);
+        if (trade?.game_id) {
+          await invalidateGameById(trade.game_id);
+          const io = req.app.get("io");
+          if (io) await emitGameUpdateByGameId(io, trade.game_id);
+        }
+      }
+
       // On-chain: record property transfers for each property in the trade (fire-and-forget)
       if (result?.success) {
         (async () => {
@@ -120,12 +132,11 @@ const gameTradeController = {
             const chain = game ? User.normalizeChain(game.chain || "CELO") : "CELO";
             if (!isContractConfigured(chain)) return;
             const items = await db("game_trade_items").where({ trade_id: tradeId });
-            const propertyItems = items.filter((i) => i.type === "PROPERTY" || i.property_id);
             const sellerUsername = trade?.from_username ?? null;
             const buyerUsername = trade?.to_username ?? null;
 
-            if (sellerUsername && buyerUsername && propertyItems.length > 0) {
-              for (let i = 0; i < propertyItems.length; i++) {
+            if (sellerUsername && buyerUsername && items.length > 0) {
+              for (let i = 0; i < items.length; i++) {
                 await transferPropertyOwnership(sellerUsername, buyerUsername, chain);
               }
             }

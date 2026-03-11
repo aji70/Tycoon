@@ -1,6 +1,7 @@
 export const safeJsonParse = (str) => {
+  if (str == null || str === "") return [];
+  if (Array.isArray(str)) return str;
   try {
-    if (!str) return [];
     const parsed = JSON.parse(str);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
