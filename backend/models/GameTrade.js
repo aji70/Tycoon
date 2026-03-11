@@ -163,35 +163,38 @@ const GameTrade = {
       if (trade.status !== "PENDING")
         throw new Error("Trade already processed");
 
-      // Fetch trade items
+      // Fetch trade items (game_trade_items has: property_id, player_id = who contributed)
       const items = await trx("game_trade_items").where({ trade_id: tradeId });
 
       for (const item of items) {
-        if (item.type === "PROPERTY") {
-          // Update property ownership
-          await trx("game_properties")
-            .where({
-              game_id: trade.game_id,
-              property_id: item.property_id,
-              player_id: trade.from_player_id, // must currently belong to sender
-            })
-            .update({
-              player_id: trade.to_player_id, // new owner
-              updated_at: trx.fn.now(),
-            });
-        }
+        // Each item is a property: transfer from contributor to the other party
+        const currentOwnerId = item.player_id;
+        const newOwnerId =
+          Number(currentOwnerId) === Number(trade.from_player_id)
+            ? trade.to_player_id
+            : trade.from_player_id;
+        await trx("game_properties")
+          .where({
+            game_id: trade.game_id,
+            property_id: item.property_id,
+            player_id: currentOwnerId,
+          })
+          .update({
+            player_id: newOwnerId,
+            updated_at: trx.fn.now(),
+          });
+      }
 
-        if (item.type === "CASH") {
-          // Deduct from sender
-          await trx("game_players")
-            .where({ id: trade.from_player_id })
-            .decrement("balance", item.amount);
-
-          // Credit to receiver
-          await trx("game_players")
-            .where({ id: trade.to_player_id })
-            .increment("balance", item.amount);
-        }
+      // Cash: game_trades has sending_amount (from gives to to) and receiving_amount (to gives to from)
+      const sending = Number(trade.sending_amount) || 0;
+      const receiving = Number(trade.receiving_amount) || 0;
+      if (sending > 0) {
+        await trx("game_players").where({ id: trade.from_player_id }).decrement("balance", sending);
+        await trx("game_players").where({ id: trade.to_player_id }).increment("balance", sending);
+      }
+      if (receiving > 0) {
+        await trx("game_players").where({ id: trade.to_player_id }).decrement("balance", receiving);
+        await trx("game_players").where({ id: trade.from_player_id }).increment("balance", receiving);
       }
 
       // Mark trade as accepted
