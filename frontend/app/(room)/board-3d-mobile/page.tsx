@@ -1299,6 +1299,7 @@ function Board3DMobileContent() {
       }
       if (data?.requires_buy && data?.property_for_buy) {
         pendingBuyPromptRef.current = true;
+        setBuyPrompted(true);
       } else {
         const square = properties.find((p) => p.id === finalPosition);
         const freshGameProperties = gameProperties;
@@ -1306,7 +1307,10 @@ function Board3DMobileContent() {
         const action = PROPERTY_ACTION(finalPosition);
         const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
         const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-        if (needBuyPrompt) pendingBuyPromptRef.current = true;
+        if (needBuyPrompt) {
+          pendingBuyPromptRef.current = true;
+          setBuyPrompted(true);
+        }
       }
     } catch (err) {
       try {
