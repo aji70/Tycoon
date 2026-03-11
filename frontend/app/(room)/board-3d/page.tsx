@@ -1308,13 +1308,17 @@ function Board3DPageContent() {
       // After a Chance/Community Chest card move, backend may require rent (already applied) or buy prompt
       if (data?.requires_buy && data?.property_for_buy) {
         pendingBuyPromptRef.current = true;
+        setBuyPrompted(true);
       } else {
         const square = properties.find((p) => p.id === finalPosition);
         const isOwned = freshGameProperties.some((gp: GameProperty) => gp.property_id === finalPosition);
         const action = PROPERTY_ACTION(finalPosition);
         const isBuyableType = !!action && ["land", "railway", "utility"].includes(action);
         const needBuyPrompt = !!square && square.price != null && !isOwned && isBuyableType;
-        if (needBuyPrompt) pendingBuyPromptRef.current = true;
+        if (needBuyPrompt) {
+          pendingBuyPromptRef.current = true;
+          setBuyPrompted(true);
+        }
       }
       // Don't call END_TURN here — let the useEffect below handle auto end (matches 2D; avoids turn break on Chance/CC)
     } catch (err) {

@@ -426,7 +426,8 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     setError(null);
     const toastId = toast.loading("Joining the game...");
 
-    if (guestUser) {
+    // Use guest join only when signed in as guest and no wallet connected; wallet users must use wallet flow
+    if (guestUser && !address) {
       if (stakePerPlayer > BigInt(0)) {
         setError("Guests cannot join staked games. Connect a wallet to join this game.");
         actionGuardRef.current = false;

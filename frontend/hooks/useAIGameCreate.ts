@@ -78,7 +78,8 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { caipNetwork } = useAppKitNetwork();
   const board3DUrl = redirectTo3D ? (isMobile ? `/board-3d-mobile?gameCode=` : `/board-3d?gameCode=`) : null;
   const guestAuth = useGuestAuthOptional();
-  const isGuest = !!guestAuth?.guestUser;
+  // Use guest API only when signed in as guest and no wallet connected; wallet users must use wallet flow
+  const isGuest = !!guestAuth?.guestUser && !address;
 
   const { data: username } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
