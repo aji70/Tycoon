@@ -173,9 +173,9 @@ export const GameTradeRequestController = {
       const offer_amount = Number(_offer_amount);
       const requested_amount = Number(_requested_amount);
 
-      // Parse JSON fields (stored as JSON strings in DB)
-      const offeredProps = safeJsonParse(offer_properties);
-      const requestedProps = safeJsonParse(requested_properties);
+      // Parse JSON fields (may be string or already array from JSON column)
+      const offeredProps = (safeJsonParse(offer_properties) || []).map((id) => Number(id)).filter(Boolean);
+      const requestedProps = (safeJsonParse(requested_properties) || []).map((id) => Number(id)).filter(Boolean);
 
       const player = await trx("game_players")
         .where({ game_id, user_id: player_id })
@@ -191,21 +191,19 @@ export const GameTradeRequestController = {
           .json({ success: false, message: "Player(s) not found" });
       }
 
-      // 1️⃣ Exchange properties
+      // 1️⃣ Exchange properties: offeredProps = proposer → acceptor, requestedProps = acceptor → proposer
       if (offeredProps.length > 0) {
         await trx("game_properties")
           .whereIn("property_id", offeredProps)
-          .andWhere({ game_id })
-          .andWhere({ player_id: player.id })
-          .update({ player_id: target_player.id });
+          .andWhere({ game_id, player_id: player.id })
+          .update({ player_id: target_player.id, updated_at: new Date() });
       }
 
       if (requestedProps.length > 0) {
         await trx("game_properties")
           .whereIn("property_id", requestedProps)
-          .andWhere({ game_id })
-          .andWhere({ player_id: target_player.id })
-          .update({ player_id: player.id });
+          .andWhere({ game_id, player_id: target_player.id })
+          .update({ player_id: player.id, updated_at: new Date() });
       }
 
       // 2️⃣ Update balances
