@@ -1017,7 +1017,7 @@ function Board3DPageContent() {
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string } }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; fallbackReason?: string }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
@@ -1038,10 +1038,19 @@ function Board3DPageContent() {
         },
       })
       .then((res) => {
+        const fallbackReason = res?.data?.fallbackReason;
+        if (fallbackReason) {
+          setBuyTipText(fallbackReason);
+          return;
+        }
         const text = res?.data?.data?.reasoning ?? null;
         setBuyTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
       })
-      .catch(() => setBuyTipText(null))
+      .catch((e: unknown) => {
+        const err = e as { response?: { data?: { message?: string; error?: string } }; message?: string };
+        const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? err?.message ?? "Request failed";
+        setBuyTipText(`Error: ${msg}`);
+      })
       .finally(() => setBuyTipLoading(false));
   }, [
     buyTipsOn,

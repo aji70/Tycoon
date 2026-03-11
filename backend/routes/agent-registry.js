@@ -70,12 +70,13 @@ router.post("/decision", async (req, res) => {
     if (decision) {
       return res.json({ success: true, data: decision, useBuiltIn: false });
     }
-    // For tips, always return a fallback so the UI never shows "thinking" then nothing
+    // For tips, return fallback + reason so UI can show error for troubleshooting
     if (decisionType === "tip") {
       return res.json({
         success: true,
         data: { action: "ok", reasoning: "Buy if it completes a set; otherwise save cash.", confidence: 0 },
         useBuiltIn: true,
+        fallbackReason: "No AI decision. Check ANTHROPIC_API_KEY and server logs.",
       });
     }
     res.json({ success: true, data: null, useBuiltIn: true });
