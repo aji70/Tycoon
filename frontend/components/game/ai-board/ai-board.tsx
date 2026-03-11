@@ -17,7 +17,7 @@ import {
   PROPERTY_ACTION,
 } from "@/types/game";
 import { apiClient } from "@/lib/api";
-import { normalizeAiTip } from "@/lib/simplifyAiTip";
+import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
 
 // Child components
 import BoardSquare from "./board-square";
@@ -1176,7 +1176,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       })
       .then((res) => {
         const text = res?.data?.data?.reasoning ?? null;
-        if (text) setAiTipText(normalizeAiTip(text));
+        setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
       })
       .catch(() => setAiTipText(null))
       .finally(() => setAiTipLoading(false));
