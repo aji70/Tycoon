@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
-import { simplifyAiTip } from "@/lib/simplifyAiTip";
+import { normalizeAiTip } from "@/lib/simplifyAiTip";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
@@ -1939,7 +1939,7 @@ function Board3DMobileContent() {
       })
       .then((res) => {
         const text = res?.data?.data?.reasoning ?? null;
-        if (text) setAiTipText(simplifyAiTip(text) ?? text);
+        if (text) setAiTipText(normalizeAiTip(text));
       })
       .catch(() => setAiTipText(null))
       .finally(() => setAiTipLoading(false));
