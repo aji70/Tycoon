@@ -161,7 +161,7 @@ const Board = ({
     const completesMonopoly = groupIds.length > 0 && ownedInGroup === groupIds.length - 1;
     const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[justLandedProperty.id] ?? 99;
     apiClient
-      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean }>("/agent-registry/decision", {
+      .post<{ success?: boolean; data?: { reasoning?: string }; useBuiltIn?: boolean; fallbackReason?: string }>("/agent-registry/decision", {
         gameId: game.id,
         slot: 1,
         decisionType: "tip",
@@ -182,10 +182,19 @@ const Board = ({
         },
       })
       .then((res) => {
+        const fallbackReason = res?.data?.fallbackReason;
+        if (fallbackReason) {
+          setAiTipText(fallbackReason);
+          return;
+        }
         const text = res?.data?.data?.reasoning ?? null;
         setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
       })
-      .catch(() => setAiTipText(null))
+      .catch((e: unknown) => {
+        const err = e as { response?: { data?: { message?: string; error?: string } }; message?: string };
+        const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? err?.message ?? "Request failed";
+        setAiTipText(`Error: ${msg}`);
+      })
       .finally(() => setAiTipLoading(false));
   }, [
     aiTipsOn,
