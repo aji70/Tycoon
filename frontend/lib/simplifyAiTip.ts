@@ -23,6 +23,9 @@ export function simplifyAiTip(raw: string | null | undefined): string | null {
   return cut.trim() + (cut.length < use.length ? "…" : "");
 }
 
+/** Fallback when API returns no tip or invalid content (e.g. "AI"). */
+export const AI_TIP_FALLBACK = "Buy if it completes a set; otherwise save cash.";
+
 /** Returns tip to display: simplified, or raw if valid, or null (e.g. rejects "AI"). */
 export function normalizeAiTip(raw: string | null | undefined): string | null {
   const simplified = simplifyAiTip(raw);

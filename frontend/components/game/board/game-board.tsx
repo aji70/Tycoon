@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { normalizeAiTip } from "@/lib/simplifyAiTip";
+import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import BoardSquare from "./board-square";
 import CenterArea from "./center-area";
@@ -183,7 +183,7 @@ const Board = ({
       })
       .then((res) => {
         const text = res?.data?.data?.reasoning ?? null;
-        if (text) setAiTipText(normalizeAiTip(text));
+        setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
       })
       .catch(() => setAiTipText(null))
       .finally(() => setAiTipLoading(false));
