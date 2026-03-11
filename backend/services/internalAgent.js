@@ -123,9 +123,9 @@ function buildTipPrompt(context) {
       "Keep $500+ cash if possible; avoid buying if balance after would be under $300.",
       "Railroads/utilities: lower priority unless completing set.",
     ].join(" ");
-    return `Monopoly: human landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Rules: ${strategyNote} Give ONE short tip in plain language. Be specific: say "Buy — completes set" or "Skip — save cash" or "Good value — strong property" or "Risky — would leave you under $300". One sentence, max 12 words. No jargon. JSON only: {"action":"ok","reasoning":"your one-sentence tip"}`;
+    return `Monopoly: human landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Rules: ${strategyNote} Give ONE short tip in plain language. Be specific: say "Buy — completes set" or "Skip — save cash" or "Good value — strong property" or "Risky — would leave you under $300". One sentence, max 12 words. No jargon. Put the actual tip text in reasoning, not the word "AI". JSON only: {"action":"ok","reasoning":"your one-sentence tip"}`;
   }
-  return `Monopoly turn. Balance: $${myBalance}. One short encouraging tip, one sentence, simple words. JSON only: {"action":"ok","reasoning":"tip"}`;
+  return `Monopoly turn. Balance: $${myBalance}. One short encouraging tip, one sentence, simple words. Put the actual tip in reasoning, not "AI". JSON only: {"action":"ok","reasoning":"tip"}`;
 }
 
 /**
@@ -201,9 +201,16 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
       .join("\n");
   const parsed = parseJsonResponse(text, fallback);
 
+  let reasoning = parsed.reasoning ?? fallback.reasoning;
+  // Tip: reject non-tip content (e.g. model returning "AI" or a label)
+  if (decisionType === "tip") {
+    const r = (reasoning && String(reasoning).trim()) || "";
+    if (r.length < 4 || /^\s*AI\s*$/i.test(r)) reasoning = fallback.reasoning;
+  }
+
   const out = {
     action: String(parsed.action || fallback.action).toLowerCase(),
-    reasoning: parsed.reasoning ?? fallback.reasoning,
+    reasoning,
     confidence: Number(parsed.confidence) ?? fallback.confidence,
   };
   if (parsed.propertyId != null) out.propertyId = Number(parsed.propertyId);

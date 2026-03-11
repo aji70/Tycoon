@@ -8,6 +8,8 @@ export function simplifyAiTip(raw: string | null | undefined): string | null {
   if (raw == null || typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
+  // Reject non-tip content (e.g. API returning "AI" or a label)
+  if (/^\s*AI\s*$/i.test(trimmed) || trimmed.length < 4) return null;
 
   const firstSentence = trimmed
     .split(/[.!?]+/)[0]
@@ -19,4 +21,14 @@ export function simplifyAiTip(raw: string | null | undefined): string | null {
   const at = use.lastIndexOf(" ", MAX_TIP_LENGTH);
   const cut = at > 40 ? use.slice(0, at) : use.slice(0, MAX_TIP_LENGTH);
   return cut.trim() + (cut.length < use.length ? "…" : "");
+}
+
+/** Returns tip to display: simplified, or raw if valid, or null (e.g. rejects "AI"). */
+export function normalizeAiTip(raw: string | null | undefined): string | null {
+  const simplified = simplifyAiTip(raw);
+  if (simplified != null) return simplified;
+  if (raw == null || typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (trimmed.length < 4 || /^\s*AI\s*$/i.test(trimmed)) return null;
+  return trimmed;
 }
