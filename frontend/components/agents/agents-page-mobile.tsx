@@ -74,6 +74,7 @@ export default function AgentsPageMobile() {
   const { verifyAgentId, isCelo, getAgentIdOwnedByAddress } = useVerifyErc8004AgentId();
   const [verifyingErc8004, setVerifyingErc8004] = useState(false);
   const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; isOwner?: boolean; error?: string } | null>(null);
+  const [erc8004LoadState, setErc8004LoadState] = useState<null | "loading" | "has_one" | "has_none">(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
 
   const fetchAgents = React.useCallback(async () => {
@@ -109,20 +110,31 @@ export default function AgentsPageMobile() {
     fetchAgents();
   }, [fetchAgents]);
 
-  // Auto-fill ERC-8004 Agent ID if the connected wallet owns one on Celo
+  // On form load: check if the connected wallet has an ERC-8004 agent on Celo; fill if yes, else show Create CTA
   React.useEffect(() => {
-    if (!showForm || formErc8004Id.trim() || !address || !isCelo || !getAgentIdOwnedByAddress) return;
+    if (!showForm || !address || !isCelo || !getAgentIdOwnedByAddress) {
+      if (!showForm) setErc8004LoadState(null);
+      return;
+    }
+    if (formErc8004Id.trim()) return;
     let cancelled = false;
+    setErc8004LoadState("loading");
     getAgentIdOwnedByAddress(address)
       .then((id) => {
-        if (cancelled || id == null) return;
-        setFormErc8004Id(String(id));
-        setErc8004VerifyResult({ valid: true, isOwner: true });
-        toast.info("Filled with your ERC-8004 agent ID");
+        if (cancelled) return;
+        if (id != null) {
+          setFormErc8004Id(String(id));
+          setErc8004VerifyResult({ valid: true, isOwner: true });
+          setErc8004LoadState("has_one");
+        } else {
+          setErc8004LoadState("has_none");
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setErc8004LoadState(null);
+      });
     return () => { cancelled = true; };
-  }, [showForm, formErc8004Id, address, isCelo, getAgentIdOwnedByAddress]);
+  }, [showForm, address, isCelo, getAgentIdOwnedByAddress, formErc8004Id]);
 
   React.useEffect(() => {
     if (!authFailed || !isConnected || !address) return;
@@ -178,6 +190,7 @@ export default function AgentsPageMobile() {
     setFormHostingType("tycoon");
     setFormSkill("");
     setErc8004VerifyResult(null);
+    setErc8004LoadState(null);
   };
 
   const openEdit = (a: UserAgent) => {
@@ -634,6 +647,15 @@ export default function AgentsPageMobile() {
                   {!editingId && (
                     <p className="text-xs text-cyan-400/80 mb-1.5">Save the agent first, then use Create on Celo to get an on-chain ID.</p>
                   )}
+                  {erc8004LoadState === "loading" && (
+                    <p className="text-xs text-cyan-400/80 mb-1.5 flex items-center gap-1.5">
+                      <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                      Checking Celo…
+                    </p>
+                  )}
+                  {erc8004LoadState === "has_none" && !formErc8004Id.trim() && (
+                    <p className="text-xs text-amber-400/90 mb-1.5">You don’t have an ERC-8004 agent on Celo. Use <strong>Create on Celo</strong> to get one.</p>
+                  )}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -642,7 +664,7 @@ export default function AgentsPageMobile() {
                         setFormErc8004Id(e.target.value);
                         setErc8004VerifyResult(null);
                       }}
-                      placeholder="e.g. 12345 or create on Celo"
+                      placeholder={erc8004LoadState === "has_none" ? "Create on Celo to get an ID" : "e.g. 12345 or create on Celo"}
                       className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
                     />
                     <button
@@ -655,6 +677,7 @@ export default function AgentsPageMobile() {
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                       Create on Celo
                     </button>
+                    {!(erc8004LoadState === "has_none" && !formErc8004Id.trim()) && (
                     <button
                       type="button"
                       onClick={async () => {
@@ -681,6 +704,7 @@ export default function AgentsPageMobile() {
                       {verifyingErc8004 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
                       Verify
                     </button>
+                    )}
                   </div>
                   {erc8004VerifyResult && (
                     <div className={`mt-1.5 flex items-start gap-1.5 text-xs ${erc8004VerifyResult.valid ? (erc8004VerifyResult.isOwner ? "text-emerald-400" : "text-amber-400") : "text-amber-400"}`}>
