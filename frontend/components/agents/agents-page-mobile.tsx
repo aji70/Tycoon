@@ -271,6 +271,38 @@ export default function AgentsPageMobile() {
     }
   };
 
+  const handleCreateOnCeloFromForm = async () => {
+    if (!editingId) {
+      toast.info("Save the agent first, then use Create on Celo to get an ERC-8004 ID.");
+      return;
+    }
+    if (!isCelo) {
+      toast.error("Switch to Celo to create an ERC-8004 agent");
+      return;
+    }
+    if (formErc8004Id.trim()) {
+      toast.info("Clear the ID field first if you want to create a new one on Celo.");
+      return;
+    }
+    setRegisteringErc8004Id(editingId);
+    try {
+      const newAgentId = await registerOnCelo(editingId);
+      if (newAgentId != null) {
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, { erc8004_agent_id: String(newAgentId) });
+        setFormErc8004Id(String(newAgentId));
+        setErc8004VerifyResult({ valid: true, isOwner: true });
+        toast.success(`Created on Celo. ID: ${newAgentId}`);
+        await fetchAgents();
+      } else {
+        toast.error("Registration succeeded but could not read agent ID");
+      }
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message ?? "Registration failed");
+    } finally {
+      setRegisteringErc8004Id(null);
+    }
+  };
+
   if (authFailed) {
     const hasWallet = isConnected && !!address;
     if (hasWallet && !walletNotRegistered) {
@@ -584,6 +616,9 @@ export default function AgentsPageMobile() {
                 </div>
                 <div>
                   <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">ERC-8004 ID (optional)</label>
+                  {!editingId && (
+                    <p className="text-xs text-cyan-400/80 mb-1.5">Save the agent first, then use Create on Celo to get an on-chain ID.</p>
+                  )}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -592,9 +627,19 @@ export default function AgentsPageMobile() {
                         setFormErc8004Id(e.target.value);
                         setErc8004VerifyResult(null);
                       }}
-                      placeholder="e.g. 12345"
-                      className="flex-1 px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
+                      placeholder="e.g. 12345 or create on Celo"
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
                     />
+                    <button
+                      type="button"
+                      onClick={handleCreateOnCeloFromForm}
+                      disabled={isRegisteringErc8004 || !editingId || !isCelo}
+                      title={!editingId ? "Save first" : !isCelo ? "Switch to Celo" : "Create ERC-8004 ID (you pay gas)"}
+                      className="shrink-0 px-3 py-2.5 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-xs flex items-center gap-1"
+                    >
+                      {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      Create on Celo
+                    </button>
                     <button
                       type="button"
                       onClick={async () => {
