@@ -120,21 +120,32 @@ export default function AgentsPageMobile() {
     let cancelled = false;
     setErc8004LoadState("loading");
     getAgentIdOwnedByAddress(address)
-      .then((id) => {
+      .then(async (id) => {
         if (cancelled) return;
         if (id != null) {
           setFormErc8004Id(String(id));
           setErc8004VerifyResult({ valid: true, isOwner: true });
           setErc8004LoadState("has_one");
-        } else {
-          setErc8004LoadState("has_none");
+          return;
         }
+        // Registry may not support enumeration. Fallback: use agent's known ERC-8004 IDs and verify ownership.
+        const withId = agents.find((a) => a.erc8004_agent_id && String(a.erc8004_agent_id).trim());
+        if (withId?.erc8004_agent_id) {
+          const result = await verifyAgentId(String(withId.erc8004_agent_id), address);
+          if (!cancelled && result.valid && result.isOwner) {
+            setFormErc8004Id(String(withId.erc8004_agent_id));
+            setErc8004VerifyResult({ valid: true, isOwner: true });
+            setErc8004LoadState("has_one");
+            return;
+          }
+        }
+        if (!cancelled) setErc8004LoadState("has_none");
       })
       .catch(() => {
         if (!cancelled) setErc8004LoadState(null);
       });
     return () => { cancelled = true; };
-  }, [showForm, address, isCelo, getAgentIdOwnedByAddress, formErc8004Id]);
+  }, [showForm, address, isCelo, getAgentIdOwnedByAddress, verifyAgentId, agents, formErc8004Id]);
 
   React.useEffect(() => {
     if (!authFailed || !isConnected || !address) return;
