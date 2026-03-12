@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
@@ -343,12 +343,12 @@ export default function AgentsPageMobile() {
         <div className="flex justify-between items-center mb-6">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 text-cyan-400 text-sm"
+            className="flex items-center gap-2 text-cyan-400 text-sm font-orbitron font-semibold uppercase tracking-wider"
           >
             <House className="w-4 h-4" />
-            <span className="font-bold">BACK</span>
+            BACK
           </button>
-          <h1 className="text-xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-xl font-orbitron font-extrabold bg-gradient-to-r from-cyan-400 via-cyan-300 to-purple-500 bg-clip-text text-transparent">
             MY AGENTS
           </h1>
           <div className="w-14" />
@@ -370,15 +370,16 @@ export default function AgentsPageMobile() {
           <>
             <div className="space-y-3 mb-6">
               {agents.length === 0 && !showForm && (
-                <div className="bg-black/60 rounded-xl border border-cyan-500/30 p-6 text-center text-gray-400 text-sm">
+                <div className="bg-gradient-to-b from-slate-900/60 to-black/60 rounded-xl border-2 border-dashed border-cyan-500/30 p-6 text-center text-gray-400 text-sm">
                   <Bot className="w-10 h-10 text-cyan-500/50 mx-auto mb-2" />
-                  <p>No agents yet.</p>
+                  <p className="font-orbitron text-cyan-400/80">No agents yet.</p>
+                  <p className="mt-0.5">Create one to use in Play vs AI.</p>
                 </div>
               )}
               {agents.map((a) => (
                 <div
                   key={a.id}
-                  className="bg-black/60 rounded-xl border border-cyan-500/30 p-3 flex items-center justify-between gap-3"
+                  className="bg-gradient-to-b from-slate-900/80 to-black/80 rounded-xl border-2 border-cyan-500/30 p-3 flex items-center justify-between gap-3"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white text-sm truncate">{a.name}</p>
@@ -444,56 +445,119 @@ export default function AgentsPageMobile() {
             </div>
 
             {showForm ? (
-              <form onSubmit={handleSubmit} className="bg-black/60 rounded-xl border border-cyan-500/30 p-4 space-y-3 mb-6">
-                <h3 className="text-sm font-bold text-cyan-300">{editingId ? "Edit" : "New agent"}</h3>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Name *"
-                  className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
-                  required
-                />
+              <form onSubmit={handleSubmit} className="bg-gradient-to-b from-slate-900/95 to-black/95 rounded-xl border-2 border-cyan-500/50 shadow-[0_0_20px_rgba(0,240,255,0.12)] p-4 space-y-4 mb-6">
+                <h3 className="text-sm font-orbitron font-bold text-cyan-300 tracking-wide uppercase">
+                  {editingId ? "Edit agent" : "New agent"}
+                </h3>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-0.5">How it runs</label>
-                  <select
-                    value={formHostingType}
-                    onChange={(e) => setFormHostingType(e.target.value as HostingType)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
-                  >
-                    <option value="tycoon">Tycoon-hosted</option>
-                    <option value="my_key">My API key</option>
-                    <option value="my_url">My URL</option>
-                  </select>
+                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="My Tycoon Bot"
+                    className="w-full px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-2">How it runs</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormHostingType("tycoon")}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                        formHostingType === "tycoon"
+                          ? "border-cyan-400 bg-cyan-500/20 shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+                          : "border-cyan-500/30 bg-black/40"
+                      }`}
+                    >
+                      <Server className={`w-6 h-6 shrink-0 ${formHostingType === "tycoon" ? "text-cyan-400" : "text-cyan-500/70"}`} />
+                      <div className="min-w-0">
+                        <span className={`font-orbitron font-semibold text-sm block ${formHostingType === "tycoon" ? "text-cyan-300" : "text-gray-300"}`}>
+                          Tycoon-hosted
+                        </span>
+                        <span className="text-xs text-gray-500">We run the AI — no setup</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormHostingType("my_key")}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                        formHostingType === "my_key"
+                          ? "border-cyan-400 bg-cyan-500/20 shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+                          : "border-cyan-500/30 bg-black/40"
+                      }`}
+                    >
+                      <Key className={`w-6 h-6 shrink-0 ${formHostingType === "my_key" ? "text-cyan-400" : "text-cyan-500/70"}`} />
+                      <div className="min-w-0">
+                        <span className={`font-orbitron font-semibold text-sm block ${formHostingType === "my_key" ? "text-cyan-300" : "text-gray-300"}`}>
+                          My API key
+                        </span>
+                        <span className="text-xs text-gray-500">Save your key, we call Claude</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormHostingType("my_url")}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                        formHostingType === "my_url"
+                          ? "border-cyan-400 bg-cyan-500/20 shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+                          : "border-cyan-500/30 bg-black/40"
+                      }`}
+                    >
+                      <Link2 className={`w-6 h-6 shrink-0 ${formHostingType === "my_url" ? "text-cyan-400" : "text-cyan-500/70"}`} />
+                      <div className="min-w-0">
+                        <span className={`font-orbitron font-semibold text-sm block ${formHostingType === "my_url" ? "text-cyan-300" : "text-gray-300"}`}>
+                          My URL
+                        </span>
+                        <span className="text-xs text-gray-500">Your server or tunnel</span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
                 {formHostingType === "my_url" && (
-                  <input
-                    type="url"
-                    value={formCallbackUrl}
-                    onChange={(e) => setFormCallbackUrl(e.target.value)}
-                    placeholder="Callback URL *"
-                    className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
-                  />
+                  <div>
+                    <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">Callback URL *</label>
+                    <input
+                      type="url"
+                      value={formCallbackUrl}
+                      onChange={(e) => setFormCallbackUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
+                    />
+                  </div>
                 )}
                 {formHostingType === "my_key" && (
-                  <div>
-                    <select
-                      value={formProvider}
-                      onChange={(e) => setFormProvider(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
+                  <div className="space-y-2">
+                    <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90">Provider</label>
+                    <button
+                      type="button"
+                      onClick={() => setFormProvider("anthropic")}
+                      className={`flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border-2 text-left ${
+                        formProvider === "anthropic"
+                          ? "border-purple-400 bg-purple-500/20"
+                          : "border-cyan-500/30 bg-black/40"
+                      }`}
                     >
-                      <option value="anthropic">Claude (Anthropic)</option>
-                    </select>
-                    <input
-                      type="password"
-                      value={formApiKey}
-                      onChange={(e) => setFormApiKey(e.target.value)}
-                      placeholder={editingId ? "Leave blank to keep" : "API key *"}
-                      className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm mt-1"
-                      autoComplete="off"
-                    />
+                      <Bot className={formProvider === "anthropic" ? "text-purple-400" : "text-gray-500"} />
+                      <span className={`font-orbitron font-semibold text-sm ${formProvider === "anthropic" ? "text-purple-300" : "text-gray-400"}`}>
+                        Claude (Anthropic)
+                      </span>
+                    </button>
+                    <div>
+                      <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">API key *</label>
+                      <input
+                        type="password"
+                        value={formApiKey}
+                        onChange={(e) => setFormApiKey(e.target.value)}
+                        placeholder={editingId ? "Leave blank to keep" : "Paste API key"}
+                        className="w-full px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
+                        autoComplete="off"
+                      />
+                    </div>
                     {editingId && (
-                      <label className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                      <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={formClearApiKey}
@@ -506,27 +570,30 @@ export default function AgentsPageMobile() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-xs text-gray-400 mb-0.5">Skill (optional)</label>
+                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">Skill (optional)</label>
                   <textarea
                     value={formSkill}
                     onChange={(e) => setFormSkill(e.target.value)}
                     placeholder="How should the AI play?"
                     rows={2}
-                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
+                    className="w-full px-3 py-2 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
                   />
                 </div>
-                <input
-                  type="text"
-                  value={formErc8004Id}
-                  onChange={(e) => setFormErc8004Id(e.target.value)}
-                  placeholder="ERC-8004 ID (optional)"
-                  className="w-full px-3 py-2.5 rounded-lg bg-black/60 border border-cyan-500/40 text-white text-sm"
-                />
-                <div className="flex gap-2">
+                <div>
+                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">ERC-8004 ID (optional)</label>
+                  <input
+                    type="text"
+                    value={formErc8004Id}
+                    onChange={(e) => setFormErc8004Id(e.target.value)}
+                    placeholder="From Celo / agentscan"
+                    className="w-full px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 py-2.5 bg-[#00F0FF] text-[#010F10] font-bold rounded-lg text-sm flex items-center justify-center gap-1"
+                    className="flex-1 py-2.5 bg-[#00F0FF] text-[#010F10] font-orbitron font-bold rounded-xl text-sm flex items-center justify-center gap-1 border-2 border-[#00F0FF]/50"
                   >
                     {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {editingId ? "Update" : "Create"}
@@ -534,7 +601,7 @@ export default function AgentsPageMobile() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-4 py-2.5 rounded-lg border border-gray-500 text-gray-400 text-sm"
+                    className="px-4 py-2.5 rounded-xl border-2 border-gray-500/60 text-gray-400 text-sm font-orbitron"
                   >
                     Cancel
                   </button>
@@ -543,7 +610,7 @@ export default function AgentsPageMobile() {
             ) : (
               <button
                 onClick={() => setShowForm(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-cyan-500/50 text-cyan-400 text-sm"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-cyan-500/50 text-cyan-400 text-sm font-orbitron font-semibold hover:border-cyan-400 hover:bg-cyan-500/10"
               >
                 <Plus className="w-4 h-4" />
                 Create agent
