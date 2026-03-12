@@ -3,12 +3,12 @@
 import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2 } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useRegisterAgentERC8004 } from "@/context/ContractProvider";
+import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -74,7 +74,9 @@ export default function AgentsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
-  const isCelo = chainId === 42220 || chainId === 44787;
+  const { verifyAgentId, isCelo } = useVerifyErc8004AgentId();
+  const [verifyingErc8004, setVerifyingErc8004] = useState(false);
+  const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; error?: string } | null>(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
   const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
   const [usdcTxHash, setUsdcTxHash] = useState("");
@@ -235,6 +237,7 @@ export default function AgentsPage() {
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
     setFormSkill("");
+    setErc8004VerifyResult(null);
   };
 
   const openEdit = (a: UserAgent) => {
@@ -712,13 +715,58 @@ export default function AgentsPage() {
 
                 <div>
                   <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-2">ERC-8004 Agent ID (optional)</label>
-                  <input
-                    type="text"
-                    value={formErc8004Id}
-                    onChange={(e) => setFormErc8004Id(e.target.value)}
-                    placeholder="From Celo / agentscan"
-                    className="w-full px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formErc8004Id}
+                      onChange={(e) => {
+                        setFormErc8004Id(e.target.value);
+                        setErc8004VerifyResult(null);
+                      }}
+                      placeholder="e.g. 12345 — from Celo / 8004scan"
+                      className="flex-1 px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!formErc8004Id.trim()) {
+                          toast.error("Enter an agent ID to verify");
+                          return;
+                        }
+                        setVerifyingErc8004(true);
+                        setErc8004VerifyResult(null);
+                        try {
+                          const result = await verifyAgentId(formErc8004Id);
+                          setErc8004VerifyResult(result);
+                          if (result.valid) toast.success("ERC-8004 ID verified on Celo");
+                          else toast.error(result.error ?? "Verification failed");
+                        } finally {
+                          setVerifyingErc8004(false);
+                        }
+                      }}
+                      disabled={verifyingErc8004 || !formErc8004Id.trim()}
+                      className="shrink-0 px-4 py-3 rounded-xl border-2 border-purple-500/50 bg-purple-500/10 text-purple-300 font-orbitron font-semibold text-sm hover:bg-purple-500/20 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {verifyingErc8004 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      Verify
+                    </button>
+                  </div>
+                  {erc8004VerifyResult && (
+                    <div className={`mt-2 flex items-center gap-2 text-sm ${erc8004VerifyResult.valid ? "text-emerald-400" : "text-amber-400"}`}>
+                      {erc8004VerifyResult.valid ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>Verified on Celo — this agent ID is registered on-chain.</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 shrink-0" />
+                          <span>{erc8004VerifyResult.error}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">Verify that an ID exists on the ERC-8004 Identity Registry (Celo).</p>
                 </div>
 
                 <div className="flex gap-3 pt-2">

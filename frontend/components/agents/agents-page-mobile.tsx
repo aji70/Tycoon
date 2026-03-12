@@ -3,12 +3,12 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2 } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useRegisterAgentERC8004 } from "@/context/ContractProvider";
+import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -71,7 +71,9 @@ export default function AgentsPageMobile() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
-  const isCelo = chainId === 42220 || chainId === 44787;
+  const { verifyAgentId, isCelo } = useVerifyErc8004AgentId();
+  const [verifyingErc8004, setVerifyingErc8004] = useState(false);
+  const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; error?: string } | null>(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
 
   const fetchAgents = React.useCallback(async () => {
@@ -160,6 +162,7 @@ export default function AgentsPageMobile() {
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
     setFormSkill("");
+    setErc8004VerifyResult(null);
   };
 
   const openEdit = (a: UserAgent) => {
@@ -581,13 +584,57 @@ export default function AgentsPageMobile() {
                 </div>
                 <div>
                   <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">ERC-8004 ID (optional)</label>
-                  <input
-                    type="text"
-                    value={formErc8004Id}
-                    onChange={(e) => setFormErc8004Id(e.target.value)}
-                    placeholder="From Celo / agentscan"
-                    className="w-full px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formErc8004Id}
+                      onChange={(e) => {
+                        setFormErc8004Id(e.target.value);
+                        setErc8004VerifyResult(null);
+                      }}
+                      placeholder="e.g. 12345"
+                      className="flex-1 px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!formErc8004Id.trim()) {
+                          toast.error("Enter an agent ID to verify");
+                          return;
+                        }
+                        setVerifyingErc8004(true);
+                        setErc8004VerifyResult(null);
+                        try {
+                          const result = await verifyAgentId(formErc8004Id);
+                          setErc8004VerifyResult(result);
+                          if (result.valid) toast.success("Verified on Celo");
+                          else toast.error(result.error ?? "Verification failed");
+                        } finally {
+                          setVerifyingErc8004(false);
+                        }
+                      }}
+                      disabled={verifyingErc8004 || !formErc8004Id.trim()}
+                      className="shrink-0 px-3 py-2.5 rounded-xl border-2 border-purple-500/50 bg-purple-500/10 text-purple-300 font-orbitron font-semibold text-xs flex items-center gap-1"
+                    >
+                      {verifyingErc8004 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                      Verify
+                    </button>
+                  </div>
+                  {erc8004VerifyResult && (
+                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${erc8004VerifyResult.valid ? "text-emerald-400" : "text-amber-400"}`}>
+                      {erc8004VerifyResult.valid ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>Verified on Celo</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{erc8004VerifyResult.error}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button

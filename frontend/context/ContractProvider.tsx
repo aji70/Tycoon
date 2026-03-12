@@ -589,6 +589,42 @@ export function useRegisterAgentERC8004() {
   return { register, isPending, error: writeError, reset };
 }
 
+/**
+ * Verify an ERC-8004 agent ID by reading ownerOf from the Identity Registry (ERC-721).
+ * Only works when connected to Celo (42220) or Alfajores (44787).
+ */
+export function useVerifyErc8004AgentId() {
+  const chainId = useChainId();
+  const publicClient = usePublicClient();
+  const isCelo = chainId === 42220 || chainId === 44787;
+
+  const verifyAgentId = useCallback(
+    async (agentIdStr: string): Promise<{ valid: boolean; error?: string }> => {
+      const trimmed = String(agentIdStr).trim();
+      if (!trimmed) return { valid: false, error: 'Enter an agent ID' };
+      const id = Number(trimmed);
+      if (!Number.isInteger(id) || id < 1) return { valid: false, error: 'Invalid ID (must be a positive integer)' };
+      if (!isCelo) return { valid: false, error: 'Switch to Celo to verify' };
+      if (!publicClient || !ERC8004_IDENTITY_REGISTRY_ADDRESS) return { valid: false, error: 'Cannot verify' };
+      try {
+        const owner = await publicClient.readContract({
+          address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+          abi: ERC8004IdentityABI as never,
+          functionName: 'ownerOf',
+          args: [BigInt(id)],
+        });
+        const valid = !!owner && owner !== '0x0000000000000000000000000000000000000000';
+        return valid ? { valid: true } : { valid: false, error: 'Agent not found' };
+      } catch {
+        return { valid: false, error: 'Agent not found or invalid ID' };
+      }
+    },
+    [publicClient, isCelo]
+  );
+
+  return { verifyAgentId, isCelo };
+}
+
 export function useExitGame(gameId: bigint) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
