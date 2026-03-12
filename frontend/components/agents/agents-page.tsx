@@ -74,7 +74,7 @@ export default function AgentsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
-  const { verifyAgentId, isCelo } = useVerifyErc8004AgentId();
+  const { verifyAgentId, isCelo, getAgentIdOwnedByAddress } = useVerifyErc8004AgentId();
   const [verifyingErc8004, setVerifyingErc8004] = useState(false);
   const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; isOwner?: boolean; error?: string } | null>(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
@@ -131,6 +131,21 @@ export default function AgentsPage() {
       })
       .catch(() => {});
   }, [fetchAgents, router, searchParams]);
+
+  // Auto-fill ERC-8004 Agent ID if the connected wallet owns one on Celo
+  React.useEffect(() => {
+    if (!showForm || formErc8004Id.trim() || !address || !isCelo || !getAgentIdOwnedByAddress) return;
+    let cancelled = false;
+    getAgentIdOwnedByAddress(address)
+      .then((id) => {
+        if (cancelled || id == null) return;
+        setFormErc8004Id(String(id));
+        setErc8004VerifyResult({ valid: true, isOwner: true });
+        toast.info("Filled with your ERC-8004 agent ID from Celo");
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showForm, formErc8004Id, address, isCelo, getAgentIdOwnedByAddress]);
 
   const handlePurchaseUsdc = async () => {
     if (!usdcTxHash.trim()) {

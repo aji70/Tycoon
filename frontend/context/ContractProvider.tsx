@@ -637,7 +637,33 @@ export function useVerifyErc8004AgentId() {
     [publicClient, isCelo]
   );
 
-  return { verifyAgentId, isCelo };
+  /** Get the first ERC-8004 agent ID owned by the given address (if registry supports enumeration). */
+  const getAgentIdOwnedByAddress = useCallback(
+    async (ownerAddress: string): Promise<number | null> => {
+      if (!ownerAddress || !isCelo || !publicClient || !ERC8004_IDENTITY_REGISTRY_ADDRESS) return null;
+      try {
+        const balance = await publicClient.readContract({
+          address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+          abi: ERC8004IdentityABI as never,
+          functionName: 'balanceOf',
+          args: [ownerAddress as Address],
+        });
+        if (balance == null || Number(balance) < 1) return null;
+        const tokenId = await publicClient.readContract({
+          address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
+          abi: ERC8004IdentityABI as never,
+          functionName: 'tokenOfOwnerByIndex',
+          args: [ownerAddress as Address, 0n],
+        });
+        return tokenId != null ? Number(tokenId) : null;
+      } catch {
+        return null;
+      }
+    },
+    [publicClient, isCelo]
+  );
+
+  return { verifyAgentId, isCelo, getAgentIdOwnedByAddress };
 }
 
 export function useExitGame(gameId: bigint) {
