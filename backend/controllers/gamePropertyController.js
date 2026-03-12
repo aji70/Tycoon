@@ -255,7 +255,7 @@ const gamePropertyController = {
         const buyerUsername = (await db("users").where({ id: player.user_id }).select("username").first())?.username ?? null;
         if (buyerUsername) {
           transferPropertyOwnership("Bank", buyerUsername, chainForBuy).catch((err) => {
-            logger.warn({ err, buyerUsername }, "Tycoon transferPropertyOwnership failed (buy from bank)");
+             logger.warn({ err, buyerUsername }, "Tycoon transferPropertyOwnership failed (buy from bank)");
           });
         }
       }
