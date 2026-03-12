@@ -77,6 +77,8 @@ export default function AgentsPage() {
   const { verifyAgentId, isCelo, getAgentIdOwnedByAddress } = useVerifyErc8004AgentId();
   const [verifyingErc8004, setVerifyingErc8004] = useState(false);
   const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; isOwner?: boolean; error?: string } | null>(null);
+  /** Result of on-load check: null = not run, 'loading', 'has_one' (we filled), 'has_none' (show Create CTA) */
+  const [erc8004LoadState, setErc8004LoadState] = useState<null | "loading" | "has_one" | "has_none">(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
   const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
   const [usdcTxHash, setUsdcTxHash] = useState("");
@@ -132,20 +134,31 @@ export default function AgentsPage() {
       .catch(() => {});
   }, [fetchAgents, router, searchParams]);
 
-  // Auto-fill ERC-8004 Agent ID if the connected wallet owns one on Celo
+  // On form load: check if the connected wallet has an ERC-8004 agent on Celo; fill if yes, else show Create CTA
   React.useEffect(() => {
-    if (!showForm || formErc8004Id.trim() || !address || !isCelo || !getAgentIdOwnedByAddress) return;
+    if (!showForm || !address || !isCelo || !getAgentIdOwnedByAddress) {
+      if (!showForm) setErc8004LoadState(null);
+      return;
+    }
+    if (formErc8004Id.trim()) return; // already have a value (e.g. from edit or previous fill)
     let cancelled = false;
+    setErc8004LoadState("loading");
     getAgentIdOwnedByAddress(address)
       .then((id) => {
-        if (cancelled || id == null) return;
-        setFormErc8004Id(String(id));
-        setErc8004VerifyResult({ valid: true, isOwner: true });
-        toast.info("Filled with your ERC-8004 agent ID from Celo");
+        if (cancelled) return;
+        if (id != null) {
+          setFormErc8004Id(String(id));
+          setErc8004VerifyResult({ valid: true, isOwner: true });
+          setErc8004LoadState("has_one");
+        } else {
+          setErc8004LoadState("has_none");
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setErc8004LoadState(null);
+      });
     return () => { cancelled = true; };
-  }, [showForm, formErc8004Id, address, isCelo, getAgentIdOwnedByAddress]);
+  }, [showForm, address, isCelo, getAgentIdOwnedByAddress, formErc8004Id]);
 
   const handlePurchaseUsdc = async () => {
     if (!usdcTxHash.trim()) {
@@ -253,6 +266,7 @@ export default function AgentsPage() {
     setFormHostingType("tycoon");
     setFormSkill("");
     setErc8004VerifyResult(null);
+    setErc8004LoadState(null);
   };
 
   const openEdit = (a: UserAgent) => {
@@ -767,6 +781,15 @@ export default function AgentsPage() {
                   {!editingId && (
                     <p className="text-xs text-cyan-400/80 mb-2">Save this agent first, then use <strong>Create on Celo</strong> below to get an on-chain ERC-8004 ID (you pay gas).</p>
                   )}
+                  {erc8004LoadState === "loading" && (
+                    <p className="text-xs text-cyan-400/80 mb-2 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      Checking Celo for your agent…
+                    </p>
+                  )}
+                  {erc8004LoadState === "has_none" && !formErc8004Id.trim() && (
+                    <p className="text-xs text-amber-400/90 mb-2">You don’t have an ERC-8004 agent on Celo. Use <strong>Create on Celo</strong> to get one (you pay gas).</p>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <input
                       type="text"
@@ -775,7 +798,7 @@ export default function AgentsPage() {
                         setFormErc8004Id(e.target.value);
                         setErc8004VerifyResult(null);
                       }}
-                      placeholder="e.g. 12345 — or create one on Celo"
+                      placeholder={erc8004LoadState === "has_none" ? "Create on Celo to get an ID" : "e.g. 12345 — or create one on Celo"}
                       className="flex-1 min-w-[140px] px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none"
                     />
                     <button
@@ -788,6 +811,7 @@ export default function AgentsPage() {
                       {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                       Create on Celo
                     </button>
+                    {!(erc8004LoadState === "has_none" && !formErc8004Id.trim()) && (
                     <button
                       type="button"
                       onClick={async () => {
@@ -814,6 +838,7 @@ export default function AgentsPage() {
                       {verifyingErc8004 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                       Verify
                     </button>
+                    )}
                   </div>
                   {erc8004VerifyResult && (
                     <div className={`mt-2 flex items-start gap-2 text-sm ${erc8004VerifyResult.valid ? (erc8004VerifyResult.isOwner ? "text-emerald-400" : "text-amber-400") : "text-amber-400"}`}>
@@ -837,7 +862,11 @@ export default function AgentsPage() {
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">Create on Celo to mint a new ERC-8004 ID (your wallet pays gas). Or paste an existing ID and Verify ownership.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {erc8004LoadState === "has_none" && !formErc8004Id.trim()
+                      ? "Create on Celo to mint a new ERC-8004 ID (your wallet pays gas)."
+                      : "Create on Celo to mint a new ID, or paste an existing ID and Verify ownership."}
+                  </p>
                 </div>
 
                 <div className="flex gap-3 pt-2">
