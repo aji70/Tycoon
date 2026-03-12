@@ -76,7 +76,7 @@ export default function AgentsPage() {
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { verifyAgentId, isCelo } = useVerifyErc8004AgentId();
   const [verifyingErc8004, setVerifyingErc8004] = useState(false);
-  const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; isOwner?: boolean; error?: string } | null>(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
   const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
   const [usdcTxHash, setUsdcTxHash] = useState("");
@@ -736,10 +736,12 @@ export default function AgentsPage() {
                         setVerifyingErc8004(true);
                         setErc8004VerifyResult(null);
                         try {
-                          const result = await verifyAgentId(formErc8004Id);
+                          const result = await verifyAgentId(formErc8004Id, address ?? undefined);
                           setErc8004VerifyResult(result);
-                          if (result.valid) toast.success("ERC-8004 ID verified on Celo");
-                          else toast.error(result.error ?? "Verification failed");
+                          if (result.valid) {
+                            if (result.isOwner) toast.success("Verified — you own this agent");
+                            else toast.warning("Agent exists but your wallet is not the owner");
+                          } else toast.error(result.error ?? "Verification failed");
                         } finally {
                           setVerifyingErc8004(false);
                         }
@@ -752,21 +754,28 @@ export default function AgentsPage() {
                     </button>
                   </div>
                   {erc8004VerifyResult && (
-                    <div className={`mt-2 flex items-center gap-2 text-sm ${erc8004VerifyResult.valid ? "text-emerald-400" : "text-amber-400"}`}>
+                    <div className={`mt-2 flex items-start gap-2 text-sm ${erc8004VerifyResult.valid ? (erc8004VerifyResult.isOwner ? "text-emerald-400" : "text-amber-400") : "text-amber-400"}`}>
                       {erc8004VerifyResult.valid ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                          <span>Verified on Celo — this agent ID is registered on-chain.</span>
-                        </>
+                        erc8004VerifyResult.isOwner ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span>You own this agent on Celo. You can link it to this Tycoon agent.</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <span>This agent exists on Celo but your connected wallet is not the on-chain owner. Only the owner can use this ID here.</span>
+                          </>
+                        )
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4 shrink-0" />
+                          <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
                           <span>{erc8004VerifyResult.error}</span>
                         </>
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">Verify that an ID exists on the ERC-8004 Identity Registry (Celo).</p>
+                  <p className="text-xs text-gray-500 mt-1">Verify that the ID exists and that your wallet owns it on the ERC-8004 Identity Registry (Celo).</p>
                 </div>
 
                 <div className="flex gap-3 pt-2">
