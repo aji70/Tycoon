@@ -347,6 +347,40 @@ export default function AgentsPage() {
     }
   };
 
+  /** Create a new ERC-8004 agent ID on Celo from the form (only when editing an existing agent). */
+  const handleCreateOnCeloFromForm = async () => {
+    if (!editingId) {
+      toast.info("Save the agent first, then use 'Create on Celo' to get an ERC-8004 ID.");
+      return;
+    }
+    if (!isCelo) {
+      toast.error("Switch to Celo network to create an ERC-8004 agent");
+      return;
+    }
+    if (formErc8004Id.trim()) {
+      toast.info("Clear the ID field first if you want to create a new one on Celo.");
+      return;
+    }
+    setRegisteringErc8004Id(editingId);
+    try {
+      const newAgentId = await registerOnCelo(editingId);
+      if (newAgentId != null) {
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, { erc8004_agent_id: String(newAgentId) });
+        setFormErc8004Id(String(newAgentId));
+        setErc8004VerifyResult({ valid: true, isOwner: true });
+        toast.success(`Created on Celo. Your ERC-8004 Agent ID: ${newAgentId}`);
+        await fetchAgents();
+      } else {
+        toast.error("Registration succeeded but could not read agent ID");
+      }
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? "Registration failed";
+      toast.error(msg);
+    } finally {
+      setRegisteringErc8004Id(null);
+    }
+  };
+
   if (authFailed) {
     const hasWallet = isConnected && !!address;
     if (hasWallet && !walletNotRegistered) {
@@ -715,7 +749,10 @@ export default function AgentsPage() {
 
                 <div>
                   <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-2">ERC-8004 Agent ID (optional)</label>
-                  <div className="flex gap-2">
+                  {!editingId && (
+                    <p className="text-xs text-cyan-400/80 mb-2">Save this agent first, then use <strong>Create on Celo</strong> below to get an on-chain ERC-8004 ID (you pay gas).</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
                     <input
                       type="text"
                       value={formErc8004Id}
@@ -723,9 +760,19 @@ export default function AgentsPage() {
                         setFormErc8004Id(e.target.value);
                         setErc8004VerifyResult(null);
                       }}
-                      placeholder="e.g. 12345 — from Celo / 8004scan"
-                      className="flex-1 px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none"
+                      placeholder="e.g. 12345 — or create one on Celo"
+                      className="flex-1 min-w-[140px] px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none"
                     />
+                    <button
+                      type="button"
+                      onClick={handleCreateOnCeloFromForm}
+                      disabled={isRegisteringErc8004 || !editingId || !isCelo}
+                      title={!editingId ? "Save the agent first" : !isCelo ? "Switch to Celo" : "Register this agent on ERC-8004 (you pay gas)"}
+                      className="shrink-0 px-4 py-3 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-300 font-orbitron font-semibold text-sm hover:bg-emerald-500/30 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isRegisteringErc8004 && registeringErc8004Id === editingId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      Create on Celo
+                    </button>
                     <button
                       type="button"
                       onClick={async () => {
@@ -775,7 +822,7 @@ export default function AgentsPage() {
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">Verify that the ID exists and that your wallet owns it on the ERC-8004 Identity Registry (Celo).</p>
+                  <p className="text-xs text-gray-500 mt-1">Create on Celo to mint a new ERC-8004 ID (your wallet pays gas). Or paste an existing ID and Verify ownership.</p>
                 </div>
 
                 <div className="flex gap-3 pt-2">
