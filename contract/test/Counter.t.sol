@@ -5,10 +5,12 @@ import {Test, console} from "forge-std/Test.sol";
 import {Tycoon, TycoonRewardSystem} from "../src/Tycoon.sol";
 import {TycoonToken} from "../src/TycoonToken.sol";
 import {TycoonLib} from "../src/TycoonLib.sol";
+import {TycoonGameFaucet} from "../src/TycoonGameFaucet.sol";
 
 contract TycoonTest is Test {
     Tycoon public tycoon;
     TycoonRewardSystem public tycoonRewards;
+    TycoonGameFaucet public gameFaucet;
     TycoonToken public usdc;
     TycoonToken public tycoonToken;
 
@@ -36,6 +38,9 @@ contract TycoonTest is Test {
         tycoonRewards.setBackendMinter(address(tycoon));
         vm.prank(owner);
         tycoon.setBackendGameController(gameController);
+        gameFaucet = new TycoonGameFaucet(address(tycoon), gameController, owner);
+        vm.prank(owner);
+        tycoon.setGameFaucet(address(gameFaucet));
         vm.prank(owner);
         usdc.mint(alice, 10000000000000000);
         vm.prank(owner);
@@ -1671,36 +1676,51 @@ contract TycoonTest is Test {
     }
 
     // ============================================================================
-    // TRANSFER PROPERTY OWNERSHIP
+    // PROPERTY SALE VIA GAME FAUCET
     // ============================================================================
 
-    function test_TransferPropertyOwnership_OnlyGameController() public {
+    function test_RecordPropertySale_ViaFaucet() public {
         vm.prank(alice);
         tycoon.registerPlayer("Alice");
         vm.prank(bob);
         tycoon.registerPlayer("Bob");
         vm.prank(gameController);
-        tycoon.transferPropertyOwnership("Alice", "Bob");
+        gameFaucet.recordPropertySale("Alice", "Bob");
         assertEq(tycoon.getUser("Alice").propertiesSold, 1);
         assertEq(tycoon.getUser("Bob").propertiesbought, 1);
     }
 
-    function test_Revert_TransferPropertyOwnership_NotGameController() public {
+    function test_Revert_RecordPropertySale_NotGameController() public {
         vm.prank(alice);
         tycoon.registerPlayer("Alice");
         vm.prank(bob);
         tycoon.registerPlayer("Bob");
         vm.prank(alice);
-        vm.expectRevert(bytes("Not game controller"));
-        tycoon.transferPropertyOwnership("Alice", "Bob");
+        vm.expectRevert(TycoonGameFaucet.OnlyGameController.selector);
+        gameFaucet.recordPropertySale("Alice", "Bob");
     }
 
-    function test_Revert_TransferPropertyOwnership_SameSellerBuyer() public {
+    function test_Revert_RecordPropertySale_SameSellerBuyer() public {
         vm.prank(alice);
         tycoon.registerPlayer("Alice");
         vm.prank(gameController);
         vm.expectRevert(bytes("Seller and buyer must differ"));
-        tycoon.transferPropertyOwnership("Alice", "Alice");
+        gameFaucet.recordPropertySale("Alice", "Alice");
+    }
+
+    function test_RecordTurn_ViaFaucet() public {
+        vm.prank(alice);
+        tycoon.registerPlayer("Alice");
+        vm.prank(alice);
+        uint256 gameId = tycoon.createGame("Alice", "PUBLIC", "hat", 2, GAME_CODE, STARTING_BALANCE, 0);
+        vm.prank(bob);
+        tycoon.registerPlayer("Bob");
+        vm.prank(bob);
+        tycoon.joinGame(gameId, "Bob", "car", "");
+        assertEq(tycoon.turnsPlayed(gameId, alice), 0);
+        vm.prank(gameController);
+        gameFaucet.recordTurn(gameId, alice, 20);
+        assertEq(tycoon.turnsPlayed(gameId, alice), 20);
     }
 
     // ============================================================================
