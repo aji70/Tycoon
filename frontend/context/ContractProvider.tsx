@@ -589,8 +589,18 @@ export function useRegisterAgentERC8004() {
   return { register, isPending, error: writeError, reset };
 }
 
+export type Erc8004VerifyResult = {
+  valid: boolean;
+  /** True when the agent exists and the provided wallet is the on-chain owner */
+  isOwner?: boolean;
+  /** On-chain owner address (when valid) */
+  owner?: string;
+  error?: string;
+};
+
 /**
  * Verify an ERC-8004 agent ID by reading ownerOf from the Identity Registry (ERC-721).
+ * When userAddress is provided, also checks that the connected wallet owns the agent.
  * Only works when connected to Celo (42220) or Alfajores (44787).
  */
 export function useVerifyErc8004AgentId() {
@@ -599,7 +609,7 @@ export function useVerifyErc8004AgentId() {
   const isCelo = chainId === 42220 || chainId === 44787;
 
   const verifyAgentId = useCallback(
-    async (agentIdStr: string): Promise<{ valid: boolean; error?: string }> => {
+    async (agentIdStr: string, userAddress?: string): Promise<Erc8004VerifyResult> => {
       const trimmed = String(agentIdStr).trim();
       if (!trimmed) return { valid: false, error: 'Enter an agent ID' };
       const id = Number(trimmed);
@@ -614,7 +624,12 @@ export function useVerifyErc8004AgentId() {
           args: [BigInt(id)],
         });
         const valid = !!owner && owner !== '0x0000000000000000000000000000000000000000';
-        return valid ? { valid: true } : { valid: false, error: 'Agent not found' };
+        if (!valid) return { valid: false, error: 'Agent not found' };
+        const isOwner =
+          !!userAddress &&
+          !!owner &&
+          String(owner).toLowerCase() === String(userAddress).toLowerCase();
+        return { valid: true, isOwner, owner: owner as string };
       } catch {
         return { valid: false, error: 'Agent not found or invalid ID' };
       }

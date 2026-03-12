@@ -73,7 +73,7 @@ export default function AgentsPageMobile() {
   const { register: registerOnCelo, isPending: isRegisteringErc8004 } = useRegisterAgentERC8004();
   const { verifyAgentId, isCelo } = useVerifyErc8004AgentId();
   const [verifyingErc8004, setVerifyingErc8004] = useState(false);
-  const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [erc8004VerifyResult, setErc8004VerifyResult] = useState<{ valid: boolean; isOwner?: boolean; error?: string } | null>(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
 
   const fetchAgents = React.useCallback(async () => {
@@ -605,10 +605,12 @@ export default function AgentsPageMobile() {
                         setVerifyingErc8004(true);
                         setErc8004VerifyResult(null);
                         try {
-                          const result = await verifyAgentId(formErc8004Id);
+                          const result = await verifyAgentId(formErc8004Id, address ?? undefined);
                           setErc8004VerifyResult(result);
-                          if (result.valid) toast.success("Verified on Celo");
-                          else toast.error(result.error ?? "Verification failed");
+                          if (result.valid) {
+                            if (result.isOwner) toast.success("Verified — you own this agent");
+                            else toast.warning("Agent exists but you're not the owner");
+                          } else toast.error(result.error ?? "Verification failed");
                         } finally {
                           setVerifyingErc8004(false);
                         }
@@ -621,15 +623,22 @@ export default function AgentsPageMobile() {
                     </button>
                   </div>
                   {erc8004VerifyResult && (
-                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${erc8004VerifyResult.valid ? "text-emerald-400" : "text-amber-400"}`}>
+                    <div className={`mt-1.5 flex items-start gap-1.5 text-xs ${erc8004VerifyResult.valid ? (erc8004VerifyResult.isOwner ? "text-emerald-400" : "text-amber-400") : "text-amber-400"}`}>
                       {erc8004VerifyResult.valid ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                          <span>Verified on Celo</span>
-                        </>
+                        erc8004VerifyResult.isOwner ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>You own this agent. You can link it here.</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span>Agent exists but your wallet is not the owner. Only the owner can use this ID.</span>
+                          </>
+                        )
                       ) : (
                         <>
-                          <XCircle className="w-3.5 h-3.5 shrink-0" />
+                          <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                           <span>{erc8004VerifyResult.error}</span>
                         </>
                       )}
