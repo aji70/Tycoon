@@ -927,6 +927,20 @@ export default function RewardAdminPanel() {
               <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
                 <Gamepad2 className="w-8 h-8 text-cyan-400" /> Tycoon contract (view reads)
               </h3>
+              {!tycoonReads.isLoading && (String(tycoonReads.tycoonOwner ?? '').toLowerCase() === '0x0000000000000000000000000000000000000001' || String(tycoonReads.rewardSystem ?? '').toLowerCase() === '0x0000000000000000000000000000000000000000') && (
+                <div className="mb-6 p-4 rounded-xl bg-amber-900/40 border border-amber-600/60 text-amber-200 text-sm">
+                  <p className="font-semibold">Using implementation or uninitialized proxy</p>
+                  <p className="mt-1 opacity-90">
+                    Owner <code className="bg-black/30 px-1 rounded">0x...0001</code> or zero <code className="bg-black/30 px-1 rounded">rewardSystem</code> means you are reading the <strong>implementation</strong> contract (or a proxy that was never initialized). Game state lives in the <strong>proxy</strong>. In <code className="bg-black/30 px-1 rounded">.env.local</code> set the proxy address:
+                  </p>
+                  <p className="mt-2 font-mono text-cyan-300 break-all">
+                    NEXT_PUBLIC_CELO_UPGRADEABLE=0xC2dab89236Bd015D41bF0dEEA0a6D314a49ff42c
+                  </p>
+                  <p className="mt-1 text-xs opacity-80">
+                    (Backend: <code className="bg-black/30 px-1 rounded">TYCOON_CELO_CONTRACT_ADDRESS</code> = same proxy.)
+                  </p>
+                </div>
+              )}
               {tycoonReads.isLoading ? (
                 <div className="text-gray-400 flex items-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" /> Loading…
