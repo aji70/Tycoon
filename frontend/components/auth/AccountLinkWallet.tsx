@@ -28,7 +28,7 @@ export default function AccountLinkWallet() {
   const chain = chainIdToBackendChain(chainId);
 
   const handleLinkWallet = async () => {
-    if (!address || !guestUser?.is_guest || !auth?.linkWallet) return;
+    if (!address || !guestUser || !auth?.linkWallet) return;
     setError(null);
     setLoading(true);
     try {
@@ -68,8 +68,8 @@ export default function AccountLinkWallet() {
       <h3 className="text-base font-semibold text-cyan-400">Account & login</h3>
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      {/* Guest: Link / Unlink wallet */}
-      {guestUser?.is_guest && (
+      {/* Guest & Privy: Link / Unlink wallet */}
+      {guestUser && (
         <>
           {guestUser.linked_wallet_address ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -102,7 +102,7 @@ export default function AccountLinkWallet() {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
                 Link this wallet
               </button>
-              {auth?.mergeGuestIntoWallet && (
+              {guestUser?.is_guest && auth?.mergeGuestIntoWallet && (
                 <button
                   type="button"
                   onClick={async () => {
