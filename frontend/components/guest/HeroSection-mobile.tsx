@@ -64,9 +64,10 @@ const HeroSectionMobile: React.FC = () => {
 
   const { data: contractGame } = useGetGameByCode(gameCode);
 
-  const { data: hasSmartWalletFromChain } = useHasSmartWallet(address ?? undefined);
+  const effectiveAddress = address ?? guestUser?.address ?? guestUser?.linked_wallet_address ?? undefined;
+  const { data: hasSmartWalletFromChain } = useHasSmartWallet(effectiveAddress as `0x${string}` | undefined);
   const hasSmartWallet =
-    (!!address && hasSmartWalletFromChain === true) ||
+    (!!effectiveAddress && hasSmartWalletFromChain === true) ||
     (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== "");
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
