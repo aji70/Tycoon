@@ -172,6 +172,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
             email_verified: u.email_verified,
             smart_wallet_address: u.smart_wallet_address ?? null,
           });
+          await refetchGuest();
           return { success: true };
         }
 
@@ -188,13 +189,14 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           email_verified: u.email_verified,
           smart_wallet_address: u.smart_wallet_address ?? null,
         });
+        await refetchGuest();
         return { success: true };
       } catch (err: unknown) {
         const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (err as Error)?.message ?? "Link failed";
         return { success: false, message };
       }
     },
-    []
+    [refetchGuest]
   );
 
   const unlinkWallet = useCallback(async () => {
