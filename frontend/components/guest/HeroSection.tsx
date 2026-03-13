@@ -538,8 +538,8 @@ const handleContinuePrevious = () => {
             </p>
           )}
 
-          {/* Action buttons: only when user has a smart wallet (from chain or backend); then show for wallet registered, guest, or Privy */}
-          {hasSmartWallet && ((address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy") ? (
+          {/* Action buttons: wallet + fully-registered always (smart wallet created at registration); guest/Privy only when hasSmartWallet */}
+          {((address && registrationStatus === "fully-registered") || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
