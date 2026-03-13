@@ -1,7 +1,7 @@
 /**
  * Tycoon contract interaction (multi-chain: Celo, Polygon, Base).
  * Requires per-chain env: RPC_URL, TYCOON_*_CONTRACT_ADDRESS, BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY.
- * Used for: setTurnCount, removePlayerFromGame, transferPropertyOwnership, createGameByBackend, etc.
+ * Used for: setTurnCount, removePlayerFromGame, setPropertyStats, createGameByBackend, etc.
  * Creates fresh provider/wallet per call. Chain is optional; defaults to CELO for backward compatibility.
  *
  * Concurrency: All writes from the backend wallet are serialized via withTxQueue() so that
@@ -54,7 +54,7 @@ const TYCOON_ABI = [
   },
   {
     type: "function",
-    name: "transferPropertyOwnership",
+    name: "setPropertyStats",
     inputs: [
       { name: "sellerUsername", type: "string", internalType: "string" },
       { name: "buyerUsername", type: "string", internalType: "string" },
@@ -352,33 +352,37 @@ export async function removePlayerFromGame(gameId, playerAddress, turnCount, cha
 }
 
 /**
- * Update on-chain property stats when a player-to-player sale happens (sellerUsername -> buyerUsername).
+ * Update on-chain property stats when a sale happens (TycoonUpgradeable: setPropertyStats).
+ * Caller must be the game faucet (set on contract). If backend uses game controller key,
+ * ensure that wallet is also set as gameFaucet on the contract, or use a faucet-specific key.
  * @param {string} sellerUsername - On-chain registered username of seller
  * @param {string} buyerUsername - On-chain registered username of buyer
  * @returns {Promise<{ hash: string }>}
  */
-export async function transferPropertyOwnership(
+export async function setPropertyStats(
   sellerUsername,
   buyerUsername,
   chain = "CELO"
 ) {
   return withTxQueue(async () => {
     const tycoon = getContract(chain);
-    const tx = await tycoon.transferPropertyOwnership(
-      sellerUsername,
-      buyerUsername
-    );
+    const tx = await tycoon.setPropertyStats(sellerUsername, buyerUsername);
     const receipt = await tx.wait();
     logger.info(
-      {
-        sellerUsername,
-        buyerUsername,
-        hash: receipt?.hash,
-      },
-      "Tycoon transferPropertyOwnership tx"
+      { sellerUsername, buyerUsername, hash: receipt?.hash },
+      "Tycoon setPropertyStats tx"
     );
     return { hash: receipt?.hash };
   });
+}
+
+/** @deprecated Use setPropertyStats. Kept as alias so callers can be updated gradually. */
+export async function transferPropertyOwnership(
+  sellerUsername,
+  buyerUsername,
+  chain = "CELO"
+) {
+  return setPropertyStats(sellerUsername, buyerUsername, chain);
 }
 
 /**
@@ -655,6 +659,7 @@ const ALLOWED_READ_FNS = [
 
 const ALLOWED_WRITE_FNS = [
   "registerPlayer",
+  "setPropertyStats",
   "transferPropertyOwnership",
   "setTurnCount",
   "removePlayerFromGame",
@@ -790,8 +795,9 @@ export async function callContractWrite(fn, params = [], chain = "CELO") {
     case "registerPlayer":
       tx = await tycoon.registerPlayer(normalized[0] ?? "");
       break;
+    case "setPropertyStats":
     case "transferPropertyOwnership":
-      tx = await tycoon.transferPropertyOwnership(normalized[0] ?? "", normalized[1] ?? "");
+      tx = await tycoon.setPropertyStats(normalized[0] ?? "", normalized[1] ?? "");
       break;
     case "setTurnCount":
       tx = await tycoon.setTurnCount(normalized[0] ?? 0n, normalized[1] ?? "0x0", normalized[2] ?? 0n);
