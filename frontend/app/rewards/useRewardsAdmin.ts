@@ -11,9 +11,11 @@ import { parseUnits, formatUnits, type Address, type Abi } from "viem";
 import RewardABI from "@/context/abi/rewardabi.json";
 import {
   REWARD_CONTRACT_ADDRESSES,
+  TYCOON_CONTRACT_ADDRESSES,
   USDC_TOKEN_ADDRESS,
   TYC_TOKEN_ADDRESS,
 } from "@/constants/contracts";
+import TycoonABI from "@/context/abi/tycoonabi.json";
 import {
   useRewardSetBackendMinter,
   useRewardMintVoucher,
@@ -136,6 +138,7 @@ export function useRewardsAdmin() {
   const [tycoonRewardSystem, setTycoonRewardSystem] = useState("");
   const [createWalletPlayerAddress, setCreateWalletPlayerAddress] = useState("");
   const [readTestTokenId, setReadTestTokenId] = useState("");
+  const [checkRegisteredAddress, setCheckRegisteredAddress] = useState("");
 
   const setMinterHook = useRewardSetBackendMinter();
   const tycoonReads = useTycoonAdminReads();
@@ -264,6 +267,23 @@ export function useRewardsAdmin() {
     functionName: "getCollectibleInfo",
     args: readTestTokenId !== "" && /^\d+$/.test(readTestTokenId) ? [BigInt(readTestTokenId)] : undefined,
     query: { enabled: !!contractAddress && readTestTokenId !== "" && /^\d+$/.test(readTestTokenId) },
+  });
+
+  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
+  const isValidEthAddress = (s: string) => /^0x[a-fA-F0-9]{40}$/.test(s);
+  const registeredCheckResult = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI as Abi,
+    functionName: "registered",
+    args: isValidEthAddress(checkRegisteredAddress) ? [checkRegisteredAddress as Address] : undefined,
+    query: { enabled: !!tycoonAddress && isValidEthAddress(checkRegisteredAddress) },
+  });
+  const addressToUsernameResult = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI as Abi,
+    functionName: "addressToUsername",
+    args: isValidEthAddress(checkRegisteredAddress) ? [checkRegisteredAddress as Address] : undefined,
+    query: { enabled: !!tycoonAddress && isValidEthAddress(checkRegisteredAddress) },
   });
 
   const allTokens: TokenDisplayItem[] =
@@ -667,6 +687,11 @@ export function useRewardsAdmin() {
       cashTierValues: cashTierResults.data?.map((r) => (r.status === "success" ? r.result : undefined)) ?? [],
       readTestCollectibleInfo: readTestCollectibleInfo.data as [number, bigint, bigint, bigint, bigint] | undefined,
       readTestCollectibleInfoLoading: readTestCollectibleInfo.isLoading,
+      checkRegisteredAddress,
+      setCheckRegisteredAddress,
+      isRegistered: registeredCheckResult.data as boolean | undefined,
+      isRegisteredLoading: registeredCheckResult.isLoading,
+      addressToUsername: addressToUsernameResult.data as string | undefined,
     },
     contract: {
       tycBalance: tycBalance.data,
