@@ -159,6 +159,7 @@ export function useGetUsername(address?: Address) {
 
 const UserRegistryABI = [
   { inputs: [{ name: 'ownerAddress', type: 'address' }], name: 'getWallet', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ name: 'ownerAddress', type: 'address' }], name: 'hasWallet', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
 ] as const;
 
 /** Smart wallet address for a registered user (from TycoonUserRegistry). Only set after registry is deployed and user has registered. */
@@ -176,6 +177,26 @@ export function useUserRegistryWallet(ownerAddress?: Address) {
     data: result.data as Address | undefined,
     isLoading: result.isLoading,
     error: result.error,
+    refetch: result.refetch,
+  };
+}
+
+/** True if the address has a smart wallet in TycoonUserRegistry (profile exists and wallet != 0). */
+export function useHasSmartWallet(ownerAddress?: Address) {
+  const chainId = useChainId();
+  const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
+  const result = useReadContract({
+    address: registryAddress,
+    abi: UserRegistryABI,
+    functionName: 'hasWallet',
+    args: ownerAddress ? [ownerAddress] : undefined,
+    query: { enabled: !!ownerAddress && !!registryAddress },
+  });
+  return {
+    data: result.data as boolean | undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+    refetch: result.refetch,
   };
 }
 
