@@ -521,8 +521,41 @@ const HeroSection: React.FC = () => {
         </div>
 
         <div className="z-1 w-full flex flex-col justify-center items-center mt-6 gap-4">
-          {/* Wallet: username input for new users */}
-          {address && registrationStatus === "none" && !loading && (
+          {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
+          {address && !isPrivyAuthed && !loading && (
+            <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
+              <p className="text-[#869298] text-sm text-center font-dmSans">
+                Sign in with Privy to continue
+              </p>
+              <button
+                type="button"
+                onClick={() => login()}
+                className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+              >
+                <svg
+                  width="260"
+                  height="52"
+                  viewBox="0 0 260 52"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
+                >
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth={2}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
+                  Sign in with Privy
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Wallet: username input for new users (only when Privy-authed) */}
+          {address && isPrivyAuthed && registrationStatus === "none" && !loading && (
             <input
               type="text"
               value={inputUsername}
@@ -565,8 +598,8 @@ const HeroSection: React.FC = () => {
             </div>
           )}
 
-          {/* "Let's Go!" for wallet users (backend-only or none) */}
-          {address && registrationStatus !== "fully-registered" && !loading && (
+          {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
+          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
             <button
               onClick={handleRegister}
               disabled={
@@ -596,35 +629,14 @@ const HeroSection: React.FC = () => {
               </span>
             </button>
           )}
-          {address && registrationStatus !== "fully-registered" && !loading && (
+          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
               Creates your game account &amp; smart wallet
             </p>
           )}
 
-          {/* EOA registered but needs smart wallet: prompt Sign in with Privy to link & complete setup */}
-          {address && registrationStatus === "fully-registered" && !hasSmartWallet && guestUser?.needs_smart_wallet_creation && !isPrivyAuthed && (
-            <div className="flex flex-col items-center gap-3 mt-4">
-              <p className="text-[#869298] text-sm text-center max-w-sm">
-                Sign in with Privy to link your wallet and complete smart account setup.
-              </p>
-              <button
-                type="button"
-                onClick={() => login()}
-                className="relative group w-[220px] h-[44px] overflow-hidden cursor-pointer"
-              >
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 220 44" fill="none">
-                  <path d="M8 1H212C216.418 1 218.997 5.85486 216.601 9.5127L198.167 39.5127C197.151 41.0646 195.42 42 193.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold z-2">
-                  Sign in with Privy
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* Action buttons: wallet + fully-registered with smart wallet; guest/Privy only when hasSmartWallet */}
-          {((address && registrationStatus === "fully-registered" && hasSmartWallet) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
+          {/* Action buttons: require Privy for EOA; guest/Privy when hasSmartWallet */}
+          {((address && registrationStatus === "fully-registered" && hasSmartWallet && isPrivyAuthed) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
