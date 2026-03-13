@@ -150,23 +150,45 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
   const linkWallet = useCallback(
     async (params: { walletAddress: string; chain: string; message: string; signature: string }) => {
       try {
-        const res = await apiClient.post<ApiResponse & { data?: GuestUser }>("auth/link-wallet", params);
-        const data = res?.data as { data?: GuestUser };
-        if (data?.data) {
+        const res = await apiClient.post<
+          ApiResponse & { data?: GuestUser | { token: string; user: GuestUser } }
+        >("auth/link-wallet", params);
+        const data = res?.data as { data?: GuestUser | { token: string; user: GuestUser }; message?: string };
+        const payload = data?.data;
+        if (!payload) return { success: false, message: (res?.data as { message?: string })?.message };
+
+        // Merge response: { token, user }
+        if (typeof payload === "object" && "token" in payload && "user" in payload) {
+          safeSetToken(payload.token);
+          const u = payload.user;
           setGuestUser({
-            id: data.data.id,
-            username: data.data.username,
-            address: data.data.address,
-            is_guest: data.data.is_guest ?? true,
-            linked_wallet_address: data.data.linked_wallet_address ?? null,
-            linked_wallet_chain: data.data.linked_wallet_chain ?? null,
-            email: data.data.email,
-            email_verified: data.data.email_verified,
-            smart_wallet_address: data.data.smart_wallet_address ?? null,
+            id: u.id,
+            username: u.username,
+            address: u.address,
+            is_guest: u.is_guest ?? false,
+            linked_wallet_address: u.linked_wallet_address ?? null,
+            linked_wallet_chain: u.linked_wallet_chain ?? null,
+            email: u.email,
+            email_verified: u.email_verified,
+            smart_wallet_address: u.smart_wallet_address ?? null,
           });
           return { success: true };
         }
-        return { success: false, message: (res?.data as { message?: string })?.message };
+
+        // Normal link response: user object
+        const u = payload as GuestUser;
+        setGuestUser({
+          id: u.id,
+          username: u.username,
+          address: u.address,
+          is_guest: u.is_guest ?? true,
+          linked_wallet_address: u.linked_wallet_address ?? null,
+          linked_wallet_chain: u.linked_wallet_chain ?? null,
+          email: u.email,
+          email_verified: u.email_verified,
+          smart_wallet_address: u.smart_wallet_address ?? null,
+        });
+        return { success: true };
       } catch (err: unknown) {
         const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (err as Error)?.message ?? "Link failed";
         return { success: false, message };
