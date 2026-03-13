@@ -22,9 +22,15 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     event ApprovalERC20(address indexed token, address indexed spender, uint256 amount);
     event ApprovalForAllERC1155(address indexed collection, address indexed operator, bool approved);
     event ApprovalForAllERC721(address indexed collection, address indexed operator, bool approved);
+    event NairaVaultUpdated(address indexed previous, address indexed vault);
+    event SentCeloToNairaVault(uint256 amount);
 
     error OnlyOwner();
     error InvalidAddress();
+    error OnlyNairaVault();
+
+    /// @notice When set, the Naira vault can call sendCeloToNairaVault so backend can process CELO→Naira when user is not connected.
+    address public nairaVault;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner();
@@ -53,6 +59,24 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
 
     function balanceNative() external view returns (uint256) {
         return address(this).balance;
+    }
+
+    /// @notice Set the Naira vault so backend can process CELO→Naira from this wallet via vault.processNairaWithdrawalCelo(address(this), amount).
+    function setNairaVault(address vault) external onlyOwner {
+        if (vault != address(0) && vault.code.length == 0) revert InvalidAddress();
+        address previous = nairaVault;
+        nairaVault = vault;
+        emit NairaVaultUpdated(previous, vault);
+    }
+
+    /// @notice Send CELO to the Naira vault (only callable by nairaVault). Used when backend processes CELO→Naira for user when they are not connected.
+    function sendCeloToNairaVault(uint256 amount) external {
+        if (msg.sender != nairaVault) revert OnlyNairaVault();
+        if (nairaVault == address(0)) revert InvalidAddress();
+        require(amount > 0 && address(this).balance >= amount, "Invalid amount or balance");
+        (bool sent,) = payable(nairaVault).call{value: amount}("");
+        require(sent, "Transfer failed");
+        emit SentCeloToNairaVault(amount);
     }
 
     // -------------------------------------------------------------------------

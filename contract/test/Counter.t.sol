@@ -2,10 +2,11 @@
 pragma solidity ^0.8.30;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Tycoon, TycoonRewardSystem} from "../src/Tycoon.sol";
-import {TycoonToken} from "../src/TycoonToken.sol";
+import {Tycoon} from "../src/legacy/Tycoon.sol";
+import {TycoonRewardSystem} from "../src/TycoonRewardSystem.sol";
+import {TycoonToken} from "../src/legacy/TycoonToken.sol";
 import {TycoonLib} from "../src/TycoonLib.sol";
-import {TycoonGameFaucet} from "../src/TycoonGameFaucet.sol";
+import {TycoonGameFaucet} from "../src/legacy/TycoonGameFaucet.sol";
 
 contract TycoonTest is Test {
     Tycoon public tycoon;

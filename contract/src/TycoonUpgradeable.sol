@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {TycoonLib} from "./TycoonLib.sol";
-import {TycoonRewardSystem} from "./Tycoon.sol";
+import {TycoonRewardSystem} from "./TycoonRewardSystem.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -14,6 +14,16 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 interface ITycoonUserRegistry {
     function createWalletForUser(address owner, string calldata username) external returns (address);
     function grantGameActionReward(address user, bytes32 action) external;
+}
+
+/// @notice Logic contract for TycoonUpgradeable (delegatecall target). Same storage layout as TycoonUpgradeable minus logicContract.
+interface ITycoonUpgradeableLogic {
+    function createGame(address actor, string calldata creatorUsername, string calldata gameType, string calldata playerSymbol, uint8 numberOfPlayers, string calldata code, uint256 startingBalance, uint256 stakeAmount) external returns (uint256 gameId);
+    function createAIGame(address actor, string calldata creatorUsername, string calldata gameType, string calldata playerSymbol, uint8 numberOfAI, string calldata code, uint256 startingBalance) external returns (uint256 gameId);
+    function joinGame(address actor, uint256 gameId, string calldata playerUsername, string calldata playerSymbol, string calldata joinCode) external returns (uint8 order);
+    function leavePendingGame(address actor, uint256 gameId) external returns (bool);
+    function exitOrRemovePlayer(uint256 gameId, address player, uint256 turnCount) external;
+    function endAIGame(address actor, uint256 gameId, uint8 finalPosition, uint256 finalBalance, bool isWin) external returns (bool);
 }
 
 /// @title TycoonUpgradeable
@@ -64,6 +74,9 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
 
     uint256 constant CONSOLATION_VOUCHER = TOKEN_REWARD / 10; // 0.1 TYC
 
+    /// @dev Delegatecall target for heavy game logic (Celo size limit). Set after deploy; use same storage layout as Logic.
+    address public logicContract;
+
     event PlayerCreated(string indexed username, address indexed player, uint64 timestamp);
     event GameCreated(uint256 indexed gameId, address indexed creator, uint64 timestamp);
     event PlayerJoined(uint256 indexed gameId, address indexed player, uint8 order);
@@ -99,6 +112,11 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
 
     /// @notice Only owner can authorize an upgrade (UUPS).
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    /// @notice Set logic contract for delegatecall (required for Celo / 24KB limit). Deploy TycoonUpgradeableLogic and set its address here.
+    function setLogicContract(address _logicContract) external onlyOwner {
+        logicContract = _logicContract;
+    }
 
     /// @param newController Pass address(0) to disable backend game controller.
     function setBackendGameController(address newController) external onlyOwner {
@@ -285,7 +303,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         uint256 startingBalance,
         uint256 stakeAmount
     ) external nonReentrant returns (uint256 gameId) {
-        return _createGame(msg.sender, creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingBalance, stakeAmount);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createGame.selector, msg.sender, creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingBalance, stakeAmount));
+        require(ok, "Logic: createGame failed");
+        return abi.decode(data, (uint256));
     }
 
     /// @notice Backend creates a game on behalf of a player. Pass either forPlayer or forUsername; passwordHash must match stored hash.
@@ -303,92 +324,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     ) external nonReentrant returns (uint256 gameId) {
         address actor = _resolvePlayer(forPlayer, forUsername);
         _requireBackendAuth(actor, passwordHash);
-        return _createGame(actor, creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingBalance, stakeAmount);
-    }
-
-    function _createGame(
-        address actor,
-        string memory creatorUsername,
-        string memory gameType,
-        string memory playerSymbol,
-        uint8 numberOfPlayers,
-        string memory code,
-        uint256 startingBalance,
-        uint256 stakeAmount
-    ) internal returns (uint256 gameId) {
-        TycoonLib.validateUsername(creatorUsername);
-        uint8 gType = TycoonLib.stringToGameType(gameType);
-        TycoonLib.validateCode(code, gType == uint8(TycoonLib.GameType.PrivateGame));
-        if (stakeAmount > 0) {
-            require(stakeAmount >= minStake, "Stake too low");
-        }
-
-        require(numberOfPlayers >= 2 && numberOfPlayers <= 8, "Players 2-8");
-        require(startingBalance > 0, "Invalid balance");
-        require(registered[actor], "Not registered");
-
-        TycoonLib.User storage user = users[creatorUsername];
-        require(user.playerAddress == actor, "Username mismatch");
-
-        if (gType == uint8(TycoonLib.GameType.PrivateGame)) {
-            require(bytes(code).length > 0, "Code required for private game");
-        }
-
-        if (stakeAmount > 0) {
-            require(rewardSystem.usdc().transferFrom(actor, address(this), stakeAmount), "USDC transfer failed");
-        }
-
-        gameId = _nextGameId++;
-
-        gameSettings[gameId] = TycoonLib.GameSettings({
-            maxPlayers: numberOfPlayers,
-            auction: true,
-            rentInPrison: true,
-            mortgage: true,
-            evenBuild: true,
-            startingCash: startingBalance,
-            privateRoomCode: code
-        });
-
-        games[gameId] = TycoonLib.Game({
-            id: gameId,
-            code: code,
-            creator: actor,
-            status: TycoonLib.GameStatus.Pending,
-            winner: address(0),
-            numberOfPlayers: numberOfPlayers,
-            joinedPlayers: 1,
-            mode: TycoonLib.GameType(gType),
-            ai: false,
-            createdAt: uint64(block.timestamp),
-            endedAt: 0,
-            totalStaked: stakeAmount,
-            stakePerPlayer: stakeAmount
-        });
-
-        gamePlayers[gameId][actor] = TycoonLib.GamePlayer({
-            gameId: gameId,
-            playerAddress: actor,
-            balance: startingBalance,
-            position: 0,
-            order: 1,
-            symbol: TycoonLib.PlayerSymbol(TycoonLib.stringToPlayerSymbol(playerSymbol)),
-            username: creatorUsername
-        });
-
-        gameOrderToPlayer[gameId][1] = actor;
-        codeToGame[code] = games[gameId];
-        previousGameCode[actor] = code;
-
-        user.gamesPlayed++;
-        user.totalStaked += stakeAmount;
-        totalGames++;
-
-        if (userRegistry != address(0)) {
-            try ITycoonUserRegistry(userRegistry).grantGameActionReward(actor, keccak256("create_game")) {}
-            catch {}
-        }
-        emit GameCreated(gameId, actor, uint64(block.timestamp));
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createGame.selector, actor, creatorUsername, gameType, playerSymbol, numberOfPlayers, code, startingBalance, stakeAmount));
+        require(ok, "Logic: createGame failed");
+        return abi.decode(data, (uint256));
     }
 
     function createAIGame(
@@ -399,7 +338,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         string memory code,
         uint256 startingBalance
     ) external nonReentrant returns (uint256 gameId) {
-        return _createAIGame(msg.sender, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingBalance);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createAIGame.selector, msg.sender, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingBalance));
+        require(ok, "Logic: createAIGame failed");
+        return abi.decode(data, (uint256));
     }
 
     function createAIGameByBackend(
@@ -415,91 +357,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     ) external nonReentrant returns (uint256 gameId) {
         address actor = _resolvePlayer(forPlayer, forUsername);
         _requireBackendAuth(actor, passwordHash);
-        return _createAIGame(actor, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingBalance);
-    }
-
-    function _createAIGame(
-        address actor,
-        string memory creatorUsername,
-        string memory gameType,
-        string memory playerSymbol,
-        uint8 numberOfAI,
-        string memory code,
-        uint256 startingBalance
-    ) internal returns (uint256 gameId) {
-        TycoonLib.validateUsername(creatorUsername);
-        TycoonLib.validateCode(code, false);
-        require(numberOfAI >= 1 && numberOfAI <= 7, "AI players 1-7");
-        require(bytes(gameType).length > 0 && bytes(playerSymbol).length > 0, "Invalid params");
-        require(startingBalance > 0, "Invalid balance");
-        require(registered[actor], "Not registered");
-
-        TycoonLib.User storage user = users[creatorUsername];
-        require(user.playerAddress == actor, "Username mismatch");
-
-        uint8 gType = TycoonLib.stringToGameType(gameType);
-        gameId = _nextGameId++;
-        uint8 totalPlayers = 1 + numberOfAI;
-
-        gameSettings[gameId] = TycoonLib.GameSettings({
-            maxPlayers: totalPlayers,
-            auction: true,
-            rentInPrison: true,
-            mortgage: true,
-            evenBuild: true,
-            startingCash: startingBalance,
-            privateRoomCode: code
-        });
-
-        games[gameId] = TycoonLib.Game({
-            id: gameId,
-            code: code,
-            creator: actor,
-            status: TycoonLib.GameStatus.Ongoing,
-            winner: address(0),
-            numberOfPlayers: totalPlayers,
-            joinedPlayers: 1,
-            mode: TycoonLib.GameType(gType),
-            ai: true,
-            createdAt: uint64(block.timestamp),
-            endedAt: 0,
-            totalStaked: 0,
-            stakePerPlayer: 0
-        });
-
-        gamePlayers[gameId][actor] = TycoonLib.GamePlayer({
-            gameId: gameId,
-            playerAddress: actor,
-            balance: startingBalance,
-            position: 0,
-            order: 1,
-            symbol: TycoonLib.PlayerSymbol(TycoonLib.stringToPlayerSymbol(playerSymbol)),
-            username: creatorUsername
-        });
-
-        gameOrderToPlayer[gameId][1] = actor;
-
-        for (uint8 i = 2; i <= totalPlayers; i++) {
-            address aiAddr = address(uint160(i));
-            gameOrderToPlayer[gameId][i] = aiAddr;
-            gamePlayers[gameId][aiAddr] = TycoonLib.GamePlayer({
-                gameId: gameId,
-                playerAddress: aiAddr,
-                balance: startingBalance,
-                position: 0,
-                order: i,
-                symbol: TycoonLib.PlayerSymbol(0),
-                username: string(abi.encodePacked("AI_", TycoonLib.uintToString(i)))
-            });
-        }
-
-        codeToGame[code] = games[gameId];
-        previousGameCode[actor] = code;
-
-        user.gamesPlayed++;
-        totalGames++;
-
-        emit GameCreated(gameId, actor, uint64(block.timestamp));
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createAIGame.selector, actor, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingBalance));
+        require(ok, "Logic: createAIGame failed");
+        return abi.decode(data, (uint256));
     }
 
     function endAIGame(
@@ -508,7 +369,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         uint256 finalBalance,
         bool isWin
     ) external nonReentrant returns (bool) {
-        return _endAIGame(msg.sender, gameId, finalPosition, finalBalance, isWin);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.endAIGame.selector, msg.sender, gameId, finalPosition, finalBalance, isWin));
+        require(ok, "Logic: endAIGame failed");
+        return abi.decode(data, (bool));
     }
 
     function endAIGameByBackend(
@@ -522,67 +386,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     ) external nonReentrant returns (bool) {
         address actor = _resolvePlayer(forPlayer, forUsername);
         _requireBackendAuth(actor, passwordHash);
-        return _endAIGame(actor, gameId, finalPosition, finalBalance, isWin);
-    }
-
-    function _endAIGame(
-        address actor,
-        uint256 gameId,
-        uint8 finalPosition,
-        uint256 finalBalance,
-        bool isWin
-    ) internal returns (bool) {
-        TycoonLib.Game storage game = games[gameId];
-
-        require(game.ai, "Not an AI game");
-        require(game.status == TycoonLib.GameStatus.Ongoing, "Game already ended");
-        require(game.creator == actor, "Only creator can end AI game");
-
-        gamePlayers[gameId][actor].position = finalPosition;
-        gamePlayers[gameId][actor].balance = finalBalance;
-
-        game.status = TycoonLib.GameStatus.Ended;
-        game.winner = isWin ? actor : address(0);
-        game.endedAt = uint64(block.timestamp);
-        codeToGame[game.code] = game;
-
-        TycoonLib.User storage user = users[gamePlayers[gameId][actor].username];
-
-        uint256 voucherAmount = 0;
-        TycoonLib.CollectiblePerk perk = TycoonLib.CollectiblePerk.NONE;
-        uint256 strength = 1;
-
-        if (isWin) {
-            user.gamesWon++;
-            if (addressVerified[actor]) {
-                voucherAmount = 2 * TOKEN_REWARD;
-                uint8 r = uint8(block.prevrandao % 100);
-                if (r < 40) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
-                else if (r < 65) perk = TycoonLib.CollectiblePerk.JAIL_FREE;
-                else if (r < 80) perk = TycoonLib.CollectiblePerk.SHIELD;
-                else if (r < 90) perk = TycoonLib.CollectiblePerk.TELEPORT;
-                else if (r < 97) perk = TycoonLib.CollectiblePerk.ROLL_EXACT;
-                else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
-            } else {
-                voucherAmount = CONSOLATION_VOUCHER;
-            }
-        } else {
-            voucherAmount = CONSOLATION_VOUCHER;
-            user.gamesLost++;
-        }
-
-        if (voucherAmount > 0) {
-            rewardSystem.mintVoucher(actor, voucherAmount);
-        }
-        if (perk != TycoonLib.CollectiblePerk.NONE) {
-            rewardSystem.mintCollectible(actor, perk, strength);
-        }
-
-        codeToGame[game.code] = game;
-
-        emit AIGameEnded(gameId, actor, uint64(block.timestamp));
-
-        return true;
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.endAIGame.selector, actor, gameId, finalPosition, finalBalance, isWin));
+        require(ok, "Logic: endAIGame failed");
+        return abi.decode(data, (bool));
     }
 
     function joinGame(uint256 gameId, string memory playerUsername, string memory playerSymbol, string memory joinCode)
@@ -590,7 +397,10 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         nonReentrant
         returns (uint8 order)
     {
-        return _joinGame(msg.sender, gameId, playerUsername, playerSymbol, joinCode);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.joinGame.selector, msg.sender, gameId, playerUsername, playerSymbol, joinCode));
+        require(ok, "Logic: joinGame failed");
+        return abi.decode(data, (uint8));
     }
 
     function joinGameByBackend(
@@ -604,73 +414,18 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     ) external nonReentrant returns (uint8 order) {
         address actor = _resolvePlayer(forPlayer, forUsername);
         _requireBackendAuth(actor, passwordHash);
-        return _joinGame(actor, gameId, playerUsername, playerSymbol, joinCode);
-    }
-
-    function _joinGame(
-        address actor,
-        uint256 gameId,
-        string memory playerUsername,
-        string memory playerSymbol,
-        string memory joinCode
-    ) internal returns (uint8 order) {
-        TycoonLib.validateUsername(playerUsername);
-        TycoonLib.Game storage game = games[gameId];
-        require(!game.ai, "Cannot join AI game");
-        require(game.creator != address(0), "Game not found");
-        require(game.status == TycoonLib.GameStatus.Pending, "Game not open");
-        require(game.joinedPlayers < game.numberOfPlayers, "Game is full");
-        require(registered[actor], "Not registered");
-
-        TycoonLib.User storage user = users[playerUsername];
-        require(user.playerAddress == actor, "Username mismatch");
-        require(gamePlayers[gameId][actor].playerAddress == address(0), "Already joined");
-
-        if (game.mode == TycoonLib.GameType.PrivateGame) {
-            require(keccak256(bytes(joinCode)) == keccak256(bytes(game.code)), "Wrong code");
-        }
-
-        if (game.stakePerPlayer > 0) {
-            require(
-                rewardSystem.usdc().transferFrom(actor, address(this), game.stakePerPlayer), "Stake payment failed"
-            );
-        }
-
-        user.gamesPlayed++;
-        user.totalStaked += game.stakePerPlayer;
-        game.totalStaked += game.stakePerPlayer;
-
-        order = ++game.joinedPlayers;
-
-        gamePlayers[gameId][actor] = TycoonLib.GamePlayer({
-            gameId: gameId,
-            playerAddress: actor,
-            balance: gameSettings[gameId].startingCash,
-            position: 0,
-            order: order,
-            symbol: TycoonLib.PlayerSymbol(TycoonLib.stringToPlayerSymbol(playerSymbol)),
-            username: playerUsername
-        });
-
-        gameOrderToPlayer[gameId][order] = actor;
-        previousGameCode[actor] = game.code;
-
-        if (userRegistry != address(0)) {
-            try ITycoonUserRegistry(userRegistry).grantGameActionReward(actor, keccak256("join_game")) {}
-            catch {}
-        }
-        emit PlayerJoined(gameId, actor, order);
-
-        if (game.joinedPlayers == game.numberOfPlayers) {
-            game.status = TycoonLib.GameStatus.Ongoing;
-        }
-
-        codeToGame[game.code] = game;
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.joinGame.selector, actor, gameId, playerUsername, playerSymbol, joinCode));
+        require(ok, "Logic: joinGame failed");
+        return abi.decode(data, (uint8));
     }
 
     /// @notice Leave a game before it starts (status still Pending). Refunds your full stake.
     function leavePendingGame(uint256 gameId) external nonReentrant returns (bool) {
-        return _leavePendingGame(msg.sender, gameId);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.leavePendingGame.selector, msg.sender, gameId));
+        require(ok, "Logic: leavePendingGame failed");
+        return abi.decode(data, (bool));
     }
 
     function leavePendingGameByBackend(
@@ -681,223 +436,17 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     ) external nonReentrant returns (bool) {
         address actor = _resolvePlayer(forPlayer, forUsername);
         _requireBackendAuth(actor, passwordHash);
-        return _leavePendingGame(actor, gameId);
-    }
-
-    function _leavePendingGame(address actor, uint256 gameId) internal returns (bool) {
-        TycoonLib.Game storage game = games[gameId];
-        require(game.creator != address(0), "Game not found");
-        require(game.status == TycoonLib.GameStatus.Pending, "Game already started");
-        require(!game.ai, "Not for AI games");
-
-        TycoonLib.GamePlayer storage gp = gamePlayers[gameId][actor];
-        require(gp.playerAddress != address(0), "Not in game");
-
-        uint256 stakeAmount = game.stakePerPlayer;
-        if (stakeAmount > 0) {
-            require(rewardSystem.usdc().transfer(actor, stakeAmount), "Refund failed");
-            game.totalStaked -= stakeAmount;
-        }
-
-        TycoonLib.User storage user = users[gp.username];
-        user.gamesPlayed--;
-        user.totalStaked -= stakeAmount;
-
-        uint8 order = gp.order;
-        delete gamePlayers[gameId][actor];
-        delete gameOrderToPlayer[gameId][order];
-        game.joinedPlayers--;
-
-        if (game.joinedPlayers == 0) {
-            game.status = TycoonLib.GameStatus.Ended;
-        }
-        codeToGame[game.code] = game;
-
-        emit PlayerLeftPendingGame(gameId, actor, stakeAmount);
-        return true;
-    }
-
-    function _removePlayer(uint256 gameId, address playerToRemove) internal {
-        TycoonLib.Game storage game = games[gameId];
-        TycoonLib.GamePlayer storage gp = gamePlayers[gameId][playerToRemove];
-
-        users[gp.username].gamesLost++;
-
-        uint8 order = gp.order;
-        delete gamePlayers[gameId][playerToRemove];
-        delete gameOrderToPlayer[gameId][order];
-
-        uint8 before = game.joinedPlayers;
-        claims[gameId][playerToRemove] = before; // used as removal marker
-        game.joinedPlayers--;
-
-        emit PlayerRemoved(gameId, playerToRemove, uint64(block.timestamp));
-    }
-
-    /// @dev When joinedPlayers == 1, returns the single remaining player address (for ending game in same tx).
-    function _getRemainingPlayer(uint256 gameId) internal view returns (address) {
-        TycoonLib.Game storage game = games[gameId];
-        for (uint8 i = 1; i <= game.numberOfPlayers; i++) {
-            address a = gameOrderToPlayer[gameId][i];
-            if (a != address(0)) return a;
-        }
-        return address(0);
-    }
-
-    /// @param turnCount Pass type(uint256).max to skip min-turns check (e.g. voluntary exit). Otherwise backend-reported turn count for removePlayerFromGame.
-    function _payoutReward(uint256 gameId, address player, uint256 rank, uint256 turnCount) private {
-        TycoonLib.Game storage game = games[gameId];
-        uint256 pot = game.totalStaked;
-        IERC20 usdcToken = rewardSystem.usdc();
-
-        if (pot == 0 || rank == 0) {
-            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
-            emit RewardClaimed(gameId, player, 0);
-            return;
-        }
-
-        // Backend-registered users get no USDC/collectibles until they verify address
-        if (!addressVerified[player]) {
-            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
-            emit RewardClaimed(gameId, player, 0);
-            return;
-        }
-
-        // type(uint256).max = voluntary exit: use on-chain turnsPlayed. Otherwise use passed turnCount (removePlayerFromGame).
-        uint256 effectiveTurns = turnCount == type(uint256).max ? turnsPlayed[gameId][player] : turnCount;
-        if (minTurnsForPerks > 0 && effectiveTurns < minTurnsForPerks) {
-            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
-            emit RewardClaimed(gameId, player, 0);
-            return;
-        }
-
-        uint256 distributable = TycoonLib.getDistributablePot(pot);
-        uint256 rewardAmount = TycoonLib.getRankRewardAmount(distributable, rank);
-
-        if (rewardAmount == 0) {
-            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
-            emit RewardClaimed(gameId, player, 0);
-            return;
-        }
-
-        // If contract doesn't have enough USDC (e.g. accounting mismatch, bankrupt flow), give voucher only so removal never reverts.
-        uint256 available = usdcToken.balanceOf(address(this));
-        if (available < rewardAmount) {
-            rewardSystem.mintVoucher(player, CONSOLATION_VOUCHER);
-            emit RewardClaimed(gameId, player, 0);
-            return;
-        }
-
-        require(usdcToken.transfer(player, rewardAmount), "USDC transfer failed");
-        require(bytes(addressToUsername[player]).length > 0, "Player not registered");
-        users[addressToUsername[player]].totalEarned += rewardAmount;
-
-        if (rank <= 3) {
-            _mintPlacementReward(player, rank);
-        }
-
-        emit RewardClaimed(gameId, player, rewardAmount);
-    }
-
-    function _mintPlacementReward(address player, uint256 rank) internal {
-        require(rank <= 3, "Only top 3 get collectibles");
-
-        TycoonLib.CollectiblePerk perk;
-        uint256 strength = 1;
-
-        if (rank == 1) {
-            strength = 2;
-        }
-
-        uint8 r = uint8(block.prevrandao % 100);
-
-        if (rank == 1) {
-            if (r < 30) perk = TycoonLib.CollectiblePerk.JAIL_FREE;
-            else if (r < 55) perk = TycoonLib.CollectiblePerk.SHIELD;
-            else if (r < 75) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
-            else if (r < 90) perk = TycoonLib.CollectiblePerk.TELEPORT;
-            else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
-        } else if (rank == 2) {
-            if (r < 35) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
-            else if (r < 60) perk = TycoonLib.CollectiblePerk.JAIL_FREE;
-            else if (r < 80) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
-            else perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
-        } else if (rank == 3) {
-            if (r < 40) perk = TycoonLib.CollectiblePerk.ROLL_BOOST;
-            else if (r < 70) perk = TycoonLib.CollectiblePerk.EXTRA_TURN;
-            else if (r < 90) perk = TycoonLib.CollectiblePerk.PROPERTY_DISCOUNT;
-            else perk = TycoonLib.CollectiblePerk.SHIELD;
-        }
-
-        if (perk != TycoonLib.CollectiblePerk.NONE) {
-            rewardSystem.mintCollectible(player, perk, strength);
-        }
-
-        rewardSystem.mintVoucher(player, TOKEN_REWARD);
-    }
-
-    /// @dev turnCount: use type(uint256).max for voluntary exit (no min-turns check); use backend value when removing so contract can enforce minTurnsForPerks.
-    function _exitOrRemovePlayer(uint256 gameId, address player, uint256 turnCount) internal {
-        TycoonLib.Game storage game = games[gameId];
-        require(game.status == TycoonLib.GameStatus.Ongoing, "Game not ongoing");
-        require(!game.ai, "Cannot exit AI game");
-        require(gamePlayers[gameId][player].playerAddress != address(0), "Not in game");
-
-        uint256 rank;
-
-        if (game.joinedPlayers == 1) {
-            uint256 houseCut = (game.totalStaked * TycoonLib.getHousePercent()) / 100;
-            houseUSDC += houseCut;
-
-            rank = 1;
-            claims[gameId][player] = rank;
-
-            _payoutReward(gameId, player, rank, turnCount);
-
-            users[gamePlayers[gameId][player].username].gamesWon++;
-
-            game.status = TycoonLib.GameStatus.Ended;
-            game.winner = player;
-            game.endedAt = uint64(block.timestamp);
-            codeToGame[game.code] = game;
-
-            if (userRegistry != address(0)) {
-                try ITycoonUserRegistry(userRegistry).grantGameActionReward(player, keccak256("end_game")) {}
-                catch {}
-            }
-            emit GameEnded(gameId, player, uint64(block.timestamp));
-        } else {
-            rank = game.joinedPlayers;
-            _removePlayer(gameId, player);
-            claims[gameId][player] = rank;
-
-            _payoutReward(gameId, player, rank, turnCount);
-
-            // If removal left exactly one player, end the game and pay winner in this same tx (one backend call).
-            if (game.joinedPlayers == 1) {
-                address remaining = _getRemainingPlayer(gameId);
-                require(remaining != address(0), "No remaining player");
-                users[gamePlayers[gameId][remaining].username].gamesWon++;
-                game.status = TycoonLib.GameStatus.Ended;
-                game.winner = remaining;
-                game.endedAt = uint64(block.timestamp);
-                codeToGame[game.code] = game;
-                claims[gameId][remaining] = 1;
-                _payoutReward(gameId, remaining, 1, type(uint256).max);
-                if (userRegistry != address(0)) {
-                    try ITycoonUserRegistry(userRegistry).grantGameActionReward(remaining, keccak256("end_game")) {}
-                    catch {}
-                }
-                emit GameEnded(gameId, remaining, uint64(block.timestamp));
-            }
-        }
-
-        emit PlayerExited(gameId, player);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.leavePendingGame.selector, actor, gameId));
+        require(ok, "Logic: leavePendingGame failed");
+        return abi.decode(data, (bool));
     }
 
     /// @notice Player voluntarily exits the game (payout by rank). Min-turns check uses on-chain turnsPlayed (backend calls setTurnCount once when player reaches threshold).
     function exitGame(uint256 gameId) public nonReentrant onlyPlayerInGame(gameId, msg.sender) returns (bool) {
-        _exitOrRemovePlayer(gameId, msg.sender, type(uint256).max);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok,) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.exitOrRemovePlayer.selector, gameId, msg.sender, type(uint256).max));
+        require(ok, "Logic: exitGame failed");
         return true;
     }
 
@@ -910,7 +459,9 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         address actor = _resolvePlayer(forPlayer, forUsername);
         _requireBackendAuth(actor, passwordHash);
         require(gamePlayers[gameId][actor].playerAddress != address(0), "Not in game");
-        _exitOrRemovePlayer(gameId, actor, type(uint256).max);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok,) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.exitOrRemovePlayer.selector, gameId, actor, type(uint256).max));
+        require(ok, "Logic: exitGame failed");
         return true;
     }
 
@@ -922,7 +473,9 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         onlyPlayerInGame(gameId, player)
         returns (bool)
     {
-        _exitOrRemovePlayer(gameId, player, turnCount);
+        require(logicContract != address(0), "Logic not set");
+        (bool ok,) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.exitOrRemovePlayer.selector, gameId, player, turnCount));
+        require(ok, "Logic: removePlayer failed");
         emit PlayerRemovedByController(gameId, player, msg.sender);
         return true;
     }

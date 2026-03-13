@@ -3,8 +3,9 @@ src = "src"
 out = "out"
 libs = ["lib"]
 optimizer = true
-optimizer_runs = 200
-# via_ir = true  # Disabled: causes Error 1284 with UUPS upgradeable immutables
+# 1 = minimize bytecode size (for chains with EIP-170 24KB limit, e.g. Celo)
+optimizer_runs = 1
+via_ir = true
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 

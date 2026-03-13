@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {TycoonLib} from "./TycoonLib.sol";
-import {TycoonRewardSystem} from "./Tycoon.sol";
+import {TycoonLib} from "../TycoonLib.sol";
+import {TycoonRewardSystem} from "../TycoonRewardSystem.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -139,7 +139,7 @@ contract TycoonRewardsFaucet is Ownable, ReentrancyGuard {
     }
 
     function _initDailyPerkPool() internal {
-        // EXTRA_TURN=1, JAIL_FREE=2, ROLL_BOOST=4, TELEPORT=6, SHIELD=7, PROPERTY_DISCOUNT=8, ROLL_EXACT=10 (skip CASH_TIERED/TAX_REFUND)
+        // Non-cash perks only (skip CASH_TIERED=5, TAX_REFUND=9; skip DOUBLE_RENT=3)
         dailyPerkPool.push(1);  // EXTRA_TURN
         dailyPerkPool.push(2);  // JAIL_FREE
         dailyPerkPool.push(4);  // ROLL_BOOST
@@ -147,6 +147,14 @@ contract TycoonRewardsFaucet is Ownable, ReentrancyGuard {
         dailyPerkPool.push(7);  // SHIELD
         dailyPerkPool.push(8);  // PROPERTY_DISCOUNT
         dailyPerkPool.push(10); // ROLL_EXACT
+        dailyPerkPool.push(11); // LUCKY_7
+        dailyPerkPool.push(12); // RENT_CASHBACK
+        dailyPerkPool.push(13); // INTEREST
+        dailyPerkPool.push(14); // FREE_PARKING_BONUS
+        dailyPerkPool.push(15); // PASS_GO_EXTRA
+        dailyPerkPool.push(16); // BUILD_DISCOUNT
+        dailyPerkPool.push(17); // ADVANCE_TO_GO
+        dailyPerkPool.push(18); // AUCTION_MASTER
     }
 
     modifier onlyGame() {

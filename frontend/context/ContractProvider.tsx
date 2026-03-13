@@ -14,7 +14,7 @@ import { Address, decodeEventLog } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
-import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESS } from '@/constants/contracts';
+import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, USER_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESS } from '@/constants/contracts';
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
 import ERC8004IdentityABI from './abi/erc8004-identity-abi.json';
@@ -36,8 +36,11 @@ type User = {
   totalStaked: bigint;
   totalEarned: bigint;
   totalWithdrawn: bigint;
+  propertiesbought?: bigint;
+  propertiesSold?: bigint;
 };
-type UserTuple = [bigint, string, Address, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+/** Matches TycoonLib.User: id, username, playerAddress, registeredAt, gamesPlayed, gamesWon, gamesLost, totalStaked, totalEarned, totalWithdrawn, propertiesbought, propertiesSold */
+type UserTuple = [bigint, string, Address, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
 
 export type GameSettings = {
   maxPlayers: number;
@@ -147,6 +150,28 @@ export function useGetUsername(address?: Address) {
 
   return {
     data: result.data as string | undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+  };
+}
+
+const UserRegistryABI = [
+  { inputs: [{ name: 'ownerAddress', type: 'address' }], name: 'getWallet', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
+] as const;
+
+/** Smart wallet address for a registered user (from TycoonUserRegistry). Only set after registry is deployed and user has registered. */
+export function useUserRegistryWallet(ownerAddress?: Address) {
+  const chainId = useChainId();
+  const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
+  const result = useReadContract({
+    address: registryAddress,
+    abi: UserRegistryABI,
+    functionName: 'getWallet',
+    args: ownerAddress ? [ownerAddress] : undefined,
+    query: { enabled: !!ownerAddress && !!registryAddress },
+  });
+  return {
+    data: result.data as Address | undefined,
     isLoading: result.isLoading,
     error: result.error,
   };
@@ -321,6 +346,7 @@ export function useCreateAIGame(
 
 
 
+/** On TycoonUpgradeable this calls setPropertyStats(seller, buyer). Only the game faucet can call it. */
 export function useTransferPropertyOwnership() {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
@@ -342,16 +368,10 @@ export function useTransferPropertyOwnership() {
     return writeContractAsync({
       address: contractAddress,
       abi: TycoonABI,
-      functionName: 'transferPropertyOwnership',
-      args: [
-        seller,
-        buyer
-      ],
+      functionName: 'setPropertyStats',
+      args: [seller, buyer],
     });
-  }, [
-    writeContractAsync,
-    contractAddress   
-  ]);
+  }, [writeContractAsync, contractAddress]);
 
   return {
     write,
@@ -653,7 +673,7 @@ export function useVerifyErc8004AgentId() {
           address: ERC8004_IDENTITY_REGISTRY_ADDRESS,
           abi: ERC8004IdentityABI as never,
           functionName: 'tokenOfOwnerByIndex',
-          args: [ownerAddress as Address, 0n],
+          args: [ownerAddress as Address, BigInt(0)],
         });
         return tokenId != null ? Number(tokenId) : null;
       } catch {
@@ -686,6 +706,11 @@ export function useExitGame(gameId: bigint) {
   return { exit, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+/**
+ * Claim / receive game reward. On TycoonUpgradeable, rewards are paid when the player exits;
+ * there is no separate claimReward(). This hook calls exitGame(gameId) so the caller receives
+ * their payout (rank-based USDC + voucher). Use for "Claim Your Victory" or post-game exit.
+ */
 export function useClaimReward(gameId: bigint) {
   const chainId = useChainId();
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
@@ -697,7 +722,7 @@ export function useClaimReward(gameId: bigint) {
     const hash = await writeContractAsync({
       address: contractAddress,
       abi: TycoonABI,
-      functionName: 'claimReward',
+      functionName: 'exitGame',
       args: [gameId],
     });
     return hash;
@@ -730,6 +755,8 @@ export function useGetUser(username?: string) {
       totalStaked: (result.data as UserTuple)[7],
       totalEarned: (result.data as UserTuple)[8],
       totalWithdrawn: (result.data as UserTuple)[9],
+      propertiesbought: (result.data as UserTuple)[10],
+      propertiesSold: (result.data as UserTuple)[11],
     } : undefined,
     isLoading: result.isLoading,
     error: result.error,
