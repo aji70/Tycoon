@@ -646,6 +646,45 @@ const HeroSection: React.FC = () => {
             </p>
           )}
 
+          {/* Register + Link wallet: when Privy/guest without smart wallet (incl. wallet-connected, fully-registered but no smart wallet) */}
+          {((registrationStatus === "guest" || registrationStatus === "privy") || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && (
+            <div className="flex flex-col items-center gap-4 mt-4">
+              <p className="text-[#869298] text-sm text-center max-w-sm">
+                Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                {canRegisterOnChain && (
+                  <button
+                    type="button"
+                    onClick={handleRegisterOnChain}
+                    disabled={registerOnChainLoading}
+                    className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+                  >
+                    <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
+                      <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-[700] z-2">
+                      {registerOnChainLoading ? "Registering..." : "Register"}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleLinkWallet}
+                  disabled={linkWalletLoading}
+                  className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+                >
+                  <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
+                    <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
+                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Action buttons: require Privy for EOA; guest/Privy when hasSmartWallet */}
           {((address && registrationStatus === "fully-registered" && hasSmartWallet && isPrivyAuthed) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
@@ -767,44 +806,6 @@ const HeroSection: React.FC = () => {
               </button>
             </div>
           ) : null}
-
-          {(registrationStatus === "guest" || registrationStatus === "privy") && !hasSmartWallet && (
-            <div className="flex flex-col items-center gap-4 mt-4">
-              <p className="text-[#869298] text-sm text-center max-w-sm">
-                Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {canRegisterOnChain && (
-                  <button
-                    type="button"
-                    onClick={handleRegisterOnChain}
-                    disabled={registerOnChainLoading}
-                    className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
-                  >
-                    <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
-                      <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-[700] z-2">
-                      {registerOnChainLoading ? "Registering..." : "Register"}
-                    </span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleLinkWallet}
-                  disabled={linkWalletLoading}
-                  className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
-                >
-                  <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
-                    <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
-                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {!address && !guestUser && !isPrivyAuthed && (
             <p className="text-gray-400 text-sm text-center mt-4">

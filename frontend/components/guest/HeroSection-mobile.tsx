@@ -578,6 +578,45 @@ const HeroSectionMobile: React.FC = () => {
             </>
           )}
 
+          {/* Register + Link wallet: when Privy/guest without smart wallet, or wallet+Privy+fully-registered but no smart wallet */}
+          {(((registrationStatus === "guest" || registrationStatus === "privy") || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading) && (
+            <div className="flex flex-col items-center gap-4 mt-4">
+              <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
+                Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                {canRegisterOnChain && (
+                  <button
+                    type="button"
+                    onClick={handleRegisterOnChain}
+                    disabled={registerOnChainLoading}
+                    className="relative w-[160px] h-12 overflow-hidden rounded-xl disabled:opacity-60"
+                  >
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 160 48" fill="none">
+                      <path d="M6 1H154C158.418 1 160.997 5.85486 158.601 9.5127L140.167 39.5127C139.151 41.0646 137.42 42 135.565 42H6C2.96243 42 0.5 39.5376 0.5 36.5V8.5C0.5 5.46243 2.96243 3 6 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold z-0">
+                      {registerOnChainLoading ? "Registering..." : "Register"}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleLinkWallet}
+                  disabled={linkWalletLoading}
+                  className="relative w-[160px] h-12 overflow-hidden rounded-xl disabled:opacity-60"
+                >
+                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 160 48" fill="none">
+                    <path d="M6 1H154C158.418 1 160.997 5.85486 158.601 9.5127L140.167 39.5127C139.151 41.0646 137.42 42 135.565 42H6C2.96243 42 0.5 39.5376 0.5 36.5V8.5C0.5 5.46243 2.96243 3 6 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-bold z-0">
+                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {((address && registrationStatus === "fully-registered" && hasSmartWallet && isPrivyAuthed) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
@@ -686,44 +725,6 @@ const HeroSectionMobile: React.FC = () => {
               )}
             </div>
           ) : null}
-
-          {(registrationStatus === "guest" || registrationStatus === "privy") && !hasSmartWallet && !loading && (
-            <div className="flex flex-col items-center gap-4 mt-4">
-              <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
-                Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {canRegisterOnChain && (
-                  <button
-                    type="button"
-                    onClick={handleRegisterOnChain}
-                    disabled={registerOnChainLoading}
-                    className="relative w-[160px] h-12 overflow-hidden rounded-xl disabled:opacity-60"
-                  >
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 160 48" fill="none">
-                      <path d="M6 1H154C158.418 1 160.997 5.85486 158.601 9.5127L140.167 39.5127C139.151 41.0646 137.42 42 135.565 42H6C2.96243 42 0.5 39.5376 0.5 36.5V8.5C0.5 5.46243 2.96243 3 6 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold z-0">
-                      {registerOnChainLoading ? "Registering..." : "Register"}
-                    </span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleLinkWallet}
-                  disabled={linkWalletLoading}
-                  className="relative w-[160px] h-12 overflow-hidden rounded-xl disabled:opacity-60"
-                >
-                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 160 48" fill="none">
-                    <path d="M6 1H154C158.418 1 160.997 5.85486 158.601 9.5127L140.167 39.5127C139.151 41.0646 137.42 42 135.565 42H6C2.96243 42 0.5 39.5376 0.5 36.5V8.5C0.5 5.46243 2.96243 3 6 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-bold z-0">
-                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {!address && !guestUser && !isPrivyAuthed && !loading && (
             <p className="text-gray-400 text-sm text-center mt-4 px-2">
