@@ -382,19 +382,68 @@ export async function registerOnChain(req, res) {
  * GET /auth/me
  * Authorization: Bearer <token>
  * Returns current user from JWT (do not send password_hash to client).
- * Syncs smart_wallet_address from chain if missing (e.g. user registered on frontend or registry was set later).
+ * After Privy sign-in: if user has a real address (linked wallet or non-placeholder), ensures they are
+ * registered on-chain and have a smart wallet (registers them if not, then syncs smart_wallet_address).
  */
 export async function me(req, res) {
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Not authenticated" });
   }
   const { password_hash, password_hash_email, email_verification_token, ...safe } = req.user;
-  if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
-    const chain = req.user.chain || "CELO";
+  const chain = req.user.chain || "CELO";
+  const normalizedChain = User.normalizeChain(chain);
+
+  // Real address for on-chain: prefer linked wallet; else primary address only if not Privy placeholder
+  const placeholderAddr = req.user.privy_did ? placeholderAddressForPrivyDid(req.user.privy_did) : null;
+  const primaryIsPlaceholder = placeholderAddr && req.user.address && String(req.user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
+  const addrForChain = safe.linked_wallet_address && String(safe.linked_wallet_address).trim()
+    ? String(safe.linked_wallet_address).trim()
+    : primaryIsPlaceholder ? null : req.user.address;
+
+  if (addrForChain && isContractConfigured(normalizedChain)) {
+    try {
+      const isRegistered = await callContractRead("registered", [addrForChain], normalizedChain);
+      if (!isRegistered) {
+        const username = req.user.username || req.user.address?.slice(0, 10) || "Player";
+        const secret = crypto.randomBytes(32).toString("hex");
+        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+        await registerPlayerFor(addrForChain, username, passwordHash, normalizedChain);
+        const smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
+        await db("users").where({ id: req.user.id }).update({
+          password_hash: passwordHash,
+          smart_wallet_address: smartWallet || null,
+        });
+        safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
+        logger.info({ userId: req.user.id, address: addrForChain, chain: normalizedChain }, "me: registered user on-chain and synced smart wallet");
+      } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
+        const smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
+        if (smartWallet) {
+          await User.update(req.user.id, { smart_wallet_address: smartWallet });
+          safe.smart_wallet_address = smartWallet;
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err?.message, userId: req.user.id }, "me: ensure on-chain / smart wallet failed");
+      if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
+        try {
+          const addrToTry = safe.linked_wallet_address && String(safe.linked_wallet_address).trim() ? safe.linked_wallet_address : req.user.address;
+          if (addrToTry) {
+            const smartWallet = await getSmartWalletAddress(addrToTry, normalizedChain);
+            if (smartWallet) {
+              await User.update(req.user.id, { smart_wallet_address: smartWallet });
+              safe.smart_wallet_address = smartWallet;
+            }
+          }
+        } catch (syncErr) {
+          logger.warn({ err: syncErr?.message, userId: req.user.id }, "me: sync smart_wallet_address failed");
+        }
+      }
+    }
+  } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
     const addrToTry = safe.linked_wallet_address && String(safe.linked_wallet_address).trim() ? safe.linked_wallet_address : req.user.address;
     if (addrToTry) {
       try {
-        const smartWallet = await getSmartWalletAddress(addrToTry, chain);
+        const smartWallet = await getSmartWalletAddress(addrToTry, normalizedChain);
         if (smartWallet) {
           await User.update(req.user.id, { smart_wallet_address: smartWallet });
           safe.smart_wallet_address = smartWallet;
@@ -404,6 +453,7 @@ export async function me(req, res) {
       }
     }
   }
+
   return res.status(200).json({
     success: true,
     data: safe,
