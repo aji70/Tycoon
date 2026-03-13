@@ -13,6 +13,8 @@ export type GuestUser = {
   linked_wallet_chain?: string | null;
   email?: string | null;
   email_verified?: boolean;
+  /** Set when user has a TycoonUserRegistry smart wallet (enables Challenge AI / Multiplayer without connecting wallet). */
+  smart_wallet_address?: string | null;
 };
 
 type GuestAuthContextValue = {
@@ -72,7 +74,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const res = await apiClient.get<ApiResponse & { data?: { id: number; username: string; address: string; is_guest?: boolean } }>("auth/me");
+      const res = await apiClient.get<ApiResponse & { data?: { id: number; username: string; address: string; is_guest?: boolean; smart_wallet_address?: string | null } }>("auth/me");
       if (res?.data?.data) {
         const d = res.data.data as Record<string, unknown>;
         setGuestUser({
@@ -84,6 +86,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           linked_wallet_chain: d.linked_wallet_chain as string | null | undefined,
           email: d.email as string | null | undefined,
           email_verified: d.email_verified as boolean | undefined,
+          smart_wallet_address: d.smart_wallet_address as string | null | undefined,
         });
       } else {
         setGuestUser(null);
@@ -156,6 +159,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
             linked_wallet_chain: data.data.linked_wallet_chain ?? null,
             email: data.data.email,
             email_verified: data.data.email_verified,
+            smart_wallet_address: data.data.smart_wallet_address ?? null,
           });
           return { success: true };
         }
