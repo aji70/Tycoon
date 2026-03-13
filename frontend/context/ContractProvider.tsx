@@ -133,6 +133,7 @@ export function useIsRegistered(address?: Address) {
     data: result.data as boolean | undefined,
     isLoading: result.isLoading,
     error: result.error,
+    refetch: result.refetch,
   };
 }
 

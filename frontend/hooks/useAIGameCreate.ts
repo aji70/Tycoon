@@ -89,7 +89,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const isGuest = !!guestAuth?.guestUser && !address;
 
   const { data: username } = useGetUsername(address);
-  const { data: isUserRegistered, isLoading: isRegisteredLoading } = useIsRegistered(address);
+  const { data: isUserRegistered, isLoading: isRegisteredLoading, refetch: refetchRegistered } = useIsRegistered(address);
   const { agents: registeredAgents, isLoading: agentsLoading, isSupported: registrySupported } =
     useRegisteredAIAgents();
 
@@ -175,13 +175,25 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       return;
     }
 
-    if (!address || !username || !isUserRegistered) {
+    if (!address || !username) {
       toast.error("Please connect your wallet and register first!", { autoClose: 5000 });
       return;
     }
 
     if (!contractAddress) {
       toast.error("Game contract not deployed on this network.");
+      return;
+    }
+
+    // Refetch registration so we don't send a tx if the contract says not registered (e.g. cache was stale)
+    const { data: registeredNow } = await refetchRegistered();
+    if (registeredNow !== true) {
+      toast.update(toastId, {
+        render: "You’re not registered on-chain. Complete registration on the home page (Register with your wallet), then try again.",
+        type: "error",
+        isLoading: false,
+        autoClose: 8000,
+      });
       return;
     }
 
@@ -262,7 +274,11 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/ai-play?gameCode=${gameCode}`);
     } catch (err: any) {
       console.error("handlePlay error:", err);
-      const message = getContractErrorMessage(err, "Something went wrong. Please try again.");
+      const rawMessage = getContractErrorMessage(err, "Something went wrong. Please try again.");
+      const message =
+        typeof rawMessage === "string" && rawMessage.toLowerCase().includes("not registered")
+          ? "You’re not registered on-chain. Go to the home page, connect your wallet, and complete Register (sign the transaction), then try creating an AI game again."
+          : rawMessage;
       toast.update(toastId, {
         render: message,
         type: "error",
