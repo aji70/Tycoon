@@ -524,7 +524,77 @@ export async function linkWallet(req, res) {
     }
     const existingByPrimary = await User.findByAddress(addr, normalizedChain);
     if (existingByPrimary && existingByPrimary.id !== req.user.id) {
-      return res.status(409).json({ success: false, message: "This wallet is already registered as a primary account" });
+      // Merge current user (guest/Privy) into EOA account, keeping EOA's username
+      const sourceId = req.user.id;
+      const walletUserId = existingByPrimary.id;
+      const guestGameIds = await db("game_players").where({ user_id: sourceId }).select("game_id");
+      const guestGameIdSet = new Set(guestGameIds.map((r) => r.game_id));
+      if (guestGameIdSet.size > 0) {
+        const overlap = await db("game_players")
+          .where({ user_id: walletUserId })
+          .whereIn("game_id", [...guestGameIdSet])
+          .first();
+        if (overlap) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "Cannot merge: you and your wallet account are both in the same game. Finish or leave that game first, then try again.",
+          });
+        }
+      }
+      const sourceUser = await User.findById(sourceId);
+      if (!sourceUser) return res.status(401).json({ success: false, message: "Account not found" });
+
+      await db.transaction(async (trx) => {
+        await trx("game_players").where({ user_id: sourceId }).update({ user_id: walletUserId, updated_at: db.fn.now() });
+        await trx("games").where({ creator_id: sourceId }).update({ creator_id: walletUserId, updated_at: db.fn.now() });
+        await trx("player_votes").where({ voter_user_id: sourceId }).update({ voter_user_id: walletUserId });
+        await trx("player_votes").where({ target_user_id: sourceId }).update({ target_user_id: walletUserId });
+        await trx("end_by_networth_votes").where({ user_id: sourceId }).update({ user_id: walletUserId });
+        if (await trx.schema.hasTable("tournament_entries")) {
+          await trx("tournament_entries").where({ user_id: sourceId }).update({ user_id: walletUserId });
+        }
+        const cols = User.chainColumns(normalizedChain);
+        if (cols) {
+          const guestPlayed = Number(sourceUser[cols.played] ?? 0);
+          const guestWon = Number(sourceUser[cols.won] ?? 0);
+          if (guestPlayed > 0 || guestWon > 0) {
+            await trx("users").where({ id: walletUserId }).increment(cols.played, guestPlayed).increment(cols.won, guestWon).update({ updated_at: db.fn.now() });
+          }
+        }
+        const gp = Number(sourceUser.games_played ?? 0);
+        const gw = Number(sourceUser.game_won ?? 0);
+        const gl = Number(sourceUser.game_lost ?? 0);
+        if (gp > 0 || gw > 0 || gl > 0) {
+          await trx("users").where({ id: walletUserId }).increment("games_played", gp).increment("game_won", gw).increment("game_lost", gl).update({ updated_at: db.fn.now() });
+        }
+        // Carry over privy_did so future Privy sign-ins resolve to EOA account
+        const updates = {};
+        if (sourceUser.privy_did && String(sourceUser.privy_did).trim()) {
+          updates.privy_did = sourceUser.privy_did.trim();
+        }
+        if (sourceUser.email && String(sourceUser.email).trim() && !existingByPrimary.email) {
+          updates.email = sourceUser.email.trim().toLowerCase();
+          if (sourceUser.email_verified) updates.email_verified = true;
+        }
+        if (Object.keys(updates).length > 0) {
+          await trx("users").where({ id: walletUserId }).update({ ...updates, updated_at: db.fn.now() });
+        }
+        await trx("users").where({ id: sourceId }).del();
+      });
+
+      const updatedWalletUser = await User.findById(walletUserId);
+      const token = jwt.sign(
+        { userId: updatedWalletUser.id, address: updatedWalletUser.address, username: updatedWalletUser.username, isGuest: !!updatedWalletUser.is_guest },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+      const { password_hash: _p, ...safe } = updatedWalletUser;
+      return res.status(200).json({
+        success: true,
+        message: "Accounts merged. You are now signed in as your wallet account.",
+        data: { token, user: safe },
+      });
     }
     const existingByLinked = await User.findByLinkedWallet(addr, normalizedChain);
     if (existingByLinked && existingByLinked.id !== req.user.id) {
