@@ -286,6 +286,26 @@ export function useRewardsAdmin() {
     query: { enabled: !!tycoonAddress && isValidEthAddress(checkRegisteredAddress) },
   });
 
+  const registryAddressForWallet =
+    tycoonUserRegistry && isValidEthAddress(tycoonUserRegistry) ? (tycoonUserRegistry as Address) : undefined;
+  const hasWalletResult = useReadContract({
+    address: registryAddressForWallet,
+    abi: [
+      {
+        inputs: [{ name: "ownerAddress", type: "address" }],
+        name: "hasWallet",
+        outputs: [{ type: "bool" }],
+        stateMutability: "view",
+        type: "function",
+      },
+    ] as Abi,
+    functionName: "hasWallet",
+    args: isValidEthAddress(checkRegisteredAddress) ? [checkRegisteredAddress as Address] : undefined,
+    query: {
+      enabled: !!registryAddressForWallet && isValidEthAddress(checkRegisteredAddress),
+    },
+  });
+
   const allTokens: TokenDisplayItem[] =
     (tokenInfoResults.data
       ?.map((result, index) => {
@@ -692,6 +712,8 @@ export function useRewardsAdmin() {
       isRegistered: registeredCheckResult.data as boolean | undefined,
       isRegisteredLoading: registeredCheckResult.isLoading,
       addressToUsername: addressToUsernameResult.data as string | undefined,
+      hasSmartWallet: hasWalletResult.data as boolean | undefined,
+      hasSmartWalletLoading: hasWalletResult.isLoading,
     },
     contract: {
       tycBalance: tycBalance.data,
