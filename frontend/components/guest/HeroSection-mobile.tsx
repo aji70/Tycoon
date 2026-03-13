@@ -465,7 +465,38 @@ const HeroSectionMobile: React.FC = () => {
 
         {/* Main action area */}
         <div className="mt-8 sm:mt-10 w-full max-w-[380px] flex flex-col items-center gap-5 sm:gap-6 flex-1">
-          {address && registrationStatus === "none" && !loading && (
+          {/* EOA mandatory Privy: wallet connected but not signed in with Privy */}
+          {address && !isPrivyAuthed && !loading && (
+            <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">
+              <p className="text-[#869298] text-sm text-center font-dmSans">
+                Sign in with Privy to continue
+              </p>
+              <button
+                type="button"
+                onClick={() => login()}
+                className="relative w-full max-w-[260px] h-14 overflow-hidden rounded-xl transition-transform active:scale-[0.98]"
+              >
+                <svg
+                  className="absolute inset-0 w-full h-full"
+                  viewBox="0 0 260 56"
+                  fill="none"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth="2"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold z-0">
+                  Sign in with Privy
+                </span>
+              </button>
+            </div>
+          )}
+
+          {address && isPrivyAuthed && registrationStatus === "none" && !loading && (
             <input
               type="text"
               value={inputUsername}
@@ -506,7 +537,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {address && registrationStatus !== "fully-registered" && !loading && (
+          {address && isPrivyAuthed && registrationStatus !== "fully-registered" && !loading && (
             <>
             <button
               onClick={handleRegister}
@@ -536,28 +567,7 @@ const HeroSectionMobile: React.FC = () => {
             </>
           )}
 
-          {/* EOA registered but needs smart wallet: prompt Sign in with Privy */}
-          {address && registrationStatus === "fully-registered" && !hasSmartWallet && guestUser?.needs_smart_wallet_creation && !isPrivyAuthed && (
-            <div className="flex flex-col items-center gap-3 mt-4">
-              <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
-                Sign in with Privy to link your wallet and complete smart account setup.
-              </p>
-              <button
-                type="button"
-                onClick={() => login()}
-                className="relative w-[200px] h-12 overflow-hidden rounded-xl"
-              >
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 48" fill="none">
-                  <path d="M6 1H194C198.418 1 200.997 5.85486 198.601 9.5127L180.167 39.5127C179.151 41.0646 177.42 42 175.565 42H6C2.96243 42 0.5 39.5376 0.5 36.5V8.5C0.5 5.46243 2.96243 3 6 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold z-0">
-                  Sign in with Privy
-                </span>
-              </button>
-            </div>
-          )}
-
-          {((address && registrationStatus === "fully-registered" && hasSmartWallet) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
+          {((address && registrationStatus === "fully-registered" && hasSmartWallet && isPrivyAuthed) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
