@@ -147,7 +147,7 @@ const HeroSectionMobile: React.FC = () => {
   const registrationStatus = useMemo(() => {
     if (address) {
       const hasBackend = !!user;
-      const hasOnChain = !!isUserRegistered || localRegistered;
+      const hasOnChain = isUserRegistered === true;
       if (hasBackend && hasOnChain) return "fully-registered";
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
@@ -155,7 +155,7 @@ const HeroSectionMobile: React.FC = () => {
     if (guestUser) return "guest";
     if (isPrivyAuthed) return "privy";
     return "disconnected";
-  }, [address, user, isUserRegistered, localRegistered, guestUser, isPrivyAuthed]);
+  }, [address, user, isUserRegistered, guestUser, isPrivyAuthed]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
@@ -193,7 +193,7 @@ const HeroSectionMobile: React.FC = () => {
     const toastId = toast.loading("Processing registration...");
 
     try {
-      if (!isUserRegistered && !localRegistered) {
+      if (isUserRegistered !== true) {
         await registerPlayer(finalUsername);
       }
 
@@ -230,18 +230,16 @@ const HeroSectionMobile: React.FC = () => {
         return;
       }
 
-      // Backend may fail with "username already exists" or "user already registered" — user is still registered on-chain; treat as success if we can load them
       const isAlreadyExists =
         err?.status === 409 ||
         err?.response?.status === 409 ||
         /already exists|already registered|username.*taken|user.*exists/i.test(err?.message ?? "");
 
-      if (isAlreadyExists) {
+      if (isAlreadyExists && isUserRegistered === true) {
         try {
           const res = await apiClient.get<ApiResponse>(`/users/by-address/${address}?chain=Celo`);
           if (res?.success && res?.data) {
             setUser(res.data as UserType);
-            setLocalRegistered(true);
             setLocalUsername(finalUsername);
             toast.update(toastId, {
               render: "Welcome to Tycoon!",
@@ -252,9 +250,16 @@ const HeroSectionMobile: React.FC = () => {
             router.refresh();
             return;
           }
-        } catch (_) {
-          // fall through to generic error
-        }
+        } catch (_) {}
+      }
+      if (isAlreadyExists && isUserRegistered !== true) {
+        toast.update(toastId, {
+          render: "Complete registration: sign the transaction in your wallet to register on-chain.",
+          type: "warning",
+          isLoading: false,
+          autoClose: 6000,
+        });
+        return;
       }
 
       let message = "Registration failed. Try again.";
