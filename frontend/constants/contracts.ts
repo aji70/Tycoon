@@ -3,9 +3,18 @@ import { Address } from 'viem';
 import { celo } from 'wagmi/chains';
 
 // This frontend is Celo-only.
-// Prefer upgradeable proxy when set (NEXT_PUBLIC_CELO_UPGRADEABLE); otherwise use legacy Tycoon (NEXT_PUBLIC_CELO).
+// Use the proxy for all reads/writes. Never use the implementation address (it has no game state).
+const CELO_TYCOON_IMPLEMENTATION = '0xC2dab89236Bd015D41bF0dEEA0a6D314a49ff42c'.toLowerCase();
+const CELO_TYCOON_PROXY = '0xA97fC9666a41cDAE3EFb74A4CaC87B9d33A16F0e';
+function getTycoonAddress(): Address {
+  const upgradeable = process.env.NEXT_PUBLIC_CELO_UPGRADEABLE;
+  const legacy = process.env.NEXT_PUBLIC_CELO;
+  if (upgradeable && upgradeable.toLowerCase() !== CELO_TYCOON_IMPLEMENTATION) return upgradeable as Address;
+  if (legacy && legacy.toLowerCase() !== CELO_TYCOON_IMPLEMENTATION) return legacy as Address;
+  return CELO_TYCOON_PROXY as Address;
+}
 export const TYCOON_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
-  [celo.id]: (process.env.NEXT_PUBLIC_CELO_UPGRADEABLE || process.env.NEXT_PUBLIC_CELO) as Address,
+  [celo.id]: getTycoonAddress(),
 };
 export const REWARD_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_REWARD as Address,
