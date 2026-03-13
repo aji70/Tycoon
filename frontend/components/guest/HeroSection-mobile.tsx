@@ -36,7 +36,7 @@ const HeroSectionMobile: React.FC = () => {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const { open: openWallet } = useAppKit();
-  const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
+  const { ready, authenticated, login, logout, connectWallet, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
@@ -318,8 +318,19 @@ const HeroSectionMobile: React.FC = () => {
 
   const handleLinkWallet = async () => {
     if (!address) {
-      openWallet();
-      toast.info("Connect your wallet, then click Link wallet again");
+      try {
+        if (connectWallet) {
+          connectWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else if (typeof openWallet === "function") {
+          openWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else {
+          toast.info("Open the menu to connect your wallet, then click here again");
+        }
+      } catch {
+        toast.info("Open the menu to connect your wallet, then click here again");
+      }
       return;
     }
     if (!guestUser || !guestAuth?.linkWallet) return;
@@ -707,7 +718,7 @@ const HeroSectionMobile: React.FC = () => {
                     <path d="M6 1H154C158.418 1 160.997 5.85486 158.601 9.5127L140.167 39.5127C139.151 41.0646 137.42 42 135.565 42H6C2.96243 42 0.5 39.5376 0.5 36.5V8.5C0.5 5.46243 2.96243 3 6 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-bold z-0">
-                    {linkWalletLoading ? "Linking..." : "Link wallet"}
+                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
                   </span>
                 </button>
               </div>
