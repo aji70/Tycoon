@@ -568,17 +568,17 @@ export async function linkWallet(req, res) {
         if (gp > 0 || gw > 0 || gl > 0) {
           await trx("users").where({ id: walletUserId }).increment("games_played", gp).increment("game_won", gw).increment("game_lost", gl).update({ updated_at: db.fn.now() });
         }
-        // Carry over privy_did so future Privy sign-ins resolve to EOA account
-        const updates = {};
-        if (sourceUser.privy_did && String(sourceUser.privy_did).trim()) {
-          updates.privy_did = sourceUser.privy_did.trim();
+        const privyDid = sourceUser.privy_did && String(sourceUser.privy_did).trim() ? sourceUser.privy_did.trim() : null;
+        const emailUpdate = sourceUser.email && String(sourceUser.email).trim() && !existingByPrimary.email
+          ? { email: sourceUser.email.trim().toLowerCase(), ...(sourceUser.email_verified ? { email_verified: true } : {}) }
+          : null;
+        // Clear source user's privy_did first to avoid unique constraint violation, then assign to wallet user
+        if (privyDid) {
+          await trx("users").where({ id: sourceId }).update({ privy_did: null, updated_at: db.fn.now() });
+          await trx("users").where({ id: walletUserId }).update({ privy_did: privyDid, updated_at: db.fn.now() });
         }
-        if (sourceUser.email && String(sourceUser.email).trim() && !existingByPrimary.email) {
-          updates.email = sourceUser.email.trim().toLowerCase();
-          if (sourceUser.email_verified) updates.email_verified = true;
-        }
-        if (Object.keys(updates).length > 0) {
-          await trx("users").where({ id: walletUserId }).update({ ...updates, updated_at: db.fn.now() });
+        if (emailUpdate) {
+          await trx("users").where({ id: walletUserId }).update({ ...emailUpdate, updated_at: db.fn.now() });
         }
         await trx("users").where({ id: sourceId }).del();
       });
