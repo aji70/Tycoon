@@ -60,6 +60,13 @@ const DEFAULT_SETTINGS: AIGameSettings = {
   duration: 30,
 };
 
+/** Contract expects lowercase: hat, car, dog, thimble, iron, battleship, boot, wheelbarrow. Maps top_hat -> hat. */
+function symbolForContract(symbol: string): string {
+  const s = (symbol || "hat").toLowerCase().trim();
+  if (s === "top_hat") return "hat";
+  return s;
+}
+
 interface GameCreateResponse {
   data?: { data?: { id: string | number }; id?: string | number };
   id?: string | number;
@@ -101,7 +108,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { write: createAiGame, isPending: isCreatePending } = useCreateAIGame(
     username || "",
     "PRIVATE",
-    settings.symbol,
+    symbolForContract(settings.symbol),
     settings.aiCount,
     gameCode,
     BigInt(settings.startingCash)

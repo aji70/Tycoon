@@ -22,6 +22,8 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     IERC20 public usdc;
 
     address public backendMinter;
+    /// @notice Game contract (Tycoon proxy) can mint for register/game-end rewards. Set via setGameMinter.
+    address public gameMinter;
     uint256 private _nextVoucherId = VOUCHER_BASE;
     uint256 private _nextCollectibleId = COLLECTIBLE_BASE;
 
@@ -49,6 +51,7 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     mapping(uint256 => Bundle) public bundles;
 
     event BackendMinterUpdated(address indexed newMinter);
+    event GameMinterUpdated(address indexed previous, address indexed newGameMinter);
     event BaseURIUpdated(string newBaseURI);
     event CashPerkActivated(uint256 indexed tokenId, address indexed burner, uint256 cashAmount);
     event CollectibleBought(uint256 indexed tokenId, address indexed buyer, uint256 price, bool usedUsdc);
@@ -73,13 +76,23 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     }
 
     modifier onlyMinter() {
-        require(msg.sender == backendMinter || msg.sender == owner(), "Not minter");
+        require(
+            msg.sender == backendMinter || msg.sender == gameMinter || msg.sender == owner(),
+            "Not minter"
+        );
         _;
     }
 
     function setBackendMinter(address newMinter) external onlyOwner {
         backendMinter = newMinter;
         emit BackendMinterUpdated(newMinter);
+    }
+
+    /// @notice Set the game contract (Tycoon proxy) so it can mint on register/game-end. Keeps backendMinter for faucet (daily login).
+    function setGameMinter(address newGameMinter) external onlyOwner {
+        address previous = gameMinter;
+        gameMinter = newGameMinter;
+        emit GameMinterUpdated(previous, newGameMinter);
     }
 
     function setBaseURI(string calldata newBaseURI) external onlyOwner {
