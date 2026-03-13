@@ -13,6 +13,7 @@ import {
   useRegisterPlayer,
   usePreviousGameCode,
   useGetGameByCode,
+  useHasSmartWallet,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePrivy } from "@privy-io/react-auth";
@@ -55,6 +56,11 @@ const HeroSection: React.FC = () => {
   const { data: gameCode } = usePreviousGameCode(address);
 
   const { data: contractGame } = useGetGameByCode(gameCode);
+
+  const { data: hasSmartWalletFromChain } = useHasSmartWallet(address ?? undefined);
+  const hasSmartWallet =
+    (!!address && hasSmartWalletFromChain === true) ||
+    (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== "");
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
@@ -539,8 +545,8 @@ const handleContinuePrevious = () => {
             </button>
           )}
 
-          {/* Action buttons: wallet registered, guest, or Privy */}
-          {(address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy" ? (
+          {/* Action buttons: only when user has a smart wallet (from chain or backend); then show for wallet registered, guest, or Privy */}
+          {hasSmartWallet && ((address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy") ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
@@ -660,6 +666,12 @@ const handleContinuePrevious = () => {
               </button>
             </div>
           ) : null}
+
+          {(registrationStatus === "guest" || registrationStatus === "privy") && !hasSmartWallet && (
+            <p className="text-[#869298] text-sm text-center mt-4 max-w-sm">
+              Add a wallet in <button type="button" onClick={() => router.push("/profile")} className="text-[#00F0FF] hover:underline font-medium">Profile</button> to unlock Challenge AI, Multiplayer, and Join Room.
+            </p>
+          )}
 
           {!address && !guestUser && !isPrivyAuthed && (
             <p className="text-gray-400 text-sm text-center mt-4">

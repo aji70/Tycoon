@@ -8,6 +8,7 @@ import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import PrivyProviderWrapper from "@/components/PrivyProviderWrapper";
 import PrivyBackendSync from "@/components/PrivyBackendSync";
+import AddWalletPromptModal from "@/components/guest/AddWalletPromptModal";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import { ToastContainer } from "react-toastify";
@@ -87,6 +88,7 @@ export default async function RootLayout({
             <TycoonProvider>
               <GuestAuthProvider>
               <PrivyBackendSync />
+              <AddWalletPromptModal />
               <TournamentProvider>
               <AppKitProviderWrapper>
                 {/* SocketProvider commented out as in your code */}

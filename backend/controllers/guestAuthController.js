@@ -389,16 +389,19 @@ export async function me(req, res) {
     return res.status(401).json({ success: false, message: "Not authenticated" });
   }
   const { password_hash, password_hash_email, email_verification_token, ...safe } = req.user;
-  if (req.user.address && (safe.smart_wallet_address == null || safe.smart_wallet_address === "")) {
-    try {
-      const chain = req.user.chain || "CELO";
-      const smartWallet = await getSmartWalletAddress(req.user.address, chain);
-      if (smartWallet) {
-        await User.update(req.user.id, { smart_wallet_address: smartWallet });
-        safe.smart_wallet_address = smartWallet;
+  if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
+    const chain = req.user.chain || "CELO";
+    const addrToTry = safe.linked_wallet_address && String(safe.linked_wallet_address).trim() ? safe.linked_wallet_address : req.user.address;
+    if (addrToTry) {
+      try {
+        const smartWallet = await getSmartWalletAddress(addrToTry, chain);
+        if (smartWallet) {
+          await User.update(req.user.id, { smart_wallet_address: smartWallet });
+          safe.smart_wallet_address = smartWallet;
+        }
+      } catch (err) {
+        logger.warn({ err: err?.message, userId: req.user.id }, "me: sync smart_wallet_address failed");
       }
-    } catch (err) {
-      logger.warn({ err: err?.message, userId: req.user.id }, "me: sync smart_wallet_address failed");
     }
   }
   return res.status(200).json({
@@ -453,7 +456,16 @@ export async function linkWallet(req, res) {
       linked_wallet_address: addr,
       linked_wallet_chain: normalizedChain,
     });
-    const updated = await User.findById(req.user.id);
+    let updated = await User.findById(req.user.id);
+    try {
+      const smartWallet = await getSmartWalletAddress(addr, normalizedChain);
+      if (smartWallet) {
+        await User.update(req.user.id, { smart_wallet_address: smartWallet });
+        updated = await User.findById(req.user.id);
+      }
+    } catch (err) {
+      logger.warn({ err: err?.message, userId: req.user.id }, "linkWallet: sync smart_wallet_address failed");
+    }
     const { password_hash: _, ...safe } = updated;
     return res.status(200).json({
       success: true,
