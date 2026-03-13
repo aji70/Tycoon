@@ -409,7 +409,7 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* When no wallet: Sign in (Privy) only */}
+          {/* When disconnected: "Let's Go!" = Sign in with email only (Privy). Wallet can be added after sign-in in Profile. */}
           {!address && registrationStatus === "disconnected" && !loading && (
             <div className="w-full max-w-[300px] flex flex-col gap-3 items-center">
               <button
@@ -431,16 +431,17 @@ const handleContinuePrevious = () => {
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-base font-orbitron font-bold z-0">
-                  Sign in
+                  Let&apos;s Go!
                 </span>
               </button>
               <p className="text-[#869298] text-xs text-center font-dmSans px-2">
-                Email or social · No password
+                Sign in with email · Add a wallet later in Profile if you want
               </p>
             </div>
           )}
 
           {address && registrationStatus !== "fully-registered" && !loading && (
+            <>
             <button
               onClick={handleRegister}
               disabled={loading || registerPending || (registrationStatus === "none" && !inputUsername.trim())}
@@ -463,6 +464,10 @@ const handleContinuePrevious = () => {
                 {loading || registerPending ? "Registering..." : "Let's Go!"}
               </span>
             </button>
+              <p className="text-[#869298] text-xs text-center font-dmSans -mt-1 px-2">
+                Creates your game account &amp; smart wallet
+              </p>
+            </>
           )}
 
           {hasSmartWallet && ((address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy") ? (

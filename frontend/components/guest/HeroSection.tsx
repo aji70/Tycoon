@@ -2,11 +2,10 @@
 import React, { useEffect, useState, useMemo } from "react";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
-import { Dices, Gamepad2, Wallet } from "lucide-react";
+import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
-import { useAppKit } from "@reown/appkit/react";
 import {
   useIsRegistered,
   useGetUsername,
@@ -27,7 +26,6 @@ const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
-  const { open: openAppKit } = useAppKit();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
@@ -470,45 +468,35 @@ const handleContinuePrevious = () => {
             />
           )}
 
-          {/* When no wallet: Sign in (Privy) + Connect wallet (desktop) */}
+          {/* When disconnected: "Let's Go!" = Sign in with email only (Privy). Wallet can be added after sign-in in Profile. */}
           {!address && registrationStatus === "disconnected" && !loading && (
             <div className="w-[80%] md:w-[400px] flex flex-col gap-4 items-center">
-              <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-                <button
-                  type="button"
-                  onClick={() => login()}
-                  className="relative group w-full sm:w-auto min-w-[200px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+              <button
+                type="button"
+                onClick={() => login()}
+                className="relative group w-full sm:w-auto min-w-[220px] h-[52px] px-8 bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-[1.02]"
+              >
+                <svg
+                  width="260"
+                  height="52"
+                  viewBox="0 0 260 52"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[260px] transform scale-x-[-1]"
                 >
-                  <svg
-                    width="220"
-                    height="52"
-                    viewBox="0 0 220 52"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-[220px] transform scale-x-[-1]"
-                  >
-                    <path
-                      d="M10 1H210C214.373 1 216.996 6.85486 214.601 10.5127L196.167 49.5127C195.151 51.0646 193.42 52 191.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
-                      fill="#00F0FF"
-                      stroke="#0E282A"
-                      strokeWidth={2}
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[16px] font-orbitron font-[700] z-2">
-                    Sign in
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openAppKit()}
-                  className="hidden md:flex relative group w-full sm:w-auto min-w-[200px] h-[52px] px-8 items-center justify-center rounded-xl border border-[#003B3E] bg-[#0E1415] text-[#00F0FF] font-orbitron text-[16px] font-[700] hover:border-[#00F0FF]/50 hover:bg-[#0E1415]/90 transition-all cursor-pointer"
-                >
-                  <Wallet className="w-5 h-5 mr-2" />
-                  Connect wallet
-                </button>
-              </div>
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth={2}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-[18px] font-orbitron font-[700] z-2">
+                  Let&apos;s Go!
+                </span>
+              </button>
               <p className="text-[#869298] text-xs text-center font-dmSans">
-                Sign in with email or social · No password
+                Sign in with email · Add a wallet later in Profile if you want
               </p>
             </div>
           )}
@@ -543,6 +531,11 @@ const handleContinuePrevious = () => {
                 {loading || registerPending ? "Registering..." : "Let's Go!"}
               </span>
             </button>
+          )}
+          {address && registrationStatus !== "fully-registered" && !loading && (
+            <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
+              Creates your game account &amp; smart wallet
+            </p>
           )}
 
           {/* Action buttons: only when user has a smart wallet (from chain or backend); then show for wallet registered, guest, or Privy */}
