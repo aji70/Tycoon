@@ -931,13 +931,13 @@ export default function RewardAdminPanel() {
                 <div className="mb-6 p-4 rounded-xl bg-amber-900/40 border border-amber-600/60 text-amber-200 text-sm">
                   <p className="font-semibold">Using implementation or uninitialized proxy</p>
                   <p className="mt-1 opacity-90">
-                    Owner <code className="bg-black/30 px-1 rounded">0x...0001</code> or zero <code className="bg-black/30 px-1 rounded">rewardSystem</code> means you are reading the <strong>implementation</strong> contract (or a proxy that was never initialized). Game state lives in the <strong>proxy</strong>. In <code className="bg-black/30 px-1 rounded">.env.local</code> set the proxy address:
+                    Owner <code className="bg-black/30 px-1 rounded">0x...0001</code> or zero <code className="bg-black/30 px-1 rounded">rewardSystem</code> means you are reading the <strong>implementation</strong> (or a proxy that was never initialized). Game state lives in the <strong>proxy</strong>. In <code className="bg-black/30 px-1 rounded">.env.local</code> set the <strong>proxy</strong> address:
                   </p>
                   <p className="mt-2 font-mono text-cyan-300 break-all">
-                    NEXT_PUBLIC_CELO_UPGRADEABLE=0xC2dab89236Bd015D41bF0dEEA0a6D314a49ff42c
+                    NEXT_PUBLIC_CELO=0xA97fC9666a41cDAE3EFb74A4CaC87B9d33A16F0e
                   </p>
                   <p className="mt-1 text-xs opacity-80">
-                    (Backend: <code className="bg-black/30 px-1 rounded">TYCOON_CELO_CONTRACT_ADDRESS</code> = same proxy.)
+                    (Backend: <code className="bg-black/30 px-1 rounded">TYCOON_CELO_CONTRACT_ADDRESS</code> = same proxy. Do not use the implementation address 0xC2da... in env.)
                   </p>
                 </div>
               )}
