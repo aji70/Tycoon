@@ -186,15 +186,52 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
     }
 
     // Refetch registration so we don't send a tx if the contract says not registered (e.g. cache was stale)
-    const { data: registeredNow } = await refetchRegistered();
+    let registeredNow = (await refetchRegistered()).data;
     if (registeredNow !== true) {
-      toast.update(toastId, {
-        render: "You’re not registered on-chain. Complete registration on the home page (Register with your wallet), then try again.",
-        type: "error",
-        isLoading: false,
-        autoClose: 8000,
-      });
-      return;
+      // Try backend "register on-chain" (no wallet signature; backend signs as game controller)
+      try {
+        toast.update(toastId, { render: "Registering you on-chain (one moment)…", isLoading: true });
+        const chainParam = chainName?.toUpperCase?.() || "CELO";
+        const res = await apiClient.post<{ success?: boolean; alreadyRegistered?: boolean; message?: string }>(
+          "/auth/register-on-chain",
+          { chain: chainParam }
+        );
+        const data = res?.data as { success?: boolean; alreadyRegistered?: boolean; message?: string } | undefined;
+        if (data?.success) {
+          const { data: after } = await refetchRegistered();
+          registeredNow = after;
+        }
+      } catch (apiErr: unknown) {
+        const status = (apiErr as { response?: { status?: number } })?.response?.status;
+        if (status === 401) {
+          toast.update(toastId, {
+            render: "Log in to your account (or create one on the home page), then try again.",
+            type: "warning",
+            isLoading: false,
+            autoClose: 8000,
+          });
+          return;
+        }
+        if (status === 503 || status === 500) {
+          const msg = (apiErr as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          toast.update(toastId, {
+            render: msg || "Backend could not register you. Try registering on the home page with your wallet.",
+            type: "error",
+            isLoading: false,
+            autoClose: 8000,
+          });
+          return;
+        }
+      }
+      if (registeredNow !== true) {
+        toast.update(toastId, {
+          render: "You’re not registered on-chain. Complete registration on the home page (Register with your wallet), then try again.",
+          type: "error",
+          isLoading: false,
+          autoClose: 8000,
+        });
+        return;
+      }
     }
 
     try {

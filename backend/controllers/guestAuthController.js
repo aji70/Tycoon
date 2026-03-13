@@ -10,7 +10,7 @@ import bcrypt from "bcrypt";
 import { PrivyClient, verifyAccessToken } from "@privy-io/node";
 import db from "../config/database.js";
 import User from "../models/User.js";
-import { registerPlayerFor, getSmartWalletAddress } from "../services/tycoonContract.js";
+import { registerPlayerFor, getSmartWalletAddress, callContractRead, isContractConfigured } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
@@ -330,6 +330,51 @@ export async function privySignin(req, res) {
   } catch (err) {
     logger.error({ err: err?.message, stack: err?.stack }, "privySignin failed");
     return res.status(500).json({ success: false, message: err?.message || "Sign-in failed" });
+  }
+}
+
+/**
+ * POST /auth/register-on-chain
+ * Registers the authenticated user on the game contract (backend signs as game controller).
+ * Use when the user has a backend account but is not registered on-chain (e.g. "Not registered" on create game).
+ * Body: { chain?: "CELO" | "POLYGON" | "BASE" } (optional, defaults to user's chain or CELO).
+ */
+export async function registerOnChain(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const user = req.user;
+    if (!user.address) {
+      return res.status(400).json({ success: false, message: "No wallet address on your account" });
+    }
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    if (!isContractConfigured(chain)) {
+      return res.status(503).json({ success: false, message: "Contract not configured for this network" });
+    }
+    const isRegistered = await callContractRead("registered", [user.address], chain);
+    if (isRegistered) {
+      return res.status(200).json({ success: true, alreadyRegistered: true, message: "Already registered on-chain" });
+    }
+    const secret = crypto.randomBytes(32).toString("hex");
+    const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+    await registerPlayerFor(user.address, user.username || user.address.slice(0, 10), passwordHash, chain);
+    const smartWalletAddress = await getSmartWalletAddress(user.address, chain);
+    await db("users")
+      .where({ id: user.id })
+      .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
+    logger.info({ userId: user.id, address: user.address, chain }, "registerOnChain: registered user on contract");
+    return res.status(200).json({
+      success: true,
+      alreadyRegistered: false,
+      message: "Registered on-chain. You can create games now.",
+    });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "registerOnChain failed");
+    return res.status(500).json({
+      success: false,
+      message: err?.message || "Failed to register on-chain",
+    });
   }
 }
 
