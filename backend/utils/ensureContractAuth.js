@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { ethers } from "ethers";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
-import { callContractRead, registerPlayerFor, isContractConfigured } from "../services/tycoonContract.js";
+import { callContractRead, registerPlayerFor, getSmartWalletAddress, isContractConfigured } from "../services/tycoonContract.js";
 
 function passwordToHash(password) {
   return ethers.keccak256(ethers.toUtf8Bytes(password));
@@ -42,7 +42,10 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO") 
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = passwordToHash(secret);
     await registerPlayerFor(user.address, user.username || user.address.slice(0, 10), passwordHash, normalizedChain);
-    await db("users").where({ id: userId }).update({ password_hash: passwordHash });
+    const smartWalletAddress = await getSmartWalletAddress(user.address, normalizedChain);
+    await db("users")
+      .where({ id: userId })
+      .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
     logger.info({ userId, address: user.address, chain: normalizedChain }, "Registered user on contract with backend password for future game-end");
     return { ...user, password_hash: passwordHash };
   } catch (err) {

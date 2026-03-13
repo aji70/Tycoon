@@ -10,7 +10,7 @@ import bcrypt from "bcrypt";
 import { PrivyClient, verifyAccessToken } from "@privy-io/node";
 import db from "../config/database.js";
 import User from "../models/User.js";
-import { registerPlayerFor } from "../services/tycoonContract.js";
+import { registerPlayerFor, getSmartWalletAddress } from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
@@ -96,6 +96,7 @@ export async function guestRegister(req, res) {
 
     const chain = normalizedChain;
     await registerPlayerFor(playerAddress, trimmedUsername, passwordHash, normalizedChain);
+    const smartWalletAddress = await getSmartWalletAddress(playerAddress, normalizedChain);
     let userRecord;
     try {
       userRecord = await User.create({
@@ -104,6 +105,7 @@ export async function guestRegister(req, res) {
         chain,
         password_hash: passwordHash,
         is_guest: true,
+        smart_wallet_address: smartWalletAddress || null,
       });
     } catch (dbErr) {
       logger.error({ err: dbErr?.message, playerAddress, username: trimmedUsername }, "Guest user DB create failed after contract register");
@@ -335,12 +337,25 @@ export async function privySignin(req, res) {
  * GET /auth/me
  * Authorization: Bearer <token>
  * Returns current user from JWT (do not send password_hash to client).
+ * Syncs smart_wallet_address from chain if missing (e.g. user registered on frontend or registry was set later).
  */
 export async function me(req, res) {
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Not authenticated" });
   }
   const { password_hash, password_hash_email, email_verification_token, ...safe } = req.user;
+  if (req.user.address && (safe.smart_wallet_address == null || safe.smart_wallet_address === "")) {
+    try {
+      const chain = req.user.chain || "CELO";
+      const smartWallet = await getSmartWalletAddress(req.user.address, chain);
+      if (smartWallet) {
+        await User.update(req.user.id, { smart_wallet_address: smartWallet });
+        safe.smart_wallet_address = smartWallet;
+      }
+    } catch (err) {
+      logger.warn({ err: err?.message, userId: req.user.id }, "me: sync smart_wallet_address failed");
+    }
+  }
   return res.status(200).json({
     success: true,
     data: safe,

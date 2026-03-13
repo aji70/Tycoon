@@ -213,6 +213,17 @@ const TYCOON_ABI = [
 /** Network name by chain for ethers Network (used for chainId only; provider uses rpcUrl). */
 const CHAIN_NAMES = { CELO: "celo", POLYGON: "polygon", BASE: "base" };
 
+/** TycoonUserRegistry: getWallet(owner) returns smart wallet address. */
+const USER_REGISTRY_ABI = [
+  {
+    type: "function",
+    name: "getWallet",
+    inputs: [{ name: "ownerAddress", type: "address", internalType: "address" }],
+    outputs: [{ type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+];
+
 const REWARD_ABI_MINT = [
   {
     type: "function",
@@ -383,6 +394,30 @@ export async function transferPropertyOwnership(
   chain = "CELO"
 ) {
   return setPropertyStats(sellerUsername, buyerUsername, chain);
+}
+
+/**
+ * Get smart wallet address from TycoonUserRegistry for a given owner (EOA). Read-only.
+ * @param {string} ownerAddress - Owner EOA (0x...)
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ * @returns {Promise<string | null>} Smart wallet address or null if registry not set / no profile / zero address.
+ */
+export async function getSmartWalletAddress(ownerAddress, chain = "CELO") {
+  const { rpcUrl, userRegistryAddress, chainId } = getChainConfig(chain);
+  if (!rpcUrl || !userRegistryAddress || !ownerAddress) return null;
+  const zero = "0x0000000000000000000000000000000000000000";
+  try {
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+    const registry = new Contract(userRegistryAddress, USER_REGISTRY_ABI, provider);
+    const wallet = await registry.getWallet(ownerAddress);
+    const addr = typeof wallet === "string" ? wallet : wallet?.toString?.();
+    if (!addr || addr === zero) return null;
+    return addr;
+  } catch (err) {
+    logger.warn({ err: err?.message, ownerAddress, chain }, "getSmartWalletAddress failed");
+    return null;
+  }
 }
 
 /**
