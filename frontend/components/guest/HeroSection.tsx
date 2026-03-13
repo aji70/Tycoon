@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
 import { TypeAnimation } from "react-type-animation";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId, useSignMessage } from "wagmi";
 import {
   useIsRegistered,
   useGetUsername,
@@ -16,15 +16,26 @@ import {
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePrivy } from "@privy-io/react-auth";
+import { useAppKit } from "@reown/appkit/react";
 import { toast } from "react-toastify";
 import { apiClient } from "@/lib/api";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
 
+function chainIdToBackendChain(chainId: number): string {
+  if (chainId === 137 || chainId === 80001) return "POLYGON";
+  if (chainId === 42220 || chainId === 44787) return "CELO";
+  if (chainId === 8453 || chainId === 84531) return "BASE";
+  return "CELO";
+}
+
 const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
+  const chainId = useChainId();
+  const { signMessageAsync } = useSignMessage();
+  const { open: openWallet } = useAppKit();
   const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
@@ -37,6 +48,8 @@ const HeroSection: React.FC = () => {
   const [guestUsername, setGuestUsername] = useState("");
   const [guestPassword, setGuestPassword] = useState("");
   const [guestLoading, setGuestLoading] = useState(false);
+  const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
+  const [linkWalletLoading, setLinkWalletLoading] = useState(false);
 
   const {
     write: registerPlayer,
@@ -311,7 +324,58 @@ const HeroSection: React.FC = () => {
     }
   };
 
-const handleContinuePrevious = () => {
+  const handleRegisterOnChain = async () => {
+    if (!guestAuth?.refetchGuest) return;
+    setRegisterOnChainLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse>("auth/register-on-chain", { chain: "Celo" });
+      if (res?.data?.success) {
+        await guestAuth.refetchGuest();
+        const data = res?.data as { success?: boolean; alreadyRegistered?: boolean };
+        toast.success(data?.alreadyRegistered ? "Already registered" : "Registered on-chain. You can play now.");
+      } else {
+        toast.error((res?.data as { message?: string })?.message ?? "Registration failed");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? err?.message ?? "Registration failed");
+    } finally {
+      setRegisterOnChainLoading(false);
+    }
+  };
+
+  const handleLinkWallet = async () => {
+    if (!address) {
+      openWallet();
+      toast.info("Connect your wallet, then click Link wallet again");
+      return;
+    }
+    if (!guestUser || !guestAuth?.linkWallet) return;
+    setLinkWalletLoading(true);
+    try {
+      const chain = chainIdToBackendChain(chainId);
+      const message = `Link Tycoon account: ${guestUser.username || "Player"}`;
+      const signature = await signMessageAsync({ message });
+      const res = await guestAuth.linkWallet({ walletAddress: address, chain, message, signature });
+      if (res.success) {
+        await guestAuth.refetchGuest();
+        toast.success("Wallet linked. You can play now.");
+      } else {
+        toast.error(res.message ?? "Link failed");
+      }
+    } catch (err: any) {
+      if (err?.code === 4001 || err?.message?.includes("User rejected")) {
+        toast.info("Signature cancelled");
+      } else {
+        toast.error((err as Error)?.message ?? "Link failed");
+      }
+    } finally {
+      setLinkWalletLoading(false);
+    }
+  };
+
+  const canRegisterOnChain = !!guestUser && ((guestUser.is_guest && guestUser.address) || !!guestUser.linked_wallet_address);
+
+  const handleContinuePrevious = () => {
   const code = (guestUser && guestLastGame ? guestLastGame.code : gameCode) ?? "";
   if (!code) return;
 
@@ -661,9 +725,41 @@ const handleContinuePrevious = () => {
           ) : null}
 
           {(registrationStatus === "guest" || registrationStatus === "privy") && !hasSmartWallet && (
-            <p className="text-[#869298] text-sm text-center mt-4 max-w-sm">
-              Add a wallet in <button type="button" onClick={() => router.push("/profile")} className="text-[#00F0FF] hover:underline font-medium">Profile</button> to unlock Challenge AI, Multiplayer, and Join Room.
-            </p>
+            <div className="flex flex-col items-center gap-4 mt-4">
+              <p className="text-[#869298] text-sm text-center max-w-sm">
+                Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                {canRegisterOnChain && (
+                  <button
+                    type="button"
+                    onClick={handleRegisterOnChain}
+                    disabled={registerOnChainLoading}
+                    className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+                  >
+                    <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
+                      <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-[700] z-2">
+                      {registerOnChainLoading ? "Registering..." : "Register"}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleLinkWallet}
+                  disabled={linkWalletLoading}
+                  className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
+                >
+                  <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="absolute inset-0 w-full h-full">
+                    <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
+                    {linkWalletLoading ? "Linking..." : "Link wallet"}
+                  </span>
+                </button>
+              </div>
+            </div>
           )}
 
           {!address && !guestUser && !isPrivyAuthed && (

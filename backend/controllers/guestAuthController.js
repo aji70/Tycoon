@@ -345,25 +345,30 @@ export async function registerOnChain(req, res) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
     const user = req.user;
-    if (!user.address) {
-      return res.status(400).json({ success: false, message: "No wallet address on your account" });
+    const placeholderAddr = user.privy_did ? placeholderAddressForPrivyDid(user.privy_did) : null;
+    const primaryIsPlaceholder = placeholderAddr && user.address && String(user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
+    const addrForChain = user.linked_wallet_address && String(user.linked_wallet_address).trim()
+      ? String(user.linked_wallet_address).trim()
+      : primaryIsPlaceholder ? null : user.address;
+    if (!addrForChain) {
+      return res.status(400).json({ success: false, message: "Link a wallet first (Profile) or use Register to create one" });
     }
     const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
     if (!isContractConfigured(chain)) {
       return res.status(503).json({ success: false, message: "Contract not configured for this network" });
     }
-    const isRegistered = await callContractRead("registered", [user.address], chain);
+    const isRegistered = await callContractRead("registered", [addrForChain], chain);
     if (isRegistered) {
       return res.status(200).json({ success: true, alreadyRegistered: true, message: "Already registered on-chain" });
     }
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
-    await registerPlayerFor(user.address, user.username || user.address.slice(0, 10), passwordHash, chain);
-    const smartWalletAddress = await getSmartWalletAddress(user.address, chain);
+    await registerPlayerFor(addrForChain, user.username || addrForChain.slice(0, 10), passwordHash, chain);
+    const smartWalletAddress = await getSmartWalletAddress(addrForChain, chain);
     await db("users")
       .where({ id: user.id })
       .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
-    logger.info({ userId: user.id, address: user.address, chain }, "registerOnChain: registered user on contract");
+    logger.info({ userId: user.id, address: addrForChain, chain }, "registerOnChain: registered user on contract");
     return res.status(200).json({
       success: true,
       alreadyRegistered: false,
@@ -462,17 +467,19 @@ export async function me(req, res) {
 
 /**
  * POST /api/auth/link-wallet
- * Guest only. Body: { walletAddress, chain, message, signature }.
+ * Guest and Privy users. Body: { walletAddress, chain, message, signature }.
  * Verifies signature recovers walletAddress; updates user's linked_wallet_address/chain.
  * Same endpoint for "link first time" and "change linked wallet" (new signature overwrites).
+ * After linking, /auth/me will register them on-chain and sync smart_wallet_address.
  */
 export async function linkWallet(req, res) {
   try {
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Authentication required" });
     }
-    if (!req.user.is_guest) {
-      return res.status(400).json({ success: false, message: "Only guest accounts can link a wallet" });
+    const canLink = req.user.is_guest === true || (req.user.privy_did && String(req.user.privy_did).trim());
+    if (!canLink) {
+      return res.status(400).json({ success: false, message: "Only guest or Privy accounts can link a wallet" });
     }
     const { walletAddress, chain, message, signature } = req.body;
     if (!walletAddress || !message || !signature) {
