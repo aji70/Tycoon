@@ -77,8 +77,10 @@ contract DeployTycoonFullScript is Script {
             TycoonRewardsFaucet rewardsFaucet = new TycoonRewardsFaucet(rewardSystemAddr, owner);
             rewardsFaucetAddr = address(rewardsFaucet);
             console.log("TycoonRewardsFaucet:", rewardsFaucetAddr);
-            TycoonRewardSystem(payable(rewardSystemAddr)).setBackendMinter(rewardsFaucetAddr);
-            console.log("setBackendMinter done");
+            TycoonRewardSystem rewardSys = TycoonRewardSystem(payable(rewardSystemAddr));
+            rewardSys.setBackendMinter(rewardsFaucetAddr);
+            rewardSys.setGameMinter(proxyAddr);
+            console.log("setBackendMinter and setGameMinter done");
         } else {
             console.log("TycoonRewardsFaucet: using existing", rewardsFaucetAddr);
         }

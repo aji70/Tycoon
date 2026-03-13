@@ -96,6 +96,7 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     event PlayerRegisteredByBackend(string indexed username, address indexed player);
     event UserRegistryUpdated(address indexed previous, address indexed newRegistry);
     event GameFaucetUpdated(address indexed previous, address indexed newFaucet);
+    event RewardSystemUpdated(address indexed previous, address indexed newRewardSystem);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() Ownable(address(1)) {
@@ -136,6 +137,14 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         address previous = gameFaucet;
         gameFaucet = _gameFaucet;
         emit GameFaucetUpdated(previous, _gameFaucet);
+    }
+
+    /// @notice Point the game at a new reward system (e.g. after deploying one with gameMinter). Only owner.
+    function setRewardSystem(address _rewardSystem) external onlyOwner {
+        require(_rewardSystem != address(0), "Zero address");
+        address previous = address(rewardSystem);
+        rewardSystem = TycoonRewardSystem(payable(_rewardSystem));
+        emit RewardSystemUpdated(previous, _rewardSystem);
     }
 
     /// @notice Set minimum turns a player must have completed to receive full perks on exit. 0 = no minimum. Applies to both voluntary exit (uses turnsPlayed) and removePlayerFromGame (uses passed turnCount).
