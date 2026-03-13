@@ -470,7 +470,7 @@ const handleContinuePrevious = () => {
             </>
           )}
 
-          {hasSmartWallet && ((address && registrationStatus === "fully-registered") || (registrationStatus === "guest" && guestUser) || registrationStatus === "privy") ? (
+          {((address && registrationStatus === "fully-registered") || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
