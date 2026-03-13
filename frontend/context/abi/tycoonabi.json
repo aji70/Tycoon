@@ -1658,6 +1658,38 @@
   },
   {
     "type": "function",
+    "name": "setRewardSystem",
+    "inputs": [
+      {
+        "name": "_rewardSystem",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createWalletForExistingUser",
+    "inputs": [
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "wallet",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "totalGames",
     "inputs": [],
     "outputs": [

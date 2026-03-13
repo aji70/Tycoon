@@ -1341,13 +1341,65 @@ export function useTycoonAdminReads() {
     functionName: 'owner',
     query: { enabled: !!contractAddress },
   });
+  const logicContract = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'logicContract',
+    query: { enabled: !!contractAddress },
+  });
+  const userRegistry = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'userRegistry',
+    query: { enabled: !!contractAddress },
+  });
+  const gameFaucet = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'gameFaucet',
+    query: { enabled: !!contractAddress },
+  });
+  const rewardSystem = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'rewardSystem',
+    query: { enabled: !!contractAddress },
+  });
+  const totalGames = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'totalGames',
+    query: { enabled: !!contractAddress },
+  });
+  const totalUsers = useReadContract({
+    address: contractAddress,
+    abi: TycoonABI,
+    functionName: 'totalUsers',
+    query: { enabled: !!contractAddress },
+  });
 
   return {
     minStake: minStake.data as bigint | undefined,
     minTurnsForPerks: minTurnsForPerks.data as bigint | undefined,
     backendGameController: backendGameController.data as Address | undefined,
     tycoonOwner: tycoonOwner.data as Address | undefined,
-    isLoading: minStake.isLoading || minTurnsForPerks.isLoading || backendGameController.isLoading || tycoonOwner.isLoading,
+    logicContract: logicContract.data as Address | undefined,
+    userRegistry: userRegistry.data as Address | undefined,
+    gameFaucet: gameFaucet.data as Address | undefined,
+    rewardSystem: rewardSystem.data as Address | undefined,
+    totalGames: totalGames.data as bigint | undefined,
+    totalUsers: totalUsers.data as bigint | undefined,
+    isLoading:
+      minStake.isLoading ||
+      minTurnsForPerks.isLoading ||
+      backendGameController.isLoading ||
+      tycoonOwner.isLoading ||
+      logicContract.isLoading ||
+      userRegistry.isLoading ||
+      gameFaucet.isLoading ||
+      rewardSystem.isLoading ||
+      totalGames.isLoading ||
+      totalUsers.isLoading,
   };
 }
 
@@ -1406,6 +1458,101 @@ export function useTycoonSetBackendGameController() {
   }, [writeContractAsync, contractAddress]);
 
   return { setBackendGameController, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonSetLogicContract() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setLogicContract = useCallback(async (logic: Address) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setLogicContract',
+      args: [logic],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setLogicContract, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonSetUserRegistry() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setUserRegistry = useCallback(async (registry: Address) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setUserRegistry',
+      args: [registry],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setUserRegistry, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonSetGameFaucet() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setGameFaucet = useCallback(async (faucet: Address) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setGameFaucet',
+      args: [faucet],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setGameFaucet, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonSetRewardSystem() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const setRewardSystem = useCallback(async (rewardSystemAddress: Address) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'setRewardSystem',
+      args: [rewardSystemAddress],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { setRewardSystem, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+export function useTycoonCreateWalletForExistingUser() {
+  const chainId = useChainId();
+  const contractAddress = TYCOON_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const createWalletForExistingUser = useCallback(async (player: Address) => {
+    if (!contractAddress) throw new Error('Tycoon contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: TycoonABI,
+      functionName: 'createWalletForExistingUser',
+      args: [player],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { createWalletForExistingUser, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 /* ----------------------- Context Provider ----------------------- */
