@@ -17,7 +17,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useRewardTokenAddresses } from '@/context/ContractProvider';
+import { useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -191,6 +191,8 @@ export default function Profile() {
     args: walletAddress ? [walletAddress] : undefined,
     query: { enabled: !!walletAddress && !!tycoonAddress },
   });
+
+  const { data: smartWalletAddress } = useUserRegistryWallet(walletAddress);
 
   const { data: playerData } = useReadContract({
     address: tycoonAddress,
@@ -519,6 +521,20 @@ export default function Profile() {
                     {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
+                {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+                    <span className="text-slate-500 text-xs">Smart wallet:</span>
+                    <span className="text-cyan-300/90 font-mono text-xs truncate max-w-full">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Smart wallet address copied'); }}
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 transition shrink-0"
+                      title="Copy smart wallet"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">

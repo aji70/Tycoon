@@ -40,8 +40,15 @@ library TycoonLib {
         SHIELD, // Immune to rent/payments for 1-2 turns
         PROPERTY_DISCOUNT, // Next property purchase 30-50% off
         TAX_REFUND, // Instant cash from bank (tiered)
-        ROLL_EXACT // Choose exact roll 2-12 once
-
+        ROLL_EXACT, // Choose exact roll 2-12 once
+        LUCKY_7, // Roll 7: bonus cash or special effect
+        RENT_CASHBACK, // Get rent back when you pay
+        INTEREST, // Earn interest on cash balance
+        FREE_PARKING_BONUS, // Collect Free Parking jackpot
+        PASS_GO_EXTRA, // Double Go money once
+        BUILD_DISCOUNT, // Cheaper houses/hotels
+        ADVANCE_TO_GO, // Move to Go, collect salary
+        AUCTION_MASTER // Skip auction or win at min bid
     }
 
     // -------------------------

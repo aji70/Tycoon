@@ -11,7 +11,7 @@ export const REWARD_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
 };
 /** TYC ERC20 token address (must be the token contract, not the reward contract). Use useRewardTokenAddresses() in shop for addresses that match the reward contract. */
 export const TYC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
-  [celo.id]: process.env.NEXT_PUBLIC_CELO_TYC as Address | undefined,
+  [celo.id]: (process.env.NEXT_PUBLIC_CELO_TYC || process.env.NEXT_PUBLIC_CELO_TOKEN) as Address | undefined,
 };
 
 export const USDC_TOKEN_ADDRESS: Record<number, Address | undefined> = {
@@ -22,9 +22,14 @@ export const AI_AGENT_REGISTRY_ADDRESSES: Record<number, Address | undefined> = 
   [celo.id]: process.env.NEXT_PUBLIC_CELO_AI_REGISTRY as Address,
 };
 
+/** User registry: one smart wallet per registered player. getWallet(owner) returns their TycoonUserWallet. */
+export const USER_REGISTRY_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: process.env.NEXT_PUBLIC_CELO_USER_REGISTRY as Address | undefined,
+};
+
 /** Tournament escrow (entry fees + prize pool). ABI: context/abi/TycoonTournamentEscrow.json */
 export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = {
-  [celo.id]: process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW as Address | undefined,
+  [celo.id]: (process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW || process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS) as Address | undefined,
 };
 
 export const MINIPAY_CHAIN_IDS = [42220]; // Celo Mainnet
