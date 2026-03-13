@@ -497,13 +497,17 @@ export default function ProfilePageMobile() {
               <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
               {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
             </button>
-            {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-              <p className="mt-2 text-slate-500 text-[10px] flex items-center justify-center gap-1.5">
-                <span>Smart wallet:</span>
-                <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
-                <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
-              </p>
-            )}
+            <p className="mt-2 text-slate-500 text-[10px] flex items-center justify-center gap-1.5 flex-wrap">
+              <span>Smart wallet:</span>
+              {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
+                <>
+                  <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
+                  <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
+                </>
+              ) : (
+                <span className="italic">— (register in-game to get one)</span>
+              )}
+            </p>
           </div>
         </motion.div>
 
