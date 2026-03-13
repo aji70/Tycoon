@@ -20,6 +20,7 @@ interface ITycoonUserRegistry {
 interface ITycoonUpgradeableLogic {
     function createGame(address actor, string calldata creatorUsername, string calldata gameType, string calldata playerSymbol, uint8 numberOfPlayers, string calldata code, uint256 startingBalance, uint256 stakeAmount) external returns (uint256 gameId);
     function createAIGame(address actor, string calldata creatorUsername, string calldata gameType, string calldata playerSymbol, uint8 numberOfAI, string calldata code, uint256 startingBalance) external returns (uint256 gameId);
+    function createWalletForExistingUser(address player) external returns (address wallet);
     function joinGame(address actor, uint256 gameId, string calldata playerUsername, string calldata playerSymbol, string calldata joinCode) external returns (uint8 order);
     function leavePendingGame(address actor, uint256 gameId) external returns (bool);
     function exitOrRemovePlayer(uint256 gameId, address player, uint256 turnCount) external;
@@ -130,6 +131,14 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         address previous = userRegistry;
         userRegistry = _userRegistry;
         emit UserRegistryUpdated(previous, _userRegistry);
+    }
+
+    /// @notice Create a smart wallet in the User Registry for a player already registered on the game but without a registry profile (e.g. registered before registry was wired).
+    function createWalletForExistingUser(address player) external onlyOwner returns (address wallet) {
+        require(logicContract != address(0), "Logic not set");
+        (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createWalletForExistingUser.selector, player));
+        require(ok, "Logic: createWalletForExistingUser failed");
+        return abi.decode(data, (address));
     }
 
     /// @notice Set game faucet (TycoonGameFaucet). Only the faucet can call setPropertyStats; faucet can also call setTurnCount.

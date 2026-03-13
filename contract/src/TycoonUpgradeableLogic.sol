@@ -6,6 +6,7 @@ import {TycoonRewardSystem} from "./TycoonRewardSystem.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ITycoonUserRegistry {
+    function createWalletForUser(address owner, string calldata username) external returns (address);
     function grantGameActionReward(address user, bytes32 action) external;
 }
 
@@ -112,6 +113,15 @@ contract TycoonUpgradeableLogic {
         user.gamesPlayed++;
         totalGames++;
         emit GameCreated(gameId, actor, uint64(block.timestamp));
+    }
+
+    /// @notice Create a smart wallet in the User Registry for a player who is already registered on the game but has no registry profile (e.g. registered before registry was set).
+    function createWalletForExistingUser(address player) external returns (address wallet) {
+        require(registered[player], "Not registered");
+        require(userRegistry != address(0), "User registry not set");
+        string memory username = addressToUsername[player];
+        require(bytes(username).length > 0, "No username");
+        return ITycoonUserRegistry(userRegistry).createWalletForUser(player, username);
     }
 
     function joinGame(address actor, uint256 gameId, string calldata playerUsername, string calldata playerSymbol, string calldata joinCode) external returns (uint8 order) {
