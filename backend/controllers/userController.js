@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import { getUserPropertyStats } from "../utils/userPropertyStats.js";
+import { callContractRead, getSmartWalletAddress, isContractConfigured } from "../services/tycoonContract.js";
 
 /**
  * User Controller
@@ -13,7 +14,7 @@ const userController = {
 
   async create(req, res) {
     try {
-      const { username, chain } = req.body || {};
+      const { username, chain, address } = req.body || {};
       if (username != null && String(username).trim() !== "") {
         const chainToCheck = chain || "CELO";
         const taken = await User.findByUsernameIgnoreCaseInChain(username, chainToCheck);
@@ -21,7 +22,21 @@ const userController = {
           return res.status(409).json({ error: "Username already taken", message: "Username already taken on this chain" });
         }
       }
-      const user = await User.create(req.body);
+      const createPayload = { ...req.body };
+      // If user has address and chain and contract is configured, sync smart_wallet_address from chain (hero registrations)
+      if (address && (createPayload.chain || chain)) {
+        const chainNorm = User.normalizeChain(createPayload.chain || chain || "CELO");
+        if (isContractConfigured(chainNorm)) {
+          try {
+            const isRegistered = await callContractRead("registered", [address], chainNorm);
+            if (isRegistered) {
+              const smartWallet = await getSmartWalletAddress(address, chainNorm);
+              if (smartWallet) createPayload.smart_wallet_address = smartWallet;
+            }
+          } catch (_) {}
+        }
+      }
+      const user = await User.create(createPayload);
       res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);
