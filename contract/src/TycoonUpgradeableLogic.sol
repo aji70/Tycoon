@@ -17,7 +17,10 @@ contract TycoonUpgradeableLogic {
     using TycoonLib for TycoonLib.GamePlayer;
     using TycoonLib for TycoonLib.GameSettings;
 
-    // Storage layout: same as TycoonUpgradeable (do not reorder)
+    // Slot 0: proxy uses this for Ownable._owner. Logic must not use it (delegatecall uses proxy storage).
+    address private __proxyOwnerSlot;
+
+    // Storage layout: after slot 0, same as TycoonUpgradeable (do not reorder)
     uint256 public totalUsers;
     uint256 public totalGames;
     uint256 private _nextGameId = 1;
