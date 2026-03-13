@@ -349,7 +349,12 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
     ) external nonReentrant returns (uint256 gameId) {
         require(logicContract != address(0), "Logic not set");
         (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createAIGame.selector, msg.sender, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingBalance));
-        require(ok, "Logic: createAIGame failed");
+        if (!ok) {
+            if (data.length > 0) {
+                assembly { revert(add(data, 32), mload(data)) }
+            }
+            revert("Logic: createAIGame failed");
+        }
         return abi.decode(data, (uint256));
     }
 
@@ -368,7 +373,12 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         _requireBackendAuth(actor, passwordHash);
         require(logicContract != address(0), "Logic not set");
         (bool ok, bytes memory data) = logicContract.delegatecall(abi.encodeWithSelector(ITycoonUpgradeableLogic.createAIGame.selector, actor, creatorUsername, gameType, playerSymbol, numberOfAI, code, startingBalance));
-        require(ok, "Logic: createAIGame failed");
+        if (!ok) {
+            if (data.length > 0) {
+                assembly { revert(add(data, 32), mload(data)) }
+            }
+            revert("Logic: createAIGame failed");
+        }
         return abi.decode(data, (uint256));
     }
 
