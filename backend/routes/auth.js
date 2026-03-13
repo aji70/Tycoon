@@ -5,6 +5,7 @@ import {
   privySignin,
   privyCheck,
   me,
+  registerOnChain,
   linkWallet,
   unlinkWallet,
   mergeGuestIntoWallet,
@@ -22,6 +23,7 @@ router.post("/guest-register", guestRegister);
 router.post("/guest-login", guestLogin);
 router.post("/privy-signin", privySignin);
 router.get("/me", requireAuth, me);
+router.post("/register-on-chain", requireAuth, registerOnChain);
 router.post("/link-wallet", requireAuth, linkWallet);
 router.post("/unlink-wallet", requireAuth, unlinkWallet);
 router.post("/merge-guest-into-wallet", requireAuth, mergeGuestIntoWallet);
