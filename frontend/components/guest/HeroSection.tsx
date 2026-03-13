@@ -602,8 +602,29 @@ const HeroSection: React.FC = () => {
             </p>
           )}
 
-          {/* Action buttons: wallet + fully-registered always (smart wallet created at registration); guest/Privy only when hasSmartWallet */}
-          {((address && registrationStatus === "fully-registered") || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
+          {/* EOA registered but needs smart wallet: prompt Sign in with Privy to link & complete setup */}
+          {address && registrationStatus === "fully-registered" && !hasSmartWallet && guestUser?.needs_smart_wallet_creation && !isPrivyAuthed && (
+            <div className="flex flex-col items-center gap-3 mt-4">
+              <p className="text-[#869298] text-sm text-center max-w-sm">
+                Sign in with Privy to link your wallet and complete smart account setup.
+              </p>
+              <button
+                type="button"
+                onClick={() => login()}
+                className="relative group w-[220px] h-[44px] overflow-hidden cursor-pointer"
+              >
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 220 44" fill="none">
+                  <path d="M8 1H212C216.418 1 218.997 5.85486 216.601 9.5127L198.167 39.5127C197.151 41.0646 195.42 42 193.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#00F0FF" stroke="#0E282A" strokeWidth={1} />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] text-sm font-orbitron font-bold z-2">
+                  Sign in with Privy
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Action buttons: wallet + fully-registered with smart wallet; guest/Privy only when hasSmartWallet */}
+          {((address && registrationStatus === "fully-registered" && hasSmartWallet) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
