@@ -36,7 +36,7 @@ const HeroSection: React.FC = () => {
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const { open: openWallet } = useAppKit();
-  const { ready, authenticated, login, logout, user: privyUser } = usePrivy();
+  const { ready, authenticated, login, logout, connectWallet, user: privyUser } = usePrivy();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
@@ -345,8 +345,19 @@ const HeroSection: React.FC = () => {
 
   const handleLinkWallet = async () => {
     if (!address) {
-      openWallet();
-      toast.info("Connect your wallet, then click Link wallet again");
+      try {
+        if (connectWallet) {
+          connectWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else if (typeof openWallet === "function") {
+          openWallet();
+          toast.info("Connect your wallet in the modal, then click Connect wallet again to link");
+        } else {
+          toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
+        }
+      } catch {
+        toast.info("Use the connect button in the menu (top right) to connect your wallet, then click here again");
+      }
       return;
     }
     if (!guestUser || !guestAuth?.linkWallet) return;
@@ -788,7 +799,7 @@ const HeroSection: React.FC = () => {
                     <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
-                    {linkWalletLoading ? "Linking..." : "Link wallet"}
+                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
                   </span>
                 </button>
               </div>
