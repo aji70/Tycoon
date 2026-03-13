@@ -10,7 +10,14 @@ import bcrypt from "bcrypt";
 import { PrivyClient, verifyAccessToken } from "@privy-io/node";
 import db from "../config/database.js";
 import User from "../models/User.js";
-import { registerPlayerFor, getSmartWalletAddress, callContractRead, isContractConfigured } from "../services/tycoonContract.js";
+import {
+  registerPlayerFor,
+  getSmartWalletAddress,
+  callContractRead,
+  isContractConfigured,
+  createWalletForExistingUser,
+  canCreateWalletForExistingUser,
+} from "../services/tycoonContract.js";
 import logger from "../config/logger.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
@@ -421,7 +428,21 @@ export async function me(req, res) {
         safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
         logger.info({ userId: req.user.id, address: addrForChain, chain: normalizedChain }, "me: registered user on-chain and synced smart wallet");
       } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
-        const smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
+        let smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
+        if (!smartWallet && canCreateWalletForExistingUser()) {
+          try {
+            smartWallet = await createWalletForExistingUser(addrForChain, normalizedChain);
+            if (smartWallet) {
+              logger.info({ userId: req.user.id, address: addrForChain }, "me: created smart wallet for existing user");
+            }
+          } catch (err) {
+            logger.warn({ err: err?.message, address: addrForChain }, "me: createWalletForExistingUser failed");
+            safe.needs_smart_wallet_creation = true;
+          }
+        }
+        if (!smartWallet) {
+          safe.needs_smart_wallet_creation = true;
+        }
         if (smartWallet) {
           await User.update(req.user.id, { smart_wallet_address: smartWallet });
           safe.smart_wallet_address = smartWallet;

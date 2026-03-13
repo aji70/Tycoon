@@ -71,6 +71,13 @@ const TYCOON_ABI = [
   },
   {
     type: "function",
+    name: "createWalletForExistingUser",
+    inputs: [{ name: "player", type: "address", internalType: "address" }],
+    outputs: [{ name: "wallet", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "registerPlayerFor",
     inputs: [
       { name: "playerAddress", type: "address", internalType: "address" },
@@ -426,6 +433,55 @@ export async function getSmartWalletAddress(ownerAddress, chain = "CELO") {
  * @param {string} username - Username
  * @param {string} passwordHash - keccak256 hash of password (0x-prefixed hex 32 bytes)
  */
+/**
+ * Create smart wallet for a player already registered on-chain (e.g. registered before User Registry was set).
+ * Requires TYCOON_OWNER_PRIVATE_KEY; uses same chain config (RPC, contract address).
+ * @param {string} playerAddress - EOA address of the registered player
+ * @param {string} [chain] - CELO | POLYGON | BASE
+ * @returns {Promise<string|null>} Smart wallet address or null
+ */
+export async function createWalletForExistingUser(playerAddress, chain = "CELO") {
+  const ownerKey = process.env.TYCOON_OWNER_PRIVATE_KEY;
+  if (!ownerKey || !playerAddress) return null;
+  return withTxQueue(async () => {
+    const { rpcUrl, contractAddress, chainId } = getChainConfig(chain);
+    if (!rpcUrl || !contractAddress) return null;
+    const pk = String(ownerKey).startsWith("0x") ? ownerKey : `0x${ownerKey}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, chainId);
+    const provider = new JsonRpcProvider(rpcUrl, network);
+    const wallet = new Wallet(pk, provider);
+    const tycoon = new Contract(contractAddress, TYCOON_ABI, wallet);
+    const tx = await tycoon.createWalletForExistingUser(playerAddress);
+    const receipt = await tx.wait();
+    let smartWallet = null;
+    if (receipt?.logs?.length) {
+      try {
+        const iface = new Interface(["event WalletCreated(address indexed owner, address indexed wallet)"]);
+        for (const log of receipt.logs) {
+          try {
+            const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+            if (parsed?.args?.wallet) {
+              smartWallet = parsed.args.wallet;
+              break;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    if (!smartWallet) {
+      smartWallet = await getSmartWalletAddress(playerAddress, chain);
+    }
+    logger.info({ playerAddress, smartWallet, hash: receipt?.hash }, "createWalletForExistingUser tx");
+    return smartWallet;
+  });
+}
+
+/** True if TYCOON_OWNER_PRIVATE_KEY is set (backend can call createWalletForExistingUser). */
+export function canCreateWalletForExistingUser() {
+  return !!process.env.TYCOON_OWNER_PRIVATE_KEY;
+}
+
 export async function registerPlayerFor(playerAddress, username, passwordHash, chain = "CELO") {
   return withTxQueue(async () => {
     const tycoon = getContract(chain);
