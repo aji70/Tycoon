@@ -3,8 +3,9 @@ import { Address } from 'viem';
 import { celo } from 'wagmi/chains';
 
 // This frontend is Celo-only.
+// Prefer upgradeable proxy when set (NEXT_PUBLIC_CELO_UPGRADEABLE); otherwise use legacy Tycoon (NEXT_PUBLIC_CELO).
 export const TYCOON_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
-  [celo.id]: process.env.NEXT_PUBLIC_CELO as Address,
+  [celo.id]: (process.env.NEXT_PUBLIC_CELO_UPGRADEABLE || process.env.NEXT_PUBLIC_CELO) as Address,
 };
 export const REWARD_CONTRACT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_REWARD as Address,

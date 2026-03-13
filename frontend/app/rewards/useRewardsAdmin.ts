@@ -27,6 +27,11 @@ import {
   useTycoonSetMinStake,
   useTycoonSetMinTurnsForPerks,
   useTycoonSetBackendGameController,
+  useTycoonSetLogicContract,
+  useTycoonSetUserRegistry,
+  useTycoonSetGameFaucet,
+  useTycoonSetRewardSystem,
+  useTycoonCreateWalletForExistingUser,
 } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
@@ -37,7 +42,7 @@ import {
   INITIAL_COLLECTIBLES,
 } from "@/components/rewards/rewardsConstants";
 
-export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon" | "escrow" | "tournaments";
+export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon" | "escrow" | "tournaments" | "reads";
 
 export interface RewardsAdminState {
   activeSection: RewardsSection;
@@ -64,6 +69,11 @@ export interface RewardsAdminState {
   tycoonMinStake: string;
   tycoonMinTurnsForPerks: string;
   tycoonGameController: string;
+  tycoonLogicContract: string;
+  tycoonUserRegistry: string;
+  tycoonGameFaucet: string;
+  tycoonRewardSystem: string;
+  createWalletPlayerAddress: string;
 }
 
 export interface TokenDisplayItem {
@@ -120,12 +130,23 @@ export function useRewardsAdmin() {
   const [tycoonMinStake, setTycoonMinStake] = useState("");
   const [tycoonMinTurnsForPerks, setTycoonMinTurnsForPerks] = useState("");
   const [tycoonGameController, setTycoonGameController] = useState("");
+  const [tycoonLogicContract, setTycoonLogicContract] = useState("");
+  const [tycoonUserRegistry, setTycoonUserRegistry] = useState("");
+  const [tycoonGameFaucet, setTycoonGameFaucet] = useState("");
+  const [tycoonRewardSystem, setTycoonRewardSystem] = useState("");
+  const [createWalletPlayerAddress, setCreateWalletPlayerAddress] = useState("");
+  const [readTestTokenId, setReadTestTokenId] = useState("");
 
   const setMinterHook = useRewardSetBackendMinter();
   const tycoonReads = useTycoonAdminReads();
   const tycoonSetMinStakeHook = useTycoonSetMinStake();
   const tycoonSetMinTurnsHook = useTycoonSetMinTurnsForPerks();
   const tycoonSetControllerHook = useTycoonSetBackendGameController();
+  const tycoonSetLogicHook = useTycoonSetLogicContract();
+  const tycoonSetUserRegistryHook = useTycoonSetUserRegistry();
+  const tycoonSetGameFaucetHook = useTycoonSetGameFaucet();
+  const tycoonSetRewardSystemHook = useTycoonSetRewardSystem();
+  const tycoonCreateWalletHook = useTycoonCreateWalletForExistingUser();
   const mintVoucherHook = useRewardMintVoucher();
   const mintCollectibleHook = useRewardMintCollectible();
   const stockShopHook = useRewardStockShop();
@@ -214,6 +235,37 @@ export function useRewardsAdmin() {
     query: { enabled: !!contractAddress && allTokenIds.length > 0 },
   });
 
+  const rewardTycToken = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: "tycToken",
+    query: { enabled: !!contractAddress },
+  });
+  const rewardUsdc = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: "usdc",
+    query: { enabled: !!contractAddress },
+  });
+  const cashTierCalls = [1, 2, 3, 4, 5].map((tier) => ({
+    address: contractAddress!,
+    abi: RewardABI as Abi,
+    functionName: "getCashTierValue" as const,
+    args: [BigInt(tier)] as const,
+  }));
+  const cashTierResults = useReadContracts({
+    contracts: cashTierCalls,
+    allowFailure: true,
+    query: { enabled: !!contractAddress },
+  });
+  const readTestCollectibleInfo = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: "getCollectibleInfo",
+    args: readTestTokenId !== "" && /^\d+$/.test(readTestTokenId) ? [BigInt(readTestTokenId)] : undefined,
+    query: { enabled: !!contractAddress && readTestTokenId !== "" && /^\d+$/.test(readTestTokenId) },
+  });
+
   const allTokens: TokenDisplayItem[] =
     (tokenInfoResults.data
       ?.map((result, index) => {
@@ -263,12 +315,29 @@ export function useRewardsAdmin() {
     setWithdrawTo((ownerResult.data as string) ?? "");
   }, [pausedResult.data, backendMinterResult.data, ownerResult.data]);
 
+  const zeroAddr = "0x0000000000000000000000000000000000000000";
   useEffect(() => {
     if (tycoonReads.minStake != null) setTycoonMinStake(formatUnits(tycoonReads.minStake, 6));
     if (tycoonReads.minTurnsForPerks != null) setTycoonMinTurnsForPerks(tycoonReads.minTurnsForPerks.toString());
     if (tycoonReads.backendGameController != null)
-      setTycoonGameController(tycoonReads.backendGameController === "0x0000000000000000000000000000000000000000" ? "" : tycoonReads.backendGameController);
-  }, [tycoonReads.minStake, tycoonReads.minTurnsForPerks, tycoonReads.backendGameController]);
+      setTycoonGameController(tycoonReads.backendGameController === zeroAddr ? "" : tycoonReads.backendGameController);
+    if (tycoonReads.logicContract != null)
+      setTycoonLogicContract(tycoonReads.logicContract === zeroAddr ? "" : tycoonReads.logicContract);
+    if (tycoonReads.userRegistry != null)
+      setTycoonUserRegistry(tycoonReads.userRegistry === zeroAddr ? "" : tycoonReads.userRegistry);
+    if (tycoonReads.gameFaucet != null)
+      setTycoonGameFaucet(tycoonReads.gameFaucet === zeroAddr ? "" : tycoonReads.gameFaucet);
+    if (tycoonReads.rewardSystem != null)
+      setTycoonRewardSystem(tycoonReads.rewardSystem === zeroAddr ? "" : tycoonReads.rewardSystem);
+  }, [
+    tycoonReads.minStake,
+    tycoonReads.minTurnsForPerks,
+    tycoonReads.backendGameController,
+    tycoonReads.logicContract,
+    tycoonReads.userRegistry,
+    tycoonReads.gameFaucet,
+    tycoonReads.rewardSystem,
+  ]);
 
   useEffect(() => {
     const successes = [
@@ -283,6 +352,11 @@ export function useRewardsAdmin() {
       tycoonSetMinStakeHook.isSuccess,
       tycoonSetMinTurnsHook.isSuccess,
       tycoonSetControllerHook.isSuccess,
+      tycoonSetLogicHook.isSuccess,
+      tycoonSetUserRegistryHook.isSuccess,
+      tycoonSetGameFaucetHook.isSuccess,
+      tycoonSetRewardSystemHook.isSuccess,
+      tycoonCreateWalletHook.isSuccess,
     ];
     if (successes.some(Boolean)) {
       setStatus({ type: "success", message: "Transaction successful!" });
@@ -297,6 +371,11 @@ export function useRewardsAdmin() {
       tycoonSetMinStakeHook.reset?.();
       tycoonSetMinTurnsHook.reset?.();
       tycoonSetControllerHook.reset?.();
+      tycoonSetLogicHook.reset?.();
+      tycoonSetUserRegistryHook.reset?.();
+      tycoonSetGameFaucetHook.reset?.();
+      tycoonSetRewardSystemHook.reset?.();
+      tycoonCreateWalletHook.reset?.();
     }
   }, [
     setMinterHook.isSuccess,
@@ -310,6 +389,11 @@ export function useRewardsAdmin() {
     tycoonSetMinStakeHook.isSuccess,
     tycoonSetMinTurnsHook.isSuccess,
     tycoonSetControllerHook.isSuccess,
+    tycoonSetLogicHook.isSuccess,
+    tycoonSetUserRegistryHook.isSuccess,
+    tycoonSetGameFaucetHook.isSuccess,
+    tycoonSetRewardSystemHook.isSuccess,
+    tycoonCreateWalletHook.isSuccess,
   ]);
 
   useEffect(() => {
@@ -325,6 +409,11 @@ export function useRewardsAdmin() {
       tycoonSetMinStakeHook.error,
       tycoonSetMinTurnsHook.error,
       tycoonSetControllerHook.error,
+      tycoonSetLogicHook.error,
+      tycoonSetUserRegistryHook.error,
+      tycoonSetGameFaucetHook.error,
+      tycoonSetRewardSystemHook.error,
+      tycoonCreateWalletHook.error,
     ].filter(Boolean);
     if (errors.length > 0) {
       setStatus({
@@ -344,6 +433,11 @@ export function useRewardsAdmin() {
     tycoonSetMinStakeHook.error,
     tycoonSetMinTurnsHook.error,
     tycoonSetControllerHook.error,
+    tycoonSetLogicHook.error,
+    tycoonSetUserRegistryHook.error,
+    tycoonSetGameFaucetHook.error,
+    tycoonSetRewardSystemHook.error,
+    tycoonCreateWalletHook.error,
   ]);
 
   const handleSetBackendMinter = async () => {
@@ -436,6 +530,37 @@ export function useRewardsAdmin() {
     await tycoonSetControllerHook.setBackendGameController(addr as Address);
   };
 
+  const handleSetTycoonLogicContract = async () => {
+    const addr = tycoonLogicContract.trim();
+    if (!addr) return;
+    await tycoonSetLogicHook.setLogicContract(addr as Address);
+  };
+
+  const handleSetTycoonUserRegistry = async () => {
+    const addr = tycoonUserRegistry.trim();
+    if (!addr) return;
+    await tycoonSetUserRegistryHook.setUserRegistry(addr as Address);
+  };
+
+  const handleSetTycoonGameFaucet = async () => {
+    const addr = tycoonGameFaucet.trim();
+    if (!addr) return;
+    await tycoonSetGameFaucetHook.setGameFaucet(addr as Address);
+  };
+
+  const handleSetTycoonRewardSystem = async () => {
+    const addr = tycoonRewardSystem.trim();
+    if (!addr) return;
+    await tycoonSetRewardSystemHook.setRewardSystem(addr as Address);
+  };
+
+  const handleCreateWalletForExistingUser = async () => {
+    const addr = createWalletPlayerAddress.trim();
+    if (!addr) return;
+    await tycoonCreateWalletHook.createWalletForExistingUser(addr as Address);
+    setCreateWalletPlayerAddress("");
+  };
+
   const anyPending =
     setMinterHook.isPending ||
     mintVoucherHook.isPending ||
@@ -447,7 +572,12 @@ export function useRewardsAdmin() {
     withdrawHook.isPending ||
     tycoonSetMinStakeHook.isPending ||
     tycoonSetMinTurnsHook.isPending ||
-    tycoonSetControllerHook.isPending;
+    tycoonSetControllerHook.isPending ||
+    tycoonSetLogicHook.isPending ||
+    tycoonSetUserRegistryHook.isPending ||
+    tycoonSetGameFaucetHook.isPending ||
+    tycoonSetRewardSystemHook.isPending ||
+    tycoonCreateWalletHook.isPending;
 
   const currentTxHash =
     setMinterHook.txHash ||
@@ -460,7 +590,12 @@ export function useRewardsAdmin() {
     withdrawHook.txHash ||
     tycoonSetMinStakeHook.txHash ||
     tycoonSetMinTurnsHook.txHash ||
-    tycoonSetControllerHook.txHash;
+    tycoonSetControllerHook.txHash ||
+    tycoonSetLogicHook.txHash ||
+    tycoonSetUserRegistryHook.txHash ||
+    tycoonSetGameFaucetHook.txHash ||
+    tycoonSetRewardSystemHook.txHash ||
+    tycoonCreateWalletHook.txHash;
 
   return {
     auth: {
@@ -514,7 +649,24 @@ export function useRewardsAdmin() {
       setTycoonMinTurnsForPerks,
       tycoonGameController,
       setTycoonGameController,
+      tycoonLogicContract,
+      setTycoonLogicContract,
+      tycoonUserRegistry,
+      setTycoonUserRegistry,
+      tycoonGameFaucet,
+      setTycoonGameFaucet,
+      tycoonRewardSystem,
+      setTycoonRewardSystem,
+      createWalletPlayerAddress,
+      setCreateWalletPlayerAddress,
+      readTestTokenId,
+      setReadTestTokenId,
       tycoonReads,
+      rewardTycToken: rewardTycToken.data as Address | undefined,
+      rewardUsdc: rewardUsdc.data as Address | undefined,
+      cashTierValues: cashTierResults.data?.map((r) => (r.status === "success" ? r.result : undefined)) ?? [],
+      readTestCollectibleInfo: readTestCollectibleInfo.data as [number, bigint, bigint, bigint, bigint] | undefined,
+      readTestCollectibleInfoLoading: readTestCollectibleInfo.isLoading,
     },
     contract: {
       tycBalance: tycBalance.data,
@@ -533,6 +685,11 @@ export function useRewardsAdmin() {
       handleSetTycoonMinStake,
       handleSetTycoonMinTurnsForPerks,
       handleSetTycoonGameController,
+      handleSetTycoonLogicContract,
+      handleSetTycoonUserRegistry,
+      handleSetTycoonGameFaucet,
+      handleSetTycoonRewardSystem,
+      handleCreateWalletForExistingUser,
       pause: pauseHook.pause,
       unpause: pauseHook.unpause,
     },
@@ -550,6 +707,11 @@ export function useRewardsAdmin() {
       pendingTycoonMinStake: tycoonSetMinStakeHook.isPending,
       pendingTycoonMinTurns: tycoonSetMinTurnsHook.isPending,
       pendingTycoonController: tycoonSetControllerHook.isPending,
+      pendingTycoonLogic: tycoonSetLogicHook.isPending,
+      pendingTycoonUserRegistry: tycoonSetUserRegistryHook.isPending,
+      pendingTycoonGameFaucet: tycoonSetGameFaucetHook.isPending,
+      pendingTycoonRewardSystem: tycoonSetRewardSystemHook.isPending,
+      pendingCreateWallet: tycoonCreateWalletHook.isPending,
     },
   };
 }
