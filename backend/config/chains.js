@@ -28,12 +28,14 @@ export function getChainConfig(chain) {
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY;
     const chainId = Number(process.env.CELO_CHAIN_ID) || 42220;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ?? process.env.TOURNAMENT_ESCROW_CELO;
+    const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_CELO ?? process.env.TYCOON_USER_REGISTRY_ADDRESS;
     return {
       rpcUrl,
       contractAddress,
       privateKey,
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
+      userRegistryAddress: userRegistryAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -44,12 +46,14 @@ export function getChainConfig(chain) {
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_POLYGON_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
     const chainId = Number(process.env.POLYGON_CHAIN_ID) || 137;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ?? process.env.TOURNAMENT_ESCROW_POLYGON;
+    const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_POLYGON;
     return {
       rpcUrl,
       contractAddress,
       privateKey,
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
+      userRegistryAddress: userRegistryAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -60,12 +64,14 @@ export function getChainConfig(chain) {
     const privateKey = process.env.BACKEND_GAME_CONTROLLER_BASE_PRIVATE_KEY ?? process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY;
     const chainId = Number(process.env.BASE_CHAIN_ID) || 8453;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ?? process.env.TOURNAMENT_ESCROW_BASE;
+    const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_BASE;
     return {
       rpcUrl,
       contractAddress,
       privateKey,
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
+      userRegistryAddress: userRegistryAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -76,6 +82,7 @@ export function getChainConfig(chain) {
     privateKey: undefined,
     chainId: 0,
     tournamentEscrowAddress: undefined,
+    userRegistryAddress: undefined,
     isConfigured: false,
   };
 }
