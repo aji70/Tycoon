@@ -88,7 +88,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   // Use guest API only when signed in as guest and no wallet connected; wallet users must use wallet flow
   const isGuest = !!guestAuth?.guestUser && !address;
 
-  const { data: username } = useGetUsername(address);
+  const { data: username, refetch: refetchUsername } = useGetUsername(address);
   const { data: isUserRegistered, isLoading: isRegisteredLoading, refetch: refetchRegistered } = useIsRegistered(address);
   const { agents: registeredAgents, isLoading: agentsLoading, isSupported: registrySupported } =
     useRegisteredAIAgents();
@@ -185,8 +185,19 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       return;
     }
 
-    // Refetch registration so we don't send a tx if the contract says not registered (e.g. cache was stale)
+    // Refetch registration and username so we use current on-chain state (avoids "Not registered" / "Username mismatch")
     let registeredNow = (await refetchRegistered()).data;
+    const usernameResult = await refetchUsername();
+    const usernameNow = (usernameResult?.data as string | undefined) ?? username ?? "";
+    if (!usernameNow.trim()) {
+      toast.update(toastId, {
+        render: "Could not load your on-chain username. Refresh and try again.",
+        type: "error",
+        isLoading: false,
+        autoClose: 6000,
+      });
+      return;
+    }
     if (registeredNow !== true) {
       // Try backend "register on-chain" (no wallet signature; backend signs as game controller)
       try {
@@ -236,7 +247,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
 
     try {
       toast.update(toastId, { render: "Creating AI game on-chain..." });
-      const onChainGameId = await createAiGame();
+      const onChainGameId = await createAiGame(usernameNow);
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
 
       toast.update(toastId, { render: "Saving game to server..." });

@@ -153,6 +153,7 @@ export function useGetUsername(address?: Address) {
     data: result.data as string | undefined,
     isLoading: result.isLoading,
     error: result.error,
+    refetch: result.refetch,
   };
 }
 
@@ -307,15 +308,17 @@ export function useCreateAIGame(
   const { isLoading: isConfirming, isSuccess } =
     useWaitForTransactionReceipt({ hash: txHash });
 
-  const write = useCallback(async () => {
+  const write = useCallback(async (usernameOverride?: string) => {
     if (!contractAddress) throw new Error('Contract not deployed');
+    const username = (usernameOverride ?? creatorUsername).trim();
+    if (!username) throw new Error('Username required (contract: validateUsername reverts "Username empty")');
 
     return writeContractAsync({
       address: contractAddress,
       abi: TycoonABI,
       functionName: 'createAIGame',
       args: [
-        creatorUsername,
+        username,
         gameType,
         playerSymbol,
         numberOfAI,
