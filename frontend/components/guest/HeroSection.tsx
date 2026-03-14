@@ -686,8 +686,8 @@ const HeroSection: React.FC = () => {
             </div>
           )}
 
-          {/* Action buttons: require Privy for EOA; guest/Privy when hasSmartWallet */}
-          {((address && registrationStatus === "fully-registered" && hasSmartWallet && isPrivyAuthed) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
+          {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
+          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "guest" && guestUser) || (registrationStatus === "privy" && isPrivyAuthed)) ? (
             <div className="flex flex-wrap justify-center items-center gap-4">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
