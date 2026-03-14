@@ -721,7 +721,7 @@ const HeroSectionMobile: React.FC = () => {
                   onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
                   className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
                 >
-                  {registrationStatus === "privy" ? "Sign out" : "Sign out (guest)"}
+                  Sign out
                 </button>
               )}
             </div>
