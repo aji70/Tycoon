@@ -3,7 +3,9 @@
 import React, { useState } from "react";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { Link2, Unlink, Loader2, Mail } from "lucide-react";
+import { useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
+import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft } from "lucide-react";
+import { Address, isAddress } from "viem";
 
 /** Chain id to backend chain name */
 function chainIdToBackendChain(chainId: number): string {
@@ -26,6 +28,15 @@ export default function AccountLinkWallet() {
 
   const guestUser = auth?.guestUser ?? null;
   const chain = chainIdToBackendChain(chainId);
+  const [createWalletLoading, setCreateWalletLoading] = useState(false);
+  const [transferToAddress, setTransferToAddress] = useState("");
+  const hasSmartWallet = !!(guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000");
+  const smartWalletAddress = hasSmartWallet ? (guestUser!.smart_wallet_address as Address) : undefined;
+  const { data: profileOwner, isLoading: profileOwnerLoading } = useProfileOwner(smartWalletAddress);
+  const { transfer: transferProfileTo, isPending: transferPending } = useTransferProfileTo();
+  const zeroAddr = "0x0000000000000000000000000000000000000000" as Address;
+  const isConnectedOwner = !!address && !!profileOwner && profileOwner !== zeroAddr && address.toLowerCase() === profileOwner.toLowerCase();
+  const needsTransferToLink = hasSmartWallet && !!profileOwner && profileOwner !== zeroAddr && !!address && address.toLowerCase() !== profileOwner.toLowerCase();
 
   const handleLinkWallet = async () => {
     if (!address || !guestUser || !auth?.linkWallet) return;
@@ -49,6 +60,20 @@ export default function AccountLinkWallet() {
     }
   };
 
+  const handleCreateSmartWallet = async () => {
+    if (!auth?.createSmartWallet) return;
+    setError(null);
+    setCreateWalletLoading(true);
+    try {
+      const res = await auth.createSmartWallet({ chain });
+      if (!res.success) setError(res.message ?? "Failed to create smart wallet");
+    } catch (e) {
+      setError((e as Error)?.message ?? "Failed to create smart wallet");
+    } finally {
+      setCreateWalletLoading(false);
+    }
+  };
+
   const handleUnlinkWallet = async () => {
     if (!auth?.unlinkWallet) return;
     setError(null);
@@ -60,6 +85,22 @@ export default function AccountLinkWallet() {
       setError((e as Error)?.message ?? "Unlink failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTransferProfileTo = async () => {
+    const addr = transferToAddress.trim();
+    if (!addr || !isAddress(addr)) {
+      setError("Enter a valid 0x address");
+      return;
+    }
+    setError(null);
+    try {
+      await transferProfileTo(addr as Address);
+      setTransferToAddress("");
+      auth?.refetchGuest?.();
+    } catch (e) {
+      setError((e as Error)?.message ?? "Transfer failed");
     }
   };
 
@@ -91,7 +132,15 @@ export default function AccountLinkWallet() {
               Link your wallet to use the same account when you connect (staked games, same stats).
             </p>
           )}
-          {!guestUser.linked_wallet_address && isConnected && address && (
+          {needsTransferToLink && (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-200/90">
+              <p className="font-medium mb-1">Transfer profile first</p>
+              <p className="text-white/80">
+                Your smart wallet is owned by <span className="font-mono text-cyan-300">{profileOwner?.slice(0, 6)}...{profileOwner?.slice(-4)}</span>. To link this wallet ({address?.slice(0, 6)}...{address?.slice(-4)}): connect with the owner wallet above, use &quot;Transfer profile to address&quot; below and enter this wallet, then connect back here and click Link.
+              </p>
+            </div>
+          )}
+          {!guestUser.linked_wallet_address && isConnected && address && !needsTransferToLink && (
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -104,10 +153,58 @@ export default function AccountLinkWallet() {
               </button>
             </div>
           )}
-          {!guestUser.linked_wallet_address && isConnected && (
+          {!guestUser.linked_wallet_address && isConnected && !needsTransferToLink && (
             <p className="text-xs text-white/50 mt-1">
               Link this wallet to your account. If the wallet is already registered, accounts will be merged.
             </p>
+          )}
+          {hasSmartWallet && (profileOwnerLoading || isConnectedOwner) && (
+            <div className="pt-3 border-t border-white/10">
+              <p className="text-sm text-white/70 mb-2">Transfer profile to another wallet</p>
+              {!profileOwnerLoading && profileOwner && profileOwner !== zeroAddr && (
+                <p className="text-xs text-white/50 mb-2">Current on-chain owner: {profileOwner.slice(0, 6)}...{profileOwner.slice(-4)}</p>
+              )}
+              {isConnectedOwner && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="0x..."
+                    value={transferToAddress}
+                    onChange={(e) => setTransferToAddress(e.target.value)}
+                    className="flex-1 min-w-[200px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTransferProfileTo}
+                    disabled={transferPending || !transferToAddress.trim()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/25 border border-amber-500/50 text-amber-300 text-sm font-medium hover:bg-amber-500/35 disabled:opacity-50"
+                  >
+                    {transferPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                    Transfer to address
+                  </button>
+                </div>
+              )}
+              {!isConnectedOwner && !profileOwnerLoading && (
+                <p className="text-xs text-white/50">Connect with the current owner wallet to transfer.</p>
+              )}
+            </div>
+          )}
+
+          {/* Create smart wallet: when user has no smart wallet (works without linking EOA) */}
+          {!hasSmartWallet && auth?.createSmartWallet && (
+            <div className="pt-3 border-t border-white/10">
+              <p className="text-sm text-white/70 mb-2">Smart wallet (for gasless play, rewards)</p>
+              <button
+                type="button"
+                onClick={handleCreateSmartWallet}
+                disabled={createWalletLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
+              >
+                {createWalletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+                Create smart wallet
+              </button>
+              <p className="text-xs text-white/50 mt-1">You can have a smart wallet without linking an external wallet.</p>
+            </div>
           )}
         </>
       )}

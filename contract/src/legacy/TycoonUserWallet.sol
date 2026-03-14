@@ -13,8 +13,11 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 /// @dev Owner (user EOA) can withdraw/send and approve the game/shop to pull tokens and perks for buy/burn during games.
 contract TycoonUserWallet is ERC165, IERC1155Receiver {
     address public owner;
+    /// @notice Registry that created this wallet; only it may call transferOwnershipViaRegistry.
+    address public registry;
 
     event Received(address indexed from, uint256 value);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event WithdrewNative(address indexed to, uint256 amount);
     event WithdrewERC20(address indexed token, address indexed to, uint256 amount);
     event WithdrewERC1155(address indexed collection, address indexed to, uint256 id, uint256 amount);
@@ -26,6 +29,7 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     event SentCeloToNairaVault(uint256 amount);
 
     error OnlyOwner();
+    error OnlyRegistry();
     error InvalidAddress();
     error OnlyNairaVault();
 
@@ -37,9 +41,20 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         _;
     }
 
-    constructor(address _owner) {
+    constructor(address _owner, address _registry) {
         if (_owner == address(0)) revert InvalidAddress();
+        if (_registry == address(0)) revert InvalidAddress();
         owner = _owner;
+        registry = _registry;
+    }
+
+    /// @notice Transfer ownership to a new address. Only callable by the registry when linking an EOA to an existing profile (e.g. Privy user links wallet).
+    function transferOwnershipViaRegistry(address newOwner) external {
+        if (msg.sender != registry) revert OnlyRegistry();
+        if (newOwner == address(0)) revert InvalidAddress();
+        address previousOwner = owner;
+        owner = newOwner;
+        emit OwnershipTransferred(previousOwner, newOwner);
     }
 
     receive() external payable {

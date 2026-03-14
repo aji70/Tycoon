@@ -277,6 +277,71 @@ export async function registerOnChain(req, res) {
 }
 
 /**
+ * POST /auth/create-smart-wallet
+ * Creates a smart wallet for the authenticated user if they don't have one.
+ * If user has a real address (or linked wallet) registered on-chain: calls createWalletForExistingUser.
+ * If user has only a placeholder address: creates a custodial EOA, registers on-chain (which creates smart wallet), updates user.
+ * Body: { chain?: "CELO" | "POLYGON" | "BASE" } (optional).
+ */
+export async function createSmartWallet(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Not authenticated" });
+    }
+    const user = req.user;
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    if (!isContractConfigured(chain)) {
+      return res.status(503).json({ success: false, message: "Contract not configured for this network" });
+    }
+
+    if (user.smart_wallet_address && String(user.smart_wallet_address).trim() !== "") {
+      const updated = await User.findById(user.id);
+      const { password_hash: _, ...safe } = updated;
+      return res.status(200).json({ success: true, message: "Smart wallet already exists", data: safe });
+    }
+
+    const placeholderAddr = user.privy_did ? placeholderAddressForPrivyDid(user.privy_did) : null;
+    const primaryIsPlaceholder = placeholderAddr && user.address && String(user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
+    const addrForChain = user.linked_wallet_address && String(user.linked_wallet_address).trim()
+      ? String(user.linked_wallet_address).trim()
+      : primaryIsPlaceholder ? null : user.address;
+
+    if (addrForChain) {
+      const isRegistered = await callContractRead("registered", [addrForChain], chain);
+      if (!isRegistered) {
+        return res.status(400).json({ success: false, message: "Register on-chain first (e.g. link a wallet and register), then create smart wallet." });
+      }
+      if (canCreateWalletForExistingUser()) {
+        try {
+          const smartWallet = await createWalletForExistingUser(addrForChain, chain);
+          if (smartWallet) {
+            await User.update(user.id, { smart_wallet_address: smartWallet });
+            const updated = await User.findById(user.id);
+            const { password_hash: __, ...safe } = updated;
+            return res.status(200).json({ success: true, message: "Smart wallet created", data: safe });
+          }
+        } catch (err) {
+          logger.warn({ err: err?.message, userId: user.id }, "createSmartWallet: createWalletForExistingUser failed");
+        }
+      }
+      const existing = await getSmartWalletAddress(addrForChain, chain);
+      if (existing) {
+        await User.update(user.id, { smart_wallet_address: existing });
+        const updated = await User.findById(user.id);
+        const { password_hash: __, ...safe } = updated;
+        return res.status(200).json({ success: true, message: "Smart wallet synced", data: safe });
+      }
+      return res.status(503).json({ success: false, message: "Could not create smart wallet. Try again or link a wallet first." });
+    }
+
+    return res.status(400).json({ success: false, message: "Link a wallet first (Profile). The contract creates a smart wallet for your linked address; you cannot have a smart wallet without an owner address." });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "createSmartWallet failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create smart wallet" });
+  }
+}
+
+/**
  * GET /auth/me
  * Authorization: Bearer <token>
  * Returns current user from JWT (do not send password_hash to client).
@@ -300,20 +365,26 @@ export async function me(req, res) {
 
   if (addrForChain && isContractConfigured(normalizedChain)) {
     try {
-      const isRegistered = await callContractRead("registered", [addrForChain], normalizedChain);
-      if (!isRegistered) {
-        const username = req.user.username || req.user.address?.slice(0, 10) || "Player";
-        const secret = crypto.randomBytes(32).toString("hex");
-        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
-        await registerPlayerFor(addrForChain, username, passwordHash, normalizedChain);
-        const smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
-        await db("users").where({ id: req.user.id }).update({
-          password_hash: passwordHash,
-          smart_wallet_address: smartWallet || null,
-        });
-        safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
-        logger.info({ userId: req.user.id, address: addrForChain, chain: normalizedChain }, "me: registered user on-chain and synced smart wallet");
-      } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
+      const existingWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
+      if (existingWallet) {
+        // Address already has a profile in registry (e.g. after transferProfileTo). Sync and skip registration.
+        await db("users").where({ id: req.user.id }).update({ smart_wallet_address: existingWallet });
+        safe.smart_wallet_address = existingWallet;
+      } else {
+        const isRegistered = await callContractRead("registered", [addrForChain], normalizedChain);
+        if (!isRegistered) {
+          const username = req.user.username || req.user.address?.slice(0, 10) || "Player";
+          const secret = crypto.randomBytes(32).toString("hex");
+          const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+          await registerPlayerFor(addrForChain, username, passwordHash, normalizedChain);
+          const smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
+          await db("users").where({ id: req.user.id }).update({
+            password_hash: passwordHash,
+            smart_wallet_address: smartWallet || null,
+          });
+          safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
+          logger.info({ userId: req.user.id, address: addrForChain, chain: normalizedChain }, "me: registered user on-chain and synced smart wallet");
+        } else if (safe.smart_wallet_address == null || safe.smart_wallet_address === "") {
         let smartWallet = await getSmartWalletAddress(addrForChain, normalizedChain);
         if (!smartWallet && canCreateWalletForExistingUser()) {
           try {
@@ -332,6 +403,7 @@ export async function me(req, res) {
         if (smartWallet) {
           await User.update(req.user.id, { smart_wallet_address: smartWallet });
           safe.smart_wallet_address = smartWallet;
+        }
         }
       }
     } catch (err) {
