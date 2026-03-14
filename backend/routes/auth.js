@@ -1,14 +1,11 @@
 import express from "express";
 import {
-  guestRegister,
-  guestLogin,
   privySignin,
   privyCheck,
   me,
   registerOnChain,
   linkWallet,
   unlinkWallet,
-  mergeGuestIntoWallet,
   loginByWallet,
   connectEmail,
   verifyEmail,
@@ -19,14 +16,11 @@ import { requireAuth } from "../middleware/auth.js";
 const router = express.Router();
 
 router.get("/privy-check", privyCheck);
-router.post("/guest-register", guestRegister);
-router.post("/guest-login", guestLogin);
 router.post("/privy-signin", privySignin);
 router.get("/me", requireAuth, me);
 router.post("/register-on-chain", requireAuth, registerOnChain);
 router.post("/link-wallet", requireAuth, linkWallet);
 router.post("/unlink-wallet", requireAuth, unlinkWallet);
-router.post("/merge-guest-into-wallet", requireAuth, mergeGuestIntoWallet);
 router.post("/login-by-wallet", loginByWallet);
 router.post("/connect-email", requireAuth, connectEmail);
 router.get("/verify-email", verifyEmail);

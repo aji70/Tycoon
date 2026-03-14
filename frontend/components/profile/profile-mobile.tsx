@@ -448,7 +448,7 @@ export default function ProfilePageMobile() {
       </header>
 
       <main className="px-4 pt-6 max-w-xl mx-auto space-y-5">
-        {!guestUser?.is_guest && <AccountLinkWallet />}
+        <AccountLinkWallet />
         {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}

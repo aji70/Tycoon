@@ -22,13 +22,10 @@ export type GuestUser = {
 type GuestAuthContextValue = {
   guestUser: GuestUser | null;
   isLoading: boolean;
-  registerGuest: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  loginGuest: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logoutGuest: () => void;
   refetchGuest: () => Promise<void>;
   linkWallet: (params: { walletAddress: string; chain: string; message: string; signature: string }) => Promise<{ success: boolean; message?: string }>;
   unlinkWallet: () => Promise<{ success: boolean; message?: string }>;
-  mergeGuestIntoWallet: (params: { walletAddress: string; chain: string; message: string; signature: string }) => Promise<{ success: boolean; message?: string }>;
   loginByWallet: (params: { address: string; chain: string; message: string; signature: string }) => Promise<{ success: boolean; message?: string }>;
   connectEmail: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   verifyEmail: (token: string) => Promise<{ success: boolean; message?: string }>;
@@ -105,42 +102,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refetchGuest();
   }, [refetchGuest]);
-
-  const registerGuest = useCallback(async (username: string, password: string) => {
-    try {
-      const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/guest-register", {
-        username: username.trim(),
-        password,
-        chain: "Celo",
-      });
-      const data = res?.data as any;
-      if (data?.data?.token && data?.data?.user) {
-        safeSetToken(data.data.token);
-        setGuestUser(data.data.user);
-        return { success: true };
-      }
-      return { success: false, message: (data?.message as string) || "Registration failed" };
-    } catch (err: any) {
-      const message = err?.response?.data?.message ?? err?.message ?? "Registration failed";
-      return { success: false, message };
-    }
-  }, []);
-
-  const loginGuest = useCallback(async (username: string, password: string) => {
-    try {
-      const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/guest-login", { username: username.trim(), password });
-      const data = res?.data as any;
-      if (data?.data?.token && data?.data?.user) {
-        safeSetToken(data.data.token);
-        setGuestUser(data.data.user);
-        return { success: true };
-      }
-      return { success: false, message: (data?.message as string) || "Login failed" };
-    } catch (err: any) {
-      const message = err?.response?.data?.message ?? err?.message ?? "Login failed";
-      return { success: false, message };
-    }
-  }, []);
 
   const logoutGuest = useCallback(() => {
     safeRemoveToken();
@@ -223,34 +184,6 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const mergeGuestIntoWallet = useCallback(
-    async (params: { walletAddress: string; chain: string; message: string; signature: string }) => {
-      try {
-        const res = await apiClient.post<ApiResponse & { data?: { token: string; user: GuestUser } }>("auth/merge-guest-into-wallet", params);
-        const data = res?.data as { data?: { token: string; user: GuestUser }; message?: string };
-        if (data?.data?.token && data?.data?.user) {
-          safeSetToken(data.data.token);
-          setGuestUser({
-            id: data.data.user.id,
-            username: data.data.user.username,
-            address: data.data.user.address,
-            is_guest: data.data.user.is_guest ?? false,
-            linked_wallet_address: data.data.user.linked_wallet_address ?? null,
-            linked_wallet_chain: data.data.user.linked_wallet_chain ?? null,
-            email: data.data.user.email,
-            email_verified: data.data.user.email_verified,
-          });
-          return { success: true };
-        }
-        return { success: false, message: data?.message ?? "Merge failed" };
-      } catch (err: unknown) {
-        const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ?? (err as Error)?.message ?? "Merge failed";
-        return { success: false, message };
-      }
-    },
-    []
-  );
-
   const loginByWallet = useCallback(
     async (params: { address: string; chain: string; message: string; signature: string }) => {
       try {
@@ -315,13 +248,10 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
   const value: GuestAuthContextValue = {
     guestUser,
     isLoading,
-    registerGuest,
-    loginGuest,
     logoutGuest,
     refetchGuest,
     linkWallet,
     unlinkWallet,
-    mergeGuestIntoWallet,
     loginByWallet,
     connectEmail,
     verifyEmail,
