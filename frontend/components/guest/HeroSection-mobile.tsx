@@ -618,7 +618,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {((address && registrationStatus === "fully-registered" && hasSmartWallet && isPrivyAuthed) || (hasSmartWallet && ((registrationStatus === "guest" && guestUser) || registrationStatus === "privy"))) ? (
+          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "guest" && guestUser) || (registrationStatus === "privy" && isPrivyAuthed)) ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
