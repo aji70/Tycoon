@@ -579,8 +579,8 @@ const HeroSectionMobile: React.FC = () => {
             </>
           )}
 
-          {/* Register + Link wallet: when Privy/guest without smart wallet, or wallet+Privy+fully-registered but no smart wallet */}
-          {(((registrationStatus === "guest" || registrationStatus === "privy") || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading) && (
+          {/* Register + Link wallet: hide when action buttons are shown */}
+          {(((registrationStatus === "guest" || registrationStatus === "privy") || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "guest" && guestUser) || (registrationStatus === "privy" && isPrivyAuthed))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
