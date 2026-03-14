@@ -13,6 +13,7 @@ import {
   usePreviousGameCode,
   useGetGameByCode,
   useHasSmartWallet,
+  useProfileOwner,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePrivy } from "@privy-io/react-auth";
@@ -71,6 +72,12 @@ const HeroSection: React.FC = () => {
   const hasSmartWallet =
     (!!effectiveAddress && hasSmartWalletFromChain === true) ||
     (!!guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() !== "");
+  const smartWalletAddress = guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000"
+    ? (guestUser.smart_wallet_address as `0x${string}`)
+    : undefined;
+  const { data: profileOwner } = useProfileOwner(smartWalletAddress);
+  const zeroAddr = "0x0000000000000000000000000000000000000000";
+  const needsTransferToLink = !!smartWalletAddress && !!profileOwner && profileOwner !== zeroAddr && !!address && address.toLowerCase() !== (profileOwner as string).toLowerCase();
 
   const [backendGame, setBackendGame] = useState<{ status: string; is_ai?: boolean } | null>(null);
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
@@ -665,9 +672,14 @@ const HeroSection: React.FC = () => {
                     </span>
                   </button>
                 )}
+                {needsTransferToLink && (
+                  <p className="text-amber-300/90 text-xs text-center max-w-[280px]">
+                    Transfer profile first: open Profile and use &quot;Transfer profile to address&quot; with this wallet, then link here.
+                  </p>
+                )}
                 <button
                   type="button"
-                  onClick={handleLinkWallet}
+                  onClick={needsTransferToLink ? () => { router.push("/profile"); toast.info("Use Transfer profile to address with your current wallet, then come back and Link."); } : handleLinkWallet}
                   disabled={linkWalletLoading}
                   className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
                 >
@@ -675,7 +687,7 @@ const HeroSection: React.FC = () => {
                     <path d="M8 1H192C196.418 1 198.997 5.85486 196.601 9.5127L178.167 39.5127C177.151 41.0646 175.42 42 173.565 42H8C4.96243 42 2.5 39.5376 2.5 36.5V8.5C2.5 5.46243 4.96243 3 8 3Z" fill="#003B3E" stroke="#00F0FF" strokeWidth={1} />
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] text-sm font-orbitron font-[700] z-2">
-                    {linkWalletLoading ? "Linking..." : address ? "Link wallet" : "Connect wallet"}
+                    {linkWalletLoading ? "Linking..." : needsTransferToLink ? "Go to Profile" : address ? "Link wallet" : "Connect wallet"}
                   </span>
                 </button>
               </div>

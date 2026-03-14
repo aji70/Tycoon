@@ -220,7 +220,7 @@ const TYCOON_ABI = [
 /** Network name by chain for ethers Network (used for chainId only; provider uses rpcUrl). */
 const CHAIN_NAMES = { CELO: "celo", POLYGON: "polygon", BASE: "base" };
 
-/** TycoonUserRegistry: getWallet(owner) returns smart wallet address. */
+/** TycoonUserRegistry: getWallet(owner), ownerByWallet(wallet), transferProfileTo(newOwner). */
 const USER_REGISTRY_ABI = [
   {
     type: "function",
@@ -228,6 +228,20 @@ const USER_REGISTRY_ABI = [
     inputs: [{ name: "ownerAddress", type: "address", internalType: "address" }],
     outputs: [{ type: "address", internalType: "address" }],
     stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "ownerByWallet",
+    inputs: [{ name: "", type: "address", internalType: "address" }],
+    outputs: [{ type: "address", internalType: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "transferProfileTo",
+    inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
   },
 ];
 
@@ -423,6 +437,30 @@ export async function getSmartWalletAddress(ownerAddress, chain = "CELO") {
     return addr;
   } catch (err) {
     logger.warn({ err: err?.message, ownerAddress, chain }, "getSmartWalletAddress failed");
+    return null;
+  }
+}
+
+/**
+ * Get the on-chain profile owner for a smart wallet (TycoonUserRegistry.ownerByWallet).
+ * @param {string} walletAddress - Smart wallet address (0x...)
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ * @returns {Promise<string | null>} Owner EOA or null.
+ */
+export async function getProfileOwnerForWallet(walletAddress, chain = "CELO") {
+  const { rpcUrl, userRegistryAddress, chainId } = getChainConfig(chain);
+  if (!rpcUrl || !userRegistryAddress || !walletAddress) return null;
+  const zero = "0x0000000000000000000000000000000000000000";
+  try {
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+    const registry = new Contract(userRegistryAddress, USER_REGISTRY_ABI, provider);
+    const owner = await registry.ownerByWallet(walletAddress);
+    const addr = typeof owner === "string" ? owner : owner?.toString?.();
+    if (!addr || addr === zero) return null;
+    return addr;
+  } catch (err) {
+    logger.warn({ err: err?.message, walletAddress, chain }, "getProfileOwnerForWallet failed");
     return null;
   }
 }

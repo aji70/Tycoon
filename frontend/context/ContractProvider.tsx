@@ -160,6 +160,8 @@ export function useGetUsername(address?: Address) {
 const UserRegistryABI = [
   { inputs: [{ name: 'ownerAddress', type: 'address' }], name: 'getWallet', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: 'ownerAddress', type: 'address' }], name: 'hasWallet', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ name: '', type: 'address' }], name: 'ownerByWallet', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ name: 'newOwner', type: 'address' }], name: 'transferProfileTo', outputs: [], stateMutability: 'nonpayable', type: 'function' },
 ] as const;
 
 /** Smart wallet address for a registered user (from TycoonUserRegistry). Only set after registry is deployed and user has registered. */
@@ -197,6 +199,55 @@ export function useHasSmartWallet(ownerAddress?: Address) {
     isLoading: result.isLoading,
     error: result.error,
     refetch: result.refetch,
+  };
+}
+
+/** On-chain profile owner for a smart wallet (TycoonUserRegistry.ownerByWallet). */
+export function useProfileOwner(smartWalletAddress?: Address) {
+  const chainId = useChainId();
+  const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
+  const result = useReadContract({
+    address: registryAddress,
+    abi: UserRegistryABI,
+    functionName: 'ownerByWallet',
+    args: smartWalletAddress ? [smartWalletAddress] : undefined,
+    query: { enabled: !!smartWalletAddress && !!registryAddress },
+  });
+  return {
+    data: result.data as Address | undefined,
+    isLoading: result.isLoading,
+    error: result.error,
+    refetch: result.refetch,
+  };
+}
+
+/** Write: transfer profile (and smart wallet ownership) to new EOA. Caller must be current profile owner. */
+export function useTransferProfileTo() {
+  const chainId = useChainId();
+  const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const transfer = useCallback(
+    async (newOwner: Address) => {
+      if (!registryAddress) throw new Error('User registry not configured for this chain');
+      await writeContractAsync({
+        address: registryAddress,
+        abi: UserRegistryABI,
+        functionName: 'transferProfileTo',
+        args: [newOwner],
+      });
+    },
+    [registryAddress, writeContractAsync]
+  );
+
+  return {
+    transfer,
+    isPending: isPending || isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
   };
 }
 

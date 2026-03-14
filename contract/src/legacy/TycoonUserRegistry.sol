@@ -34,6 +34,7 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     bytes32 public constant REWARD_END_GAME = keccak256("end_game");
 
     event WalletCreated(address indexed owner, string username, address indexed wallet);
+    event ProfileTransferred(address indexed previousOwner, address indexed newOwner, address indexed wallet);
     event EmailUpdated(address indexed owner, string email);
     event GameContractUpdated(address indexed previous, address indexed newContract);
     event FaucetUpdated(address indexed previous, address indexed newFaucet);
@@ -43,6 +44,9 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     error AlreadyRegistered();
     error NoProfile();
     error UsernameTaken();
+    error InvalidAddress();
+    error CannotTransferToSelf();
+    error NewOwnerHasProfile();
 
     modifier onlyGame() {
         if (msg.sender != gameContract && msg.sender != owner()) revert OnlyGame();
@@ -72,7 +76,7 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         bytes32 nameHash = keccak256(bytes(username));
         if (ownerByUsername[nameHash] != address(0)) revert UsernameTaken();
 
-        wallet = address(new TycoonUserWallet(ownerAddress));
+        wallet = address(new TycoonUserWallet(ownerAddress, address(this)));
         profileByAddress[ownerAddress] = UserProfile({
             owner: ownerAddress,
             username: username,
@@ -91,6 +95,34 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
             emit GameActionRewardGranted(ownerAddress, REWARD_REGISTER, wallet);
         }
         return wallet;
+    }
+
+    /// @notice Transfer this profile (and smart wallet ownership) to a new EOA. Callable by current profile owner (e.g. when linking a wallet so the linked EOA becomes owner).
+    function transferProfileTo(address newOwner) external nonReentrant {
+        UserProfile storage profile = profileByAddress[msg.sender];
+        if (!profile.exists) revert NoProfile();
+        if (newOwner == msg.sender) revert CannotTransferToSelf();
+        if (newOwner == address(0)) revert InvalidAddress();
+        if (profileByAddress[newOwner].exists) revert NewOwnerHasProfile();
+
+        address walletAddr = profile.wallet;
+        string memory uname = profile.username;
+        string memory em = profile.email;
+        bytes32 nameHash = keccak256(bytes(uname));
+
+        delete profileByAddress[msg.sender];
+        profileByAddress[newOwner] = UserProfile({
+            owner: newOwner,
+            username: uname,
+            wallet: walletAddr,
+            email: em,
+            exists: true
+        });
+        ownerByUsername[nameHash] = newOwner;
+        ownerByWallet[walletAddr] = newOwner;
+
+        TycoonUserWallet(payable(walletAddr)).transferOwnershipViaRegistry(newOwner);
+        emit ProfileTransferred(msg.sender, newOwner, walletAddr);
     }
 
     /// @notice User sets their email (stored in profile).
