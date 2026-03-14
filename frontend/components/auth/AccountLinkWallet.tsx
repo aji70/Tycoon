@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { Link2, Unlink, Loader2, Mail, Merge } from "lucide-react";
+import { Link2, Unlink, Loader2, Mail } from "lucide-react";
 
 /** Chain id to backend chain name */
 function chainIdToBackendChain(chainId: number): string {
@@ -102,42 +102,11 @@ export default function AccountLinkWallet() {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
                 Link this wallet
               </button>
-              {guestUser?.is_guest && auth?.mergeGuestIntoWallet && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!address || !guestUser?.is_guest || !auth?.mergeGuestIntoWallet) return;
-                    setError(null);
-                    setLoading(true);
-                    try {
-                      const message = `Merge Tycoon guest account into wallet: ${Date.now()}`;
-                      const signature = await signMessageAsync({ message });
-                      const res = await auth.mergeGuestIntoWallet({
-                        walletAddress: address,
-                        chain,
-                        message,
-                        signature,
-                      });
-                      if (res.success) setError(null);
-                      else setError(res.message ?? "Merge failed");
-                    } catch (e) {
-                      setError((e as Error)?.message ?? "Merge failed");
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 text-sm font-medium hover:bg-amber-500/30 disabled:opacity-50"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Merge className="w-4 h-4" />}
-                  Merge into wallet account
-                </button>
-              )}
             </div>
           )}
           {!guestUser.linked_wallet_address && isConnected && (
             <p className="text-xs text-white/50 mt-1">
-              Link: keep this guest account and add the wallet. Merge: move this account’s games and stats into your wallet account (guest account is removed).
+              Link this wallet to your account. If the wallet is already registered, accounts will be merged.
             </p>
           )}
         </>

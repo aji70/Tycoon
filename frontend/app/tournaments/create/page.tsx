@@ -36,7 +36,6 @@ export default function CreateTournamentPage() {
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? false;
   const loginByWallet = guestAuth?.loginByWallet;
-  const loginGuest = guestAuth?.loginGuest;
   const { createTournament } = useTournament();
 
   const [step, setStep] = useState<"idle" | "signing_in" | "creating" | "success">("idle");
@@ -48,10 +47,6 @@ export default function CreateTournamentPage() {
   const [minPlayers, setMinPlayers] = useState(2);
   const [entryFeeUsd, setEntryFeeUsd] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  const [guestUsername, setGuestUsername] = useState("");
-  const [guestPassword, setGuestPassword] = useState("");
-  const [guestLoading, setGuestLoading] = useState(false);
 
   const isPrivyAuthed = ready && authenticated;
   const isSignedIn = !!guestUser;
@@ -76,24 +71,6 @@ export default function CreateTournamentPage() {
     } catch (e) {
       setError((e as Error)?.message ?? "Sign in failed");
       setStep("idle");
-    }
-  };
-
-  const handleSignInAsGuest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginGuest || !guestUsername.trim() || !guestPassword) {
-      setError("Username and password required");
-      return;
-    }
-    setError(null);
-    setGuestLoading(true);
-    try {
-      const res = await loginGuest(guestUsername.trim(), guestPassword);
-      if (!res.success) setError(res.message ?? "Login failed");
-    } catch (e) {
-      setError((e as Error)?.message ?? "Login failed");
-    } finally {
-      setGuestLoading(false);
     }
   };
 
@@ -260,34 +237,7 @@ export default function CreateTournamentPage() {
               </p>
             )}
 
-            <div className="border-t border-white/10 pt-6">
-              <p className="text-sm text-white/70 mb-3">Or continue as guest</p>
-              <form onSubmit={handleSignInAsGuest} className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Username"
-                  value={guestUsername}
-                  onChange={(e) => setGuestUsername(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#0E282A] border border-white/10 text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819] text-sm"
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={guestPassword}
-                  onChange={(e) => setGuestPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#0E282A] border border-white/10 text-white placeholder-white/40 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819] text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={guestLoading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-white/90 font-medium hover:bg-white/15 disabled:opacity-50 text-sm"
-                >
-                  {guestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
-                  Sign in as guest
-                </button>
-              </form>
-              <p className="text-xs text-white/50 mt-2">No account? Use any username and password to create one.</p>
-            </div>
+            <p className="text-sm text-white/60 mt-4">Sign in with Privy (from the app header or home) or connect your wallet to create a tournament.</p>
           </div>
         )}
 

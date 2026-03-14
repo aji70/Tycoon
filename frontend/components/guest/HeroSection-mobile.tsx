@@ -45,8 +45,6 @@ const HeroSectionMobile: React.FC = () => {
   const [inputUsername, setInputUsername] = useState("");
   const [localRegistered, setLocalRegistered] = useState(false);
   const [localUsername, setLocalUsername] = useState("");
-  const [guestUsername, setGuestUsername] = useState("");
-  const [guestPassword, setGuestPassword] = useState("");
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
@@ -172,8 +170,7 @@ const HeroSectionMobile: React.FC = () => {
       if (hasBackend && !hasOnChain) return "backend-only";
       return "none";
     }
-    if (guestUser) return "guest";
-    if (isPrivyAuthed) return "privy";
+    if (guestUser || isPrivyAuthed) return "privy";
     return "disconnected";
   }, [address, user, isUserRegistered, guestUser, isPrivyAuthed]);
 
@@ -359,7 +356,7 @@ const HeroSectionMobile: React.FC = () => {
     }
   };
 
-  const canRegisterOnChain = !!guestUser && ((guestUser.is_guest && guestUser.address) || !!guestUser.linked_wallet_address);
+  const canRegisterOnChain = !!guestUser && (!!guestUser.address || !!guestUser.linked_wallet_address);
 
   const handleContinuePrevious = () => {
   const code = (guestUser && guestLastGame ? guestLastGame.code : gameCode) ?? "";
@@ -419,7 +416,7 @@ const HeroSectionMobile: React.FC = () => {
 
         {/* Welcome / Loading message + Level */}
         <div className="mt-5 sm:mt-6 text-center px-2 flex flex-col items-center gap-2">
-          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "guest" || registrationStatus === "privy") && !loading && (
+          {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
             <>
               <p className="font-orbitron text-lg sm:text-xl font-bold text-[#00F0FF]">
                 Welcome back, {displayUsername}!
@@ -580,7 +577,7 @@ const HeroSectionMobile: React.FC = () => {
           )}
 
           {/* Register + Link wallet: hide when action buttons are shown */}
-          {(((registrationStatus === "guest" || registrationStatus === "privy") || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "guest" && guestUser) || (registrationStatus === "privy" && isPrivyAuthed))) && (
+          {(registrationStatus === "privy" || (address && isPrivyAuthed && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || isPrivyAuthed) && !loading && !((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center px-2 max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
@@ -618,7 +615,7 @@ const HeroSectionMobile: React.FC = () => {
             </div>
           )}
 
-          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "guest" && guestUser) || (registrationStatus === "privy" && isPrivyAuthed)) ? (
+          {((address && registrationStatus === "fully-registered" && isPrivyAuthed) || (registrationStatus === "privy" && (guestUser || isPrivyAuthed))) ? (
             <div className="w-full flex flex-col items-center gap-5">
               {/* Continue Previous Game - prominent when available, not full width */}
               {((gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
@@ -716,9 +713,9 @@ const HeroSectionMobile: React.FC = () => {
                   Challenge AI!
                 </span>
               </button>
-              {(guestUser || registrationStatus === "privy") && (
+              {(guestUser || isPrivyAuthed) && (
                 <button
-                  onClick={() => (registrationStatus === "privy" ? logout() : guestAuth?.logoutGuest())}
+                  onClick={() => (isPrivyAuthed ? logout() : guestAuth?.logoutGuest())}
                   className="text-[#869298] hover:text-[#00F0FF] font-dmSans text-xs"
                 >
                   Sign out
