@@ -41,11 +41,17 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         _;
     }
 
-    constructor(address _owner, address _registry) {
+    /// @param _owner Profile owner (EOA).
+    /// @param _registry TycoonUserRegistry that created this wallet.
+    /// @param _nairaVault Optional Naira vault address; if set, CELO→Naira withdrawals work without user having to set it later.
+    constructor(address _owner, address _registry, address _nairaVault) {
         if (_owner == address(0)) revert InvalidAddress();
         if (_registry == address(0)) revert InvalidAddress();
         owner = _owner;
         registry = _registry;
+        if (_nairaVault != address(0) && _nairaVault.code.length > 0) {
+            nairaVault = _nairaVault;
+        }
     }
 
     /// @notice Transfer ownership to a new address. Only callable by the registry when linking an EOA to an existing profile (e.g. Privy user links wallet).

@@ -27,6 +27,11 @@ export const USER_REGISTRY_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_USER_REGISTRY as Address | undefined,
 };
 
+/** Naira vault (CELO→NGN). Used for one-click "Enable NGN withdrawals" on existing wallets. */
+export const NAIRA_VAULT_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: process.env.NEXT_PUBLIC_CELO_NAIRA_VAULT as Address | undefined,
+};
+
 /** Tournament escrow (entry fees + prize pool). ABI: context/abi/TycoonTournamentEscrow.json */
 export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: (process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW || process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS) as Address | undefined,
