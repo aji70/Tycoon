@@ -602,11 +602,14 @@ export function canCreateWalletForExistingUser() {
  * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
  */
 /**
- * Get wallet for withdrawal authority (signs after user PIN). Uses WITHDRAWAL_AUTHORITY_PRIVATE_KEY.
+ * Get wallet for withdrawal authority (signs after user PIN). Falls back to operator/game-controller key if WITHDRAWAL_AUTHORITY_PRIVATE_KEY not set.
  */
 function getWithdrawalAuthorityWallet(chain = "CELO") {
-  const pk = process.env.WITHDRAWAL_AUTHORITY_PRIVATE_KEY;
-  if (!pk) throw new Error("WITHDRAWAL_AUTHORITY_PRIVATE_KEY not set (required for PIN-protected withdrawals)");
+  const pk =
+    process.env.WITHDRAWAL_AUTHORITY_PRIVATE_KEY ??
+    process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ??
+    getChainConfig(chain).privateKey;
+  if (!pk) throw new Error("Withdrawal authority key not set (set WITHDRAWAL_AUTHORITY_PRIVATE_KEY, SMART_WALLET_OPERATOR_PRIVATE_KEY, or BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY)");
   const cfg = getChainConfig(chain);
   const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
   const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
