@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
-import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft } from "lucide-react";
+import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft, Copy, ExternalLink } from "lucide-react";
 import { Address, isAddress } from "viem";
+import { toast } from "react-toastify";
 
 /** Chain id to backend chain name */
 function chainIdToBackendChain(chainId: number): string {
@@ -16,6 +19,7 @@ function chainIdToBackendChain(chainId: number): string {
 }
 
 export default function AccountLinkWallet() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -29,7 +33,6 @@ export default function AccountLinkWallet() {
   const guestUser = auth?.guestUser ?? null;
   const chain = chainIdToBackendChain(chainId);
   const [createWalletLoading, setCreateWalletLoading] = useState(false);
-  const [transferToAddress, setTransferToAddress] = useState("");
   const hasSmartWallet = !!(guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000");
   const smartWalletAddress = hasSmartWallet ? (guestUser!.smart_wallet_address as Address) : undefined;
   const { data: profileOwner, isLoading: profileOwnerLoading } = useProfileOwner(smartWalletAddress);
@@ -76,6 +79,11 @@ export default function AccountLinkWallet() {
 
   const handleUnlinkWallet = async () => {
     if (!auth?.unlinkWallet) return;
+    // Guard against accidental unlink (common footgun on mobile)
+    const ok = window.confirm(
+      "Unlink this wallet from your Tycoon account?\n\nYou may lose easy access to this profile on this device until you link again."
+    );
+    if (!ok) return;
     setError(null);
     setLoading(true);
     try {
@@ -88,20 +96,12 @@ export default function AccountLinkWallet() {
     }
   };
 
-  const handleTransferProfileTo = async () => {
-    const addr = transferToAddress.trim();
-    if (!addr || !isAddress(addr)) {
-      setError("Enter a valid 0x address");
-      return;
-    }
-    setError(null);
-    try {
-      await transferProfileTo(addr as Address);
-      setTransferToAddress("");
-      auth?.refetchGuest?.();
-    } catch (e) {
-      setError((e as Error)?.message ?? "Transfer failed");
-    }
+  const handleGoToTransfer = () => {
+    const ok = window.confirm(
+      "Transfer profile (smart wallet ownership) to another wallet?\n\nThis is a sensitive action. You’ll need to confirm on-chain, and you may lose access until you link the new owner wallet."
+    );
+    if (!ok) return;
+    router.push("/profile/smart-wallet");
   };
 
   return (
@@ -158,34 +158,52 @@ export default function AccountLinkWallet() {
               Link this wallet to your account. If the wallet is already registered, accounts will be merged.
             </p>
           )}
-          {hasSmartWallet && (profileOwnerLoading || isConnectedOwner) && (
+          {hasSmartWallet && (
+            <div className="pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">
+              <p className="text-sm text-white/80">
+                Smart wallet: <span className="font-mono text-cyan-300">{guestUser.smart_wallet_address!.slice(0, 6)}...{guestUser.smart_wallet_address!.slice(-4)}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (guestUser.smart_wallet_address) {
+                    navigator.clipboard.writeText(guestUser.smart_wallet_address);
+                    toast.success("Smart wallet address copied");
+                  }
+                }}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80"
+                aria-label="Copy smart wallet address"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+              <Link
+                href="/profile/smart-wallet"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Manage smart wallet
+              </Link>
+            </div>
+          )}
+          {/* Bottom danger action: transfer profile (no inline input) */}
+          {hasSmartWallet && (
             <div className="pt-3 border-t border-white/10">
-              <p className="text-sm text-white/70 mb-2">Transfer profile to another wallet</p>
               {!profileOwnerLoading && profileOwner && profileOwner !== zeroAddr && (
-                <p className="text-xs text-white/50 mb-2">Current on-chain owner: {profileOwner.slice(0, 6)}...{profileOwner.slice(-4)}</p>
+                <p className="text-xs text-white/50 mb-2">
+                  Current on-chain owner: {profileOwner.slice(0, 6)}...{profileOwner.slice(-4)}
+                </p>
               )}
-              {isConnectedOwner && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <input
-                    type="text"
-                    placeholder="0x..."
-                    value={transferToAddress}
-                    onChange={(e) => setTransferToAddress(e.target.value)}
-                    className="flex-1 min-w-[200px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTransferProfileTo}
-                    disabled={transferPending || !transferToAddress.trim()}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/25 border border-amber-500/50 text-amber-300 text-sm font-medium hover:bg-amber-500/35 disabled:opacity-50"
-                  >
-                    {transferPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
-                    Transfer to address
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={handleGoToTransfer}
+                disabled={transferPending}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/15 border border-red-500/50 text-red-300 text-sm font-semibold hover:bg-red-500/20 disabled:opacity-50"
+              >
+                {transferPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                Transfer profile to another wallet
+              </button>
               {!isConnectedOwner && !profileOwnerLoading && (
-                <p className="text-xs text-white/50">Connect with the current owner wallet to transfer.</p>
+                <p className="text-xs text-white/50 mt-2">Connect with the current owner wallet to complete the transfer.</p>
               )}
             </div>
           )}
