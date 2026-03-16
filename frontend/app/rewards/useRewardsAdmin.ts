@@ -148,9 +148,23 @@ export function useRewardsAdmin() {
   const NAIRA_VAULT_ABI = [
     { inputs: [], name: "balanceCelo", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
     { inputs: [], name: "balanceUsdc", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+    { inputs: [], name: "usdc", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
     { inputs: [{ name: "recipient", type: "address" }, { name: "amount", type: "uint256" }], name: "creditCelo", outputs: [], stateMutability: "nonpayable", type: "function" },
   ] as const;
+  const ERC20_DECIMALS_ABI = [{ inputs: [], name: "decimals", outputs: [{ type: "uint8" }], stateMutability: "view", type: "function" }] as const;
   const vaultAddress = NAIRA_VAULT_ADDRESSES[chainId as keyof typeof NAIRA_VAULT_ADDRESSES];
+  const vaultUsdcToken = useReadContract({
+    address: vaultAddress,
+    abi: NAIRA_VAULT_ABI,
+    functionName: "usdc",
+    query: { enabled: !!vaultAddress },
+  });
+  const vaultUsdcDecimals = useReadContract({
+    address: vaultUsdcToken.data,
+    abi: ERC20_DECIMALS_ABI,
+    functionName: "decimals",
+    query: { enabled: !!vaultUsdcToken.data },
+  });
   const vaultCeloBalance = useReadContract({
     address: vaultAddress,
     abi: NAIRA_VAULT_ABI,
@@ -764,6 +778,7 @@ export function useRewardsAdmin() {
       vaultNairaAddress: vaultAddress,
       vaultCeloBalance: vaultCeloBalance.data,
       vaultUsdcBalance: vaultUsdcBalance.data,
+      vaultUsdcDecimals: vaultUsdcDecimals.data,
       vaultWithdrawAmount,
       setVaultWithdrawAmount,
       vaultWithdrawTo,

@@ -119,6 +119,7 @@ export default function RewardAdminPanel() {
     vaultNairaAddress,
     vaultCeloBalance,
     vaultUsdcBalance,
+    vaultUsdcDecimals,
     vaultWithdrawAmount,
     setVaultWithdrawAmount,
     vaultWithdrawTo,
@@ -898,7 +899,7 @@ export default function RewardAdminPanel() {
                     <div className="bg-gray-800/50 rounded-xl p-4">
                       <span className="text-gray-400 text-sm block">USDC balance</span>
                       <span className="text-lg font-semibold text-green-300">
-                        {vaultUsdcBalance != null ? formatUnits(vaultUsdcBalance, 6) : '—'}
+                        {vaultUsdcBalance != null ? formatUnits(vaultUsdcBalance, vaultUsdcDecimals ?? 6) : '—'}
                       </span>
                     </div>
                   </div>
