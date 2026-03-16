@@ -451,9 +451,15 @@ export async function flutterwaveWebhook(req, res) {
           await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
           return;
         }
+        const amountWei = BigInt(celoPending.amount_celo_wei);
+        const { getNairaVaultBalances, creditCeloFromVault } = await import("../services/tycoonContract.js");
+        const vaultBalances = await getNairaVaultBalances("CELO");
+        if (vaultBalances && vaultBalances.balanceCeloWei < amountWei) {
+          logger.warn({ tx_ref: txRef, balanceCelo: String(vaultBalances.balanceCeloWei), amountWei: String(amountWei) }, "Flutterwave CELO purchase: vault insufficient at webhook — not crediting");
+          await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+          return;
+        }
         try {
-          const { creditCeloFromVault } = await import("../services/tycoonContract.js");
-          const amountWei = BigInt(celoPending.amount_celo_wei);
           await creditCeloFromVault(celoPending.smart_wallet_address, amountWei, "CELO");
           await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).update({ status: "completed", updated_at: new Date() });
           logger.info(

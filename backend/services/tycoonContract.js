@@ -305,7 +305,7 @@ const USER_WALLET_ABI = [
   },
 ];
 
-/** TycoonNairaVault: processNairaWithdrawalCelo, creditCelo, creditUsdc — controller only. */
+/** TycoonNairaVault: processNairaWithdrawalCelo, creditCelo, creditUsdc, balanceCelo, balanceUsdc. */
 const NAIRA_VAULT_ABI = [
   {
     type: "function",
@@ -337,6 +337,8 @@ const NAIRA_VAULT_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  { type: "function", name: "balanceCelo", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "balanceUsdc", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
 ];
 
 const REWARD_ABI_MINT = [
@@ -370,6 +372,28 @@ function getContract(chain = "CELO") {
   const wallet = new Wallet(pk, provider);
   const contract = new Contract(contractAddress, TYCOON_ABI, wallet);
   return contract;
+}
+
+/**
+ * Read Naira vault CELO and USDC balances (view only). Used for liquidity checks before allowing purchases.
+ * @param {string} [chain] - CELO | POLYGON | BASE
+ * @returns {Promise<{ balanceCeloWei: bigint, balanceUsdcUnits: bigint } | null>} null if vault not configured
+ */
+export async function getNairaVaultBalances(chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  if (!cfg.nairaVaultAddress || !cfg.rpcUrl) return null;
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  const vault = new Contract(cfg.nairaVaultAddress, NAIRA_VAULT_ABI, provider);
+  const [balanceCeloWei, balanceUsdcUnits] = await Promise.all([
+    vault.balanceCelo(),
+    vault.balanceUsdc(),
+  ]);
+  return {
+    balanceCeloWei: BigInt(balanceCeloWei?.toString() ?? 0),
+    balanceUsdcUnits: BigInt(balanceUsdcUnits?.toString() ?? 0),
+  };
 }
 
 /**

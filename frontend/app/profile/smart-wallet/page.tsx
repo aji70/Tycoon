@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useUserRegistryWallet, useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { useRewardTokenAddresses } from "@/context/ContractProvider";
 import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRESSES, WITHDRAWAL_AUTHORITY_ADDRESSES } from "@/constants/contracts";
-import { parseEther, type Address } from "viem";
+import { parseEther, formatUnits, type Address } from "viem";
 import { toast } from "react-toastify";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -105,11 +105,24 @@ export default function ManageSmartWalletPage() {
   const [buyCeloNairaAmount, setBuyCeloNairaAmount] = useState("");
   const [buyCeloNairaLoading, setBuyCeloNairaLoading] = useState(false);
   const [buyCeloNairaError, setBuyCeloNairaError] = useState<string | null>(null);
+  const [vaultCeloWei, setVaultCeloWei] = useState<bigint | null>(null);
   const [transferToAddress, setTransferToAddress] = useState("");
 
   const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const { transfer: transferProfileTo, isPending: transferPending } = useTransferProfileTo();
+
+  useEffect(() => {
+    if (!hasSmartWallet) return;
+    let cancelled = false;
+    apiClient.get<{ configured?: boolean; balance_celo_wei?: string }>("auth/vault-balances").then((res) => {
+      if (cancelled || !res.data?.balance_celo_wei) return;
+      try {
+        setVaultCeloWei(BigInt(res.data.balance_celo_wei));
+      } catch (_) {}
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [hasSmartWallet]);
 
   const handleWithdrawCelo = async () => {
     if (!smartWalletAddress || !withdrawCeloTo.trim() || !withdrawCeloAmount) return;
@@ -659,6 +672,12 @@ export default function ManageSmartWalletPage() {
             <div>
               <p className="text-sm text-white/80 mb-1">Buy CELO with Naira</p>
               <p className="text-xs text-white/50 mb-2">Pay in Naira; we send CELO to this smart wallet after payment. Minimum 200 NGN (e.g. 230, 500, 5000).</p>
+              {vaultCeloWei !== null && vaultCeloWei === 0n && (
+                <p className="text-amber-400 text-sm mb-2">Vault has no CELO liquidity right now. Top up the vault to enable purchases.</p>
+              )}
+              {vaultCeloWei !== null && vaultCeloWei > 0n && (
+                <p className="text-white/50 text-xs mb-2">Vault liquidity: ~{formatUnits(vaultCeloWei, 18)} CELO available.</p>
+              )}
               <form onSubmit={handleBuyCeloWithNaira} className="flex flex-wrap gap-2 items-end">
                 <input
                   type="number"
@@ -671,7 +690,7 @@ export default function ManageSmartWalletPage() {
                 />
                 <button
                   type="submit"
-                  disabled={buyCeloNairaLoading}
+                  disabled={buyCeloNairaLoading || (vaultCeloWei !== null && vaultCeloWei === 0n)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
                 >
                   {buyCeloNairaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
