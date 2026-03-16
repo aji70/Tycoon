@@ -102,6 +102,9 @@ export default function ManageSmartWalletPage() {
   const [nairaWithdrawAmount, setNairaWithdrawAmount] = useState("");
   const [nairaWithdrawLoading, setNairaWithdrawLoading] = useState(false);
   const [nairaWithdrawError, setNairaWithdrawError] = useState<string | null>(null);
+  const [buyCeloNairaAmount, setBuyCeloNairaAmount] = useState("");
+  const [buyCeloNairaLoading, setBuyCeloNairaLoading] = useState(false);
+  const [buyCeloNairaError, setBuyCeloNairaError] = useState<string | null>(null);
   const [transferToAddress, setTransferToAddress] = useState("");
 
   const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
@@ -271,6 +274,32 @@ export default function ManageSmartWalletPage() {
       setNairaWithdrawError(String(msg));
     } finally {
       setNairaWithdrawLoading(false);
+    }
+  };
+
+  const handleBuyCeloWithNaira = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const ngn = buyCeloNairaAmount.trim();
+    const num = ngn ? Number(ngn) : NaN;
+    if (!Number.isFinite(num) || num < 200) {
+      setBuyCeloNairaError("Enter at least 200 Naira.");
+      return;
+    }
+    setBuyCeloNairaError(null);
+    setBuyCeloNairaLoading(true);
+    try {
+      const res = await apiClient.post<{ success?: boolean; link?: string; tx_ref?: string; message?: string }>("auth/celo-purchase/initialize", { amount_ngn: num });
+      if (res.data?.success && res.data?.link) {
+        toast.success("Redirecting to payment…");
+        window.location.href = res.data.link;
+        return;
+      }
+      setBuyCeloNairaError(res.data?.message ?? "Could not start payment.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (err as Error)?.message ?? "Request failed";
+      setBuyCeloNairaError(String(msg));
+    } finally {
+      setBuyCeloNairaLoading(false);
     }
   };
 
@@ -627,14 +656,35 @@ export default function ManageSmartWalletPage() {
           </h2>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-white/80 mb-1">Add funds (Naira → CELO/USDC)</p>
-              <p className="text-xs text-white/50 mb-2">Pay in Naira; we credit your smart wallet with CELO or USDC.</p>
-              <Link
-                href="/game-shop"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35"
-              >
-                <ExternalLink className="w-4 h-4" /> Open Shop
-              </Link>
+              <p className="text-sm text-white/80 mb-1">Buy CELO with Naira</p>
+              <p className="text-xs text-white/50 mb-2">Pay in Naira; we send CELO to this smart wallet after payment (min 200 NGN).</p>
+              <form onSubmit={handleBuyCeloWithNaira} className="flex flex-wrap gap-2 items-end">
+                <input
+                  type="number"
+                  min={200}
+                  step={100}
+                  placeholder="Amount (NGN)"
+                  value={buyCeloNairaAmount}
+                  onChange={(e) => setBuyCeloNairaAmount(e.target.value)}
+                  className="flex-1 min-w-[140px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={buyCeloNairaLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
+                >
+                  {buyCeloNairaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
+                  Pay Naira → Get CELO
+                </button>
+              </form>
+              {buyCeloNairaError && <p className="text-sm text-red-400 mt-2">{buyCeloNairaError}</p>}
+              <p className="text-xs text-white/40 mt-2">
+                Perk bundles and more in the{" "}
+                <Link href="/game-shop" className="text-cyan-400 hover:underline">
+                  Shop
+                </Link>
+                .
+              </p>
             </div>
             <div className="pt-3 border-t border-white/10">
               <p className="text-sm text-white/80 mb-1">Withdraw to Naira (CELO → Naira)</p>
