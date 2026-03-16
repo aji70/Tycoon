@@ -18,6 +18,7 @@ import {
   createWalletForExistingUser,
   canCreateWalletForExistingUser,
   processNairaWithdrawalCelo,
+  getNairaVaultBalances,
   withdrawFromSmartWalletCelo,
   withdrawFromSmartWalletUsdc,
   signWithdrawalAuthCelo,
@@ -498,6 +499,29 @@ export async function celoPurchaseInitialize(req, res) {
     }
     const amountWei = ethers.parseEther(String(amountCelo));
     const txRef = `celo_${user.id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+
+    // Liquidity check: vault must have enough CELO (including other pending purchases) to avoid race conditions
+    const vaultBalances = await getNairaVaultBalances("CELO");
+    if (vaultBalances) {
+      const pendingRows = await db("celo_purchase_ngn_pending")
+        .where({ status: "pending" })
+        .select("amount_celo_wei");
+      let pendingCeloWei = 0n;
+      for (const row of pendingRows) {
+        try {
+          pendingCeloWei += BigInt(row.amount_celo_wei ?? 0);
+        } catch (_) {}
+      }
+      const availableCelo = vaultBalances.balanceCeloWei - pendingCeloWei;
+      if (availableCelo < amountWei) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "Vault has insufficient CELO liquidity right now. Try a smaller amount or try again later.",
+        });
+      }
+    }
+
     let redirectUrl =
       req.body?.redirect_url && String(req.body.redirect_url).startsWith("http")
         ? String(req.body.redirect_url).replace(/\/$/, "")
@@ -534,6 +558,35 @@ export async function celoPurchaseInitialize(req, res) {
     return res.status(500).json({
       success: false,
       message,
+    });
+  }
+}
+
+/**
+ * GET /auth/vault-balances
+ * Returns Naira vault CELO and USDC balances (for liquidity display / pre-check). No auth required.
+ */
+export async function vaultBalances(req, res) {
+  try {
+    const balances = await getNairaVaultBalances("CELO");
+    if (!balances) {
+      return res.status(200).json({
+        configured: false,
+        balance_celo_wei: "0",
+        balance_usdc_units: "0",
+      });
+    }
+    return res.status(200).json({
+      configured: true,
+      balance_celo_wei: String(balances.balanceCeloWei),
+      balance_usdc_units: String(balances.balanceUsdcUnits),
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "vaultBalances failed");
+    return res.status(500).json({
+      configured: false,
+      balance_celo_wei: "0",
+      balance_usdc_units: "0",
     });
   }
 }

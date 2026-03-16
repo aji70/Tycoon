@@ -11,6 +11,7 @@ import {
   setBankDetails,
   nairaWithdraw,
   celoPurchaseInitialize,
+  vaultBalances,
   smartWalletWithdrawCelo,
   smartWalletWithdrawUsdc,
   loginByWallet,
@@ -32,6 +33,7 @@ router.post("/create-smart-wallet", requireAuth, createSmartWallet);
 router.post("/set-withdrawal-pin", requireAuth, setWithdrawalPin);
 router.post("/set-bank-details", requireAuth, setBankDetails);
 router.post("/naira-withdraw", requireAuth, nairaWithdraw);
+router.get("/vault-balances", vaultBalances);
 router.post("/celo-purchase/initialize", requireAuth, celoPurchaseInitialize);
 router.post("/smart-wallet/withdraw-celo", requireAuth, smartWalletWithdrawCelo);
 router.post("/smart-wallet/withdraw-usdc", requireAuth, smartWalletWithdrawUsdc);
