@@ -6,7 +6,7 @@ import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, 
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useUserRegistryWallet, useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { useRewardTokenAddresses } from "@/context/ContractProvider";
-import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRESSES, WITHDRAWAL_AUTHORITY_ADDRESSES } from "@/constants/contracts";
+import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRESSES, WITHDRAWAL_AUTHORITY_ADDRESSES, SWAP_EXECUTOR_ADDRESSES } from "@/constants/contracts";
 import { parseEther, formatUnits, type Address } from "viem";
 import { toast } from "react-toastify";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
@@ -106,6 +106,7 @@ export default function ManageSmartWalletPage() {
   const [buyCeloNairaLoading, setBuyCeloNairaLoading] = useState(false);
   const [buyCeloNairaError, setBuyCeloNairaError] = useState<string | null>(null);
   const [vaultCeloWei, setVaultCeloWei] = useState<bigint | null>(null);
+  const [swapCeloAmount, setSwapCeloAmount] = useState("");
   const [transferToAddress, setTransferToAddress] = useState("");
 
   const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
@@ -124,6 +125,8 @@ export default function ManageSmartWalletPage() {
     return () => { cancelled = true; };
   }, [hasSmartWallet]);
 
+  const swapExecutorAddress = SWAP_EXECUTOR_ADDRESSES[chainId as keyof typeof SWAP_EXECUTOR_ADDRESSES];
+
   const handleWithdrawCelo = async () => {
     if (!smartWalletAddress || !withdrawCeloTo.trim() || !withdrawCeloAmount) return;
     const to = withdrawCeloTo.trim() as Address;
@@ -140,6 +143,24 @@ export default function ManageSmartWalletPage() {
       setWithdrawCeloTo("");
     } catch (e) {
       toast.error((e as Error)?.message ?? "Withdraw failed");
+    }
+  };
+
+  const handleSwapCeloToUsdc = async () => {
+    if (!smartWalletAddress || !swapExecutorAddress || !swapCeloAmount.trim()) return;
+    const amount = parseEther(swapCeloAmount.trim());
+    if (amount <= 0n) return;
+    try {
+      await writeContractAsync({
+        address: smartWalletAddress,
+        abi: UserWalletABI,
+        functionName: "withdrawNative",
+        args: [swapExecutorAddress as Address, amount],
+      });
+      toast.success("Swap submitted. USDC will be credited to this smart wallet after the tx confirms.");
+      setSwapCeloAmount("");
+    } catch (e) {
+      toast.error((e as Error)?.message ?? "Swap failed");
     }
   };
 
@@ -549,6 +570,33 @@ export default function ManageSmartWalletPage() {
                 </button>
               </div>
             </section>
+
+            {swapExecutorAddress && (
+              <section className="rounded-2xl border border-green-500/20 bg-[#011112]/80 p-5">
+                <h2 className="text-base font-semibold text-green-400 mb-3 flex items-center gap-2">
+                  <ArrowRightLeft className="w-4 h-4" /> Swap CELO → USDC
+                </h2>
+                <p className="text-xs text-white/60 mb-2">Convert CELO in this smart wallet to USDC. USDC is credited back to this same wallet (via Ubeswap). Connect as owner to sign.</p>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <input
+                    type="text"
+                    placeholder="Amount (CELO)"
+                    value={swapCeloAmount}
+                    onChange={(e) => setSwapCeloAmount(e.target.value)}
+                    className="flex-1 min-w-[120px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSwapCeloToUsdc}
+                    disabled={pendingAny || !swapCeloAmount.trim()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/25 border border-green-500/50 text-green-300 text-sm font-medium disabled:opacity-50"
+                  >
+                    {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
+                    Swap to USDC
+                  </button>
+                </div>
+              </section>
+            )}
 
             <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
               <h2 className="text-base font-semibold text-cyan-400 mb-3 flex items-center gap-2">
