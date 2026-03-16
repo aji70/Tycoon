@@ -527,9 +527,10 @@ export async function celoPurchaseInitialize(req, res) {
     return res.status(200).json({ success: true, link, tx_ref: tx_ref || txRef });
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "celoPurchaseInitialize failed");
+    const message = err?.message || "Failed to start CELO purchase";
     return res.status(500).json({
       success: false,
-      message: err?.message || "Failed to start CELO purchase",
+      message,
     });
   }
 }

@@ -77,23 +77,26 @@ export async function initializePayment({
     customizationsOverride && typeof customizationsOverride === "object" && Object.keys(customizationsOverride).length > 0
       ? { ...defaultCustomizations, ...customizationsOverride }
       : defaultCustomizations;
-  // Match Flutterwave doc exactly: tx_ref, amount, currency, redirect_url, customer (email, name, phonenumber)
-  // payment_options: comma-separated, no spaces – required by some account settings
+  // Match Flutterwave doc: tx_ref, amount (number), currency, redirect_url, customer (email, name, phonenumber)
+  // payment_options: comma-separated, no spaces. amount as number for v3 compatibility.
+  const amountRounded = Math.round(amount);
   const payload = {
     tx_ref: String(txRef),
-    amount: String(Math.round(amount)),
+    amount: amountRounded,
     currency: "NGN",
     redirect_url: String(redirectUrl),
     payment_options: "card,ussd,account",
     customer: {
       email: customerEmail,
       name: customerNameStr,
-      phonenumber: FLW_DEFAULT_PHONE,
+      phonenumber: String(FLW_DEFAULT_PHONE || "08000000000"),
     },
     customizations,
   };
   if (meta && typeof meta === "object" && Object.keys(meta).length > 0) {
-    payload.meta = meta;
+    payload.meta = Object.fromEntries(
+      Object.entries(meta).map(([k, v]) => [k, v == null ? "" : String(v)])
+    );
   }
 
   logger.info(
