@@ -21,10 +21,11 @@ const CELO_REPUTATION_ADDRESS =
  * Uses ERC8004_FEEDBACK_PRIVATE_KEY if set (must not be the agent owner, or you get "self feedback not allowed").
  * Otherwise uses Celo game controller key (will fail if that wallet registered the agent).
  * @param {bigint | number | string} agentId - ERC-8004 agent id (from registration)
- * @param {number} score - 0 = human won, 100 = AI won
+ * @param {number} score - 0 = human won, 100 = AI won (gameResult); or e.g. 10 for tipFollowed
+ * @param {string} [tag2] - Optional tag2 for the feedback (default "gameResult"). Use "tipFollowed" when user followed an AI tip.
  * @returns {Promise<{ success: boolean, hash?: string, error?: string }>}
  */
-export async function submitErc8004Feedback(agentId, score) {
+export async function submitErc8004Feedback(agentId, score, tag2 = "gameResult") {
   const agentIdStr = String(agentId);
   if (!agentIdStr || agentIdStr === "0") {
     return { success: false, error: "ERC8004_AGENT_ID not set" };
@@ -59,14 +60,14 @@ export async function submitErc8004Feedback(agentId, score) {
       value,
       0,
       "tycoon",
-      "gameResult",
+      tag2,
       "",
       "",
       zeroHash
     );
     const receipt = await tx.wait();
     logger.info(
-      { agentId: agentIdStr, score: value, hash: receipt?.hash },
+      { agentId: agentIdStr, score: value, tag2, hash: receipt?.hash },
       "[erc8004Feedback] Feedback submitted"
     );
     return { success: true, hash: receipt?.hash };

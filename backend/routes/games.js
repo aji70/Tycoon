@@ -35,6 +35,7 @@ router.get("/", gameController.findAll);
 router.get("/:id/winner-by-net-worth", gameController.getWinnerByNetWorth);
 router.post("/:id/finish-by-time", gameController.finishByTime);
 router.post("/:id/erc8004-feedback", gameController.submitErc8004Feedback);
+router.post("/:id/erc8004-tip-feedback", gameController.submitErc8004TipFeedback);
 router.post("/:id/request-start", requireAuth, gameController.requestStart);
 router.get("/:id", gameController.findById);
 router.put("/:id", gameController.update);

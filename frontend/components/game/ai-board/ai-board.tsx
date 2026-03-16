@@ -160,6 +160,8 @@ const AiBoard = ({
   const [aiTipText, setAiTipText] = useState<string | null>(null);
   const [aiTipLoading, setAiTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
+  /** When user's action (buy/skip) matches this, we submit ERC-8004 "tip followed" reputation feedback. */
+  const lastTipActionRef = useRef<"buy" | "skip" | null>(null);
 
   const toggleAiTips = useCallback(() => {
     setAiTipsOn((prev) => {
@@ -1178,10 +1180,13 @@ const endTurnAfterSpecialMove = useCallback(() => {
         const fallbackReason = res?.data?.fallbackReason;
         if (fallbackReason) {
           setAiTipText(fallbackReason);
+          lastTipActionRef.current = "skip";
           return;
         }
-        const text = res?.data?.data?.reasoning ?? null;
+        const data = res?.data?.data;
+        const text = data?.reasoning ?? null;
         setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
+        lastTipActionRef.current = data?.action === "buy" ? "buy" : "skip";
       })
       .catch((e: unknown) => {
         const err = e as { response?: { data?: { message?: string; error?: string } }; message?: string };
@@ -1454,8 +1459,18 @@ const endTurnAfterSpecialMove = useCallback(() => {
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
 
   const handleRollDice = () => ROLL_DICE(false);
-  const handleBuyProperty = () => buyGuard.submit(() => BUY_PROPERTY(false));
+  const handleBuyProperty = () => {
+    if (lastTipActionRef.current === "buy") {
+      apiClient.post(`/games/${game.id}/erc8004-tip-feedback`).catch(() => {});
+      lastTipActionRef.current = null;
+    }
+    buyGuard.submit(() => BUY_PROPERTY(false));
+  };
   const handleSkipBuy = () => {
+    if (lastTipActionRef.current === "skip") {
+      apiClient.post(`/games/${game.id}/erc8004-tip-feedback`).catch(() => {});
+      lastTipActionRef.current = null;
+    }
     setTurnEndScheduled(true);
     setBuyPrompted(false);
     setAiTipText(null);
