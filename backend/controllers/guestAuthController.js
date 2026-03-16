@@ -300,20 +300,24 @@ export async function createSmartWallet(req, res) {
       return res.status(503).json({ success: false, message: "Contract not configured for this network" });
     }
 
-    const existingSmartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
-    const zeroAddr = "0x0000000000000000000000000000000000000000";
-    const hasRealSmartWallet = existingSmartWallet && existingSmartWallet.toLowerCase() !== zeroAddr.toLowerCase();
-    if (hasRealSmartWallet) {
-      const updated = await User.findById(user.id);
-      const { password_hash: _, ...safe } = updated;
-      return res.status(200).json({ success: true, message: "Smart wallet already exists", data: safe });
-    }
-
     const placeholderAddr = user.privy_did ? placeholderAddressForPrivyDid(user.privy_did) : null;
     const primaryIsPlaceholder = placeholderAddr && user.address && String(user.address).toLowerCase() === String(placeholderAddr).toLowerCase();
     const addrForChain = user.linked_wallet_address && String(user.linked_wallet_address).trim()
       ? String(user.linked_wallet_address).trim()
       : primaryIsPlaceholder ? null : user.address;
+
+    const existingSmartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    const zeroAddr = "0x0000000000000000000000000000000000000000";
+    const hasRealSmartWallet = existingSmartWallet && existingSmartWallet.toLowerCase() !== zeroAddr.toLowerCase();
+    // Only short-circuit "already exists" if the current registry confirms this user's wallet (avoids stale DB from old registry).
+    if (hasRealSmartWallet && addrForChain) {
+      const currentRegistryWallet = await getSmartWalletAddress(addrForChain, chain);
+      if (currentRegistryWallet && currentRegistryWallet.toLowerCase() === existingSmartWallet.toLowerCase()) {
+        const updated = await User.findById(user.id);
+        const { password_hash: _, ...safe } = updated;
+        return res.status(200).json({ success: true, message: "Smart wallet already exists", data: safe });
+      }
+    }
 
     if (addrForChain) {
       const isRegistered = await callContractRead("registered", [addrForChain], chain);
@@ -332,6 +336,8 @@ export async function createSmartWallet(req, res) {
         } catch (err) {
           logger.warn({ err: err?.message, userId: user.id }, "createSmartWallet: createWalletForExistingUser failed");
         }
+      } else {
+        logger.warn({ userId: user.id, addrForChain }, "createSmartWallet: TYCOON_OWNER_PRIVATE_KEY not set, cannot call createWalletForExistingUser");
       }
       const existing = await getSmartWalletAddress(addrForChain, chain);
       if (existing) {
