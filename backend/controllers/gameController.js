@@ -829,6 +829,33 @@ const gameController = {
     }
   },
 
+  /**
+   * POST: Submit ERC-8004 reputation feedback when the user followed an AI tip (e.g. tip said buy and user bought).
+   * Call from frontend when user's buy/skip action matches the last tip recommendation. Small positive score (10) per tip followed.
+   */
+  async submitErc8004TipFeedback(req, res) {
+    try {
+      const game = await Game.findById(req.params.id);
+      if (!game) return res.status(404).json({ success: false, error: "Game not found" });
+      if (!game.is_ai) {
+        return res.status(200).json({ success: true, skipped: true, message: "Not an AI game" });
+      }
+      const agentId = process.env.ERC8004_AGENT_ID;
+      if (!agentId || String(agentId).trim() === "") {
+        return res.status(200).json({ success: true, skipped: true, message: "ERC8004_AGENT_ID not set" });
+      }
+      const TIP_FOLLOWED_SCORE = 10;
+      const result = await submitErc8004FeedbackTx(agentId, TIP_FOLLOWED_SCORE, "tipFollowed");
+      if (result.success) {
+        return res.status(200).json({ success: true, hash: result.hash });
+      }
+      return res.status(200).json({ success: true, skipped: true, error: result.error });
+    } catch (error) {
+      logger.warn({ err: error, gameId: req.params.id }, "submitErc8004TipFeedback error");
+      return res.status(200).json({ success: true, skipped: true, message: error?.message || "Tip feedback failed" });
+    }
+  },
+
   // -------------------------
   // 🔹 Extra Endpoints
   // -------------------------

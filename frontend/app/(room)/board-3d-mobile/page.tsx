@@ -374,6 +374,7 @@ function Board3DMobileContent() {
   }, []);
   const [aiTipLoading, setAiTipLoading] = useState(false);
   const lastTipPropertyIdRef = useRef<number | null>(null);
+  const lastTipActionRef = useRef<"buy" | "skip" | null>(null);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resetViewTrigger, setResetViewTrigger] = useState(0);
@@ -1644,6 +1645,10 @@ function Board3DMobileContent() {
 
   const handleBuy = useCallback(async () => {
     if (!game?.id || !me || !justLandedProperty) return;
+    if (lastTipActionRef.current === "buy") {
+      apiClient.post(`/games/${game.id}/erc8004-tip-feedback`).catch(() => {});
+      lastTipActionRef.current = null;
+    }
     try {
       await apiClient.post("/game-properties/buy", {
         user_id: me.user_id,
@@ -1661,12 +1666,16 @@ function Board3DMobileContent() {
   }, [game?.id, me, justLandedProperty, refetchGame, END_TURN]);
 
   const handleSkip = useCallback(() => {
+    if (lastTipActionRef.current === "skip") {
+      apiClient.post(`/games/${game?.id}/erc8004-tip-feedback`).catch(() => {});
+      lastTipActionRef.current = null;
+    }
     setTurnEndScheduled(true);
     setBuyPrompted(false);
     setLandedPositionForBuy(null);
     landedPositionThisTurnRef.current = null;
     setTimeout(() => END_TURN(), 900);
-  }, [END_TURN]);
+  }, [END_TURN, game?.id]);
 
   const handlePayToLeaveJail = useCallback(async () => {
     if (!me || !game?.id) return;
@@ -1941,10 +1950,13 @@ function Board3DMobileContent() {
         const fallbackReason = res?.data?.fallbackReason;
         if (fallbackReason) {
           setAiTipText(fallbackReason);
+          lastTipActionRef.current = "skip";
           return;
         }
-        const text = res?.data?.data?.reasoning ?? null;
+        const data = res?.data?.data;
+        const text = data?.reasoning ?? null;
         setAiTipText(normalizeAiTip(text) ?? AI_TIP_FALLBACK);
+        lastTipActionRef.current = data?.action === "buy" ? "buy" : "skip";
       })
       .catch((e: unknown) => {
         const err = e as { response?: { data?: { message?: string; error?: string } }; message?: string };

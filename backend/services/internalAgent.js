@@ -128,9 +128,9 @@ function buildTipPrompt(context) {
       "Keep $500+ cash if possible; avoid buying if balance after would be under $300.",
       "Railroads/utilities: lower priority unless completing set.",
     ].join(" ");
-    return `Monopoly: human landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Rules: ${strategyNote} Give ONE short tip in plain language. Be specific: say "Buy — completes set" or "Skip — save cash" or "Good value — strong property" or "Risky — would leave you under $300". One sentence, max 12 words. No jargon. Put the actual tip text in reasoning, not the word "AI". JSON only: {"action":"ok","reasoning":"your one-sentence tip"}`;
+    return `Monopoly: human landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Rules: ${strategyNote} Recommend either buy or skip. Give ONE short tip in plain language. Be specific: e.g. "Buy — completes set" or "Skip — save cash". One sentence, max 12 words. No jargon. Put the actual tip text in reasoning. JSON only: {"action":"buy"|"skip","reasoning":"your one-sentence tip"}`;
   }
-  return `Monopoly turn. Balance: $${myBalance}. One short encouraging tip, one sentence, simple words. Put the actual tip in reasoning, not "AI". JSON only: {"action":"ok","reasoning":"tip"}`;
+  return `Monopoly turn. Balance: $${myBalance}. Recommend buy or skip. One short tip, one sentence. Put the actual tip in reasoning. JSON only: {"action":"buy"|"skip","reasoning":"tip"}`;
 }
 
 /**
@@ -161,7 +161,7 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
       break;
     case "tip":
       prompt = buildTipPrompt(context);
-      fallback = { action: "ok", reasoning: "Buy if it completes a set; otherwise save cash." };
+      fallback = { action: "skip", reasoning: "Buy if it completes a set; otherwise save cash." };
       break;
     default:
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
@@ -213,8 +213,11 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
     if (r.length < 4 || /^\s*AI\s*$/i.test(r)) reasoning = fallback.reasoning;
   }
 
+  let action = String(parsed.action || fallback.action).toLowerCase();
+  // Tip: normalize to buy or skip only
+  if (decisionType === "tip" && action !== "buy") action = "skip";
   const out = {
-    action: String(parsed.action || fallback.action).toLowerCase(),
+    action,
     reasoning,
     confidence: Number(parsed.confidence) ?? fallback.confidence,
   };

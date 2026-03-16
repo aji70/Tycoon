@@ -74,7 +74,7 @@ router.post("/decision", async (req, res) => {
     if (decisionType === "tip") {
       return res.json({
         success: true,
-        data: { action: "ok", reasoning: "Buy if it completes a set; otherwise save cash.", confidence: 0 },
+        data: { action: "skip", reasoning: "Buy if it completes a set; otherwise save cash.", confidence: 0 },
         useBuiltIn: true,
         fallbackReason: "No AI decision. Check ANTHROPIC_API_KEY and server logs.",
       });
