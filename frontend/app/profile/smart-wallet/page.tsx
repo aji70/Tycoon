@@ -2,11 +2,11 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useAccount, useBalance, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useUserRegistryWallet, useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { useRewardTokenAddresses } from "@/context/ContractProvider";
-import { USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES } from "@/constants/contracts";
 import { parseEther, type Address } from "viem";
 import { toast } from "react-toastify";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote, ExternalLink } from "lucide-react";
@@ -48,6 +48,15 @@ export default function ManageSmartWalletPage() {
   const usdcBalance = useBalance({ address: smartWalletAddress, token: usdcTokenAddress ?? usdcAddress, query: { enabled: !!smartWalletAddress && !!(usdcTokenAddress ?? usdcAddress) } });
   const tycBalance = useBalance({ address: smartWalletAddress, token: tycTokenAddress, query: { enabled: !!smartWalletAddress && !!tycTokenAddress } });
 
+  const { data: currentNairaVault } = useReadContract({
+    address: smartWalletAddress,
+    abi: UserWalletABI,
+    functionName: "nairaVault",
+    query: { enabled: !!smartWalletAddress },
+  });
+  const appVaultAddress = NAIRA_VAULT_ADDRESSES[chainId as keyof typeof NAIRA_VAULT_ADDRESSES];
+  const needsEnableNgn = isOwner && appVaultAddress && (!currentNairaVault || currentNairaVault === zeroAddr || String(currentNairaVault).toLowerCase() === zeroAddr.toLowerCase());
+
   const [withdrawCeloTo, setWithdrawCeloTo] = useState("");
   const [withdrawCeloAmount, setWithdrawCeloAmount] = useState("");
   const [withdrawUsdcTo, setWithdrawUsdcTo] = useState("");
@@ -56,7 +65,6 @@ export default function ManageSmartWalletPage() {
   const [nairaWithdrawLoading, setNairaWithdrawLoading] = useState(false);
   const [nairaWithdrawError, setNairaWithdrawError] = useState<string | null>(null);
   const [transferToAddress, setTransferToAddress] = useState("");
-  const [nairaVaultAddress, setNairaVaultAddress] = useState("");
 
   const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
@@ -98,23 +106,6 @@ export default function ManageSmartWalletPage() {
       setWithdrawUsdcTo("");
     } catch (e) {
       toast.error((e as Error)?.message ?? "Withdraw failed");
-    }
-  };
-
-  const handleSetNairaVault = async () => {
-    if (!smartWalletAddress || !nairaVaultAddress.trim()) return;
-    const vault = nairaVaultAddress.trim() as Address;
-    try {
-      await writeContractAsync({
-        address: smartWalletAddress,
-        abi: UserWalletABI,
-        functionName: "setNairaVault",
-        args: [vault],
-      });
-      toast.success("Naira vault set. Confirm in your wallet.");
-      setNairaVaultAddress("");
-    } catch (e) {
-      toast.error((e as Error)?.message ?? "Set vault failed");
     }
   };
 
@@ -327,28 +318,34 @@ export default function ManageSmartWalletPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
-              <h2 className="text-base font-semibold text-cyan-400 mb-3">Set Naira vault</h2>
-              <p className="text-xs text-white/60 mb-2">Allow the Naira vault to pull CELO for CELO → Naira withdrawals when you’re not connected.</p>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  type="text"
-                  placeholder="Naira vault contract (0x...)"
-                  value={nairaVaultAddress}
-                  onChange={(e) => setNairaVaultAddress(e.target.value)}
-                  className="flex-1 min-w-[200px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm font-mono"
-                />
+            {needsEnableNgn && (
+              <section className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-5">
+                <h2 className="text-base font-semibold text-amber-400 mb-2">Enable NGN withdrawals</h2>
+                <p className="text-xs text-white/60 mb-3">Your wallet was created before we enabled this. One quick step lets you withdraw CELO to Naira (NGN) from this page without reconnecting.</p>
                 <button
                   type="button"
-                  onClick={handleSetNairaVault}
-                  disabled={pendingAny || !nairaVaultAddress.trim()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50"
+                  onClick={async () => {
+                    if (!smartWalletAddress || !appVaultAddress) return;
+                    try {
+                      await writeContractAsync({
+                        address: smartWalletAddress,
+                        abi: UserWalletABI,
+                        functionName: "setNairaVault",
+                        args: [appVaultAddress],
+                      });
+                      toast.success("NGN withdrawals enabled. Confirm in your wallet.");
+                    } catch (e) {
+                      toast.error((e as Error)?.message ?? "Failed");
+                    }
+                  }}
+                  disabled={pendingAny}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/25 border border-amber-500/50 text-amber-300 text-sm font-medium hover:bg-amber-500/35 disabled:opacity-50"
                 >
-                  {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Set vault
+                  {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
+                  Enable NGN withdrawals (one-time)
                 </button>
-              </div>
-            </section>
+              </section>
+            )}
           </>
         )}
 
@@ -369,7 +366,10 @@ export default function ManageSmartWalletPage() {
             </div>
             <div className="pt-3 border-t border-white/10">
               <p className="text-sm text-white/80 mb-1">Withdraw to Naira (CELO → Naira)</p>
-              <p className="text-xs text-white/50 mb-2">Send CELO from your smart wallet; we pay you in Naira (NGN) after processing.</p>
+              <p className="text-xs text-white/50 mb-2">
+                Send CELO from your smart wallet; we pay you in Naira (NGN) after processing.
+                {currentNairaVault && currentNairaVault !== zeroAddr && String(currentNairaVault).toLowerCase() !== zeroAddr.toLowerCase() ? " NGN withdrawals are enabled." : " Enable NGN withdrawals above (one-time) if you have an older wallet."}
+              </p>
               <form onSubmit={handleNairaWithdraw} className="flex flex-wrap gap-2 items-end">
                 <input
                   type="text"

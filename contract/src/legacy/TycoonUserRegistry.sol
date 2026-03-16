@@ -20,6 +20,8 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
 
     address public gameContract;
     TycoonRewardsFaucet public faucet;
+    /// @notice Naira vault address; passed to new wallets so CELO→Naira works without user setup.
+    address public nairaVaultAddress;
 
     /// @notice owner => profile (wallet, username, email)
     mapping(address => UserProfile) public profileByAddress;
@@ -39,6 +41,7 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     event GameContractUpdated(address indexed previous, address indexed newContract);
     event FaucetUpdated(address indexed previous, address indexed newFaucet);
     event GameActionRewardGranted(address indexed user, bytes32 action, address indexed recipient);
+    event NairaVaultUpdated(address indexed previous, address indexed vault);
 
     error OnlyGame();
     error AlreadyRegistered();
@@ -70,13 +73,19 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         emit FaucetUpdated(previous, _faucet);
     }
 
+    function setNairaVault(address _vault) external onlyOwner {
+        address previous = nairaVaultAddress;
+        nairaVaultAddress = _vault;
+        emit NairaVaultUpdated(previous, _vault);
+    }
+
     /// @notice Create a smart wallet for the user and bind profile. Called by game contract when user registers.
     function createWalletForUser(address ownerAddress, string calldata username) external onlyGame nonReentrant returns (address wallet) {
         if (profileByAddress[ownerAddress].exists) revert AlreadyRegistered();
         bytes32 nameHash = keccak256(bytes(username));
         if (ownerByUsername[nameHash] != address(0)) revert UsernameTaken();
 
-        wallet = address(new TycoonUserWallet(ownerAddress, address(this)));
+        wallet = address(new TycoonUserWallet(ownerAddress, address(this), nairaVaultAddress));
         profileByAddress[ownerAddress] = UserProfile({
             owner: ownerAddress,
             username: username,
