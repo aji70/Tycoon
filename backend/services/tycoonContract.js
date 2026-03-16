@@ -255,6 +255,20 @@ const USER_REGISTRY_ABI = [
   },
 ];
 
+/** TycoonNairaVault: processNairaWithdrawalCelo(fromWallet, amount) — controller only. */
+const NAIRA_VAULT_ABI = [
+  {
+    type: "function",
+    name: "processNairaWithdrawalCelo",
+    inputs: [
+      { name: "fromWallet", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+];
+
 const REWARD_ABI_MINT = [
   {
     type: "function",
@@ -528,6 +542,38 @@ export async function createWalletForExistingUser(playerAddress, chain = "CELO")
 /** True if TYCOON_OWNER_PRIVATE_KEY is set (backend can call createWalletForExistingUser). */
 export function canCreateWalletForExistingUser() {
   return !!process.env.TYCOON_OWNER_PRIVATE_KEY;
+}
+
+/**
+ * Pull CELO from a TycoonUserWallet into the Naira vault (for CELO → Naira withdrawal).
+ * Callable only when Naira vault and its controller key are configured.
+ * @param {string} fromWallet - TycoonUserWallet address (must have set this vault as nairaVault)
+ * @param {bigint} amountWei - Amount in wei
+ * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
+ */
+export async function processNairaWithdrawalCelo(fromWallet, amountWei, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const vaultAddress = cfg.nairaVaultAddress;
+    if (!vaultAddress || !fromWallet || amountWei <= 0n) {
+      throw new Error("Naira vault not configured or invalid args");
+    }
+    const pk =
+      process.env.NAIRA_VAULT_CONTROLLER_PRIVATE_KEY ??
+      process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ??
+      process.env.BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY;
+    if (!pk) throw new Error("Naira vault controller key not set");
+    const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(key, provider);
+    const vault = new Contract(vaultAddress, NAIRA_VAULT_ABI, wallet);
+    const tx = await vault.processNairaWithdrawalCelo(fromWallet, amountWei);
+    const receipt = await tx.wait();
+    logger.info({ fromWallet, amountWei: String(amountWei), hash: receipt?.hash }, "processNairaWithdrawalCelo tx");
+    return { hash: receipt?.hash };
+  });
 }
 
 export async function registerPlayerFor(playerAddress, username, passwordHash, chain = "CELO") {

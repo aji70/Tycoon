@@ -17,7 +17,9 @@ import {
   isContractConfigured,
   createWalletForExistingUser,
   canCreateWalletForExistingUser,
+  processNairaWithdrawalCelo,
 } from "../services/tycoonContract.js";
+import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
@@ -342,6 +344,48 @@ export async function createSmartWallet(req, res) {
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "createSmartWallet failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create smart wallet" });
+  }
+}
+
+/**
+ * POST /auth/naira-withdraw
+ * Request CELO → Naira withdrawal from the user's smart wallet.
+ * Body: { amountCelo: string } (e.g. "0.5"). Requires smart_wallet_address and Naira vault configured.
+ */
+export async function nairaWithdraw(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    const cfg = getChainConfig(chain);
+    if (!cfg.nairaVaultAddress) {
+      return res.status(503).json({
+        success: false,
+        message: "Naira withdrawal is not configured. Set TYCOON_NAIRA_VAULT_CELO and vault controller key.",
+      });
+    }
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const amountCelo = req.body?.amountCelo;
+    const num = amountCelo != null ? Number(String(amountCelo).trim()) : NaN;
+    if (!Number.isFinite(num) || num <= 0) {
+      return res.status(400).json({ success: false, message: "Provide a valid amountCelo (e.g. 0.5)." });
+    }
+    const amountWei = ethers.parseEther(String(num));
+    await processNairaWithdrawalCelo(smartWallet, amountWei, chain);
+    logger.info({ userId: user.id, smartWallet, amountCelo: num }, "nairaWithdraw: CELO pulled to vault");
+    return res.status(200).json({
+      success: true,
+      message: "Withdrawal submitted. You will receive Naira (NGN) once we process it.",
+    });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "nairaWithdraw failed");
+    return res.status(500).json({
+      success: false,
+      message: err?.message || "Withdrawal failed",
+    });
   }
 }
 
