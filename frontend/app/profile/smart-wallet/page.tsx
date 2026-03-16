@@ -288,7 +288,8 @@ export default function ManageSmartWalletPage() {
     setBuyCeloNairaError(null);
     setBuyCeloNairaLoading(true);
     try {
-      const res = await apiClient.post<{ success?: boolean; link?: string; tx_ref?: string; message?: string }>("auth/celo-purchase/initialize", { amount_ngn: num });
+      const redirect_url = typeof window !== "undefined" ? window.location.origin : undefined;
+      const res = await apiClient.post<{ success?: boolean; link?: string; tx_ref?: string; message?: string }>("auth/celo-purchase/initialize", { amount_ngn: num, redirect_url });
       if (res.data?.success && res.data?.link) {
         toast.success("Redirecting to payment…");
         window.location.href = res.data.link;
