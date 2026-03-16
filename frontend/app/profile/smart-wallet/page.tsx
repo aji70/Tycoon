@@ -9,7 +9,7 @@ import { useRewardTokenAddresses } from "@/context/ContractProvider";
 import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRESSES, WITHDRAWAL_AUTHORITY_ADDRESSES } from "@/constants/contracts";
 import { parseEther, type Address } from "viem";
 import { toast } from "react-toastify";
-import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote, ExternalLink } from "lucide-react";
+import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
 import { apiClient } from "@/lib/api";
 
 const UserWalletABI = [
@@ -657,13 +657,13 @@ export default function ManageSmartWalletPage() {
           <div className="space-y-4">
             <div>
               <p className="text-sm text-white/80 mb-1">Buy CELO with Naira</p>
-              <p className="text-xs text-white/50 mb-2">Pay in Naira; we send CELO to this smart wallet after payment (min 200 NGN).</p>
+              <p className="text-xs text-white/50 mb-2">Pay in Naira; we send CELO to this smart wallet after payment. Minimum 200 NGN (e.g. 230, 500, 5000).</p>
               <form onSubmit={handleBuyCeloWithNaira} className="flex flex-wrap gap-2 items-end">
                 <input
                   type="number"
                   min={200}
-                  step={100}
-                  placeholder="Amount (NGN)"
+                  step={1}
+                  placeholder="e.g. 5000"
                   value={buyCeloNairaAmount}
                   onChange={(e) => setBuyCeloNairaAmount(e.target.value)}
                   className="flex-1 min-w-[140px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
