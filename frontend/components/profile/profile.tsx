@@ -100,9 +100,36 @@ function formatStakeOrEarned(value: number): string {
   return String(value);
 }
 
-/** Guest/Privy profile when wallet is not connected: shows username, linked wallet if any, Account & login, and game count. */
+/** Celo chain id for contract reads when wallet is disconnected. */
+const CELO_CHAIN_ID = 42220;
+
+/** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
   const username = guestUser.username;
+  const linkedAddress = guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim() ? guestUser.linked_wallet_address : undefined;
+  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
+
+  const { data: onChainUsername } = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI,
+    functionName: 'addressToUsername',
+    args: linkedAddress ? [linkedAddress as Address] : undefined,
+    query: { enabled: !!linkedAddress && !!tycoonAddress },
+  });
+
+  const { data: playerData } = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI,
+    functionName: 'getUser',
+    args: onChainUsername ? [onChainUsername as string] : undefined,
+    query: { enabled: !!onChainUsername && !!tycoonAddress },
+  });
+
+  const userData = React.useMemo(() => {
+    if (!playerData || !onChainUsername) return null;
+    return parseUserFromContract(playerData, onChainUsername as string, linkedAddress ?? undefined);
+  }, [playerData, onChainUsername, linkedAddress]);
+
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
     queryFn: async () => {
@@ -113,7 +140,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
   });
   const gameCount = games.length;
   const runningCount = games.filter((g) => g.status === 'RUNNING').length;
-  const hasLinkedWallet = !!(guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim());
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
@@ -129,11 +156,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl space-y-6">
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
           <h2 className="text-xl font-bold text-white mb-2">{username}</h2>
-          {hasLinkedWallet ? (
-            <p className="text-cyan-300/80 text-sm mb-4">
-              Wallet linked: <span className="font-mono text-cyan-200">{guestUser.linked_wallet_address!.slice(0, 6)}...{guestUser.linked_wallet_address!.slice(-4)}</span>. Connect it in the nav to see on-chain stats and use it in-game.
-            </p>
-          ) : (
+          {!linkedAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account and keep your stats when you play with it.</p>
           )}
           <div className="flex gap-6 text-sm">
@@ -149,6 +172,76 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
             )}
           </div>
         </div>
+
+        {userData && (
+          <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
+            <h3 className="text-base font-semibold text-cyan-400 mb-4">On-chain stats</h3>
+            {(() => {
+              const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+              return (
+                <>
+                  <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
+                      <span className="font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
+                    </div>
+                    {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                      <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-cyan-500/80 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
+                      { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+                      { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+                      { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                    ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                      <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                          <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {[
+                      { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
+                      { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                      { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                    ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                      <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                          <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
+                      { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                    ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                      <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                          <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
         <section>
           <AccountLinkWallet />
         </section>

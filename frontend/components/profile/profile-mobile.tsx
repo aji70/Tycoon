@@ -102,9 +102,35 @@ const getPerkMetadata = (perk: number) => {
   return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-14 h-14 bg-gray-500/20 rounded-2xl flex items-center justify-center text-2xl">?</div> };
 };
 
-/** Guest/Privy profile when wallet is not connected: shows username, linked wallet if any, Account & login, and game count. */
+const CELO_CHAIN_ID = 42220;
+
+/** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
   const username = guestUser.username;
+  const linkedAddress = guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim() ? guestUser.linked_wallet_address : undefined;
+  const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
+
+  const { data: onChainUsername } = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI,
+    functionName: 'addressToUsername',
+    args: linkedAddress ? [linkedAddress as Address] : undefined,
+    query: { enabled: !!linkedAddress && !!tycoonAddress },
+  });
+
+  const { data: playerData } = useReadContract({
+    address: tycoonAddress,
+    abi: TycoonABI,
+    functionName: 'getUser',
+    args: onChainUsername ? [onChainUsername as string] : undefined,
+    query: { enabled: !!onChainUsername && !!tycoonAddress },
+  });
+
+  const userData = React.useMemo(() => {
+    if (!playerData || !onChainUsername) return null;
+    return parseUserFromContract(playerData, onChainUsername as string, linkedAddress ?? undefined);
+  }, [playerData, onChainUsername, linkedAddress]);
+
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
     queryFn: async () => {
@@ -115,7 +141,7 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
   });
   const gameCount = games.length;
   const runningCount = games.filter((g) => g.status === 'RUNNING').length;
-  const hasLinkedWallet = !!(guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim());
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl py-4">
@@ -126,11 +152,7 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
       <main className="py-6 space-y-5">
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
           <h2 className="text-lg font-bold text-white mb-2">{username}</h2>
-          {hasLinkedWallet ? (
-            <p className="text-cyan-300/80 text-sm mb-4">
-              Wallet linked: <span className="font-mono text-cyan-200">{guestUser.linked_wallet_address!.slice(0, 6)}...{guestUser.linked_wallet_address!.slice(-4)}</span>. Connect it in the nav to see on-chain stats.
-            </p>
-          ) : (
+          {!linkedAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
           )}
           <div className="flex gap-4 text-sm">
@@ -146,6 +168,77 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
             )}
           </div>
         </div>
+
+        {userData && (
+          <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
+            <h3 className="text-sm font-semibold text-cyan-400 mb-3">On-chain stats</h3>
+            {(() => {
+              const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+              return (
+                <>
+                  <div className="mb-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
+                      <span className="font-bold text-cyan-300 text-sm">Level {levelInfo.level} · {levelInfo.label}</span>
+                    </div>
+                    {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-cyan-500/80 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                      <BarChart2 className="w-4 h-4 text-cyan-400" />
+                      <p className="text-[10px] text-white/50">Games</p>
+                      <p className="text-sm font-bold text-white">{userData.gamesPlayed}</p>
+                    </div>
+                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                      <Crown className="w-4 h-4 text-amber-400" />
+                      <p className="text-[10px] text-white/50">Wins</p>
+                      <p className="text-sm font-bold text-amber-300">{userData.gamesWon}</p>
+                    </div>
+                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                      <Coins className="w-4 h-4 text-slate-400" />
+                      <p className="text-[10px] text-white/50">Losses</p>
+                      <p className="text-sm font-bold text-slate-300">{userData.gamesLost}</p>
+                    </div>
+                    <div className="profile-card rounded-xl p-3 flex flex-col items-center gap-0.5 border border-white/10">
+                      <BarChart2 className="w-4 h-4 text-emerald-400" />
+                      <p className="text-[10px] text-white/50">Win rate</p>
+                      <p className="text-sm font-bold text-emerald-300">{userData.winRate}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                      <p className="text-[9px] text-white/50">Staked</p>
+                      <p className="text-xs font-bold text-white truncate">{formatStakeOrEarned(userData.totalStaked)}</p>
+                    </div>
+                    <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                      <p className="text-[9px] text-white/50">Earned</p>
+                      <p className="text-xs font-bold text-emerald-300 truncate">{formatStakeOrEarned(userData.totalEarned)}</p>
+                    </div>
+                    <div className="profile-card rounded-xl p-2.5 text-center border border-white/10">
+                      <p className="text-[9px] text-white/50">Withdrawn</p>
+                      <p className="text-xs font-bold text-slate-300 truncate">{formatStakeOrEarned(userData.totalWithdrawn)}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+                      <p className="text-[9px] text-white/50">Props bought</p>
+                      <p className="text-sm font-bold text-cyan-300">{userData.propertiesBought}</p>
+                    </div>
+                    <div className="profile-card rounded-xl p-2.5 flex items-center justify-center gap-2 border border-white/10">
+                      <p className="text-[9px] text-white/50">Props sold</p>
+                      <p className="text-sm font-bold text-amber-300">{userData.propertiesSold}</p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
         <AccountLinkWallet />
       </main>
     </div>
