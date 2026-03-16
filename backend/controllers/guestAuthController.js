@@ -331,7 +331,11 @@ export async function createSmartWallet(req, res) {
         const { password_hash: __, ...safe } = updated;
         return res.status(200).json({ success: true, message: "Smart wallet synced", data: safe });
       }
-      return res.status(503).json({ success: false, message: "Could not create smart wallet. Try again or link a wallet first." });
+      return res.status(503).json({
+        success: false,
+        message:
+          "Could not create smart wallet right now. Your wallet is linked; please try again in a few minutes or contact support if this keeps happening.",
+      });
     }
 
     return res.status(400).json({ success: false, message: "Link a wallet first (Profile). The contract creates a smart wallet for your linked address; you cannot have a smart wallet without an owner address." });
