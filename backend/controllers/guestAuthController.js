@@ -498,19 +498,22 @@ export async function celoPurchaseInitialize(req, res) {
     }
     const amountWei = ethers.parseEther(String(amountCelo));
     const txRef = `celo_${user.id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
-    const baseUrl =
+    let redirectUrl =
       req.body?.redirect_url && String(req.body.redirect_url).startsWith("http")
         ? String(req.body.redirect_url).replace(/\/$/, "")
-        : process.env.FRONTEND_URL || "http://localhost:3000";
-    const redirectUrl = `${baseUrl}/profile/smart-wallet?celo_purchase=1&tx_ref=${encodeURIComponent(txRef)}`;
-    const email = fullUser?.email || (fullUser?.username ? `${fullUser.username}@tycoon.placeholder` : null) || undefined;
+        : (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+    if (!redirectUrl || !redirectUrl.startsWith("http")) {
+      redirectUrl = "http://localhost:3000";
+    }
+    redirectUrl = `${redirectUrl}/profile/smart-wallet?celo_purchase=1&tx_ref=${encodeURIComponent(txRef)}`;
+    // Same payload shape as shop (flutterwaveInitializeTest): fixed email, empty meta, simple customerName
     const { link, tx_ref } = await initializePayment({
-      amountNaira: amountNgn,
-      email: email || "player@tycoon.placeholder",
+      amountNaira: Number(amountNgn),
+      email: "realjaiboi70@gmail.com",
       txRef,
       redirectUrl,
-      meta: { user_id: String(user.id), flow: "celo_purchase" },
-      customerName: fullUser?.username || undefined,
+      meta: {},
+      customerName: "CELO Buyer",
       customizations: {
         title: "Tycoon — Buy CELO with Naira",
         description: "Pay in Naira; CELO will be sent to your Tycoon smart wallet after payment.",
