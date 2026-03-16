@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   useAccount,
   useChainId,
+  usePublicClient,
   useReadContract,
   useReadContracts,
   useWriteContract,
@@ -94,6 +95,7 @@ export interface TokenDisplayItem {
 export function useRewardsAdmin() {
   const { address: userAddress, isConnected } = useAccount();
   const chainId = useChainId();
+  const publicClient = usePublicClient();
 
   const contractAddress = REWARD_CONTRACT_ADDRESSES[
     chainId as keyof typeof REWARD_CONTRACT_ADDRESSES
@@ -144,6 +146,11 @@ export function useRewardsAdmin() {
   const [checkRegisteredAddress, setCheckRegisteredAddress] = useState("");
   const [vaultWithdrawAmount, setVaultWithdrawAmount] = useState("");
   const [vaultWithdrawTo, setVaultWithdrawTo] = useState("");
+  const [stockAllProgress, setStockAllProgress] = useState<{ active: boolean; current: number; total: number }>({
+    active: false,
+    current: 0,
+    total: 0,
+  });
 
   const NAIRA_VAULT_ABI = [
     { inputs: [], name: "balanceCelo", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -569,6 +576,35 @@ export function useRewardsAdmin() {
     );
   };
 
+  const handleStockAllPerks = async () => {
+    const total = INITIAL_COLLECTIBLES.length;
+    setStockAllProgress({ active: true, current: 0, total });
+    try {
+      for (let i = 0; i < INITIAL_COLLECTIBLES.length; i++) {
+        setStockAllProgress((prev) => ({ ...prev, current: i + 1 }));
+        const item = INITIAL_COLLECTIBLES[i];
+        const tycPrice = parseUnits(item.tycPrice, 18);
+        const usdcPrice = parseUnits(item.usdcPrice, 6);
+        const hash = await stockShopHook.stock(
+          50,
+          item.perk,
+          item.strength,
+          Number(tycPrice),
+          Number(usdcPrice)
+        );
+        if (publicClient && hash) {
+          await publicClient.waitForTransactionReceipt({ hash });
+        }
+      }
+      setStatus({ type: "success", message: "Shop stocked with 50 of each perk." });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Stock all failed";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setStockAllProgress({ active: false, current: 0, total: 0 });
+    }
+  };
+
   const handleRestock = async () => {
     if (!restockTokenId || !restockAmount) return;
     await restockHook.restock(
@@ -783,6 +819,7 @@ export function useRewardsAdmin() {
       setVaultWithdrawAmount,
       vaultWithdrawTo,
       setVaultWithdrawTo,
+      stockAllProgress,
     },
     contract: {
       tycBalance: tycBalance.data,
@@ -795,6 +832,7 @@ export function useRewardsAdmin() {
       handleMintVoucher,
       handleMintCollectible,
       handleStockShop,
+      handleStockAllPerks,
       handleRestock,
       handleUpdatePrices,
       handleWithdraw,

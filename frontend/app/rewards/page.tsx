@@ -124,6 +124,7 @@ export default function RewardAdminPanel() {
     setVaultWithdrawAmount,
     vaultWithdrawTo,
     setVaultWithdrawTo,
+    stockAllProgress,
   } = state;
 
   const [adminTournaments, setAdminTournaments] = useState<{ id: number; name: string; code?: string; status: string; participant_count?: number; max_players: number }[]>([]);
@@ -438,9 +439,22 @@ export default function RewardAdminPanel() {
             <h3 className="text-2xl font-bold mb-6 flex items-center gap-2 justify-center">
               <Package className="w-8 h-8 text-green-400" /> Stock Shop (50 Units Each)
             </h3>
-            <p className="text-center text-gray-400 mb-8">
-              Click any item to stock 50 units with pre-set prices
+            <p className="text-center text-gray-400 mb-6">
+              Click any item to stock 50 units with pre-set prices, or stock all at once below.
             </p>
+
+            <div className="flex justify-center mb-8">
+              <button
+                type="button"
+                onClick={() => handlers.handleStockAllPerks()}
+                disabled={anyPending || stockAllProgress.active}
+                className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {stockAllProgress.active
+                  ? `Stocking ${stockAllProgress.current}/${stockAllProgress.total}…`
+                  : 'Stock 50 of Each Perk'}
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {INITIAL_COLLECTIBLES.map((item) => (
