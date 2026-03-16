@@ -162,6 +162,7 @@ const UserRegistryABI = [
   { inputs: [{ name: 'ownerAddress', type: 'address' }], name: 'hasWallet', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: '', type: 'address' }], name: 'ownerByWallet', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: 'newOwner', type: 'address' }], name: 'transferProfileTo', outputs: [], stateMutability: 'nonpayable', type: 'function' },
+  { inputs: [], name: 'recreateWalletForUser', outputs: [{ name: 'newWallet', type: 'address' }], stateMutability: 'nonpayable', type: 'function' },
 ] as const;
 
 /** Smart wallet address for a registered user (from TycoonUserRegistry). Only set after registry is deployed and user has registered. */
@@ -243,6 +244,36 @@ export function useTransferProfileTo() {
 
   return {
     transfer,
+    isPending: isPending || isConfirming,
+    isSuccess,
+    error: writeError,
+    txHash,
+    reset,
+  };
+}
+
+/** Write: create a new smart wallet for the current profile; registry updates profile to the new wallet. Caller must be profile owner. Old wallet is unchanged (user can move funds manually). */
+export function useRecreateWalletForUser() {
+  const chainId = useChainId();
+  const registryAddress = USER_REGISTRY_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const recreate = useCallback(
+    async () => {
+      if (!registryAddress) throw new Error('User registry not configured for this chain');
+      return await writeContractAsync({
+        address: registryAddress,
+        abi: UserRegistryABI,
+        functionName: 'recreateWalletForUser',
+        args: [],
+      });
+    },
+    [registryAddress, writeContractAsync]
+  );
+
+  return {
+    recreate,
     isPending: isPending || isConfirming,
     isSuccess,
     error: writeError,

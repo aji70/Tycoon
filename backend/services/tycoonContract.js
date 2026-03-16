@@ -8,7 +8,7 @@
  * only one transaction is in flight at a time. This prevents nonce collisions when many
  * guests (or other backend-triggered actions) hit the API at once.
  */
-import { JsonRpcProvider, Wallet, Contract, Network, Interface } from "ethers";
+import { JsonRpcProvider, Wallet, Contract, Network, Interface, keccak256, solidityPacked, getBytes } from "ethers";
 import { getChainConfig, isAnyChainConfigured } from "../config/chains.js";
 import logger from "../config/logger.js";
 
@@ -250,6 +250,56 @@ const USER_REGISTRY_ABI = [
     type: "function",
     name: "transferProfileTo",
     inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+];
+
+/** TycoonUserWallet: owner withdraws directly; operator uses WithAuth (PIN-protected). */
+const USER_WALLET_ABI = [
+  {
+    type: "function",
+    name: "withdrawNative",
+    inputs: [
+      { name: "to", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "withdrawNativeWithAuth",
+    inputs: [
+      { name: "to", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "withdrawERC20",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "to", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "withdrawERC20WithAuth",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "to", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+      { name: "nonce", type: "uint256", internalType: "uint256" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -551,6 +601,98 @@ export function canCreateWalletForExistingUser() {
  * @param {bigint} amountWei - Amount in wei
  * @param {string} [chain] - CELO | POLYGON | BASE. Default CELO.
  */
+/**
+ * Get wallet for withdrawal authority (signs after user PIN). Uses WITHDRAWAL_AUTHORITY_PRIVATE_KEY.
+ */
+function getWithdrawalAuthorityWallet(chain = "CELO") {
+  const pk = process.env.WITHDRAWAL_AUTHORITY_PRIVATE_KEY;
+  if (!pk) throw new Error("WITHDRAWAL_AUTHORITY_PRIVATE_KEY not set (required for PIN-protected withdrawals)");
+  const cfg = getChainConfig(chain);
+  const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const network = new Network(networkName, cfg.chainId);
+  const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+  return new Wallet(key, provider);
+}
+
+/**
+ * Sign withdrawal auth for CELO. Message hash = keccak256(wallet, to, amount, nonce); contract verifies this.
+ * @returns {Promise<string>} Signature hex (65 bytes)
+ */
+export async function signWithdrawalAuthCelo(smartWalletAddress, to, amountWei, nonce, chain = "CELO") {
+  const hash = keccak256(
+    solidityPacked(["address", "address", "uint256", "uint256"], [smartWalletAddress, to, amountWei, nonce])
+  );
+  const authWallet = getWithdrawalAuthorityWallet(chain);
+  return authWallet.signMessage(getBytes(hash));
+}
+
+/**
+ * Sign withdrawal auth for ERC20 (USDC). Message hash = keccak256(wallet, token, to, amount, nonce).
+ * @returns {Promise<string>} Signature hex
+ */
+export async function signWithdrawalAuthUsdc(smartWalletAddress, tokenAddress, to, amountWei, nonce, chain = "CELO") {
+  const hash = keccak256(
+    solidityPacked(
+      ["address", "address", "address", "uint256", "uint256"],
+      [smartWalletAddress, tokenAddress, to, amountWei, nonce]
+    )
+  );
+  const authWallet = getWithdrawalAuthorityWallet(chain);
+  return authWallet.signMessage(getBytes(hash));
+}
+
+/**
+ * Withdraw CELO from a user's smart wallet via operator; requires authority signature (issued after user PIN).
+ * @param {string} smartWalletAddress - TycoonUserWallet address
+ * @param {string} to - Recipient address
+ * @param {bigint} amountWei - Amount in wei
+ * @param {bigint} nonce - Unique nonce for this request (prevents replay)
+ * @param {string} signature - From signWithdrawalAuthCelo (authority signs after PIN verification)
+ * @param {string} [chain] - CELO | POLYGON | BASE
+ */
+export async function withdrawFromSmartWalletCelo(smartWalletAddress, to, amountWei, nonce, signature, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    if (!cfg.rpcUrl || !smartWalletAddress || !to || amountWei <= 0n || signature == null) throw new Error("Invalid args or chain");
+    const pk = process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ?? cfg.privateKey;
+    if (!pk) throw new Error("Operator key not set (SMART_WALLET_OPERATOR_PRIVATE_KEY or BACKEND_GAME_CONTROLLER_*_PRIVATE_KEY)");
+    const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(key, provider);
+    const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, wallet);
+    const tx = await userWallet.withdrawNativeWithAuth(to, amountWei, nonce, signature);
+    const receipt = await tx.wait();
+    logger.info({ smartWalletAddress, to, amountWei: String(amountWei), hash: receipt?.hash }, "withdrawFromSmartWalletCelo");
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Withdraw ERC20 (e.g. USDC) from a user's smart wallet via operator; requires authority signature (after PIN).
+ */
+export async function withdrawFromSmartWalletUsdc(smartWalletAddress, to, amountWei, nonce, signature, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+    if (!cfg.rpcUrl || !smartWalletAddress || !to || amountWei <= 0n || !usdc || signature == null) throw new Error("Invalid args, chain, or USDC not set");
+    const pk = process.env.SMART_WALLET_OPERATOR_PRIVATE_KEY ?? cfg.privateKey;
+    if (!pk) throw new Error("Operator key not set");
+    const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(key, provider);
+    const userWallet = new Contract(smartWalletAddress, USER_WALLET_ABI, wallet);
+    const tx = await userWallet.withdrawERC20WithAuth(usdc, to, amountWei, nonce, signature);
+    const receipt = await tx.wait();
+    logger.info({ smartWalletAddress, to, amountWei: String(amountWei), hash: receipt?.hash }, "withdrawFromSmartWalletUsdc");
+    return { hash: receipt?.hash };
+  });
+}
+
 export async function processNairaWithdrawalCelo(fromWallet, amountWei, chain = "CELO") {
   return withTxQueue(async () => {
     const cfg = getChainConfig(chain);

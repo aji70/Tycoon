@@ -32,6 +32,16 @@ export const NAIRA_VAULT_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: process.env.NEXT_PUBLIC_CELO_NAIRA_VAULT as Address | undefined,
 };
 
+/** Backend operator address for smart wallets. When set on a wallet, user can withdraw CELO/USDC when not connected. */
+export const SMART_WALLET_OPERATOR_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: process.env.NEXT_PUBLIC_SMART_WALLET_OPERATOR_ADDRESS as Address | undefined,
+};
+
+/** Backend withdrawal authority. Signs withdrawal requests only after user PIN; contract requires this for operator withdrawals. */
+export const WITHDRAWAL_AUTHORITY_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: process.env.NEXT_PUBLIC_WITHDRAWAL_AUTHORITY_ADDRESS as Address | undefined,
+};
+
 /** Tournament escrow (entry fees + prize pool). ABI: context/abi/TycoonTournamentEscrow.json */
 export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: (process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW || process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS) as Address | undefined,

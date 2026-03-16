@@ -7,6 +7,8 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /// @title TycoonUserWallet
 /// @notice Smart wallet bound to a user profile. Holds CELO (native), ERC20 (USDC etc), ERC1155 (perks), ERC721 (e.g. ERC-8004).
@@ -27,24 +29,59 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     event ApprovalForAllERC721(address indexed collection, address indexed operator, bool approved);
     event NairaVaultUpdated(address indexed previous, address indexed vault);
     event SentCeloToNairaVault(uint256 amount);
+    event OperatorUpdated(address indexed previous, address indexed newOperator);
 
     error OnlyOwner();
     error OnlyRegistry();
     error InvalidAddress();
     error OnlyNairaVault();
+    error OnlyOperator();
+    /// @notice Thrown when withdrawal would exceed the daily USD cap.
+    error ExceedsDailyCap();
 
     /// @notice When set, the Naira vault can call sendCeloToNairaVault so backend can process CELO→Naira when user is not connected.
     address public nairaVault;
+    /// @notice Backend operator: can withdraw only with a valid authority signature (issued after user PIN).
+    address public operator;
+    /// @notice Backend withdrawal authority: signs withdrawal requests only after user PIN verification.
+    address public withdrawalAuthority;
+    /// @notice Prevents replay of signed withdrawal requests.
+    mapping(bytes32 => bool) public usedWithdrawalNonces;
+
+    /// @notice Daily withdrawal cap in USD (6 decimals). 0 = no cap. Anti–money-laundering (e.g. 100e6 = $100/day).
+    uint256 public dailyCapUsd6;
+    /// @notice CELO price in USD (6 decimals), e.g. 2.5e6 = $2.5 per CELO. Used to convert CELO withdrawals to USD for the daily cap.
+    uint256 public priceCeloUsd6;
+    /// @notice Start of current withdrawal window (block.timestamp / 86400).
+    uint256 public lastWithdrawDay;
+    /// @notice Total USD (6 decimals) withdrawn in the current day.
+    uint256 public totalWithdrawnUsd6InPeriod;
+
+    uint256 private constant SECONDS_PER_DAY = 86400;
+
+    event DailyCapUpdated(uint256 dailyCapUsd6, uint256 priceCeloUsd6);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner();
         _;
     }
 
+    modifier onlyOwnerOrOperator() {
+        if (msg.sender != owner && msg.sender != operator) revert OnlyOperator();
+        _;
+    }
+
+    modifier onlyOperator() {
+        if (msg.sender != operator) revert OnlyOperator();
+        _;
+    }
+
     /// @param _owner Profile owner (EOA).
     /// @param _registry TycoonUserRegistry that created this wallet.
     /// @param _nairaVault Optional Naira vault address; if set, CELO→Naira withdrawals work without user having to set it later.
-    constructor(address _owner, address _registry, address _nairaVault) {
+    /// @param _dailyCapUsd6 Daily withdrawal cap in USD (6 decimals); 0 = no cap (e.g. 100e6 = $100/day).
+    /// @param _priceCeloUsd6 CELO price in USD (6 decimals), e.g. 2.5e6 = $2.5 per CELO.
+    constructor(address _owner, address _registry, address _nairaVault, uint256 _dailyCapUsd6, uint256 _priceCeloUsd6) {
         if (_owner == address(0)) revert InvalidAddress();
         if (_registry == address(0)) revert InvalidAddress();
         owner = _owner;
@@ -52,6 +89,8 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         if (_nairaVault != address(0) && _nairaVault.code.length > 0) {
             nairaVault = _nairaVault;
         }
+        dailyCapUsd6 = _dailyCapUsd6;
+        priceCeloUsd6 = _priceCeloUsd6;
     }
 
     /// @notice Transfer ownership to a new address. Only callable by the registry when linking an EOA to an existing profile (e.g. Privy user links wallet).
@@ -63,6 +102,52 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         emit OwnershipTransferred(previousOwner, newOwner);
     }
 
+    /// @notice Set the backend operator so users can withdraw CELO/USDC when not connected. Only owner.
+    function setOperator(address _operator) external onlyOwner {
+        address previous = operator;
+        operator = _operator;
+        emit OperatorUpdated(previous, _operator);
+    }
+
+    /// @notice Set the backend operator. Only registry (so new wallets get it at creation).
+    function setOperatorByRegistry(address _operator) external {
+        if (msg.sender != registry) revert OnlyRegistry();
+        address previous = operator;
+        operator = _operator;
+        emit OperatorUpdated(previous, _operator);
+    }
+
+    /// @notice Set withdrawal authority (backend signer). Only owner.
+    function setWithdrawalAuthority(address _authority) external onlyOwner {
+        withdrawalAuthority = _authority;
+    }
+
+    /// @notice Set withdrawal authority. Only registry.
+    function setWithdrawalAuthorityByRegistry(address _authority) external {
+        if (msg.sender != registry) revert OnlyRegistry();
+        withdrawalAuthority = _authority;
+    }
+
+    /// @notice Set daily withdrawal cap and CELO price. Only registry. dailyCapUsd6 = 0 means no cap.
+    function setDailyCapByRegistry(uint256 _dailyCapUsd6, uint256 _priceCeloUsd6) external {
+        if (msg.sender != registry) revert OnlyRegistry();
+        dailyCapUsd6 = _dailyCapUsd6;
+        priceCeloUsd6 = _priceCeloUsd6;
+        emit DailyCapUpdated(_dailyCapUsd6, _priceCeloUsd6);
+    }
+
+    /// @notice Update daily withdrawal counter; revert if would exceed cap. USD amounts in 6 decimals.
+    function _checkAndUpdateDailyCap(uint256 usdValue6) internal {
+        if (dailyCapUsd6 == 0) return;
+        uint256 day = block.timestamp / SECONDS_PER_DAY;
+        if (day > lastWithdrawDay) {
+            lastWithdrawDay = day;
+            totalWithdrawnUsd6InPeriod = 0;
+        }
+        if (totalWithdrawnUsd6InPeriod + usdValue6 > dailyCapUsd6) revert ExceedsDailyCap();
+        totalWithdrawnUsd6InPeriod += usdValue6;
+    }
+
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
@@ -70,8 +155,34 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     // -------------------------------------------------------------------------
     // Native (CELO / ETH)
     // -------------------------------------------------------------------------
+    /// @notice Owner can withdraw directly when connected. Operator cannot use this.
     function withdrawNative(address payable to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert InvalidAddress();
+        if (dailyCapUsd6 != 0 && priceCeloUsd6 != 0) {
+            uint256 usd6 = (amount * priceCeloUsd6) / 1e18;
+            _checkAndUpdateDailyCap(usd6);
+        }
+        require(address(this).balance >= amount, "Insufficient balance");
+        (bool sent,) = to.call{value: amount}("");
+        require(sent, "Transfer failed");
+        emit WithdrewNative(to, amount);
+    }
+
+    /// @notice Operator withdraws only with a signature from withdrawalAuthority (backend signs after PIN).
+    function withdrawNativeWithAuth(address payable to, uint256 amount, uint256 nonce, bytes calldata signature) external onlyOperator {
+        if (withdrawalAuthority == address(0)) revert InvalidAddress();
+        if (to == address(0)) revert InvalidAddress();
+        if (dailyCapUsd6 != 0 && priceCeloUsd6 != 0) {
+            uint256 usd6 = (amount * priceCeloUsd6) / 1e18;
+            _checkAndUpdateDailyCap(usd6);
+        }
+        bytes32 nonceKey = keccak256(abi.encodePacked(address(this), to, amount, nonce));
+        require(!usedWithdrawalNonces[nonceKey], "Nonce used");
+        usedWithdrawalNonces[nonceKey] = true;
+        bytes32 hash = keccak256(abi.encodePacked(address(this), to, amount, nonce));
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        address signer = ECDSA.recover(ethSignedHash, signature);
+        require(signer == withdrawalAuthority, "Bad signature");
         require(address(this).balance >= amount, "Insufficient balance");
         (bool sent,) = to.call{value: amount}("");
         require(sent, "Transfer failed");
@@ -94,6 +205,10 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     function sendCeloToNairaVault(uint256 amount) external {
         if (msg.sender != nairaVault) revert OnlyNairaVault();
         if (nairaVault == address(0)) revert InvalidAddress();
+        if (dailyCapUsd6 != 0 && priceCeloUsd6 != 0) {
+            uint256 usd6 = (amount * priceCeloUsd6) / 1e18;
+            _checkAndUpdateDailyCap(usd6);
+        }
         require(amount > 0 && address(this).balance >= amount, "Invalid amount or balance");
         (bool sent,) = payable(nairaVault).call{value: amount}("");
         require(sent, "Transfer failed");
@@ -109,8 +224,26 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         emit ApprovalERC20(token, spender, amount);
     }
 
+    /// @notice Owner can withdraw ERC20 directly when connected. USDC (6 decimals) counts toward same $100/day cap.
     function withdrawERC20(address token, address to, uint256 amount) external onlyOwner {
         if (token == address(0) || to == address(0)) revert InvalidAddress();
+        if (dailyCapUsd6 != 0) _checkAndUpdateDailyCap(amount); // USDC is 6 decimals = USD
+        require(IERC20(token).transfer(to, amount), "Transfer failed");
+        emit WithdrewERC20(token, to, amount);
+    }
+
+    /// @notice Operator withdraws ERC20 only with a signature from withdrawalAuthority (backend signs after PIN).
+    function withdrawERC20WithAuth(address token, address to, uint256 amount, uint256 nonce, bytes calldata signature) external onlyOperator {
+        if (withdrawalAuthority == address(0)) revert InvalidAddress();
+        if (token == address(0) || to == address(0)) revert InvalidAddress();
+        if (dailyCapUsd6 != 0) _checkAndUpdateDailyCap(amount); // USDC is 6 decimals = USD
+        bytes32 nonceKey = keccak256(abi.encodePacked(address(this), token, to, amount, nonce));
+        require(!usedWithdrawalNonces[nonceKey], "Nonce used");
+        usedWithdrawalNonces[nonceKey] = true;
+        bytes32 hash = keccak256(abi.encodePacked(address(this), token, to, amount, nonce));
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        address signer = ECDSA.recover(ethSignedHash, signature);
+        require(signer == withdrawalAuthority, "Bad signature");
         require(IERC20(token).transfer(to, amount), "Transfer failed");
         emit WithdrewERC20(token, to, amount);
     }

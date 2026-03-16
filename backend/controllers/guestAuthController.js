@@ -18,6 +18,10 @@ import {
   createWalletForExistingUser,
   canCreateWalletForExistingUser,
   processNairaWithdrawalCelo,
+  withdrawFromSmartWalletCelo,
+  withdrawFromSmartWalletUsdc,
+  signWithdrawalAuthCelo,
+  signWithdrawalAuthUsdc,
 } from "../services/tycoonContract.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
@@ -390,6 +394,114 @@ export async function nairaWithdraw(req, res) {
 }
 
 /**
+ * POST /auth/set-withdrawal-pin
+ * Set or change the withdrawal PIN (2FA for smart-wallet withdrawals). Body: { pin: "1234" } (4–8 digits).
+ */
+export async function setWithdrawalPin(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const pin = req.body?.pin != null ? String(req.body.pin).trim() : "";
+    if (!/^\d{4,8}$/.test(pin)) {
+      return res.status(400).json({ success: false, message: "PIN must be 4–8 digits." });
+    }
+    const hash = await bcrypt.hash(pin, 10);
+    await db("users").where({ id: req.user.id }).update({ withdrawal_pin_hash: hash });
+    logger.info({ userId: req.user.id }, "setWithdrawalPin");
+    return res.status(200).json({ success: true, message: "Withdrawal PIN set." });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "setWithdrawalPin failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to set PIN" });
+  }
+}
+
+/**
+ * POST /auth/smart-wallet/withdraw-celo
+ * Withdraw CELO from the user's smart wallet to an address. Requires PIN (2FA).
+ * Body: { to: "0x...", amount: "0.5", pin: "1234" }. Requires smart_wallet_address, operator, and withdrawal authority.
+ */
+export async function smartWalletWithdrawCelo(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    if (!user.withdrawal_pin_hash) {
+      return res.status(400).json({ success: false, message: "Set a withdrawal PIN first (Profile → Manage smart wallet)." });
+    }
+    const pin = req.body?.pin != null ? String(req.body.pin).trim() : "";
+    if (!pin) return res.status(400).json({ success: false, message: "PIN required for withdrawal." });
+    const pinValid = await bcrypt.compare(pin, user.withdrawal_pin_hash);
+    if (!pinValid) return res.status(401).json({ success: false, message: "Invalid PIN." });
+
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const to = req.body?.to && String(req.body.to).trim();
+    if (!to || !ethers.isAddress(to)) {
+      return res.status(400).json({ success: false, message: "Provide a valid 'to' address (0x...)." });
+    }
+    const amount = req.body?.amount != null ? Number(String(req.body.amount).trim()) : NaN;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Provide a valid amount (e.g. 0.5)." });
+    }
+    const amountWei = ethers.parseEther(String(amount));
+    const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+    const signature = await signWithdrawalAuthCelo(smartWallet, to, amountWei, nonce, chain);
+    await withdrawFromSmartWalletCelo(smartWallet, to, amountWei, nonce, signature, chain);
+    logger.info({ userId: user.id, smartWallet, to, amount }, "smartWalletWithdrawCelo");
+    return res.status(200).json({ success: true, message: "Withdrawal submitted.", hash: true });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletWithdrawCelo failed");
+    return res.status(500).json({ success: false, message: err?.message || "Withdrawal failed" });
+  }
+}
+
+/**
+ * POST /auth/smart-wallet/withdraw-usdc
+ * Withdraw USDC from the user's smart wallet to an address. Requires PIN (2FA).
+ * Body: { to: "0x...", amount: "10", pin: "1234" } (amount in USDC units).
+ */
+export async function smartWalletWithdrawUsdc(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    if (!user.withdrawal_pin_hash) {
+      return res.status(400).json({ success: false, message: "Set a withdrawal PIN first (Profile → Manage smart wallet)." });
+    }
+    const pin = req.body?.pin != null ? String(req.body.pin).trim() : "";
+    if (!pin) return res.status(400).json({ success: false, message: "PIN required for withdrawal." });
+    const pinValid = await bcrypt.compare(pin, user.withdrawal_pin_hash);
+    if (!pinValid) return res.status(401).json({ success: false, message: "Invalid PIN." });
+
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    const smartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    if (!smartWallet || smartWallet === "0x0000000000000000000000000000000000000000") {
+      return res.status(400).json({ success: false, message: "No smart wallet. Create one in Profile first." });
+    }
+    const to = req.body?.to && String(req.body.to).trim();
+    if (!to || !ethers.isAddress(to)) {
+      return res.status(400).json({ success: false, message: "Provide a valid 'to' address (0x...)." });
+    }
+    const amount = req.body?.amount != null ? Number(String(req.body.amount).trim()) : NaN;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Provide a valid amount (e.g. 10 for 10 USDC)." });
+    }
+    const amountWei = ethers.parseUnits(String(amount), 6);
+    const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+    const cfg = getChainConfig(chain);
+    const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+    if (!usdc) return res.status(500).json({ success: false, message: "USDC not configured for this chain." });
+    const signature = await signWithdrawalAuthUsdc(smartWallet, usdc, to, amountWei, nonce, chain);
+    await withdrawFromSmartWalletUsdc(smartWallet, to, amountWei, nonce, signature, chain);
+    logger.info({ userId: user.id, smartWallet, to, amount }, "smartWalletWithdrawUsdc");
+    return res.status(200).json({ success: true, message: "Withdrawal submitted.", hash: true });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "smartWalletWithdrawUsdc failed");
+    return res.status(500).json({ success: false, message: err?.message || "Withdrawal failed" });
+  }
+}
+
+/**
  * GET /auth/me
  * Authorization: Bearer <token>
  * Returns current user from JWT (do not send password_hash to client).
@@ -400,7 +512,8 @@ export async function me(req, res) {
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Not authenticated" });
   }
-  const { password_hash, password_hash_email, email_verification_token, ...safe } = req.user;
+  const { password_hash, password_hash_email, email_verification_token, withdrawal_pin_hash, ...safe } = req.user;
+  safe.withdrawal_pin_set = Boolean(withdrawal_pin_hash);
   const chain = req.user.chain || "CELO";
   const normalizedChain = User.normalizeChain(chain);
 
