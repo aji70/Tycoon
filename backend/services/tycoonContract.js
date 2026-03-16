@@ -569,7 +569,8 @@ export async function createWalletForExistingUser(playerAddress, chain = "CELO")
     let smartWallet = null;
     if (receipt?.logs?.length) {
       try {
-        const iface = new Interface(["event WalletCreated(address indexed owner, address indexed wallet)"]);
+        // Registry emits WalletCreated(address indexed owner, string username, address indexed wallet)
+        const iface = new Interface(["event WalletCreated(address indexed owner, string username, address indexed wallet)"]);
         for (const log of receipt.logs) {
           try {
             const parsed = iface.parseLog({ topics: log.topics, data: log.data });
