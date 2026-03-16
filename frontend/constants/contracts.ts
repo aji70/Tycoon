@@ -42,6 +42,11 @@ export const WITHDRAWAL_AUTHORITY_ADDRESSES: Record<number, Address | undefined>
   [celo.id]: process.env.NEXT_PUBLIC_WITHDRAWAL_AUTHORITY_ADDRESS as Address | undefined,
 };
 
+/** Swap executor: send CELO here from smart wallet; receives USDC back to the same wallet (Ubeswap CELO→USDC). */
+export const SWAP_EXECUTOR_ADDRESSES: Record<number, Address | undefined> = {
+  [celo.id]: process.env.NEXT_PUBLIC_CELO_SWAP_EXECUTOR_ADDRESS as Address | undefined,
+};
+
 /** Tournament escrow (entry fees + prize pool). ABI: context/abi/TycoonTournamentEscrow.json */
 export const TOURNAMENT_ESCROW_ADDRESSES: Record<number, Address | undefined> = {
   [celo.id]: (process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW || process.env.NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS) as Address | undefined,
