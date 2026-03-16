@@ -25,6 +25,8 @@ import {
 } from "../services/tycoonContract.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
+import { transferToBankAccount, isFlutterwaveConfigured } from "../services/flutterwave.js";
+import { celoToNgn } from "../services/rates.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
@@ -389,6 +391,44 @@ export async function nairaWithdraw(req, res) {
     const amountWei = ethers.parseEther(String(num));
     await processNairaWithdrawalCelo(smartWallet, amountWei, chain);
     logger.info({ userId: user.id, smartWallet, amountCelo: num }, "nairaWithdraw: CELO pulled to vault");
+
+    const fullUser = await User.findById(user.id);
+    const bankAccount = fullUser?.bank_account_number && String(fullUser.bank_account_number).trim();
+    const bankCode = fullUser?.bank_code && String(fullUser.bank_code).trim();
+    if (bankAccount && bankCode && isFlutterwaveConfigured()) {
+      let amountNaira = null;
+      const fixedRate = process.env.CELO_TO_NGN_RATE != null ? Number(process.env.CELO_TO_NGN_RATE) : NaN;
+      if (Number.isFinite(fixedRate) && fixedRate > 0) {
+        amountNaira = Math.round(num * fixedRate);
+      } else {
+        try {
+          amountNaira = await celoToNgn(num);
+        } catch (rateErr) {
+          logger.warn({ err: rateErr?.message }, "nairaWithdraw: live CELO→NGN rate fetch failed — no Naira transfer");
+          return res.status(200).json({
+            success: true,
+            message: "CELO withdrawn to vault. No Naira transfer (live rate unavailable). Set CELO_TO_NGN_RATE in backend env for fixed rate, or try again later.",
+          });
+        }
+      }
+      if (Number.isFinite(amountNaira) && amountNaira >= 100) {
+        try {
+          const reference = `naira-withdraw-${user.id}-${Date.now()}`;
+          await transferToBankAccount(bankAccount, bankCode, amountNaira, reference, "Tycoon CELO withdrawal");
+          return res.status(200).json({
+            success: true,
+            message: `Withdrawal complete. ${amountNaira} NGN has been sent to your bank account.`,
+          });
+        } catch (payoutErr) {
+          logger.warn({ err: payoutErr?.message, userId: user.id, amountNaira }, "nairaWithdraw: Flutterwave payout failed");
+          return res.status(200).json({
+            success: true,
+            message: "CELO withdrawn to vault. Naira payout could not be sent automatically; we will process it manually.",
+          });
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: "Withdrawal submitted. You will receive Naira (NGN) once we process it.",
@@ -399,6 +439,33 @@ export async function nairaWithdraw(req, res) {
       success: false,
       message: err?.message || "Withdrawal failed",
     });
+  }
+}
+
+/**
+ * POST /auth/set-bank-details
+ * Set Nigerian bank account for CELO→Naira payouts. Body: { bank_account_number: "0123456789", bank_code: "044" }.
+ */
+export async function setBankDetails(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const accountNumber = req.body?.bank_account_number != null ? String(req.body.bank_account_number).trim() : "";
+    const bankCode = req.body?.bank_code != null ? String(req.body.bank_code).trim() : "";
+    if (!accountNumber || accountNumber.length < 10) {
+      return res.status(400).json({ success: false, message: "Valid bank account number (at least 10 digits) required." });
+    }
+    if (!bankCode) {
+      return res.status(400).json({ success: false, message: "Bank code required (e.g. 044 for Access Bank)." });
+    }
+    await db("users").where({ id: req.user.id }).update({
+      bank_account_number: accountNumber,
+      bank_code: bankCode,
+    });
+    logger.info({ userId: req.user.id }, "setBankDetails");
+    return res.status(200).json({ success: true, message: "Bank details saved. Used for Naira payouts when you withdraw CELO to Naira." });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "setBankDetails failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to save bank details" });
   }
 }
 
@@ -521,8 +588,11 @@ export async function me(req, res) {
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Not authenticated" });
   }
-  const { password_hash, password_hash_email, email_verification_token, withdrawal_pin_hash, ...safe } = req.user;
+  const { password_hash, password_hash_email, email_verification_token, withdrawal_pin_hash, bank_account_number, ...safe } = req.user;
   safe.withdrawal_pin_set = Boolean(withdrawal_pin_hash);
+  safe.bank_account_masked = bank_account_number && String(bank_account_number).length >= 4
+    ? `****${String(bank_account_number).slice(-4)}`
+    : null;
   const chain = req.user.chain || "CELO";
   const normalizedChain = User.normalizeChain(chain);
 

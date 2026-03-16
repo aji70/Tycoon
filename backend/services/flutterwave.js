@@ -158,3 +158,78 @@ export async function verifyTransactionById(transactionId) {
     tx_ref: d.tx_ref,
   };
 }
+
+/**
+ * Create a transfer recipient (NGN bank account). Required before initiating a transfer.
+ * @param {string} accountNumber - Nigerian bank account number
+ * @param {string} bankCode - Flutterwave bank code (e.g. "044" for Access Bank)
+ * @returns {Promise<{ recipientId: string }>}
+ */
+export async function createTransferRecipient(accountNumber, bankCode) {
+  if (!isFlutterwaveConfigured()) throw new Error("Flutterwave is not configured (FLW_SECRET_KEY)");
+  const an = String(accountNumber).trim();
+  const bc = String(bankCode).trim();
+  if (!an || !bc) throw new Error("account_number and bank_code are required");
+  const res = await fetch(`${FLW_BASE}/beneficiaries`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${FLW_SECRET}`,
+    },
+    body: JSON.stringify({
+      account_number: an,
+      account_bank: bc,
+      beneficiary_name: "Tycoon User",
+      currency: "NGN",
+    }),
+  });
+  const data = await res.json();
+  if (data.status !== "success" || !data.data?.id) {
+    const msg = data.message || data.data?.message || "Flutterwave create beneficiary failed";
+    logger.warn({ flwResponse: data }, "Flutterwave beneficiaries API error");
+    throw new Error(msg);
+  }
+  return { recipientId: data.data.id };
+}
+
+/**
+ * Transfer NGN to a bank account (CELO→Naira payout).
+ * Uses Flutterwave Transfers API. Your Flutterwave balance must be funded.
+ * @param {string} accountNumber - Nigerian bank account number
+ * @param {string} bankCode - Flutterwave bank code (e.g. "044")
+ * @param {number} amountNaira - Amount in Naira (whole number)
+ * @param {string} reference - Unique reference for idempotency (e.g. naira-withdraw-{userId}-{timestamp})
+ * @param {string} [narration] - Transfer narration (e.g. "Tycoon CELO withdrawal")
+ * @returns {Promise<{ transferId: number, status: string }>}
+ */
+export async function transferToBankAccount(accountNumber, bankCode, amountNaira, reference, narration = "Tycoon CELO withdrawal") {
+  if (!isFlutterwaveConfigured()) throw new Error("Flutterwave is not configured (FLW_SECRET_KEY)");
+  const amount = Math.round(Number(amountNaira));
+  if (!Number.isFinite(amount) || amount < 100) throw new Error("amount must be at least 100 Naira");
+  const ref = String(reference || `naira-${Date.now()}`).trim();
+  const res = await fetch(`${FLW_BASE}/transfers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${FLW_SECRET}`,
+    },
+    body: JSON.stringify({
+      account_bank: String(bankCode).trim(),
+      account_number: String(accountNumber).trim(),
+      amount,
+      narration: String(narration).slice(0, 100),
+      currency: "NGN",
+      reference: ref,
+      callback_url: process.env.FLW_TRANSFER_CALLBACK_URL || null,
+    }),
+  });
+  const data = await res.json();
+  if (data.status !== "success" || !data.data) {
+    const msg = data.message || data.data?.message || "Flutterwave transfer failed";
+    logger.warn({ flwResponse: data }, "Flutterwave transfers API error");
+    throw new Error(msg);
+  }
+  const d = data.data;
+  logger.info({ transferId: d.id, amount, reference: ref }, "Flutterwave transfer initiated");
+  return { transferId: d.id, status: d.status || "NEW" };
+}
