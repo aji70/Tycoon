@@ -300,7 +300,10 @@ export async function createSmartWallet(req, res) {
       return res.status(503).json({ success: false, message: "Contract not configured for this network" });
     }
 
-    if (user.smart_wallet_address && String(user.smart_wallet_address).trim() !== "") {
+    const existingSmartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
+    const zeroAddr = "0x0000000000000000000000000000000000000000";
+    const hasRealSmartWallet = existingSmartWallet && existingSmartWallet.toLowerCase() !== zeroAddr.toLowerCase();
+    if (hasRealSmartWallet) {
       const updated = await User.findById(user.id);
       const { password_hash: _, ...safe } = updated;
       return res.status(200).json({ success: true, message: "Smart wallet already exists", data: safe });
