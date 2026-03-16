@@ -305,7 +305,7 @@ const USER_WALLET_ABI = [
   },
 ];
 
-/** TycoonNairaVault: processNairaWithdrawalCelo(fromWallet, amount) and creditCelo(recipient, amount) — controller only. */
+/** TycoonNairaVault: processNairaWithdrawalCelo, creditCelo, creditUsdc — controller only. */
 const NAIRA_VAULT_ABI = [
   {
     type: "function",
@@ -320,6 +320,16 @@ const NAIRA_VAULT_ABI = [
   {
     type: "function",
     name: "creditCelo",
+    inputs: [
+      { name: "recipient", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "creditUsdc",
     inputs: [
       { name: "recipient", type: "address", internalType: "address" },
       { name: "amount", type: "uint256", internalType: "uint256" },
@@ -760,6 +770,38 @@ export async function creditCeloFromVault(recipient, amountWei, chain = "CELO") 
     const tx = await vault.creditCelo(recipient, amountWei);
     const receipt = await tx.wait();
     logger.info({ recipient, amountWei: String(amountWei), hash: receipt?.hash }, "creditCeloFromVault tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Credit a recipient with USDC from the Naira vault (e.g. after user paid Naira via Flutterwave).
+ * Only vault controller/owner can call. Amount in USDC base units (6 decimals).
+ * @param {string} recipient - Smart wallet or EOA to receive USDC
+ * @param {bigint} amountUsdcUnits - Amount in USDC units (6 decimals, e.g. 1e6 = 1 USDC)
+ * @param {string} [chain] - Chain (default CELO)
+ */
+export async function creditUsdcFromVault(recipient, amountUsdcUnits, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const vaultAddress = cfg.nairaVaultAddress;
+    if (!vaultAddress || !recipient || amountUsdcUnits <= 0n) {
+      throw new Error("Naira vault not configured or invalid args");
+    }
+    const pk =
+      process.env.NAIRA_VAULT_CONTROLLER_PRIVATE_KEY ??
+      process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ??
+      process.env.BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY;
+    if (!pk) throw new Error("Naira vault controller key not set");
+    const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(key, provider);
+    const vault = new Contract(vaultAddress, NAIRA_VAULT_ABI, wallet);
+    const tx = await vault.creditUsdc(recipient, amountUsdcUnits);
+    const receipt = await tx.wait();
+    logger.info({ recipient, amountUsdcUnits: String(amountUsdcUnits), hash: receipt?.hash }, "creditUsdcFromVault tx");
     return { hash: receipt?.hash };
   });
 }
