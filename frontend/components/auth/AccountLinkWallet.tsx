@@ -209,7 +209,7 @@ export default function AccountLinkWallet() {
         </>
       )}
 
-      {/* Email: one line when logged in — connected email or prompt to link */}
+      {/* Email: connected email always shown; link-email prompt only when wallet not linked */}
       {guestUser && (
         <div className="pt-3 border-t border-white/10">
           {guestUser.email || guestUser.email_verified ? (
@@ -219,7 +219,7 @@ export default function AccountLinkWallet() {
                 <span className="text-white/60 text-xs ml-1">(check inbox to verify)</span>
               )}
             </p>
-          ) : auth?.connectEmail ? (
+          ) : !guestUser.linked_wallet_address && auth?.connectEmail ? (
             <>
               <p className="text-sm text-white/70 mb-2">Link your email to use the same profile from any device.</p>
               <form
