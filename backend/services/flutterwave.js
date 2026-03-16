@@ -44,6 +44,7 @@ export function verifyWebhookSignature(signature) {
  * @param {string} [redirectUrl] - URL to redirect after payment
  * @param {Object} [meta] - Custom metadata (e.g. { user_id, bundle_id })
  * @param {string} [customerName] - Customer name
+ * @param {Object} [customizations] - Optional override for title/description (e.g. { title: "Buy CELO", description: "..." })
  * @returns {Promise<{ link: string, tx_ref: string }>}
  */
 export async function initializePayment({
@@ -53,6 +54,7 @@ export async function initializePayment({
   redirectUrl,
   meta = {},
   customerName,
+  customizations: customizationsOverride,
 }) {
   if (!isFlutterwaveConfigured()) {
     throw new Error("Flutterwave is not configured (FLW_SECRET_KEY)");
@@ -66,6 +68,15 @@ export async function initializePayment({
   }
   const customerEmail = (email && String(email).trim()) || FLW_DEFAULT_EMAIL;
   const customerNameStr = (customerName && String(customerName).trim()) || "Tycoon Player";
+  const defaultCustomizations = {
+    title: "Tycoon — Perk Bundle",
+    description: "Secure payment for your perk bundle. Your perks will be available in-game after purchase.",
+    ...(getCheckoutLogoUrl() && { logo: getCheckoutLogoUrl() }),
+  };
+  const customizations =
+    customizationsOverride && typeof customizationsOverride === "object" && Object.keys(customizationsOverride).length > 0
+      ? { ...defaultCustomizations, ...customizationsOverride }
+      : defaultCustomizations;
   // Match Flutterwave doc exactly: tx_ref, amount, currency, redirect_url, customer (email, name, phonenumber)
   // payment_options: comma-separated, no spaces – required by some account settings
   const payload = {
@@ -79,11 +90,7 @@ export async function initializePayment({
       name: customerNameStr,
       phonenumber: FLW_DEFAULT_PHONE,
     },
-    customizations: {
-      title: "Tycoon — Perk Bundle",
-      description: "Secure payment for your perk bundle. Your perks will be available in-game after purchase.",
-      ...(getCheckoutLogoUrl() && { logo: getCheckoutLogoUrl() }),
-    },
+    customizations,
   };
   if (meta && typeof meta === "object" && Object.keys(meta).length > 0) {
     payload.meta = meta;

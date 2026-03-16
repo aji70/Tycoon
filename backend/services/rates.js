@@ -65,3 +65,14 @@ export async function celoToNgn(amountCelo) {
   const rate = await getCeloToNgnRate();
   return Math.round(amountCelo * rate);
 }
+
+/**
+ * Convert NGN to CELO using live rates (with cache). For "Buy CELO with Naira" flow.
+ * @param {number} amountNgn - Amount in Naira
+ * @returns {Promise<number>} Equivalent CELO (fractional)
+ */
+export async function ngnToCelo(amountNgn) {
+  const rate = await getCeloToNgnRate();
+  if (rate <= 0) throw new Error("CELO/NGN rate must be positive");
+  return amountNgn / rate;
+}
