@@ -29,24 +29,56 @@ function passwordToHash(password) {
 export async function ensureUserHasContractPassword(db, userId, chain = "CELO") {
   const user = await db("users").where({ id: userId }).select("address", "username", "password_hash").first();
   if (!user?.address) return null;
-  if (user.password_hash) return user;
 
   const normalizedChain = User.normalizeChain(chain);
   if (!isContractConfigured(normalizedChain)) return null;
   try {
     const isRegistered = await callContractRead("registered", [user.address], normalizedChain);
+    // If user already has a password_hash in DB but is not yet registered on this chain,
+    // register them using the existing hash so backend auth works for guest flows.
+    if (user.password_hash) {
+      if (!isRegistered) {
+        await registerPlayerFor(
+          user.address,
+          user.username || user.address.slice(0, 10),
+          user.password_hash,
+          normalizedChain
+        );
+        const smartWalletAddress = await getSmartWalletAddress(user.address, normalizedChain);
+        await db("users")
+          .where({ id: userId })
+          .update({ smart_wallet_address: smartWalletAddress || null });
+        logger.info(
+          { userId, address: user.address, chain: normalizedChain },
+          "Synced existing backend password to contract for user"
+        );
+      }
+      return user;
+    }
+
+    // No password_hash in DB yet: only register if not already registered on-chain.
     if (isRegistered) {
-      // Already on contract (e.g. wallet user who used frontend registerPlayer) — we can't add a password
+      // Already on contract (e.g. legacy wallet user who registered via frontend without backend password);
+      // we cannot retroactively set a password hash for backend auth.
       return null;
     }
+
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = passwordToHash(secret);
-    await registerPlayerFor(user.address, user.username || user.address.slice(0, 10), passwordHash, normalizedChain);
+    await registerPlayerFor(
+      user.address,
+      user.username || user.address.slice(0, 10),
+      passwordHash,
+      normalizedChain
+    );
     const smartWalletAddress = await getSmartWalletAddress(user.address, normalizedChain);
     await db("users")
       .where({ id: userId })
       .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
-    logger.info({ userId, address: user.address, chain: normalizedChain }, "Registered user on contract with backend password for future game-end");
+    logger.info(
+      { userId, address: user.address, chain: normalizedChain },
+      "Registered user on contract with backend password for future game-end"
+    );
     return { ...user, password_hash: passwordHash };
   } catch (err) {
     logger.warn({ err: err?.message, userId }, "ensureUserHasContractPassword failed");
