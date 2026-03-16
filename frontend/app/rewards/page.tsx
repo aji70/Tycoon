@@ -26,6 +26,7 @@ import {
   Trash2,
   Loader2,
   BookOpen,
+  Copy,
 } from 'lucide-react';
 
 import {
@@ -115,12 +116,20 @@ export default function RewardAdminPanel() {
     addressToUsername,
     hasSmartWallet,
     hasSmartWalletLoading,
+    vaultNairaAddress,
+    vaultCeloBalance,
+    vaultUsdcBalance,
+    vaultWithdrawAmount,
+    setVaultWithdrawAmount,
+    vaultWithdrawTo,
+    setVaultWithdrawTo,
   } = state;
 
   const [adminTournaments, setAdminTournaments] = useState<{ id: number; name: string; code?: string; status: string; participant_count?: number; max_players: number }[]>([]);
   const [adminTournamentsLoading, setAdminTournamentsLoading] = useState(false);
   const [adminTournamentsError, setAdminTournamentsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [vaultCopyFeedback, setVaultCopyFeedback] = useState(false);
 
   const fetchAdminTournaments = useCallback(async () => {
     setAdminTournamentsLoading(true);
@@ -157,7 +166,7 @@ export default function RewardAdminPanel() {
   }, []);
 
   const { tokenCount, allTokens, tycBalance, usdcBalance } = contract;
-  const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController, pendingTycoonLogic, pendingTycoonUserRegistry, pendingTycoonGameFaucet, pendingTycoonRewardSystem, pendingCreateWallet } = pending;
+  const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController, pendingTycoonLogic, pendingTycoonUserRegistry, pendingTycoonGameFaucet, pendingTycoonRewardSystem, pendingCreateWallet, pendingVaultWithdraw } = pending;
 
   if (!auth.isConnected || !auth.userAddress) {
     return (
@@ -216,7 +225,7 @@ export default function RewardAdminPanel() {
         </motion.div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-10">
-          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'escrow', 'tournaments', 'funds', 'reads'] as const).map((section) => (
+          {(['overview', 'mint', 'stock', 'manage', 'tycoon', 'escrow', 'tournaments', 'funds', 'vault', 'reads'] as const).map((section) => (
             <button
               key={section}
               onClick={() => setActiveSection(section)}
@@ -234,8 +243,9 @@ export default function RewardAdminPanel() {
               {section === 'escrow' && <Shield className="w-5 h-5" />}
               {section === 'tournaments' && <Swords className="w-5 h-5" />}
               {section === 'funds' && <Wallet className="w-5 h-5" />}
+              {section === 'vault' && <Banknote className="w-5 h-5" />}
               {section === 'reads' && <BookOpen className="w-5 h-5" />}
-              {section === 'tycoon' ? 'Game Contract' : section === 'escrow' ? 'Tournament Escrow' : section === 'tournaments' ? 'Tournaments' : section === 'reads' ? 'Reads' : section.charAt(0).toUpperCase() + section.slice(1)}
+              {section === 'tycoon' ? 'Game Contract' : section === 'escrow' ? 'Tournament Escrow' : section === 'tournaments' ? 'Tournaments' : section === 'vault' ? 'Naira Vault' : section === 'reads' ? 'Reads' : section.charAt(0).toUpperCase() + section.slice(1)}
             </button>
           ))}
         </div>
@@ -853,6 +863,78 @@ export default function RewardAdminPanel() {
               >
                 {pendingWithdraw ? 'Withdrawing...' : 'Withdraw'}
               </button>
+            </div>
+          </motion.div>
+        )}
+
+        {activeSection === 'vault' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto space-y-6">
+            <div className="bg-gray-900/50 rounded-2xl p-8 border border-gray-700/50">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <Banknote className="w-6 h-6 text-amber-400" /> Naira Vault
+              </h3>
+              <p className="text-gray-400 text-sm mb-4">Fund this vault with CELO so users can receive CELO when they pay Naira. Only owner/controller can withdraw via creditCelo.</p>
+              {vaultNairaAddress ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <span className="text-gray-400 text-sm">Vault address:</span>
+                    <code className="text-cyan-300 text-sm break-all">{vaultNairaAddress}</code>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(vaultNairaAddress); setVaultCopyFeedback(true); setTimeout(() => setVaultCopyFeedback(false), 2000); }}
+                      className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300"
+                      aria-label="Copy"
+                    >
+                      {vaultCopyFeedback ? <span className="text-xs text-green-400">Copied!</span> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-gray-800/50 rounded-xl p-4">
+                      <span className="text-gray-400 text-sm block">CELO balance</span>
+                      <span className="text-lg font-semibold text-cyan-300">
+                        {vaultCeloBalance != null ? formatUnits(vaultCeloBalance, 18) : '—'}
+                      </span>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-xl p-4">
+                      <span className="text-gray-400 text-sm block">USDC balance</span>
+                      <span className="text-lg font-semibold text-green-300">
+                        {vaultUsdcBalance != null ? formatUnits(vaultUsdcBalance, 6) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-700/50 pt-4">
+                    <h4 className="text-sm font-semibold text-amber-300 mb-2">Withdraw CELO (owner/controller)</h4>
+                    <p className="text-gray-500 text-xs mb-3">Sends vault CELO to a recipient. Use your address to recover funds.</p>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Recipient address (0x...)"
+                        value={vaultWithdrawTo}
+                        onChange={(e) => setVaultWithdrawTo(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-white placeholder-gray-500"
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="CELO amount"
+                        value={vaultWithdrawAmount}
+                        onChange={(e) => setVaultWithdrawAmount(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-white placeholder-gray-500"
+                      />
+                      <button
+                        onClick={handlers.handleVaultWithdrawCelo}
+                        disabled={anyPending || !vaultWithdrawAmount || !vaultWithdrawTo.trim()}
+                        className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {pendingVaultWithdraw ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                        {pendingVaultWithdraw ? 'Withdrawing...' : 'Withdraw CELO'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-500">Naira vault not configured for this chain (set NEXT_PUBLIC_CELO_NAIRA_VAULT).</p>
+              )}
             </div>
           </motion.div>
         )}

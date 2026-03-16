@@ -6,6 +6,8 @@ import {
   useChainId,
   useReadContract,
   useReadContracts,
+  useWriteContract,
+  useWaitForTransactionReceipt,
 } from "wagmi";
 import { parseUnits, formatUnits, type Address, type Abi } from "viem";
 import RewardABI from "@/context/abi/rewardabi.json";
@@ -14,6 +16,7 @@ import {
   TYCOON_CONTRACT_ADDRESSES,
   USDC_TOKEN_ADDRESS,
   TYC_TOKEN_ADDRESS,
+  NAIRA_VAULT_ADDRESSES,
 } from "@/constants/contracts";
 import TycoonABI from "@/context/abi/tycoonabi.json";
 import {
@@ -44,7 +47,7 @@ import {
   INITIAL_COLLECTIBLES,
 } from "@/components/rewards/rewardsConstants";
 
-export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon" | "escrow" | "tournaments" | "reads";
+export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon" | "escrow" | "tournaments" | "reads" | "vault";
 
 export interface RewardsAdminState {
   activeSection: RewardsSection;
@@ -139,6 +142,29 @@ export function useRewardsAdmin() {
   const [createWalletPlayerAddress, setCreateWalletPlayerAddress] = useState("");
   const [readTestTokenId, setReadTestTokenId] = useState("");
   const [checkRegisteredAddress, setCheckRegisteredAddress] = useState("");
+  const [vaultWithdrawAmount, setVaultWithdrawAmount] = useState("");
+  const [vaultWithdrawTo, setVaultWithdrawTo] = useState("");
+
+  const NAIRA_VAULT_ABI = [
+    { inputs: [], name: "balanceCelo", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+    { inputs: [], name: "balanceUsdc", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+    { inputs: [{ name: "recipient", type: "address" }, { name: "amount", type: "uint256" }], name: "creditCelo", outputs: [], stateMutability: "nonpayable", type: "function" },
+  ] as const;
+  const vaultAddress = NAIRA_VAULT_ADDRESSES[chainId as keyof typeof NAIRA_VAULT_ADDRESSES];
+  const vaultCeloBalance = useReadContract({
+    address: vaultAddress,
+    abi: NAIRA_VAULT_ABI,
+    functionName: "balanceCelo",
+    query: { enabled: !!vaultAddress },
+  });
+  const vaultUsdcBalance = useReadContract({
+    address: vaultAddress,
+    abi: NAIRA_VAULT_ABI,
+    functionName: "balanceUsdc",
+    query: { enabled: !!vaultAddress },
+  });
+  const vaultCreditCelo = useWriteContract();
+  const vaultCreditCeloReceipt = useWaitForTransactionReceipt({ hash: vaultCreditCelo.data });
 
   const setMinterHook = useRewardSetBackendMinter();
   const tycoonReads = useTycoonAdminReads();
@@ -397,6 +423,7 @@ export function useRewardsAdmin() {
       tycoonSetGameFaucetHook.isSuccess,
       tycoonSetRewardSystemHook.isSuccess,
       tycoonCreateWalletHook.isSuccess,
+      vaultCreditCeloReceipt.isSuccess,
     ];
     if (successes.some(Boolean)) {
       setStatus({ type: "success", message: "Transaction successful!" });
@@ -416,6 +443,7 @@ export function useRewardsAdmin() {
       tycoonSetGameFaucetHook.reset?.();
       tycoonSetRewardSystemHook.reset?.();
       tycoonCreateWalletHook.reset?.();
+      vaultCreditCelo.reset?.();
     }
   }, [
     setMinterHook.isSuccess,
@@ -434,6 +462,7 @@ export function useRewardsAdmin() {
     tycoonSetGameFaucetHook.isSuccess,
     tycoonSetRewardSystemHook.isSuccess,
     tycoonCreateWalletHook.isSuccess,
+    vaultCreditCeloReceipt.isSuccess,
   ]);
 
   useEffect(() => {
@@ -454,6 +483,7 @@ export function useRewardsAdmin() {
       tycoonSetGameFaucetHook.error,
       tycoonSetRewardSystemHook.error,
       tycoonCreateWalletHook.error,
+      vaultCreditCelo.error,
     ].filter(Boolean);
     if (errors.length > 0) {
       setStatus({
@@ -478,6 +508,7 @@ export function useRewardsAdmin() {
     tycoonSetGameFaucetHook.error,
     tycoonSetRewardSystemHook.error,
     tycoonCreateWalletHook.error,
+    vaultCreditCelo.error,
   ]);
 
   const handleSetBackendMinter = async () => {
@@ -601,6 +632,19 @@ export function useRewardsAdmin() {
     setCreateWalletPlayerAddress("");
   };
 
+  const handleVaultWithdrawCelo = async () => {
+    if (!vaultAddress || !vaultWithdrawTo.trim() || !vaultWithdrawAmount) return;
+    const amountWei = parseUnits(vaultWithdrawAmount, 18);
+    await vaultCreditCelo.writeContractAsync({
+      address: vaultAddress,
+      abi: NAIRA_VAULT_ABI,
+      functionName: "creditCelo",
+      args: [vaultWithdrawTo.trim() as Address, amountWei],
+    });
+    setVaultWithdrawAmount("");
+    setVaultWithdrawTo("");
+  };
+
   const anyPending =
     setMinterHook.isPending ||
     mintVoucherHook.isPending ||
@@ -617,7 +661,9 @@ export function useRewardsAdmin() {
     tycoonSetUserRegistryHook.isPending ||
     tycoonSetGameFaucetHook.isPending ||
     tycoonSetRewardSystemHook.isPending ||
-    tycoonCreateWalletHook.isPending;
+    tycoonCreateWalletHook.isPending ||
+    vaultCreditCelo.isPending ||
+    vaultCreditCeloReceipt.isLoading;
 
   const currentTxHash =
     setMinterHook.txHash ||
@@ -635,7 +681,8 @@ export function useRewardsAdmin() {
     tycoonSetUserRegistryHook.txHash ||
     tycoonSetGameFaucetHook.txHash ||
     tycoonSetRewardSystemHook.txHash ||
-    tycoonCreateWalletHook.txHash;
+    tycoonCreateWalletHook.txHash ||
+    vaultCreditCelo.data;
 
   return {
     auth: {
@@ -714,6 +761,13 @@ export function useRewardsAdmin() {
       addressToUsername: addressToUsernameResult.data as string | undefined,
       hasSmartWallet: hasWalletResult.data as boolean | undefined,
       hasSmartWalletLoading: hasWalletResult.isLoading,
+      vaultNairaAddress: vaultAddress,
+      vaultCeloBalance: vaultCeloBalance.data,
+      vaultUsdcBalance: vaultUsdcBalance.data,
+      vaultWithdrawAmount,
+      setVaultWithdrawAmount,
+      vaultWithdrawTo,
+      setVaultWithdrawTo,
     },
     contract: {
       tycBalance: tycBalance.data,
@@ -737,6 +791,7 @@ export function useRewardsAdmin() {
       handleSetTycoonGameFaucet,
       handleSetTycoonRewardSystem,
       handleCreateWalletForExistingUser,
+      handleVaultWithdrawCelo,
       pause: pauseHook.pause,
       unpause: pauseHook.unpause,
     },
@@ -759,6 +814,7 @@ export function useRewardsAdmin() {
       pendingTycoonGameFaucet: tycoonSetGameFaucetHook.isPending,
       pendingTycoonRewardSystem: tycoonSetRewardSystemHook.isPending,
       pendingCreateWallet: tycoonCreateWalletHook.isPending,
+      pendingVaultWithdraw: vaultCreditCelo.isPending || vaultCreditCeloReceipt.isLoading,
     },
   };
 }
