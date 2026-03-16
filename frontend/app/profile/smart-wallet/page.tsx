@@ -4,9 +4,9 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useAccount, useBalance, useChainId, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { useUserRegistryWallet, useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
+import { useUserRegistryWallet, useProfileOwner, useTransferProfileTo, useRecreateWalletForUser } from "@/context/ContractProvider";
 import { useRewardTokenAddresses } from "@/context/ContractProvider";
-import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES } from "@/constants/contracts";
+import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRESSES, WITHDRAWAL_AUTHORITY_ADDRESSES } from "@/constants/contracts";
 import { parseEther, type Address } from "viem";
 import { toast } from "react-toastify";
 import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote, ExternalLink } from "lucide-react";
@@ -16,10 +16,14 @@ const UserWalletABI = [
   { inputs: [], name: "balanceNative", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [{ name: "token", type: "address" }], name: "balanceERC20", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "owner", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
+  { inputs: [], name: "operator", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
+  { inputs: [], name: "withdrawalAuthority", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "nairaVault", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
   { inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], name: "withdrawNative", outputs: [], stateMutability: "nonpayable", type: "function" },
   { inputs: [{ name: "token", type: "address" }, { name: "to", type: "address" }, { name: "amount", type: "uint256" }], name: "withdrawERC20", outputs: [], stateMutability: "nonpayable", type: "function" },
   { inputs: [{ name: "vault", type: "address" }], name: "setNairaVault", outputs: [], stateMutability: "nonpayable", type: "function" },
+  { inputs: [{ name: "_operator", type: "address" }], name: "setOperator", outputs: [], stateMutability: "nonpayable", type: "function" },
+  { inputs: [{ name: "_authority", type: "address" }], name: "setWithdrawalAuthority", outputs: [], stateMutability: "nonpayable", type: "function" },
 ] as const;
 
 export default function ManageSmartWalletPage() {
@@ -57,10 +61,40 @@ export default function ManageSmartWalletPage() {
   const appVaultAddress = NAIRA_VAULT_ADDRESSES[chainId as keyof typeof NAIRA_VAULT_ADDRESSES];
   const needsEnableNgn = isOwner && appVaultAddress && (!currentNairaVault || currentNairaVault === zeroAddr || String(currentNairaVault).toLowerCase() === zeroAddr.toLowerCase());
 
+  const { data: currentOperator } = useReadContract({
+    address: smartWalletAddress,
+    abi: UserWalletABI,
+    functionName: "operator",
+    query: { enabled: !!smartWalletAddress },
+  });
+  const appOperatorAddress = SMART_WALLET_OPERATOR_ADDRESSES[chainId as keyof typeof SMART_WALLET_OPERATOR_ADDRESSES];
+  const needsEnableOperator = isOwner && appOperatorAddress && (!currentOperator || currentOperator === zeroAddr || String(currentOperator).toLowerCase() === zeroAddr.toLowerCase());
+
+  const { data: currentWithdrawalAuthority } = useReadContract({
+    address: smartWalletAddress,
+    abi: UserWalletABI,
+    functionName: "withdrawalAuthority",
+    query: { enabled: !!smartWalletAddress },
+  });
+  const appAuthorityAddress = WITHDRAWAL_AUTHORITY_ADDRESSES[chainId as keyof typeof WITHDRAWAL_AUTHORITY_ADDRESSES];
+  const needsEnableAuthority = isOwner && appAuthorityAddress && (!currentWithdrawalAuthority || currentWithdrawalAuthority === zeroAddr || String(currentWithdrawalAuthority).toLowerCase() === zeroAddr.toLowerCase());
+
   const [withdrawCeloTo, setWithdrawCeloTo] = useState("");
   const [withdrawCeloAmount, setWithdrawCeloAmount] = useState("");
   const [withdrawUsdcTo, setWithdrawUsdcTo] = useState("");
   const [withdrawUsdcAmount, setWithdrawUsdcAmount] = useState("");
+  const [withdrawCeloApiTo, setWithdrawCeloApiTo] = useState("");
+  const [withdrawCeloApiAmount, setWithdrawCeloApiAmount] = useState("");
+  const [withdrawCeloApiPin, setWithdrawCeloApiPin] = useState("");
+  const [withdrawUsdcApiTo, setWithdrawUsdcApiTo] = useState("");
+  const [withdrawUsdcApiAmount, setWithdrawUsdcApiAmount] = useState("");
+  const [withdrawUsdcApiPin, setWithdrawUsdcApiPin] = useState("");
+  const [apiWithdrawLoading, setApiWithdrawLoading] = useState(false);
+  const [apiWithdrawError, setApiWithdrawError] = useState<string | null>(null);
+  const [withdrawalPin, setWithdrawalPin] = useState("");
+  const [withdrawalPinConfirm, setWithdrawalPinConfirm] = useState("");
+  const [setPinLoading, setSetPinLoading] = useState(false);
+  const [setPinError, setSetPinError] = useState<string | null>(null);
   const [nairaWithdrawAmount, setNairaWithdrawAmount] = useState("");
   const [nairaWithdrawLoading, setNairaWithdrawLoading] = useState(false);
   const [nairaWithdrawError, setNairaWithdrawError] = useState<string | null>(null);
@@ -69,6 +103,7 @@ export default function ManageSmartWalletPage() {
   const { writeContractAsync, isPending: writePending, data: txHash } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: txHash });
   const { transfer: transferProfileTo, isPending: transferPending } = useTransferProfileTo();
+  const { recreate: recreateWalletForUser, isPending: recreatePending } = useRecreateWalletForUser();
 
   const handleWithdrawCelo = async () => {
     if (!smartWalletAddress || !withdrawCeloTo.trim() || !withdrawCeloAmount) return;
@@ -122,6 +157,98 @@ export default function ManageSmartWalletPage() {
     }
   };
 
+  const handleWithdrawCeloViaApi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const to = withdrawCeloApiTo.trim();
+    const amount = withdrawCeloApiAmount.trim();
+    const pin = withdrawCeloApiPin.trim();
+    if (!to || !amount || Number(amount) <= 0) return;
+    if (!pin) {
+      setApiWithdrawError("Enter your withdrawal PIN.");
+      return;
+    }
+    setApiWithdrawError(null);
+    setApiWithdrawLoading(true);
+    try {
+      const res = await apiClient.post<{ success?: boolean; message?: string }>("auth/smart-wallet/withdraw-celo", { to, amount, pin });
+      if (res.data?.success) {
+        toast.success("Withdrawal submitted.");
+        setWithdrawCeloApiTo("");
+        setWithdrawCeloApiAmount("");
+        setWithdrawCeloApiPin("");
+      } else {
+        setApiWithdrawError((res.data as { message?: string })?.message ?? "Failed");
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (err as Error)?.message ?? "Failed";
+      setApiWithdrawError(String(msg));
+    } finally {
+      setApiWithdrawLoading(false);
+    }
+  };
+
+  const handleWithdrawUsdcViaApi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const to = withdrawUsdcApiTo.trim();
+    const amount = withdrawUsdcApiAmount.trim();
+    const pin = withdrawUsdcApiPin.trim();
+    if (!to || !amount || Number(amount) <= 0) return;
+    if (!pin) {
+      setApiWithdrawError("Enter your withdrawal PIN.");
+      return;
+    }
+    setApiWithdrawError(null);
+    setApiWithdrawLoading(true);
+    try {
+      const res = await apiClient.post<{ success?: boolean; message?: string }>("auth/smart-wallet/withdraw-usdc", { to, amount, pin });
+      if (res.data?.success) {
+        toast.success("Withdrawal submitted.");
+        setWithdrawUsdcApiTo("");
+        setWithdrawUsdcApiAmount("");
+        setWithdrawUsdcApiPin("");
+      } else {
+        setApiWithdrawError((res.data as { message?: string })?.message ?? "Failed");
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (err as Error)?.message ?? "Failed";
+      setApiWithdrawError(String(msg));
+    } finally {
+      setApiWithdrawLoading(false);
+    }
+  };
+
+  const handleSetWithdrawalPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const pin = withdrawalPin.trim();
+    const confirm = withdrawalPinConfirm.trim();
+    if (!/^\d{4,8}$/.test(pin)) {
+      setSetPinError("PIN must be 4–8 digits.");
+      return;
+    }
+    if (pin !== confirm) {
+      setSetPinError("PIN and confirmation do not match.");
+      return;
+    }
+    setSetPinError(null);
+    setSetPinLoading(true);
+    try {
+      const res = await apiClient.post<{ success?: boolean; message?: string }>("auth/set-withdrawal-pin", { pin });
+      if (res.data?.success) {
+        toast.success("Withdrawal PIN set.");
+        setWithdrawalPin("");
+        setWithdrawalPinConfirm("");
+        auth?.refetchGuest?.();
+      } else {
+        setSetPinError((res.data as { message?: string })?.message ?? "Failed");
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (err as Error)?.message ?? "Failed";
+      setSetPinError(String(msg));
+    } finally {
+      setSetPinLoading(false);
+    }
+  };
+
   const handleNairaWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = nairaWithdrawAmount.trim();
@@ -167,7 +294,7 @@ export default function ManageSmartWalletPage() {
     );
   }
 
-  const pendingAny = writePending || isConfirming || transferPending;
+  const pendingAny = writePending || isConfirming || transferPending || recreatePending;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
@@ -199,7 +326,7 @@ export default function ManageSmartWalletPage() {
             </button>
           </div>
           {!isConnected && (
-            <p className="text-xs text-white/50 mt-2">Connect your owner wallet to withdraw or change settings.</p>
+            <p className="text-xs text-white/50 mt-2">You can withdraw CELO/USDC below without connecting (if you’ve enabled managed withdrawals).</p>
           )}
         </section>
 
@@ -228,6 +355,53 @@ export default function ManageSmartWalletPage() {
             </div>
           </div>
         </section>
+
+        {!guestUser?.withdrawal_pin_set && hasSmartWallet && (
+          <section className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-5">
+            <h2 className="text-base font-semibold text-amber-400 mb-2 flex items-center gap-2">Withdrawal PIN (2FA)</h2>
+            <p className="text-xs text-white/60 mb-4">Set a 4–8 digit PIN to authorize withdrawals when you’re not connected. This protects your funds even if someone gains API access.</p>
+            {setPinError && <p className="text-sm text-red-400 mb-2">{setPinError}</p>}
+            <form onSubmit={handleSetWithdrawalPin} className="flex flex-col sm:flex-row flex-wrap gap-2">
+              <input type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="PIN (4–8 digits)" value={withdrawalPin} onChange={(e) => setWithdrawalPin(e.target.value)} maxLength={8} className="flex-1 min-w-[120px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+              <input type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="Confirm PIN" value={withdrawalPinConfirm} onChange={(e) => setWithdrawalPinConfirm(e.target.value)} maxLength={8} className="flex-1 min-w-[120px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+              <button type="submit" disabled={setPinLoading} className="px-4 py-2 rounded-xl bg-amber-500/25 border border-amber-500/50 text-amber-300 text-sm font-medium disabled:opacity-50">
+                {setPinLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null} Set PIN
+              </button>
+            </form>
+          </section>
+        )}
+
+        {!isConnected && hasSmartWallet && (
+          <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
+            <h2 className="text-base font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+              <Send className="w-4 h-4" /> Withdraw without connecting
+            </h2>
+            {!guestUser?.withdrawal_pin_set ? (
+              <p className="text-sm text-amber-400/90">Set a withdrawal PIN above first. Withdrawals require your PIN as 2FA.</p>
+            ) : (
+              <>
+                <p className="text-xs text-white/60 mb-4">Withdraw CELO or USDC from your smart wallet. Enter your PIN each time. Enable managed withdrawals once (when connected) if you haven’t.</p>
+                {apiWithdrawError && <p className="text-sm text-red-400 mb-2">{apiWithdrawError}</p>}
+                <form onSubmit={handleWithdrawCeloViaApi} className="flex flex-wrap gap-2 mb-3">
+                  <input type="text" placeholder="Amount (CELO)" value={withdrawCeloApiAmount} onChange={(e) => setWithdrawCeloApiAmount(e.target.value)} className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+                  <input type="text" placeholder="To address (0x...)" value={withdrawCeloApiTo} onChange={(e) => setWithdrawCeloApiTo(e.target.value)} className="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm font-mono" />
+                  <input type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="PIN" value={withdrawCeloApiPin} onChange={(e) => setWithdrawCeloApiPin(e.target.value)} maxLength={8} className="w-20 px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+                  <button type="submit" disabled={apiWithdrawLoading} className="px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50">
+                    {apiWithdrawLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null} Withdraw CELO
+                  </button>
+                </form>
+                <form onSubmit={handleWithdrawUsdcViaApi} className="flex flex-wrap gap-2">
+                  <input type="text" placeholder="Amount (USDC)" value={withdrawUsdcApiAmount} onChange={(e) => setWithdrawUsdcApiAmount(e.target.value)} className="flex-1 min-w-[100px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+                  <input type="text" placeholder="To address (0x...)" value={withdrawUsdcApiTo} onChange={(e) => setWithdrawUsdcApiTo(e.target.value)} className="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm font-mono" />
+                  <input type="password" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="PIN" value={withdrawUsdcApiPin} onChange={(e) => setWithdrawUsdcApiPin(e.target.value)} maxLength={8} className="w-20 px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm" />
+                  <button type="submit" disabled={apiWithdrawLoading} className="px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium disabled:opacity-50">
+                    {apiWithdrawLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : null} Withdraw USDC
+                  </button>
+                </form>
+              </>
+            )}
+          </section>
+        )}
 
         {isOwner && (
           <>
@@ -318,6 +492,29 @@ export default function ManageSmartWalletPage() {
               </div>
             </section>
 
+            <section className="rounded-2xl border border-white/10 bg-[#011112]/80 p-5">
+              <h2 className="text-base font-semibold text-white/90 mb-2">Create new smart wallet</h2>
+              <p className="text-xs text-white/60 mb-3">Get a new wallet with current features (daily cap, PIN withdrawals, Naira vault). Your profile will point to the new wallet. The old wallet stays—you can withdraw from it into the new one.</p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await recreateWalletForUser();
+                    toast.success("New smart wallet created. Refreshing…");
+                    fromRegistry.refetch();
+                    auth?.refetchGuest?.();
+                  } catch (e) {
+                    toast.error((e as Error)?.message ?? "Failed");
+                  }
+                }}
+                disabled={pendingAny}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm font-medium hover:bg-white/15 disabled:opacity-50"
+              >
+                {recreatePending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+                Create new smart wallet
+              </button>
+            </section>
+
             {needsEnableNgn && (
               <section className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-5">
                 <h2 className="text-base font-semibold text-amber-400 mb-2">Enable NGN withdrawals</h2>
@@ -343,6 +540,64 @@ export default function ManageSmartWalletPage() {
                 >
                   {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
                   Enable NGN withdrawals (one-time)
+                </button>
+              </section>
+            )}
+
+            {needsEnableOperator && (
+              <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
+                <h2 className="text-base font-semibold text-cyan-400 mb-2">Enable managed withdrawals</h2>
+                <p className="text-xs text-white/60 mb-3">Allow withdrawals when you’re not connected. One quick step so you can withdraw CELO/USDC from this page without connecting your wallet.</p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!smartWalletAddress || !appOperatorAddress) return;
+                    try {
+                      await writeContractAsync({
+                        address: smartWalletAddress,
+                        abi: UserWalletABI,
+                        functionName: "setOperator",
+                        args: [appOperatorAddress],
+                      });
+                      toast.success("Managed withdrawals enabled. Confirm in your wallet.");
+                    } catch (e) {
+                      toast.error((e as Error)?.message ?? "Failed");
+                    }
+                  }}
+                  disabled={pendingAny}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
+                >
+                  {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Enable managed withdrawals (one-time)
+                </button>
+              </section>
+            )}
+
+            {needsEnableAuthority && (
+              <section className="rounded-2xl border border-amber-500/20 bg-[#011112]/80 p-5">
+                <h2 className="text-base font-semibold text-amber-400 mb-2">Enable PIN withdrawals (one-time)</h2>
+                <p className="text-xs text-white/60 mb-3">Allow the app to process withdrawals only after you enter your PIN. Required for withdrawing when not connected.</p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!smartWalletAddress || !appAuthorityAddress) return;
+                    try {
+                      await writeContractAsync({
+                        address: smartWalletAddress,
+                        abi: UserWalletABI,
+                        functionName: "setWithdrawalAuthority",
+                        args: [appAuthorityAddress],
+                      });
+                      toast.success("PIN withdrawals enabled. Set your PIN below if you haven’t.");
+                    } catch (e) {
+                      toast.error((e as Error)?.message ?? "Failed");
+                    }
+                  }}
+                  disabled={pendingAny}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/25 border border-amber-500/50 text-amber-300 text-sm font-medium hover:bg-amber-500/35 disabled:opacity-50"
+                >
+                  {pendingAny ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Enable PIN withdrawals (one-time)
                 </button>
               </section>
             )}

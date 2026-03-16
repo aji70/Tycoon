@@ -30,6 +30,7 @@ export function getChainConfig(chain) {
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ?? process.env.TOURNAMENT_ESCROW_CELO;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_CELO ?? process.env.TYCOON_USER_REGISTRY_ADDRESS;
     const nairaVaultAddress = process.env.TYCOON_NAIRA_VAULT_CELO ?? process.env.TYCOON_NAIRA_VAULT_ADDRESS;
+    const usdcAddress = process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
     return {
       rpcUrl,
       contractAddress,
@@ -38,6 +39,7 @@ export function getChainConfig(chain) {
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
       nairaVaultAddress: nairaVaultAddress || undefined,
+      usdcAddress: usdcAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }

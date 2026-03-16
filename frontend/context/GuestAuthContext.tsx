@@ -17,6 +17,8 @@ export type GuestUser = {
   smart_wallet_address?: string | null;
   /** True when user is registered on-chain but has no smart wallet (backend may auto-create if TYCOON_OWNER_PRIVATE_KEY is set). */
   needs_smart_wallet_creation?: boolean;
+  /** True when user has set a withdrawal PIN (required for API withdrawals when not connected). */
+  withdrawal_pin_set?: boolean;
 };
 
 type GuestAuthContextValue = {
@@ -88,6 +90,7 @@ export function GuestAuthProvider({ children }: { children: React.ReactNode }) {
           email_verified: d.email_verified as boolean | undefined,
           smart_wallet_address: d.smart_wallet_address as string | null | undefined,
           needs_smart_wallet_creation: d.needs_smart_wallet_creation as boolean | undefined,
+          withdrawal_pin_set: d.withdrawal_pin_set as boolean | undefined,
         });
       } else {
         setGuestUser(null);

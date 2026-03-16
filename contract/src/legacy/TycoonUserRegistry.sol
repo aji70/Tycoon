@@ -22,6 +22,14 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     TycoonRewardsFaucet public faucet;
     /// @notice Naira vault address; passed to new wallets so CELO→Naira works without user setup.
     address public nairaVaultAddress;
+    /// @notice Backend operator address; set on new wallets so users can withdraw when not connected.
+    address public operatorAddress;
+    /// @notice Backend withdrawal authority; signs withdrawals only after user PIN. Set on new wallets.
+    address public withdrawalAuthorityAddress;
+    /// @notice Default daily withdrawal cap in USD (6 decimals), e.g. 100e6 = $100/day. 0 = no cap.
+    uint256 public defaultDailyCapUsd6;
+    /// @notice Default CELO price in USD (6 decimals), e.g. 2.5e6 = $2.5 per CELO. Used for daily cap.
+    uint256 public defaultPriceCeloUsd6;
 
     /// @notice owner => profile (wallet, username, email)
     mapping(address => UserProfile) public profileByAddress;
@@ -36,12 +44,16 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     bytes32 public constant REWARD_END_GAME = keccak256("end_game");
 
     event WalletCreated(address indexed owner, string username, address indexed wallet);
+    event WalletRecreated(address indexed owner, address indexed oldWallet, address indexed newWallet);
     event ProfileTransferred(address indexed previousOwner, address indexed newOwner, address indexed wallet);
     event EmailUpdated(address indexed owner, string email);
     event GameContractUpdated(address indexed previous, address indexed newContract);
     event FaucetUpdated(address indexed previous, address indexed newFaucet);
     event GameActionRewardGranted(address indexed user, bytes32 action, address indexed recipient);
     event NairaVaultUpdated(address indexed previous, address indexed vault);
+    event OperatorUpdated(address indexed previous, address indexed newOperator);
+    event WithdrawalAuthorityUpdated(address indexed previous, address indexed newAuthority);
+    event DailyCapUpdated(uint256 dailyCapUsd6, uint256 priceCeloUsd6);
 
     error OnlyGame();
     error AlreadyRegistered();
@@ -79,13 +91,44 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         emit NairaVaultUpdated(previous, _vault);
     }
 
+    function setOperator(address _operator) external onlyOwner {
+        address previous = operatorAddress;
+        operatorAddress = _operator;
+        emit OperatorUpdated(previous, _operator);
+    }
+
+    function setWithdrawalAuthority(address _authority) external onlyOwner {
+        address previous = withdrawalAuthorityAddress;
+        withdrawalAuthorityAddress = _authority;
+        emit WithdrawalAuthorityUpdated(previous, _authority);
+    }
+
+    /// @notice Set default daily cap ($100 = 100e6) and CELO price for new wallets. 0 = no cap.
+    function setDefaultDailyCap(uint256 _dailyCapUsd6, uint256 _priceCeloUsd6) external onlyOwner {
+        defaultDailyCapUsd6 = _dailyCapUsd6;
+        defaultPriceCeloUsd6 = _priceCeloUsd6;
+        emit DailyCapUpdated(_dailyCapUsd6, _priceCeloUsd6);
+    }
+
+    /// @notice Update daily cap on an existing wallet (e.g. after changing policy or CELO price).
+    function setWalletDailyCap(address wallet, uint256 _dailyCapUsd6, uint256 _priceCeloUsd6) external onlyOwner {
+        if (wallet == address(0)) revert InvalidAddress();
+        TycoonUserWallet(payable(wallet)).setDailyCapByRegistry(_dailyCapUsd6, _priceCeloUsd6);
+    }
+
     /// @notice Create a smart wallet for the user and bind profile. Called by game contract when user registers.
     function createWalletForUser(address ownerAddress, string calldata username) external onlyGame nonReentrant returns (address wallet) {
         if (profileByAddress[ownerAddress].exists) revert AlreadyRegistered();
         bytes32 nameHash = keccak256(bytes(username));
         if (ownerByUsername[nameHash] != address(0)) revert UsernameTaken();
 
-        wallet = address(new TycoonUserWallet(ownerAddress, address(this), nairaVaultAddress));
+        wallet = address(new TycoonUserWallet(ownerAddress, address(this), nairaVaultAddress, defaultDailyCapUsd6, defaultPriceCeloUsd6));
+        if (operatorAddress != address(0)) {
+            TycoonUserWallet(payable(wallet)).setOperatorByRegistry(operatorAddress);
+        }
+        if (withdrawalAuthorityAddress != address(0)) {
+            TycoonUserWallet(payable(wallet)).setWithdrawalAuthorityByRegistry(withdrawalAuthorityAddress);
+        }
         profileByAddress[ownerAddress] = UserProfile({
             owner: ownerAddress,
             username: username,
@@ -104,6 +147,33 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
             emit GameActionRewardGranted(ownerAddress, REWARD_REGISTER, wallet);
         }
         return wallet;
+    }
+
+    /// @notice Existing user creates a new smart wallet; profile is updated to the new wallet. Callable by the profile owner.
+    /// @dev Old wallet is unchanged (same owner, funds remain). User can withdraw from old wallet to new one manually.
+    /// New wallet gets current defaults: operator, withdrawal authority, daily cap, Naira vault.
+    function recreateWalletForUser() external nonReentrant returns (address newWallet) {
+        UserProfile storage profile = profileByAddress[msg.sender];
+        if (!profile.exists) revert NoProfile();
+        address ownerAddress = msg.sender;
+        address oldWallet = profile.wallet;
+
+        newWallet = address(new TycoonUserWallet(ownerAddress, address(this), nairaVaultAddress, defaultDailyCapUsd6, defaultPriceCeloUsd6));
+        if (operatorAddress != address(0)) {
+            TycoonUserWallet(payable(newWallet)).setOperatorByRegistry(operatorAddress);
+        }
+        if (withdrawalAuthorityAddress != address(0)) {
+            TycoonUserWallet(payable(newWallet)).setWithdrawalAuthorityByRegistry(withdrawalAuthorityAddress);
+        }
+
+        profile.wallet = newWallet;
+        if (oldWallet != address(0)) {
+            ownerByWallet[oldWallet] = address(0);
+        }
+        ownerByWallet[newWallet] = ownerAddress;
+
+        emit WalletRecreated(ownerAddress, oldWallet, newWallet);
+        return newWallet;
     }
 
     /// @notice Transfer this profile (and smart wallet ownership) to a new EOA. Callable by current profile owner (e.g. when linking a wallet so the linked EOA becomes owner).

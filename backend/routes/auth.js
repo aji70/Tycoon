@@ -7,7 +7,10 @@ import {
   linkWallet,
   unlinkWallet,
   createSmartWallet,
+  setWithdrawalPin,
   nairaWithdraw,
+  smartWalletWithdrawCelo,
+  smartWalletWithdrawUsdc,
   loginByWallet,
   connectEmail,
   verifyEmail,
@@ -24,7 +27,10 @@ router.post("/register-on-chain", requireAuth, registerOnChain);
 router.post("/link-wallet", requireAuth, linkWallet);
 router.post("/unlink-wallet", requireAuth, unlinkWallet);
 router.post("/create-smart-wallet", requireAuth, createSmartWallet);
+router.post("/set-withdrawal-pin", requireAuth, setWithdrawalPin);
 router.post("/naira-withdraw", requireAuth, nairaWithdraw);
+router.post("/smart-wallet/withdraw-celo", requireAuth, smartWalletWithdrawCelo);
+router.post("/smart-wallet/withdraw-usdc", requireAuth, smartWalletWithdrawUsdc);
 router.post("/login-by-wallet", loginByWallet);
 router.post("/connect-email", requireAuth, connectEmail);
 router.get("/verify-email", verifyEmail);
