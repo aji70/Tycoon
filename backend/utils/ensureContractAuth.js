@@ -16,70 +16,61 @@ function passwordToHash(password) {
 }
 
 /**
- * Returns user with address, username, password_hash so backend can call endAIGameByBackend/exitGameByBackend.
- * If user has no password_hash, tries to register them on the contract with a generated password (only if
- * they're not already registered on-chain). Wallet users who already registered via frontend cannot get
- * a backend password; we return null for them so contract end is skipped.
+ * Returns user with address, username, password_hash so backend can call createGameByBackend/joinGameByBackend etc.
+ * If addressOverride is provided (e.g. linked_wallet_address), uses that for contract; otherwise uses user.address.
+ * Ensures that address is registered on-chain with a backend password (syncs from DB or registers if not on-chain).
  *
  * @param {object} db - Knex instance
  * @param {number} userId - users.id
  * @param {string} [chain] - Chain (CELO, POLYGON, BASE) for contract. Default CELO.
+ * @param {string} [addressOverride] - Address to use for contract (e.g. linked_wallet_address). If not set, uses user.address.
  * @returns {Promise<{ address: string, username: string, password_hash: string } | null>}
  */
-export async function ensureUserHasContractPassword(db, userId, chain = "CELO") {
+export async function ensureUserHasContractPassword(db, userId, chain = "CELO", addressOverride = null) {
   const user = await db("users").where({ id: userId }).select("address", "username", "password_hash").first();
-  if (!user?.address) return null;
+  const effectiveAddress = (addressOverride && String(addressOverride).trim()) || user?.address;
+  if (!effectiveAddress) return null;
 
   const normalizedChain = User.normalizeChain(chain);
   if (!isContractConfigured(normalizedChain)) return null;
   try {
-    const isRegistered = await callContractRead("registered", [user.address], normalizedChain);
-    // If user already has a password_hash in DB but is not yet registered on this chain,
-    // register them using the existing hash so backend auth works for guest flows.
-    if (user.password_hash) {
+    const isRegistered = await callContractRead("registered", [effectiveAddress], normalizedChain);
+    const username = user?.username || effectiveAddress.slice(0, 10);
+
+    // If user already has a password_hash in DB but this address is not yet registered on this chain,
+    // register it using the existing hash so backend auth works.
+    if (user?.password_hash) {
       if (!isRegistered) {
-        await registerPlayerFor(
-          user.address,
-          user.username || user.address.slice(0, 10),
-          user.password_hash,
-          normalizedChain
-        );
-        const smartWalletAddress = await getSmartWalletAddress(user.address, normalizedChain);
+        await registerPlayerFor(effectiveAddress, username, user.password_hash, normalizedChain);
+        const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
         await db("users")
           .where({ id: userId })
           .update({ smart_wallet_address: smartWalletAddress || null });
         logger.info(
-          { userId, address: user.address, chain: normalizedChain },
+          { userId, address: effectiveAddress, chain: normalizedChain },
           "Synced existing backend password to contract for user"
         );
       }
-      return user;
+      return { address: effectiveAddress, username, password_hash: user.password_hash };
     }
 
     // No password_hash in DB yet: only register if not already registered on-chain.
     if (isRegistered) {
-      // Already on contract (e.g. legacy wallet user who registered via frontend without backend password);
-      // we cannot retroactively set a password hash for backend auth.
       return null;
     }
 
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = passwordToHash(secret);
-    await registerPlayerFor(
-      user.address,
-      user.username || user.address.slice(0, 10),
-      passwordHash,
-      normalizedChain
-    );
-    const smartWalletAddress = await getSmartWalletAddress(user.address, normalizedChain);
+    await registerPlayerFor(effectiveAddress, username, passwordHash, normalizedChain);
+    const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
     await db("users")
       .where({ id: userId })
       .update({ password_hash: passwordHash, smart_wallet_address: smartWalletAddress || null });
     logger.info(
-      { userId, address: user.address, chain: normalizedChain },
+      { userId, address: effectiveAddress, chain: normalizedChain },
       "Registered user on contract with backend password for future game-end"
     );
-    return { ...user, password_hash: passwordHash };
+    return { address: effectiveAddress, username, password_hash: passwordHash };
   } catch (err) {
     logger.warn({ err: err?.message, userId }, "ensureUserHasContractPassword failed");
     return null;

@@ -1313,15 +1313,20 @@ export const join = async (req, res) => {
   }
 };
 
+/** True if this user can use guest create/join (backend signs for them). */
+function canUseGuestFlow(user) {
+  return user && (user.is_guest === true || (user.privy_did && String(user.privy_did).trim()));
+}
+
 /**
  * POST /games/create-as-guest
  * Body: same as POST /games but without address (use req.user from auth).
- * Requires Authorization: Bearer <token> and guest user with password_hash.
+ * Requires Authorization: Bearer <token> and guest/Privy user; backend ensures contract password.
  */
 export const createAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!user || !user.is_guest) {
+    if (!canUseGuestFlow(user)) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -1352,10 +1357,10 @@ export const createAsGuest = async (req, res) => {
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
     const chainForCreate = User.normalizeChain(chain || "CELO");
 
-    // Privy (and other guest-without-password) users: ensure on-chain registration so we can call contract
-    const contractUser = user.password_hash
-      ? user
-      : await ensureUserHasContractPassword(db, user.id, chainForCreate);
+    // Use linked wallet for contract when present (Privy user who linked); else primary address (placeholder for Privy-only).
+    const addrForChain =
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) || user.address;
+    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
         success: false,
@@ -1430,7 +1435,7 @@ export const createAsGuest = async (req, res) => {
     await GamePlayer.create({
       game_id: game.id,
       user_id: user.id,
-      address: user.address,
+      address: contractUser.address,
       balance: startingCash,
       position: 0,
       turn_order: 1,
@@ -1451,6 +1456,13 @@ export const createAsGuest = async (req, res) => {
       data: { ...game, settings: game_settings, players: game_players },
     });
   } catch (err) {
+    const msg = err?.message || String(err);
+    if (/No password set/i.test(msg)) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is not set up for play on this network. Try linking a wallet in Profile and registering on-chain, or create a new guest game.",
+      });
+    }
     logger.error({ err: err?.message }, "createAsGuest failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create game" });
   }
@@ -1459,12 +1471,12 @@ export const createAsGuest = async (req, res) => {
 /**
  * POST /games/join-as-guest
  * Body: { code, symbol, joinCode? }
- * Requires Authorization: Bearer <token> and guest user.
+ * Requires Authorization: Bearer <token> and guest/Privy user.
  */
 export const joinAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!user || !user.is_guest) {
+    if (!canUseGuestFlow(user)) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -1491,10 +1503,9 @@ export const joinAsGuest = async (req, res) => {
     }
 
     const chainForJoin = User.normalizeChain(game.chain || "CELO");
-    // Privy (and other guest-without-password) users: ensure on-chain registration so we can join
-    const contractUser = user.password_hash
-      ? user
-      : await ensureUserHasContractPassword(db, user.id, chainForJoin);
+    const addrForJoin =
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) || user.address;
+    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForJoin, addrForJoin);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
         success: false,
@@ -1624,8 +1635,15 @@ export const joinAsGuest = async (req, res) => {
       data: updatedPlayers[updatedPlayers.length - 1],
     });
   } catch (err) {
+    const msg = err?.message || String(err);
+    if (/No password set/i.test(msg)) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is not set up for play on this network. Try linking a wallet in Profile and registering on-chain.",
+      });
+    }
     logger.error({ err: err?.message }, "joinAsGuest failed");
-    recordEvent("error", { payload: { code: "join_as_guest", message: (err?.message || String(err)).slice(0, 200) } }).catch(() => {});
+    recordEvent("error", { payload: { code: "join_as_guest", message: msg.slice(0, 200) } }).catch(() => {});
     return res.status(500).json({ success: false, message: err?.message || "Failed to join game" });
   }
 };
@@ -1638,7 +1656,7 @@ export const joinAsGuest = async (req, res) => {
 export const createAIAsGuest = async (req, res) => {
   try {
     const user = req.user;
-    if (!user || !user.is_guest) {
+    if (!canUseGuestFlow(user)) {
       return res.status(403).json({ success: false, message: "Guest authentication required" });
     }
 
@@ -1658,10 +1676,9 @@ export const createAIAsGuest = async (req, res) => {
     const numberOfAI = number_of_players != null ? Math.max(1, Number(number_of_players) - 1) : 1;
     const chainForAICreate = User.normalizeChain(chain || "CELO");
 
-    // Privy (and other guest-without-password) users: ensure on-chain registration so we can call contract
-    const contractUser = user.password_hash
-      ? user
-      : await ensureUserHasContractPassword(db, user.id, chainForAICreate);
+    const addrForCreate =
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) || user.address;
+    const contractUser = await ensureUserHasContractPassword(db, user.id, chainForAICreate, addrForCreate);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
         success: false,
@@ -1767,6 +1784,13 @@ export const createAIAsGuest = async (req, res) => {
       data: { ...game, settings: game_settings, players: game_players },
     });
   } catch (err) {
+    const msg = err?.message || String(err);
+    if (/No password set/i.test(msg)) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is not set up for play on this network. Try linking a wallet in Profile and registering on-chain, or create a new guest game.",
+      });
+    }
     logger.error({ err: err?.message }, "createAIAsGuest failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create AI game" });
   }
