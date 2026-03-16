@@ -708,28 +708,10 @@ export default function ManageSmartWalletPage() {
             </div>
             <div className="pt-3 border-t border-white/10">
               <p className="text-sm text-white/80 mb-1">Withdraw to Naira (CELO → Naira)</p>
-              <p className="text-xs text-white/50 mb-2">
-                Send CELO from your smart wallet; we pay you in Naira (NGN) after processing.
-                {currentNairaVault && currentNairaVault !== zeroAddr && String(currentNairaVault).toLowerCase() !== zeroAddr.toLowerCase() ? " NGN withdrawals are enabled." : " Enable NGN withdrawals above (one-time) if you have an older wallet."}
+              <p className="text-xs text-amber-400/90 font-medium">Coming soon</p>
+              <p className="text-xs text-white/50 mt-1">
+                Send CELO from your smart wallet and receive Naira (NGN) — we’re getting this ready for you.
               </p>
-              <form onSubmit={handleNairaWithdraw} className="flex flex-wrap gap-2 items-end">
-                <input
-                  type="text"
-                  placeholder="Amount (CELO)"
-                  value={nairaWithdrawAmount}
-                  onChange={(e) => setNairaWithdrawAmount(e.target.value)}
-                  className="flex-1 min-w-[120px] px-3 py-2 rounded-lg bg-black/20 border border-white/10 text-white placeholder-white/40 text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={nairaWithdrawLoading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/25 border border-amber-500/50 text-amber-300 text-sm font-medium disabled:opacity-50"
-                >
-                  {nairaWithdrawLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
-                  Request Naira
-                </button>
-              </form>
-              {nairaWithdrawError && <p className="text-sm text-red-400 mt-2">{nairaWithdrawError}</p>}
             </div>
           </div>
         </section>
