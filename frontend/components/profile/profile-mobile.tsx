@@ -102,8 +102,9 @@ const getPerkMetadata = (perk: number) => {
   return data[perk] || { name: `Perk #${perk}`, icon: <div className="w-14 h-14 bg-gray-500/20 rounded-2xl flex items-center justify-center text-2xl">?</div> };
 };
 
-/** Guest-only profile: shows stats, no Account & login section. */
-function GuestProfileViewMobile({ username }: { username: string }) {
+/** Guest/Privy profile when wallet is not connected: shows username, linked wallet if any, Account & login, and game count. */
+function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
+  const username = guestUser.username;
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
     queryFn: async () => {
@@ -114,6 +115,7 @@ function GuestProfileViewMobile({ username }: { username: string }) {
   });
   const gameCount = games.length;
   const runningCount = games.filter((g) => g.status === 'RUNNING').length;
+  const hasLinkedWallet = !!(guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim());
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl py-4">
@@ -121,10 +123,16 @@ function GuestProfileViewMobile({ username }: { username: string }) {
           <ArrowLeft className="w-5 h-5" /> Back
         </Link>
       </header>
-      <main className="py-6">
+      <main className="py-6 space-y-5">
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
           <h2 className="text-lg font-bold text-white mb-2">{username}</h2>
-          <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
+          {hasLinkedWallet ? (
+            <p className="text-cyan-300/80 text-sm mb-4">
+              Wallet linked: <span className="font-mono text-cyan-200">{guestUser.linked_wallet_address!.slice(0, 6)}...{guestUser.linked_wallet_address!.slice(-4)}</span>. Connect it in the nav to see on-chain stats.
+            </p>
+          ) : (
+            <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
+          )}
           <div className="flex gap-4 text-sm">
             <div>
               <span className="text-cyan-400 font-semibold">{gameCount}</span>
@@ -138,6 +146,7 @@ function GuestProfileViewMobile({ username }: { username: string }) {
             )}
           </div>
         </div>
+        <AccountLinkWallet />
       </main>
     </div>
   );
@@ -406,7 +415,7 @@ export default function ProfilePageMobile() {
   const { guestUser } = useGuestAuthOptional() ?? {};
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
-      return <GuestProfileViewMobile username={guestUser.username} />;
+      return <GuestProfileViewMobile guestUser={guestUser} />;
     }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
