@@ -808,6 +808,7 @@ const ALLOWED_WRITE_FNS = [
   "leavePendingGame",
   "exitGame",
   "endAIGame",
+  "setBackendPasswordFor",
   "setBackendGameController",
   "setMinTurnsForPerks",
   "setMinStake",
@@ -986,6 +987,9 @@ export async function callContractWrite(fn, params = [], chain = "CELO") {
         normalized[2] ?? 0n,
         Boolean(normalized[3])
       );
+      break;
+    case "setBackendPasswordFor":
+      tx = await tycoon.setBackendPasswordFor(normalized[0] ?? "0x0", normalized[1] ?? "0x0");
       break;
     case "setBackendGameController":
       tx = await tycoon.setBackendGameController(normalized[0] ?? "0x0");
