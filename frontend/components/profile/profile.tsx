@@ -100,8 +100,9 @@ function formatStakeOrEarned(value: number): string {
   return String(value);
 }
 
-/** Guest-only profile: shows stats, no Account & login section. Data merges when they link wallet. */
-function GuestProfileView({ username }: { username: string }) {
+/** Guest/Privy profile when wallet is not connected: shows username, linked wallet if any, Account & login, and game count. */
+function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
+  const username = guestUser.username;
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
     queryFn: async () => {
@@ -112,6 +113,7 @@ function GuestProfileView({ username }: { username: string }) {
   });
   const gameCount = games.length;
   const runningCount = games.filter((g) => g.status === 'RUNNING').length;
+  const hasLinkedWallet = !!(guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim());
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
@@ -124,10 +126,16 @@ function GuestProfileView({ username }: { username: string }) {
           <div className="w-20" />
         </div>
       </header>
-      <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl">
+      <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl space-y-6">
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
           <h2 className="text-xl font-bold text-white mb-2">{username}</h2>
-          <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account and keep your stats when you play with it.</p>
+          {hasLinkedWallet ? (
+            <p className="text-cyan-300/80 text-sm mb-4">
+              Wallet linked: <span className="font-mono text-cyan-200">{guestUser.linked_wallet_address!.slice(0, 6)}...{guestUser.linked_wallet_address!.slice(-4)}</span>. Connect it in the nav to see on-chain stats and use it in-game.
+            </p>
+          ) : (
+            <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account and keep your stats when you play with it.</p>
+          )}
           <div className="flex gap-6 text-sm">
             <div>
               <span className="text-cyan-400 font-semibold">{gameCount}</span>
@@ -141,6 +149,9 @@ function GuestProfileView({ username }: { username: string }) {
             )}
           </div>
         </div>
+        <section>
+          <AccountLinkWallet />
+        </section>
       </main>
     </div>
   );
@@ -413,7 +424,7 @@ export default function Profile() {
 
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
-      return <GuestProfileView username={guestUser.username} />;
+      return <GuestProfileView guestUser={guestUser} />;
     }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center">
