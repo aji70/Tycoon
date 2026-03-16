@@ -38,13 +38,17 @@ export default function ManageSmartWalletPage() {
     ? (guestUser.smart_wallet_address as Address)
     : undefined;
 
-  const smartWalletAddress = isConnected ? smartWalletFromConnection : smartWalletFromGuest;
+  const zeroAddr = "0x0000000000000000000000000000000000000000" as Address;
+  const isZeroAddress = (a: string | undefined) => !a || a.toLowerCase() === zeroAddr.toLowerCase();
+
+  const rawSmartWallet = isConnected ? smartWalletFromConnection : smartWalletFromGuest;
+  /** Treat zero address (registry "no profile") as no wallet so we show "Create from Profile" flow. */
+  const smartWalletAddress = rawSmartWallet && !isZeroAddress(rawSmartWallet) ? rawSmartWallet : undefined;
   const hasSmartWallet = !!smartWalletAddress;
   /** Recreate is only valid when the displayed wallet comes from the current registry (user has a profile there). */
-  const walletFromCurrentRegistry = isConnected && !!smartWalletFromConnection && smartWalletFromConnection === smartWalletAddress;
+  const walletFromCurrentRegistry = isConnected && !!smartWalletFromConnection && !isZeroAddress(smartWalletFromConnection) && smartWalletFromConnection === smartWalletAddress;
 
   const { data: profileOwner } = useProfileOwner(smartWalletAddress);
-  const zeroAddr = "0x0000000000000000000000000000000000000000" as Address;
   const isOwner = isConnected && !!walletAddress && !!profileOwner && profileOwner !== zeroAddr && walletAddress.toLowerCase() === (profileOwner as string).toLowerCase();
 
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
@@ -273,7 +277,32 @@ export default function ManageSmartWalletPage() {
     }
   };
 
+  const [createWalletLoading, setCreateWalletLoading] = useState(false);
+  const [createWalletError, setCreateWalletError] = useState<string | null>(null);
+
   if (!hasSmartWallet) {
+    const handleCreateSmartWallet = async () => {
+      if (!auth?.createSmartWallet) return;
+      setCreateWalletError(null);
+      setCreateWalletLoading(true);
+      try {
+        const res = await auth.createSmartWallet({ chain: "CELO" });
+        if (res.success) {
+          toast.success("Smart wallet created.");
+          auth.refetchGuest?.();
+          fromRegistry.refetch();
+        } else {
+          setCreateWalletError(res.message ?? "Failed to create wallet");
+        }
+      } catch (e) {
+        const msg = (e as Error)?.message ?? "Failed";
+        setCreateWalletError(msg);
+        toast.error(msg);
+      } finally {
+        setCreateWalletLoading(false);
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
         <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
@@ -286,11 +315,23 @@ export default function ManageSmartWalletPage() {
             <div className="w-20" />
           </div>
         </header>
-        <main className="container mx-auto px-4 py-12 max-w-xl text-center">
-          <p className="text-white/80 mb-4">You don’t have a smart wallet yet. Create one from your Profile first.</p>
-          <Link href="/profile" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 font-medium">
-            Go to Profile
-          </Link>
+        <main className="container mx-auto px-4 py-12 max-w-xl text-center space-y-4">
+          <p className="text-white/80">You don’t have a smart wallet yet. Create one below (no gas required) or from your Profile.</p>
+          {createWalletError && <p className="text-sm text-red-300">{createWalletError}</p>}
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              type="button"
+              onClick={handleCreateSmartWallet}
+              disabled={createWalletLoading || !auth?.createSmartWallet}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 font-medium disabled:opacity-50"
+            >
+              {createWalletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+              Create smart wallet
+            </button>
+            <Link href="/profile" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white font-medium">
+              Go to Profile
+            </Link>
+          </div>
         </main>
       </div>
     );
