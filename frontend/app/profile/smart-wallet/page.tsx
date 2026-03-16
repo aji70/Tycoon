@@ -40,6 +40,8 @@ export default function ManageSmartWalletPage() {
 
   const smartWalletAddress = isConnected ? smartWalletFromConnection : smartWalletFromGuest;
   const hasSmartWallet = !!smartWalletAddress;
+  /** Recreate is only valid when the displayed wallet comes from the current registry (user has a profile there). */
+  const walletFromCurrentRegistry = isConnected && !!smartWalletFromConnection && smartWalletFromConnection === smartWalletAddress;
 
   const { data: profileOwner } = useProfileOwner(smartWalletAddress);
   const zeroAddr = "0x0000000000000000000000000000000000000000" as Address;
@@ -494,7 +496,12 @@ export default function ManageSmartWalletPage() {
 
             <section className="rounded-2xl border border-white/10 bg-[#011112]/80 p-5">
               <h2 className="text-base font-semibold text-white/90 mb-2">Create new smart wallet</h2>
-              <p className="text-xs text-white/60 mb-3">Get a new wallet with current features (daily cap, PIN withdrawals, Naira vault). Your profile will point to the new wallet. The old wallet stays—you can withdraw from it into the new one.</p>
+              {!walletFromCurrentRegistry && (
+                <p className="text-xs text-amber-200/90 mb-3">Your wallet is from a previous version. To get a wallet on the current system, go to Profile and use &quot;Create smart wallet&quot; (no gas).</p>
+              )}
+              {walletFromCurrentRegistry && (
+                <p className="text-xs text-white/60 mb-3">Get a new wallet with current features (daily cap, PIN withdrawals, Naira vault). Your profile will point to the new wallet. The old wallet stays—you can withdraw from it into the new one.</p>
+              )}
               <button
                 type="button"
                 onClick={async () => {
@@ -507,7 +514,7 @@ export default function ManageSmartWalletPage() {
                     toast.error((e as Error)?.message ?? "Failed");
                   }
                 }}
-                disabled={pendingAny}
+                disabled={pendingAny || !walletFromCurrentRegistry}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-sm font-medium hover:bg-white/15 disabled:opacity-50"
               >
                 {recreatePending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
