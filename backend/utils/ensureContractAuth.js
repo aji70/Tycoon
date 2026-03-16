@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { ethers } from "ethers";
 import User from "../models/User.js";
 import logger from "../config/logger.js";
-import { callContractRead, registerPlayerFor, getSmartWalletAddress, isContractConfigured } from "../services/tycoonContract.js";
+import { callContractRead, registerPlayerFor, getSmartWalletAddress, isContractConfigured, callContractWrite } from "../services/tycoonContract.js";
 
 function passwordToHash(password) {
   return ethers.keccak256(ethers.toUtf8Bytes(password));
@@ -54,14 +54,15 @@ export async function ensureUserHasContractPassword(db, userId, chain = "CELO", 
       return { address: effectiveAddress, username, password_hash: user.password_hash };
     }
 
-    // No password_hash in DB yet: only register if not already registered on-chain.
-    if (isRegistered) {
-      return null;
-    }
-
+    // No password_hash in DB yet.
     const secret = crypto.randomBytes(32).toString("hex");
     const passwordHash = passwordToHash(secret);
-    await registerPlayerFor(effectiveAddress, username, passwordHash, normalizedChain);
+    if (isRegistered) {
+      // Already registered on-chain without a backend password: set backend password via controller helper.
+      await callContractWrite("setBackendPasswordFor", [effectiveAddress, passwordHash], normalizedChain);
+    } else {
+      await registerPlayerFor(effectiveAddress, username, passwordHash, normalizedChain);
+    }
     const smartWalletAddress = await getSmartWalletAddress(effectiveAddress, normalizedChain);
     await db("users")
       .where({ id: userId })

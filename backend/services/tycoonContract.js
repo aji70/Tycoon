@@ -210,6 +210,16 @@ const TYCOON_ABI = [
     { name: "finalBalance", type: "uint256", internalType: "uint256" },
     { name: "isWin", type: "bool", internalType: "bool" },
   ], outputs: [{ name: "", type: "bool", internalType: "bool" }], stateMutability: "nonpayable" },
+  {
+    type: "function",
+    name: "setBackendPasswordFor",
+    inputs: [
+      { name: "playerAddress", type: "address", internalType: "address" },
+      { name: "passwordHash", type: "bytes32", internalType: "bytes32" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
   { type: "function", name: "setBackendGameController", inputs: [{ name: "newController", type: "address" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "setMinTurnsForPerks", inputs: [{ name: "newMin", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "setMinStake", inputs: [{ name: "newMinStake", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },

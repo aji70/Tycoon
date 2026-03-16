@@ -126,6 +126,19 @@ contract TycoonUpgradeable is ReentrancyGuard, Ownable, Initializable, UUPSUpgra
         emit BackendGameControllerUpdated(newController);
     }
 
+    /// @notice Set or update backend password hash for an already-registered player so the backend can act on their behalf.
+    /// @dev Only owner or backendGameController may call this. Does not change registration or username; just sets _passwordHashOf.
+    function setBackendPasswordFor(address playerAddress, bytes32 passwordHash) external {
+        require(
+            msg.sender == backendGameController || msg.sender == owner(),
+            "Not game controller"
+        );
+        require(playerAddress != address(0), "Zero address");
+        require(registered[playerAddress], "Not registered");
+        require(passwordHash != bytes32(0), "Password hash required");
+        _passwordHashOf[playerAddress] = passwordHash;
+    }
+
     /// @notice Set user registry (creates wallet per user, profile + email, game-action faucet). Pass address(0) to disable.
     function setUserRegistry(address _userRegistry) external onlyOwner {
         address previous = userRegistry;
