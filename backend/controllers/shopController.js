@@ -441,6 +441,32 @@ export async function flutterwaveWebhook(req, res) {
         return;
       }
 
+      // Buy CELO with Naira: credit user's smart wallet from vault
+      const celoPending = await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).first();
+      if (celoPending && celoPending.status === "pending") {
+        const amountPaid = data.amount != null ? Number(data.amount) : 0;
+        const expectedNaira = Number(celoPending.amount_ngn);
+        if (amountPaid < expectedNaira) {
+          logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave CELO purchase: amount mismatch");
+          await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+          return;
+        }
+        try {
+          const { creditCeloFromVault } = await import("../services/tycoonContract.js");
+          const amountWei = BigInt(celoPending.amount_celo_wei);
+          await creditCeloFromVault(celoPending.smart_wallet_address, amountWei, "CELO");
+          await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).update({ status: "completed", updated_at: new Date() });
+          logger.info(
+            { tx_ref: txRef, user_id: celoPending.user_id, smart_wallet: celoPending.smart_wallet_address, amount_celo_wei: String(amountWei) },
+            "Flutterwave CELO purchase fulfilled — creditCeloFromVault sent"
+          );
+        } catch (txErr) {
+          logger.error({ err: txErr?.message, tx_ref: txRef, user_id: celoPending.user_id }, "Flutterwave CELO purchase: creditCeloFromVault failed");
+          await db("celo_purchase_ngn_pending").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+        }
+        return;
+      }
+
       if (!existing) logger.warn({ tx_ref: txRef }, "Flutterwave webhook: unknown reference");
     } catch (err) {
       logger.error({ err: err.message, tx_ref: txRef }, "Flutterwave webhook fulfillment error");

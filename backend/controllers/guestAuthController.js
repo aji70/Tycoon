@@ -25,8 +25,8 @@ import {
 } from "../services/tycoonContract.js";
 import { getChainConfig } from "../config/chains.js";
 import logger from "../config/logger.js";
-import { transferToBankAccount, isFlutterwaveConfigured } from "../services/flutterwave.js";
-import { celoToNgn } from "../services/rates.js";
+import { transferToBankAccount, isFlutterwaveConfigured, initializePayment } from "../services/flutterwave.js";
+import { celoToNgn, ngnToCelo } from "../services/rates.js";
 
 const PRIVY_APP_ID = process.env.PRIVY_APP_ID;
 const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
@@ -438,6 +438,98 @@ export async function nairaWithdraw(req, res) {
     return res.status(500).json({
       success: false,
       message: err?.message || "Withdrawal failed",
+    });
+  }
+}
+
+/**
+ * POST /auth/celo-purchase/initialize
+ * Start "Buy CELO with Naira" flow. Body: { amount_ngn: number, redirect_url?: string }.
+ * Returns { link, tx_ref }. On Flutterwave success, webhook credits user's smart wallet with CELO.
+ */
+export async function celoPurchaseInitialize(req, res) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: "Not authenticated" });
+    const user = req.user;
+    const cfg = getChainConfig("CELO");
+    if (!cfg.nairaVaultAddress) {
+      return res.status(503).json({
+        success: false,
+        message: "Buy CELO with Naira is not configured. Set TYCOON_NAIRA_VAULT_CELO and vault controller key.",
+      });
+    }
+    if (!isFlutterwaveConfigured()) {
+      return res.status(503).json({ success: false, message: "Flutterwave is not configured (FLW_SECRET_KEY)." });
+    }
+    const fullUser = await User.findById(user.id);
+    const smartWallet =
+      fullUser?.smart_wallet_address && String(fullUser.smart_wallet_address).trim();
+    if (
+      !smartWallet ||
+      smartWallet === "0x0000000000000000000000000000000000000000"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "No smart wallet. Create one in Profile first.",
+      });
+    }
+    const amountNgn = req.body?.amount_ngn != null ? Number(req.body.amount_ngn) : NaN;
+    if (!Number.isFinite(amountNgn) || amountNgn < 200) {
+      return res.status(400).json({
+        success: false,
+        message: "amount_ngn is required and must be at least 200 Naira.",
+      });
+    }
+    let amountCelo;
+    const fixedRate =
+      process.env.CELO_TO_NGN_RATE != null ? Number(process.env.CELO_TO_NGN_RATE) : NaN;
+    if (Number.isFinite(fixedRate) && fixedRate > 0) {
+      amountCelo = amountNgn / fixedRate;
+    } else {
+      try {
+        amountCelo = await ngnToCelo(amountNgn);
+      } catch (rateErr) {
+        logger.warn({ err: rateErr?.message }, "celoPurchaseInitialize: rate fetch failed");
+        return res.status(503).json({
+          success: false,
+          message: "Could not get NGN/CELO rate. Set CELO_TO_NGN_RATE in backend env or try again later.",
+        });
+      }
+    }
+    const amountWei = ethers.parseEther(String(amountCelo));
+    const txRef = `celo_${user.id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const baseUrl =
+      req.body?.redirect_url && String(req.body.redirect_url).startsWith("http")
+        ? String(req.body.redirect_url).replace(/\/$/, "")
+        : process.env.FRONTEND_URL || "http://localhost:3000";
+    const redirectUrl = `${baseUrl}/profile/smart-wallet?celo_purchase=1&tx_ref=${encodeURIComponent(txRef)}`;
+    const email = fullUser?.email || (fullUser?.username ? `${fullUser.username}@tycoon.placeholder` : null) || undefined;
+    const { link, tx_ref } = await initializePayment({
+      amountNaira: amountNgn,
+      email: email || "player@tycoon.placeholder",
+      txRef,
+      redirectUrl,
+      meta: { user_id: String(user.id), flow: "celo_purchase" },
+      customerName: fullUser?.username || undefined,
+      customizations: {
+        title: "Tycoon — Buy CELO with Naira",
+        description: "Pay in Naira; CELO will be sent to your Tycoon smart wallet after payment.",
+      },
+    });
+    await db("celo_purchase_ngn_pending").insert({
+      tx_ref: tx_ref || txRef,
+      user_id: user.id,
+      smart_wallet_address: smartWallet,
+      amount_ngn: amountNgn,
+      amount_celo_wei: String(amountWei),
+      status: "pending",
+    });
+    return res.status(200).json({ success: true, link, tx_ref: tx_ref || txRef });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "celoPurchaseInitialize failed");
+    return res.status(500).json({
+      success: false,
+      message: err?.message || "Failed to start CELO purchase",
     });
   }
 }

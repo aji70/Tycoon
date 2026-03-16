@@ -305,13 +305,23 @@ const USER_WALLET_ABI = [
   },
 ];
 
-/** TycoonNairaVault: processNairaWithdrawalCelo(fromWallet, amount) — controller only. */
+/** TycoonNairaVault: processNairaWithdrawalCelo(fromWallet, amount) and creditCelo(recipient, amount) — controller only. */
 const NAIRA_VAULT_ABI = [
   {
     type: "function",
     name: "processNairaWithdrawalCelo",
     inputs: [
       { name: "fromWallet", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "creditCelo",
+    inputs: [
+      { name: "recipient", type: "address", internalType: "address" },
       { name: "amount", type: "uint256", internalType: "uint256" },
     ],
     outputs: [],
@@ -718,6 +728,38 @@ export async function processNairaWithdrawalCelo(fromWallet, amountWei, chain = 
     const tx = await vault.processNairaWithdrawalCelo(fromWallet, amountWei);
     const receipt = await tx.wait();
     logger.info({ fromWallet, amountWei: String(amountWei), hash: receipt?.hash }, "processNairaWithdrawalCelo tx");
+    return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Credit a recipient with CELO from the Naira vault (e.g. after user paid Naira via Flutterwave).
+ * Only vault controller/owner can call. Used by "Buy CELO with Naira" webhook.
+ * @param {string} recipient - Smart wallet or EOA to receive CELO
+ * @param {bigint} amountWei - Amount in wei
+ * @param {string} [chain] - Chain (default CELO)
+ */
+export async function creditCeloFromVault(recipient, amountWei, chain = "CELO") {
+  return withTxQueue(async () => {
+    const cfg = getChainConfig(chain);
+    const vaultAddress = cfg.nairaVaultAddress;
+    if (!vaultAddress || !recipient || amountWei <= 0n) {
+      throw new Error("Naira vault not configured or invalid args");
+    }
+    const pk =
+      process.env.NAIRA_VAULT_CONTROLLER_PRIVATE_KEY ??
+      process.env.BACKEND_GAME_CONTROLLER_PRIVATE_KEY ??
+      process.env.BACKEND_GAME_CONTROLLER_CELO_PRIVATE_KEY;
+    if (!pk) throw new Error("Naira vault controller key not set");
+    const key = String(pk).startsWith("0x") ? pk : `0x${pk}`;
+    const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+    const network = new Network(networkName, cfg.chainId);
+    const provider = new JsonRpcProvider(cfg.rpcUrl, network);
+    const wallet = new Wallet(key, provider);
+    const vault = new Contract(vaultAddress, NAIRA_VAULT_ABI, wallet);
+    const tx = await vault.creditCelo(recipient, amountWei);
+    const receipt = await tx.wait();
+    logger.info({ recipient, amountWei: String(amountWei), hash: receipt?.hash }, "creditCeloFromVault tx");
     return { hash: receipt?.hash };
   });
 }
