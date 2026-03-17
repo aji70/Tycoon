@@ -812,6 +812,7 @@ export function useRewardsAdmin() {
       hasSmartWallet: hasWalletResult.data as boolean | undefined,
       hasSmartWalletLoading: hasWalletResult.isLoading,
       vaultNairaAddress: vaultAddress,
+      vaultUsdcTokenAddress: vaultUsdcToken.data as Address | undefined,
       vaultCeloBalance: vaultCeloBalance.data,
       vaultUsdcBalance: vaultUsdcBalance.data,
       vaultUsdcDecimals: vaultUsdcDecimals.data,

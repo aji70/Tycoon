@@ -105,4 +105,12 @@ contract TycoonNairaVault is Ownable, ReentrancyGuard {
     function balanceCelo() external view returns (uint256) {
         return address(this).balance;
     }
+
+    /// @notice Rescue ERC20 tokens sent to this contract by mistake (e.g. wrong USDC). Owner only. Cannot rescue the vault's designated usdc.
+    function rescueERC20(address token, address to, uint256 amount) external onlyOwner nonReentrant {
+        if (token == address(usdc)) revert InvalidAddress(); // do not rescue the main vault token
+        if (to == address(0)) revert InvalidAddress();
+        if (amount == 0) return;
+        if (!IERC20(token).transfer(to, amount)) revert TransferFailed();
+    }
 }
