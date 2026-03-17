@@ -26,6 +26,7 @@ import {
   useRewardMintVoucher,
   useRewardMintCollectible,
   useRewardStockShop,
+  useRewardStockBundle,
   useRewardRestockCollectible,
   useRewardUpdateCollectiblePrices,
   useRewardPause,
@@ -48,6 +49,23 @@ import {
   ERC20_ABI,
   INITIAL_COLLECTIBLES,
 } from "@/components/rewards/rewardsConstants";
+
+/** Bundle definitions for "Stock Bundles" — must match shop BUNDLE_DEFS; perks must be stocked first. */
+const BUNDLE_DEFS_FOR_STOCK: Array<{
+  name: string;
+  items: Array<{ perk: number; strength: number; quantity: number }>;
+  price_tyc: string;
+  price_usdc: string;
+}> = [
+  { name: "Starter Pack", price_tyc: "45", price_usdc: "2.5", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Lucky Bundle", price_tyc: "60", price_usdc: "3", items: [{ perk: 2, strength: 1, quantity: 1 }, { perk: 6, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Defender Pack", price_tyc: "55", price_usdc: "2.75", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 2, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }] },
+  { name: "High Roller", price_tyc: "65", price_usdc: "3.25", items: [{ perk: 3, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Cash Flow", price_tyc: "70", price_usdc: "3.5", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
+  { name: "Chaos Bundle", price_tyc: "75", price_usdc: "4", items: [{ perk: 6, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Landlord's Choice", price_tyc: "50", price_usdc: "2.5", items: [{ perk: 11, strength: 1, quantity: 1 }, { perk: 12, strength: 1, quantity: 1 }, { perk: 14, strength: 1, quantity: 1 }] },
+  { name: "Ultimate Pack", price_tyc: "80", price_usdc: "4.5", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+];
 
 export type RewardsSection = "overview" | "mint" | "stock" | "manage" | "funds" | "tycoon" | "escrow" | "tournaments" | "reads" | "vault";
 
@@ -86,6 +104,7 @@ export interface RewardsAdminState {
 export interface TokenDisplayItem {
   tokenId: bigint;
   perk?: CollectiblePerk;
+  strength?: number;
   name: string;
   type: "voucher" | "collectible";
   tycPrice: bigint;
@@ -206,6 +225,7 @@ export function useRewardsAdmin() {
   const mintVoucherHook = useRewardMintVoucher();
   const mintCollectibleHook = useRewardMintCollectible();
   const stockShopHook = useRewardStockShop();
+  const stockBundleHook = useRewardStockBundle();
   const restockHook = useRewardRestockCollectible();
   const updateHook = useRewardUpdateCollectiblePrices();
   const pauseHook = useRewardPause();
@@ -363,7 +383,7 @@ export function useRewardsAdmin() {
     (tokenInfoResults.data
       ?.map((result, index) => {
         if (result?.status !== "success") return null;
-        const [perk, , tycPrice, usdcPrice, stock] = result.result as [
+        const [perk, strength, tycPrice, usdcPrice, stock] = result.result as [
           number,
           bigint,
           bigint,
@@ -376,6 +396,7 @@ export function useRewardsAdmin() {
         return {
           tokenId,
           perk: !isVoucher ? (perk as CollectiblePerk) : undefined,
+          strength: !isVoucher ? Number(strength) : undefined,
           name: isVoucher
             ? `Voucher #${tokenId.toString()}`
             : PERK_NAMES[perk as CollectiblePerk] || `Collectible #${perk}`,
@@ -438,6 +459,7 @@ export function useRewardsAdmin() {
       mintVoucherHook.isSuccess,
       mintCollectibleHook.isSuccess,
       stockShopHook.isSuccess,
+      stockBundleHook.isSuccess,
       restockHook.isSuccess,
       updateHook.isSuccess,
       pauseHook.isSuccess,
@@ -458,6 +480,7 @@ export function useRewardsAdmin() {
       mintVoucherHook.reset?.();
       mintCollectibleHook.reset?.();
       stockShopHook.reset?.();
+      stockBundleHook.reset?.();
       restockHook.reset?.();
       updateHook.reset?.();
       pauseHook.reset?.();
@@ -477,6 +500,7 @@ export function useRewardsAdmin() {
     mintVoucherHook.isSuccess,
     mintCollectibleHook.isSuccess,
     stockShopHook.isSuccess,
+    stockBundleHook.isSuccess,
     restockHook.isSuccess,
     updateHook.isSuccess,
     pauseHook.isSuccess,
@@ -498,6 +522,7 @@ export function useRewardsAdmin() {
       mintVoucherHook.error,
       mintCollectibleHook.error,
       stockShopHook.error,
+      stockBundleHook.error,
       restockHook.error,
       updateHook.error,
       pauseHook.error,
@@ -523,6 +548,7 @@ export function useRewardsAdmin() {
     mintVoucherHook.error,
     mintCollectibleHook.error,
     stockShopHook.error,
+    stockBundleHook.error,
     restockHook.error,
     updateHook.error,
     pauseHook.error,
@@ -580,6 +606,28 @@ export function useRewardsAdmin() {
       Number(tycPrice),
       Number(usdcPrice)
     );
+  };
+
+  const handleStockBundle = async (bundleName: string) => {
+    const def = BUNDLE_DEFS_FOR_STOCK.find((b) => b.name === bundleName);
+    if (!def) return;
+    const collectibles = allTokens.filter((t): t is TokenDisplayItem & { perk: CollectiblePerk; strength: number } => t.type === "collectible" && t.perk != null && t.strength != null);
+    const tokenIds: bigint[] = [];
+    const amounts: bigint[] = [];
+    for (const li of def.items) {
+      const match = collectibles.find((c) => Number(c.perk) === li.perk && c.strength === li.strength);
+      if (!match) {
+        setStatus({ type: "error", message: `Bundle "${bundleName}": perk ${li.perk} (tier ${li.strength}) not in shop. Stock perks first.` });
+        return;
+      }
+      for (let q = 0; q < li.quantity; q++) {
+        tokenIds.push(match.tokenId);
+        amounts.push(BigInt(1));
+      }
+    }
+    const tycPrice = parseUnits(def.price_tyc, 18);
+    const usdcPrice = parseUnits(def.price_usdc, 6);
+    await stockBundleHook.stockBundle(tokenIds, amounts, tycPrice, usdcPrice);
   };
 
   const handleStockAllPerks = async () => {
@@ -854,6 +902,7 @@ export function useRewardsAdmin() {
       usdcBalance: usdcBalance.data,
       tokenCount,
       allTokens,
+      bundleDefsForStock: BUNDLE_DEFS_FOR_STOCK,
     },
     handlers: {
       handleSetBackendMinter,
@@ -861,6 +910,7 @@ export function useRewardsAdmin() {
       handleMintCollectible,
       handleStockShop,
       handleStockAllPerks,
+      handleStockBundle,
       handleRestock,
       handleUpdatePrices,
       handleWithdraw,
@@ -884,6 +934,7 @@ export function useRewardsAdmin() {
       pendingVoucher: mintVoucherHook.isPending,
       pendingCollectible: mintCollectibleHook.isPending,
       pendingStock: stockShopHook.isPending,
+      pendingStockBundle: stockBundleHook.isPending,
       pendingRestock: restockHook.isPending,
       pendingUpdate: updateHook.isPending,
       pendingPause: pauseHook.isPending,

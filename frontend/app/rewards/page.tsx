@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { formatUnits } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -172,8 +173,14 @@ export default function RewardAdminPanel() {
     }
   }, []);
 
-  const { tokenCount, allTokens, tycBalance, usdcBalance } = contract;
-  const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController, pendingTycoonLogic, pendingTycoonUserRegistry, pendingTycoonGameFaucet, pendingTycoonRewardSystem, pendingCreateWallet, pendingVaultWithdraw } = pending;
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('section') === 'stock') setActiveSection('stock');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const { tokenCount, allTokens, tycBalance, usdcBalance, bundleDefsForStock } = contract;
+  const { anyPending, currentTxHash, pendingMinter, pendingVoucher, pendingCollectible, pendingStock, pendingStockBundle, pendingRestock, pendingUpdate, pendingPause, pendingWithdraw, pendingTycoonMinStake, pendingTycoonMinTurns, pendingTycoonController, pendingTycoonLogic, pendingTycoonUserRegistry, pendingTycoonGameFaucet, pendingTycoonRewardSystem, pendingCreateWallet, pendingVaultWithdraw } = pending;
 
   if (!auth.isConnected || !auth.userAddress) {
     return (
@@ -502,6 +509,37 @@ export default function RewardAdminPanel() {
                   </button>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Stock Bundles — register on-chain bundles (perks must be stocked first) */}
+            <div className="mt-12 pt-8 border-t border-gray-700/50">
+              <h4 className="text-lg font-bold mb-2 flex items-center gap-2">
+                <Package className="w-5 h-5 text-amber-400" /> Stock Bundles
+              </h4>
+              <p className="text-gray-400 text-sm mb-6">
+                Register bundles so users can buy them in one go. Stock the perks above first, then add each bundle here.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {(bundleDefsForStock ?? []).map((bundle) => (
+                  <div
+                    key={bundle.name}
+                    className="rounded-xl p-4 border border-amber-500/20 bg-gray-800/40"
+                  >
+                    <h5 className="font-semibold text-white mb-1">{bundle.name}</h5>
+                    <p className="text-xs text-gray-500 mb-3">
+                      {bundle.items.length} perk{bundle.items.length !== 1 ? 's' : ''} · ${bundle.price_usdc} USDC
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handlers.handleStockBundle(bundle.name)}
+                      disabled={anyPending || pendingStockBundle}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium bg-amber-600 hover:bg-amber-500 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {pendingStockBundle ? 'Stocking…' : 'Stock bundle on-chain'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </motion.div>
         )}

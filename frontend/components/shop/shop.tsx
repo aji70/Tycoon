@@ -748,7 +748,7 @@ export default function GameShop() {
                 compact
               />
               <p className="text-center text-slate-500 text-xs">
-                Admins can stock the shop with perks from <Link href="/rewards" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3.5 h-3.5" /> Rewards → Stock Shop</Link>.
+                Admins: stock perks and bundles at <Link href="/rewards?section=stock" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3.5 h-3.5" /> Rewards → Stock</Link> (open the <strong>Stock</strong> tab).
               </p>
             </div>
           )}
