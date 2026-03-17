@@ -117,6 +117,7 @@ export default function RewardAdminPanel() {
     hasSmartWallet,
     hasSmartWalletLoading,
     vaultNairaAddress,
+    vaultUsdcTokenAddress,
     vaultCeloBalance,
     vaultUsdcBalance,
     vaultUsdcDecimals,
@@ -903,18 +904,37 @@ export default function RewardAdminPanel() {
                       {vaultCopyFeedback ? <span className="text-xs text-green-400">Copied!</span> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
+                  {vaultUsdcTokenAddress && (
+                    <div className="mb-4 p-3 rounded-xl bg-amber-900/20 border border-amber-600/40">
+                      <p className="text-amber-200 text-sm font-medium mb-1">Vault’s USDC token (must use this contract)</p>
+                      <p className="text-xs text-gray-400 mb-2">If you transferred a different token (e.g. another &quot;USDC&quot; or cUSD), the balance will stay 0. Send only this token to the vault address above.</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code className="text-cyan-300 text-xs break-all">{vaultUsdcTokenAddress}</code>
+                        <button
+                          type="button"
+                          onClick={() => { navigator.clipboard.writeText(vaultUsdcTokenAddress); setVaultCopyFeedback(true); setTimeout(() => setVaultCopyFeedback(false), 2000); }}
+                          className="p-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
+                          aria-label="Copy USDC address"
+                        >
+                          {vaultCopyFeedback ? <span className="text-xs text-green-400">Copied!</span> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-gray-800/50 rounded-xl p-4">
-                      <span className="text-gray-400 text-sm block">CELO balance</span>
+                      <span className="text-gray-400 text-sm block">CELO balance (native)</span>
                       <span className="text-lg font-semibold text-cyan-300">
                         {vaultCeloBalance != null ? formatUnits(vaultCeloBalance, 18) : '—'}
                       </span>
+                      <p className="text-xs text-gray-500 mt-1">From users sending CELO for Naira withdrawal</p>
                     </div>
                     <div className="bg-gray-800/50 rounded-xl p-4">
-                      <span className="text-gray-400 text-sm block">USDC balance</span>
+                      <span className="text-gray-400 text-sm block">USDC balance (ERC20)</span>
                       <span className="text-lg font-semibold text-green-300">
                         {vaultUsdcBalance != null ? formatUnits(vaultUsdcBalance, vaultUsdcDecimals ?? 6) : '—'}
                       </span>
+                      <p className="text-xs text-gray-500 mt-1">Balance of the vault’s configured USDC token (see above). Send that token to the vault address.</p>
                     </div>
                   </div>
                   <div className="border-t border-gray-700/50 pt-4">
