@@ -93,6 +93,10 @@ export interface Player {
   consecutive_timeouts?: number;
   /** Number of turns this player has completed (for anti-spam: valid wins require >= 20 turns) */
   turn_count?: number;
+  /** Active perks (from collectibles or in-game activation). Array of { id: number, activated_at?: string }. */
+  active_perks?: { id: number; activated_at?: string }[];
+  /** When set, next roll will be this total (e.g. Lucky 7). */
+  pending_exact_roll?: number | null;
 }
 
 export interface GamePlayExtra {
