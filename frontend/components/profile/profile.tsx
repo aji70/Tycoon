@@ -32,6 +32,14 @@ const COLLECTIBLE_ID_START = 2_000_000_000;
 const isVoucherToken = (tokenId: bigint): boolean =>
   tokenId >= VOUCHER_ID_START && tokenId < COLLECTIBLE_ID_START;
 
+const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
+const isValidWallet = (a: unknown): a is Address => {
+  if (!a || typeof a !== 'string') return false;
+  const s = a.trim();
+  if (!s) return false;
+  return s.toLowerCase() !== zeroAddress.toLowerCase();
+};
+
 const getPerkMetadata = (perk: number) => {
   const data = [
     null,
@@ -106,15 +114,21 @@ const CELO_CHAIN_ID = 42220;
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
   const username = guestUser.username;
-  const linkedAddress = guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim() ? guestUser.linked_wallet_address : undefined;
+  const guestOnChainAddress =
+    (isValidWallet((guestUser as { smart_wallet_address?: unknown })?.smart_wallet_address)
+      ? ((guestUser as { smart_wallet_address: string }).smart_wallet_address as Address)
+      : null) ??
+    (guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim()
+      ? (guestUser.linked_wallet_address as Address)
+      : null);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
 
   const { data: onChainUsername } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: linkedAddress ? [linkedAddress as Address] : undefined,
-    query: { enabled: !!linkedAddress && !!tycoonAddress },
+    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
+    query: { enabled: !!guestOnChainAddress && !!tycoonAddress },
   });
 
   const { data: playerData } = useReadContract({
@@ -127,8 +141,8 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
 
   const userData = React.useMemo(() => {
     if (!playerData || !onChainUsername) return null;
-    return parseUserFromContract(playerData, onChainUsername as string, linkedAddress ?? undefined);
-  }, [playerData, onChainUsername, linkedAddress]);
+    return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
+  }, [playerData, onChainUsername, guestOnChainAddress]);
 
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
@@ -156,7 +170,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl space-y-6">
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
           <h2 className="text-xl font-bold text-white mb-2">{username}</h2>
-          {!linkedAddress && (
+          {!guestOnChainAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account and keep your stats when you play with it.</p>
           )}
           <div className="flex gap-6 text-sm">
@@ -288,15 +302,18 @@ export default function Profile() {
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
+  const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
+
+  // Prefer the registry smart wallet (Privy/embedded) for stats/level consistency.
+  const playerAddressForStats = (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ?? walletAddress;
+
   const { data: username } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: walletAddress ? [walletAddress] : undefined,
-    query: { enabled: !!walletAddress && !!tycoonAddress },
+    args: playerAddressForStats ? [playerAddressForStats] : undefined,
+    query: { enabled: !!playerAddressForStats && !!tycoonAddress },
   });
-
-  const { data: smartWalletAddress } = useUserRegistryWallet(walletAddress);
 
   const { data: playerData } = useReadContract({
     address: tycoonAddress,
@@ -312,8 +329,8 @@ export default function Profile() {
     address: rewardAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: walletAddress ? [walletAddress] : undefined,
-    query: { enabled: !!walletAddress && !!rewardAddress },
+    args: playerAddressForStats ? [playerAddressForStats] : undefined,
+    query: { enabled: !!playerAddressForStats && !!rewardAddress },
   });
 
   const ownedCountNum = Number(ownedCount.data ?? 0);
@@ -323,13 +340,13 @@ export default function Profile() {
       address: rewardAddress!,
       abi: RewardABI as Abi,
       functionName: 'tokenOfOwnerByIndex',
-      args: [walletAddress!, BigInt(i)],
+      args: [playerAddressForStats!, BigInt(i)],
     } as const)),
-  [rewardAddress, walletAddress, ownedCountNum]);
+  [rewardAddress, playerAddressForStats, ownedCountNum]);
 
   const tokenResults = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!walletAddress },
+    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!playerAddressForStats },
   });
 
   const allOwnedTokenIds = tokenResults.data

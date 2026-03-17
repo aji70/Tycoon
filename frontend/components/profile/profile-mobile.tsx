@@ -104,18 +104,30 @@ const getPerkMetadata = (perk: number) => {
 
 const CELO_CHAIN_ID = 42220;
 
+const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
+const isValidWallet = (a: unknown): a is Address => {
+  if (!a || typeof a !== 'string') return false;
+  const s = a.trim();
+  if (!s) return false;
+  return s.toLowerCase() !== zeroAddress.toLowerCase();
+};
+
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
-function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
+function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null } }) {
   const username = guestUser.username;
-  const linkedAddress = guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim() ? guestUser.linked_wallet_address : undefined;
+  const guestOnChainAddress =
+    (isValidWallet(guestUser.smart_wallet_address) ? (guestUser.smart_wallet_address as Address) : null) ??
+    (guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim()
+      ? (guestUser.linked_wallet_address as Address)
+      : null);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
 
   const { data: onChainUsername } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: linkedAddress ? [linkedAddress as Address] : undefined,
-    query: { enabled: !!linkedAddress && !!tycoonAddress },
+    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
+    query: { enabled: !!guestOnChainAddress && !!tycoonAddress },
   });
 
   const { data: playerData } = useReadContract({
@@ -128,8 +140,8 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
 
   const userData = React.useMemo(() => {
     if (!playerData || !onChainUsername) return null;
-    return parseUserFromContract(playerData, onChainUsername as string, linkedAddress ?? undefined);
-  }, [playerData, onChainUsername, linkedAddress]);
+    return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
+  }, [playerData, onChainUsername, guestOnChainAddress]);
 
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
@@ -152,7 +164,7 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
       <main className="py-6 space-y-5">
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
           <h2 className="text-lg font-bold text-white mb-2">{username}</h2>
-          {!linkedAddress && (
+          {!guestOnChainAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
           )}
           <div className="flex gap-4 text-sm">
