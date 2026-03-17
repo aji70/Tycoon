@@ -16,7 +16,7 @@ export async function up(knex) {
     .andWhere((qb) => {
       qb.whereNull("price_ngn").orWhere("price_ngn", "<=", 200);
     })
-    .andWhereNotNull("price_usdc")
+    .whereNotNull("price_usdc")
     .update({
       price_ngn: knex.raw("ROUND(price_usdc * ?)", [rate]),
     });
