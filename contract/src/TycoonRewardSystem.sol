@@ -238,19 +238,35 @@ contract TycoonRewardSystem is ERC1155, Ownable, Pausable, ReentrancyGuard, IERC
     }
 
     function buyCollectible(uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
+        _buyCollectibleFor(msg.sender, tokenId, useUsdc);
+    }
+
+    /// @notice Buy a collectible with USDC or TYC from a given payer (e.g. smart wallet). Callable by the payer or by the owner of the payer if payer is a contract with owner().
+    function buyCollectibleFrom(address payer, uint256 tokenId, bool useUsdc) external whenNotPaused nonReentrant {
+        require(payer != address(0), "Zero payer");
+        if (msg.sender != payer) {
+            (bool ok, bytes memory data) = payer.staticcall(abi.encodeWithSignature("owner()"));
+            require(ok && data.length >= 32, "Not payer or payer owner");
+            address ownerOfPayer = abi.decode(data, (address));
+            require(ownerOfPayer == msg.sender, "Not payer or payer owner");
+        }
+        _buyCollectibleFor(payer, tokenId, useUsdc);
+    }
+
+    function _buyCollectibleFor(address payer, uint256 tokenId, bool useUsdc) internal {
         require(_isCollectible(tokenId), "Not collectible");
         require(shopStock[tokenId] >= 1, "Out of stock");
         uint256 price = useUsdc ? collectibleUsdcPrice[tokenId] : collectibleTycPrice[tokenId];
         require(price > 0, "Not for sale");
         shopStock[tokenId] -= 1;
         if (useUsdc) {
-            require(usdc.transferFrom(msg.sender, address(this), price), "USDC transfer failed");
+            require(usdc.transferFrom(payer, address(this), price), "USDC transfer failed");
         } else {
-            require(tycToken.transferFrom(msg.sender, address(this), price), "TYC transfer failed");
+            require(tycToken.transferFrom(payer, address(this), price), "TYC transfer failed");
         }
-        _safeTransferFrom(address(this), msg.sender, tokenId, 1, "");
-        _addToOwned(msg.sender, tokenId, 1);
-        emit CollectibleBought(tokenId, msg.sender, price, useUsdc);
+        _safeTransferFrom(address(this), payer, tokenId, 1, "");
+        _addToOwned(payer, tokenId, 1);
+        emit CollectibleBought(tokenId, payer, price, useUsdc);
     }
 
     function burnCollectibleForPerk(uint256 tokenId) external nonReentrant {

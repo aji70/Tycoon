@@ -288,7 +288,11 @@ export default function ProfilePageMobile() {
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
-  const { data: username } = useReadContract({
+  const {
+    data: username,
+    isLoading: usernameLoading,
+    error: usernameReadError,
+  } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
@@ -296,7 +300,11 @@ export default function ProfilePageMobile() {
     query: { enabled: !!walletAddress && !!tycoonAddress },
   });
 
-  const { data: playerData } = useReadContract({
+  const {
+    data: playerData,
+    isLoading: playerDataLoading,
+    error: playerDataReadError,
+  } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'getUser',
@@ -406,15 +414,44 @@ export default function ProfilePageMobile() {
     (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
 
   useEffect(() => {
-    if (playerData && username) {
+    setError(null);
+    setUserData(null);
+    setLoading(true);
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+
+    if (usernameReadError) {
+      setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
+      setLoading(false);
+      return;
+    }
+    if (playerDataReadError) {
+      setError(playerDataReadError instanceof Error ? playerDataReadError.message : 'Failed to load player data');
+      setLoading(false);
+      return;
+    }
+
+    if (!usernameLoading && !username) {
+      setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
+      setLoading(false);
+      return;
+    }
+
+    if (username && playerData) {
       const parsed = parseUserFromContract(playerData, username as string, walletAddress);
       if (parsed) setUserData(parsed);
       setLoading(false);
-    } else if (playerData === null && !loading) {
+      return;
+    }
+
+    if (username && !playerDataLoading && (playerData == null)) {
       setError('No player data found');
       setLoading(false);
+      return;
     }
-  }, [playerData, username, walletAddress, loading]);
+  }, [isConnected, username, usernameLoading, usernameReadError, playerData, playerDataLoading, playerDataReadError, walletAddress]);
 
   const handleSend = (tokenId: bigint) => {
     if (!walletAddress || !rewardAddress) return toast.error("Wallet or contract not available");
