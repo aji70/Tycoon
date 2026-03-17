@@ -718,10 +718,14 @@ export default function Profile() {
   const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
-  // Reward/perk ownership can live on the smart wallet, so prefer that for reward reads.
-  const playerAddressForStats = smartWallet ?? walletAddress;
+  const showDualWallets = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
+  const [activeWalletView, setActiveWalletView] = useState<'connected' | 'smart'>(() => (smartWallet ? 'smart' : 'connected'));
+  React.useEffect(() => {
+    if (!smartWallet) setActiveWalletView('connected');
+  }, [smartWallet]);
 
-  const showDualBalances = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
+  // Perks/vouchers can be held on either wallet; let the user pick.
+  const rewardOwnerAddress = (activeWalletView === 'smart' ? smartWallet : walletAddress) ?? walletAddress;
   const { data: ethBalanceSmart } = useBalance({ address: smartWallet, query: { enabled: !!smartWallet } });
   const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
   const usdcBalanceSmart = useBalance({ address: smartWallet, token: usdcTokenAddress, query: { enabled: !!smartWallet && !!usdcTokenAddress } });
@@ -761,8 +765,8 @@ export default function Profile() {
     address: rewardAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: playerAddressForStats ? [playerAddressForStats] : undefined,
-    query: { enabled: !!playerAddressForStats && !!rewardAddress },
+    args: rewardOwnerAddress ? [rewardOwnerAddress] : undefined,
+    query: { enabled: !!rewardOwnerAddress && !!rewardAddress },
   });
 
   const ownedCountNum = Number(ownedCount.data ?? 0);
@@ -772,13 +776,13 @@ export default function Profile() {
       address: rewardAddress!,
       abi: RewardABI as Abi,
       functionName: 'tokenOfOwnerByIndex',
-      args: [playerAddressForStats!, BigInt(i)],
+      args: [rewardOwnerAddress!, BigInt(i)],
     } as const)),
-  [rewardAddress, playerAddressForStats, ownedCountNum]);
+  [rewardAddress, rewardOwnerAddress, ownedCountNum]);
 
   const tokenResults = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!playerAddressForStats },
+    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!rewardOwnerAddress },
   });
 
   const allOwnedTokenIds = tokenResults.data
@@ -861,7 +865,7 @@ export default function Profile() {
     setError(null);
     setUserData(null);
     setLoading(true);
-  }, [walletAddress, playerAddressForStats]);
+  }, [walletAddress, rewardOwnerAddress]);
 
   React.useEffect(() => {
     if (!isConnected) return;
@@ -905,7 +909,7 @@ export default function Profile() {
     playerData,
     playerDataLoading,
     playerDataReadError,
-    playerAddressForStats,
+    rewardOwnerAddress,
   ]);
 
   const handleSend = (tokenId: bigint) => {
@@ -1130,50 +1134,66 @@ export default function Profile() {
               </div>
 
               <div className="flex flex-col gap-3 shrink-0 w-full sm:w-[240px] justify-center sm:justify-start">
-                {showDualBalances ? (
-                  <>
-                    <div className="text-[10px] font-medium text-white/40 uppercase tracking-widest text-center sm:text-left">Connected wallet</div>
-                    <div className="flex flex-row sm:flex-col gap-3">
-                      {[
-                        { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
-                        { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
-                        { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
-                      ].map(({ label, value, color }) => (
-                        <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                          <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="text-[10px] font-medium text-white/40 uppercase tracking-widest text-center sm:text-left mt-2">Smart wallet</div>
-                    <div className="flex flex-row sm:flex-col gap-3">
-                      {[
-                        { label: 'TYC', value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2), color: 'cyan' },
-                        { label: 'USDC', value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2), color: 'emerald' },
-                        { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalanceSmart ? Number(ethBalanceSmart.formatted).toFixed(4) : '0', color: 'slate' },
-                      ].map(({ label, value, color }) => (
-                        <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                          <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-                    {[
-                      { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
-                      { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
-                      { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0', color: 'slate' },
-                    ].map(({ label, value, color }) => (
-                      <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                        <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
-                      </div>
-                    ))}
+                {showDualWallets && (
+                  <div className="flex items-center justify-center sm:justify-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveWalletView('connected')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                        activeWalletView === 'connected'
+                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80'
+                      }`}
+                    >
+                      Connected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveWalletView('smart')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                        activeWalletView === 'smart'
+                          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-white/60 hover:text-white/80'
+                      }`}
+                    >
+                      Smart
+                    </button>
                   </div>
                 )}
+
+                <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                  {[
+                    {
+                      label: 'TYC',
+                      value:
+                        activeWalletView === 'smart'
+                          ? (tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2))
+                          : (tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2)),
+                      color: 'cyan',
+                    },
+                    {
+                      label: 'USDC',
+                      value:
+                        activeWalletView === 'smart'
+                          ? (usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2))
+                          : (usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2)),
+                      color: 'emerald',
+                    },
+                    {
+                      label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native',
+                      value:
+                        activeWalletView === 'smart'
+                          ? (ethBalanceSmart ? Number(ethBalanceSmart.formatted).toFixed(4) : '0')
+                          : (ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0'),
+                      color: 'slate',
+                    },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                      <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                      <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
