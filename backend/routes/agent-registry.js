@@ -150,17 +150,20 @@ router.post("/hosted/:agentId/decision", async (req, res) => {
     const skillPrompt = agent.config?.skill || agent.config?.system_prompt;
     const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
     let decision;
+    const creditsEnabled = process.env.HOSTED_AGENT_CREDITS_ENABLED === "true";
     if (agent.use_tycoon_key) {
       const userId = agent.user_id;
-      const hasPurchased = await hostedAgentCredits.hasCredits(userId);
-      const hasFree = await hostedAgentUsage.isUnderCap(userId);
-      if (hasPurchased) {
-        const ok = await hostedAgentCredits.deductCredit(userId);
-        if (!ok) return res.status(429).json({ success: false, message: "No credits. Buy more or use My API key." });
-      } else if (hasFree) {
-        await hostedAgentUsage.incrementUsage(userId);
-      } else {
-        return res.status(429).json({ success: false, message: "Daily hosted limit reached. Buy credits or use My API key." });
+      if (creditsEnabled) {
+        const hasPurchased = await hostedAgentCredits.hasCredits(userId);
+        const hasFree = await hostedAgentUsage.isUnderCap(userId);
+        if (hasPurchased) {
+          const ok = await hostedAgentCredits.deductCredit(userId);
+          if (!ok) return res.status(429).json({ success: false, message: "No credits. Buy more or use My API key." });
+        } else if (hasFree) {
+          await hostedAgentUsage.incrementUsage(userId);
+        } else {
+          return res.status(429).json({ success: false, message: "Daily hosted limit reached. Buy credits or use My API key." });
+        }
       }
       decision = await internalAgent.getDecision(Number(gameId), Number(slot), decisionType, context || {}, opts);
     } else if (agent.has_api_key) {
