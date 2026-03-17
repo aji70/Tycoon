@@ -256,7 +256,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     voucherTokenIds.map(id => ({
       address: rewardAddress!,
       abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
+      functionName: 'voucherRedeemValue',
       args: [id],
     } as const)),
   [rewardAddress, voucherTokenIds]);
@@ -267,10 +267,9 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
   const myVouchers = useMemo(() => {
     return voucherInfoResults.data?.map((res, i) => {
       if (res?.status !== 'success') return null;
-      const [, , tycPrice] = res.result as [bigint, bigint, bigint, bigint, bigint];
       return {
         tokenId: voucherTokenIds[i],
-        value: formatUnits(tycPrice, 18),
+        value: formatUnits(res.result as bigint, 18),
       };
     }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
   }, [voucherInfoResults.data, voucherTokenIds]);
@@ -830,7 +829,7 @@ export default function Profile() {
     voucherTokenIds.map(id => ({
       address: rewardAddress!,
       abi: RewardABI as Abi,
-      functionName: 'getCollectibleInfo',
+      functionName: 'voucherRedeemValue',
       args: [id],
     } as const)),
   [rewardAddress, voucherTokenIds]);
@@ -843,10 +842,9 @@ export default function Profile() {
   const myVouchers = useMemo(() => {
     return voucherInfoResults.data?.map((res, i) => {
       if (res?.status !== 'success') return null;
-      const [, , tycPrice] = res.result as [bigint, bigint, bigint, bigint, bigint];
       return {
         tokenId: voucherTokenIds[i],
-        value: formatUnits(tycPrice, 18),
+        value: formatUnits(res.result as bigint, 18),
       };
     }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
   }, [voucherInfoResults.data, voucherTokenIds]);
