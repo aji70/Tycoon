@@ -150,10 +150,10 @@ router.post("/hosted/:agentId/decision", async (req, res) => {
     const skillPrompt = agent.config?.skill || agent.config?.system_prompt;
     const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
     let decision;
-    const creditsEnabled = process.env.HOSTED_AGENT_CREDITS_ENABLED === "true";
+    const creditsPaused = process.env.HOSTED_AGENT_CREDITS_PAUSED === "true";
     if (agent.use_tycoon_key) {
       const userId = agent.user_id;
-      if (creditsEnabled) {
+      if (!creditsPaused) {
         const hasPurchased = await hostedAgentCredits.hasCredits(userId);
         const hasFree = await hostedAgentUsage.isUnderCap(userId);
         if (hasPurchased) {
