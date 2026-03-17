@@ -1337,6 +1337,28 @@ export function useRewardStockShop() {
   return { stock, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
+export function useRewardStockBundle() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const stockBundle = useCallback(
+    async (tokenIds: bigint[], amounts: bigint[], tycPrice: bigint, usdcPrice: bigint) => {
+      if (!contractAddress) throw new Error('Reward contract not deployed');
+      return await writeContractAsync({
+        address: contractAddress,
+        abi: RewardABI,
+        functionName: 'stockBundle',
+        args: [tokenIds, amounts, tycPrice, usdcPrice],
+      });
+    },
+    [writeContractAsync, contractAddress]
+  );
+
+  return { stockBundle, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
 export function useRewardRestockCollectible() {
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];

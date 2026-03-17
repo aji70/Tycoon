@@ -759,7 +759,7 @@ export default function GameShopMobile() {
             compact
           />
           <p className="text-center text-slate-500 text-[10px]">
-            Admins: <Link href="/rewards" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3 h-3" /> Rewards → Stock Shop</Link>
+            Admins: <Link href="/rewards?section=stock" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3 h-3" /> Rewards → Stock</Link> (perks &amp; bundles)
           </p>
         </div>
         {/* Section label */}
