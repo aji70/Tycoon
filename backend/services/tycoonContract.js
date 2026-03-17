@@ -318,12 +318,34 @@ function getUserRegistryContract(chain = "CELO") {
   return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
 }
 
+/** Registry functions createWalletForUserByBackend and linkEOAToProfile use onlyGame() which allows gameContract or registry owner. Backend must send as registry owner. */
+function getRegistryOwnerContract(chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const { rpcUrl, chainId, userRegistryAddress } = cfg;
+  if (!rpcUrl || !userRegistryAddress) {
+    throw new Error(`User registry not configured for ${String(chain).toUpperCase()}`);
+  }
+  const pk =
+    process.env.TYCOON_OWNER_PRIVATE_KEY ??
+    process.env.REGISTRY_OWNER_PRIVATE_KEY ??
+    cfg.privateKey;
+  if (!pk) {
+    throw new Error(
+      `Registry owner key required for wallet-first flows. Set TYCOON_OWNER_PRIVATE_KEY or REGISTRY_OWNER_PRIVATE_KEY (or ensure BACKEND_GAME_CONTROLLER_* is the registry owner).`
+    );
+  }
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+  const wallet = new Wallet(String(pk).startsWith("0x") ? pk : `0x${pk}`, provider);
+  return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
+}
+
 export async function createWalletForUserByBackend(username, chain = "CELO") {
   return withTxQueue(async () => {
     if (!username || typeof username !== "string" || username.trim().length < 2) {
       throw new Error("Invalid username");
     }
-    const registry = getUserRegistryContract(chain);
+    const registry = getRegistryOwnerContract(chain);
     const tx = await registry.createWalletForUserByBackend(username.trim());
     const receipt = await tx.wait();
     let walletAddr;
@@ -352,7 +374,7 @@ export async function createWalletForUserByBackend(username, chain = "CELO") {
 export async function linkEOAToProfile(walletAddress, newOwner, chain = "CELO") {
   return withTxQueue(async () => {
     if (!walletAddress || !newOwner) throw new Error("Invalid args");
-    const registry = getUserRegistryContract(chain);
+    const registry = getRegistryOwnerContract(chain);
     const tx = await registry.linkEOAToProfile(walletAddress, newOwner);
     const receipt = await tx.wait();
     logger.info({ walletAddress, newOwner, hash: receipt?.hash }, "UserRegistry linkEOAToProfile tx");
