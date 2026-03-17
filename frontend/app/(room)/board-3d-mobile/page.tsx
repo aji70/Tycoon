@@ -2187,7 +2187,6 @@ function Board3DMobileContent() {
               gameId={game.id}
               myAgentOn={myAgentOn}
               myAgentApiKey={myAgentApiKey}
-              onUseApiKey={setMyAgentApiKey}
               onStopApiKey={() => setMyAgentApiKey(null)}
               onBindingsChange={refetchAgentBindings}
               compact
