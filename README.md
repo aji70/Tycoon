@@ -62,17 +62,28 @@ Connect wallet → (Register for AI) → Create or Join game
 
 ---
 
-## 🧾 Key contracts
+## 🧾 Contract addresses
 
-| Detail | Info |
-|--------|------|
-| **Contract Base Address** | `0xc6c2ccc0cA40d700DE2e5696f2a5e71dd838A1c4` |
-| **Contract Celo Address** | Set via `NEXT_PUBLIC_CELO` (see [Environment variables](#-environment-variables)) |
-| **Contract Stacks Address** | `ST81CZF1YK81CPAMS6PRS3GJSKK35MGZ2VWEPSEN.tyc` |
-| **Networks** | Base \| Celo \| Stacks |
-| **Status** | ✅ Deployed — functionality under development |
-| **ERC20 Base Address** | `0x8A867F46f1A0e8bA1AF573E83B26F86Aa23e07D3` |
-| **ERC20 Celo Address** | Set via `NEXT_PUBLIC_CELO_TOKEN` (see below) |
+The game is **Celo-first**. Addresses are configured via environment variables in `frontend/.env.local` and `backend/.env` (see [Environment variables](#-environment-variables)). **Never put secrets in the README or in repo env examples.**
+
+### Upgradable game contract
+
+The **Tycoon game contract** is **upgradeable** (UUPS proxy). The app uses only the **proxy** address; the implementation can be upgraded by the contract owner without changing the proxy. Always point config at the proxy address, never at the implementation.
+
+### Celo mainnet — reference addresses
+
+| Contract | Purpose | Address (Celo mainnet) |
+|----------|---------|------------------------|
+| **Game contract (proxy)** | Create/join games, roll, properties, turns. Use this address in app config. | `0xA97fC9666a41cDAE3EFb74A4CaC87B9d33A16F0e` |
+| **Reward contract** | TycoonRewardSystem — shop, vouchers, collectibles, perks. | `0x9728c4f405F8b4180dE56160Fb2F122F77C4C158` |
+| **TYC token** | ERC-20 in-game currency and rewards. | `0x7b1bef6B8d836FEb5d545D3a9F0D966a28A63259` |
+| **USDC** | Stablecoin for entry stakes and payments. | `0xcebA9300f2b948710d2653dD7B07f33A8B32118C` |
+| **AI agent registry** | Play vs AI — agent resolution. | `0x73183cDD20fc3247686CFcF970A956a91561FAE2` |
+| **Tournament escrow** | Entry fees and prize pool for PvP/tournaments. | `0xd1B710e781a8aF0b4D5facf0f35384ACFB5FDabE` |
+| **User registry** | Smart wallets per player (signup / wallet-first). | `0x0a8aBc9F54cd44b5449053Ad577514F3D2a854Fa` |
+| **ERC-8004 reputation registry** | Optional; has a protocol default if not overridden. | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+
+Backend-only (no address in frontend): **Game faucet** (property-sale recording) — set in backend env if used for stats. **RPC URL** and **game controller key** are configured in backend env only; see `backend/.env.example`.
 
 ---
 
@@ -82,98 +93,127 @@ The frontend reads configuration from `.env.local`. **Never commit secrets**; us
 
 ### API & backend
 
-| Variable | Description | Example |
-|----------|-------------|--------|
-| `NEXT_PUBLIC_API_URL` | Backend API base URL. For local dev use `http://localhost:3001/api`; for production use your deployed Railway (or other) URL. | `https://base-monopoly-production.up.railway.app/api` |
+| Purpose | Frontend env | Description |
+|---------|--------------|-------------|
+| Backend API base URL | (see `frontend/.env.example`) | For local dev use `http://localhost:3001/api`; for production use your deployed backend URL. Never commit production URLs with secrets. |
 
 ### Base chain (optional)
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_BASE` | Main Tycoon game contract on Base. |
-| `NEXT_PUBLIC_BASE_REWARD` | Reward contract on Base. |
-| `NEXT_PUBLIC_BASE_TOKEN` | TYC (or reward) token contract on Base. |
-| `NEXT_PUBLIC_BASE_USDC` | USDC token contract on Base (entry stakes, payments). |
+| Purpose | Frontend env | Description |
+|---------|--------------|-------------|
+| Game contract (Base) | (see `.env.example`) | Main Tycoon game contract on Base. |
+| Reward contract (Base) | (see `.env.example`) | Reward contract on Base. |
+| TYC token (Base) | (see `.env.example`) | TYC token contract on Base. |
+| USDC (Base) | (see `.env.example`) | USDC on Base for entry stakes, payments. |
 
 ### Celo chain (main deployment)
 
-These are the primary contract addresses used when the app runs on **Celo**. Set them in `frontend/.env.local`:
-
-| Variable | Description | Example value |
-|----------|-------------|---------------|
-| `NEXT_PUBLIC_CELO` | **Main Tycoon game contract** on Celo. Handles game state, turns, properties, and on-chain logic. | `0xa40Cb493Cb72a8dcce28044b6CcfE63B8D90B914` |
-| `NEXT_PUBLIC_CELO_TOKEN` | **TYC (Tycoon) ERC-20 token** on Celo. Used for in-game currency, rewards, and shop. Must be the token contract address, not the reward contract. | `0x7b1bef6B8d836FEb5d545D3a9F0D966a28A63259` |
-| `NEXT_PUBLIC_CELO_REWARD` | **Reward contract** on Celo. Manages reward distribution and claims. | `0x18a9936b1cCc43096CB16450ff1Ee2ebc5Bce17d` |
-| `NEXT_PUBLIC_CELO_USDC` | **USDC stablecoin** on Celo. Used for entry stakes, tournament fees, and real-money-denominated payments. | `0xcebA9300f2b948710d2653dD7B07f33A8B32118C` |
-| `NEXT_PUBLIC_CELO_AI_REGISTRY` | **AI agent registry** on Celo. Registers and resolves AI players for “Play vs AI” games (e.g. ERC-8004 or custom registry). | `0x73183cDD20fc3247686CFcF970A956a91561FAE2` |
-| `NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS` | **Tournament escrow contract** on Celo. Holds entry fees and prize pool for PvP/tournament games; ensures funds are released according to game outcome. | `0xd1B710e781a8aF0b4D5facf0f35384ACFB5FDabE` |
-
-**Note:** The frontend may reference `NEXT_PUBLIC_CELO_TYC` or `NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW` in code; ensure your `.env.local` keys match what `frontend/constants/contracts.ts` expects (e.g. alias `NEXT_PUBLIC_CELO_TOKEN` → TYC if required).
+Address values are in the [Contract addresses](#-contract-addresses) table above. Map them in `frontend/.env.local` using the keys expected by `frontend/constants/contracts.ts` (game proxy, reward, TYC token, USDC, AI registry, tournament escrow, user registry). Use the **proxy** for the game contract. Optional: ERC-8004 reputation registry and agent ID; see `frontend/.env.example` for exact variable names.
 
 ### Wallet & auth
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_PROJECT_ID` | WalletConnect / App Kit project ID (e.g. from WalletConnect Cloud). |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID for embedded wallet / social login. |
-| `NEXT_PUBLIC_PRIVY_CLIENT_ID` | (Optional) Privy client ID if using dashboard app client. |
+| Purpose | Where | Description |
+|---------|--------|-------------|
+| WalletConnect / App Kit | Frontend env (see `.env.example`) | Project ID from WalletConnect Cloud. |
+| Privy (embedded wallet, social login) | Frontend env (see `.env.example`) | App ID and optional client ID from Privy dashboard. |
+
+Keep all auth and wallet keys in `.env.local`; never commit them.
 
 ### AI & agents
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_ERC8004_AGENT_ID` | ERC-8004 Agent Trust Protocol: your registered AI agent ID on Celo (used for identity/reputation). |
-| `ANTHROPIC_API_KEY` | Server-side only; used for AI opponent logic. Do **not** prefix with `NEXT_PUBLIC_`. |
+| Purpose | Where | Description |
+|---------|--------|-------------|
+| ERC-8004 agent ID (Celo) | Frontend env | Your registered AI agent ID for identity/reputation. |
+| Internal AI opponent | Backend env only | Server-side key for AI opponent logic; never expose via a public env var. |
 
 ### Observability
 
-| Variable | Description |
-|----------|-------------|
-| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN for error tracking (client and/or server). |
+| Purpose | Where | Description |
+|---------|--------|-------------|
+| Error tracking | Backend / frontend env (see `.env.example`) | Sentry DSN for client and/or server. |
 
 ### NGN payments (Flutterwave) — backend only
 
-To accept **Naira (NGN)** for perk bundles in the Shop, set these in the **backend** `.env` (see `backend/.env.example`):
-
-| Variable | Description |
-|----------|-------------|
-| `FLW_SECRET_KEY` | Your Flutterwave secret key from [Dashboard](https://dashboard.flutterwave.com) → Settings → API Keys (use test key for development). |
-| `FLW_SECRET_HASH` | Optional but recommended: webhook secret from Dashboard → Settings → Webhooks. Used to verify that webhook callbacks are from Flutterwave. |
+To accept **Naira (NGN)** for perk bundles in the Shop, set the Flutterwave secret key and optional webhook secret in **backend** `.env` (see `backend/.env.example`). Never commit these.
 
 Then in the Flutterwave dashboard, set your **Webhook URL** to `https://your-backend-url/api/shop/flutterwave/webhook`. After payment, users are redirected back to `/shop` and their bundle is fulfilled when the webhook is received.
 
-### Minimal Celo `.env.local` snippet (addresses only)
+### Minimal Celo config (frontend)
 
-```bash
-# --- API ---
-NEXT_PUBLIC_API_URL=https://your-api.up.railway.app/api
-
-# --- Celo contracts (from .env.local lines 12–20) ---
-NEXT_PUBLIC_CELO=0xa40Cb493Cb72a8dcce28044b6CcfE63B8D90B914
-NEXT_PUBLIC_CELO_TOKEN=0x7b1bef6B8d836FEb5d545D3a9F0D966a28A63259
-NEXT_PUBLIC_CELO_REWARD=0x18a9936b1cCc43096CB16450ff1Ee2ebc5Bce17d
-NEXT_PUBLIC_CELO_USDC=0xcebA9300f2b948710d2653dD7B07f33A8B32118C
-NEXT_PUBLIC_CELO_AI_REGISTRY=0x73183cDD20fc3247686CFcF970A956a91561FAE2
-NEXT_PUBLIC_CELO_TOURNAMENT_ESCROW_ADDRESS=0xd1B710e781a8aF0b4D5facf0f35384ACFB5FDabE
-```
+See [Contract addresses](#-contract-addresses) for addresses. In `frontend/.env.local`, set your backend API URL and the Celo contract addresses (game **proxy**, reward, TYC token, USDC, AI registry, tournament escrow, user registry). Exact variable names are in `frontend/.env.example`; keep that file and `.env.local` out of version control and never commit secrets or production keys.
 
 ---
 
-## ✨ Features (WIP)
+## ✨ What the game currently supports
 
-- 🏡 **Property ownership** — Iconic Monopoly properties as ERC-721 NFTs  
-- 💰 **Rent & tycoon mechanics** — Earn passive income; upgrade for higher yields  
-- 🧾 **On-chain events** — Dice rolls, Chance, Community Chest, Tax, Jail  
-- 📊 **Interactive dashboard** — Real-time board with rotatable cards (e.g. Income Tax $200, Luxury Tax $100)  
-- ⛽ **Gas-efficient** — Leverages Base, Stacks, and Celo low fees  
-- 👛 **Wallet integration** — MetaMask, WalletConnect ready  
+### Chains & networks
+
+- **Celo (main)** — Full stack: game contract, rewards, USDC, user registry, tournament escrow, AI registry. Mainnet (42220) and Alfajores testnet.
+- **Base** — Game contract, reward, TYC token, USDC (addresses in env; frontend can be configured for Base).
+- **Backend multi-chain** — Celo, Polygon, Base: each can have its own RPC, contract address, and game-controller key (`backend/config/chains.js`).
+
+### Game modes
+
+- **Play vs AI** — Create a game with AI opponents; your wallet must be registered on-chain. AI uses Tycoon-hosted agent (credits) or built-in rule-based logic when out of credits.
+- **Play vs Humans (PvP)** — Create game (settings, entry stake in USDC, player count) → get 6-character code → others join by code → waiting room → pick token, pay stake if required → game starts when full.
+- **Tournament / entry stakes** — USDC entry fees and prize pool via tournament escrow contract; winner claims on-chain.
+
+### Board & UI
+
+- **2D and 3D boards** — Desktop and mobile variants (`board-3d`, `board-3d-multi`, `board-3d-mobile`, `board-3d-multi-mobile`).
+- **Real-time state** — Turn order, dice, positions, ownership, houses/hotels, jail, timers.
+- **Property actions** — Buy, sell, trade, build houses/hotels, mortgage/unmortgage from sidebar (My Empire).
+
+### Core mechanics (on-chain + backend)
+
+- **Dice, move, rent** — Roll, move, pay rent (by property and development), pass Go ($200).
+- **Chance & Community Chest** — Draw cards; effects (tax, move, get out of jail, etc.).
+- **Jail** — Go to Jail, Visiting Jail; get out via roll doubles, pay, or Jail Free card.
+- **Taxes** — Income Tax, Luxury Tax (fixed amounts).
+- **Bankruptcy & winning** — Last player standing wins; time-based net-worth victory in AI mode; claim prize on-chain.
+- **Trading** — Propose/accept/counter offers (properties + cash) with other players or AI.
+- **Turn timer** — Configurable turn timeout; auto-skip or finish-by-time when applicable.
+
+### AI & agents
+
+- **“My agent plays for me”** — Use a Tycoon-hosted agent (from **My Agents** in the UI) that rolls, buys, builds, and uses perks on your behalf. Uses **credits** (daily free tier or purchased with USDC).
+- **Built-in decisions** — When out of credits (or no hosted agent), the game uses rule-based logic: skip/buy, build on monopolies, etc. No error on board; credits shown on agents page.
+- **Pre-roll flow** — Agent uses perks (e.g. Jail Free, Instant Cash, Lucky 7) → then build on monopolies → then roll.
+- **ERC-8004** — Optional Agent Trust Protocol on Celo (identity/reputation); backend can submit feedback after AI games.
+- **Internal AI (backend)** — Anthropic-based opponent for “Play vs AI” when configured in backend env.
+
+### Perks & collectibles
+
+- **Perks** — e.g. Jail Free (2), Instant Cash (5), Lucky 7 (13); usable by human or agent (pre-roll or when applicable).
+- **Shop & bundles** — Perk bundles purchasable with TYC or NGN (Flutterwave); USDC for hosted agent credits.
+- **Daily rewards / vouchers** — Via TycoonRewardSystem (reward contract).
+
+### Auth & wallets
+
+- **Privy** — Sign in with Privy (embedded wallet, social login); app ID in env.
+- **WalletConnect** — MetaMask, App Kit (project ID in env).
+- **Guest accounts** — Email/social sign-up; backend creates custodial/smart wallet and registers on-chain (user registry + game contract).
+- **Smart wallets** — User registry creates TycoonUserWallet per player; operator/withdrawal authority for off-line withdrawals when configured.
+- **Minipay** — Celo Mainnet (42220) supported for in-app wallet experience.
+
+### Payments & economy
+
+- **USDC** — Entry stakes (PvP), tournament fees, optional hosted agent credits ($1 = 100 credits).
+- **TYC** — In-game token for shop, rewards, perks.
+- **NGN (Naira)** — Flutterwave for perk bundles in the Shop (backend webhook); optional Paystack flow documented.
+- **Tournament escrow** — Holds entry fees and prize pool; release on game outcome.
+
+### Tech & observability
+
+- **Gas-efficient** — Celo (and Base) low fees for transactions.
+- **Sentry** — Optional client/server error tracking (configure in env; see observability in Environment variables).
 
 ---
 
 ## 🔮 Upcoming
 
-- 👥 Multiplayer lobbies  
-- 🏆 Leaderboards & tournaments  
+- 👥 Deeper multiplayer lobbies & matchmaking  
+- 🏆 Leaderboards & recurring tournaments  
 - 🌾 Yield farming integrations  
 - 🗳 DAO governance for expansions  
 
