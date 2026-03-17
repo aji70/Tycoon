@@ -125,6 +125,10 @@ export default function RewardAdminPanel() {
     setVaultWithdrawAmount,
     vaultWithdrawTo,
     setVaultWithdrawTo,
+    vaultWithdrawUsdcAmount,
+    setVaultWithdrawUsdcAmount,
+    vaultWithdrawUsdcTo,
+    setVaultWithdrawUsdcTo,
     stockAllProgress,
   } = state;
 
@@ -963,6 +967,36 @@ export default function RewardAdminPanel() {
                       >
                         {pendingVaultWithdraw ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                         {pendingVaultWithdraw ? 'Withdrawing...' : 'Withdraw CELO'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-700/50 pt-4 mt-4">
+                    <h4 className="text-sm font-semibold text-emerald-300 mb-2">Withdraw USDC (owner/controller)</h4>
+                    <p className="text-gray-500 text-xs mb-3">Sends vault USDC to a recipient (uses the vault’s configured USDC token).</p>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Recipient address (0x...)"
+                        value={vaultWithdrawUsdcTo}
+                        onChange={(e) => setVaultWithdrawUsdcTo(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white placeholder-gray-500"
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="USDC amount"
+                        value={vaultWithdrawUsdcAmount}
+                        onChange={(e) => setVaultWithdrawUsdcAmount(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white placeholder-gray-500"
+                      />
+                      <button
+                        onClick={handlers.handleVaultWithdrawUsdc}
+                        disabled={anyPending || !vaultWithdrawUsdcAmount || !vaultWithdrawUsdcTo.trim()}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {pendingVaultWithdraw ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                        {pendingVaultWithdraw ? 'Withdrawing...' : 'Withdraw USDC'}
                       </button>
                     </div>
                   </div>
