@@ -1341,12 +1341,12 @@ function Board3DPageContent() {
 
       if (needBuyPrompt && square) {
         const refetchResult = await refetchGame();
-        const updatedGame = refetchResult?.data;
+        const updatedGame = refetchResult?.data as Game | undefined;
         const updatedMe = updatedGame?.players?.find((p: Player) => p.user_id === playerId) ?? me;
         const balanceAfterMove = updatedMe?.balance ?? me.balance ?? 0;
         const groupIds = Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => ids.includes(square.id)) ?? [];
         const ownedInGroup = groupIds.filter((id: number) =>
-          gameProperties.some(
+          freshGameProperties.some(
             (gp) => gp.property_id === id && gp.address?.toLowerCase() === me.address?.toLowerCase()
           )
         ).length;
@@ -1354,10 +1354,10 @@ function Board3DPageContent() {
         const landingRank = (MONOPOLY_STATS.landingRank as Record<number, number>)[square.id] ?? 99;
         const decisionContext = {
           myBalance: balanceAfterMove,
-          myProperties: gameProperties
+          myProperties: freshGameProperties
             .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
             .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
-          opponents: (game.players ?? []).filter((p) => p.user_id !== me.user_id),
+          opponents: (updatedGame?.players ?? game?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
           landedProperty: { ...square, completesMonopoly, landingRank },
         };
         try {
@@ -1400,7 +1400,7 @@ function Board3DPageContent() {
           const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Agent decision failed";
           toast.error(msg);
         }
-        await refetchGame();
+        await Promise.all([refetchGame(), refetchGameProperties()]);
         setTimeout(() => END_TURN(), 900);
       } else {
         setTimeout(() => END_TURN(), 1000);
@@ -1489,19 +1489,26 @@ function Board3DPageContent() {
     else if (!isLiveGame) handleRoll();
   }, [isLiveGame, playerCanRoll, handleRollForLive, handleRoll]);
 
-  // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build before rolling
+  // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build (or use rule-based fallback)
   const runMyAgentPreRollBuild = useCallback(async () => {
-    if (!game?.id || !me || (me.balance ?? 0) < 300) return;
-    const aiOwnedIds = gameProperties
-      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+    if (!game?.id || !me) return;
+    const [gameResult, gpResult] = await Promise.all([refetchGame(), refetchGameProperties()]);
+    const freshGame = gameResult?.data as Game | undefined;
+    const freshGameProperties = Array.isArray(gpResult?.data) ? (gpResult.data as GameProperty[]) : gameProperties;
+    const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
+    const balance = freshMe?.balance ?? 0;
+    if (balance < 300) return;
+    const aiOwnedIds = freshGameProperties
+      .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
       .map((gp) => gp.property_id);
     const hasMonopoly = Object.values(MONOPOLY_STATS.colorGroups).some((ids: number[]) =>
       ids.every((id) => aiOwnedIds.includes(id))
     );
     if (!hasMonopoly) return;
-    const myProperties = gameProperties
-      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+    const myProperties = freshGameProperties
+      .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
       .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp }));
+    let didBuild = false;
     try {
       const agentRes = await apiClient.post<{
         success?: boolean;
@@ -1512,9 +1519,9 @@ function Board3DPageContent() {
         slot: 1,
         decisionType: "building",
         context: {
-          myBalance: me.balance ?? 0,
+          myBalance: balance,
           myProperties,
-          opponents: (game?.players ?? []).filter((p) => p.user_id !== me.user_id),
+          opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
         },
       });
       if (
@@ -1529,12 +1536,34 @@ function Board3DPageContent() {
           property_id: agentRes.data.data.propertyId,
         });
         toast.success(prop ? `Your agent built on ${prop.name}.` : "Your agent built a house.");
-        await refetchGame();
+        didBuild = true;
       }
     } catch (_) {
-      /* non-fatal; still roll */
+      /* try fallback */
     }
-  }, [game?.id, game?.players, me, gameProperties, properties, refetchGame]);
+    if (!didBuild && balance >= 300) {
+      const buildable = myProperties
+        .filter((p) => (p.development ?? 0) < 5 && (p as Property & { cost_of_house?: number }).cost_of_house)
+        .map((p) => ({ p, cost: (p as Property & { cost_of_house?: number }).cost_of_house ?? 9999 }));
+      const byDev = buildable.sort((a, b) => (a.p.development ?? 0) - (b.p.development ?? 0));
+      const target = byDev.find((x) => balance >= (x.cost ?? 9999));
+      if (target && target.p.property_id != null) {
+        try {
+          await apiClient.post("/game-properties/development", {
+            game_id: game.id,
+            user_id: me.user_id,
+            property_id: target.p.property_id,
+          });
+          const propName = properties.find((p) => p.id === target.p.property_id)?.name;
+          toast.success(propName ? `Your agent built on ${propName}.` : "Your agent built a house.");
+          didBuild = true;
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
+    if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties]);
 
   // When "my agent" is on and it's my turn: pre-roll build (if monopoly) then auto-roll
   useEffect(() => {
