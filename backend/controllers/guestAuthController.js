@@ -16,6 +16,7 @@ import {
   getSmartWalletAddress,
   callContractRead,
   isContractConfigured,
+  isWalletFirstConfigured,
   createWalletForExistingUser,
   canCreateWalletForExistingUser,
   processNairaWithdrawalCelo,
@@ -219,9 +220,15 @@ export async function privySignin(req, res) {
 
     // Wallet-first on-chain registration at signup (no external wallet linked yet).
     // Creates a smart wallet and registers that wallet as the on-chain player identity.
+    const normalizedChain = User.normalizeChain(chain);
+    if (isContractConfigured(normalizedChain) && !isWalletFirstConfigured(normalizedChain)) {
+      logger.warn(
+        { chain: normalizedChain, userId: user.id },
+        "privySignin: skipping on-chain registration — set TYCOON_USER_REGISTRY_CELO (or TYCOON_USER_REGISTRY_ADDRESS) and TYCOON_OWNER_PRIVATE_KEY (registry owner key) in backend .env"
+      );
+    }
     try {
-      const normalizedChain = User.normalizeChain(chain);
-      if (isContractConfigured(normalizedChain)) {
+      if (isWalletFirstConfigured(normalizedChain)) {
         const { wallet: smartWallet } = await createWalletForUserByBackend(trimmedUsername, normalizedChain);
         const secret = crypto.randomBytes(32).toString("hex");
         const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
@@ -233,7 +240,13 @@ export async function privySignin(req, res) {
         logger.info({ userId: user.id, smartWallet, chain: normalizedChain }, "privySignin: wallet-first on-chain registration complete");
       }
     } catch (e) {
-      logger.warn({ err: e?.message, userId: user.id }, "privySignin: wallet-first on-chain registration failed (continuing)");
+      const errMsg = e?.message ?? e?.reason ?? String(e);
+      const errCode = e?.code ?? e?.error?.code;
+      const errData = e?.data ?? e?.error?.data;
+      logger.warn(
+        { userId: user.id, err: errMsg, code: errCode, data: errData, chain: normalizedChain },
+        "privySignin: wallet-first on-chain registration failed (continuing). Check TYCOON_USER_REGISTRY_*, TYCOON_OWNER_PRIVATE_KEY, and that proxy uses the new registry."
+      );
     }
 
     const token = jwt.sign(
@@ -247,7 +260,8 @@ export async function privySignin(req, res) {
       message: "Account created. You can link a wallet and email in profile.",
       data: {
         token,
-        user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did, email: safe.email, email_verified: safe.email_verified },
+        on_chain_registered: Boolean(safe.smart_wallet_address),
+        user: { id: safe.id, username: safe.username, address: safe.address, is_guest: true, privy_did: safe.privy_did, email: safe.email, email_verified: safe.email_verified, smart_wallet_address: safe.smart_wallet_address ?? undefined },
       },
     });
   } catch (err) {

@@ -340,6 +340,21 @@ function getRegistryOwnerContract(chain = "CELO") {
   return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
 }
 
+/**
+ * True if wallet-first signup (createWalletForUserByBackend) can run for this chain.
+ * Requires: chain RPC, TYCOON_USER_REGISTRY_* address, and registry owner key (TYCOON_OWNER_PRIVATE_KEY or REGISTRY_OWNER_PRIVATE_KEY or BACKEND_GAME_CONTROLLER_* if it is the registry owner).
+ */
+export function isWalletFirstConfigured(chain = "CELO") {
+  const cfg = getChainConfig(chain);
+  const { rpcUrl, userRegistryAddress } = cfg;
+  if (!rpcUrl || !userRegistryAddress) return false;
+  const pk =
+    process.env.TYCOON_OWNER_PRIVATE_KEY ??
+    process.env.REGISTRY_OWNER_PRIVATE_KEY ??
+    cfg.privateKey;
+  return Boolean(pk);
+}
+
 export async function createWalletForUserByBackend(username, chain = "CELO") {
   return withTxQueue(async () => {
     if (!username || typeof username !== "string" || username.trim().length < 2) {
