@@ -115,7 +115,7 @@ const CELO_CHAIN_ID = 42220;
 function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
   const username = guestUser.username;
   const { profile, setDisplayName, setBio, setProfile } = useProfile();
-  const [profileTab, setProfileTab] = useState<'stats' | 'about'>('stats');
+  const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
   const [editingBio, setEditingBio] = useState(false);
@@ -133,6 +133,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
       ? (guestUser.linked_wallet_address as Address)
       : null);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
+  const rewardAddress = REWARD_CONTRACT_ADDRESSES[CELO_CHAIN_ID] as Address | undefined;
   const shortGuestOnChainAddress = guestOnChainAddress ? `${guestOnChainAddress.slice(0, 6)}...${guestOnChainAddress.slice(-4)}` : null;
 
   const { data: onChainUsername } = useReadContract({
@@ -140,6 +141,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     abi: TycoonABI,
     functionName: 'addressToUsername',
     args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
+    chainId: CELO_CHAIN_ID,
     query: { enabled: !!guestOnChainAddress && !!tycoonAddress },
   });
 
@@ -148,6 +150,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     abi: TycoonABI,
     functionName: 'getUser',
     args: onChainUsername ? [onChainUsername as string] : undefined,
+    chainId: CELO_CHAIN_ID,
     query: { enabled: !!onChainUsername && !!tycoonAddress },
   });
 
@@ -155,6 +158,131 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     if (!playerData || !onChainUsername) return null;
     return parseUserFromContract(playerData, onChainUsername as string, guestOnChainAddress ?? undefined);
   }, [playerData, onChainUsername, guestOnChainAddress]);
+
+  const { data: tycTokenAddress } = useReadContract({
+    address: rewardAddress,
+    abi: RewardABI,
+    functionName: 'tycToken',
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!rewardAddress },
+  });
+  const { data: usdcTokenAddress } = useReadContract({
+    address: rewardAddress,
+    abi: RewardABI,
+    functionName: 'usdc',
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!rewardAddress },
+  });
+
+  const tycBalance = useBalance({
+    address: guestOnChainAddress ?? undefined,
+    token: (tycTokenAddress as Address | undefined) ?? undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!guestOnChainAddress && !!tycTokenAddress },
+  });
+  const usdcBalance = useBalance({
+    address: guestOnChainAddress ?? undefined,
+    token: (usdcTokenAddress as Address | undefined) ?? undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!guestOnChainAddress && !!usdcTokenAddress },
+  });
+  const nativeBalance = useBalance({
+    address: guestOnChainAddress ?? undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!guestOnChainAddress },
+  });
+
+  const ownedCount = useReadContract({
+    address: rewardAddress,
+    abi: RewardABI,
+    functionName: 'ownedTokenCount',
+    args: guestOnChainAddress ? [guestOnChainAddress] : undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!guestOnChainAddress && !!rewardAddress },
+  });
+  const ownedCountNum = Number(ownedCount.data ?? 0);
+  const tokenCalls = useMemo(() =>
+    Array.from({ length: ownedCountNum }, (_, i) => ({
+      address: rewardAddress!,
+      abi: RewardABI as Abi,
+      functionName: 'tokenOfOwnerByIndex',
+      args: [guestOnChainAddress!, BigInt(i)],
+    } as const)),
+  [rewardAddress, guestOnChainAddress, ownedCountNum]);
+  const tokenResults = useReadContracts({
+    contracts: tokenCalls,
+    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!guestOnChainAddress },
+  });
+  const allOwnedTokenIds = tokenResults.data
+    ?.map(r => r.status === 'success' ? r.result as bigint : null)
+    .filter((id): id is bigint => id !== null) ?? [];
+
+  const infoCalls = useMemo(() =>
+    allOwnedTokenIds.map(id => ({
+      address: rewardAddress!,
+      abi: RewardABI as Abi,
+      functionName: 'getCollectibleInfo',
+      args: [id],
+    } as const)),
+  [rewardAddress, allOwnedTokenIds]);
+  const infoResults = useReadContracts({
+    contracts: infoCalls,
+    query: { enabled: allOwnedTokenIds.length > 0 && !!rewardAddress },
+  });
+
+  const ownedCollectibles = useMemo(() => {
+    return infoResults.data?.map((res, i) => {
+      if (res?.status !== 'success') return null;
+      const [perkNum, strength, , , shopStock] = res.result as [bigint, bigint, bigint, bigint, bigint];
+      const perk = Number(perkNum);
+      if (perk === 0) return null;
+
+      const tokenId = allOwnedTokenIds[i];
+      const meta = getPerkMetadata(perk);
+
+      return {
+        tokenId,
+        name: meta.name,
+        icon: meta.icon,
+        strength: Number(strength),
+        shopStock: Number(shopStock),
+        isTiered: perk === 5 || perk === 9,
+      };
+    }).filter((c): c is NonNullable<typeof c> => c !== null) ?? [];
+  }, [infoResults.data, allOwnedTokenIds]);
+
+  const voucherTokenIds = allOwnedTokenIds.filter(isVoucherToken);
+  const voucherInfoCalls = useMemo(() =>
+    voucherTokenIds.map(id => ({
+      address: rewardAddress!,
+      abi: RewardABI as Abi,
+      functionName: 'getCollectibleInfo',
+      args: [id],
+    } as const)),
+  [rewardAddress, voucherTokenIds]);
+  const voucherInfoResults = useReadContracts({
+    contracts: voucherInfoCalls,
+    query: { enabled: voucherTokenIds.length > 0 && !!rewardAddress },
+  });
+  const myVouchers = useMemo(() => {
+    return voucherInfoResults.data?.map((res, i) => {
+      if (res?.status !== 'success') return null;
+      const [, , tycPrice] = res.result as [bigint, bigint, bigint, bigint, bigint];
+      return {
+        tokenId: voucherTokenIds[i],
+        value: formatUnits(tycPrice, 18),
+      };
+    }).filter((v): v is NonNullable<typeof v> => v !== null) ?? [];
+  }, [voucherInfoResults.data, voucherTokenIds]);
+
+  const isLoadingPerks =
+    ownedCount.isLoading ||
+    (ownedCountNum > 0 && tokenResults.isLoading) ||
+    (allOwnedTokenIds.length > 0 && infoResults.isLoading);
+  const isLoadingVouchers =
+    ownedCount.isLoading ||
+    (ownedCountNum > 0 && tokenResults.isLoading) ||
+    (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
 
   const { data: games = [] } = useQuery({
     queryKey: ['guest-my-games'],
@@ -252,6 +380,22 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
                 </div>
               </div>
             </div>
+
+            {/* Balances row (same layout as wallet-connected) */}
+            <div className="mt-6 pt-6 border-t border-white/10">
+              <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                {[
+                  { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
+                  { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
+                  { label: 'Celo', value: nativeBalance.isLoading ? '...' : (nativeBalance.data ? Number(nativeBalance.data.formatted).toFixed(4) : '0'), color: 'slate' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                    <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </motion.section>
 
@@ -261,6 +405,8 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
             {[
               { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
               { id: 'about' as const, label: 'About you', icon: User },
+              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
+              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -274,6 +420,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 {label}
+                {'badge' in (arguments[0] as any) && (arguments[0] as any).badge !== undefined && (arguments[0] as any).badge > 0 ? null : null}
               </button>
             ))}
           </div>
@@ -416,6 +563,105 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
                     )}
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {profileTab === 'perks' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                {!guestOnChainAddress ? (
+                  <EmptyState
+                    icon={<ShoppingBag className="w-14 h-14 text-purple-400/70" />}
+                    title="No perks yet"
+                    description="Link a wallet to view perks owned by your on-chain address."
+                    compact
+                    className="border-purple-500/20 bg-black/20"
+                  />
+                ) : isLoadingPerks ? (
+                  <>
+                    <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
+                    <SkeletonPerkGrid count={6} gridClass="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" />
+                  </>
+                ) : ownedCollectibles.length === 0 ? (
+                  <EmptyState
+                    icon={<ShoppingBag className="w-14 h-14 text-purple-400/70" />}
+                    title="No perks yet"
+                    description="Perks give you in-game advantages. Buy them in the Perk Shop or during a game from My Perks."
+                    action={{ label: 'Visit Perk Shop', href: '/game-shop' }}
+                    compact
+                    className="border-purple-500/20 bg-black/20"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {ownedCollectibles.map((item, i) => (
+                      <motion.div
+                        key={item.tokenId.toString()}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.02 }}
+                        whileHover={{ y: -2 }}
+                        className="rounded-2xl p-4 text-center border transition-all bg-black/20 border-white/10 hover:border-purple-500/30"
+                      >
+                        {item.icon}
+                        <h4 className="mt-2 font-semibold text-white text-sm">{item.name}</h4>
+                        {item.isTiered && item.strength > 0 && <p className="text-cyan-300/90 text-xs mt-0.5">Tier {item.strength}</p>}
+                        <p className="text-xs text-white/50 mt-3">Connect a wallet to transfer perks.</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {profileTab === 'vouchers' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                {!guestOnChainAddress ? (
+                  <EmptyState
+                    icon={<Ticket className="w-14 h-14 text-amber-400/70" />}
+                    title="No vouchers yet"
+                    description="Link a wallet to view reward vouchers owned by your on-chain address."
+                    compact
+                    className="border-amber-500/20 bg-black/20"
+                  />
+                ) : isLoadingVouchers ? (
+                  <>
+                    <p className="text-slate-400 text-sm text-center mb-3">Loading vouchers…</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <SkeletonCard key={i} hasImage={false} lines={2} className="rounded-2xl p-5 border border-amber-500/20" />
+                      ))}
+                    </div>
+                  </>
+                ) : myVouchers.length === 0 ? (
+                  <EmptyState
+                    icon={<Ticket className="w-14 h-14 text-amber-400/70" />}
+                    title="No vouchers yet"
+                    description="Win games to earn reward vouchers. Redeem them here for TYC or use perks during a game."
+                    compact
+                    className="border-amber-500/20 bg-black/20"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {myVouchers.map((voucher) => (
+                      <motion.div
+                        key={voucher.tokenId.toString()}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="rounded-2xl p-5 text-center border border-amber-500/20 bg-black/20"
+                      >
+                        <Ticket className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                        <p className="text-lg font-bold text-amber-200 mb-3">{voucher.value} TYC</p>
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm bg-white/10 text-white/50 cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          Redeem
+                        </button>
+                        <p className="text-xs text-white/50 mt-2">Connect a wallet to redeem vouchers.</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </div>
