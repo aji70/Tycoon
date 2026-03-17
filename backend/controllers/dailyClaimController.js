@@ -57,6 +57,15 @@ export async function dailyClaim(req, res) {
     const chain = (req.body?.chain || user.chain || "BASE").trim().toUpperCase();
     const normalizedChain = ["CELO", "POLYGON", "BASE"].includes(chain) ? chain : "BASE";
 
+    // IMPORTANT: rewards/perks are typically held on the user's smart wallet.
+    // If present, mint vouchers to smart_wallet_address so they show up in the profile (which reads smart wallet holdings).
+    const mintToAddress =
+      (user.smart_wallet_address && String(user.smart_wallet_address).trim() && String(user.smart_wallet_address).trim() !== "0x0000000000000000000000000000000000000000")
+        ? String(user.smart_wallet_address).trim()
+        : (user.linked_wallet_address && String(user.linked_wallet_address).trim()
+            ? String(user.linked_wallet_address).trim()
+            : String(user.address).trim());
+
     let rewardTyc = null;
     let txHash = null;
 
@@ -66,7 +75,7 @@ export async function dailyClaim(req, res) {
       const totalWei = baseReward + streakBonus;
 
       try {
-        const { hash } = await mintVoucherTo(user.address, totalWei.toString(), normalizedChain);
+        const { hash } = await mintVoucherTo(mintToAddress, totalWei.toString(), normalizedChain);
         txHash = hash;
         rewardTyc = Number(totalWei) / 1e18;
       } catch (mintErr) {
@@ -83,6 +92,7 @@ export async function dailyClaim(req, res) {
           message: msg,
           streak: newStreak,
           chain: normalizedChain,
+          mint_to: mintToAddress,
         });
       }
     }
@@ -102,6 +112,7 @@ export async function dailyClaim(req, res) {
       streak: newStreak,
       reward_tyc: rewardTyc,
       tx_hash: txHash || undefined,
+      mint_to: mintToAddress,
     });
   } catch (err) {
     logger.error({ err: err?.message }, "dailyClaim error");
