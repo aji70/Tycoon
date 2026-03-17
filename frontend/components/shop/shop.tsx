@@ -31,7 +31,10 @@ import {
   CircleDollarSign,
   MapPin,
   Banknote,
+  Smartphone,
+  Package,
 } from 'lucide-react';
+import Link from 'next/link';
 
 import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
@@ -42,7 +45,9 @@ import {
   useRewardRedeemVoucher,
   useApprove,
   useRewardTokenAddresses,
+  useUserRegistryWallet,
 } from '@/context/ContractProvider';
+import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
 import { SkeletonPerkGrid } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
@@ -75,6 +80,29 @@ const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | 
   { name: "Ultimate Pack", description: "Extra Turn, Double Rent, Shield, and Lucky 7. A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5" },
 ];
 
+type BundleLineItem = { perk: number; strength: number; quantity: number };
+type BundleDef = {
+  name: string;
+  description: string;
+  items: BundleLineItem[];
+};
+
+/**
+ * Bundle composition (perk IDs + strength) for "buy in sequence" bundles.
+ * Note: This buys existing stocked collectibles individually (multiple txs), since
+ * on-chain bundles may not be configured in every deployment yet.
+ */
+const BUNDLE_DEFS: BundleDef[] = [
+  { name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", items: [{ perk: 2, strength: 1, quantity: 1 }, { perk: 6, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 2, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }] },
+  { name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", items: [{ perk: 3, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
+  { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", items: [{ perk: 6, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", items: [{ perk: 11, strength: 1, quantity: 1 }, { perk: 12, strength: 1, quantity: 1 }, { perk: 14, strength: 1, quantity: 1 }] },
+  { name: "Ultimate Pack", description: "A bit of everything to dominate the board.", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+];
+
 // Perk metadata — real descriptions for shop and collectibles
 const perkMetadata = [
   { perk: 1, name: "Extra Turn", desc: "Use on your turn to take an extra roll after this one. One more chance to land where you need.", icon: <Zap className="w-12 h-12 text-yellow-400" />, image: "/game/shop/a.jpeg" },
@@ -93,35 +121,50 @@ const perkMetadata = [
   { perk: 14, name: "Free Parking Bonus", desc: "Next time you land on Free Parking, collect $500. A classic Monopoly moment.", icon: <MapPin className="w-12 h-12 text-sky-400" />, image: "/game/shop/a.jpeg" },
 ];
 
+const zeroAddress = '0x0000000000000000000000000000000000000000' as Address;
+const isValidWallet = (a: string | undefined): a is Address =>
+  !!a && a !== zeroAddress && a.toLowerCase() !== zeroAddress.toLowerCase();
+
 export default function GameShop() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const auth = useGuestAuthOptional();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
+  const { data: registrySmartWallet } = useUserRegistryWallet(address);
+  const guestSmartWallet = auth?.guestUser?.smart_wallet_address ?? undefined;
+  const smartWalletAddress =
+    (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ??
+    (isValidWallet(guestSmartWallet) ? (guestSmartWallet as Address) : null);
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
+  const [payCurrency, setPayCurrency] = useState<'usdc' | 'tyc'>('tyc');
+  const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
   const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
   const [ngnAvailable, setNgnAvailable] = useState(false);
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
+  const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
+
+  const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
 
   const { data: tycAllowance } = useReadContract({
   address: tycTokenAddress,
   abi: Erc20Abi,
   functionName: 'allowance',
-  args: address && contractAddress ? [address, contractAddress] : undefined,
-  query: { enabled: !!address && !!tycTokenAddress && !!contractAddress },
+  args: payerAddress && contractAddress ? [payerAddress, contractAddress] : undefined,
+  query: { enabled: !!payerAddress && !!tycTokenAddress && !!contractAddress },
 });
 
 const { data: usdcAllowance } = useReadContract({
   address: usdcTokenAddress,
   abi: Erc20Abi,
   functionName: 'allowance',
-  args: address && contractAddress ? [address, contractAddress] : undefined,
-  query: { enabled: !!address && !!usdcTokenAddress && !!contractAddress },
+  args: payerAddress && contractAddress ? [payerAddress, contractAddress] : undefined,
+  query: { enabled: !!payerAddress && !!usdcTokenAddress && !!contractAddress },
 });
 
 
@@ -153,21 +196,23 @@ const { data: usdcAllowance } = useReadContract({
     reset: resetRedeem,
   } = useRewardRedeemVoucher();
 
-  // Balances
+  // Balances (of selected payer: connected or smart wallet)
   const { data: tycBalanceData, isLoading: tycLoading, refetch: refetchTyc } = useBalance({
-    address,
+    address: payerAddress,
     token: tycTokenAddress,
-    query: { enabled: !!address && !!tycTokenAddress && isConnected },
+    query: { enabled: !!payerAddress && !!tycTokenAddress && isConnected },
   });
 
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
-    address,
+    address: payerAddress,
     token: usdcTokenAddress,
-    query: { enabled: !!address && !!usdcTokenAddress && isConnected },
+    query: { enabled: !!payerAddress && !!usdcTokenAddress && isConnected },
   });
 
   const tycBalance = tycBalanceData ? Number(tycBalanceData.formatted).toFixed(2) : '0.00';
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
+
+  const payFromSmartWalletUnsupported = payWith === 'smart_wallet'; // on-chain buy is from signer only; smart wallet payment coming later
 
   // ── Shop Items: Collectibles owned by contract (in shop stock) ──
   const { data: contractOwnedCount } = useReadContract({
@@ -329,17 +374,21 @@ const { data: usdcAllowance } = useReadContract({
   }, [voucherInfoResults, userVoucherIds]);
 
   // ── Handlers ──
-  const handleBuy = async (item: typeof shopItems[0]) => {
+  const handleBuy = async (item: typeof shopItems[0], useUsdcOverride?: boolean) => {
     if (!isConnected || !address) {
       toast.error('Please connect your wallet');
       return;
     }
+    if (payWith === 'smart_wallet') {
+      toast.info('To pay from your smart wallet, select "Connected wallet" above. Smart wallet payment coming soon.');
+      return;
+    }
 
-    const isPayingWithUsdc = true;
-    const priceNum = Number(item.usdcPrice);
-    const balanceNum = Number(usdcBalance);
+    const isPayingWithUsdc = useUsdcOverride !== undefined ? useUsdcOverride : payCurrency === 'usdc';
+    const priceNum = Number(isPayingWithUsdc ? item.usdcPrice : item.tycPrice);
+    const balanceNum = Number(isPayingWithUsdc ? usdcBalance : tycBalance);
     if (balanceNum < priceNum) {
-      toast.error(isPayingWithUsdc ? 'Insufficient USDC balance' : 'Insufficient TYC balance');
+      toast.error(isPayingWithUsdc ? 'Insufficient USDC balance' : 'Insufficient Naria balance');
       return;
     }
 
@@ -372,6 +421,81 @@ const { data: usdcAllowance } = useReadContract({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transaction failed';
       toast.error(msg);
+    }
+  };
+
+  const resolveBundlePurchases = useMemo(() => {
+    const byPerkStrength = new Map<string, Array<(typeof shopItems)[0]>>();
+    for (const si of shopItems) {
+      const key = `${si.perk}:${si.strength}`;
+      const arr = byPerkStrength.get(key) ?? [];
+      arr.push(si);
+      byPerkStrength.set(key, arr);
+    }
+    // Prefer higher stock first
+    for (const arr of byPerkStrength.values()) {
+      arr.sort((a, b) => b.stock - a.stock);
+    }
+    return { byPerkStrength };
+  }, [shopItems]);
+
+  const canBuyBundle = (def: BundleDef) => {
+    for (const li of def.items) {
+      const key = `${li.perk}:${li.strength}`;
+      const match = resolveBundlePurchases.byPerkStrength.get(key)?.[0];
+      if (!match || match.stock < li.quantity) return false;
+    }
+    return true;
+  };
+
+  const handleBuyBundle = async (bundleName: string, useUsdc: boolean) => {
+    if (!isConnected || !address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+    if (payWith === 'smart_wallet') {
+      toast.info('To pay from your smart wallet, select "Connected wallet" above. Smart wallet payment coming soon.');
+      return;
+    }
+    if (!contractAddress) {
+      toast.error('Reward contract not available on this network');
+      return;
+    }
+    if (useUsdc && !usdcTokenAddress) {
+      toast.error('USDC not supported on this network');
+      return;
+    }
+    if (!useUsdc && !tycTokenAddress) {
+      toast.error('Naria not supported on this network');
+      return;
+    }
+    const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
+    if (!def) {
+      toast.error('Bundle not found');
+      return;
+    }
+    if (!canBuyBundle(def)) {
+      toast.error('Bundle items are not currently in stock');
+      return;
+    }
+    if (bundleBuyingName) return;
+
+    setBundleBuyingName(def.name);
+    try {
+      for (const li of def.items) {
+        const key = `${li.perk}:${li.strength}`;
+        const match = resolveBundlePurchases.byPerkStrength.get(key)?.[0];
+        if (!match) throw new Error(`Missing perk #${li.perk} (tier ${li.strength})`);
+        for (let i = 0; i < li.quantity; i++) {
+          await handleBuy(match, useUsdc);
+        }
+      }
+      toast.success('Bundle purchase complete!');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Bundle purchase failed';
+      toast.error(msg);
+    } finally {
+      setBundleBuyingName(null);
     }
   };
 
@@ -530,7 +654,42 @@ const { data: usdcAllowance } = useReadContract({
           </button>
         </div>
 
-        {/* Balance — USDC only */}
+        {/* Pay from: Connected wallet | Smart wallet */}
+        {isConnected && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Pay from:</span>
+            <button
+              type="button"
+              onClick={() => setPayWith('connected')}
+              className={`min-h-[36px] px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                payWith === 'connected'
+                  ? 'bg-[#00F0FF]/15 border-[#00F0FF]/50 text-[#00F0FF]'
+                  : 'bg-[#0E1415]/60 border-[#003B3E] text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              <Wallet className="w-4 h-4 inline mr-2 align-middle" />
+              Connected wallet
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayWith('smart_wallet')}
+              disabled={!smartWalletAddress}
+              title={!smartWalletAddress ? 'Create a profile to get a smart wallet' : 'Show smart wallet balance'}
+              className={`min-h-[36px] px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                payWith === 'smart_wallet'
+                  ? 'bg-amber-500/15 border-amber-400/50 text-amber-200'
+                  : !smartWalletAddress
+                  ? 'bg-slate-800/60 border-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-[#0E1415]/60 border-[#003B3E] text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              <Smartphone className="w-4 h-4 inline mr-2 align-middle" />
+              Smart wallet
+            </button>
+          </div>
+        )}
+
+        {/* Balance */}
         <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -548,6 +707,55 @@ const { data: usdcAllowance } = useReadContract({
               <RefreshCw className="w-4 h-4" />
             </button>
           </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl px-4 py-3 flex items-center gap-3 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
+          >
+            <Coins className="w-5 h-5 text-amber-300 shrink-0" />
+            <div className="text-left">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Naria</p>
+              <p className="text-base font-bold text-amber-200 font-[family-name:var(--font-orbitron-sans)]">
+                {tycLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `${tycBalance}`}
+              </p>
+            </div>
+            <button onClick={() => refetchTyc()} className="p-1 rounded text-slate-500 hover:text-amber-200">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </motion.div>
+        </div>
+
+        {payFromSmartWalletUnsupported && (
+          <p className="text-center text-amber-200/90 text-sm mb-4">
+            Payment from smart wallet is not yet available for on-chain checkout. Select Connected wallet to pay with Naria or USDC.
+          </p>
+        )}
+
+        {/* Payment toggle */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setPayCurrency('tyc')}
+            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
+              payCurrency === 'tyc'
+                ? 'bg-amber-500/20 border-2 border-amber-400/60 text-amber-200'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Pay with Naria
+          </button>
+          <button
+            type="button"
+            onClick={() => setPayCurrency('usdc')}
+            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
+              payCurrency === 'usdc'
+                ? 'bg-[#00F0FF]/20 border-2 border-[#00F0FF]/60 text-[#00F0FF]'
+                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
+            }`}
+          >
+            Pay with USDC
+          </button>
         </div>
 
         {/* Tabs: Perks | Bundles — one visible at a time */}
@@ -578,13 +786,16 @@ const { data: usdcAllowance } = useReadContract({
 
         <div className="min-h-[320px]">
           {shopTab === 'perks' && (
-            <div className="mb-4">
+            <div className="mb-4 space-y-2">
               <FirstTimeHint
                 storageKey="perks_in_game"
                 message="You can also buy perks during a game from the My Perks button in the bottom bar."
                 link={{ href: '/how-to-play', label: 'How to Play' }}
                 compact
               />
+              <p className="text-center text-slate-500 text-xs">
+                Admins can stock the shop with perks from <Link href="/rewards" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3.5 h-3.5" /> Rewards → Stock Shop</Link>.
+              </p>
             </div>
           )}
           {shopTab === 'bundles' && (
@@ -619,10 +830,38 @@ const { data: usdcAllowance } = useReadContract({
                         )}
                       </div>
                       <button
-                        disabled
-                        className="w-full py-3 rounded-xl font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed"
+                        onClick={() => handleBuyBundle(b.name, false)}
+                        disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
+                        className={`w-full py-3 rounded-xl font-semibold border transition-all ${
+                          bundleBuyingName === b.name
+                            ? 'bg-amber-600/90 text-black cursor-wait border-amber-400/50'
+                            : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
+                            ? 'bg-slate-800/80 text-slate-500 border-slate-700/80 cursor-not-allowed'
+                            : 'bg-amber-500/20 text-amber-200 border-amber-400/50 hover:bg-amber-500/30'
+                        }`}
                       >
-                        Buy with USDC — Coming soon
+                        {bundleBuyingName === b.name ? (
+                          <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
+                        ) : payFromSmartWalletUnsupported ? (
+                          'Use Connected wallet to pay'
+                        ) : (
+                          <><Coins className="w-4 h-4 inline mr-2" /> Buy with Naria</>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleBuyBundle(b.name, true)}
+                        disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
+                        className={`w-full mt-2 py-3 rounded-xl font-semibold border transition-all ${
+                          bundleBuyingName === b.name
+                            ? 'bg-slate-700/80 text-slate-400 cursor-wait border-slate-600/50'
+                            : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
+                            ? 'bg-slate-800/80 text-slate-500 border-slate-700/80 cursor-not-allowed'
+                            : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40 hover:bg-[#00F0FF]/20'
+                        }`}
+                      >
+                        {bundleBuyingName === b.name ? null : (
+                          <><CreditCard className="w-4 h-4 inline mr-2" /> Buy with USDC</>
+                        )}
                       </button>
                       {b.price_ngn != null && b.price_ngn > 0 && (
                         <button
@@ -752,14 +991,15 @@ const { data: usdcAllowance } = useReadContract({
                       </>
                     ) : (
                       (() => {
-                        const balance = Number(usdcBalance);
-                        const price = Number(item.usdcPrice);
+                        const isPayingWithUsdc = payCurrency === 'usdc';
+                        const balance = Number(isPayingWithUsdc ? usdcBalance : tycBalance);
+                        const price = Number(isPayingWithUsdc ? item.usdcPrice : item.tycPrice);
                         const insufficientFunds = balance < price;
                         return (
                           <>
                             <button
                               onClick={() => handleBuy(item)}
-                              disabled={item.stock === 0 || isProcessing || insufficientFunds}
+                              disabled={item.stock === 0 || isProcessing || insufficientFunds || payFromSmartWalletUnsupported}
                               className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
                                 item.stock === 0
                                   ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
@@ -775,9 +1015,11 @@ const { data: usdcAllowance } = useReadContract({
                               ) : item.stock === 0 ? (
                                 'Sold Out'
                               ) : insufficientFunds ? (
-                                <>Insufficient USDC</>
+                                <>{isPayingWithUsdc ? 'Insufficient USDC' : 'Insufficient Naria'}</>
+                              ) : payFromSmartWalletUnsupported ? (
+                                <>Use Connected wallet to pay</>
                               ) : (
-                                <> <CreditCard className="w-5 h-5" /> Buy with USDC </>
+                                <> {isPayingWithUsdc ? <CreditCard className="w-5 h-5" /> : <Coins className="w-5 h-5" />} Buy with {isPayingWithUsdc ? 'USDC' : 'Naria'} </>
                               )}
                             </button>
                             <button
