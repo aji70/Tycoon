@@ -11,7 +11,9 @@ interface DailyClaimStatus {
   last_claim_at: string | null;
 }
 
-export function DailyClaim() {
+type SupportedChain = 'CELO' | 'POLYGON' | 'BASE';
+
+export function DailyClaim({ chain }: { chain?: SupportedChain }) {
   const [status, setStatus] = useState<DailyClaimStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
@@ -19,7 +21,10 @@ export function DailyClaim() {
   const fetchStatus = () => {
     setLoading(true);
     apiClient
-      .get<{ success?: boolean; can_claim?: boolean; streak?: number; last_claim_at?: string | null }>('rewards/daily-claim/status')
+      .get<{ success?: boolean; can_claim?: boolean; streak?: number; last_claim_at?: string | null }>(
+        'rewards/daily-claim/status',
+        chain ? { chain } : undefined
+      )
       .then((r) => {
         if (r?.data) {
           setStatus({
@@ -35,13 +40,16 @@ export function DailyClaim() {
 
   useEffect(() => {
     fetchStatus();
-  }, []);
+  }, [chain]);
 
   const handleClaim = () => {
     if (!status?.can_claim || claiming) return;
     setClaiming(true);
     apiClient
-      .post<{ success?: boolean; already_claimed?: boolean; message?: string; streak?: number; reward_tyc?: number | null }>('rewards/daily-claim', {})
+      .post<{ success?: boolean; already_claimed?: boolean; message?: string; streak?: number; reward_tyc?: number | null }>(
+        'rewards/daily-claim',
+        chain ? { chain } : {}
+      )
       .then((r) => {
         if (r?.data?.success) {
           if (r.data.already_claimed) {
