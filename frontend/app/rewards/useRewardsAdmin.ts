@@ -146,6 +146,8 @@ export function useRewardsAdmin() {
   const [checkRegisteredAddress, setCheckRegisteredAddress] = useState("");
   const [vaultWithdrawAmount, setVaultWithdrawAmount] = useState("");
   const [vaultWithdrawTo, setVaultWithdrawTo] = useState("");
+  const [vaultWithdrawUsdcAmount, setVaultWithdrawUsdcAmount] = useState("");
+  const [vaultWithdrawUsdcTo, setVaultWithdrawUsdcTo] = useState("");
   const [stockAllProgress, setStockAllProgress] = useState<{ active: boolean; current: number; total: number }>({
     active: false,
     current: 0,
@@ -157,6 +159,7 @@ export function useRewardsAdmin() {
     { inputs: [], name: "balanceUsdc", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
     { inputs: [], name: "usdc", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
     { inputs: [{ name: "recipient", type: "address" }, { name: "amount", type: "uint256" }], name: "creditCelo", outputs: [], stateMutability: "nonpayable", type: "function" },
+    { inputs: [{ name: "recipient", type: "address" }, { name: "amount", type: "uint256" }], name: "creditUsdc", outputs: [], stateMutability: "nonpayable", type: "function" },
   ] as const;
   const ERC20_DECIMALS_ABI = [{ inputs: [], name: "decimals", outputs: [{ type: "uint8" }], stateMutability: "view", type: "function" }] as const;
   const vaultAddress = NAIRA_VAULT_ADDRESSES[chainId as keyof typeof NAIRA_VAULT_ADDRESSES];
@@ -186,6 +189,8 @@ export function useRewardsAdmin() {
   });
   const vaultCreditCelo = useWriteContract();
   const vaultCreditCeloReceipt = useWaitForTransactionReceipt({ hash: vaultCreditCelo.data });
+  const vaultCreditUsdc = useWriteContract();
+  const vaultCreditUsdcReceipt = useWaitForTransactionReceipt({ hash: vaultCreditUsdc.data });
 
   const setMinterHook = useRewardSetBackendMinter();
   const tycoonReads = useTycoonAdminReads();
@@ -695,6 +700,20 @@ export function useRewardsAdmin() {
     setVaultWithdrawTo("");
   };
 
+  const handleVaultWithdrawUsdc = async () => {
+    if (!vaultAddress || !vaultWithdrawUsdcTo.trim() || !vaultWithdrawUsdcAmount) return;
+    const decimals = Number(vaultUsdcDecimals.data ?? 6);
+    const amountUnits = parseUnits(vaultWithdrawUsdcAmount, decimals);
+    await vaultCreditUsdc.writeContractAsync({
+      address: vaultAddress,
+      abi: NAIRA_VAULT_ABI,
+      functionName: "creditUsdc",
+      args: [vaultWithdrawUsdcTo.trim() as Address, amountUnits],
+    });
+    setVaultWithdrawUsdcAmount("");
+    setVaultWithdrawUsdcTo("");
+  };
+
   const anyPending =
     setMinterHook.isPending ||
     mintVoucherHook.isPending ||
@@ -713,7 +732,9 @@ export function useRewardsAdmin() {
     tycoonSetRewardSystemHook.isPending ||
     tycoonCreateWalletHook.isPending ||
     vaultCreditCelo.isPending ||
-    vaultCreditCeloReceipt.isLoading;
+    vaultCreditCeloReceipt.isLoading ||
+    vaultCreditUsdc.isPending ||
+    vaultCreditUsdcReceipt.isLoading;
 
   const currentTxHash =
     setMinterHook.txHash ||
@@ -732,7 +753,8 @@ export function useRewardsAdmin() {
     tycoonSetGameFaucetHook.txHash ||
     tycoonSetRewardSystemHook.txHash ||
     tycoonCreateWalletHook.txHash ||
-    vaultCreditCelo.data;
+    vaultCreditCelo.data ||
+    vaultCreditUsdc.data;
 
   return {
     auth: {
@@ -820,6 +842,10 @@ export function useRewardsAdmin() {
       setVaultWithdrawAmount,
       vaultWithdrawTo,
       setVaultWithdrawTo,
+      vaultWithdrawUsdcAmount,
+      setVaultWithdrawUsdcAmount,
+      vaultWithdrawUsdcTo,
+      setVaultWithdrawUsdcTo,
       stockAllProgress,
     },
     contract: {
@@ -846,6 +872,7 @@ export function useRewardsAdmin() {
       handleSetTycoonRewardSystem,
       handleCreateWalletForExistingUser,
       handleVaultWithdrawCelo,
+      handleVaultWithdrawUsdc,
       pause: pauseHook.pause,
       unpause: pauseHook.unpause,
     },
@@ -868,7 +895,11 @@ export function useRewardsAdmin() {
       pendingTycoonGameFaucet: tycoonSetGameFaucetHook.isPending,
       pendingTycoonRewardSystem: tycoonSetRewardSystemHook.isPending,
       pendingCreateWallet: tycoonCreateWalletHook.isPending,
-      pendingVaultWithdraw: vaultCreditCelo.isPending || vaultCreditCeloReceipt.isLoading,
+      pendingVaultWithdraw:
+        vaultCreditCelo.isPending ||
+        vaultCreditCeloReceipt.isLoading ||
+        vaultCreditUsdc.isPending ||
+        vaultCreditUsdcReceipt.isLoading,
     },
   };
 }

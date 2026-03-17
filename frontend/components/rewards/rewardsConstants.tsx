@@ -8,40 +8,26 @@ import {
   Star,
   KeyRound,
 } from "lucide-react";
-export enum CollectiblePerk {
-  NONE = 0,
-  EXTRA_TURN = 1,
-  JAIL_FREE = 2,
-  DOUBLE_RENT = 3,
-  ROLL_BOOST = 4,
-  CASH_TIERED = 5,
-  TELEPORT = 6,
-  SHIELD = 7,
-  PROPERTY_DISCOUNT = 8,
-  TAX_REFUND = 9,
-  ROLL_EXACT = 10,
-  RENT_CASHBACK = 11,
-  INTEREST = 12,
-  LUCKY_7 = 13,
-  FREE_PARKING_BONUS = 14,
-}
+// Single source of truth for perk IDs (matches the on-chain enum values).
+export { CollectiblePerk } from "@/context/ContractProvider";
+import type { CollectiblePerk as CollectiblePerkT } from "@/context/ContractProvider";
 
 export const PERK_NAMES: Record<number, string> = {
-  [CollectiblePerk.NONE]: "None",
-  [CollectiblePerk.EXTRA_TURN]: "Extra Turn",
-  [CollectiblePerk.JAIL_FREE]: "Get Out of Jail Free",
-  [CollectiblePerk.DOUBLE_RENT]: "Double Rent",
-  [CollectiblePerk.ROLL_BOOST]: "Roll Boost",
-  [CollectiblePerk.CASH_TIERED]: "Instant Cash (Tiered)",
-  [CollectiblePerk.TELEPORT]: "Teleport",
-  [CollectiblePerk.SHIELD]: "Shield",
-  [CollectiblePerk.PROPERTY_DISCOUNT]: "Property Discount",
-  [CollectiblePerk.TAX_REFUND]: "Tax Refund (Tiered)",
-  [CollectiblePerk.ROLL_EXACT]: "Exact Roll",
-  [CollectiblePerk.RENT_CASHBACK]: "Rent Cashback",
-  [CollectiblePerk.INTEREST]: "Interest",
-  [CollectiblePerk.LUCKY_7]: "Lucky 7",
-  [CollectiblePerk.FREE_PARKING_BONUS]: "Free Parking Bonus",
+  [0]: "None",
+  [1]: "Extra Turn",
+  [2]: "Get Out of Jail Free",
+  [3]: "Double Rent",
+  [4]: "Roll Boost",
+  [5]: "Instant Cash (Tiered)",
+  [6]: "Teleport",
+  [7]: "Shield",
+  [8]: "Property Discount",
+  [9]: "Tax Refund (Tiered)",
+  [10]: "Exact Roll",
+  [11]: "Rent Cashback",
+  [12]: "Interest",
+  [13]: "Lucky 7",
+  [14]: "Free Parking Bonus",
 };
 
 export const ERC20_ABI = [
@@ -62,7 +48,7 @@ export const ERC20_ABI = [
 ] as const;
 
 export const INITIAL_COLLECTIBLES: readonly {
-  perk: CollectiblePerk;
+  perk: CollectiblePerkT;
   name: string;
   strength: number;
   tycPrice: string;

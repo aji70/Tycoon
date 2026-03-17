@@ -85,17 +85,21 @@ type GamePlayerTuple = [bigint, Address, bigint, number, number, number, string]
 /* ----------------------- Reward System Types ----------------------- */
 
 export enum CollectiblePerk {
-  NONE,
-  EXTRA_TURN,
-  JAIL_FREE,
-  DOUBLE_RENT,
-  ROLL_BOOST,
-  CASH_TIERED,
-  TELEPORT,
-  SHIELD,
-  PROPERTY_DISCOUNT,
-  TAX_REFUND,
-  ROLL_EXACT,
+  NONE = 0,
+  EXTRA_TURN = 1,
+  JAIL_FREE = 2,
+  DOUBLE_RENT = 3,
+  ROLL_BOOST = 4,
+  CASH_TIERED = 5,
+  TELEPORT = 6,
+  SHIELD = 7,
+  PROPERTY_DISCOUNT = 8,
+  TAX_REFUND = 9,
+  ROLL_EXACT = 10,
+  RENT_CASHBACK = 11,
+  INTEREST = 12,
+  LUCKY_7 = 13,
+  FREE_PARKING_BONUS = 14,
 }
 
 export type RewardCollectibleInfo = {
