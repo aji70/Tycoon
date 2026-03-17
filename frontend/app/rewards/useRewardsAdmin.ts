@@ -617,7 +617,10 @@ export function useRewardsAdmin() {
     for (const li of def.items) {
       const match = collectibles.find((c) => Number(c.perk) === li.perk && c.strength === li.strength);
       if (!match) {
-        setStatus({ type: "error", message: `Bundle "${bundleName}": perk ${li.perk} (tier ${li.strength}) not in shop. Stock perks first.` });
+        setStatus({
+          type: "error",
+          message: `Bundle "${bundleName}": perk ${li.perk} (tier ${li.strength}) not in shop. Go to Stock → "Stock all perks" first, then stock the bundle.`,
+        });
         return;
       }
       for (let q = 0; q < li.quantity; q++) {
