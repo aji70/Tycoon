@@ -175,6 +175,11 @@ See **TOURNAMENT_ESCROW.md** for deployment and backend integration.
 5. Call `tycoon.setBackendGameController(backendWallet)` for vote-out, setTurnCount, and property stats.
 6. (Optional) `tycoon.setMinTurnsForPerks(20)` and `tycoon.setMinStake(...)`.
 7. **Tournament escrow:** Deploy **TycoonTournamentEscrow**(usdcAddress, owner). Call `setBackend(backendWallet)` so backend can create/lock/finalize/cancel.
+8. **TycoonUserRegistry (wallet-first signup):** Deploy and configure the user registry (smart wallets, wallet-first signup, buy/burn-with-auth). From `contract/` run:
+   ```bash
+   ./run-deploy-user-registry.sh
+   ```
+   Required in `.env`: `RPC_URL`, `PRIVATE_KEY`, `TYCOON_OWNER`, `TYCOON_PROXY_ADDRESS`, `TYCOON_REWARDS_FAUCET_ADDRESS`, `OPERATOR_ADDRESS`, `WITHDRAWAL_AUTHORITY_ADDRESS`. Optional: `TYCOON_NAIRA_VAULT_ADDRESS`, `TYCOON_REWARD_SYSTEM` (enables shop/burn for unlinked users), `DEFAULT_DAILY_CAP_USD6`, `DEFAULT_PRICE_CELO_USD6`. Copy `contract/.env.example` to `contract/.env` and fill values.
 
 ---
 

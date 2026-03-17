@@ -17,6 +17,7 @@ import {TycoonUpgradeable} from "../src/TycoonUpgradeable.sol";
 ///
 /// Optional .env:
 ///   TYCOON_NAIRA_VAULT_ADDRESS    (if set, Naira vault is configured on registry)
+///   TYCOON_REWARD_SYSTEM          (RewardSystem contract; enables buy/burn-with-auth on new wallets)
 ///   DEFAULT_DAILY_CAP_USD6        (e.g. 100000000 = $100/day; default 100000000)
 ///   DEFAULT_PRICE_CELO_USD6       (e.g. 2500000 = $2.50 per CELO; default 2500000)
 ///
@@ -58,6 +59,14 @@ contract DeployAndConfigureUserRegistryScript is Script {
         if (dailyCapUsd6 > 0 && priceCeloUsd6 > 0) {
             registry.setDefaultDailyCap(dailyCapUsd6, priceCeloUsd6);
             console.log("setDefaultDailyCap: cap (USD 6dec)", dailyCapUsd6, "price CELO (6dec)", priceCeloUsd6);
+        }
+
+        address rewardSystemAddress = address(0);
+        string memory rewardSystemStr = vm.envOr("TYCOON_REWARD_SYSTEM", string(""));
+        if (bytes(rewardSystemStr).length > 0) {
+            rewardSystemAddress = vm.parseAddress(rewardSystemStr);
+            registry.setRewardSystem(rewardSystemAddress);
+            console.log("setRewardSystem:", rewardSystemAddress);
         }
 
         vm.stopBroadcast();
