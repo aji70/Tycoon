@@ -307,7 +307,11 @@ export default function Profile() {
   // Prefer the registry smart wallet (Privy/embedded) for stats/level consistency.
   const playerAddressForStats = (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ?? walletAddress;
 
-  const { data: username } = useReadContract({
+  const {
+    data: username,
+    isLoading: usernameLoading,
+    error: usernameReadError,
+  } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
@@ -315,7 +319,11 @@ export default function Profile() {
     query: { enabled: !!playerAddressForStats && !!tycoonAddress },
   });
 
-  const { data: playerData } = useReadContract({
+  const {
+    data: playerData,
+    isLoading: playerDataLoading,
+    error: playerDataReadError,
+  } = useReadContract({
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'getUser',
@@ -425,17 +433,56 @@ export default function Profile() {
     (voucherTokenIds.length > 0 && voucherInfoResults.isLoading);
 
   React.useEffect(() => {
-    if (playerData && username) {
-      const parsed = parseUserFromContract(playerData, username as string, walletAddress);
-      if (parsed) {
-        setUserData(parsed);
-      }
+    // Reset when wallet changes / reconnects
+    setError(null);
+    setUserData(null);
+    setLoading(true);
+  }, [walletAddress, playerAddressForStats]);
+
+  React.useEffect(() => {
+    if (!isConnected) return;
+
+    if (usernameReadError) {
+      setError(usernameReadError instanceof Error ? usernameReadError.message : 'Failed to load username');
       setLoading(false);
-    } else if (playerData === null && !loading) {
+      return;
+    }
+    if (playerDataReadError) {
+      setError(playerDataReadError instanceof Error ? playerDataReadError.message : 'Failed to load player data');
+      setLoading(false);
+      return;
+    }
+
+    // If username fetch is done but empty, user likely isn't registered (or wrong network/contract address).
+    if (!usernameLoading && !username) {
+      setError('No on-chain profile found for this address. Ensure you are on the correct network and registered.');
+      setLoading(false);
+      return;
+    }
+
+    if (username && playerData) {
+      const parsed = parseUserFromContract(playerData, username as string, playerAddressForStats);
+      if (parsed) setUserData(parsed);
+      setLoading(false);
+      return;
+    }
+
+    // If getUser finished but returned empty, show error rather than spinning.
+    if (username && !playerDataLoading && (playerData == null)) {
       setError('No player data found');
       setLoading(false);
+      return;
     }
-  }, [playerData, username, walletAddress]);
+  }, [
+    isConnected,
+    username,
+    usernameLoading,
+    usernameReadError,
+    playerData,
+    playerDataLoading,
+    playerDataReadError,
+    playerAddressForStats,
+  ]);
 
   const handleSend = (tokenId: bigint) => {
     if (!walletAddress || !rewardAddress) return toast.error("Wallet or contract not available");

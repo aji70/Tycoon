@@ -8,7 +8,7 @@ import {
   useReadContract,
   useReadContracts,
 } from 'wagmi';
-import { formatUnits, type Address, type Abi } from 'viem';
+import { formatUnits, parseUnits, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -42,10 +42,13 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 
 import {
   useRewardBuyCollectible,
+  useRewardBuyCollectibleFrom,
   useRewardRedeemVoucher,
   useApprove,
   useRewardTokenAddresses,
   useUserRegistryWallet,
+  useRewardStockBundle,
+  useUserWalletApproveERC20,
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
@@ -65,19 +68,21 @@ const isCollectibleToken = (tokenId: bigint): boolean =>
 // Tiered perks: show "Tier N" badge
 const TIERED_PERKS = new Set([5, 8, 9]);
 
-// New perks not yet in contract — show in shop as "Coming Soon"
-const COMING_SOON_PERK_IDS = [11, 12, 13, 14];
-
-// Default bundles shown in UI (used when API returns empty or before migration)
-const DEFAULT_BUNDLES: Array<{ id?: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }> = [
-  { name: "Starter Pack", description: "Shield, Roll Boost, and Exact Roll — great for new players.", price_tyc: "45", price_usdc: "2.5" },
-  { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", price_tyc: "60", price_usdc: "3" },
-  { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", price_tyc: "55", price_usdc: "2.75" },
-  { name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", price_tyc: "65", price_usdc: "3.25" },
-  { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", price_tyc: "70", price_usdc: "3.5" },
-  { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", price_tyc: "75", price_usdc: "4" },
-  { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", price_tyc: "50", price_usdc: "2.5" },
-  { name: "Ultimate Pack", description: "Extra Turn, Double Rent, Shield, and Lucky 7. A bit of everything to dominate the board.", price_tyc: "80", price_usdc: "4.5" },
+// Admin "stock all bundles" definitions (must match bundle composition used in UI)
+const BUNDLE_DEFS_FOR_STOCK: Array<{
+  name: string;
+  items: Array<{ perk: number; strength: number; quantity: number }>;
+  price_tyc: string;
+  price_usdc: string;
+}> = [
+  { name: "Starter Pack", price_tyc: "45", price_usdc: "2.5", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Lucky Bundle", price_tyc: "60", price_usdc: "3", items: [{ perk: 2, strength: 1, quantity: 1 }, { perk: 6, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Defender Pack", price_tyc: "55", price_usdc: "2.75", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 2, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }] },
+  { name: "High Roller", price_tyc: "65", price_usdc: "3.25", items: [{ perk: 3, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
+  { name: "Cash Flow", price_tyc: "70", price_usdc: "3.5", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
+  { name: "Chaos Bundle", price_tyc: "75", price_usdc: "4", items: [{ perk: 6, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
+  { name: "Landlord's Choice", price_tyc: "50", price_usdc: "2.5", items: [{ perk: 11, strength: 1, quantity: 1 }, { perk: 12, strength: 1, quantity: 1 }, { perk: 14, strength: 1, quantity: 1 }] },
+  { name: "Ultimate Pack", price_tyc: "80", price_usdc: "4.5", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
 ];
 
 type BundleLineItem = { perk: number; strength: number; quantity: number };
@@ -132,6 +137,7 @@ export default function GameShop() {
   const chainId = useChainId();
   const auth = useGuestAuthOptional();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
+  const stockBundleHook = useRewardStockBundle();
 
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
   const { data: registrySmartWallet } = useUserRegistryWallet(address);
@@ -148,6 +154,11 @@ export default function GameShop() {
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
   const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
   const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
+  const [stockAllBundlesProgress, setStockAllBundlesProgress] = useState<{ active: boolean; current: number; total: number }>({
+    active: false,
+    current: 0,
+    total: 0,
+  });
 
   const USDC_TO_NGN_RATE = 1600; // approximate; min charge 200 NGN
 
@@ -171,6 +182,8 @@ export default function GameShop() {
     error: buyError,
     reset: resetBuy,
   } = useRewardBuyCollectible();
+  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
+  const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
 
     const {
     approve,
@@ -199,7 +212,7 @@ export default function GameShop() {
 
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
-  const payFromSmartWalletUnsupported = payWith === 'smart_wallet'; // on-chain buy is from signer only; smart wallet payment coming later
+  const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
   // ── Shop Items: Collectibles owned by contract (in shop stock) ──
   const { data: contractOwnedCount } = useReadContract({
@@ -283,15 +296,36 @@ export default function GameShop() {
       .filter((item): item is NonNullable<typeof item> => item !== null);
   }, [shopInfoResults, shopTokenIds]);
 
-  // New perks (11–14) always appear in the shop as "Coming soon" until stocked on contract
-  const allShopItems = useMemo(() => {
-    const stockedPerkIds = new Set(shopItems.map((s) => s.perk));
-    const comingSoonFromMeta = COMING_SOON_PERK_IDS.filter((pid) => !stockedPerkIds.has(pid)).map((pid) => {
-      const meta = perkMetadata.find((m) => m.perk === pid)!;
-      return { ...meta, perk: pid, comingSoon: true as const, tokenId: null as unknown as bigint, strength: 0, tycPrice: '—', usdcPrice: '—', stock: 0 };
-    });
-    return [...shopItems, ...comingSoonFromMeta];
-  }, [shopItems]);
+  // For admin bundle stocking we need tokenIds even when stock is 0
+  const allCollectiblesByPerkStrength = useMemo(() => {
+    const map = new Map<string, { tokenId: bigint; perk: number; strength: number }>();
+    if (!shopInfoResults) return map;
+    for (let i = 0; i < shopInfoResults.length; i++) {
+      const r = shopInfoResults[i];
+      if (!r || r.status !== 'success') continue;
+      const [perk, strength] = r.result as [number, bigint, bigint, bigint, bigint];
+      const tokenId = shopTokenIds[i];
+      if (!tokenId) continue;
+      map.set(`${Number(perk)}:${Number(strength)}`, { tokenId, perk: Number(perk), strength: Number(strength) });
+    }
+    return map;
+  }, [shopInfoResults, shopTokenIds]);
+
+  const { data: rewardOwner } = useReadContract({
+    address: contractAddress,
+    abi: RewardABI,
+    functionName: 'owner',
+    query: { enabled: !!contractAddress },
+  });
+
+  const isAdmin = useMemo(() => {
+    if (!address || !rewardOwner) return false;
+    try {
+      return String(address).toLowerCase() === String(rewardOwner).toLowerCase();
+    } catch {
+      return false;
+    }
+  }, [address, rewardOwner]);
 
   // ── User Vouchers ──
   const { data: userOwnedCount } = useReadContract({
@@ -366,10 +400,6 @@ export default function GameShop() {
       toast.error('Please connect your wallet');
       return;
     }
-    if (payWith === 'smart_wallet') {
-      toast.info('To pay from your smart wallet, select "Connected wallet" above. Smart wallet payment coming soon.');
-      return;
-    }
     if (!useUsdc) return;
     const priceNum = Number(item.usdcPrice);
     if (Number(usdcBalance) < priceNum) {
@@ -377,21 +407,26 @@ export default function GameShop() {
       return;
     }
     const price = BigInt(Math.round(priceNum * 1e6));
-    if (!usdcTokenAddress) {
+    if (!usdcTokenAddress || !contractAddress) {
       toast.error('USDC not supported on this network');
       return;
     }
     try {
-      if (usdcAllowance === undefined || usdcAllowance === null) {
-        toast.info('Approval required');
-        await approve(usdcTokenAddress, contractAddress!, price);
-        toast.success('Approval successful, completing purchase...');
-      } else if (typeof usdcAllowance === 'bigint' && usdcAllowance < price) {
-        toast.info('Increasing approval...');
-        await approve(usdcTokenAddress, contractAddress!, price);
-        toast.success('Approval successful, completing purchase...');
+      if (payWith === 'smart_wallet' && smartWalletAddress) {
+        await smartWalletApprove(usdcTokenAddress, contractAddress, price);
+        await buyFrom(smartWalletAddress, item.tokenId, true);
+      } else {
+        if (usdcAllowance === undefined || usdcAllowance === null) {
+          toast.info('Approval required');
+          await approve(usdcTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        } else if (typeof usdcAllowance === 'bigint' && usdcAllowance < price) {
+          toast.info('Increasing approval...');
+          await approve(usdcTokenAddress, contractAddress, price);
+          toast.success('Approval successful, completing purchase...');
+        }
+        await buy(item.tokenId, true);
       }
-      await buy(item.tokenId, true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transaction failed';
       toast.error(msg);
@@ -510,6 +545,50 @@ export default function GameShop() {
     }
   };
 
+  const handleStockAllBundles = async () => {
+    if (!isConnected || !address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+    if (!isAdmin) {
+      toast.error('Admin only');
+      return;
+    }
+    if (!contractAddress) {
+      toast.error('Reward contract not configured on this chain');
+      return;
+    }
+    if (stockAllBundlesProgress.active) return;
+    setStockAllBundlesProgress({ active: true, current: 0, total: BUNDLE_DEFS_FOR_STOCK.length });
+    try {
+      for (let i = 0; i < BUNDLE_DEFS_FOR_STOCK.length; i++) {
+        const def = BUNDLE_DEFS_FOR_STOCK[i];
+        setStockAllBundlesProgress((p) => ({ ...p, current: i + 1 }));
+        const tokenIds: bigint[] = [];
+        const amounts: bigint[] = [];
+        for (const li of def.items) {
+          const key = `${li.perk}:${li.strength}`;
+          const match = allCollectiblesByPerkStrength.get(key);
+          if (!match) {
+            throw new Error(`Bundle "${def.name}": perk ${li.perk} (tier ${li.strength}) missing. Stock perks first.`);
+          }
+          for (let q = 0; q < li.quantity; q++) {
+            tokenIds.push(match.tokenId);
+            amounts.push(BigInt(1));
+          }
+        }
+        const tycPrice = parseUnits(def.price_tyc, 18);
+        const usdcPrice = parseUnits(def.price_usdc, 6);
+        await stockBundleHook.stockBundle(tokenIds, amounts, tycPrice, usdcPrice);
+      }
+      toast.success('All bundles stocked');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to stock bundles');
+    } finally {
+      setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
+    }
+  };
+
   // ── Success/Error Toasts ──
   useEffect(() => {
     if (buySuccess) {
@@ -518,6 +597,13 @@ export default function GameShop() {
       resetBuy();
     }
   }, [buySuccess, refetchUsdc, resetBuy]);
+  useEffect(() => {
+    if (buyFromSuccess) {
+      toast.success('Purchase successful! 🎉');
+      refetchUsdc();
+      resetBuyFrom();
+    }
+  }, [buyFromSuccess, refetchUsdc, resetBuyFrom]);
 
   useEffect(() => {
     if (redeemSuccess) {
@@ -708,7 +794,7 @@ export default function GameShop() {
 
         {payFromSmartWalletUnsupported && (
           <p className="text-center text-amber-200/90 text-sm mb-4">
-            Payment from smart wallet is not yet available. Select Connected wallet to pay with USDC or Naira.
+            No smart wallet to pay from. Select Connected wallet to pay with USDC or Naira, or create/link one in Profile.
           </p>
         )}
 
@@ -750,6 +836,20 @@ export default function GameShop() {
               <p className="text-center text-slate-500 text-xs">
                 Admins: stock perks and bundles at <Link href="/rewards?section=stock" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3.5 h-3.5" /> Rewards → Stock</Link> (open the <strong>Stock</strong> tab).
               </p>
+              {isAdmin && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleStockAllBundles}
+                    disabled={stockAllBundlesProgress.active || stockBundleHook.isPending}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {stockAllBundlesProgress.active
+                      ? `Stocking bundles (${stockAllBundlesProgress.current}/${stockAllBundlesProgress.total})…`
+                      : 'Stock all bundles'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {shopTab === 'bundles' && (
@@ -759,9 +859,9 @@ export default function GameShop() {
               <span className="text-sm font-medium text-slate-500 uppercase tracking-[0.2em]">Bundles</span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#003B3E] to-transparent" />
             </div>
-            {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).length > 0 ? (
+            {bundles.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                {(bundles.length > 0 ? bundles : DEFAULT_BUNDLES).map((b, idx) => (
+                {bundles.map((b, idx) => (
                   <motion.div
                     key={b.id ?? b.name ?? idx}
                     initial={{ opacity: 0, y: 16 }}
@@ -817,7 +917,11 @@ export default function GameShop() {
                   </motion.div>
                 ))}
               </div>
-            ) : null}
+            ) : (
+              <div className="text-center py-12 px-6 rounded-2xl border border-[#003B3E]/60 bg-[#0E1415]/40">
+                <p className="text-slate-400 text-sm">No bundles available yet. Check back soon.</p>
+              </div>
+            )}
           </div>
           )}
 
@@ -839,7 +943,7 @@ export default function GameShop() {
             <p className="text-slate-400 text-sm text-center">Loading perks...</p>
             <SkeletonPerkGrid count={6} gridClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6 items-stretch" />
           </motion.div>
-        ) : allShopItems.length === 0 ? (
+        ) : shopItems.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <EmptyState
               icon={<ShoppingBag className="w-16 h-16 text-slate-500" />}
@@ -849,21 +953,18 @@ export default function GameShop() {
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-x-4 gap-y-6 items-stretch">
-            {allShopItems.map((item, index) => {
-              const isProcessing = buyingPending || buyingConfirming;
-              const isComingSoon = 'comingSoon' in item && item.comingSoon;
+            {shopItems.map((item, index) => {
+              const isProcessing = buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending;
 
               return (
                 <motion.div
-                  key={isComingSoon ? `coming-soon-${item.perk}` : item.tokenId.toString()}
+                  key={item.tokenId.toString()}
                   initial={{ opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-20px' }}
                   transition={{ duration: 0.35, delay: index * 0.04 }}
-                  className={`group flex flex-col rounded-2xl overflow-hidden border backdrop-blur-sm transition-all duration-300 ${
-                    isComingSoon ? 'border-[#003B3E]/60 bg-[#0E1415]/50 opacity-90' : 'border-[#003B3E]/80 bg-[#0E1415]/70 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]'
-                  }`}
-                  whileHover={isComingSoon ? undefined : { y: -4 }}
+                  className="group flex flex-col rounded-2xl overflow-hidden border backdrop-blur-sm transition-all duration-300 border-[#003B3E]/80 bg-[#0E1415]/70 hover:border-[#00F0FF]/40 hover:shadow-[0_0_40px_rgba(0,240,255,0.08),0_20px_40px_rgba(0,0,0,0.3)]"
+                  whileHover={{ y: -4 }}
                 >
                   <div className="relative h-48 min-h-[12rem] overflow-hidden flex-shrink-0">
                     <Image
@@ -875,20 +976,14 @@ export default function GameShop() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                     <div className="absolute top-3 right-3 flex items-center gap-2">
-                      {!isComingSoon && TIERED_PERKS.has(item.perk) && (
+                      {TIERED_PERKS.has(item.perk) && (
                         <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-[10px] font-semibold text-amber-300 uppercase tracking-wider">
                           Tier {item.strength}
                         </span>
                       )}
-                      {isComingSoon ? (
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-xs font-semibold text-amber-300 uppercase tracking-wider">
-                          Coming soon
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
-                          {item.stock} left
-                        </span>
-                      )}
+                      <span className="px-2.5 py-1 rounded-lg bg-black/50 border border-white/10 text-xs font-medium text-slate-300">
+                        {item.stock} left
+                      </span>
                     </div>
                     <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3">
                       <div className="rounded-xl bg-black/30 backdrop-blur-sm p-2 border border-white/10">
@@ -901,33 +996,14 @@ export default function GameShop() {
                   <div className="p-5 flex flex-col flex-1 min-h-0">
                     <p className="text-slate-400 text-sm leading-relaxed mb-4 line-clamp-2 flex-shrink-0">{item.desc}</p>
 
-                    {!isComingSoon && (
-                      <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
-                        <div className="flex flex-col gap-1">
-                          <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
-                          <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${Number(item.usdcPrice).toFixed(2)} USDC</p>
-                        </div>
+                    <div className="flex justify-between items-end gap-4 mb-4 mt-auto flex-wrap">
+                      <div className="flex flex-col gap-1">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">Price</p>
+                        <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">${Number(item.usdcPrice).toFixed(2)} USDC</p>
                       </div>
-                    )}
+                    </div>
 
-                    {isComingSoon ? (
-                      <>
-                        <button
-                          disabled
-                          className="w-full py-4 rounded-xl font-bold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed mt-auto"
-                        >
-                          Buy with USDC — Coming soon
-                        </button>
-                        <button
-                          disabled
-                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          <Banknote className="w-4 h-4" />
-                          Buy with Naira — Coming soon
-                        </button>
-                      </>
-                    ) : (
-                      <>
+                    <>
                         <button
                           onClick={() => handleBuy(item)}
                           disabled={item.stock === 0 || isProcessing || Number(usdcBalance) < Number(item.usdcPrice) || payFromSmartWalletUnsupported}
@@ -965,8 +1041,7 @@ export default function GameShop() {
                           )}
                           Buy with Naira
                         </button>
-                      </>
-                    )}
+                    </>
                   </div>
                 </motion.div>
               );

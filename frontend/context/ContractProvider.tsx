@@ -14,6 +14,7 @@ import { Address, decodeEventLog } from 'viem';
 import TycoonABI from './abi/tycoonabi.json';
 import RewardABI from './abi/rewardabi.json';
 import Erc20Abi from './abi/ERC20abi.json';
+import UserWalletABI from './abi/tycoon-user-wallet-abi.json';
 import { TYCOON_CONTRACT_ADDRESSES, REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS, AI_AGENT_REGISTRY_ADDRESSES, USER_REGISTRY_ADDRESSES, ERC8004_REPUTATION_REGISTRY_ADDRESSES, ERC8004_IDENTITY_REGISTRY_ADDRESS } from '@/constants/contracts';
 import RegistryABI from './abi/tycoon-ai-registry-abi.json';
 import ERC8004ReputationABI from './abi/erc8004-reputation-abi.json';
@@ -1155,6 +1156,47 @@ export function useRewardBuyCollectible() {
   }, [writeContractAsync, contractAddress]);
 
   return { buy, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+/** Buy a collectible with USDC (or TYC) from a given payer address (e.g. smart wallet). Callable by the connected EOA when it is the owner of the payer contract. */
+export function useRewardBuyCollectibleFrom() {
+  const chainId = useChainId();
+  const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId];
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const buyFrom = useCallback(async (payer: Address, tokenId: bigint, useUsdc = false) => {
+    if (!contractAddress) throw new Error('Reward contract not deployed');
+    return await writeContractAsync({
+      address: contractAddress,
+      abi: RewardABI,
+      functionName: 'buyCollectibleFrom',
+      args: [payer, tokenId, useUsdc],
+    });
+  }, [writeContractAsync, contractAddress]);
+
+  return { buyFrom, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
+}
+
+/** Approve ERC20 spend from a user wallet contract (e.g. smart wallet). Callable only by the wallet owner (connected EOA). */
+export function useUserWalletApproveERC20(walletAddress: Address | undefined) {
+  const { writeContractAsync, isPending, error: writeError, data: txHash, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const approveERC20 = useCallback(
+    async (token: Address, spender: Address, amount: bigint) => {
+      if (!walletAddress) throw new Error('Wallet address required');
+      return await writeContractAsync({
+        address: walletAddress,
+        abi: UserWalletABI as readonly unknown[],
+        functionName: 'approveERC20',
+        args: [token, spender, amount],
+      });
+    },
+    [writeContractAsync, walletAddress]
+  );
+
+  return { approveERC20, isPending: isPending || isConfirming, isSuccess, isConfirming, error: writeError, txHash, reset };
 }
 
 export function useApprove() {
