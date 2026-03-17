@@ -333,14 +333,11 @@ export async function createSmartWallet(req, res) {
     const existingSmartWallet = user.smart_wallet_address && String(user.smart_wallet_address).trim();
     const zeroAddr = "0x0000000000000000000000000000000000000000";
     const hasRealSmartWallet = existingSmartWallet && existingSmartWallet.toLowerCase() !== zeroAddr.toLowerCase();
-    // Only short-circuit "already exists" if the current registry confirms this user's wallet (avoids stale DB from old registry).
-    if (hasRealSmartWallet && addrForChain) {
-      const currentRegistryWallet = await getSmartWalletAddress(addrForChain, chain);
-      if (currentRegistryWallet && currentRegistryWallet.toLowerCase() === existingSmartWallet.toLowerCase()) {
-        const updated = await User.findById(user.id);
-        const { password_hash: _, ...safe } = updated;
-        return res.status(200).json({ success: true, message: "Smart wallet already exists", data: safe });
-      }
+    // Already have a smart wallet (from wallet-first signup or from a linked EOA).
+    if (hasRealSmartWallet) {
+      const updated = await User.findById(user.id);
+      const { password_hash: _, ...safe } = updated;
+      return res.status(200).json({ success: true, message: "Smart wallet already exists", data: safe });
     }
 
     if (addrForChain) {
@@ -377,7 +374,28 @@ export async function createSmartWallet(req, res) {
       });
     }
 
-    return res.status(400).json({ success: false, message: "Link a wallet first (Profile). The contract creates a smart wallet for your linked address; you cannot have a smart wallet without an owner address." });
+    // Wallet-first: no linked EOA (e.g. Privy-only). Create smart wallet and register it on-chain; user is identified by the wallet until they link.
+    const username = user.username || user.address?.slice(0, 10) || "Player";
+    if (!username || String(username).trim().length < 2) {
+      return res.status(400).json({ success: false, message: "Set a username in your profile first (at least 2 characters), then create a smart wallet." });
+    }
+    try {
+      const { wallet: smartWallet } = await createWalletForUserByBackend(String(username).trim(), chain);
+      const secret = crypto.randomBytes(32).toString("hex");
+      const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+      await registerPlayerFor(smartWallet, String(username).trim(), passwordHash, chain);
+      await db("users").where({ id: user.id }).update({ password_hash: passwordHash, smart_wallet_address: smartWallet || null });
+      const updated = await User.findById(user.id);
+      const { password_hash: _pw, ...safe } = updated;
+      logger.info({ userId: user.id, smartWallet, chain }, "createSmartWallet: wallet-first created");
+      return res.status(200).json({ success: true, message: "Smart wallet created. You can play and use the shop; link a wallet in Profile anytime.", data: safe });
+    } catch (walletFirstErr) {
+      logger.warn({ err: walletFirstErr?.message, userId: user.id }, "createSmartWallet: wallet-first flow failed");
+      return res.status(500).json({
+        success: false,
+        message: walletFirstErr?.message || "Could not create smart wallet. Try again or link a wallet in Profile first.",
+      });
+    }
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "createSmartWallet failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create smart wallet" });
