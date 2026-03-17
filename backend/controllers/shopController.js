@@ -358,6 +358,71 @@ export async function flutterwaveInitialize(req, res) {
 }
 
 /**
+ * POST /api/shop/flutterwave/initialize-perk
+ * Body: { token_id, amount_ngn, callback_url? }
+ * Auth required. Single-perk NGN purchase via Flutterwave.
+ */
+export async function flutterwaveInitializePerk(req, res) {
+  try {
+    if (!isFlutterwaveConfigured()) {
+      return res.status(503).json({ success: false, message: "Flutterwave not configured" });
+    }
+    const user_id = req.user?.id;
+    if (!user_id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+    const { token_id, amount_ngn, callback_url } = req.body || {};
+    const tokenIdStr = token_id != null ? String(token_id).trim() : "";
+    const amountNgn = amount_ngn != null ? Number(amount_ngn) : NaN;
+    if (!tokenIdStr || !Number.isFinite(amountNgn) || amountNgn < 200) {
+      return res.status(400).json({
+        success: false,
+        message: "token_id and amount_ngn (min 200) are required",
+      });
+    }
+    const user = await db("users").where({ id: user_id }).first();
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    let redirectUrl = (callback_url && String(callback_url).trim()) || "";
+    if (!redirectUrl.startsWith("http")) {
+      const base = (process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || "").replace(/\/$/, "");
+      redirectUrl = base ? `${base}/game-shop` : "";
+    }
+    if (!redirectUrl || !redirectUrl.startsWith("http")) {
+      return res.status(400).json({ success: false, message: "callback_url or FRONTEND_URL required" });
+    }
+    const txRef = `tycoon_perk_${tokenIdStr}_${user_id}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const amountKobo = Math.round(amountNgn * 100);
+    const { link, tx_ref } = await initializePayment({
+      amountNaira: amountNgn,
+      email: "realjaiboi70@gmail.com",
+      txRef,
+      redirectUrl,
+      meta: {},
+      customerName: "Perk Buyer",
+    });
+    try {
+      await db("flutterwave_perk_payments").insert({
+        tx_ref: tx_ref || txRef,
+        user_id,
+        token_id: tokenIdStr,
+        amount_ngn: amountNgn,
+        amount_kobo: amountKobo,
+        status: "pending",
+      });
+    } catch (dbErr) {
+      logger.error({ err: dbErr.message, tx_ref: tx_ref || txRef }, "flutterwave_perk_payments insert failed");
+      return res.status(500).json({ success: false, message: "Failed to record payment" });
+    }
+    return res.json({ success: true, link: link || undefined, reference: tx_ref || txRef });
+  } catch (err) {
+    logger.error({ err: err.message, userId: req.user?.id }, "flutterwaveInitializePerk error");
+    return res.status(500).json({ success: false, message: err.message || "Failed to initialize payment" });
+  }
+}
+
+/**
  * POST /api/shop/flutterwave/webhook
  * Raw body required. Verifies verif-hash, then processes charge.completed.
  */
@@ -388,6 +453,24 @@ export async function flutterwaveWebhook(req, res) {
 
   (async () => {
     try {
+      const perkPayment = await db("flutterwave_perk_payments").where({ tx_ref: txRef }).first();
+      if (perkPayment && perkPayment.status === "pending") {
+        const amountPaid = data.amount != null ? Number(data.amount) : 0;
+        const expectedNaira = Number(perkPayment.amount_ngn);
+        if (amountPaid < expectedNaira) {
+          logger.warn({ tx_ref: txRef, amountPaid, expected: expectedNaira }, "Flutterwave perk: amount mismatch");
+          await db("flutterwave_perk_payments").where({ tx_ref: txRef }).update({ status: "failed", updated_at: new Date() });
+          return;
+        }
+        await db("flutterwave_perk_payments").where({ tx_ref: txRef }).update({
+          status: "completed",
+          fulfilled_at: new Date(),
+          updated_at: new Date(),
+        });
+        logger.info({ tx_ref: txRef, user_id: perkPayment.user_id, token_id: perkPayment.token_id }, "Flutterwave single-perk payment fulfilled");
+        return;
+      }
+
       const existing = await db("flutterwave_payments").where({ tx_ref: txRef }).first();
       if (existing) {
         if (existing.status === "completed") return;

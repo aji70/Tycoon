@@ -142,24 +142,18 @@ export default function GameShop() {
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
-  const [payCurrency, setPayCurrency] = useState<'usdc' | 'tyc'>('tyc');
   const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
   const [bundles, setBundles] = useState<Array<{ id: number; name: string; description: string | null; price_tyc: string; price_usdc: string; price_ngn?: number | null }>>([]);
   const [ngnAvailable, setNgnAvailable] = useState(false);
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
+  const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
   const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
+
+  const USDC_TO_NGN_RATE = 1600; // approximate; min charge 200 NGN
 
   const payerAddress = payWith === 'smart_wallet' && smartWalletAddress ? smartWalletAddress : address ?? undefined;
 
-  const { data: tycAllowance } = useReadContract({
-  address: tycTokenAddress,
-  abi: Erc20Abi,
-  functionName: 'allowance',
-  args: payerAddress && contractAddress ? [payerAddress, contractAddress] : undefined,
-  query: { enabled: !!payerAddress && !!tycTokenAddress && !!contractAddress },
-});
-
-const { data: usdcAllowance } = useReadContract({
+  const { data: usdcAllowance } = useReadContract({
   address: usdcTokenAddress,
   abi: Erc20Abi,
   functionName: 'allowance',
@@ -196,20 +190,13 @@ const { data: usdcAllowance } = useReadContract({
     reset: resetRedeem,
   } = useRewardRedeemVoucher();
 
-  // Balances (of selected payer: connected or smart wallet)
-  const { data: tycBalanceData, isLoading: tycLoading, refetch: refetchTyc } = useBalance({
-    address: payerAddress,
-    token: tycTokenAddress,
-    query: { enabled: !!payerAddress && !!tycTokenAddress && isConnected },
-  });
-
+  // USDC balance (for "Buy with USDC")
   const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
     address: payerAddress,
     token: usdcTokenAddress,
     query: { enabled: !!payerAddress && !!usdcTokenAddress && isConnected },
   });
 
-  const tycBalance = tycBalanceData ? Number(tycBalanceData.formatted).toFixed(2) : '0.00';
   const usdcBalance = usdcBalanceData ? Number(usdcBalanceData.formatted).toFixed(2) : '0.00';
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet'; // on-chain buy is from signer only; smart wallet payment coming later
@@ -374,7 +361,7 @@ const { data: usdcAllowance } = useReadContract({
   }, [voucherInfoResults, userVoucherIds]);
 
   // ── Handlers ──
-  const handleBuy = async (item: typeof shopItems[0], useUsdcOverride?: boolean) => {
+  const handleBuy = async (item: typeof shopItems[0], useUsdc: boolean = true) => {
     if (!isConnected || !address) {
       toast.error('Please connect your wallet');
       return;
@@ -383,44 +370,63 @@ const { data: usdcAllowance } = useReadContract({
       toast.info('To pay from your smart wallet, select "Connected wallet" above. Smart wallet payment coming soon.');
       return;
     }
-
-    const isPayingWithUsdc = useUsdcOverride !== undefined ? useUsdcOverride : payCurrency === 'usdc';
-    const priceNum = Number(isPayingWithUsdc ? item.usdcPrice : item.tycPrice);
-    const balanceNum = Number(isPayingWithUsdc ? usdcBalance : tycBalance);
-    if (balanceNum < priceNum) {
-      toast.error(isPayingWithUsdc ? 'Insufficient USDC balance' : 'Insufficient Naria balance');
+    if (!useUsdc) return;
+    const priceNum = Number(item.usdcPrice);
+    if (Number(usdcBalance) < priceNum) {
+      toast.error('Insufficient USDC balance');
       return;
     }
-
-    const price = BigInt(
-      isPayingWithUsdc
-        ? Math.round(Number(item.usdcPrice) * 1e6)
-        : Math.round(Number(item.tycPrice) * 1e18)
-    );
-
-    const allowance = isPayingWithUsdc ? usdcAllowance : tycAllowance;
-    const tokenAddress = isPayingWithUsdc ? usdcTokenAddress : tycTokenAddress;
-
-    if (!tokenAddress) {
-      toast.error('Token not supported on this network');
+    const price = BigInt(Math.round(priceNum * 1e6));
+    if (!usdcTokenAddress) {
+      toast.error('USDC not supported on this network');
       return;
     }
-
     try {
-      if (allowance === undefined || allowance === null) {
+      if (usdcAllowance === undefined || usdcAllowance === null) {
         toast.info('Approval required');
-        await approve(tokenAddress, contractAddress!, price);
+        await approve(usdcTokenAddress, contractAddress!, price);
         toast.success('Approval successful, completing purchase...');
-      } else if (typeof allowance === 'bigint' && allowance < price) {
+      } else if (typeof usdcAllowance === 'bigint' && usdcAllowance < price) {
         toast.info('Increasing approval...');
-        await approve(tokenAddress, contractAddress!, price);
+        await approve(usdcTokenAddress, contractAddress!, price);
         toast.success('Approval successful, completing purchase...');
       }
-
-      await buy(item.tokenId, isPayingWithUsdc);
+      await buy(item.tokenId, true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transaction failed';
       toast.error(msg);
+    }
+  };
+
+  const handlePayPerkWithNaira = async (item: (typeof shopItems)[0]) => {
+    if (ngnLoadingTokenId != null) return;
+    try {
+      if (typeof window !== 'undefined' && !window.localStorage?.getItem('token')) {
+        toast.error('Please sign in to pay with Naira.');
+        return;
+      }
+    } catch (_) {}
+    const tokenIdStr = item.tokenId.toString();
+    setNgnLoadingTokenId(tokenIdStr);
+    try {
+      const amountNgn = Math.max(200, Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE));
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const callbackUrl = `${base}/game-shop`;
+      const res = await apiClient.post<{ success?: boolean; link?: string; reference?: string; message?: string }>(
+        'shop/flutterwave/initialize-perk',
+        { token_id: tokenIdStr, amount_ngn: amountNgn, callback_url: callbackUrl }
+      );
+      if (res?.data?.link) {
+        window.location.href = res.data.link;
+        return;
+      }
+      toast.error(res?.data?.message ?? 'Could not start Naira payment');
+    } catch (e: unknown) {
+      const status = (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
+      if (status === 401) toast.error('Please sign in to pay with Naira.');
+      else toast.error((e as Error)?.message ?? 'Failed to start Naira payment');
+    } finally {
+      setNgnLoadingTokenId(null);
     }
   };
 
@@ -448,7 +454,7 @@ const { data: usdcAllowance } = useReadContract({
     return true;
   };
 
-  const handleBuyBundle = async (bundleName: string, useUsdc: boolean) => {
+  const handleBuyBundleWithUsdc = async (bundleName: string) => {
     if (!isConnected || !address) {
       toast.error('Please connect your wallet');
       return;
@@ -457,16 +463,8 @@ const { data: usdcAllowance } = useReadContract({
       toast.info('To pay from your smart wallet, select "Connected wallet" above. Smart wallet payment coming soon.');
       return;
     }
-    if (!contractAddress) {
-      toast.error('Reward contract not available on this network');
-      return;
-    }
-    if (useUsdc && !usdcTokenAddress) {
+    if (!contractAddress || !usdcTokenAddress) {
       toast.error('USDC not supported on this network');
-      return;
-    }
-    if (!useUsdc && !tycTokenAddress) {
-      toast.error('Naria not supported on this network');
       return;
     }
     const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
@@ -487,7 +485,7 @@ const { data: usdcAllowance } = useReadContract({
         const match = resolveBundlePurchases.byPerkStrength.get(key)?.[0];
         if (!match) throw new Error(`Missing perk #${li.perk} (tier ${li.strength})`);
         for (let i = 0; i < li.quantity; i++) {
-          await handleBuy(match, useUsdc);
+          await handleBuy(match);
         }
       }
       toast.success('Bundle purchase complete!');
@@ -516,19 +514,17 @@ const { data: usdcAllowance } = useReadContract({
   useEffect(() => {
     if (buySuccess) {
       toast.success('Purchase successful! 🎉');
-      refetchTyc();
       refetchUsdc();
       resetBuy();
     }
-  }, [buySuccess, refetchTyc, refetchUsdc, resetBuy]);
+  }, [buySuccess, refetchUsdc, resetBuy]);
 
   useEffect(() => {
     if (redeemSuccess) {
       toast.success('Voucher redeemed successfully!');
-      refetchTyc();
       resetRedeem();
     }
-  }, [redeemSuccess, refetchTyc, resetRedeem]);
+  }, [redeemSuccess, resetRedeem]);
 
   useEffect(() => {
     if (buyError) toast.error(buyError.message || 'Purchase failed');
@@ -708,55 +704,13 @@ const { data: usdcAllowance } = useReadContract({
             </button>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl px-4 py-3 flex items-center gap-3 border border-[#003B3E]/80 bg-[#0E1415]/60 backdrop-blur-xl"
-          >
-            <Coins className="w-5 h-5 text-amber-300 shrink-0" />
-            <div className="text-left">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Naria</p>
-              <p className="text-base font-bold text-amber-200 font-[family-name:var(--font-orbitron-sans)]">
-                {tycLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `${tycBalance}`}
-              </p>
-            </div>
-            <button onClick={() => refetchTyc()} className="p-1 rounded text-slate-500 hover:text-amber-200">
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </motion.div>
         </div>
 
         {payFromSmartWalletUnsupported && (
           <p className="text-center text-amber-200/90 text-sm mb-4">
-            Payment from smart wallet is not yet available for on-chain checkout. Select Connected wallet to pay with Naria or USDC.
+            Payment from smart wallet is not yet available. Select Connected wallet to pay with USDC or Naira.
           </p>
         )}
-
-        {/* Payment toggle */}
-        <div className="flex gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => setPayCurrency('tyc')}
-            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
-              payCurrency === 'tyc'
-                ? 'bg-amber-500/20 border-2 border-amber-400/60 text-amber-200'
-                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
-            }`}
-          >
-            Pay with Naria
-          </button>
-          <button
-            type="button"
-            onClick={() => setPayCurrency('usdc')}
-            className={`flex-1 sm:flex-none min-h-[44px] px-6 py-3 rounded-xl font-semibold transition-all ${
-              payCurrency === 'usdc'
-                ? 'bg-[#00F0FF]/20 border-2 border-[#00F0FF]/60 text-[#00F0FF]'
-                : 'bg-[#0E1415]/60 border border-[#003B3E] text-slate-400 hover:border-[#003B3E]/80 hover:text-slate-300'
-            }`}
-          >
-            Pay with USDC
-          </button>
-        </div>
 
         {/* Tabs: Perks | Bundles — one visible at a time */}
         <div className="flex gap-2 mb-6">
@@ -830,28 +784,9 @@ const { data: usdcAllowance } = useReadContract({
                         )}
                       </div>
                       <button
-                        onClick={() => handleBuyBundle(b.name, false)}
+                        onClick={() => handleBuyBundleWithUsdc(b.name)}
                         disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
                         className={`w-full py-3 rounded-xl font-semibold border transition-all ${
-                          bundleBuyingName === b.name
-                            ? 'bg-amber-600/90 text-black cursor-wait border-amber-400/50'
-                            : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
-                            ? 'bg-slate-800/80 text-slate-500 border-slate-700/80 cursor-not-allowed'
-                            : 'bg-amber-500/20 text-amber-200 border-amber-400/50 hover:bg-amber-500/30'
-                        }`}
-                      >
-                        {bundleBuyingName === b.name ? (
-                          <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
-                        ) : payFromSmartWalletUnsupported ? (
-                          'Use Connected wallet to pay'
-                        ) : (
-                          <><Coins className="w-4 h-4 inline mr-2" /> Buy with Naria</>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleBuyBundle(b.name, true)}
-                        disabled={bundleBuyingName != null || payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)}
-                        className={`w-full mt-2 py-3 rounded-xl font-semibold border transition-all ${
                           bundleBuyingName === b.name
                             ? 'bg-slate-700/80 text-slate-400 cursor-wait border-slate-600/50'
                             : payFromSmartWalletUnsupported || !BUNDLE_DEFS.some((d) => d.name === b.name) || !canBuyBundle(BUNDLE_DEFS.find((d) => d.name === b.name) as BundleDef)
@@ -859,7 +794,9 @@ const { data: usdcAllowance } = useReadContract({
                             : 'bg-[#00F0FF]/10 text-[#00F0FF] border-[#00F0FF]/40 hover:bg-[#00F0FF]/20'
                         }`}
                       >
-                        {bundleBuyingName === b.name ? null : (
+                        {bundleBuyingName === b.name ? (
+                          <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Buying bundle...</>
+                        ) : (
                           <><CreditCard className="w-4 h-4 inline mr-2" /> Buy with USDC</>
                         )}
                       </button>
@@ -867,12 +804,12 @@ const { data: usdcAllowance } = useReadContract({
                         <button
                           onClick={() => typeof b.id === 'number' && handlePayWithNgn(b.id)}
                           disabled={!ngnAvailable || ngnLoadingBundleId != null}
-                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          className="w-full mt-2 py-3 rounded-xl font-semibold border border-amber-400/50 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           {ngnLoadingBundleId === b.id ? (
                             <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to payment...</>
                           ) : (
-                            <><Banknote className="w-4 h-4" /> Pay with NGN (₦{Number(b.price_ngn).toLocaleString()})</>
+                            <><Banknote className="w-4 h-4" /> Buy with Naira — ₦{Number(b.price_ngn).toLocaleString()}</>
                           )}
                         </button>
                       )}
@@ -979,59 +916,56 @@ const { data: usdcAllowance } = useReadContract({
                           disabled
                           className="w-full py-4 rounded-xl font-bold bg-slate-800/80 text-slate-500 border border-slate-700/80 cursor-not-allowed mt-auto"
                         >
-                          Coming soon
+                          Buy with USDC — Coming soon
                         </button>
                         <button
                           disabled
                           className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           <Banknote className="w-4 h-4" />
-                          NGN payment coming soon
+                          Buy with Naira — Coming soon
                         </button>
                       </>
                     ) : (
-                      (() => {
-                        const isPayingWithUsdc = payCurrency === 'usdc';
-                        const balance = Number(isPayingWithUsdc ? usdcBalance : tycBalance);
-                        const price = Number(isPayingWithUsdc ? item.usdcPrice : item.tycPrice);
-                        const insufficientFunds = balance < price;
-                        return (
-                          <>
-                            <button
-                              onClick={() => handleBuy(item)}
-                              disabled={item.stock === 0 || isProcessing || insufficientFunds || payFromSmartWalletUnsupported}
-                              className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
-                                item.stock === 0
-                                  ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
-                                  : insufficientFunds
-                                  ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
-                                  : isProcessing
-                                  ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
-                                  : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
-                              }`}
-                            >
-                              {isProcessing ? (
-                                <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
-                              ) : item.stock === 0 ? (
-                                'Sold Out'
-                              ) : insufficientFunds ? (
-                                <>{isPayingWithUsdc ? 'Insufficient USDC' : 'Insufficient Naria'}</>
-                              ) : payFromSmartWalletUnsupported ? (
-                                <>Use Connected wallet to pay</>
-                              ) : (
-                                <> {isPayingWithUsdc ? <CreditCard className="w-5 h-5" /> : <Coins className="w-5 h-5" />} Buy with {isPayingWithUsdc ? 'USDC' : 'Naria'} </>
-                              )}
-                            </button>
-                            <button
-                              disabled
-                              className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-slate-800/60 text-slate-500 border border-slate-700/60 cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                              <Banknote className="w-4 h-4" />
-                              NGN payment coming soon
-                            </button>
-                          </>
-                        );
-                      })()
+                      <>
+                        <button
+                          onClick={() => handleBuy(item)}
+                          disabled={item.stock === 0 || isProcessing || Number(usdcBalance) < Number(item.usdcPrice) || payFromSmartWalletUnsupported}
+                          className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415] ${
+                            item.stock === 0
+                              ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
+                              : Number(usdcBalance) < Number(item.usdcPrice)
+                              ? 'bg-slate-700/80 text-slate-400 cursor-not-allowed'
+                              : isProcessing
+                              ? 'bg-amber-600/90 text-black cursor-wait shadow-lg shadow-amber-500/30'
+                              : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:brightness-110'
+                          }`}
+                        >
+                          {isProcessing ? (
+                            <> <Loader2 className="w-5 h-5 animate-spin" /> Purchasing... </>
+                          ) : item.stock === 0 ? (
+                            'Sold Out'
+                          ) : Number(usdcBalance) < Number(item.usdcPrice) ? (
+                            'Insufficient USDC'
+                          ) : payFromSmartWalletUnsupported ? (
+                            <>Use Connected wallet to pay</>
+                          ) : (
+                            <> <CreditCard className="w-5 h-5" /> Buy with USDC — ${Number(item.usdcPrice).toFixed(2)} </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handlePayPerkWithNaira(item)}
+                          disabled={item.stock === 0 || payFromSmartWalletUnsupported || ngnLoadingTokenId === item.tokenId.toString()}
+                          className="w-full mt-2 py-2.5 rounded-lg font-medium text-sm bg-amber-500/20 border border-amber-400/50 text-amber-200 hover:bg-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {ngnLoadingTokenId === item.tokenId.toString() ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Banknote className="w-4 h-4" />
+                          )}
+                          Buy with Naira
+                        </button>
+                      </>
                     )}
                   </div>
                 </motion.div>
