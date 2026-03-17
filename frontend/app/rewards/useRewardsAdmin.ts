@@ -20,6 +20,7 @@ import {
   NAIRA_VAULT_ADDRESSES,
 } from "@/constants/contracts";
 import TycoonABI from "@/context/abi/tycoonabi.json";
+import type { CollectiblePerk as ContractCollectiblePerk } from "@/context/ContractProvider";
 import {
   useRewardSetBackendMinter,
   useRewardMintVoucher,
@@ -555,7 +556,7 @@ export function useRewardsAdmin() {
     if (!collectibleRecipient) return;
     await mintCollectibleHook.mint(
       collectibleRecipient as Address,
-      selectedPerk,
+      selectedPerk as unknown as ContractCollectiblePerk,
       Number(collectibleStrength || 1)
     );
     setCollectibleRecipient("");
@@ -574,7 +575,7 @@ export function useRewardsAdmin() {
       : parseUnits("0.20", 6);
     await stockShopHook.stock(
       50,
-      perk,
+      perk as unknown as ContractCollectiblePerk,
       strength,
       Number(tycPrice),
       Number(usdcPrice)
@@ -592,7 +593,7 @@ export function useRewardsAdmin() {
         const usdcPrice = parseUnits(item.usdcPrice, 6);
         const hash = await stockShopHook.stock(
           50,
-          item.perk,
+          item.perk as unknown as ContractCollectiblePerk,
           item.strength,
           Number(tycPrice),
           Number(usdcPrice)
