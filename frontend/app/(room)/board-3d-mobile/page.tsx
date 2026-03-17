@@ -1913,6 +1913,8 @@ function Board3DMobileContent() {
         agentRes.data.data?.reasoning
       ) {
         toast.info(`Agent chose not to build: ${agentRes.data.data.reasoning}`);
+      } else if (agentRes?.data?.success && agentRes.data.useBuiltIn === true) {
+        toast("Using built-in rules for building (no agent or no credits).", { id: "agent-built-in-building" });
       }
     } catch (_) {
       /* try fallback */

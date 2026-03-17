@@ -17,6 +17,8 @@ import * as hostedAgentCredits from "./hostedAgentCredits.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
+/** When false or unset, skip credit/cap checks so hosted agent always runs (credits paused). Set to "true" to enforce credits. */
+const HOSTED_AGENT_CREDITS_ENABLED = process.env.HOSTED_AGENT_CREDITS_ENABLED === "true";
 const TABLE = "agent_slot_assignments";
 
 // In-memory: slot -> { agentId, callbackUrl?, user_agent_id?, chainId?, name?, gameId?, slot? }
@@ -216,20 +218,21 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
       if (fullAgent?.use_tycoon_key) {
         const userId = fullAgent.user_id;
-        // Prefer purchased credits; fallback to daily cap (free tier)
-        const hasPurchased = await hostedAgentCredits.hasCredits(userId);
-        const hasFree = await hostedAgentUsage.isUnderCap(userId);
-        if (hasPurchased) {
-          const ok = await hostedAgentCredits.deductCredit(userId);
-          if (!ok) {
-            logger.debug({ userId, gameId, slot }, "Tycoon-hosted credits exhausted");
+        if (HOSTED_AGENT_CREDITS_ENABLED) {
+          const hasPurchased = await hostedAgentCredits.hasCredits(userId);
+          const hasFree = await hostedAgentUsage.isUnderCap(userId);
+          if (hasPurchased) {
+            const ok = await hostedAgentCredits.deductCredit(userId);
+            if (!ok) {
+              logger.debug({ userId, gameId, slot }, "Tycoon-hosted credits exhausted");
+              return null;
+            }
+          } else if (hasFree) {
+            await hostedAgentUsage.incrementUsage(userId);
+          } else {
+            logger.debug({ userId, gameId, slot }, "Tycoon-hosted no credits or daily cap");
             return null;
           }
-        } else if (hasFree) {
-          await hostedAgentUsage.incrementUsage(userId);
-        } else {
-          logger.debug({ userId, gameId, slot }, "Tycoon-hosted no credits or daily cap");
-          return null;
         }
         const decision = await internalAgent.getDecision(
           Number(gameId),
