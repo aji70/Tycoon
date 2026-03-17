@@ -17,8 +17,8 @@ import * as hostedAgentCredits from "./hostedAgentCredits.js";
 
 const AGENT_REQUEST_TIMEOUT_MS = Number(process.env.AGENT_DECISION_TIMEOUT_MS) || 8000;
 const USE_INTERNAL_AGENT = process.env.USE_INTERNAL_AI_AGENT !== "false";
-/** When false or unset, skip credit/cap checks so hosted agent always runs (credits paused). Set to "true" to enforce credits. */
-const HOSTED_AGENT_CREDITS_ENABLED = process.env.HOSTED_AGENT_CREDITS_ENABLED === "true";
+// Set HOSTED_AGENT_CREDITS_PAUSED=true in .env to let the agent run without using or checking credits.
+const HOSTED_AGENT_CREDITS_PAUSED = process.env.HOSTED_AGENT_CREDITS_PAUSED === "true";
 const TABLE = "agent_slot_assignments";
 
 // In-memory: slot -> { agentId, callbackUrl?, user_agent_id?, chainId?, name?, gameId?, slot? }
@@ -218,7 +218,7 @@ async function getAIDecisionInner(gameId, slot, decisionType, context) {
       const opts = skillPrompt ? { systemPrompt: String(skillPrompt) } : {};
       if (fullAgent?.use_tycoon_key) {
         const userId = fullAgent.user_id;
-        if (HOSTED_AGENT_CREDITS_ENABLED) {
+        if (!HOSTED_AGENT_CREDITS_PAUSED) {
           const hasPurchased = await hostedAgentCredits.hasCredits(userId);
           const hasFree = await hostedAgentUsage.isUnderCap(userId);
           if (hasPurchased) {
