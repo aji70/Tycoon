@@ -230,7 +230,32 @@ const TYCOON_ABI = [
 /** Network name by chain for ethers Network (used for chainId only; provider uses rpcUrl). */
 const CHAIN_NAMES = { CELO: "celo", POLYGON: "polygon", BASE: "base" };
 
-/** TycoonUserRegistry: getWallet(owner), ownerByWallet(wallet), transferProfileTo(newOwner). */
+/** TycoonGameFaucet: recordPropertySale(sellerUsername, buyerUsername). */
+const GAME_FAUCET_ABI = [
+  {
+    type: "function",
+    name: "recordPropertySale",
+    inputs: [
+      { name: "sellerUsername", type: "string", internalType: "string" },
+      { name: "buyerUsername", type: "string", internalType: "string" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+];
+
+function getGameFaucetContract(chain = "CELO") {
+  const { rpcUrl, privateKey, chainId, gameFaucetAddress } = getChainConfig(chain);
+  if (!rpcUrl || !privateKey || !gameFaucetAddress) {
+    throw new Error(`Game faucet not configured for ${String(chain).toUpperCase()}`);
+  }
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+  const wallet = new Wallet(privateKey, provider);
+  return new Contract(gameFaucetAddress, GAME_FAUCET_ABI, wallet);
+}
+
+/** TycoonUserRegistry: getWallet(owner), ownerByWallet(wallet), transferProfileTo(newOwner), wallet-first helpers. */
 const USER_REGISTRY_ABI = [
   {
     type: "function",
@@ -253,7 +278,87 @@ const USER_REGISTRY_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "createWalletForUserByBackend",
+    inputs: [{ name: "username", type: "string", internalType: "string" }],
+    outputs: [{ name: "wallet", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "linkEOAToProfile",
+    inputs: [
+      { name: "wallet", type: "address", internalType: "address" },
+      { name: "newOwner", type: "address", internalType: "address" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "event",
+    name: "WalletCreated",
+    inputs: [
+      { indexed: true, name: "owner", type: "address", internalType: "address" },
+      { indexed: false, name: "username", type: "string", internalType: "string" },
+      { indexed: true, name: "wallet", type: "address", internalType: "address" },
+    ],
+    anonymous: false,
+  },
 ];
+
+function getUserRegistryContract(chain = "CELO") {
+  const { rpcUrl, privateKey, chainId, userRegistryAddress } = getChainConfig(chain);
+  if (!rpcUrl || !privateKey || !userRegistryAddress) {
+    throw new Error(`User registry not configured for ${String(chain).toUpperCase()}`);
+  }
+  const networkName = CHAIN_NAMES[String(chain).toUpperCase()] || "celo";
+  const provider = new JsonRpcProvider(rpcUrl, new Network(networkName, chainId));
+  const wallet = new Wallet(privateKey, provider);
+  return new Contract(userRegistryAddress, USER_REGISTRY_ABI, wallet);
+}
+
+export async function createWalletForUserByBackend(username, chain = "CELO") {
+  return withTxQueue(async () => {
+    if (!username || typeof username !== "string" || username.trim().length < 2) {
+      throw new Error("Invalid username");
+    }
+    const registry = getUserRegistryContract(chain);
+    const tx = await registry.createWalletForUserByBackend(username.trim());
+    const receipt = await tx.wait();
+    let walletAddr;
+    try {
+      const iface = new Interface([
+        "event WalletCreated(address indexed owner, string username, address indexed wallet)",
+      ]);
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+          if (parsed?.name === "WalletCreated" && parsed.args?.wallet) {
+            walletAddr = String(parsed.args.wallet);
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    if (!walletAddr) {
+      throw new Error("createWalletForUserByBackend: could not determine wallet address from logs");
+    }
+    logger.info({ username: username.trim(), wallet: walletAddr, hash: receipt?.hash }, "UserRegistry createWalletForUserByBackend tx");
+    return { hash: receipt?.hash, wallet: walletAddr };
+  });
+}
+
+export async function linkEOAToProfile(walletAddress, newOwner, chain = "CELO") {
+  return withTxQueue(async () => {
+    if (!walletAddress || !newOwner) throw new Error("Invalid args");
+    const registry = getUserRegistryContract(chain);
+    const tx = await registry.linkEOAToProfile(walletAddress, newOwner);
+    const receipt = await tx.wait();
+    logger.info({ walletAddress, newOwner, hash: receipt?.hash }, "UserRegistry linkEOAToProfile tx");
+    return { hash: receipt?.hash };
+  });
+}
 
 /** TycoonUserWallet: owner withdraws directly; operator uses WithAuth (PIN-protected). */
 const USER_WALLET_ABI = [
@@ -503,8 +608,8 @@ export async function removePlayerFromGame(gameId, playerAddress, turnCount, cha
 
 /**
  * Update on-chain property stats when a sale happens (TycoonUpgradeable: setPropertyStats).
- * Caller must be the game faucet (set on contract). If backend uses game controller key,
- * ensure that wallet is also set as gameFaucet on the contract, or use a faucet-specific key.
+ * TycoonUpgradeable.setPropertyStats is restricted to onlyGameFaucet, so the backend should call the
+ * TycoonGameFaucet (recordPropertySale) using the backend game controller key.
  * @param {string} sellerUsername - On-chain registered username of seller
  * @param {string} buyerUsername - On-chain registered username of buyer
  * @returns {Promise<{ hash: string }>}
@@ -515,12 +620,12 @@ export async function setPropertyStats(
   chain = "CELO"
 ) {
   return withTxQueue(async () => {
-    const tycoon = getContract(chain);
-    const tx = await tycoon.setPropertyStats(sellerUsername, buyerUsername);
+    const faucet = getGameFaucetContract(chain);
+    const tx = await faucet.recordPropertySale(sellerUsername, buyerUsername);
     const receipt = await tx.wait();
     logger.info(
       { sellerUsername, buyerUsername, hash: receipt?.hash },
-      "Tycoon setPropertyStats tx"
+      "TycoonGameFaucet recordPropertySale tx"
     );
     return { hash: receipt?.hash };
   });
@@ -1237,7 +1342,8 @@ export async function callContractWrite(fn, params = [], chain = "CELO") {
       break;
     case "setPropertyStats":
     case "transferPropertyOwnership":
-      tx = await tycoon.setPropertyStats(normalized[0] ?? "", normalized[1] ?? "");
+      // setPropertyStats on TycoonUpgradeable is onlyGameFaucet. Route via the TycoonGameFaucet instead.
+      tx = await getGameFaucetContract(chain).recordPropertySale(normalized[0] ?? "", normalized[1] ?? "");
       break;
     case "setTurnCount":
       tx = await tycoon.setTurnCount(normalized[0] ?? 0n, normalized[1] ?? "0x0", normalized[2] ?? 0n);

@@ -20,7 +20,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import { useProfileOwner, useRecreateWalletForUser, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -259,6 +259,7 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
 
 export default function ProfilePageMobile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
   const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -668,6 +669,23 @@ export default function ProfilePageMobile() {
                 <>
                   <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
                   <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
+                  {!!walletAddress && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await recreateWallet();
+                          toast.info('Creating new smart wallet…');
+                        } catch (e: any) {
+                          toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
+                        }
+                      }}
+                      disabled={recreateWalletPending}
+                      className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-cyan-300 text-[10px] font-semibold disabled:opacity-60"
+                    >
+                      {recreateWalletPending ? 'Creating…' : 'Create new'}
+                    </button>
+                  )}
                 </>
               ) : (
                 <span className="italic">— (register in-game to get one)</span>

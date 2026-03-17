@@ -30,6 +30,10 @@ export function getChainConfig(chain) {
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_CELO ?? process.env.TOURNAMENT_ESCROW_CELO;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_CELO ?? process.env.TYCOON_USER_REGISTRY_ADDRESS;
     const nairaVaultAddress = process.env.TYCOON_NAIRA_VAULT_CELO ?? process.env.TYCOON_NAIRA_VAULT_ADDRESS;
+    const gameFaucetAddress =
+      process.env.TYCOON_GAME_FAUCET_ADDRESS_CELO ??
+      process.env.TYCOON_GAME_FAUCET_CELO ??
+      process.env.TYCOON_GAME_FAUCET_ADDRESS;
     const usdcAddress = process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
     return {
       rpcUrl,
@@ -39,6 +43,7 @@ export function getChainConfig(chain) {
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
       nairaVaultAddress: nairaVaultAddress || undefined,
+      gameFaucetAddress: gameFaucetAddress || undefined,
       usdcAddress: usdcAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
@@ -51,6 +56,7 @@ export function getChainConfig(chain) {
     const chainId = Number(process.env.POLYGON_CHAIN_ID) || 137;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_POLYGON ?? process.env.TOURNAMENT_ESCROW_POLYGON;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_POLYGON;
+    const gameFaucetAddress = process.env.TYCOON_GAME_FAUCET_ADDRESS_POLYGON ?? process.env.TYCOON_GAME_FAUCET_POLYGON;
     return {
       rpcUrl,
       contractAddress,
@@ -58,6 +64,7 @@ export function getChainConfig(chain) {
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
+      gameFaucetAddress: gameFaucetAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
@@ -69,6 +76,7 @@ export function getChainConfig(chain) {
     const chainId = Number(process.env.BASE_CHAIN_ID) || 8453;
     const tournamentEscrowAddress = process.env.TOURNAMENT_ESCROW_ADDRESS_BASE ?? process.env.TOURNAMENT_ESCROW_BASE;
     const userRegistryAddress = process.env.TYCOON_USER_REGISTRY_BASE;
+    const gameFaucetAddress = process.env.TYCOON_GAME_FAUCET_ADDRESS_BASE ?? process.env.TYCOON_GAME_FAUCET_BASE;
     return {
       rpcUrl,
       contractAddress,
@@ -76,6 +84,7 @@ export function getChainConfig(chain) {
       chainId,
       tournamentEscrowAddress: tournamentEscrowAddress || undefined,
       userRegistryAddress: userRegistryAddress || undefined,
+      gameFaucetAddress: gameFaucetAddress || undefined,
       isConfigured: Boolean(rpcUrl && contractAddress && privateKey),
     };
   }
