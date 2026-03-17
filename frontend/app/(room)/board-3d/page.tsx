@@ -1996,21 +1996,27 @@ function Board3DPageContent() {
       .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
       .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp }));
     let didBuild = false;
+    const buildContext = {
+      myBalance: balance,
+      myProperties,
+      opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
+    };
     try {
-      const agentRes = await apiClient.post<{
-        success?: boolean;
-        data?: { action?: string; propertyId?: number; reasoning?: string };
-        useBuiltIn?: boolean;
-      }>("/agent-registry/decision", {
-        gameId: game.id,
-        slot: 1,
-        decisionType: "building",
-        context: {
-          myBalance: balance,
-          myProperties,
-          opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
-        },
-      });
+      type DecisionRes = { success?: boolean; data?: { action?: string; propertyId?: number; reasoning?: string }; useBuiltIn?: boolean };
+      const agentRes = myAgentApiKey
+        ? await apiClient.post<DecisionRes>("/agent-registry/decision-with-key", {
+            gameId: game.id,
+            decisionType: "building",
+            context: buildContext,
+            provider: myAgentApiKey.provider,
+            apiKey: myAgentApiKey.apiKey,
+          })
+        : await apiClient.post<DecisionRes>("/agent-registry/decision", {
+            gameId: game.id,
+            slot: 1,
+            decisionType: "building",
+            context: buildContext,
+          });
       if (
         agentRes?.data?.success &&
         agentRes.data.data?.action?.toLowerCase() === "build" &&
@@ -2059,7 +2065,7 @@ function Board3DPageContent() {
       }
     }
     if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
-  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties]);
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey]);
 
   // When "my agent plays for me" is on and it's my turn: pre-roll perks → build (if monopoly) → auto-roll
   // Use me?.user_id in deps so refetches (new me object) don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
