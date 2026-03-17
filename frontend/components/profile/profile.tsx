@@ -115,8 +115,8 @@ const CELO_CHAIN_ID = 42220;
 function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
   const username = guestUser.username;
   const guestOnChainAddress =
-    (isValidWallet((guestUser as { smart_wallet_address?: unknown })?.smart_wallet_address)
-      ? ((guestUser as { smart_wallet_address: string }).smart_wallet_address as Address)
+    (isValidWallet((guestUser as unknown as { smart_wallet_address?: unknown })?.smart_wallet_address)
+      ? ((guestUser as unknown as { smart_wallet_address: string }).smart_wallet_address as Address)
       : null) ??
     (guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim()
       ? (guestUser.linked_wallet_address as Address)
@@ -303,7 +303,8 @@ export default function Profile() {
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
-  const smartWallet = isValidWallet(registrySmartWallet) ? registrySmartWallet : undefined;
+  const smartWalletAddress = isValidWallet(registrySmartWallet) ? registrySmartWallet : undefined;
+  const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
   // Reward/perk ownership can live on the smart wallet, so prefer that for reward reads.
