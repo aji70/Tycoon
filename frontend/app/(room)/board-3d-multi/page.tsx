@@ -1489,6 +1489,55 @@ function Board3DPageContent() {
     else if (!isLiveGame) handleRoll();
   }, [isLiveGame, playerCanRoll, handleRollForLive, handleRoll]);
 
+  // Pre-roll perks: when "my agent plays for me", use owner's active perks (jail free, instant cash, lucky 7)
+  const runMyAgentPreRollPerks = useCallback(async () => {
+    if (!game?.id || !me) return;
+    const [gameResult] = await Promise.all([refetchGame(), refetchGameProperties()]);
+    const freshGame = gameResult?.data as Game | undefined;
+    const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
+    const raw = freshMe?.active_perks;
+    const activePerks: { id: number }[] = Array.isArray(raw)
+      ? raw
+      : typeof raw === "string"
+        ? (() => {
+            try {
+              const parsed = JSON.parse(raw as string);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    const hasPerk = (id: number) => activePerks.some((p) => p.id === id);
+    const pos = freshMe?.position ?? 0;
+    const inJail = !!(freshMe?.in_jail && pos === JAIL_POSITION);
+    const balance = freshMe?.balance ?? 0;
+    if (inJail && hasPerk(2)) {
+      try {
+        await apiClient.post("/perks/use-jail-free", { game_id: game.id });
+        toast.success("Your agent used Jail Free!");
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        return;
+      } catch (_) {}
+    }
+    if (balance < 400 && hasPerk(5)) {
+      try {
+        await apiClient.post("/perks/burn-cash", { game_id: game.id });
+        toast.success("Your agent used Instant Cash!");
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        return;
+      } catch (_) {}
+    }
+    if (hasPerk(13)) {
+      try {
+        await apiClient.post("/perks/activate", { game_id: game.id, perk_id: 13 });
+        toast.success("Your agent activated Lucky 7!");
+        await Promise.all([refetchGame(), refetchGameProperties()]);
+        return;
+      } catch (_) {}
+    }
+  }, [game?.id, me?.user_id, refetchGame, refetchGameProperties]);
+
   // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build (or use rule-based fallback)
   const runMyAgentPreRollBuild = useCallback(async () => {
     if (!game?.id || !me) return;
@@ -1565,12 +1614,14 @@ function Board3DPageContent() {
     if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
   }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties]);
 
-  // When "my agent" is on and it's my turn: pre-roll build (if monopoly) then auto-roll
+  // When "my agent" is on and it's my turn: pre-roll perks → build (if monopoly) → auto-roll
+  // Use me?.user_id in deps so refetches don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
   useEffect(() => {
-    if (!isLiveGame || !isMyTurn || !agentOn || !playerCanRoll || rollingDice || !me) return;
+    if (!isLiveGame || !isMyTurn || !agentOn || rollingDice || !me) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      runMyAgentPreRollBuild()
+      runMyAgentPreRollPerks()
+        .then(() => runMyAgentPreRollBuild())
         .then(() => {
           if (!cancelled) handleRollForLive();
         })
@@ -1582,7 +1633,7 @@ function Board3DPageContent() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [isLiveGame, isMyTurn, agentOn, playerCanRoll, rollingDice, me, handleRollForLive, runMyAgentPreRollBuild]);
+  }, [isLiveGame, isMyTurn, agentOn, rollingDice, me?.user_id, handleRollForLive, runMyAgentPreRollPerks, runMyAgentPreRollBuild]);
 
   const onFocusComplete = useCallback(() => {
     if (pendingShowCardModalRef.current) {

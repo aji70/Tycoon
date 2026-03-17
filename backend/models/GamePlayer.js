@@ -95,6 +95,8 @@ const GamePlayer = {
         "gp.turn_start",
         "gp.consecutive_timeouts",
         "gp.turn_count",
+        "gp.active_perks",
+        "gp.pending_exact_roll",
         "gp.created_at as joined_date",
         "u.username"
       )
@@ -129,6 +131,8 @@ const GamePlayer = {
         "gp.turn_start",
         "gp.consecutive_timeouts",
         "gp.turn_count",
+        "gp.active_perks",
+        "gp.pending_exact_roll",
         "gp.created_at as joined_date",
         "u.username"
       )

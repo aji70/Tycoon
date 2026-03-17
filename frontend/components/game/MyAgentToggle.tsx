@@ -176,29 +176,7 @@ export function MyAgentToggle({
             </>
           )}
         </div>
-        {!agentOn && onUseApiKey && (
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-              <Key className="w-3 h-3" /> Or paste API key (no server)
-            </span>
-            <input
-              type="password"
-              placeholder="Claude API key"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              className="text-xs bg-slate-700 border border-slate-500 rounded px-2 py-1 text-slate-200 placeholder:text-slate-500"
-            />
-            <p className="text-[10px] text-slate-500">Remembered until you close this tab. Not stored on our servers.</p>
-            <button
-              type="button"
-              onClick={handleUseApiKey}
-              disabled={useApiKeyBusy || !apiKeyInput.trim()}
-              className="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50"
-            >
-              Use key
-            </button>
-          </div>
-        )}
+        {/* Desktop compact: only show My Agents; API key option hidden so you just see your agents */}
       </div>
     );
   }
