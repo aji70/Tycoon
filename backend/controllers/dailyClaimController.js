@@ -70,11 +70,19 @@ export async function dailyClaim(req, res) {
         txHash = hash;
         rewardTyc = Number(totalWei) / 1e18;
       } catch (mintErr) {
-        logger.warn({ err: mintErr?.message, userId: user_id, chain: normalizedChain }, "daily-claim mint failed");
+        const rawMsg = String(mintErr?.shortMessage || mintErr?.reason || mintErr?.message || "");
+        const msg = rawMsg.toLowerCase().includes("not minter")
+          ? "Daily reward mint failed: backend wallet is not authorized (Not minter). Ask admin to call setBackendMinter() on TycoonRewardSystem."
+          : rawMsg
+            ? `Daily reward mint failed: ${rawMsg}`
+            : "Reward mint failed. Try again later.";
+
+        logger.warn({ err: rawMsg, userId: user_id, chain: normalizedChain }, "daily-claim mint failed");
         return res.status(502).json({
           success: false,
-          message: "Reward mint failed. Try again later.",
+          message: msg,
           streak: newStreak,
+          chain: normalizedChain,
         });
       }
     }

@@ -723,7 +723,15 @@ export default function ProfilePageMobile() {
                   className="mb-4"
                 />
                 <div className="mb-4">
-                  <DailyClaim />
+                  <DailyClaim
+                    chain={
+                      chainId === 137 || chainId === 80001
+                        ? 'POLYGON'
+                        : chainId === 42220 || chainId === 44787
+                          ? 'CELO'
+                          : 'BASE'
+                    }
+                  />
                 </div>
                 {userData && (() => {
                   const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
