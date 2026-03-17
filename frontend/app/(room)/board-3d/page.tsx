@@ -1667,6 +1667,9 @@ function Board3DPageContent() {
               game_id: game.id,
               property_id: square.id,
             });
+            toast.success(`Your agent bought ${square.name}.`);
+          } else {
+            toast(`Your agent skipped buying ${square.name}.`);
           }
         } catch (err) {
           const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Agent decision failed";

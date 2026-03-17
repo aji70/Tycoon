@@ -209,16 +209,23 @@ export function useAiPlayerLogic({
                   const actionLower = action.toLowerCase();
                   if (actionLower === "accept") {
                     decision = "accepted";
-                    remark = agentRes?.data?.useBuiltIn === false ? "Celo agent accepted. 🤖" : remark;
+                    remark = agentRes?.data?.useBuiltIn === false
+                      ? (slot === 1 ? "Your agent accepted. 🤖" : "Celo agent accepted. 🤖")
+                      : remark;
                   } else if (actionLower === "decline") {
                     decision = "declined";
-                    remark = agentRes?.data?.useBuiltIn === false ? "Celo agent declined." : remark;
+                    remark = agentRes?.data?.useBuiltIn === false
+                      ? (slot === 1 ? "Your agent declined." : "Celo agent declined.")
+                      : remark;
                   } else if (actionLower === "counter") {
                     decision = "countered";
                     counterCashAdjustment = counterOffer?.cashAdjustment ?? 0;
-                    remark = (counterOffer?.cashAdjustment != null && counterOffer.cashAdjustment !== 0)
+                    const counterReason = (counterOffer?.cashAdjustment != null && counterOffer.cashAdjustment !== 0)
                       ? `Not quite — I'm countering. ${counterOffer.cashAdjustment > 0 ? `I want $${counterOffer.cashAdjustment} more.` : `I'll add $${Math.abs(counterOffer.cashAdjustment)}.`}`
                       : "Not quite — here's my counter offer.";
+                    remark = agentRes?.data?.useBuiltIn === false && slot === 1
+                      ? `Your agent countered. ${counterReason}`
+                      : counterReason;
                   }
                 }
               } catch (err) {
