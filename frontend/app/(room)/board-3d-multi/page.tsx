@@ -1586,6 +1586,12 @@ function Board3DPageContent() {
         });
         toast.success(prop ? `Your agent built on ${prop.name}.` : "Your agent built a house.");
         didBuild = true;
+      } else if (
+        agentRes?.data?.success &&
+        agentRes.data.data?.action?.toLowerCase() !== "build" &&
+        agentRes.data.data?.reasoning
+      ) {
+        toast.info(`Agent chose not to build: ${agentRes.data.data.reasoning}`);
       }
     } catch (_) {
       /* try fallback */

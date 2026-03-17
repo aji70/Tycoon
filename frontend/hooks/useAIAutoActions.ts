@@ -207,6 +207,14 @@ export const useAIAutoActions = ({
         }
         return;
       }
+      if (
+        agentRes?.data?.success &&
+        agentRes.data.useBuiltIn === false &&
+        agentRes.data.data?.action?.toLowerCase() !== "build" &&
+        agentRes.data.data?.reasoning
+      ) {
+        toast(`Agent chose not to build: ${agentRes.data.data.reasoning}`);
+      }
     } catch (_) {
       /* fallback to built-in */
     }
