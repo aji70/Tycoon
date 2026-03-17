@@ -73,6 +73,7 @@ const NavBar = () => {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const isPrivyAuthed = ready && authenticated;
+  const isSignedIn = isConnected || isPrivyAuthed || !!guestUser;
 
   const toggleSound = () => {
     if (isSoundPlaying) {
@@ -105,7 +106,7 @@ const NavBar = () => {
         <Logo className="cursor-pointer md:w-[50px] w-[45px]" image={LogoIcon} href="/" />
 
         <div className="flex items-center gap-[4px]">
-          {/* Online players (only when connected) */}
+          {/* Online players (when wallet connected) */}
           {isConnected && (
             <div className="relative hidden md:block" ref={onlineDropdownRef}>
               <button
@@ -138,8 +139,8 @@ const NavBar = () => {
             </div>
           )}
 
-          {/* Profile button (only when connected) */}
-          {isConnected && (
+          {/* Profile button */}
+          {isSignedIn && (
             <Link
               href="/profile"
               onMouseEnter={() => router.prefetch('/profile')}
@@ -150,8 +151,8 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Perk Shop button (only when connected) */}
-          {isConnected && (
+          {/* Perk Shop button */}
+          {isSignedIn && (
             <Link
               href={shopHref}
               onMouseEnter={() => router.prefetch('/game-shop')}
@@ -162,8 +163,8 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Leaderboard button (only when connected) */}
-          {isConnected && (
+          {/* Leaderboard button */}
+          {isSignedIn && (
             <Link
               href="/leaderboard"
               onMouseEnter={() => router.prefetch('/leaderboard')}
@@ -174,8 +175,8 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Tournaments button (only when connected) */}
-          {isConnected && (
+          {/* Tournaments button */}
+          {isSignedIn && (
             <Link
               href="/tournaments"
               className="w-[95px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
@@ -185,8 +186,8 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* Rooms button (only when connected) — general lobby with chat */}
-          {isConnected && (
+          {/* Rooms button — general lobby with chat */}
+          {isSignedIn && (
             <Link
               href="/rooms"
               className="w-[75px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
@@ -196,8 +197,8 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* My Agents (only when connected) */}
-          {isConnected && (
+          {/* My Agents */}
+          {isSignedIn && (
             <Link
               href="/agents"
               onMouseEnter={() => router.prefetch('/agents')}
