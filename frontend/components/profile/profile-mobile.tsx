@@ -20,7 +20,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -284,6 +284,11 @@ export default function ProfilePageMobile() {
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
   const { data: smartWalletAddress } = useUserRegistryWallet(walletAddress);
+  const smartWallet = isValidWallet(smartWalletAddress) ? smartWalletAddress : undefined;
+  const { data: smartWalletOwner } = useProfileOwner(smartWallet);
+  const tycoonProfileOwnerAddress =
+    (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
+    walletAddress;
 
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
@@ -296,8 +301,8 @@ export default function ProfilePageMobile() {
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: walletAddress ? [walletAddress] : undefined,
-    query: { enabled: !!walletAddress && !!tycoonAddress },
+    args: tycoonProfileOwnerAddress ? [tycoonProfileOwnerAddress] : undefined,
+    query: { enabled: !!tycoonProfileOwnerAddress && !!tycoonAddress },
   });
 
   const {
@@ -317,24 +322,25 @@ export default function ProfilePageMobile() {
     address: rewardAddress,
     abi: RewardABI,
     functionName: 'ownedTokenCount',
-    args: walletAddress ? [walletAddress] : undefined,
-    query: { enabled: !!walletAddress && !!rewardAddress },
+    args: (smartWallet ?? walletAddress) ? [(smartWallet ?? walletAddress)!] : undefined,
+    query: { enabled: !!(smartWallet ?? walletAddress) && !!rewardAddress },
   });
 
   const ownedCountNum = Number(ownedCount.data ?? 0);
+  const rewardOwnerAddress = smartWallet ?? walletAddress;
 
   const tokenCalls = useMemo(() =>
     Array.from({ length: ownedCountNum }, (_, i) => ({
       address: rewardAddress!,
       abi: RewardABI as Abi,
       functionName: 'tokenOfOwnerByIndex',
-      args: [walletAddress!, BigInt(i)],
+      args: [rewardOwnerAddress!, BigInt(i)],
     } as const)),
-  [rewardAddress, walletAddress, ownedCountNum]);
+  [rewardAddress, rewardOwnerAddress, ownedCountNum]);
 
   const tokenResults = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!walletAddress },
+    query: { enabled: ownedCountNum > 0 && !!rewardAddress && !!rewardOwnerAddress },
   });
 
   const allOwnedTokenIds = tokenResults.data

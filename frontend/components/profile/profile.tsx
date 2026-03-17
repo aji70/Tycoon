@@ -17,7 +17,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -303,9 +303,16 @@ export default function Profile() {
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
+  const smartWallet = isValidWallet(registrySmartWallet) ? registrySmartWallet : undefined;
+  const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
-  // Prefer the registry smart wallet (Privy/embedded) for stats/level consistency.
-  const playerAddressForStats = (isValidWallet(registrySmartWallet) ? registrySmartWallet : null) ?? walletAddress;
+  // Reward/perk ownership can live on the smart wallet, so prefer that for reward reads.
+  const playerAddressForStats = smartWallet ?? walletAddress;
+
+  // Tycoon username/profile is keyed by the profile owner EOA (not the smart wallet).
+  const tycoonProfileOwnerAddress =
+    (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
+    walletAddress;
 
   const {
     data: username,
@@ -315,8 +322,8 @@ export default function Profile() {
     address: tycoonAddress,
     abi: TycoonABI,
     functionName: 'addressToUsername',
-    args: playerAddressForStats ? [playerAddressForStats] : undefined,
-    query: { enabled: !!playerAddressForStats && !!tycoonAddress },
+    args: tycoonProfileOwnerAddress ? [tycoonProfileOwnerAddress] : undefined,
+    query: { enabled: !!tycoonProfileOwnerAddress && !!tycoonAddress },
   });
 
   const {
@@ -461,7 +468,7 @@ export default function Profile() {
     }
 
     if (username && playerData) {
-      const parsed = parseUserFromContract(playerData, username as string, playerAddressForStats);
+      const parsed = parseUserFromContract(playerData, username as string, tycoonProfileOwnerAddress);
       if (parsed) setUserData(parsed);
       setLoading(false);
       return;
