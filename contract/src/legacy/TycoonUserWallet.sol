@@ -10,6 +10,23 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
+interface ITycoonRewardSystem {
+    function tycToken() external view returns (address);
+    function usdc() external view returns (address);
+    function collectibleTycPrice(uint256 tokenId) external view returns (uint256);
+    function collectibleUsdcPrice(uint256 tokenId) external view returns (uint256);
+    function buyCollectible(uint256 tokenId, bool useUsdc) external;
+    function burnCollectibleForPerk(uint256 tokenId) external;
+    function buyBundle(uint256 bundleId, bool useUsdc) external;
+    function bundles(uint256 bundleId) external view returns (
+        uint256[] memory tokenIds,
+        uint256[] memory amounts,
+        uint256 tycPrice,
+        uint256 usdcPrice,
+        bool active
+    );
+}
+
 /// @title TycoonUserWallet
 /// @notice Smart wallet bound to a user profile. Holds CELO (native), ERC20 (USDC etc), ERC1155 (perks), ERC721 (e.g. ERC-8004).
 /// @dev Owner (user EOA) can withdraw/send and approve the game/shop to pull tokens and perks for buy/burn during games.
@@ -30,12 +47,16 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     event NairaVaultUpdated(address indexed previous, address indexed vault);
     event SentCeloToNairaVault(uint256 amount);
     event OperatorUpdated(address indexed previous, address indexed newOperator);
+    event AllowedRewardSystemUpdated(address indexed previous, address indexed newRewardSystem);
+    event ShopActionExecuted(bytes32 indexed action, uint256 indexed id, bool useUsdc);
 
     error OnlyOwner();
     error OnlyRegistry();
     error InvalidAddress();
     error OnlyNairaVault();
     error OnlyOperator();
+    error ShopNotConfigured();
+    error NotAllowed();
     /// @notice Thrown when withdrawal would exceed the daily USD cap.
     error ExceedsDailyCap();
 
@@ -47,6 +68,9 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
     address public withdrawalAuthority;
     /// @notice Prevents replay of signed withdrawal requests.
     mapping(bytes32 => bool) public usedWithdrawalNonces;
+
+    /// @notice Reward system (shop + burn) allowed to be called via operator-auth flows.
+    address public rewardSystem;
 
     /// @notice Daily withdrawal cap in USD (6 decimals). 0 = no cap. Anti–money-laundering (e.g. 100e6 = $100/day).
     uint256 public dailyCapUsd6;
@@ -128,12 +152,30 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         withdrawalAuthority = _authority;
     }
 
+    /// @notice Configure reward system contract used for buy/burn flows. Only registry.
+    function setRewardSystemByRegistry(address _rewardSystem) external {
+        if (msg.sender != registry) revert OnlyRegistry();
+        address previous = rewardSystem;
+        rewardSystem = _rewardSystem;
+        emit AllowedRewardSystemUpdated(previous, _rewardSystem);
+    }
+
     /// @notice Set daily withdrawal cap and CELO price. Only registry. dailyCapUsd6 = 0 means no cap.
     function setDailyCapByRegistry(uint256 _dailyCapUsd6, uint256 _priceCeloUsd6) external {
         if (msg.sender != registry) revert OnlyRegistry();
         dailyCapUsd6 = _dailyCapUsd6;
         priceCeloUsd6 = _priceCeloUsd6;
         emit DailyCapUpdated(_dailyCapUsd6, _priceCeloUsd6);
+    }
+
+    function _requireValidAuthority(bytes32 hash, uint256 nonce, bytes calldata signature, bytes32 action) internal {
+        if (withdrawalAuthority == address(0)) revert InvalidAddress();
+        bytes32 nonceKey = keccak256(abi.encodePacked(address(this), action, hash, nonce));
+        require(!usedWithdrawalNonces[nonceKey], "Nonce used");
+        usedWithdrawalNonces[nonceKey] = true;
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        address signer = ECDSA.recover(ethSignedHash, signature);
+        require(signer == withdrawalAuthority, "Bad signature");
     }
 
     /// @notice Update daily withdrawal counter; revert if would exceed cap. USD amounts in 6 decimals.
@@ -246,6 +288,80 @@ contract TycoonUserWallet is ERC165, IERC1155Receiver {
         require(signer == withdrawalAuthority, "Bad signature");
         require(IERC20(token).transfer(to, amount), "Transfer failed");
         emit WithdrewERC20(token, to, amount);
+    }
+
+    // -------------------------------------------------------------------------
+    // Shop actions (RewardSystem) — operator calls with authority signature (PIN-gated)
+    // -------------------------------------------------------------------------
+
+    /// @notice Operator buys a collectible from the shop using wallet funds. Requires authority signature.
+    /// @dev Internally approves exact price for RewardSystem then calls buyCollectible as this wallet.
+    function buyCollectibleWithAuth(uint256 tokenId, bool useUsdc, uint256 maxPrice, uint256 nonce, bytes calldata signature)
+        external
+        onlyOperator
+    {
+        address rs = rewardSystem;
+        if (rs == address(0)) revert ShopNotConfigured();
+
+        uint256 price = useUsdc
+            ? ITycoonRewardSystem(rs).collectibleUsdcPrice(tokenId)
+            : ITycoonRewardSystem(rs).collectibleTycPrice(tokenId);
+        require(price > 0, "Not for sale");
+        require(price <= maxPrice, "Price too high");
+
+        bytes32 action = keccak256("buy_collectible");
+        bytes32 hash = keccak256(abi.encodePacked(address(this), rs, tokenId, useUsdc, price, maxPrice, nonce));
+        _requireValidAuthority(hash, nonce, signature, action);
+
+        address token = useUsdc ? ITycoonRewardSystem(rs).usdc() : ITycoonRewardSystem(rs).tycToken();
+        if (token == address(0)) revert InvalidAddress();
+        IERC20(token).approve(rs, price);
+        emit ApprovalERC20(token, rs, price);
+
+        ITycoonRewardSystem(rs).buyCollectible(tokenId, useUsdc);
+        emit ShopActionExecuted(action, tokenId, useUsdc);
+    }
+
+    /// @notice Operator buys a bundle from RewardSystem using wallet funds. Requires authority signature.
+    function buyBundleWithAuth(uint256 bundleId, bool useUsdc, uint256 maxPrice, uint256 nonce, bytes calldata signature)
+        external
+        onlyOperator
+    {
+        address rs = rewardSystem;
+        if (rs == address(0)) revert ShopNotConfigured();
+
+        (, , uint256 tycPrice, uint256 usdcPrice, bool active) = ITycoonRewardSystem(rs).bundles(bundleId);
+        require(active, "Bundle inactive");
+        uint256 price = useUsdc ? usdcPrice : tycPrice;
+        require(price > 0, "Not for sale");
+        require(price <= maxPrice, "Price too high");
+
+        bytes32 action = keccak256("buy_bundle");
+        bytes32 hash = keccak256(abi.encodePacked(address(this), rs, bundleId, useUsdc, price, maxPrice, nonce));
+        _requireValidAuthority(hash, nonce, signature, action);
+
+        address token = useUsdc ? ITycoonRewardSystem(rs).usdc() : ITycoonRewardSystem(rs).tycToken();
+        if (token == address(0)) revert InvalidAddress();
+        IERC20(token).approve(rs, price);
+        emit ApprovalERC20(token, rs, price);
+
+        ITycoonRewardSystem(rs).buyBundle(bundleId, useUsdc);
+        emit ShopActionExecuted(action, bundleId, useUsdc);
+    }
+
+    /// @notice Operator burns a collectible in RewardSystem to activate a perk (burn happens from this wallet). Requires authority signature.
+    function burnCollectibleForPerkWithAuth(uint256 tokenId, uint256 nonce, bytes calldata signature)
+        external
+        onlyOperator
+    {
+        address rs = rewardSystem;
+        if (rs == address(0)) revert ShopNotConfigured();
+        bytes32 action = keccak256("burn_collectible");
+        bytes32 hash = keccak256(abi.encodePacked(address(this), rs, tokenId, nonce));
+        _requireValidAuthority(hash, nonce, signature, action);
+
+        ITycoonRewardSystem(rs).burnCollectibleForPerk(tokenId);
+        emit ShopActionExecuted(action, tokenId, false);
     }
 
     function balanceERC20(address token) external view returns (uint256) {

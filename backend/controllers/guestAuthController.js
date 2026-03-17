@@ -12,6 +12,7 @@ import db from "../config/database.js";
 import User from "../models/User.js";
 import {
   registerPlayerFor,
+  createWalletForUserByBackend,
   getSmartWalletAddress,
   callContractRead,
   isContractConfigured,
@@ -215,6 +216,26 @@ export async function privySignin(req, res) {
       privy_did: privyDid,
       is_guest: true,
     });
+
+    // Wallet-first on-chain registration at signup (no external wallet linked yet).
+    // Creates a smart wallet and registers that wallet as the on-chain player identity.
+    try {
+      const normalizedChain = User.normalizeChain(chain);
+      if (isContractConfigured(normalizedChain)) {
+        const { wallet: smartWallet } = await createWalletForUserByBackend(trimmedUsername, normalizedChain);
+        const secret = crypto.randomBytes(32).toString("hex");
+        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+        await registerPlayerFor(smartWallet, trimmedUsername, passwordHash, normalizedChain);
+        await db("users")
+          .where({ id: user.id })
+          .update({ password_hash: passwordHash, smart_wallet_address: smartWallet || null });
+        user = await User.findById(user.id);
+        logger.info({ userId: user.id, smartWallet, chain: normalizedChain }, "privySignin: wallet-first on-chain registration complete");
+      }
+    } catch (e) {
+      logger.warn({ err: e?.message, userId: user.id }, "privySignin: wallet-first on-chain registration failed (continuing)");
+    }
+
     const token = jwt.sign(
       { userId: user.id, address: user.address, username: user.username, isGuest: true },
       JWT_SECRET,
@@ -751,6 +772,30 @@ export async function me(req, res) {
   const addrForChain = safe.linked_wallet_address && String(safe.linked_wallet_address).trim()
     ? String(safe.linked_wallet_address).trim()
     : primaryIsPlaceholder ? null : req.user.address;
+
+  // Wallet-first users (Privy placeholder with no linked wallet): ensure they have an on-chain wallet identity and smart wallet.
+  if (!addrForChain && req.user?.privy_did && isContractConfigured(normalizedChain)) {
+    try {
+      const existingSmartWallet = safe.smart_wallet_address && String(safe.smart_wallet_address).trim()
+        ? String(safe.smart_wallet_address).trim()
+        : null;
+      if (!existingSmartWallet) {
+        const username = req.user.username || "Player";
+        const { wallet: smartWallet } = await createWalletForUserByBackend(username, normalizedChain);
+        const secret = crypto.randomBytes(32).toString("hex");
+        const passwordHash = ethers.keccak256(ethers.toUtf8Bytes(secret));
+        await registerPlayerFor(smartWallet, username, passwordHash, normalizedChain);
+        await db("users").where({ id: req.user.id }).update({
+          password_hash: passwordHash,
+          smart_wallet_address: smartWallet || null,
+        });
+        safe.smart_wallet_address = smartWallet || safe.smart_wallet_address;
+        logger.info({ userId: req.user.id, wallet: smartWallet, chain: normalizedChain }, "me: wallet-first on-chain registration complete");
+      }
+    } catch (e) {
+      logger.warn({ err: e?.message, userId: req.user.id }, "me: wallet-first ensure failed");
+    }
+  }
 
   if (addrForChain && isContractConfigured(normalizedChain)) {
     try {

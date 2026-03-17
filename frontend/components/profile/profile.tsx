@@ -17,7 +17,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
-import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
+import { useProfileOwner, useRecreateWalletForUser, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { getLevelFromActivity } from '@/lib/level';
@@ -676,6 +676,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
 
 export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
   const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
   const { guestUser } = useGuestAuthOptional() ?? {};
   const [userData, setUserData] = useState<any>(null);
@@ -1124,6 +1125,24 @@ export default function Profile() {
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
+                      {!!walletAddress && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await recreateWallet();
+                              toast.info('Creating new smart wallet…');
+                            } catch (e: any) {
+                              toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
+                            }
+                          }}
+                          disabled={recreateWalletPending}
+                          className="ml-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 text-xs font-semibold transition disabled:opacity-60"
+                          title="Create a new smart wallet (old wallet stays; move funds manually)"
+                        >
+                          {recreateWalletPending ? 'Creating…' : 'Create new'}
+                        </button>
+                      )}
                     </>
                   ) : (
                     <span className="text-slate-500 text-xs italic">— (register in-game to get one)</span>

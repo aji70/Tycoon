@@ -26,6 +26,8 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     address public operatorAddress;
     /// @notice Backend withdrawal authority; signs withdrawals only after user PIN. Set on new wallets.
     address public withdrawalAuthorityAddress;
+    /// @notice RewardSystem address (shop + burn). Set on new wallets so backend operator can buy/burn via wallet auth flows.
+    address public rewardSystemAddress;
     /// @notice Default daily withdrawal cap in USD (6 decimals), e.g. 100e6 = $100/day. 0 = no cap.
     uint256 public defaultDailyCapUsd6;
     /// @notice Default CELO price in USD (6 decimals), e.g. 2.5e6 = $2.5 per CELO. Used for daily cap.
@@ -54,6 +56,7 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
     event OperatorUpdated(address indexed previous, address indexed newOperator);
     event WithdrawalAuthorityUpdated(address indexed previous, address indexed newAuthority);
     event DailyCapUpdated(uint256 dailyCapUsd6, uint256 priceCeloUsd6);
+    event RewardSystemUpdated(address indexed previous, address indexed newRewardSystem);
 
     error OnlyGame();
     error AlreadyRegistered();
@@ -103,6 +106,12 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         emit WithdrawalAuthorityUpdated(previous, _authority);
     }
 
+    function setRewardSystem(address _rewardSystem) external onlyOwner {
+        address previous = rewardSystemAddress;
+        rewardSystemAddress = _rewardSystem;
+        emit RewardSystemUpdated(previous, _rewardSystem);
+    }
+
     /// @notice Set default daily cap ($100 = 100e6) and CELO price for new wallets. 0 = no cap.
     function setDefaultDailyCap(uint256 _dailyCapUsd6, uint256 _priceCeloUsd6) external onlyOwner {
         defaultDailyCapUsd6 = _dailyCapUsd6;
@@ -118,6 +127,11 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
 
     /// @notice Create a smart wallet for the user and bind profile. Called by game contract when user registers.
     function createWalletForUser(address ownerAddress, string calldata username) external onlyGame nonReentrant returns (address wallet) {
+        // Idempotent for wallet-first users: if ownerAddress is already a wallet we know about, return it.
+        // This is needed because Tycoon.registerPlayerFor(wallet, ...) will still call createWalletForUser(wallet, username).
+        if (ownerByWallet[ownerAddress] != address(0)) {
+            return ownerAddress;
+        }
         if (profileByAddress[ownerAddress].exists) revert AlreadyRegistered();
         bytes32 nameHash = keccak256(bytes(username));
         if (ownerByUsername[nameHash] != address(0)) revert UsernameTaken();
@@ -128,6 +142,9 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         }
         if (withdrawalAuthorityAddress != address(0)) {
             TycoonUserWallet(payable(wallet)).setWithdrawalAuthorityByRegistry(withdrawalAuthorityAddress);
+        }
+        if (rewardSystemAddress != address(0)) {
+            TycoonUserWallet(payable(wallet)).setRewardSystemByRegistry(rewardSystemAddress);
         }
         profileByAddress[ownerAddress] = UserProfile({
             owner: ownerAddress,
@@ -149,6 +166,73 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         return wallet;
     }
 
+    /// @notice Wallet-first signup: create a wallet and profile without an EOA yet.
+    /// @dev Profile is keyed by the wallet address itself (owner = wallet). Later, linkEOAToProfile moves it to the user's EOA.
+    function createWalletForUserByBackend(string calldata username) external onlyGame nonReentrant returns (address wallet) {
+        bytes32 nameHash = keccak256(bytes(username));
+        if (ownerByUsername[nameHash] != address(0)) revert UsernameTaken();
+
+        // Temporary wallet owner is this registry; backend/operator flows do not require owner.
+        wallet = address(new TycoonUserWallet(address(this), address(this), nairaVaultAddress, defaultDailyCapUsd6, defaultPriceCeloUsd6));
+        if (operatorAddress != address(0)) {
+            TycoonUserWallet(payable(wallet)).setOperatorByRegistry(operatorAddress);
+        }
+        if (withdrawalAuthorityAddress != address(0)) {
+            TycoonUserWallet(payable(wallet)).setWithdrawalAuthorityByRegistry(withdrawalAuthorityAddress);
+        }
+        if (rewardSystemAddress != address(0)) {
+            TycoonUserWallet(payable(wallet)).setRewardSystemByRegistry(rewardSystemAddress);
+        }
+
+        profileByAddress[wallet] = UserProfile({
+            owner: wallet,
+            username: username,
+            wallet: wallet,
+            email: "",
+            exists: true
+        });
+        ownerByUsername[nameHash] = wallet;
+        ownerByWallet[wallet] = wallet;
+
+        emit WalletCreated(wallet, username, wallet);
+
+        if (address(faucet) != address(0)) {
+            try faucet.grantReward(wallet, REWARD_REGISTER) returns (bool) {}
+            catch {}
+            emit GameActionRewardGranted(wallet, REWARD_REGISTER, wallet);
+        }
+        return wallet;
+    }
+
+    /// @notice Link an external EOA to a wallet-first profile.
+    /// @dev Callable by game/backend after user signs a message off-chain proving EOA ownership.
+    function linkEOAToProfile(address wallet, address newOwner) external onlyGame nonReentrant {
+        if (wallet == address(0) || newOwner == address(0)) revert InvalidAddress();
+        UserProfile storage p = profileByAddress[wallet];
+        if (!p.exists) revert NoProfile();
+        // Only wallet-first profiles are eligible
+        require(p.wallet == wallet && p.owner == wallet, "Not wallet-first");
+        if (profileByAddress[newOwner].exists) revert NewOwnerHasProfile();
+
+        string memory uname = p.username;
+        string memory em = p.email;
+        bytes32 nameHash = keccak256(bytes(uname));
+
+        delete profileByAddress[wallet];
+        profileByAddress[newOwner] = UserProfile({
+            owner: newOwner,
+            username: uname,
+            wallet: wallet,
+            email: em,
+            exists: true
+        });
+        ownerByUsername[nameHash] = newOwner;
+        ownerByWallet[wallet] = newOwner;
+
+        TycoonUserWallet(payable(wallet)).transferOwnershipViaRegistry(newOwner);
+        emit ProfileTransferred(wallet, newOwner, wallet);
+    }
+
     /// @notice Existing user creates a new smart wallet; profile is updated to the new wallet. Callable by the profile owner.
     /// @dev Old wallet is unchanged (same owner, funds remain). User can withdraw from old wallet to new one manually.
     /// New wallet gets current defaults: operator, withdrawal authority, daily cap, Naira vault.
@@ -164,6 +248,9 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         }
         if (withdrawalAuthorityAddress != address(0)) {
             TycoonUserWallet(payable(newWallet)).setWithdrawalAuthorityByRegistry(withdrawalAuthorityAddress);
+        }
+        if (rewardSystemAddress != address(0)) {
+            TycoonUserWallet(payable(newWallet)).setRewardSystemByRegistry(rewardSystemAddress);
         }
 
         profile.wallet = newWallet;
