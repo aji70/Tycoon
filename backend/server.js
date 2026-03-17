@@ -372,6 +372,7 @@ app.post("/api/perks/activate", gamePerkController.activatePerk);
   app.get("/api/shop/paystack/verify", shopController.paystackVerify);
   app.get("/api/shop/flutterwave/status", shopController.flutterwaveStatus);
   app.post("/api/shop/flutterwave/initialize-test", optionalAuth, shopController.flutterwaveInitializeTest);
+  app.post("/api/shop/flutterwave/initialize-perk", requireAuth, shopController.flutterwaveInitializePerk);
   app.post("/api/shop/flutterwave/webhook", shopController.flutterwaveWebhook);
   app.post("/api/shop/flutterwave/initialize", requireAuth, shopController.flutterwaveInitialize);
   app.get("/api/shop/flutterwave/verify", shopController.flutterwaveVerify);
