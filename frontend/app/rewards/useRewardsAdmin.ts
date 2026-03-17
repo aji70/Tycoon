@@ -634,12 +634,33 @@ export function useRewardsAdmin() {
   };
 
   const handleStockAllPerks = async () => {
-    const total = INITIAL_COLLECTIBLES.length;
+    // Only stock perks that are missing (avoid minting duplicates on repeat runs).
+    const existing = new Set(
+      allTokens
+        .filter(
+          (t): t is TokenDisplayItem & { perk: CollectiblePerk; strength: number } =>
+            t.type === "collectible" && t.perk != null && t.strength != null
+        )
+        .map((t) => `${Number(t.perk)}:${Number(t.strength)}`)
+    );
+
+    const missing = INITIAL_COLLECTIBLES.filter(
+      (i) => !existing.has(`${Number(i.perk)}:${Number(i.strength)}`)
+    );
+
+    const total = missing.length;
     setStockAllProgress({ active: true, current: 0, total });
+
+    if (total === 0) {
+      setStatus({ type: "success", message: "All perks already exist in the shop. Nothing to stock." });
+      setStockAllProgress({ active: false, current: 0, total: 0 });
+      return;
+    }
+
     try {
-      for (let i = 0; i < INITIAL_COLLECTIBLES.length; i++) {
+      for (let i = 0; i < missing.length; i++) {
         setStockAllProgress((prev) => ({ ...prev, current: i + 1 }));
-        const item = INITIAL_COLLECTIBLES[i];
+        const item = missing[i];
         const tycPrice = parseUnits(item.tycPrice, 18);
         const usdcPrice = parseUnits(item.usdcPrice, 6);
         const hash = await stockShopHook.stock(
@@ -653,9 +674,9 @@ export function useRewardsAdmin() {
           await publicClient.waitForTransactionReceipt({ hash });
         }
       }
-      setStatus({ type: "success", message: "Shop stocked with 50 of each perk." });
+      setStatus({ type: "success", message: `Stocked ${total} missing perk(s).` });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Stock all failed";
+      const msg = e instanceof Error ? e.message : "Stock perks failed";
       setStatus({ type: "error", message: msg });
     } finally {
       setStockAllProgress({ active: false, current: 0, total: 0 });
