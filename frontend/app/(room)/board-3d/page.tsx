@@ -1918,14 +1918,71 @@ function Board3DPageContent() {
     return () => clearTimeout(t);
   }, [isLiveGame, isAITurn, strategyRanThisTurn, rollingDice, currentPlayerId, currentPlayer, me]);
 
-  // When "my agent plays for me" is on and it's my turn: auto-roll after a short delay
+  // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build before rolling
+  const runMyAgentPreRollBuild = useCallback(async () => {
+    if (!game?.id || !me || (me.balance ?? 0) < 300) return;
+    const aiOwnedIds = gameProperties
+      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+      .map((gp) => gp.property_id);
+    const hasMonopoly = Object.values(MONOPOLY_STATS.colorGroups).some((ids: number[]) =>
+      ids.every((id) => aiOwnedIds.includes(id))
+    );
+    if (!hasMonopoly) return;
+    const myProperties = gameProperties
+      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+      .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp }));
+    try {
+      const agentRes = await apiClient.post<{
+        success?: boolean;
+        data?: { action?: string; propertyId?: number; reasoning?: string };
+        useBuiltIn?: boolean;
+      }>("/agent-registry/decision", {
+        gameId: game.id,
+        slot: 1,
+        decisionType: "building",
+        context: {
+          myBalance: me.balance ?? 0,
+          myProperties,
+          opponents: (game?.players ?? []).filter((p) => p.user_id !== me.user_id),
+        },
+      });
+      if (
+        agentRes?.data?.success &&
+        agentRes.data.data?.action?.toLowerCase() === "build" &&
+        agentRes.data.data.propertyId
+      ) {
+        const prop = properties.find((p) => p.id === agentRes.data!.data!.propertyId);
+        await apiClient.post("/game-properties/development", {
+          game_id: game.id,
+          user_id: me.user_id,
+          property_id: agentRes.data.data.propertyId,
+        });
+        toast.success(prop ? `Your agent built on ${prop.name}.` : "Your agent built a house.");
+        await refetchGame();
+      }
+    } catch (_) {
+      /* non-fatal; still roll */
+    }
+  }, [game?.id, game?.players, me, gameProperties, properties, refetchGame]);
+
+  // When "my agent plays for me" is on and it's my turn: pre-roll build (if monopoly) then auto-roll
   useEffect(() => {
     if (!isLiveGame || !isMyTurn || !agentOn || rollingDice || !playerCanRoll || !me) return;
+    let cancelled = false;
     const t = setTimeout(() => {
-      handleRollForLive();
+      runMyAgentPreRollBuild()
+        .then(() => {
+          if (!cancelled) handleRollForLive();
+        })
+        .catch(() => {
+          if (!cancelled) handleRollForLive();
+        });
     }, 1200);
-    return () => clearTimeout(t);
-  }, [isLiveGame, isMyTurn, agentOn, rollingDice, playerCanRoll, me, handleRollForLive]);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [isLiveGame, isMyTurn, agentOn, rollingDice, playerCanRoll, me, handleRollForLive, runMyAgentPreRollBuild]);
 
   useEffect(() => {
     const history = game?.history ?? [];
