@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useProfileOwner, useTransferProfileTo } from "@/context/ContractProvider";
 import { Link2, Unlink, Loader2, Mail, Wallet, ArrowRightLeft, Copy, ExternalLink } from "lucide-react";
@@ -30,6 +31,8 @@ export default function AccountLinkWallet() {
   const [emailPassword, setEmailPassword] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
 
+  const { ready: privyReady, authenticated: privyAuthenticated } = usePrivy();
+  const isPrivySignedIn = privyReady && privyAuthenticated;
   const guestUser = auth?.guestUser ?? null;
   const chain = chainIdToBackendChain(chainId);
   const [createWalletLoading, setCreateWalletLoading] = useState(false);
@@ -227,7 +230,7 @@ export default function AccountLinkWallet() {
         </>
       )}
 
-      {/* Email: connected email always shown; link-email prompt only when wallet not linked */}
+      {/* Email: connected email shown; link-email prompt only for guests who didn't sign in with Privy */}
       {guestUser && (
         <div className="pt-3 border-t border-white/10">
           {guestUser.email || guestUser.email_verified ? (
@@ -237,6 +240,8 @@ export default function AccountLinkWallet() {
                 <span className="text-white/60 text-xs ml-1">(check inbox to verify)</span>
               )}
             </p>
+          ) : isPrivySignedIn ? (
+            <p className="text-sm text-white/70">You signed in with Privy — same account on any device.</p>
           ) : !guestUser.linked_wallet_address && auth?.connectEmail ? (
             <>
               <p className="text-sm text-white/70 mb-2">Link your email to use the same profile from any device.</p>
