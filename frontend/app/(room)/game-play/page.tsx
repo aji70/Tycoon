@@ -43,6 +43,15 @@ export default function GamePlayPage() {
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const myAddress = guestUser?.address ?? address;
+  const myAddressesLower = useMemo(() => {
+    const addrs = [
+      guestUser?.address,
+      guestUser?.linked_wallet_address,
+      guestUser?.smart_wallet_address,
+      address,
+    ].filter((a): a is string => !!a && String(a).trim().length > 0);
+    return addrs.map((a) => a.toLowerCase());
+  }, [address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
 
   useEffect(() => {
     const code = searchParams.get("gameCode") || localStorage.getItem("gameCode");
@@ -107,11 +116,11 @@ export default function GamePlayPage() {
   }, [game, gameCode, router]);
 
   const me = useMemo(() => {
-    if (!game?.players || !myAddress) return null;
+    if (!game?.players || myAddressesLower.length === 0) return null;
     return game.players.find(
-      (pl: Player) => pl.address?.toLowerCase() === myAddress.toLowerCase()
+      (pl: Player) => pl.address && myAddressesLower.includes(pl.address.toLowerCase())
     ) || null;
-  }, [game, myAddress]);
+  }, [game?.players, myAddressesLower]);
 
   const {
     data: properties = [],
@@ -143,16 +152,16 @@ export default function GamePlayPage() {
   });
 
   const my_properties: Property[] = useMemo(() => {
-    if (!game_properties?.length || !properties?.length || !myAddress) return [];
+    if (!game_properties?.length || !properties?.length || myAddressesLower.length === 0) return [];
 
     const propertyMap = new Map(properties.map((p) => [p.id, p]));
 
     return game_properties
-      .filter((gp) => gp.address?.toLowerCase() === myAddress.toLowerCase())
+      .filter((gp) => gp.address && myAddressesLower.includes(gp.address.toLowerCase()))
       .map((gp) => propertyMap.get(gp.property_id))
       .filter((p): p is Property => !!p)
       .sort((a, b) => a.id - b.id);
-  }, [game_properties, properties, myAddress]);
+  }, [game_properties, properties, myAddressesLower]);
 
   const [activeTab, setActiveTab] = useState<'board' | 'players' | 'chat'>('board');
   const [focusTrades, setFocusTrades] = useState(false);

@@ -107,14 +107,16 @@ export default function GamePlayPage() {
   });
 
   const me = useMemo<Player | null>(() => {
-    const myAddress = guestUser?.address ?? address;
-    if (!game?.players || !myAddress) return null;
-    return (
-      game.players.find(
-        (pl: Player) => pl.address?.toLowerCase() === myAddress.toLowerCase()
-      ) || null
-    );
-  }, [game, address, guestUser?.address]);
+    const addrs = [
+      guestUser?.address,
+      guestUser?.linked_wallet_address,
+      guestUser?.smart_wallet_address,
+      address,
+    ].filter((a): a is string => !!a && String(a).trim().length > 0);
+    const lower = addrs.map((a) => a.toLowerCase());
+    if (!game?.players || lower.length === 0) return null;
+    return game.players.find((pl: Player) => pl.address && lower.includes(pl.address.toLowerCase())) || null;
+  }, [game, address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
 
   const {
     data: properties = [],
