@@ -79,10 +79,12 @@ export const INITIAL_COLLECTIBLES: readonly {
   { perk: CollectiblePerk.TELEPORT, name: "Teleport", strength: 1, tycPrice: "1.8", usdcPrice: "0.60", icon: <Zap className="w-8 h-8" /> },
   { perk: CollectiblePerk.ROLL_EXACT, name: "Exact Roll (Legendary)", strength: 1, tycPrice: "2.5", usdcPrice: "1.00", icon: <Sparkles className="w-8 h-8" /> },
   { perk: CollectiblePerk.RENT_CASHBACK, name: "Rent Cashback", strength: 1, tycPrice: "1.2", usdcPrice: "0.25", icon: <Coins className="w-8 h-8" /> },
+  { perk: CollectiblePerk.INTEREST, name: "Interest", strength: 1, tycPrice: "1.0", usdcPrice: "0.20", icon: <Coins className="w-8 h-8" /> },
   { perk: CollectiblePerk.LUCKY_7, name: "Lucky 7", strength: 1, tycPrice: "1.1", usdcPrice: "0.22", icon: <Star className="w-8 h-8" /> },
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 1", strength: 1, tycPrice: "0.5", usdcPrice: "0.05", icon: <Gem className="w-8 h-8" /> },
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 2", strength: 2, tycPrice: "0.8", usdcPrice: "0.15", icon: <Gem className="w-8 h-8" /> },
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 3", strength: 3, tycPrice: "1.2", usdcPrice: "0.30", icon: <Gem className="w-8 h-8" /> },
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 4", strength: 4, tycPrice: "1.6", usdcPrice: "0.50", icon: <Gem className="w-8 h-8" /> },
   { perk: CollectiblePerk.CASH_TIERED, name: "Cash Tier 5", strength: 5, tycPrice: "2.0", usdcPrice: "0.90", icon: <Gem className="w-8 h-8" /> },
+  { perk: CollectiblePerk.TAX_REFUND, name: "Tax Refund Tier 1", strength: 1, tycPrice: "0.6", usdcPrice: "0.08", icon: <Gem className="w-8 h-8" /> },
 ];
