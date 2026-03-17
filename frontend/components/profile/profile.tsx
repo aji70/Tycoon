@@ -667,7 +667,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
           </div>
         </section>
 
-        <section>
+        <section className="mt-10">
           <AccountLinkWallet />
         </section>
       </main>
