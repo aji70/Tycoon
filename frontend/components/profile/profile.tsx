@@ -114,6 +114,17 @@ const CELO_CHAIN_ID = 42220;
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
   const username = guestUser.username;
+  const { profile, setDisplayName, setBio, setProfile } = useProfile();
+  const [profileTab, setProfileTab] = useState<'stats' | 'about'>('stats');
+  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
+  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const [editingBio, setEditingBio] = useState(false);
+
+  React.useEffect(() => {
+    setLocalDisplayName(profile?.displayName ?? '');
+    setLocalBio(profile?.bio ?? '');
+  }, [profile?.displayName, profile?.bio]);
+
   const guestOnChainAddress =
     (isValidWallet((guestUser as unknown as { smart_wallet_address?: unknown })?.smart_wallet_address)
       ? ((guestUser as unknown as { smart_wallet_address: string }).smart_wallet_address as Address)
@@ -122,6 +133,7 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
       ? (guestUser.linked_wallet_address as Address)
       : null);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
+  const shortGuestOnChainAddress = guestOnChainAddress ? `${guestOnChainAddress.slice(0, 6)}...${guestOnChainAddress.slice(-4)}` : null;
 
   const { data: onChainUsername } = useReadContract({
     address: tycoonAddress,
@@ -155,8 +167,27 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
   const gameCount = games.length;
   const runningCount = games.filter((g) => g.status === 'RUNNING').length;
 
+  const saveDisplayName = () => {
+    const trimmed = localDisplayName.trim() || null;
+    setDisplayName(trimmed);
+    setProfile({ displayName: trimmed });
+    toast.success('Display name saved');
+  };
+
+  const saveBio = () => {
+    const trimmed = localBio.trim() || null;
+    setBio(trimmed);
+    setProfile({ bio: trimmed });
+    toast.success('Bio saved');
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415]">
+    <div className="min-h-screen text-[#F0F7F7] profile-page">
+      {/* Ambient background */}
+      <div className="fixed inset-0 -z-10 bg-[#030c0d]" />
+      <div className="fixed inset-0 -z-10 bg-gradient-to-b from-cyan-950/25 via-transparent to-transparent" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(0,240,255,0.08),transparent_50%)]" />
+
       <header className="sticky top-0 z-20 border-b border-white/5 bg-[#030c0d]/90 backdrop-blur-xl">
         <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between max-w-5xl">
           <Link href="/" className="flex items-center gap-2 text-cyan-300/90 hover:text-cyan-200 transition text-sm font-medium">
@@ -167,94 +198,228 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
           <div className="w-20" />
         </div>
       </header>
-      <main className="container mx-auto px-4 sm:px-6 py-8 max-w-2xl space-y-6">
-        <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
-          <h2 className="text-xl font-bold text-white mb-2">{username}</h2>
-          {!guestOnChainAddress && (
-            <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account and keep your stats when you play with it.</p>
-          )}
-          <div className="flex gap-6 text-sm">
-            <div>
-              <span className="text-cyan-400 font-semibold">{gameCount}</span>
-              <span className="text-white/70 ml-1">games played</span>
-            </div>
-            {runningCount > 0 && (
-              <div>
-                <span className="text-amber-400 font-semibold">{runningCount}</span>
-                <span className="text-white/70 ml-1">in progress</span>
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-5xl">
+        {/* Hero card — focal point */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="relative rounded-3xl overflow-hidden mb-8 sm:mb-10 profile-hero"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-teal-500/10" />
+          <div className="absolute inset-0 border border-cyan-500/20 rounded-3xl" />
+          <div className="relative p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
+              <div className="relative group shrink-0">
+                <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] border border-white/10">
+                  <span className="absolute inset-0 [&>img]:object-cover">
+                    <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
+                  </span>
+                </div>
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#030c0d]">
+                  <Crown className="w-5 h-5 text-black" />
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {userData && (
-          <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-6">
-            <h3 className="text-base font-semibold text-cyan-400 mb-4">On-chain stats</h3>
-            {(() => {
-              const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
-              return (
-                <>
-                  <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
-                      <span className="font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
+              <div className="flex-1 w-full text-center sm:text-left min-w-0">
+                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight drop-shadow-sm">{username}</h2>
+                {profile?.displayName?.trim() ? (
+                  <p className="text-cyan-300/80 text-sm mt-1">"{profile.displayName.trim()}"</p>
+                ) : null}
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+                  {shortGuestOnChainAddress ? (
+                    <>
+                      <span className="text-slate-400 text-xs">Wallet linked:</span>
+                      <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortGuestOnChainAddress}</span>
+                    </>
+                  ) : (
+                    <span className="text-cyan-300/80 text-sm">Your progress is saved. Link a wallet to sync stats on-chain.</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-sm">
+                  <div>
+                    <span className="text-cyan-400 font-semibold">{gameCount}</span>
+                    <span className="text-white/70 ml-1">games played</span>
+                  </div>
+                  {runningCount > 0 && (
+                    <div>
+                      <span className="text-amber-400 font-semibold">{runningCount}</span>
+                      <span className="text-white/70 ml-1">in progress</span>
                     </div>
-                    {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
-                      <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full rounded-full bg-cyan-500/80 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Game stats | About you — tabs */}
+        <section className="mb-8">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {[
+              { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
+              { id: 'about' as const, label: 'About you', icon: User },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setProfileTab(id)}
+                className={`flex-1 min-w-[160px] flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all ${
+                  profileTab === id
+                    ? 'bg-cyan-500/20 border-2 border-cyan-500/50 text-cyan-200'
+                    : 'bg-white/5 border border-white/10 text-white/70 hover:border-white/20 hover:text-white/90'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="profile-card rounded-2xl border border-white/10 overflow-hidden min-h-[260px] max-h-[60vh] overflow-y-auto">
+            {profileTab === 'stats' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-5 sm:p-6">
+                {!userData ? (
+                  <EmptyState
+                    icon={<BarChart2 className="w-14 h-14 text-cyan-400/70" />}
+                    title="No on-chain stats yet"
+                    description="Link a wallet (or register in-game) to start tracking stats on-chain."
+                    compact
+                    className="border-cyan-500/20 bg-black/20"
+                  />
+                ) : (
+                  <>
+                    {(() => {
+                      const levelInfo = getLevelFromActivity({ gamesPlayed: userData.gamesPlayed, gamesWon: userData.gamesWon });
+                      return (
+                        <div className="mb-4 p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-medium text-cyan-400/90 uppercase tracking-widest">Level</span>
+                            <span className="font-bold text-cyan-300">Level {levelInfo.level} · {levelInfo.label}</span>
+                          </div>
+                          {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
+                            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full rounded-full bg-cyan-500/80 transition-all duration-500" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      {[
+                        { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
+                        { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
+                        { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
+                        { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
+                      ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                            <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                      {[
+                        { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
+                        { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
+                        { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
+                      ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                            <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
+                        { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
+                      ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
+                        <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                            <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {profileTab === 'about' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 sm:p-8">
+                <p className="text-xs font-medium text-cyan-400/90 uppercase tracking-widest mb-6">Tell us about yourself</p>
+                <div className="space-y-6 max-w-xl">
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">Display name</label>
+                    <div className="flex gap-3 rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-cyan-500/40 focus-within:bg-white/[0.07] transition-all">
+                      <User className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                      <input
+                        type="text"
+                        placeholder="How should we call you?"
+                        value={localDisplayName}
+                        onChange={(e) => setLocalDisplayName(e.target.value)}
+                        onBlur={saveDisplayName}
+                        className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-base min-w-0"
+                      />
+                      <button type="button" onClick={saveDisplayName} className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">Save</button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">Short bio</label>
+                    {editingBio ? (
+                      <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-cyan-500/40 focus-within:bg-white/[0.07] transition-all">
+                        <div className="flex gap-3">
+                          <FileText className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                          <textarea
+                            placeholder="A line or two about you — what you love, your play style, or anything you'd like others to see."
+                            value={localBio}
+                            onChange={(e) => setLocalBio(e.target.value)}
+                            rows={4}
+                            className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none text-base resize-none min-w-0 leading-relaxed"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 mt-3">
+                          <button type="button" onClick={() => setEditingBio(false)} className="px-4 py-2 rounded-xl bg-white/10 text-white/80 hover:bg-white/15 text-sm font-semibold transition-colors">Cancel</button>
+                          <button type="button" onClick={() => { saveBio(); setEditingBio(false); }} className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">Save bio</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 flex items-start justify-between gap-3">
+                        <div className="flex gap-3 min-w-0 flex-1">
+                          <FileText className="w-5 h-5 text-cyan-400/80 shrink-0 mt-0.5" />
+                          <p className="text-base text-white/90 leading-relaxed whitespace-pre-wrap break-words">
+                            {localBio.trim() || <span className="text-slate-500">No bio yet.</span>}
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => setEditingBio(true)} className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-sm font-semibold transition-colors">
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </button>
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                    {[
-                      { icon: BarChart2, label: 'Games played', value: String(userData.gamesPlayed), accent: 'cyan' },
-                      { icon: Crown, label: 'Wins', value: String(userData.gamesWon), accent: 'amber', valueClass: 'text-amber-300' },
-                      { icon: Coins, label: 'Losses', value: String(userData.gamesLost), accent: 'slate', valueClass: 'text-slate-300' },
-                      { icon: BarChart2, label: 'Win rate', value: userData.winRate, accent: 'emerald', valueClass: 'text-emerald-300' },
-                    ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                      <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                          <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {[
-                      { icon: Wallet, label: 'Total staked', value: formatStakeOrEarned(userData.totalStaked) + ' BLOCK', accent: 'cyan' },
-                      { icon: Coins, label: 'Total earned', value: formatStakeOrEarned(userData.totalEarned) + ' BLOCK', accent: 'emerald', valueClass: 'text-emerald-300' },
-                      { icon: Wallet, label: 'Total withdrawn', value: formatStakeOrEarned(userData.totalWithdrawn) + ' BLOCK', accent: 'slate', valueClass: 'text-slate-300' },
-                    ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                      <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                          <p className={`font-bold text-sm truncate ${valueClass}`}>{value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { icon: BarChart2, label: 'Properties bought', value: String(userData.propertiesBought), accent: 'cyan' },
-                      { icon: BarChart2, label: 'Properties sold', value: String(userData.propertiesSold), accent: 'amber', valueClass: 'text-amber-300' },
-                    ].map(({ icon: Icon, label, value, accent, valueClass = 'text-white' }) => (
-                      <div key={label} className={`profile-stat stat-${accent} rounded-2xl p-4 flex items-center gap-3`}>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 stat-icon"><Icon className="w-5 h-5" /></div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-                          <p className={`font-bold text-base truncate ${valueClass}`}>{value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
+                </div>
+              </motion.div>
+            )}
           </div>
-        )}
+        </section>
 
         <section>
           <AccountLinkWallet />
@@ -634,11 +799,6 @@ export default function Profile() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-12 max-w-5xl">
-        {(
-          <section className="mb-6">
-            <AccountLinkWallet />
-          </section>
-        )}
         {/* Hero card — focal point */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
@@ -1039,6 +1199,11 @@ export default function Profile() {
               </motion.div>
             )}
           </div>
+        </section>
+
+        {/* Account & login — move to bottom */}
+        <section className="mt-10">
+          <AccountLinkWallet />
         </section>
       </main>
 
