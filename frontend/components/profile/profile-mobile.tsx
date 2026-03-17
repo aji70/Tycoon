@@ -292,6 +292,10 @@ export default function ProfilePageMobile() {
 
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
+  const showDualBalances = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
+  const { data: ethBalanceSmart } = useBalance({ address: smartWallet, query: { enabled: !!smartWallet } });
+  const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
+  const usdcBalanceSmart = useBalance({ address: smartWallet, token: usdcTokenAddress, query: { enabled: !!smartWallet && !!usdcTokenAddress } });
 
   const {
     data: username,
@@ -605,7 +609,6 @@ export default function ProfilePageMobile() {
       </header>
 
       <main className="px-4 pt-6 max-w-xl mx-auto space-y-5">
-        <AccountLinkWallet />
         {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -669,18 +672,53 @@ export default function ProfilePageMobile() {
         </motion.div>
 
         {/* Balances */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
-            { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
-            { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
-          ].map(({ label, value }) => (
-            <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
-              <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
-              <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+        {showDualBalances ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-[10px] font-medium text-white/40 uppercase tracking-widest mb-2 text-center">Connected wallet</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
+                  { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
+                  { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
+                    <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                    <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+            <div>
+              <p className="text-[10px] font-medium text-white/40 uppercase tracking-widest mb-2 text-center">Smart wallet</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'TYC', value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2) },
+                  { label: 'USDC', value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2) },
+                  { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalanceSmart ? Number(ethBalanceSmart.formatted).toFixed(4) : '0' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
+                    <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                    <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2) },
+              { label: chainId === 137 || chainId === 80001 ? 'Polygon' : chainId === 42220 || chainId === 44787 ? 'Celo' : chainId === 8453 || chainId === 84531 ? 'Base' : 'Native', value: ethBalance ? Number(ethBalance.formatted).toFixed(4) : '0' },
+            ].map(({ label, value }) => (
+              <div key={label} className="profile-card rounded-xl p-3 text-center border border-white/10">
+                <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">{label}</p>
+                <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Game stats | About | Perks | Vouchers — one line of tabs, content below */}
         <section className="pb-4">
