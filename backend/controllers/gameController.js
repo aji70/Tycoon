@@ -1384,9 +1384,11 @@ export const createAsGuest = async (req, res) => {
     const gameType = mode === "PRIVATE" ? "PRIVATE" : "PUBLIC";
     const chainForCreate = User.normalizeChain(chain || "CELO");
 
-    // Use linked wallet for contract when present (Privy user who linked); else primary address (placeholder for Privy-only).
+    // Use linked EOA, or smart wallet (wallet-first Privy), or placeholder.
     const addrForChain =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) || user.address;
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
+      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
+      user.address;
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
@@ -1531,7 +1533,9 @@ export const joinAsGuest = async (req, res) => {
 
     const chainForJoin = User.normalizeChain(game.chain || "CELO");
     const addrForJoin =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) || user.address;
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
+      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
+      user.address;
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForJoin, addrForJoin);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
@@ -1704,7 +1708,9 @@ export const createAIAsGuest = async (req, res) => {
     const chainForAICreate = User.normalizeChain(chain || "CELO");
 
     const addrForCreate =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) || user.address;
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
+      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
+      user.address;
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForAICreate, addrForCreate);
     if (!contractUser?.password_hash) {
       return res.status(403).json({
