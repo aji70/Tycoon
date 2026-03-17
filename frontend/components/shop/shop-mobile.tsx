@@ -14,7 +14,6 @@ import { toast } from 'react-toastify';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import EmptyState from '@/components/ui/EmptyState';
-import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import {
   ShoppingBag,
   Coins,
@@ -35,9 +34,7 @@ import {
   MapPin,
   Banknote,
   Smartphone,
-  Package,
 } from 'lucide-react';
-import Link from 'next/link';
 
 import RewardABI from '@/context/abi/rewardabi.json';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
@@ -837,31 +834,6 @@ export default function GameShopMobile() {
 
         {shopTab === 'perks' && (
           <>
-        <div className="mb-4 space-y-2">
-          <FirstTimeHint
-            storageKey="perks_in_game"
-            message="You can also buy perks during a game from the My Perks button in the bottom bar."
-            link={{ href: '/how-to-play', label: 'How to Play' }}
-            compact
-          />
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-center text-slate-500 text-[10px]">
-              Admins: <Link href="/rewards?section=stock" className="text-[#00F0FF]/80 hover:underline inline-flex items-center gap-1"><Package className="w-3 h-3" /> Rewards → Stock</Link> (perks &amp; bundles)
-            </p>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={handleStockAllBundles}
-                disabled={stockAllBundlesProgress.active || stockBundleHook.isPending}
-                className="px-3 py-2 rounded-lg text-[11px] font-semibold bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {stockAllBundlesProgress.active
-                  ? `Stocking bundles (${stockAllBundlesProgress.current}/${stockAllBundlesProgress.total})…`
-                  : 'Stock all bundles'}
-              </button>
-            )}
-          </div>
-        </div>
         {/* Section label */}
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-[#003B3E]/80" />
