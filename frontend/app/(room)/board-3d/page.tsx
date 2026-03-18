@@ -1929,6 +1929,11 @@ function Board3DPageContent() {
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
+  const handleCloseCardModal = useCallback(() => {
+    setShowCardModal(false);
+    fetchUpdatedGame();
+  }, [fetchUpdatedGame]);
+
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me) return;
     toast("Declaring bankruptcy...", { icon: "…" });
@@ -2852,7 +2857,7 @@ function Board3DPageContent() {
         {/* Chance / Community Chest card modal */}
         <CardModal
           isOpen={showCardModal}
-          onClose={() => setShowCardModal(false)}
+          onClose={handleCloseCardModal}
           card={cardData}
           playerName={cardPlayerName}
           isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}

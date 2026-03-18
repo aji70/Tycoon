@@ -374,6 +374,12 @@ function Board3DPageContent() {
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
   const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp && !turnEndScheduled && !buyPrompted && !(meInJail && jailChoiceRequired);
 
+  // Sync UI state with backend: if the player is no longer in jail (e.g. agent runner paid/used card),
+  // ensure the "jailChoiceRequired" popup is not left stuck.
+  useEffect(() => {
+    if (!meInJail && jailChoiceRequired) setJailChoiceRequired(false);
+  }, [meInJail, jailChoiceRequired]);
+
   const livePlayersRaw = useMemo(() => game?.players ?? [], [game?.players]);
   const isAgentBattle = useMemo(() => {
     const gt = String((game as any)?.game_type || "").toUpperCase();
@@ -415,23 +421,34 @@ function Board3DPageContent() {
   const ownerByPropertyId = useMemo(() => {
     const out: Record<number, string> = {};
     gameProperties.forEach((gp) => {
-      if (gp.address) {
-        const owner = livePlayers.find(
-          (p) => p.address?.toLowerCase() === gp.address?.toLowerCase()
-        );
-        if (owner?.username) out[gp.property_id] = owner.username;
-      }
+      const ownerBySeatId =
+        gp.player_id != null
+          ? livePlayers.find((p) => p.id != null && Number(p.id) === Number(gp.player_id))
+          : undefined;
+      const ownerByAddress =
+        gp.address
+          ? livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase())
+          : undefined;
+      const owner = ownerBySeatId ?? ownerByAddress;
+      if (owner?.username) out[gp.property_id] = owner.username;
     });
     return out;
   }, [gameProperties, livePlayers]);
 
   const my_properties = useMemo(() => {
     if (!me?.address) return [];
-    const myIds = gameProperties
-      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
-      .map((gp) => gp.property_id);
+    const myIds =
+      me?.id != null
+        ? gameProperties
+            .filter((gp) => gp.player_id != null && Number(gp.player_id) === Number(me.id))
+            .map((gp) => gp.property_id)
+        : gameProperties
+            .filter(
+              (gp) => gp.address?.toLowerCase() === me.address?.toLowerCase()
+            )
+            .map((gp) => gp.property_id);
     return properties.filter((p) => myIds.includes(p.id));
-  }, [me?.address, gameProperties, properties]);
+  }, [me?.id, me?.address, gameProperties, properties]);
 
   const justLandedProperty = useMemo(() => {
     const pos = landedPositionForBuy ?? me?.position;
@@ -1967,6 +1984,11 @@ function Board3DPageContent() {
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
+  const handleCloseCardModal = useCallback(() => {
+    setShowCardModal(false);
+    fetchUpdatedGame();
+  }, [fetchUpdatedGame]);
+
   // Bankruptcy: align with 2D — transfer properties, end turn, then POST leave (backend does on-chain removal for both guest and wallet)
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me?.address || !game?.code) return;
@@ -2641,10 +2663,7 @@ function Board3DPageContent() {
         {/* Chance / Community Chest card modal */}
         <CardModal
           isOpen={showCardModal}
-          onClose={() => {
-            setShowCardModal(false);
-            fetchUpdatedGame();
-          }}
+          onClose={handleCloseCardModal}
           card={cardData}
           playerName={cardPlayerName}
           isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
