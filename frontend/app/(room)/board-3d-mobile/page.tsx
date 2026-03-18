@@ -27,6 +27,7 @@ import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
 import { Toaster, toast } from "react-hot-toast";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
+import { useAgentSettings, BUY_SCORE_THRESHOLD, BUY_CASH_RESERVE, BUILD_MIN_BALANCE, BUILD_AFTER_RESERVE } from "@/hooks/useAgentSettings";
 import { reportAiAction } from "@/lib/agentFeedback";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
@@ -497,6 +498,7 @@ function Board3DMobileContent() {
     setStoredAgentApiKey(value);
   }, []);
   const agentOn = myAgentOn || !!myAgentApiKey;
+  const { agentSettings, updateAgentSettings } = useAgentSettings();
 
   const isAITurn = useMemo(() => {
     if (!currentPlayer || !isAIPlayer(currentPlayer)) return false;
@@ -1641,9 +1643,11 @@ function Board3DMobileContent() {
         const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
         const playerForScore = { ...updatedMe, balance: balanceAfterMove };
         const buyScore = calculateBuyScore(square, playerForScore, updatedGameProperties, properties);
+        const buyScoreThreshold = BUY_SCORE_THRESHOLD[agentSettings.buyStyle];
+        const buyCashReserve = BUY_CASH_RESERVE[agentSettings.buyStyle];
         const builtInShouldBuy = completesMonopoly ||
-          (buyScore >= 20 && balanceAfterBuy >= 400) ||
-          (buyScore === 0 && balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
+          (buyScore >= buyScoreThreshold && balanceAfterBuy >= buyCashReserve) ||
+          (buyScore === 0 && balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= buyCashReserve);
         try {
           let shouldBuy: boolean = builtInShouldBuy;
           if (myAgentApiKey) {
@@ -1995,14 +1999,36 @@ function Board3DMobileContent() {
           }
         } catch (_) { /* fallback */ }
         if (!handled) {
-          const fav = calculateAiFavorability(trade, properties);
-          if (fav >= TRADE_ACCEPT_THRESHOLD) {
-            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
-            reportAiAction(game.id, 1, "acceptTrade");
-            toast.success(`Your agent accepted the trade from ${proposerName}.`);
-          } else {
+          const requestingProps = Array.isArray(trade.requested_properties) && trade.requested_properties.length > 0;
+          const proposerAddress = freshGame?.players?.find((p: Player) => p.user_id === trade.player_id)?.address ?? "";
+          const wouldCompleteOpponentMonopoly = requestingProps && (Array.isArray(trade.requested_properties) ? trade.requested_properties : []).some((propId: number) => {
+            const prop = properties.find((p) => p.id === propId);
+            if (!prop || ["railroad", "utility"].includes(prop.color ?? "")) return false;
+            const group = Object.values(MONOPOLY_STATS.colorGroups).find((ids: number[]) => (ids as number[]).includes(propId));
+            if (!group) return false;
+            const proposerOwned = freshGameProperties.filter((gp) =>
+              gp.address?.toLowerCase() === proposerAddress.toLowerCase() && (group as number[]).includes(gp.property_id)
+            ).length;
+            return proposerOwned >= (group as number[]).length - 1;
+          });
+
+          if (agentSettings.tradeBehavior === "never_sell" && requestingProps) {
             await apiClient.post("/game-trade-requests/decline", { id: trade.id });
-            toast(`Your agent declined the trade from ${proposerName}.`);
+            toast(`Your agent declined — set to never sell properties.`);
+          } else if (agentSettings.tradeBehavior !== "generous" && wouldCompleteOpponentMonopoly) {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            toast(`Your agent blocked ${proposerName}'s monopoly attempt.`);
+          } else {
+            const fav = calculateAiFavorability(trade, properties);
+            const threshold = agentSettings.tradeBehavior === "generous" ? 10 : TRADE_ACCEPT_THRESHOLD;
+            if (fav >= threshold) {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, 1, "acceptTrade");
+              toast.success(`Your agent accepted the trade from ${proposerName}.`);
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+              toast(`Your agent declined the trade from ${proposerName}.`);
+            }
           }
         }
         await new Promise((r) => setTimeout(r, 500));
@@ -2011,7 +2037,7 @@ function Board3DMobileContent() {
     } catch (err) {
       console.error("My agent trade handling failed", err);
     }
-  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey]);
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey, agentSettings]);
 
   // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build (or use rule-based fallback)
   const runMyAgentPreRollBuild = useCallback(async () => {
@@ -2021,16 +2047,26 @@ function Board3DMobileContent() {
     const freshGameProperties = Array.isArray(gpResult?.data) ? (gpResult.data as GameProperty[]) : gameProperties;
     const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
     const balance = freshMe?.balance ?? 0;
-    if (balance < 300) return;
+    if (!freshMe?.address) return;
+    if (balance < BUILD_MIN_BALANCE[agentSettings.buildStyle]) return;
+    const myAddr = freshMe.address.toLowerCase();
     const aiOwnedIds = freshGameProperties
-      .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
+      .filter((gp) => gp.address?.toLowerCase() === myAddr)
       .map((gp) => gp.property_id);
-    const hasMonopoly = Object.values(MONOPOLY_STATS.colorGroups).some((ids: number[]) =>
-      ids.every((id) => aiOwnedIds.includes(id))
+    const buildableColorGroups = Object.entries(MONOPOLY_STATS.colorGroups).filter(
+      ([color]) => !["railroad", "utility"].includes(color)
+    );
+    const hasMonopoly = buildableColorGroups.some(([, ids]) =>
+      (ids as number[]).every((id) => aiOwnedIds.includes(id))
     );
     if (!hasMonopoly) return;
+    const completedMonopolyIds = new Set<number>(
+      buildableColorGroups
+        .filter(([, ids]) => (ids as number[]).every((id) => aiOwnedIds.includes(id)))
+        .flatMap(([, ids]) => ids as number[])
+    );
     const myProperties = freshGameProperties
-      .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
+      .filter((gp) => gp.address?.toLowerCase() === myAddr)
       .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp }));
     let didBuild = false;
     const buildContext = {
@@ -2077,12 +2113,18 @@ function Board3DMobileContent() {
     } catch (_) {
       /* try fallback */
     }
-    if (!didBuild && balance >= 300) {
+    const buildAfterReserve = BUILD_AFTER_RESERVE[agentSettings.buildStyle];
+    if (!didBuild && balance >= BUILD_MIN_BALANCE[agentSettings.buildStyle]) {
       const buildable = myProperties
-        .filter((p) => (p.development ?? 0) < 5 && (p as Property & { cost_of_house?: number }).cost_of_house)
+        .filter((p) =>
+          (p.development ?? 0) < 5 &&
+          (p as Property & { cost_of_house?: number }).cost_of_house &&
+          p.property_id != null &&
+          completedMonopolyIds.has(p.property_id)
+        )
         .map((p) => ({ p, cost: (p as Property & { cost_of_house?: number }).cost_of_house ?? 9999 }));
       const byDev = buildable.sort((a, b) => (a.p.development ?? 0) - (b.p.development ?? 0));
-      const target = byDev.find((x) => balance >= (x.cost ?? 9999));
+      const target = byDev.find((x) => balance - (x.cost ?? 9999) >= buildAfterReserve);
       if (target && target.p.property_id != null) {
         try {
           await apiClient.post("/game-properties/development", {
@@ -2099,7 +2141,7 @@ function Board3DMobileContent() {
       }
     }
     if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
-  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey]);
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey, agentSettings]);
 
   // Use me?.user_id in deps so refetches don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
   useEffect(() => {
@@ -2515,6 +2557,8 @@ function Board3DMobileContent() {
               myAgentApiKey={myAgentApiKey}
               onStopApiKey={() => setMyAgentApiKey(null)}
               onBindingsChange={refetchAgentBindings}
+              agentSettings={agentSettings}
+              onSettingsChange={updateAgentSettings}
               compact
             />
           </div>
