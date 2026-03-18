@@ -233,7 +233,7 @@ export const GameTradeRequestController = {
         type: "MIXED",
         status: "ACCEPTED",
         sending_amount: Number(offer_amount),
-        receiving_amount: Number(offer_amount),
+        receiving_amount: Number(requested_amount),
         created_at: new Date(),
         updated_at: new Date(),
       });
