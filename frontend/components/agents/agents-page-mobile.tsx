@@ -37,6 +37,53 @@ export interface UserAgent {
 
 type HostingType = "tycoon" | "my_key" | "my_url";
 
+type RiskTolerance = "low" | "medium" | "high";
+type LiquidityStyle = "tight" | "balanced" | "flush";
+type PropertyFocus = "balanced" | "monopolies" | "rail_util" | "high_rent" | "cashflow";
+
+type AgentBehaviorProfile = {
+  goal?: "win" | "maximize_prize" | "survive" | "aggressive_growth";
+  risk?: RiskTolerance;
+  liquidity?: LiquidityStyle;
+  property_focus?: PropertyFocus;
+  trade_behavior?: TradeBehavior;
+  buy_style?: BuyStyle;
+  build_style?: BuildStyle;
+  notes?: string;
+};
+
+function behaviorToPrompt(name: string, profile: AgentBehaviorProfile) {
+  const goal = profile.goal || "win";
+  const risk = profile.risk || "medium";
+  const liquidity = profile.liquidity || "balanced";
+  const focus = profile.property_focus || "balanced";
+  const trade = profile.trade_behavior || "balanced";
+  const buy = profile.buy_style || "balanced";
+  const build = profile.build_style || "balanced";
+  const notes = (profile.notes || "").trim();
+
+  return [
+    `You are "${name}" — an autonomous Tycoon (Monopoly-style) agent.`,
+    "",
+    "## Objective",
+    `- Primary objective: ${goal.replace(/_/g, " ")}.`,
+    "",
+    "## Risk & bankroll",
+    `- Risk tolerance: ${risk}.`,
+    `- Liquidity style: ${liquidity}. Keep enough cash to avoid forced liquidation; prefer decisions that maintain solvency.`,
+    "",
+    "## Strategy preferences",
+    `- Property focus: ${focus}.`,
+    `- Buy style: ${buy}.`,
+    `- Build style: ${build}.`,
+    `- Trade behavior: ${trade}.`,
+    "",
+    notes ? "## Extra user instructions\n" + notes : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 type HostedCreditsData = {
   balance: number;
   daily: { used: number; cap: number; remaining: number };
@@ -77,6 +124,16 @@ export default function AgentsPageMobile() {
   const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
   const [formSkill, setFormSkill] = useState("");
+  const [behaviorProfile, setBehaviorProfile] = useState<AgentBehaviorProfile>({
+    goal: "win",
+    risk: "medium",
+    liquidity: "balanced",
+    property_focus: "balanced",
+    trade_behavior: "balanced",
+    buy_style: "balanced",
+    build_style: "balanced",
+    notes: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [registeringErc8004Id, setRegisteringErc8004Id] = useState<number | null>(null);
@@ -261,6 +318,16 @@ export default function AgentsPageMobile() {
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
     setFormSkill("");
+    setBehaviorProfile({
+      goal: "win",
+      risk: "medium",
+      liquidity: "balanced",
+      property_focus: "balanced",
+      trade_behavior: "balanced",
+      buy_style: "balanced",
+      build_style: "balanced",
+      notes: "",
+    });
     setErc8004VerifyResult(null);
     setErc8004LoadState(null);
   };
@@ -277,6 +344,30 @@ export default function AgentsPageMobile() {
       a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
     );
     setFormSkill(typeof a.config?.skill === "string" ? a.config.skill : "");
+    const p = (a.config as any)?.behavior_profile;
+    if (p && typeof p === "object") {
+      setBehaviorProfile({
+        goal: p.goal || "win",
+        risk: p.risk || "medium",
+        liquidity: p.liquidity || "balanced",
+        property_focus: p.property_focus || "balanced",
+        trade_behavior: p.trade_behavior || "balanced",
+        buy_style: p.buy_style || "balanced",
+        build_style: p.build_style || "balanced",
+        notes: typeof p.notes === "string" ? p.notes : "",
+      });
+    } else {
+      setBehaviorProfile({
+        goal: "win",
+        risk: "medium",
+        liquidity: "balanced",
+        property_focus: "balanced",
+        trade_behavior: "balanced",
+        buy_style: "balanced",
+        build_style: "balanced",
+        notes: "",
+      });
+    }
     setShowForm(true);
   };
 
@@ -311,8 +402,11 @@ export default function AgentsPageMobile() {
       }
       const existingConfig = editingId ? agents.find((x) => x.id === editingId)?.config : undefined;
       const configPayload: Record<string, unknown> = existingConfig && typeof existingConfig === "object" ? { ...existingConfig } : {};
+      const generated = behaviorToPrompt(name, behaviorProfile);
+      configPayload.behavior_profile = behaviorProfile;
+      configPayload.behavior_prompt = generated;
       if (formSkill.trim()) configPayload.skill = formSkill.trim();
-      else delete configPayload.skill;
+      else configPayload.skill = generated;
       payload.config = Object.keys(configPayload).length > 0 ? configPayload : null;
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
@@ -809,6 +903,82 @@ export default function AgentsPageMobile() {
                     rows={2}
                     className="w-full px-3 py-2 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">Leave empty to use Behavior Setup below.</p>
+                </div>
+
+                <div className="rounded-xl border border-amber-500/30 bg-black/60 p-4 space-y-3">
+                  <p className="text-xs font-orbitron font-bold text-amber-200 uppercase tracking-wide">Behavior setup</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-[10px] text-amber-300/90 uppercase tracking-wide mb-1">Goal</label>
+                      <select
+                        value={behaviorProfile.goal ?? "win"}
+                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, goal: e.target.value as any }))}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                      >
+                        <option value="win">Win (net worth)</option>
+                        <option value="maximize_prize">Maximize prize odds</option>
+                        <option value="survive">Play safe</option>
+                        <option value="aggressive_growth">Aggressive growth</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-amber-300/90 uppercase tracking-wide mb-1">Risk</label>
+                      <select
+                        value={behaviorProfile.risk ?? "medium"}
+                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, risk: e.target.value as any }))}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-amber-300/90 uppercase tracking-wide mb-1">Liquidity</label>
+                      <select
+                        value={behaviorProfile.liquidity ?? "balanced"}
+                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, liquidity: e.target.value as any }))}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                      >
+                        <option value="tight">Tight</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="flush">Flush</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] text-amber-300/90 uppercase tracking-wide mb-1">Property focus</label>
+                      <select
+                        value={behaviorProfile.property_focus ?? "balanced"}
+                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, property_focus: e.target.value as any }))}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                      >
+                        <option value="balanced">Balanced</option>
+                        <option value="monopolies">Monopolies</option>
+                        <option value="rail_util">Rail/Utilities</option>
+                        <option value="high_rent">High rent</option>
+                        <option value="cashflow">Cashflow</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] text-amber-300/90 uppercase tracking-wide mb-1">Extra instructions</label>
+                      <textarea
+                        value={behaviorProfile.notes ?? ""}
+                        onChange={(e) => setBehaviorProfile((p) => ({ ...p, notes: e.target.value }))}
+                        placeholder="Cash buffer, trade rules, what to prioritize..."
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                      />
+                    </div>
+                  </div>
+                  <details className="rounded-lg border border-white/10 bg-black/40 p-3">
+                    <summary className="text-[10px] text-slate-300 uppercase tracking-wide cursor-pointer">
+                      Prompt preview
+                    </summary>
+                    <pre className="mt-2 text-[11px] text-slate-200 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+{behaviorToPrompt(formName.trim() || "My Agent", behaviorProfile)}
+                    </pre>
+                  </details>
                 </div>
 
                 {/* Agent behaviour settings */}
