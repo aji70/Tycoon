@@ -890,8 +890,9 @@ function Board3DMobileContent() {
       receiverAddress: string
     ) => {
       let score = 0;
-      score += trade.offer_amount - trade.requested_amount;
-      trade.requested_properties.forEach((id) => {
+      score += (trade.offer_amount || 0) - (trade.requested_amount || 0);
+      const offerProps = Array.isArray(trade.offer_properties) ? trade.offer_properties : [];
+      offerProps.forEach((id) => {
         const prop = properties.find((p) => p.id === id);
         if (!prop) return;
         score += prop.price || 0;
@@ -904,10 +905,19 @@ function Board3DMobileContent() {
           else if (currentOwned === group.length - 2) score += 120;
         }
       });
-      trade.offer_properties.forEach((id) => {
+      const requestedProps = Array.isArray(trade.requested_properties) ? trade.requested_properties : [];
+      requestedProps.forEach((id) => {
         const prop = properties.find((p) => p.id === id);
         if (!prop) return;
-        score -= (prop.price || 0) * 1.3;
+        score -= prop.price || 0;
+        const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(id));
+        if (group && !["railroad", "utility"].includes(prop.color!)) {
+          const currentOwned = group.filter(
+            (gid) => gameProperties.find((gp) => gp.property_id === gid && gp.address?.toLowerCase() === receiverAddress?.toLowerCase())
+          ).length;
+          if (currentOwned === group.length - 1) score -= 300;
+          else if (currentOwned === group.length - 2) score -= 120;
+        }
       });
       return score;
     };
@@ -1017,6 +1027,7 @@ function Board3DMobileContent() {
           if (res?.data?.success) {
             maxTradeAttempts--;
             reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
+            if (maxTradeAttempts <= 0) break;
             if (isAIPlayer(targetPlayer)) {
               await new Promise((r) => setTimeout(r, 800));
               const favorability = calculateTradeFavorability(

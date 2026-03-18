@@ -679,14 +679,14 @@ const endTurnAfterSpecialMove = useCallback(() => {
     receiverAddress: string
   ) => {
     let score = 0;
-
-    score += trade.offer_amount - trade.requested_amount;
-
-    trade.requested_properties.forEach(id => {
+    // Cash: receiver gets offer_amount, gives requested_amount
+    score += (trade.offer_amount || 0) - (trade.requested_amount || 0);
+    // Properties receiver GETS → add value, bonus if completing monopoly
+    const offerProps = Array.isArray(trade.offer_properties) ? trade.offer_properties : [];
+    offerProps.forEach(id => {
       const prop = properties.find(p => p.id === id);
       if (!prop) return;
       score += prop.price || 0;
-
       const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
       if (group && !["railroad", "utility"].includes(prop.color!)) {
         const currentOwned = group.filter(gid =>
@@ -696,13 +696,21 @@ const endTurnAfterSpecialMove = useCallback(() => {
         else if (currentOwned === group.length - 2) score += 120;
       }
     });
-
-    trade.offer_properties.forEach(id => {
+    // Properties receiver GIVES → subtract value, heavy penalty if near-monopoly
+    const requestedProps = Array.isArray(trade.requested_properties) ? trade.requested_properties : [];
+    requestedProps.forEach(id => {
       const prop = properties.find(p => p.id === id);
       if (!prop) return;
-      score -= (prop.price || 0) * 1.3;
+      score -= prop.price || 0;
+      const group = Object.values(MONOPOLY_STATS.colorGroups).find(g => g.includes(id));
+      if (group && !["railroad", "utility"].includes(prop.color!)) {
+        const currentOwned = group.filter(gid =>
+          game_properties.find(gp => gp.property_id === gid && gp.address?.toLowerCase() === receiverAddress?.toLowerCase())
+        ).length;
+        if (currentOwned === group.length - 1) score -= 300;
+        else if (currentOwned === group.length - 2) score -= 120;
+      }
     });
-
     return score;
   };
 
@@ -876,7 +884,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
             showToast(`AI offered $${cashOffer}${offerProperties.length ? " + property" : ""} for ${missing.name}`, "default");
             reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
             maxTradeAttempts--;
-
+            if (maxTradeAttempts <= 0) break;
             if (isAIPlayer(targetPlayer)) {
               await new Promise(r => setTimeout(r, 800));
               const favorability = calculateTradeFavorability(
