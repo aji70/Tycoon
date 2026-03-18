@@ -115,11 +115,12 @@ const isValidWallet = (a: unknown): a is Address => {
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null } }) {
   const username = guestUser.username;
+  // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
   const guestOnChainAddress =
-    (isValidWallet(guestUser.smart_wallet_address) ? (guestUser.smart_wallet_address as Address) : null) ??
     (guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim()
       ? (guestUser.linked_wallet_address as Address)
-      : null);
+      : null) ??
+    (isValidWallet(guestUser.smart_wallet_address) ? (guestUser.smart_wallet_address as Address) : null);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
 
   const { data: onChainUsername } = useReadContract({
