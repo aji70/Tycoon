@@ -9,7 +9,6 @@ import TournamentRound from "../models/TournamentRound.js";
 import * as tournamentService from "../services/tournamentService.js";
 import logger from "../config/logger.js";
 import db from "../config/database.js";
-import User from "../models/User.js";
 import UserAgent from "../models/UserAgent.js";
 import { getChainConfig } from "../config/chains.js";
 import crypto from "crypto";
