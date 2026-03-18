@@ -10,6 +10,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { appChain } from "@/config";
 import type { PrizeSource, CreateTournamentResponse } from "@/types/tournament";
 import { ChevronLeft, Loader2, Swords, Wallet, User, CheckCircle2 } from "lucide-react";
+import { apiClient } from "@/lib/api";
 
 const USDC_DECIMALS = 6;
 
@@ -46,6 +47,8 @@ export default function CreateTournamentPage() {
   const [maxPlayers, setMaxPlayers] = useState(32);
   const [minPlayers, setMinPlayers] = useState(2);
   const [entryFeeUsd, setEntryFeeUsd] = useState("");
+  const [autoFillBots, setAutoFillBots] = useState(false);
+  const [autoFillCount, setAutoFillCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const isPrivyAuthed = ready && authenticated;
@@ -105,6 +108,16 @@ export default function CreateTournamentPage() {
       const created = await createTournament(body) as CreateTournamentResponse | null;
       const slug = created?.code ?? created?.id;
       if (slug != null) {
+        if (autoFillBots && created?.id) {
+          try {
+            const desired = autoFillCount > 0 ? autoFillCount : Math.max(0, (body.min_players ?? 2) - 1);
+            await apiClient.post(`/tournaments/${created.id}/auto-fill-agents`, { desired_count: desired });
+            await apiClient.post(`/tournaments/${created.id}/close-registration`, { first_round_start_at: new Date().toISOString() });
+            await apiClient.post(`/tournaments/${created.id}/start-round/0`, {});
+          } catch {
+            // Non-fatal: tournament still created.
+          }
+        }
         setCreatedResult(created ?? null);
         setStep("success");
         setTimeout(() => router.push(`/tournaments/${slug}`), 1200);
@@ -344,6 +357,38 @@ export default function CreateTournamentPage() {
                 <p className="text-xs text-white/50 mt-1">Amount in USDC (e.g. 1 = $1)</p>
               </div>
             )}
+
+            <div className="rounded-2xl border border-white/10 bg-[#011112]/70 p-5 space-y-4">
+              <p className="text-sm font-semibold text-white/90">Quick start (bots)</p>
+              <label className="flex items-center justify-between gap-3 text-sm text-white/80">
+                <span>Auto-fill with available bots and start immediately</span>
+                <input
+                  type="checkbox"
+                  checked={autoFillBots}
+                  onChange={(e) => setAutoFillBots(e.target.checked)}
+                  className="text-cyan-500 focus:ring-cyan-500"
+                />
+              </label>
+              {autoFillBots && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-white/60 mb-1.5">Bot count (optional)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={512}
+                      value={autoFillCount}
+                      onChange={(e) => setAutoFillCount(Number(e.target.value) || 0)}
+                      className="w-full px-4 py-3 rounded-xl bg-[#011112] border border-[#0E282A] text-white focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-[#0d1819]"
+                      placeholder="0 = auto"
+                    />
+                  </div>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Bots are users who enabled agent tournament auto-join with a max fee that covers this tournament.
+                  </p>
+                </div>
+              )}
+            </div>
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
 

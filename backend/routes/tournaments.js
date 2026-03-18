@@ -12,6 +12,7 @@ router.get("/:id/leaderboard", resolveTournament, tournamentController.getLeader
 
 router.post("/", optionalAuth, tournamentController.create);
 router.post("/:id/register", resolveTournament, optionalAuth, tournamentController.register);
+router.post("/:id/auto-fill-agents", resolveTournament, requireAuth, tournamentController.autoFillAgents);
 router.post("/:id/close-registration", resolveTournament, tournamentController.closeRegistration);
 router.post("/:id/start-round/:roundIndex", resolveTournament, tournamentController.startRound);
 router.post("/:id/matches/:matchId/start-now", resolveTournament, requireAuth, tournamentController.requestMatchStart);

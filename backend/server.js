@@ -53,6 +53,7 @@ import { testContractConnection, callContractRead, callContractWrite } from "./s
 import { getStarknetConfig } from "./config/starknet.js";
 import { isStarknetConfigured, testStarknetConnection } from "./services/starknetContract.js";
 import { startAgentGameRunner } from "./services/agentGameRunner.js";
+import { startAgentTournamentRunner } from "./services/agentTournamentRunner.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -421,6 +422,13 @@ async function start() {
     startAgentGameRunner();
   } catch (err) {
     logger.warn({ err: err?.message }, "Agent game runner failed to start");
+  }
+
+  // Server-autonomous agent tournaments (auto-register + auto-start)
+  try {
+    startAgentTournamentRunner();
+  } catch (err) {
+    logger.warn({ err: err?.message }, "Agent tournament runner failed to start");
   }
 
   // Step 5: Socket.io Redis adapter (when Redis is available)

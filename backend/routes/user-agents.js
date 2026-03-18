@@ -7,6 +7,11 @@ import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import UserAgent from "../models/UserAgent.js";
 import * as hostedAgentCreditsController from "../controllers/hostedAgentCreditsController.js";
+import {
+  listTournamentPermissions,
+  upsertTournamentPermission,
+  autoJoinTournament,
+} from "../controllers/agentTournamentController.js";
 
 const router = express.Router();
 
@@ -78,6 +83,15 @@ router.get("/", async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/** List tournament permissions for current user's agents */
+router.get("/tournament-permissions", listTournamentPermissions);
+
+/** Enable/disable tournament spending permission for an agent (PIN required to enable) */
+router.post("/:agentId/tournament-permissions", upsertTournamentPermission);
+
+/** Manually trigger auto-join for one tournament (uses smart wallet if needed) */
+router.post("/:agentId/auto-join-tournament", autoJoinTournament);
 
 /** Create agent (body: name, callback_url?, provider?, api_key?, use_tycoon_key?) */
 router.post("/", async (req, res) => {
