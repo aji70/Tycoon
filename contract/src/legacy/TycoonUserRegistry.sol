@@ -239,9 +239,10 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
         return _recreateWalletFor(msg.sender);
     }
 
-    /// @notice Backend recreates smart wallet for a profile owner (e.g. guest without connected wallet). Callable by game or registry owner.
-    function recreateWalletForUserByBackend(address profileOwner) external onlyGame nonReentrant returns (address newWallet) {
+    /// @notice Backend recreates smart wallet for a profile owner (e.g. guest without connected wallet). Callable by game, registry owner, or by the profile owner for themselves (so frontend can use this with connected wallet without onlyGame).
+    function recreateWalletForUserByBackend(address profileOwner) external nonReentrant returns (address newWallet) {
         if (profileOwner == address(0)) revert InvalidAddress();
+        if (msg.sender != gameContract && msg.sender != owner() && msg.sender != profileOwner) revert OnlyGame();
         return _recreateWalletFor(profileOwner);
     }
 
