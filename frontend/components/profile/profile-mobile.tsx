@@ -861,10 +861,11 @@ export default function ProfilePageMobile() {
                 Member since {new Date(userData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
               </p>
             )}
+            <p className="mt-3 text-slate-500 text-[10px] text-center">Connected wallet</p>
             <button
               type="button"
               onClick={copyAddress}
-              className="mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs w-full max-w-[260px] justify-center hover:border-cyan-500/20 hover:text-cyan-300/80 transition"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs w-full max-w-[260px] mx-auto justify-center hover:border-cyan-500/20 hover:text-cyan-300/80 transition"
             >
               <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
               {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
@@ -886,7 +887,7 @@ export default function ProfilePageMobile() {
                   <span className="italic">— (register in-game to get one)</span>
                 )}
               </p>
-              {!!walletAddress && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+              {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                 <button
                   type="button"
                   onClick={async () => {
