@@ -124,7 +124,7 @@ export function useMobileAiLogic({
               user_id: player.user_id,
               property_id: gp.property_id,
             });
-            reportAiAction(currentGame.id, getAiSlotFromPlayer(player) ?? 2, minHouses >= 4 ? "buildHotel" : "buildHouse");
+            if (minHouses >= 4) reportAiAction(currentGame.id, getAiSlotFromPlayer(player) ?? 2, "buildHotel");
             built = true;
             await new Promise((r) => setTimeout(r, 900));
           } catch (err) {

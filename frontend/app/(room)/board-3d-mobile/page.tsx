@@ -1068,7 +1068,7 @@ function Board3DMobileContent() {
               user_id: player.user_id,
               property_id: gp.property_id,
             });
-            reportAiAction(game.id, getAiSlotFromPlayer(player) ?? 2, minHouses >= 4 ? "buildHotel" : "buildHouse");
+            if (minHouses >= 4) reportAiAction(game.id, getAiSlotFromPlayer(player) ?? 2, "buildHotel");
             await new Promise((r) => setTimeout(r, 600));
             break;
           } catch (err) {
