@@ -94,3 +94,49 @@ export function useProfileAvatar(): string | null {
   const ctx = useContext(ProfileContext);
   return ctx?.avatarUrl ?? null;
 }
+
+/**
+ * Loads/saves the locally-stored profile data keyed by a specific address.
+ * This is useful on `/profile` where "profile owner" (linked wallet) can differ from the connected wallet (smart wallet).
+ */
+export function useProfileForAddress(profileAddress: string | undefined | null): ProfileContextValue {
+  const address = profileAddress ?? undefined;
+  const [profile, setProfileState] = useState<ProfileData | null>(null);
+
+  useEffect(() => {
+    if (!address) {
+      setProfileState(null);
+      return;
+    }
+    setProfileState(getProfile(address) ?? defaultProfile);
+  }, [address]);
+
+  const setProfile = useCallback(
+    (data: Partial<Pick<ProfileData, 'avatar' | 'displayName' | 'bio'>>) => {
+      if (!address) return;
+      saveProfile(address, data);
+      setProfileState((prev) => {
+        const next = prev ?? { ...defaultProfile };
+        return {
+          ...next,
+          ...data,
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [address]
+  );
+
+  const setAvatar = useCallback((avatar: string | null) => setProfile({ avatar }), [setProfile]);
+  const setDisplayName = useCallback((displayName: string | null) => setProfile({ displayName }), [setProfile]);
+  const setBio = useCallback((bio: string | null) => setProfile({ bio }), [setProfile]);
+
+  return {
+    profile,
+    setAvatar,
+    setDisplayName,
+    setBio,
+    setProfile,
+    avatarUrl: profile?.avatar ?? null,
+  };
+}

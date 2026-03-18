@@ -79,6 +79,34 @@ function isHouseBuildableType(propType) {
   return String(propType || "").toLowerCase() === "property";
 }
 
+function getMonopolyGroups() {
+  // Must match frontend/internalAgent's colorGroups mapping (by property id).
+  // These ids are the "tile numbers" on the board.
+  return {
+    brown: [1, 3],
+    lightblue: [6, 8, 9],
+    pink: [11, 13, 14],
+    orange: [16, 18, 19],
+    red: [21, 23, 24],
+    yellow: [26, 27, 29],
+    green: [31, 32, 34],
+    darkblue: [37, 39],
+  };
+}
+
+function completesMonopolyAfterBuy(landedPropertyId, ownedPropertyIds) {
+  if (!landedPropertyId || !Array.isArray(ownedPropertyIds)) return false;
+  const groups = getMonopolyGroups();
+  const ownedSet = new Set(ownedPropertyIds.map((id) => Number(id)));
+  // Completion only matters for standard "colored property" sets; ignore railroads/utilities.
+  for (const ids of Object.values(groups)) {
+    if (!ids.includes(landedPropertyId)) continue;
+    const wouldOwnAll = ids.every((id) => ownedSet.has(Number(id)) || Number(id) === Number(landedPropertyId));
+    if (wouldOwnAll) return true;
+  }
+  return false;
+}
+
 async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
   // gp is a row from game_players (contains: id, user_id, in_jail?, position, balance, turn_order, etc.)
   if (!gp?.id) return;
@@ -294,16 +322,26 @@ async function stepGame(game) {
     return;
   }
 
+  // Compute owned properties for this agent seat so the decision engine can
+  // correctly detect when buying completes a Monopoly set.
+  const myOwned = await db("game_properties")
+    .where({ game_id: gameId, player_id: gp.id })
+    .select("property_id");
+  const myOwnedPropertyIds = (myOwned || []).map((r) => Number(r.property_id));
+  const myProperties = myOwnedPropertyIds.map((id) => ({ id }));
+
+  const completesMono = completesMonopolyAfterBuy(Number(newPos), myOwnedPropertyIds);
+
   const decision = await agentRegistry.getAIDecision(gameId, slot, "property", {
     myBalance,
-    myProperties: [], // keep minimal for now; can enrich later
+    myProperties,
     opponents: [], // keep minimal for now; can enrich later
     landedProperty: {
       id: prop.id,
       name: prop.name,
       price: Number(prop.price || 0),
       color: prop.color,
-      completesMonopoly: false,
+      completesMonopoly: completesMono,
       landingRank: null,
     },
   });
