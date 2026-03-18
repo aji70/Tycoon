@@ -1635,19 +1635,6 @@ function Board3DPageContent() {
     if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
   }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey]);
 
-  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
-  useAgentAutoLiquidate({
-    agentOn: isLiveGame && agentOn,
-    isMyTurn: isLiveGame && isMyTurn,
-    me,
-    game: game ?? null,
-    gameProperties,
-    properties,
-    refetchGame: async () => refetchGame(),
-    refetchGameProperties: async () => refetchGameProperties(),
-    onDeclare: handleDeclareBankruptcy,
-  });
-
   // When "my agent" is on and it's my turn: pre-roll perks → build (if monopoly) → auto-roll
   // Use me?.user_id in deps so refetches don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
   useEffect(() => {
@@ -1881,6 +1868,20 @@ function Board3DPageContent() {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
   }, [game?.id, game?.code, me, livePlayers, gameProperties, END_TURN, refetchGame]);
+
+  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
+  // Placed here (after handleDeclareBankruptcy) to avoid TDZ reference error
+  useAgentAutoLiquidate({
+    agentOn: isLiveGame && agentOn,
+    isMyTurn: isLiveGame && isMyTurn,
+    me,
+    game: game ?? null,
+    gameProperties,
+    properties,
+    refetchGame: async () => refetchGame(),
+    refetchGameProperties: async () => refetchGameProperties(),
+    onDeclare: handleDeclareBankruptcy,
+  });
 
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;

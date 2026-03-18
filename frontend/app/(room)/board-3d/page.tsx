@@ -385,19 +385,6 @@ function Board3DPageContent() {
     },
   });
 
-  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
-  useAgentAutoLiquidate({
-    agentOn: isLiveGame && agentOn,
-    isMyTurn: isLiveGame && isMyTurn,
-    me,
-    game: game ?? null,
-    gameProperties,
-    properties,
-    refetchGame: async () => refetchGame(),
-    refetchGameProperties: async () => refetchGameProperties(),
-    onDeclare: handleDeclareBankruptcy,
-  });
-
   const liveDevelopmentByPropertyId = useMemo(() => {
     const out: Record<number, number> = {};
     gameProperties.forEach((gp) => {
@@ -1894,6 +1881,20 @@ function Board3DPageContent() {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
   }, [game?.id, me, livePlayers]);
+
+  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
+  // Placed here (after handleDeclareBankruptcy) to avoid TDZ reference error
+  useAgentAutoLiquidate({
+    agentOn: isLiveGame && agentOn,
+    isMyTurn: isLiveGame && isMyTurn,
+    me,
+    game: game ?? null,
+    gameProperties,
+    properties,
+    refetchGame: async () => refetchGame(),
+    refetchGameProperties: async () => refetchGameProperties(),
+    onDeclare: handleDeclareBankruptcy,
+  });
 
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
