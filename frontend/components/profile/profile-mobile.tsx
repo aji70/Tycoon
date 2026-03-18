@@ -869,39 +869,41 @@ export default function ProfilePageMobile() {
               <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
               {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
             </button>
-            <p className="mt-2 text-slate-500 text-[10px] flex items-center justify-center gap-1.5 flex-wrap">
-              <span>Smart wallet:</span>
-              {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
-                <>
-                  <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
-                  {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
-                    <span className="text-[9px] text-slate-500">
-                      (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
-                    </span>
-                  ) : null}
-                  <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
-                  {!!walletAddress && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await recreateWallet();
-                          toast.info('Creating new smart wallet…');
-                        } catch (e: any) {
-                          toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
-                        }
-                      }}
-                      disabled={recreateWalletPending}
-                      className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-cyan-300 text-[10px] font-semibold disabled:opacity-60"
-                    >
-                      {recreateWalletPending ? 'Creating…' : 'Create new'}
-                    </button>
-                  )}
-                </>
-              ) : (
-                <span className="italic">— (register in-game to get one)</span>
+            <div className="mt-2 space-y-2">
+              <p className="text-slate-500 text-[10px] flex items-center justify-center gap-1.5 flex-wrap">
+                <span>Smart wallet:</span>
+                {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
+                  <>
+                    <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
+                    {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
+                      <span className="text-[9px] text-slate-500">
+                        (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
+                      </span>
+                    ) : null}
+                    <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
+                  </>
+                ) : (
+                  <span className="italic">— (register in-game to get one)</span>
+                )}
+              </p>
+              {!!walletAddress && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await recreateWallet();
+                      toast.info('Creating new smart wallet…');
+                    } catch (e: any) {
+                      toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
+                    }
+                  }}
+                  disabled={recreateWalletPending}
+                  className="w-full max-w-[260px] mx-auto flex justify-center px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
+                >
+                  {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                </button>
               )}
-            </p>
+            </div>
           </div>
         </motion.div>
 
