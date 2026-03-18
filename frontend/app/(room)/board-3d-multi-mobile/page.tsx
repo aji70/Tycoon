@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { reportAiAction } from "@/lib/agentFeedback";
+import { calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
@@ -1274,7 +1275,11 @@ function Board3DMobilePageContent() {
           landedProperty: { ...square, completesMonopoly, landingRank },
         };
         const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
-        const builtInShouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
+        const playerForScore = { ...updatedMe, balance: balanceAfterMove };
+        const buyScore = calculateBuyScore(square, playerForScore, freshGameProperties, properties);
+        const builtInShouldBuy = completesMonopoly ||
+          (buyScore >= 20 && balanceAfterBuy >= 400) ||
+          (buyScore === 0 && balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
         try {
           let shouldBuy = builtInShouldBuy;
           if (myAgentApiKey) {
@@ -1414,6 +1419,75 @@ function Board3DMobilePageContent() {
     }
   }, [game?.id, me?.user_id, refetchGame, refetchGameProperties]);
 
+  // Pre-roll trade handling: respond to any pending incoming trades on behalf of "my agent" before rolling
+  const runMyAgentTradeHandling = useCallback(async () => {
+    if (!game?.id || !me) return;
+    try {
+      const [gameRes, gpRes] = await Promise.all([refetchGame(), refetchGameProperties()]);
+      const freshGame = gameRes?.data as Game | undefined;
+      const freshMe = freshGame?.players?.find((p: Player) => p.user_id === me.user_id) ?? me;
+      const freshGameProperties = (Array.isArray(gpRes?.data) ? gpRes.data : gameProperties) as GameProperty[];
+      const incomingRes = await apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${me.user_id}`);
+      const pendingIncoming = (
+        (incomingRes?.data?.data ?? []) as {
+          id: number; status: string; player_id: string;
+          offer_properties: number[]; offer_amount: number;
+          requested_properties: number[]; requested_amount: number;
+        }[]
+      ).filter((t) => t.status === "pending");
+      for (const trade of pendingIncoming) {
+        const proposerName = freshGame?.players?.find((p: Player) => p.user_id === trade.player_id)?.username ?? "Opponent";
+        let handled = false;
+        try {
+          const tradeContext = {
+            myBalance: freshMe?.balance ?? 0,
+            myProperties: freshGameProperties
+              .filter((gp) => gp.address?.toLowerCase() === freshMe?.address?.toLowerCase())
+              .map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+            opponents: (freshGame?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
+            tradeOffer: trade,
+          };
+          const agentRes = myAgentApiKey
+            ? await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+                "/agent-registry/decision-with-key",
+                { gameId: game.id, decisionType: "trade", context: tradeContext, provider: myAgentApiKey.provider, apiKey: myAgentApiKey.apiKey }
+              )
+            : await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
+                "/agent-registry/decision",
+                { gameId: game.id, slot: 1, decisionType: "trade", context: tradeContext }
+              );
+          if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
+            const action = agentRes.data.data.action.toLowerCase();
+            if (action === "accept") {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, 1, "acceptTrade");
+              toast.success(`Your agent accepted the trade from ${proposerName}.`);
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+              toast(`Your agent declined the trade from ${proposerName}.`);
+            }
+            handled = true;
+          }
+        } catch (_) { /* fallback */ }
+        if (!handled) {
+          const fav = calculateAiFavorability(trade, properties);
+          if (fav >= TRADE_ACCEPT_THRESHOLD) {
+            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            reportAiAction(game.id, 1, "acceptTrade");
+            toast.success(`Your agent accepted the trade from ${proposerName}.`);
+          } else {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            toast(`Your agent declined the trade from ${proposerName}.`);
+          }
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (pendingIncoming.length > 0) await refetchGame();
+    } catch (err) {
+      console.error("My agent trade handling failed", err);
+    }
+  }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey]);
+
   // Pre-roll build: when "my agent plays for me" and we have a monopoly, ask agent to build (or use rule-based fallback)
   const runMyAgentPreRollBuild = useCallback(async () => {
     if (!game?.id || !me) return;
@@ -1476,8 +1550,6 @@ function Board3DMobilePageContent() {
         agentRes.data.data?.reasoning
       ) {
         toast.info(`Agent chose not to build: ${agentRes.data.data.reasoning}`);
-      } else if (agentRes?.data?.success && agentRes.data.useBuiltIn === true) {
-        toast("Using built-in rules for building (no agent or no credits).", { id: "agent-built-in-building" });
       }
     } catch (_) {
       /* try fallback */
@@ -1514,7 +1586,8 @@ function Board3DMobilePageContent() {
     if ((me.balance ?? 0) < 0) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      runMyAgentPreRollPerks()
+      runMyAgentTradeHandling()
+        .then(() => runMyAgentPreRollPerks())
         .then(() => runMyAgentPreRollBuild())
         .then(() => {
           if (!cancelled) handleRollForLive();
@@ -1527,7 +1600,7 @@ function Board3DMobilePageContent() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [isLiveGame, isMyTurn, agentOn, rollingDice, me?.user_id, handleRollForLive, runMyAgentPreRollPerks, runMyAgentPreRollBuild]);
+  }, [isLiveGame, isMyTurn, agentOn, rollingDice, me?.user_id, handleRollForLive, runMyAgentTradeHandling, runMyAgentPreRollPerks, runMyAgentPreRollBuild]);
 
   const onFocusComplete = useCallback(() => {
     if (pendingShowCardModalRef.current) {
