@@ -1568,10 +1568,13 @@ function Board3DPageContent() {
           ) {
             shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
           } else {
-            shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
+            const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+            // Buy if we can afford it and keep a $500 reserve; monopoly completion bypasses reserve.
+            shouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
           }
         } catch {
-          shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
+          const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+          shouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
         }
         if (shouldBuy) {
           await apiClient.post("/game-properties/buy", {

@@ -1512,11 +1512,12 @@ function Board3DMobileContent() {
           ) {
             shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
           } else {
-            shouldBuy =
-              buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
+            const balanceAfterBuy2 = balanceAfterMove - (square.price ?? 0);
+            shouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy2 >= 500);
           }
         } catch {
-          shouldBuy = buyScore >= 72 && balanceAfterMove > (square.price ?? 0) * 1.8;
+          const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+          shouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
         }
         if (shouldBuy) {
           await apiClient.post("/game-properties/buy", {
