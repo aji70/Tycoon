@@ -1273,10 +1273,12 @@ function Board3DMobilePageContent() {
           opponents: (updatedGame?.players ?? game?.players ?? []).filter((p: Player) => p.user_id !== me.user_id),
           landedProperty: { ...square, completesMonopoly, landingRank },
         };
+        const balanceAfterBuy = balanceAfterMove - (square.price ?? 0);
+        const builtInShouldBuy = completesMonopoly || (balanceAfterMove >= (square.price ?? 0) && balanceAfterBuy >= 500);
         try {
-          let shouldBuy = false;
+          let shouldBuy = builtInShouldBuy;
           if (myAgentApiKey) {
-            const proxyRes = await apiClient.post<{ success?: boolean; data?: { action?: string } }>(
+            const proxyRes = await apiClient.post<{ success?: boolean; data?: { action?: string }; useBuiltIn?: boolean }>(
               "/agent-registry/decision-with-key",
               {
                 gameId: game.id,
@@ -1286,18 +1288,23 @@ function Board3DMobilePageContent() {
                 apiKey: myAgentApiKey.apiKey,
               }
             );
-            shouldBuy = !!(proxyRes?.data?.success && proxyRes.data.data?.action?.toLowerCase() === "buy");
+            if (proxyRes?.data?.success && proxyRes.data.data?.action) {
+              shouldBuy = proxyRes.data.data.action.toLowerCase() === "buy";
+            }
           } else {
             const agentRes = await apiClient.post<{
               success?: boolean;
               data?: { action?: string };
+              useBuiltIn?: boolean;
             }>("/agent-registry/decision", {
               gameId: game.id,
               slot: 1,
               decisionType: "property",
               context: decisionContext,
             });
-            shouldBuy = !!(agentRes?.data?.success && agentRes.data.data?.action?.toLowerCase() === "buy");
+            if (agentRes?.data?.success && agentRes.data.useBuiltIn === false && agentRes.data.data?.action) {
+              shouldBuy = agentRes.data.data.action.toLowerCase() === "buy";
+            }
           }
           if (shouldBuy) {
             await apiClient.post("/game-properties/buy", {
@@ -1311,8 +1318,17 @@ function Board3DMobilePageContent() {
             toast(`Your agent skipped buying ${square.name}.`);
           }
         } catch (err) {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Agent decision failed";
-          toast.error(msg);
+          if (builtInShouldBuy) {
+            try {
+              await apiClient.post("/game-properties/buy", {
+                user_id: playerId,
+                game_id: game.id,
+                property_id: square.id,
+              });
+              reportAiAction(game.id, 1, "buyProperty");
+              toast.success(`Your agent bought ${square.name}.`);
+            } catch (_) { /* ignore */ }
+          }
         }
         await Promise.all([refetchGame(), refetchGameProperties()]);
         setTimeout(() => END_TURN(), 900);
