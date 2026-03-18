@@ -426,11 +426,11 @@ function GuestProfileView({
                 <div className="mt-5 w-full">
                   <div className="space-y-3">
                     {linkedWalletAddress ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-2">
                           Linked wallet balances
                         </p>
-                        <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                        <div className="grid grid-cols-3 gap-2">
                           {[
                             {
                               label: 'TYC',
@@ -452,9 +452,12 @@ function GuestProfileView({
                               color: 'slate',
                             },
                           ].map(({ label, value, color }) => (
-                            <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                              <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                              <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                            <div
+                              key={label}
+                              className={`text-center balance-pill balance-${color} rounded-xl px-3 py-2 min-w-0`}
+                            >
+                              <p className="text-[10px] font-medium uppercase tracking-wider text-white/50">{label}</p>
+                              <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
                             </div>
                           ))}
                         </div>
@@ -462,11 +465,11 @@ function GuestProfileView({
                     ) : null}
 
                     {showSmartBalances ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-2">
                           Smart wallet balances
                         </p>
-                        <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                        <div className="grid grid-cols-3 gap-2">
                           {[
                             {
                               label: 'TYC',
@@ -488,9 +491,12 @@ function GuestProfileView({
                               color: 'slate',
                             },
                           ].map(({ label, value, color }) => (
-                            <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                              <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                              <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                            <div
+                              key={label}
+                              className={`text-center balance-pill balance-${color} rounded-xl px-3 py-2 min-w-0`}
+                            >
+                              <p className="text-[10px] font-medium uppercase tracking-wider text-white/50">{label}</p>
+                              <p className="text-sm font-bold text-white truncate mt-0.5">{value}</p>
                             </div>
                           ))}
                         </div>

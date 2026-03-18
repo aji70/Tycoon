@@ -20,7 +20,7 @@ import { useOnlineUsers } from '@/hooks/useOnlineUsers';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 
-const PREFETCH_ROUTES = ['/game-shop', '/profile', '/leaderboard', '/agents'] as const;
+const PREFETCH_ROUTES = ['/game-shop', '/agents', '/profile', '/leaderboard'] as const;
 
 const NavBar = () => {
   const pathname = usePathname();
@@ -139,15 +139,15 @@ const NavBar = () => {
             </div>
           )}
 
-          {/* Profile button */}
+          {/* My Agents */}
           {isSignedIn && (
             <Link
-              href="/profile"
-              onMouseEnter={() => router.prefetch('/profile')}
-              className="w-[80px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+              href="/agents"
+              onMouseEnter={() => router.prefetch('/agents')}
+              className="w-[90px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
             >
-              <User className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">Profile</span>
+              <Bot className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Agents</span>
             </Link>
           )}
 
@@ -197,15 +197,15 @@ const NavBar = () => {
             </Link>
           )}
 
-          {/* My Agents */}
+          {/* Profile button */}
           {isSignedIn && (
             <Link
-              href="/agents"
-              onMouseEnter={() => router.prefetch('/agents')}
-              className="w-[90px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
+              href="/profile"
+              onMouseEnter={() => router.prefetch('/profile')}
+              className="w-[80px] h-[40px] border border-[#0E282A] hover:border-[#003B3E] rounded-[12px] hidden md:flex justify-center items-center gap-2 bg-[#011112] text-[#00F0FF]"
             >
-              <Bot className="w-[16px] h-[16px]" />
-              <span className="text-[12px] font-[400] font-dmSans">Agents</span>
+              <User className="w-[16px] h-[16px]" />
+              <span className="text-[12px] font-[400] font-dmSans">Profile</span>
             </Link>
           )}
 
