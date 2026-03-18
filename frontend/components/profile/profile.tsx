@@ -115,7 +115,7 @@ const CELO_CHAIN_ID = 42220;
 function GuestProfileView({
   guestUser,
 }: {
-  guestUser: { username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
+  guestUser: { address: string; username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
 }) {
   const username = guestUser.username;
   // When wallet is not connected:
@@ -130,13 +130,16 @@ function GuestProfileView({
       ? (guestUser.smart_wallet_address as Address)
       : null;
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
-  const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? undefined;
+  // Key local profile storage by whichever address represents this profile.
+  // For Privy-only users, fall back to their guest `address` so avatar updates persist.
+  const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
 
-  const { profile, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
   const [localBio, setLocalBio] = useState(profile?.bio ?? '');
   const [editingBio, setEditingBio] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setLocalDisplayName(profile?.displayName ?? '');
@@ -344,8 +347,48 @@ function GuestProfileView({
     toast.success('Bio saved');
   };
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file (PNG, JPG, etc.)');
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      toast.error('Image must be under 1MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_AVATAR_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setAvatar(dataUrl);
+          toast.success('Profile photo updated!');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const resized = canvas.toDataURL('image/jpeg', 0.85);
+        setAvatar(resized);
+        toast.success('Profile photo updated!');
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="min-h-screen text-[#F0F7F7] profile-page">
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
       {/* Ambient background */}
       <div className="fixed inset-0 -z-10 bg-[#030c0d]" />
       <div className="fixed inset-0 -z-10 bg-gradient-to-b from-cyan-950/25 via-transparent to-transparent" />
@@ -374,7 +417,12 @@ function GuestProfileView({
           <div className="relative p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
               <div className="relative group shrink-0">
-                <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#030c0d] block"
+                  aria-label="Update avatar"
+                >
                   <span className="absolute inset-0 [&>img]:object-cover">
                     {profile?.avatar ? (
                       <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
@@ -382,7 +430,12 @@ function GuestProfileView({
                       <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
                     )}
                   </span>
-                </div>
+                  <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="w-12 h-12 rounded-full bg-cyan-500/30 flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-white" />
+                    </span>
+                  </span>
+                </button>
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#030c0d]">
                   <Crown className="w-5 h-5 text-black" />
                 </div>

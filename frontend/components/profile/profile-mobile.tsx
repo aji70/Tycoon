@@ -113,7 +113,16 @@ const isValidWallet = (a: unknown): a is Address => {
 };
 
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
-function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null } }) {
+function GuestProfileViewMobile({
+  guestUser,
+}: {
+  guestUser: {
+    address: string;
+    username: string;
+    linked_wallet_address?: string | null;
+    smart_wallet_address?: string | null;
+  };
+}) {
   const username = guestUser.username;
   // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
   const linkedWalletAddress =
@@ -126,6 +135,48 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
       : null;
 
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
+  const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? guestUser.address;
+  const { profile, setAvatar } = useProfileForAddress(profileKeyAddress);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file (PNG, JPG, etc.)');
+      return;
+    }
+    if (file.size > MAX_AVATAR_SIZE) {
+      toast.error('Image must be under 1MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_AVATAR_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setAvatar(dataUrl);
+          toast.success('Profile photo updated!');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        setAvatar(canvas.toDataURL('image/jpeg', 0.85));
+        toast.success('Profile photo updated!');
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[CELO_CHAIN_ID] as Address | undefined;
 
@@ -229,8 +280,29 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
         </Link>
       </header>
       <main className="py-6 space-y-5">
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         <div className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
-          <h2 className="text-lg font-bold text-white mb-2">{username}</h2>
+          <div className="relative group mb-4 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,240,255,0.12)] border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#011112] block"
+              aria-label="Update avatar"
+            >
+              {profile?.avatar ? (
+                <img src={profile.avatar} alt="Profile" className="w-full h-full object-cover aspect-square" />
+              ) : (
+                <Image src={avatar} alt="Avatar" width={88} height={88} className="w-full h-full object-cover aspect-square" />
+              )}
+              <span className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="w-10 h-10 rounded-full bg-cyan-500/30 flex items-center justify-center">
+                  <Camera className="w-5 h-5 text-white" />
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <h2 className="text-lg font-bold text-white mb-2 text-center">{username}</h2>
           {!guestOnChainAddress && (
             <p className="text-cyan-300/80 text-sm mb-4">Your progress is saved. Connect your wallet from the nav to link this account.</p>
           )}
