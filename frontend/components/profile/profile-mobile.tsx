@@ -115,6 +115,9 @@ const isValidWallet = (a: unknown): a is Address => {
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileViewMobile({
   guestUser,
+  isConnected,
+  onRecreateWallet,
+  recreateWalletPending,
 }: {
   guestUser: {
     address: string;
@@ -122,6 +125,9 @@ function GuestProfileViewMobile({
     linked_wallet_address?: string | null;
     smart_wallet_address?: string | null;
   };
+  isConnected?: boolean;
+  onRecreateWallet?: () => Promise<unknown>;
+  recreateWalletPending?: boolean;
 }) {
   const username = guestUser.username;
   // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
@@ -375,6 +381,29 @@ function GuestProfileViewMobile({
               ) : null}
             </div>
           </div>
+        )}
+
+        {shortSmartWalletAddress && (
+          <button
+            type="button"
+            disabled={!isConnected || recreateWalletPending}
+            onClick={async () => {
+              if (!isConnected) {
+                toast.info('Connect your wallet to recreate your smart wallet');
+                return;
+              }
+              try {
+                await onRecreateWallet?.();
+                toast.info('Creating new smart wallet…');
+              } catch (e: any) {
+                toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
+              }
+            }}
+            className="w-full px-4 py-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60 disabled:hover:bg-cyan-500/15"
+            title={!isConnected ? 'Connect your wallet to use' : undefined}
+          >
+            {recreateWalletPending ? 'Creating…' : !isConnected ? 'Recreate smart wallet (connect wallet to use)' : 'Recreate smart wallet'}
+          </button>
         )}
 
         {userData && (
@@ -779,7 +808,14 @@ export default function ProfilePageMobile() {
 
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
-      return <GuestProfileViewMobile guestUser={guestUser} />;
+      return (
+        <GuestProfileViewMobile
+          guestUser={guestUser}
+          isConnected={isConnected}
+          onRecreateWallet={recreateWallet}
+          recreateWalletPending={recreateWalletPending}
+        />
+      );
     }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] flex items-center justify-center px-4">
@@ -981,6 +1017,24 @@ export default function ProfilePageMobile() {
               </div>
             ))}
           </div>
+        )}
+
+        {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await recreateWallet();
+                toast.info('Creating new smart wallet…');
+              } catch (e: any) {
+                toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
+              }
+            }}
+            disabled={recreateWalletPending}
+            className="w-full px-4 py-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
+          >
+            {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+          </button>
         )}
 
         {/* Game stats | About | Perks | Vouchers — one line of tabs, content below */}
