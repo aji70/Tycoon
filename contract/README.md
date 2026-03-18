@@ -181,6 +181,9 @@ See **TOURNAMENT_ESCROW.md** for deployment and backend integration.
    ```
    Required in `.env`: `RPC_URL`, `PRIVATE_KEY`, `TYCOON_OWNER`, `TYCOON_PROXY_ADDRESS`, `TYCOON_REWARDS_FAUCET_ADDRESS`, `OPERATOR_ADDRESS`, `WITHDRAWAL_AUTHORITY_ADDRESS`. Optional: `TYCOON_NAIRA_VAULT_ADDRESS`, `TYCOON_REWARD_SYSTEM` (enables shop/burn for unlinked users), `DEFAULT_DAILY_CAP_USD6`, `DEFAULT_PRICE_CELO_USD6`. Copy `contract/.env.example` to `contract/.env` and fill values.
 
+- **Redeploy registry (latest code) and add to game:** `./run-redeploy-user-registry.sh [--verify]`. Validates all required env vars and prints the new registry address for backend/frontend `.env`.
+- **Add existing registry to game only:** If you already have a deployed registry and only need to point the proxy at it: set `TYCOON_USER_REGISTRY_ADDRESS` in `.env`, then `./run-set-user-registry-on-game.sh`.
+
 ---
 
 ## Backend Integration

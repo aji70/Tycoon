@@ -296,6 +296,13 @@ const USER_REGISTRY_ABI = [
     stateMutability: "nonpayable",
   },
   {
+    type: "function",
+    name: "recreateWalletForUserByBackend",
+    inputs: [{ name: "profileOwner", type: "address", internalType: "address" }],
+    outputs: [{ name: "newWallet", type: "address", internalType: "address" }],
+    stateMutability: "nonpayable",
+  },
+  {
     type: "event",
     name: "WalletCreated",
     inputs: [
@@ -394,6 +401,39 @@ export async function linkEOAToProfile(walletAddress, newOwner, chain = "CELO") 
     const receipt = await tx.wait();
     logger.info({ walletAddress, newOwner, hash: receipt?.hash }, "UserRegistry linkEOAToProfile tx");
     return { hash: receipt?.hash };
+  });
+}
+
+/**
+ * Backend recreates smart wallet for a profile owner (e.g. guest without connected wallet).
+ * Requires registry owner key. Returns { hash, wallet: newWalletAddress }.
+ */
+export async function recreateWalletForUserByBackend(profileOwner, chain = "CELO") {
+  return withTxQueue(async () => {
+    if (!profileOwner || typeof profileOwner !== "string") throw new Error("Invalid profileOwner");
+    const registry = getRegistryOwnerContract(chain);
+    const tx = await registry.recreateWalletForUserByBackend(profileOwner.trim());
+    const receipt = await tx.wait();
+    let newWallet;
+    try {
+      const iface = new Interface([
+        "event WalletRecreated(address indexed owner, address indexed oldWallet, address indexed newWallet)",
+      ]);
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+          if (parsed?.name === "WalletRecreated" && parsed.args?.newWallet) {
+            newWallet = String(parsed.args.newWallet);
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    if (!newWallet) {
+      throw new Error("recreateWalletForUserByBackend: could not determine new wallet from logs");
+    }
+    logger.info({ profileOwner, newWallet, hash: receipt?.hash }, "UserRegistry recreateWalletForUserByBackend tx");
+    return { hash: receipt?.hash, wallet: newWallet };
   });
 }
 

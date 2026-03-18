@@ -13,6 +13,7 @@ import User from "../models/User.js";
 import {
   registerPlayerFor,
   createWalletForUserByBackend,
+  recreateWalletForUserByBackend as recreateSmartWalletByBackend,
   getSmartWalletAddress,
   callContractRead,
   isContractConfigured,
@@ -413,6 +414,58 @@ export async function createSmartWallet(req, res) {
   } catch (err) {
     logger.error({ err: err?.message, userId: req.user?.id }, "createSmartWallet failed");
     return res.status(500).json({ success: false, message: err?.message || "Failed to create smart wallet" });
+  }
+}
+
+/**
+ * POST /auth/recreate-smart-wallet
+ * Recreates the authenticated user's smart wallet (no wallet connection needed). Backend signs the tx.
+ * Body: { chain?: "CELO" | "POLYGON" | "BASE" } (optional).
+ */
+export async function recreateSmartWallet(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Not authenticated" });
+    }
+    const user = req.user;
+    const chain = User.normalizeChain(req.body?.chain || user.chain || "CELO");
+    if (!isContractConfigured(chain)) {
+      return res.status(503).json({ success: false, message: "Contract not configured for this network" });
+    }
+    if (!isWalletFirstConfigured(chain)) {
+      return res.status(503).json({
+        success: false,
+        message: "Recreate not available. Configure TYCOON_OWNER_PRIVATE_KEY and registry for this chain.",
+      });
+    }
+
+    // Profile owner on-chain: linked EOA or (for wallet-first) the smart wallet address itself.
+    const profileOwner =
+      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
+      (user.smart_wallet_address && String(user.smart_wallet_address).trim());
+    if (!profileOwner) {
+      return res.status(400).json({
+        success: false,
+        message: "No profile to recreate. Create or link a wallet first.",
+      });
+    }
+
+    const { wallet: newWallet } = await recreateSmartWalletByBackend(profileOwner, chain);
+    await db("users").where({ id: user.id }).update({ smart_wallet_address: newWallet || null });
+    const updated = await User.findById(user.id);
+    const { password_hash: _, ...safe } = updated;
+    logger.info({ userId: user.id, newWallet, chain }, "recreateSmartWallet: done");
+    return res.status(200).json({
+      success: true,
+      message: "Smart wallet recreated. Your new wallet address is updated.",
+      data: safe,
+    });
+  } catch (err) {
+    logger.error({ err: err?.message, userId: req.user?.id }, "recreateSmartWallet failed");
+    return res.status(500).json({
+      success: false,
+      message: err?.message || "Failed to recreate smart wallet",
+    });
   }
 }
 
