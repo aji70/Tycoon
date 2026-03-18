@@ -721,7 +721,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
     for (const groupName of monopolies) {
       const ids = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
-      const groupGps = game_properties.filter(gp => ids.includes(gp.property_id) && gp.address === player.address);
+      const groupGps = game_properties.filter(gp => ids.includes(gp.property_id) && gp.address?.toLowerCase() === player.address?.toLowerCase());
 
       const developments = groupGps.map(gp => gp.development ?? 0);
       const minHouses = Math.min(...developments);

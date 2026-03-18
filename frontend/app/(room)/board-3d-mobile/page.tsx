@@ -996,7 +996,7 @@ function Board3DMobileContent() {
       for (const groupName of monopolies) {
         const ids = MONOPOLY_STATS.colorGroups[groupName as keyof typeof MONOPOLY_STATS.colorGroups];
         const groupGps = gameProperties.filter(
-          (gp) => ids.includes(gp.property_id) && gp.address === player.address
+          (gp) => ids.includes(gp.property_id) && gp.address?.toLowerCase() === player.address?.toLowerCase()
         );
         const developments = groupGps.map((gp) => gp.development ?? 0);
         const minHouses = Math.min(...developments);

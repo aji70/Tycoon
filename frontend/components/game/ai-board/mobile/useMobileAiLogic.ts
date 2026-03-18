@@ -103,7 +103,7 @@ export function useMobileAiLogic({
           ];
         const groupGps = currentGameProperties.filter(
           (gp) =>
-            ids.includes(gp.property_id) && gp.address === player.address
+            ids.includes(gp.property_id) && gp.address?.toLowerCase() === player.address?.toLowerCase()
         );
         const developments = groupGps.map((gp) => gp.development ?? 0);
         const minHouses = Math.min(...developments);
