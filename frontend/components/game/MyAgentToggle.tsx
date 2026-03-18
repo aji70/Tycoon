@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
-import { Bot, Key, Loader2 } from "lucide-react";
+import { Bot, Key, Loader2, Settings2 } from "lucide-react";
+import { AgentSettingsPanel } from "./AgentSettingsPanel";
+import { AgentSettings } from "@/hooks/useAgentSettings";
 
 export interface UserAgentOption {
   id: number;
@@ -31,6 +33,9 @@ interface MyAgentToggleProps {
   onStopApiKey?: () => void;
   /** Compact style for sidebar */
   compact?: boolean;
+  /** Agent behaviour settings — passed from the board page */
+  agentSettings?: AgentSettings;
+  onSettingsChange?: (updates: Partial<AgentSettings>) => void;
 }
 
 const PROVIDERS = [{ id: "anthropic", name: "Claude (Anthropic)" }];
@@ -43,6 +48,8 @@ export function MyAgentToggle({
   onUseApiKey,
   onStopApiKey,
   compact,
+  agentSettings,
+  onSettingsChange,
 }: MyAgentToggleProps) {
   const [agents, setAgents] = useState<UserAgentOption[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
@@ -52,6 +59,20 @@ export function MyAgentToggle({
   const [apiKeyProvider, setApiKeyProvider] = useState("anthropic");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [useApiKeyBusy, setUseApiKeyBusy] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Close settings panel when clicking outside
+  useEffect(() => {
+    if (!showSettings) return;
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSettings]);
 
   const fetchAgents = useCallback(async () => {
     setLoadingAgents(true);
@@ -136,6 +157,23 @@ export function MyAgentToggle({
             <Bot className="w-3.5 h-3.5" />
             My agent
           </span>
+          {agentSettings && onSettingsChange && (
+            <div className="relative" ref={settingsRef}>
+              <button
+                type="button"
+                title="Agent settings"
+                onClick={() => setShowSettings((v) => !v)}
+                className={`p-1 rounded transition-colors ${showSettings ? "bg-slate-600 text-cyan-300" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700"}`}
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+              </button>
+              {showSettings && (
+                <div className="absolute right-0 top-7 z-50">
+                  <AgentSettingsPanel settings={agentSettings} onChange={onSettingsChange} />
+                </div>
+              )}
+            </div>
+          )}
           {agentOn ? (
             <button
               type="button"

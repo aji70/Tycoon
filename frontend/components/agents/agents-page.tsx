@@ -9,6 +9,7 @@ import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
+import { useAgentSettings, TradeBehavior, BuildStyle, BuyStyle } from "@/hooks/useAgentSettings";
 
 function chainIdToBackendChain(chainId: number): string {
   if (chainId === 137 || chainId === 80001) return "POLYGON";
@@ -84,6 +85,7 @@ export default function AgentsPage() {
   const [usdcTxHash, setUsdcTxHash] = useState("");
   const [purchasingUsdc, setPurchasingUsdc] = useState(false);
   const [purchasingNgn, setPurchasingNgn] = useState(false);
+  const { agentSettings, updateAgentSettings } = useAgentSettings();
 
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
@@ -785,6 +787,69 @@ export default function AgentsPage() {
                     className="w-full px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none resize-y text-sm"
                   />
                   <p className="text-xs text-gray-500 mt-1">Tells the AI how to play (style, priorities).</p>
+                </div>
+
+                {/* Agent behaviour settings */}
+                <div>
+                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">Agent behaviour when playing as you</label>
+                  <p className="text-xs text-gray-500 mb-4">Controls buy / build / trade decisions when this agent plays on your behalf. Saved in this browser.</p>
+                  <div className="space-y-4">
+                    {(
+                      [
+                        {
+                          key: "tradeBehavior" as const,
+                          label: "Trading — incoming offers",
+                          options: [
+                            { value: "never_sell" as TradeBehavior, label: "Never sell", desc: "Always decline trades that ask for your properties" },
+                            { value: "smart" as TradeBehavior, label: "Smart", desc: "Block monopoly-completing trades; evaluate others by value" },
+                            { value: "generous" as TradeBehavior, label: "Generous", desc: "Accept any offer with a 10%+ value premium" },
+                          ],
+                        },
+                        {
+                          key: "buildStyle" as const,
+                          label: "Building",
+                          options: [
+                            { value: "conservative" as BuildStyle, label: "Conservative", desc: "Build only when cash > $800; keep $600 after" },
+                            { value: "balanced" as BuildStyle, label: "Balanced", desc: "Build when cash > $300; keep $150 after" },
+                            { value: "aggressive" as BuildStyle, label: "Aggressive", desc: "Build from $150+; spend down to $0" },
+                          ],
+                        },
+                        {
+                          key: "buyStyle" as const,
+                          label: "Buying",
+                          options: [
+                            { value: "conservative" as BuyStyle, label: "Conservative", desc: "Only high-value / near-monopoly buys; $600 reserve" },
+                            { value: "balanced" as BuyStyle, label: "Balanced", desc: "Strategic buys; $400 reserve" },
+                            { value: "aggressive" as BuyStyle, label: "Aggressive", desc: "Almost everything affordable; $200 reserve" },
+                          ],
+                        },
+                      ] as const
+                    ).map(({ key, label, options }) => (
+                      <div key={key}>
+                        <p className="text-xs text-cyan-400/70 uppercase tracking-wide font-semibold mb-2">{label}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {options.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              title={opt.desc}
+                              onClick={() => updateAgentSettings({ [key]: opt.value })}
+                              className={`px-4 py-2 rounded-xl border-2 text-sm transition-all duration-200 ${
+                                agentSettings[key] === opt.value
+                                  ? "border-cyan-400 bg-cyan-500/20 text-cyan-300 font-semibold shadow-[0_0_12px_rgba(0,240,255,0.15)]"
+                                  : "border-cyan-500/30 bg-black/40 text-gray-400 hover:border-cyan-500/60 hover:bg-cyan-500/5"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          {options.find((o) => o.value === agentSettings[key])?.desc}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
