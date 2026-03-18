@@ -41,7 +41,11 @@ export default function ManageSmartWalletPage() {
   const zeroAddr = "0x0000000000000000000000000000000000000000" as Address;
   const isZeroAddress = (a: string | undefined) => !a || a.toLowerCase() === zeroAddr.toLowerCase();
 
-  const rawSmartWallet = isConnected ? smartWalletFromConnection : smartWalletFromGuest;
+  // Prefer the DB-backed value (guestUser) as the primary source of truth — it is updated
+  // immediately after creation and is always in sync with the backend.
+  // Only fall back to the on-chain registry lookup when the user has a connected wallet
+  // but no DB-stored smart wallet (e.g. they created their profile via a linked EOA).
+  const rawSmartWallet = smartWalletFromGuest ?? (isConnected ? smartWalletFromConnection : undefined);
   /** Treat zero address (registry "no profile") as no wallet so we show "Create from Profile" flow. */
   const smartWalletAddress = rawSmartWallet && !isZeroAddress(rawSmartWallet) ? rawSmartWallet : undefined;
   const hasSmartWallet = !!smartWalletAddress;
@@ -350,7 +354,7 @@ export default function ManageSmartWalletPage() {
         const res = await auth.createSmartWallet({ chain: "CELO" });
         if (res.success) {
           toast.success("Smart wallet created.");
-          auth.refetchGuest?.();
+          await auth.refetchGuest?.();
           fromRegistry.refetch();
         } else {
           setCreateWalletError(res.message ?? "Failed to create wallet");
