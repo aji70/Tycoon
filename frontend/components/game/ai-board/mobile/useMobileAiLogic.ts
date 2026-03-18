@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { ApiResponse } from "@/types/api";
-import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "./constants";
 
 interface UseMobileAiLogicParams {
@@ -328,7 +328,7 @@ export function useMobileAiLogic({
           const currentOwned = group.filter((gid) =>
             game_properties.find(
               (gp) =>
-                gp.property_id === gid && gp.address === receiverAddress
+                gp.property_id === gid && gp.address?.toLowerCase() === receiverAddress?.toLowerCase()
             )
           ).length;
           if (currentOwned === group.length - 1) score += 300;
@@ -377,6 +377,53 @@ export function useMobileAiLogic({
   const handleAiStrategy = useCallback(async () => {
     if (!currentPlayer || !isAITurn || strategyRanThisTurn) return;
     showToast(`${currentPlayer.username} is thinking... 🧠`, "default");
+
+    // Respond to any pending incoming trades before proposing new ones
+    try {
+      const incomingRes = await apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${currentGame.id}/player/${currentPlayer.user_id}`);
+      const pendingIncoming = ((incomingRes?.data?.data ?? []) as { id: number; status: string; offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number }[]).filter((t) => t.status === "pending");
+      for (const trade of pendingIncoming) {
+        let handled = false;
+        try {
+          const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
+          const agentRes = await apiClient.post<{ success?: boolean; data?: { action?: string; reasoning?: string }; useBuiltIn?: boolean }>("/agent-registry/decision", {
+            gameId: currentGame.id,
+            slot,
+            decisionType: "trade",
+            context: {
+              myBalance: currentPlayer.balance ?? 0,
+              myProperties: game_properties.filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()).map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+              opponents: players.filter((p) => p.user_id !== currentPlayer.user_id),
+              tradeOffer: trade,
+            },
+          });
+          if (agentRes?.data?.success && agentRes.data.useBuiltIn === false) {
+            const action = String(agentRes.data.data?.action ?? "").toLowerCase();
+            if (action === "accept") {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              showToast("AI accepted trade offer 🤝", "success");
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            }
+            handled = true;
+          }
+        } catch (_) { /* fallback */ }
+        if (!handled) {
+          const fav = calculateAiFavorability(trade, properties);
+          if (fav >= TRADE_ACCEPT_THRESHOLD) {
+            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            showToast("AI accepted trade offer 🤝", "success");
+          } else {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+          }
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (pendingIncoming.length > 0) await fetchUpdatedGame();
+    } catch (err) {
+      console.error("AI incoming trade handling failed", err);
+    }
+
     const opportunities = getNearCompleteOpportunities(
       currentPlayer.address,
       game_properties,

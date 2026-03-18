@@ -28,7 +28,7 @@ import { useGameTrades } from "@/hooks/useGameTrades";
 import TradeAlertPill from "@/components/game/TradeAlertPill";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Toaster, toast } from "react-hot-toast";
-import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW } from "@/utils/gameUtils";
+import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
@@ -854,7 +854,7 @@ function Board3DPageContent() {
         const group = Object.values(MONOPOLY_STATS.colorGroups).find((g) => g.includes(id));
         if (group && !["railroad", "utility"].includes(prop.color!)) {
           const currentOwned = group.filter((gid) =>
-            gameProperties.find((gp) => gp.property_id === gid && gp.address === receiverAddress)
+            gameProperties.find((gp) => gp.property_id === gid && gp.address?.toLowerCase() === receiverAddress?.toLowerCase())
           ).length;
           if (currentOwned === group.length - 1) score += 300;
           else if (currentOwned === group.length - 2) score += 120;
@@ -885,6 +885,50 @@ function Board3DPageContent() {
       candidates.sort((a, b) => (a.prop.price || 0) - (b.prop.price || 0));
       return candidates[0];
     };
+
+    // Respond to any pending incoming trades before proposing new ones
+    try {
+      const incomingRes = await apiClient.get<ApiResponse>(`/game-trade-requests/incoming/${game.id}/player/${currentPlayer.user_id}`);
+      const pendingIncoming = ((incomingRes?.data?.data ?? []) as { id: number; status: string; offer_properties: number[]; offer_amount: number; requested_properties: number[]; requested_amount: number }[]).filter((t) => t.status === "pending");
+      for (const trade of pendingIncoming) {
+        let handled = false;
+        try {
+          const slot = getAiSlotFromPlayer(currentPlayer) ?? 2;
+          const agentRes = await apiClient.post<{ success?: boolean; data?: { action?: string; reasoning?: string }; useBuiltIn?: boolean }>("/agent-registry/decision", {
+            gameId: game.id,
+            slot,
+            decisionType: "trade",
+            context: {
+              myBalance: currentPlayer.balance ?? 0,
+              myProperties: gameProperties.filter((gp) => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()).map((gp) => ({ ...properties.find((p) => p.id === gp.property_id), ...gp })),
+              opponents: livePlayers.filter((p) => p.user_id !== currentPlayer.user_id),
+              tradeOffer: trade,
+            },
+          });
+          if (agentRes?.data?.success && agentRes.data.useBuiltIn === false) {
+            const action = String(agentRes.data.data?.action ?? "").toLowerCase();
+            if (action === "accept") {
+              await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            } else {
+              await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+            }
+            handled = true;
+          }
+        } catch (_) { /* fallback */ }
+        if (!handled) {
+          const fav = calculateAiFavorability(trade, properties);
+          if (fav >= TRADE_ACCEPT_THRESHOLD) {
+            await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+          } else {
+            await apiClient.post("/game-trade-requests/decline", { id: trade.id });
+          }
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (pendingIncoming.length > 0) await refetchGame();
+    } catch (err) {
+      console.error("AI incoming trade handling failed", err);
+    }
 
     const opportunities = getNearCompleteOpportunities(currentPlayer.address ?? undefined, gameProperties, properties, livePlayers);
     let maxTradeAttempts = 1;
