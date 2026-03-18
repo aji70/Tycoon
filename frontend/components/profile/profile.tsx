@@ -1439,23 +1439,6 @@ export default function Profile() {
                     </div>
                   ))}
                 </div>
-                {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await recreateWallet();
-                        toast.info('Creating new smart wallet…');
-                      } catch (e: any) {
-                        toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
-                      }
-                    }}
-                    disabled={recreateWalletPending}
-                    className="w-full mt-3 px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
-                  >
-                    {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
-                  </button>
-                )}
               </div>
             </div>
           </div>
