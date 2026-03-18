@@ -112,7 +112,11 @@ function formatStakeOrEarned(value: number): string {
 const CELO_CHAIN_ID = 42220;
 
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
-function GuestProfileView({ guestUser }: { guestUser: { username: string; linked_wallet_address?: string | null } }) {
+function GuestProfileView({
+  guestUser,
+}: {
+  guestUser: { username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
+}) {
   const username = guestUser.username;
   const { profile, setDisplayName, setBio, setProfile } = useProfile();
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
@@ -125,17 +129,30 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     setLocalBio(profile?.bio ?? '');
   }, [profile?.displayName, profile?.bio]);
 
-  // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
-  const guestOnChainAddress =
-    (guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim()
+  // When wallet is not connected:
+  // - stats/username use the "wallet linked" address when available
+  // - balances can be shown for both linked + smart wallets
+  const linkedWalletAddress =
+    guestUser.linked_wallet_address && isValidWallet(guestUser.linked_wallet_address)
       ? (guestUser.linked_wallet_address as Address)
-      : null) ??
-    (isValidWallet((guestUser as unknown as { smart_wallet_address?: unknown })?.smart_wallet_address)
-      ? ((guestUser as unknown as { smart_wallet_address: string }).smart_wallet_address as Address)
-      : null);
+      : null;
+  const smartWalletAddress =
+    guestUser.smart_wallet_address && isValidWallet(guestUser.smart_wallet_address)
+      ? (guestUser.smart_wallet_address as Address)
+      : null;
+  const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
+
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[CELO_CHAIN_ID] as Address | undefined;
-  const shortGuestOnChainAddress = guestOnChainAddress ? `${guestOnChainAddress.slice(0, 6)}...${guestOnChainAddress.slice(-4)}` : null;
+  const shortLinkedWalletAddress = linkedWalletAddress
+    ? `${linkedWalletAddress.slice(0, 6)}...${linkedWalletAddress.slice(-4)}`
+    : null;
+  const shortSmartWalletAddress = smartWalletAddress
+    ? `${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`
+    : null;
+  const showSmartBalances =
+    !!smartWalletAddress &&
+    (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
 
   const { data: onChainUsername } = useReadContract({
     address: tycoonAddress,
@@ -175,22 +192,40 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     query: { enabled: !!rewardAddress },
   });
 
-  const tycBalance = useBalance({
-    address: guestOnChainAddress ?? undefined,
+  const tycBalanceLinked = useBalance({
+    address: linkedWalletAddress ?? undefined,
     token: (tycTokenAddress as Address | undefined) ?? undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!guestOnChainAddress && !!tycTokenAddress },
+    query: { enabled: !!linkedWalletAddress && !!tycTokenAddress },
   });
-  const usdcBalance = useBalance({
-    address: guestOnChainAddress ?? undefined,
+  const usdcBalanceLinked = useBalance({
+    address: linkedWalletAddress ?? undefined,
     token: (usdcTokenAddress as Address | undefined) ?? undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!guestOnChainAddress && !!usdcTokenAddress },
+    query: { enabled: !!linkedWalletAddress && !!usdcTokenAddress },
   });
-  const nativeBalance = useBalance({
-    address: guestOnChainAddress ?? undefined,
+  const nativeBalanceLinked = useBalance({
+    address: linkedWalletAddress ?? undefined,
     chainId: CELO_CHAIN_ID,
-    query: { enabled: !!guestOnChainAddress },
+    query: { enabled: !!linkedWalletAddress },
+  });
+
+  const tycBalanceSmart = useBalance({
+    address: smartWalletAddress ?? undefined,
+    token: (tycTokenAddress as Address | undefined) ?? undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!smartWalletAddress && !!tycTokenAddress },
+  });
+  const usdcBalanceSmart = useBalance({
+    address: smartWalletAddress ?? undefined,
+    token: (usdcTokenAddress as Address | undefined) ?? undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!smartWalletAddress && !!usdcTokenAddress },
+  });
+  const nativeBalanceSmart = useBalance({
+    address: smartWalletAddress ?? undefined,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!smartWalletAddress },
   });
 
   const ownedCount = useReadContract({
@@ -356,10 +391,20 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
-                  {shortGuestOnChainAddress ? (
+                  {shortLinkedWalletAddress || shortSmartWalletAddress ? (
                     <>
-                      <span className="text-slate-400 text-xs">Wallet linked:</span>
-                      <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortGuestOnChainAddress}</span>
+                      {shortLinkedWalletAddress ? (
+                        <>
+                          <span className="text-slate-400 text-xs">Linked wallet:</span>
+                          <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortLinkedWalletAddress}</span>
+                        </>
+                      ) : null}
+                      {shortSmartWalletAddress ? (
+                        <>
+                          <span className="text-slate-400 text-xs">Smart wallet:</span>
+                          <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{shortSmartWalletAddress}</span>
+                        </>
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-cyan-300/80 text-sm">Your progress is saved. Link a wallet to sync stats on-chain.</span>
@@ -383,17 +428,78 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
 
             {/* Balances row (same layout as wallet-connected) */}
             <div className="mt-6 pt-6 border-t border-white/10">
-              <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-                {[
-                  { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2), color: 'cyan' },
-                  { label: 'USDC', value: usdcBalance.isLoading ? '...' : Number(usdcBalance.data?.formatted || 0).toFixed(2), color: 'emerald' },
-                  { label: 'Celo', value: nativeBalance.isLoading ? '...' : (nativeBalance.data ? Number(nativeBalance.data.formatted).toFixed(4) : '0'), color: 'slate' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                    <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+              <div className="space-y-3">
+                {linkedWalletAddress ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
+                      Linked wallet balances
+                    </p>
+                    <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                      {[
+                        {
+                          label: 'TYC',
+                          value: tycBalanceLinked.isLoading ? '...' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2),
+                          color: 'cyan',
+                        },
+                        {
+                          label: 'USDC',
+                          value: usdcBalanceLinked.isLoading ? '...' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
+                          color: 'emerald',
+                        },
+                        {
+                          label: 'Celo',
+                          value: nativeBalanceLinked.isLoading
+                            ? '...'
+                            : nativeBalanceLinked.data
+                              ? Number(nativeBalanceLinked.data.formatted).toFixed(4)
+                              : '0',
+                          color: 'slate',
+                        },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                          <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                ) : null}
+
+                {showSmartBalances ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
+                      Smart wallet balances
+                    </p>
+                    <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                      {[
+                        {
+                          label: 'TYC',
+                          value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2),
+                          color: 'cyan',
+                        },
+                        {
+                          label: 'USDC',
+                          value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
+                          color: 'emerald',
+                        },
+                        {
+                          label: 'Celo',
+                          value: nativeBalanceSmart.isLoading
+                            ? '...'
+                            : nativeBalanceSmart.data
+                              ? Number(nativeBalanceSmart.data.formatted).toFixed(4)
+                              : '0',
+                          color: 'slate',
+                        },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                          <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
