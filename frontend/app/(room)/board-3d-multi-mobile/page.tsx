@@ -28,6 +28,7 @@ import { MONOPOLY_STATS } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
 import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
+import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { GameDurationCountdown } from "@/components/game/GameDurationCountdown";
 const Mobile3DGameUI = dynamic(
@@ -1490,9 +1491,24 @@ function Board3DMobilePageContent() {
     if (didBuild) await Promise.all([refetchGame(), refetchGameProperties()]);
   }, [game?.id, me, gameProperties, properties, refetchGame, refetchGameProperties, myAgentApiKey]);
 
+  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
+  useAgentAutoLiquidate({
+    agentOn: isLiveGame && agentOn,
+    isMyTurn: isLiveGame && isMyTurn,
+    me,
+    game: game ?? null,
+    gameProperties,
+    properties,
+    refetchGame: async () => refetchGame(),
+    refetchGameProperties: async () => refetchGameProperties(),
+    onDeclare: handleDeclareBankruptcy,
+  });
+
   // Use me?.user_id in deps so refetches don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
   useEffect(() => {
     if (!isLiveGame || !isMyTurn || !agentOn || rollingDice || !me) return;
+    // Do not roll while bankrupt — useAgentAutoLiquidate will handle debt resolution first
+    if ((me.balance ?? 0) < 0) return;
     let cancelled = false;
     const t = setTimeout(() => {
       runMyAgentPreRollPerks()
@@ -2813,7 +2829,7 @@ function Board3DMobilePageContent() {
         )}
       </AnimatePresence>
 
-      {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && me && game && (
+      {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && me && game && !agentOn && (
         <RaiseFundsPanel
           me={me}
           game={game}

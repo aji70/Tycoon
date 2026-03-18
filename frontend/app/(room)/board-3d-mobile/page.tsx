@@ -21,6 +21,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
+import { useAgentAutoLiquidate } from "@/hooks/useAgentAutoLiquidate";
 import { useAgentBindings } from "@/hooks/useAgentBindings";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { useGetGameByCode, useRewardBurnCollectible } from "@/context/ContractProvider";
@@ -513,6 +514,19 @@ function Board3DMobileContent() {
       const res = await refetchGame();
       return res?.data;
     },
+  });
+
+  // "My agent" with negative balance: auto-liquidate then declare bankruptcy
+  useAgentAutoLiquidate({
+    agentOn: isLiveGame && agentOn,
+    isMyTurn: isLiveGame && isMyTurn,
+    me,
+    game: game ?? null,
+    gameProperties,
+    properties,
+    refetchGame: async () => refetchGame(),
+    refetchGameProperties: async () => refetchGameProperties(),
+    onDeclare: handleDeclareBankruptcy,
   });
 
   const liveDevelopmentByPropertyId = useMemo(() => {
@@ -2006,6 +2020,8 @@ function Board3DMobileContent() {
   // Use me?.user_id in deps so refetches don't reset the timer; omit playerCanRoll so in-jail still runs (perks can use Jail Free)
   useEffect(() => {
     if (!isLiveGame || !isMyTurn || !agentOn || rollingDice || !me) return;
+    // Do not roll while bankrupt — useAgentAutoLiquidate will handle debt resolution first
+    if ((me.balance ?? 0) < 0) return;
     let cancelled = false;
     const t = setTimeout(() => {
       runMyAgentPreRollPerks()
@@ -3025,7 +3041,7 @@ function Board3DMobileContent() {
         )}
       </AnimatePresence>
 
-      {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && me && game && (
+      {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && me && game && !agentOn && (
         <RaiseFundsPanel
           me={me}
           game={game}
