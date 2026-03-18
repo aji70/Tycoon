@@ -125,12 +125,13 @@ function GuestProfileView({ guestUser }: { guestUser: { username: string; linked
     setLocalBio(profile?.bio ?? '');
   }, [profile?.displayName, profile?.bio]);
 
+  // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
   const guestOnChainAddress =
-    (isValidWallet((guestUser as unknown as { smart_wallet_address?: unknown })?.smart_wallet_address)
-      ? ((guestUser as unknown as { smart_wallet_address: string }).smart_wallet_address as Address)
-      : null) ??
     (guestUser.linked_wallet_address && String(guestUser.linked_wallet_address).trim()
       ? (guestUser.linked_wallet_address as Address)
+      : null) ??
+    (isValidWallet((guestUser as unknown as { smart_wallet_address?: unknown })?.smart_wallet_address)
+      ? ((guestUser as unknown as { smart_wallet_address: string }).smart_wallet_address as Address)
       : null);
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[CELO_CHAIN_ID] as Address | undefined;

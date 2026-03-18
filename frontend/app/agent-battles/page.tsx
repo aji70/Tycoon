@@ -47,13 +47,6 @@ function autoAssignAgentIds(agents: UserAgent[], desiredLen: number): number[] {
   return Array.from({ length: desiredLen }, (_, i) => ids[i % ids.length]);
 }
 
-function randomCode6() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return out;
-}
-
 export default function AgentBattlesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,9 +57,6 @@ export default function AgentBattlesPage() {
   const [playerCount, setPlayerCount] = useState(2);
   const [aiCount, setAiCount] = useState(1);
   const [duration, setDuration] = useState(30);
-  const [useCustomCode, setUseCustomCode] = useState(false);
-  const [code, setCode] = useState(() => randomCode6());
-  const [manualSlotAssign, setManualSlotAssign] = useState(false);
   const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([0, 0]);
   const [creating, setCreating] = useState(false);
   const [meId, setMeId] = useState<number | null>(null);
@@ -191,25 +181,26 @@ export default function AgentBattlesPage() {
     });
   }, [agents, mode, playerCount]);
 
-  // Agent vs Agent: default to auto-assigning slots (like multiplayer); manual assignment is optional.
+  // Agent vs Agent: default Slot 1 to first agent when list changes.
   useEffect(() => {
-    if (mode !== "agent_vs_agent") return;
-    if (agents.length === 0) return;
-    if (manualSlotAssign) return;
-    setSelectedAgentIds(autoAssignAgentIds(agents, playerCount));
-  }, [mode, agents, playerCount, manualSlotAssign]);
+    if (mode !== "agent_vs_agent" || agents.length === 0) return;
+    setSelectedAgentIds((prev) => {
+      const next = autoAssignAgentIds(agents, playerCount);
+      if (prev[0] !== next[0]) return [next[0], ...prev.slice(1)];
+      return prev;
+    });
+  }, [mode, agents, playerCount]);
 
   const canCreate = useMemo(() => {
     if (creating) return false;
-    if (useCustomCode && (!code || code.trim().length !== 6)) return false;
     if (mode === "agent_vs_agent" && (playerCount < 2 || playerCount > 8)) return false;
     if (mode === "agent_vs_ai" && (aiCount < 1 || aiCount > 7)) return false;
     if (agents.length === 0) return false;
     if (mode === "agent_vs_agent") {
-      return selectedAgentIds.length === playerCount && selectedAgentIds.every((id) => id > 0);
+      return selectedAgentIds.length >= 1 && selectedAgentIds[0] > 0;
     }
-    return selectedAgentIds.length === 1 && selectedAgentIds[0] > 0;
-  }, [creating, useCustomCode, code, playerCount, aiCount, mode, agents.length, selectedAgentIds]);
+    return selectedAgentIds.length >= 1 && selectedAgentIds[0] > 0;
+  }, [creating, playerCount, aiCount, mode, agents.length, selectedAgentIds]);
 
   const handleCreate = async () => {
     if (!canCreate) return;
@@ -227,7 +218,6 @@ export default function AgentBattlesPage() {
       const agentById = new Map(agents.map((a) => [a.id, a]));
 
       const base = {
-        ...(useCustomCode ? { code: code.trim().toUpperCase() } : {}),
         duration,
         chain: "CELO",
         settings,
@@ -247,7 +237,7 @@ export default function AgentBattlesPage() {
             : await apiClient.post<any>("/games/create-agent-vs-agent", {
                 ...base,
                 number_of_players: playerCount,
-                agents: (manualSlotAssign ? selectedAgentIds : autoAssignAgentIds(agents, playerCount)).map(
+                agents: autoAssignAgentIds(agents, playerCount).map(
                   (id, idx) => ({
                     slot: idx + 1,
                     user_agent_id: id,
@@ -265,7 +255,7 @@ export default function AgentBattlesPage() {
             });
 
       const game = (res as any)?.data?.data;
-      const gameCode = game?.code || (useCustomCode ? (base as any).code : null) || "";
+      const gameCode = game?.code || "";
       toast.success(`Match created: ${gameCode}`);
       try {
         localStorage.setItem("gameCode", gameCode);
@@ -278,7 +268,6 @@ export default function AgentBattlesPage() {
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create match";
       toast.error(msg);
-      setCode(randomCode6());
     } finally {
       setCreating(false);
     }
@@ -403,7 +392,7 @@ export default function AgentBattlesPage() {
             <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-200">On-chain Agent vs Agent lobby</p>
+                  <p className="text-sm font-semibold text-slate-200">Agent vs Agent lobby</p>
                   <p className="text-xs text-slate-400 mt-1">
                     Code: <span className="font-mono text-slate-200">{lobby.code}</span> · Players:{" "}
                     <span className="text-slate-200">{lobby.number_of_players}</span> · Status:{" "}
@@ -595,41 +584,7 @@ export default function AgentBattlesPage() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30">
-                <p className="text-xs text-slate-400 uppercase tracking-wide mb-3">Game code</p>
-                <label className="flex items-center gap-2 text-sm text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={useCustomCode}
-                    onChange={(e) => setUseCustomCode(e.target.checked)}
-                    className="rounded border-slate-600 bg-black/40"
-                  />
-                  Use custom code
-                </label>
-                {useCustomCode ? (
-                  <>
-                    <input
-                      value={code}
-                      onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
-                      className="mt-3 w-full px-4 py-3 rounded-xl bg-black/70 border border-cyan-500/40 text-white font-mono tracking-widest text-center text-lg"
-                      aria-label="Custom game code"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setCode(randomCode6())}
-                      className="mt-3 w-full px-4 py-2 rounded-xl border border-slate-600 text-slate-200 hover:bg-white/5"
-                    >
-                      Randomize
-                    </button>
-                  </>
-                ) : (
-                  <p className="mt-3 text-xs text-slate-400">
-                    A code will be generated automatically when you create the match.
-                  </p>
-                )}
-              </div>
-
+            <div className="grid md:grid-cols-2 gap-6">
               {mode === "agent_vs_agent" ? (
                 <div className="bg-black/60 rounded-2xl p-6 border border-purple-500/30">
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Players (agents)</p>
@@ -644,22 +599,6 @@ export default function AgentBattlesPage() {
                       </option>
                     ))}
                   </select>
-
-                  <div className="mt-4 flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">On-chain</p>
-                      <p className="text-xs text-slate-400">On-chain Agent vs Agent uses invite links for each seat.</p>
-                    </div>
-                    <label className="shrink-0 flex items-center gap-2 text-sm text-slate-200">
-                      <input
-                        type="checkbox"
-                        checked={onChain}
-                        onChange={(e) => setOnChain(e.target.checked)}
-                        className="rounded border-slate-600 bg-black/40"
-                      />
-                      On-chain
-                    </label>
-                  </div>
                 </div>
               ) : (
                 <div className="bg-black/60 rounded-2xl p-6 border border-purple-500/30">
@@ -675,24 +614,6 @@ export default function AgentBattlesPage() {
                       </option>
                     ))}
                   </select>
-
-                  <div className="mt-4 flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">On-chain</p>
-                      <p className="text-xs text-slate-400">
-                        On-chain games support rewards/stats and show your seat as the agent on the board.
-                      </p>
-                    </div>
-                    <label className="shrink-0 flex items-center gap-2 text-sm text-slate-200">
-                      <input
-                        type="checkbox"
-                        checked={onChain}
-                        onChange={(e) => setOnChain(e.target.checked)}
-                        className="rounded border-slate-600 bg-black/40"
-                      />
-                      On-chain
-                    </label>
-                  </div>
                 </div>
               )}
 
@@ -714,53 +635,15 @@ export default function AgentBattlesPage() {
 
             <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30">
               <p className="text-sm font-semibold text-slate-200 mb-4">
-                {mode === "agent_vs_agent" ? "Assign agents to slots" : "Pick your agent"}
+                {mode === "agent_vs_agent" ? "Your agent (Slot 1)" : "Pick your agent"}
               </p>
-              {mode === "agent_vs_agent" && (
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-400">
-                      By default we auto-fill seats using your agents (cycles if you have fewer agents than players).
-                    </p>
-                    <label className="mt-2 flex items-center gap-2 text-xs text-slate-200">
-                      <input
-                        type="checkbox"
-                        checked={manualSlotAssign}
-                        onChange={(e) => setManualSlotAssign(e.target.checked)}
-                        className="rounded border-slate-600 bg-black/40"
-                        disabled={onChain}
-                      />
-                      Assign slots manually (advanced)
-                    </label>
-                    {onChain ? (
-                      <p className="mt-2 text-xs text-amber-300">
-                        On-chain Agent vs Agent uses invite links for other seats; only Slot 1 is chosen here.
-                      </p>
-                    ) : null}
-                  </div>
-                  {agents.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAgentIds(autoAssignAgentIds(agents, playerCount))}
-                      className="shrink-0 px-3 py-2 rounded-xl border border-slate-600 text-slate-200 hover:bg-white/5 text-xs font-semibold"
-                      disabled={onChain}
-                    >
-                      Re-roll
-                    </button>
-                  )}
-                </div>
-              )}
+              <p className="text-xs text-slate-400 mb-4">
+                {mode === "agent_vs_agent"
+                  ? "Other seats are filled via invite links. Share the link or QR from the lobby after creating."
+                  : "This agent will play for you against the AI."}
+              </p>
               <div className="grid md:grid-cols-2 gap-4">
-                {Array.from({
-                  length:
-                    mode === "agent_vs_agent"
-                      ? onChain
-                        ? 1
-                        : manualSlotAssign
-                          ? playerCount
-                          : 0
-                      : 1,
-                }).map((_, idx) => (
+                {Array.from({ length: 1 }).map((_, idx) => (
                   <div key={idx} className="flex items-center gap-3">
                     <span className="text-xs w-16 text-slate-400 font-mono">
                       {mode === "agent_vs_agent" ? `Slot ${idx + 1}` : "Agent"}
