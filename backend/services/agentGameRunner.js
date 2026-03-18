@@ -11,6 +11,11 @@ import agentRegistry from "./agentRegistry.js";
 
 const ENABLED = process.env.ENABLE_AGENT_GAME_RUNNER === "true";
 const POLL_MS = Math.max(500, Number(process.env.AGENT_GAME_RUNNER_POLL_MS) || 2000);
+// Hard safety caps for UNTlMED games (duration = 0 or missing).
+// When a cap triggers, we end by net worth using the existing
+// `POST /game-players/vote-end-by-networth` endpoint (AI games need only 1 vote).
+const UNTIMED_WALLCLOCK_CAP_MIN = Math.max(0, Number(process.env.UNTIMED_AGENT_GAME_WALLCLOCK_CAP_MIN) || 60);
+const UNTIMED_TURN_CAP = Math.max(0, Number(process.env.UNTIMED_AGENT_GAME_TURN_CAP) || 500);
 
 const GAME_TYPES = new Set([
   "AGENT_VS_AGENT",
@@ -228,8 +233,55 @@ async function stepGame(game) {
   if (!gameId || game.status !== "RUNNING") return;
   if (!GAME_TYPES.has(String(game.game_type || ""))) return;
 
+  // Auto-finish timed games.
+  // The runner previously advanced turns forever because it never called
+  // the existing `POST /games/:id/finish-by-time` endpoint.
+  const durationMinutes = Number(game.duration) || 0;
+  if (durationMinutes > 0) {
+    const startAt = game.started_at || game.created_at;
+    const startMs = startAt ? new Date(startAt).getTime() : null;
+    if (startMs != null && Number.isFinite(startMs)) {
+      const endMs = startMs + durationMinutes * 60 * 1000;
+      // Keep consistent with finishByTime: allow up to 30s grace.
+      if (Date.now() >= endMs - 30000) {
+        try {
+          await post(`/games/${gameId}/finish-by-time`, {});
+        } catch (err) {
+          // If another request already finished it, or it failed for any reason,
+          // don't crash the runner.
+          logger.warn(
+            { err: err?.message, gameId, durationMinutes },
+            "agent runner finishByTime failed"
+          );
+        }
+        return;
+      }
+    }
+  }
+
   const nextUserId = Number(game.next_player_id || 0);
   if (!nextUserId) return;
+
+  // Hard safety caps for untimed games (duration = 0).
+  // 1) Wall-clock: if it runs too long, end by net worth.
+  if (durationMinutes <= 0 && UNTIMED_WALLCLOCK_CAP_MIN > 0) {
+    const startAt = game.started_at || game.created_at;
+    const startMs = startAt ? new Date(startAt).getTime() : null;
+    if (startMs != null && Number.isFinite(startMs)) {
+      const endMs = startMs + UNTIMED_WALLCLOCK_CAP_MIN * 60 * 1000;
+      if (Date.now() >= endMs) {
+        try {
+          await post("/game-players/vote-end-by-networth", { game_id: gameId, user_id: nextUserId });
+        } catch (err) {
+          logger.warn(
+            { err: err?.message, gameId, nextUserId },
+            "agent runner untimed wallclock cap ended game failed"
+          );
+        }
+        return;
+      }
+    }
+  }
 
   // Resolve slot from turn_order (1..8).
   const gp = await db("game_players").where({ game_id: gameId, user_id: nextUserId }).first();
@@ -240,6 +292,20 @@ async function stepGame(game) {
   // This mirrors the frontend "pre-roll build" flow and avoids only building on turns
   // where they happen to land on an unowned property.
   const myBalance = Number(gp.balance || 0);
+
+  // 2) Turn cap: end after too many turns (untimed games only).
+  if (durationMinutes <= 0 && UNTIMED_TURN_CAP > 0 && Number(gp.turn_count || 0) >= UNTIMED_TURN_CAP) {
+    try {
+      await post("/game-players/vote-end-by-networth", { game_id: gameId, user_id: nextUserId });
+    } catch (err) {
+      logger.warn(
+        { err: err?.message, gameId, nextUserId, turn_count: gp.turn_count },
+        "agent runner untimed turn cap ended game failed"
+      );
+    }
+    return;
+  }
+
   if (Number(gp.in_jail) !== 1) {
     try {
       await maybeBuildHouses({ gameId, gp, slot, myBalance });
@@ -375,7 +441,7 @@ async function stepGame(game) {
 
 async function pollOnce() {
   const games = await db("games")
-    .select("id", "status", "next_player_id", "game_type")
+    .select("id", "status", "next_player_id", "game_type", "duration", "created_at", "started_at")
     .where({ status: "RUNNING" })
     .whereIn("game_type", Array.from(GAME_TYPES))
     .limit(50);
