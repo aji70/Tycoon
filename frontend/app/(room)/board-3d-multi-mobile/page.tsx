@@ -269,6 +269,7 @@ function Board3DMobilePageContent() {
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
   const [turnEndScheduled, setTurnEndScheduled] = useState(false);
   const [gameTimeUpLocal, setGameTimeUpLocal] = useState(false);
+  const [endGameReason, setEndGameReason] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
@@ -1199,8 +1200,15 @@ function Board3DMobilePageContent() {
               toast.success("Turn passed to next player.");
               await refetchGame();
             } else if (!ok && endMsg) {
-              toast.error(endMsg);
-              await refetchGame();
+              const endMsgLower = String(endMsg).toLowerCase();
+              // This can happen during fast auto-moves or race conditions when a client action hits
+              // an out-of-turn state. Suppress the toast and just refetch to recover.
+              if (endMsgLower.includes("not your turn")) {
+                await refetchGame();
+              } else {
+                toast.error(endMsg);
+                await refetchGame();
+              }
             } else {
               await refetchGame();
             }
@@ -2080,12 +2088,16 @@ function Board3DMobilePageContent() {
     if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
     timeUpHandledRef.current = true;
     setGameTimeUpLocal(true);
+    setEndGameReason(null);
+    setShowBankruptcyModal(false);
     try {
       const res = await apiClient.post<{
         success?: boolean;
+        message?: string;
         data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean };
       }>(`/games/${game!.id}/finish-by-time`);
       const data = res?.data?.data;
+      setEndGameReason(res?.data?.message ?? null);
       const winnerId = data?.winner_id;
       if (winnerId != null) {
         const updatedPlayers = data?.game?.players ?? game?.players ?? [];
@@ -2110,12 +2122,14 @@ function Board3DMobilePageContent() {
       console.error("Finish by time failed:", e);
       timeUpHandledRef.current = false;
       setGameTimeUpLocal(false);
+      setEndGameReason(null);
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
   // Bankruptcy: align with 2D — transfer properties, end turn, then POST leave (backend does on-chain removal for both guest and wallet)
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me?.address || !game?.code) return;
+    if (gameTimeUpLocal || game?.status !== "RUNNING") return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
       const myOwnedProperties = gameProperties.filter(
@@ -2164,7 +2178,7 @@ function Board3DMobilePageContent() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, game?.code, me, livePlayers, gameProperties, END_TURN, refetchGame]);
+  }, [game?.id, game?.code, me, livePlayers, gameProperties, END_TURN, refetchGame, gameTimeUpLocal, game?.status]);
 
   // "My agent" with negative balance: auto-liquidate then declare bankruptcy
   // Placed here (after handleDeclareBankruptcy) to avoid TDZ reference error
@@ -2914,9 +2928,10 @@ function Board3DMobilePageContent() {
               >
                 <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
                 <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
-                <p className="text-slate-200 mb-6">
+                <p className="text-slate-200 mb-2">
                   You had the highest net worth when time ran out. Prizes were distributed when the game ended.
                 </p>
+                {endGameReason && <p className="text-slate-400 mb-6 text-sm">{endGameReason}</p>}
                 <button
                   type="button"
                   onClick={() => handleFinalizeAndLeave()}
@@ -2938,6 +2953,7 @@ function Board3DMobilePageContent() {
                   {winner.username} <span className="text-amber-400">wins</span>
                 </p>
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
+                {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
                 <p className="text-slate-300 mb-6">You still get a consolation prize. Prizes were distributed when the game ended.</p>
                 <button
                   type="button"
@@ -2954,7 +2970,7 @@ function Board3DMobilePageContent() {
       </AnimatePresence>
 
       <BankruptcyModal
-        isOpen={showBankruptcyModal}
+        isOpen={showBankruptcyModal && !gameTimeUpLocal}
         onClose={() => setShowBankruptcyModal(false)}
         onReturnHome={() => (window.location.href = "/")}
         tokensAwarded={0.5}
