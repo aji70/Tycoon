@@ -47,6 +47,7 @@ import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
 import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
+import { reportAiAction } from "@/lib/agentFeedback";
 
 const calculateBuyScore = (
   property: Property,
@@ -501,6 +502,7 @@ const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
         : `You bought ${justLandedProperty.name}!`, 
       "success"
     );
+    if (isAiAction) reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "buyProperty");
 
     setTurnEndScheduled(true);
     setBuyPrompted(false);
@@ -756,6 +758,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
             user_id: player.user_id,
             property_id: gp.property_id,
           });
+          reportAiAction(game.id, getAiSlotFromPlayer(player) ?? 2, minHouses >= 4 ? "buildHotel" : "buildHouse");
           showToast(`AI built on ${prop.name} (${groupName})`, "success");
           built = true;
           await new Promise(r => setTimeout(r, 600));
@@ -808,6 +811,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
             const action = String(agentRes.data.data?.action ?? "").toLowerCase();
             if (action === "accept") {
               await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
               showToast("AI accepted trade offer 🤝", "success");
             } else {
               await apiClient.post("/game-trade-requests/decline", { id: trade.id });
@@ -819,6 +823,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
           const fav = calculateAiFavorability(trade, properties);
           if (fav >= TRADE_ACCEPT_THRESHOLD) {
             await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
             showToast("AI accepted trade offer 🤝", "success");
           } else {
             await apiClient.post("/game-trade-requests/decline", { id: trade.id });
@@ -869,6 +874,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
           const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
           if (res?.data?.success) {
             showToast(`AI offered $${cashOffer}${offerProperties.length ? " + property" : ""} for ${missing.name}`, "default");
+            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
             maxTradeAttempts--;
 
             if (isAIPlayer(targetPlayer)) {
@@ -880,6 +886,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
               if (favorability >= TRADE_FAVORABILITY_ACCEPT_RAW) {
                 await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
+                reportAiAction(game.id, getAiSlotFromPlayer(targetPlayer) ?? 3, "acceptTrade");
                 showToast(`${targetPlayer.username} accepted deal! 🤝`, "success");
                 await refreshGame();
               } else {

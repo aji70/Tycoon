@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
+import { reportAiAction } from "@/lib/agentFeedback";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
 import type { Property, Player, History, Game, GameProperty } from "@/types/game";
@@ -1393,6 +1394,7 @@ function Board3DPageContent() {
               game_id: game.id,
               property_id: square.id,
             });
+            reportAiAction(game.id, 1, "buyProperty");
             toast.success(`Your agent bought ${square.name}.`);
           } else {
             toast(`Your agent skipped buying ${square.name}.`);
@@ -1586,11 +1588,13 @@ function Board3DPageContent() {
         agentRes.data.data.propertyId
       ) {
         const prop = properties.find((p) => p.id === agentRes.data!.data!.propertyId);
+        const devLevel = gameProperties.find((gp) => gp.property_id === agentRes.data!.data!.propertyId)?.development ?? 0;
         await apiClient.post("/game-properties/development", {
           game_id: game.id,
           user_id: me.user_id,
           property_id: agentRes.data.data.propertyId,
         });
+        reportAiAction(game.id, 1, devLevel >= 4 ? "buildHotel" : "buildHouse");
         toast.success(prop ? `Your agent built on ${prop.name}.` : "Your agent built a house.");
         didBuild = true;
       } else if (
@@ -1618,6 +1622,7 @@ function Board3DPageContent() {
             user_id: me.user_id,
             property_id: target.p.property_id,
           });
+          reportAiAction(game.id, 1, (target.p.development ?? 0) >= 4 ? "buildHotel" : "buildHouse");
           const propName = properties.find((p) => p.id === target.p.property_id)?.name;
           toast.success(propName ? `Your agent built on ${propName}.` : "Your agent built a house.");
           didBuild = true;

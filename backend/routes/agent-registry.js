@@ -11,6 +11,7 @@ import * as hostedAgentUsage from "../services/hostedAgentUsage.js";
 import * as hostedAgentCredits from "../services/hostedAgentCredits.js";
 import GamePlayer from "../models/GamePlayer.js";
 import { requireAuth } from "../middleware/auth.js";
+import { submitErc8004Feedback } from "../services/erc8004Feedback.js";
 
 const router = express.Router();
 
@@ -125,6 +126,50 @@ router.post("/decision-with-key", requireAuth, async (req, res) => {
     console.error("[agent-registry] decision-with-key error:", err?.message);
     return res.status(500).json({ success: false, message: err?.message || "Decision failed" });
   }
+});
+
+/**
+ * POST: Submit ERC-8004 reputation feedback for an AI agent action (buy, build, trade).
+ * Fire-and-forget from the frontend after each successful AI action.
+ * Body: { gameId, slot, actionType }
+ * actionType: "buyProperty" | "buildHouse" | "buildHotel" | "proposeTrade" | "acceptTrade"
+ * Resolves agentId from the registered agent for this slot (falls back to ERC8004_AGENT_ID).
+ */
+router.post("/action-feedback", async (req, res) => {
+  // Always respond immediately — this is fire-and-forget
+  res.json({ success: true });
+
+  try {
+    const { gameId, slot, actionType } = req.body || {};
+    if (!gameId || !actionType) return;
+
+    const SCORES = {
+      buyProperty: 5,
+      buildHouse: 8,
+      buildHotel: 15,
+      proposeTrade: 5,
+      acceptTrade: 5,
+    };
+    const score = SCORES[actionType] ?? 5;
+
+    // Resolve ERC-8004 agent ID: prefer the registered agent's ID, fall back to env var
+    let erc8004AgentId = process.env.ERC8004_AGENT_ID;
+    if (gameId && slot) {
+      try {
+        const registered = agentRegistry.getAgentForSlot(Number(gameId), Number(slot));
+        if (registered?.user_agent_id) {
+          const userAgent = await UserAgent.findById(registered.user_agent_id);
+          if (userAgent?.erc8004_agent_id) {
+            erc8004AgentId = String(userAgent.erc8004_agent_id);
+          }
+        }
+        if (!erc8004AgentId || String(erc8004AgentId).trim() === "") return;
+        await submitErc8004Feedback(erc8004AgentId, score, "agentAction");
+      } catch (err) {
+        console.error("[agent-registry] action-feedback error:", err?.message);
+      }
+    }
+  } catch (_) { /* best-effort */ }
 });
 
 /**
