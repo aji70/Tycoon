@@ -138,7 +138,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
   const hamburgerButton = (
     <button
       onClick={() => setIsMobileMenuOpen(true)}
-      className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-xl bg-gradient-to-b from-[#022a2c] to-[#011112] border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_1px_0_rgba(255,255,255,0.06)] hover:shadow-[0_0_24px_rgba(0,240,255,0.25),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-[#00F0FF]/50 active:scale-[0.98] transition-all duration-200"
+      className="fixed top-[calc(env(safe-area-inset-top)+0.5rem+30px)] right-5 z-[999] w-12 h-12 rounded-xl bg-gradient-to-b from-[#022a2c] to-[#011112] border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_1px_0_rgba(255,255,255,0.06)] hover:shadow-[0_0_24px_rgba(0,240,255,0.25),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-[#00F0FF]/50 active:scale-[0.98] transition-all duration-200"
       aria-label="Open menu"
     >
       <Menu size={22} strokeWidth={2.5} />
@@ -197,7 +197,7 @@ const { data: fetchedUsername } = useGetUsername(safeAddress);
             }}
             transition={{ duration: 0.2 }}
             onClick={() => setIsMobileMenuOpen(true)}
-            className="fixed top-[calc(env(safe-area-inset-top)+0.5rem)] right-5 z-[999] w-12 h-12 rounded-xl bg-gradient-to-b from-[#022a2c] to-[#011112] border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_1px_0_rgba(255,255,255,0.06)] hover:shadow-[0_0_24px_rgba(0,240,255,0.25),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-[#00F0FF]/50 active:scale-[0.98] transition-all duration-200"
+            className="fixed top-[calc(env(safe-area-inset-top)+0.5rem+30px)] right-5 z-[999] w-12 h-12 rounded-xl bg-gradient-to-b from-[#022a2c] to-[#011112] border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15),inset_0_1px_0_rgba(255,255,255,0.06)] hover:shadow-[0_0_24px_rgba(0,240,255,0.25),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-[#00F0FF]/50 active:scale-[0.98] transition-all duration-200"
             aria-label="Open menu"
           >
             <Menu size={22} strokeWidth={2.5} />

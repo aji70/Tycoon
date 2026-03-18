@@ -284,8 +284,15 @@ export default function ProfilePageMobile() {
   const { tycAddress: tycTokenAddress, usdcAddress: usdcTokenAddress } = useRewardTokenAddresses();
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[chainId as keyof typeof TYCOON_CONTRACT_ADDRESSES];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
-  const { data: smartWalletAddress } = useUserRegistryWallet(walletAddress);
-  const smartWallet = isValidWallet(smartWalletAddress) ? smartWalletAddress : undefined;
+  const { guestUser } = useGuestAuthOptional() ?? {};
+  const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
+  const accountSmartWallet = isValidWallet(guestUser?.smart_wallet_address)
+    ? (guestUser!.smart_wallet_address as Address)
+    : undefined;
+  const smartWalletAddress = isValidWallet(registrySmartWallet)
+    ? (registrySmartWallet as Address)
+    : accountSmartWallet;
+  const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
@@ -570,7 +577,6 @@ export default function ProfilePageMobile() {
     toast.success('Bio saved');
   };
 
-  const { guestUser } = useGuestAuthOptional() ?? {};
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
       return <GuestProfileViewMobile guestUser={guestUser} />;
@@ -668,6 +674,11 @@ export default function ProfilePageMobile() {
               {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
                 <>
                   <span className="font-mono text-cyan-300/90">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
+                  {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
+                    <span className="text-[9px] text-slate-500">
+                      (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
+                    </span>
+                  ) : null}
                   <button type="button" onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Copied'); }} aria-label="Copy"><Copy className="w-3 h-3" /></button>
                   {!!walletAddress && (
                     <button
