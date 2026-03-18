@@ -15,6 +15,7 @@ import Chat from "../models/Chat.js";
 import { createGameByBackend, joinGameByBackend, isContractConfigured } from "../services/tycoonContract.js";
 import { createTournamentOnChain, registerForTournamentFor, isEscrowConfigured } from "../services/tournamentEscrow.js";
 import logger from "../config/logger.js";
+import agentRegistry from "./agentRegistry.js";
 
 const TOURNAMENT_SYMBOLS = ["hat", "car", "dog", "thimble", "wheelbarrow", "battleship", "boot", "iron"];
 const DEFAULT_STARTING_CASH = 1500;
@@ -416,6 +417,38 @@ async function createMatchGame(tournamentId, matchId) {
     chance_jail_card: false,
     community_chest_jail_card: false,
   });
+
+  // If entries were registered with agents, bind those agents to the match seats (slot 1/2).
+  try {
+    const entryAgentRows = await db("tournament_entry_agents")
+      .whereIn("tournament_entry_id", [entryA.id, entryB.id])
+      .select("tournament_entry_id", "user_agent_id", "agent_name");
+    const byEntryId = new Map(entryAgentRows.map((r) => [Number(r.tournament_entry_id), r]));
+    const a = byEntryId.get(Number(entryA.id));
+    const b = byEntryId.get(Number(entryB.id));
+    if (a?.user_agent_id) {
+      await agentRegistry.registerAgent({
+        gameId: game.id,
+        slot: 1,
+        agentId: String(a.user_agent_id),
+        user_agent_id: Number(a.user_agent_id),
+        chainId: 42220,
+        name: a.agent_name || "Agent",
+      });
+    }
+    if (b?.user_agent_id) {
+      await agentRegistry.registerAgent({
+        gameId: game.id,
+        slot: 2,
+        agentId: String(b.user_agent_id),
+        user_agent_id: Number(b.user_agent_id),
+        chainId: 42220,
+        name: b.agent_name || "Agent",
+      });
+    }
+  } catch (err) {
+    logger.warn({ err: err?.message, tournamentId, matchId }, "tournament entry agent binding failed");
+  }
 
   await TournamentMatch.update(matchId, {
     game_id: game.id,

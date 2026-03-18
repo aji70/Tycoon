@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
-import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle } from "lucide-react";
+import { House, Plus, Pencil, Trash2, Bot, Loader2, ExternalLink, Key, ShieldCheck, Server, Link2, CheckCircle2, XCircle, Trophy } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { toast } from "react-toastify";
@@ -45,6 +45,15 @@ type HostedCreditsData = {
   usdc_recipient?: string | null;
 };
 
+type TournamentPermission = {
+  user_id: number;
+  user_agent_id: number;
+  enabled: boolean;
+  max_entry_fee_usdc: string;
+  daily_cap_usdc: string | null;
+  chain: string | null;
+};
+
 export default function AgentsPageMobile() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
@@ -78,6 +87,13 @@ export default function AgentsPageMobile() {
   const [erc8004LoadState, setErc8004LoadState] = useState<null | "loading" | "has_one" | "has_none">(null);
   const [hostedCredits, setHostedCredits] = useState<HostedCreditsData | null>(null);
   const { agentSettings, updateAgentSettings } = useAgentSettings();
+  const [tournamentPerms, setTournamentPerms] = useState<Record<number, TournamentPermission>>({});
+  const [permModalAgent, setPermModalAgent] = useState<UserAgent | null>(null);
+  const [permEnabled, setPermEnabled] = useState(false);
+  const [permMaxFee, setPermMaxFee] = useState("0");
+  const [permChain, setPermChain] = useState<string>("CELO");
+  const [permPin, setPermPin] = useState("");
+  const [permSaving, setPermSaving] = useState(false);
 
   const fetchAgents = React.useCallback(async () => {
     setLoading(true);
@@ -93,6 +109,17 @@ export default function AgentsPageMobile() {
       const credRes = await apiClient.get<ApiResponse<HostedCreditsData>>("/agents/hosted-credits");
       if (credRes.data?.success && credRes.data.data) setHostedCredits(credRes.data.data);
       else setHostedCredits(null);
+      const permRes = await apiClient.get<ApiResponse<TournamentPermission[]>>("/agents/tournament-permissions");
+      const list = (permRes as any)?.data?.data?.data;
+      if (Array.isArray(list)) {
+        const map: Record<number, TournamentPermission> = {};
+        for (const p of list) {
+          if (p?.user_agent_id != null) map[Number(p.user_agent_id)] = p;
+        }
+        setTournamentPerms(map);
+      } else {
+        setTournamentPerms({});
+      }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
@@ -103,10 +130,42 @@ export default function AgentsPageMobile() {
         setAgents([]);
       }
       setHostedCredits(null);
+      setTournamentPerms({});
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const openTournamentPerms = (a: UserAgent) => {
+    const p = tournamentPerms[a.id];
+    setPermModalAgent(a);
+    setPermEnabled(!!p?.enabled);
+    setPermMaxFee("0");
+    setPermChain((p?.chain || "CELO") as string);
+    setPermPin("");
+  };
+
+  const saveTournamentPerms = async () => {
+    if (!permModalAgent) return;
+    setPermSaving(true);
+    try {
+      const payload: any = { enabled: permEnabled, chain: permChain, max_entry_fee_usdc: permMaxFee };
+      if (permEnabled) payload.pin = permPin;
+      const res = await apiClient.post(`/agents/${permModalAgent.id}/tournament-permissions`, payload);
+      if ((res as any)?.data?.success) {
+        toast.success("Saved");
+        await fetchAgents();
+        setPermModalAgent(null);
+      } else {
+        toast.error("Could not save");
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.message ?? "Failed";
+      toast.error(msg);
+    } finally {
+      setPermSaving(false);
+    }
+  };
 
   React.useEffect(() => {
     fetchAgents();
@@ -414,6 +473,93 @@ export default function AgentsPageMobile() {
 
   return (
     <div className="min-h-screen bg-settings bg-cover bg-fixed flex flex-col px-4 pt-24 pb-10">
+      {permModalAgent && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setPermModalAgent(null)}>
+          <div className="bg-[#0d1117] rounded-2xl border border-amber-500/30 p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-300" />
+                  Tournament auto-join
+                </h3>
+                <p className="text-xs text-gray-500 mt-1 truncate">Agent: {permModalAgent.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPermModalAgent(null)}
+                className="px-3 py-1.5 rounded-lg border border-gray-600 text-gray-200 hover:bg-white/5 text-xs"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="flex items-center justify-between gap-3 text-sm text-gray-200">
+                <span>Enable</span>
+                <input
+                  type="checkbox"
+                  checked={permEnabled}
+                  onChange={(e) => setPermEnabled(e.target.checked)}
+                  className="rounded border-gray-600 bg-black/40"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Max fee (USDC)</p>
+                  <input
+                    value={permMaxFee}
+                    onChange={(e) => setPermMaxFee(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                    placeholder="1"
+                  />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Chain</p>
+                  <select
+                    value={permChain}
+                    onChange={(e) => setPermChain(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                  >
+                    <option value="CELO">CELO</option>
+                    <option value="BASE">BASE</option>
+                    <option value="POLYGON">POLYGON</option>
+                  </select>
+                </div>
+              </div>
+              {permEnabled && (
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Withdrawal PIN</p>
+                  <input
+                    type="password"
+                    value={permPin}
+                    onChange={(e) => setPermPin(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-amber-500/30 text-white text-sm"
+                    placeholder="PIN"
+                  />
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPermModalAgent(null)}
+                  className="px-4 py-2 rounded-lg border border-gray-600 text-gray-200 hover:bg-white/5 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveTournamentPerms}
+                  disabled={permSaving}
+                  className="px-5 py-2 rounded-lg bg-amber-500/90 hover:bg-amber-400 text-black font-extrabold disabled:opacity-60 flex items-center gap-2 text-sm"
+                >
+                  {permSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-lg mx-auto w-full">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -484,6 +630,15 @@ export default function AgentsPageMobile() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openTournamentPerms(a)}
+                      className="p-2 rounded-lg border border-amber-500/40 text-amber-300"
+                      aria-label="Tournament auto-join"
+                      title="Tournament auto-join"
+                    >
+                      <Trophy className="w-3.5 h-3.5" />
+                    </button>
                     {!a.erc8004_agent_id && isCelo && (
                       <button
                         type="button"

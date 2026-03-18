@@ -8,6 +8,12 @@ import TournamentMatch from "../models/TournamentMatch.js";
 import TournamentRound from "../models/TournamentRound.js";
 import * as tournamentService from "../services/tournamentService.js";
 import logger from "../config/logger.js";
+import db from "../config/database.js";
+import User from "../models/User.js";
+import UserAgent from "../models/UserAgent.js";
+import { getChainConfig } from "../config/chains.js";
+import crypto from "crypto";
+import { signWithdrawalAuthUsdc, withdrawFromSmartWalletUsdc } from "../services/tycoonContract.js";
 
 export async function list(req, res) {
   try {
@@ -85,6 +91,127 @@ export async function register(req, res) {
     if (err?.message?.includes("Registration is closed") || err?.message?.includes("full")) return res.status(400).json({ success: false, message: err.message });
     logger.error({ err: err?.message }, "tournament register failed");
     return res.status(400).json({ success: false, message: err?.message || "Register failed" });
+  }
+}
+
+/**
+ * POST /tournaments/:id/auto-fill-agents
+ * Creator/admin convenience: auto-register eligible "bot agents" into the tournament (up to desired_count).
+ * Eligibility:
+ * - agent_tournament_permissions.enabled = true
+ * - permission chain matches tournament chain (or null)
+ * - max_entry_fee_usdc >= tournament.entry_fee_wei
+ * - one entry per user (tournament service enforces)
+ */
+export async function autoFillAgents(req, res) {
+  try {
+    const tournamentId = Number(req.params.id);
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found" });
+    if (tournament.status !== "REGISTRATION_OPEN") {
+      return res.status(400).json({ success: false, message: "Registration is closed" });
+    }
+
+    const chain = User.normalizeChain(tournament.chain);
+    const entryFeeUnits = BigInt(tournament.entry_fee_wei ?? 0);
+    const desired = Math.max(0, Math.min(Number(tournament.max_players || 32), Number(req.body?.desired_count ?? 32)));
+
+    const currentCount = await db("tournament_entries").where({ tournament_id: tournamentId }).count("* as c").first();
+    const alreadyCount = Number(currentCount?.c ?? 0);
+    const remaining = Math.max(0, desired - alreadyCount);
+    if (remaining <= 0) {
+      return res.json({ success: true, added: 0, message: "Tournament already has enough entries" });
+    }
+
+    const perms = await db("agent_tournament_permissions")
+      .where({ enabled: 1 })
+      .andWhere((qb) => qb.whereNull("chain").orWhere("chain", chain))
+      .select("user_id", "user_agent_id", "max_entry_fee_usdc", "daily_cap_usdc")
+      .orderBy("updated_at", "desc");
+
+    // One agent per user (tournament limits one entry per user/address).
+    const permByUser = new Map();
+    for (const p of perms || []) {
+      const uid = Number(p.user_id);
+      if (!permByUser.has(uid)) permByUser.set(uid, p);
+    }
+    const candidates = Array.from(permByUser.values()).filter((p) => BigInt(p.max_entry_fee_usdc ?? "0") >= entryFeeUnits);
+
+    let added = 0;
+    const cfg = getChainConfig(chain);
+    const escrow = cfg.tournamentEscrowAddress;
+    const usdc = cfg.usdcAddress ?? process.env.CELO_USDC_ADDRESS ?? process.env.USDC_ADDRESS;
+
+    for (const p of candidates) {
+      if (added >= remaining) break;
+      try {
+        const userId = Number(p.user_id);
+        // skip if already entered
+        const exists = await db("tournament_entries").where({ tournament_id: tournamentId, user_id: userId }).first();
+        if (exists) continue;
+
+        const user = await User.findById(userId);
+        if (!user?.smart_wallet_address) continue;
+        const smartWallet = String(user.smart_wallet_address).trim();
+        if (!smartWallet) continue;
+
+        let paymentTxHash = null;
+        if (entryFeeUnits > 0n) {
+          if (!escrow || !usdc) continue;
+          if (p.daily_cap_usdc) {
+            const cap = BigInt(p.daily_cap_usdc);
+            const start = new Date();
+            start.setHours(0, 0, 0, 0);
+            const rows = await db("agent_tournament_spend_log")
+              .where({ user_id: userId, user_agent_id: Number(p.user_agent_id), chain })
+              .andWhere("created_at", ">=", start)
+              .select("amount_usdc");
+            let spent = 0n;
+            for (const r of rows || []) {
+              try { spent += BigInt(r.amount_usdc ?? "0"); } catch {}
+            }
+            if (spent + entryFeeUnits > cap) continue;
+          }
+          const nonce = BigInt("0x" + crypto.randomBytes(8).toString("hex"));
+          const sig = await signWithdrawalAuthUsdc(smartWallet, usdc, escrow, entryFeeUnits, nonce, chain);
+          const receipt = await withdrawFromSmartWalletUsdc(smartWallet, escrow, entryFeeUnits, nonce, sig, chain);
+          paymentTxHash = receipt?.hash ?? null;
+          await db("agent_tournament_spend_log").insert({
+            user_id: userId,
+            user_agent_id: Number(p.user_agent_id),
+            tournament_id: tournamentId,
+            chain,
+            amount_usdc: entryFeeUnits.toString(),
+            tx_hash: paymentTxHash,
+            status: paymentTxHash ? "SUBMITTED" : "FAILED",
+            error: paymentTxHash ? null : "No tx hash returned",
+            created_at: db.fn.now(),
+            updated_at: db.fn.now(),
+          });
+          if (!paymentTxHash) continue;
+        }
+
+        const entry = await tournamentService.registerPlayer(String(tournamentId), { userId, address: null, chain }, paymentTxHash);
+        const agent = await UserAgent.findByIdAndUser(Number(p.user_agent_id), userId);
+        await db("tournament_entry_agents").insert({
+          tournament_entry_id: entry.id,
+          user_agent_id: Number(p.user_agent_id),
+          agent_name: agent?.name || null,
+          created_at: db.fn.now(),
+          updated_at: db.fn.now(),
+        });
+
+        added += 1;
+      } catch (err) {
+        // Keep going; best-effort fill.
+        logger.warn({ err: err?.message, tournamentId }, "autoFillAgents: candidate failed");
+      }
+    }
+
+    return res.json({ success: true, added });
+  } catch (err) {
+    logger.error({ err: err?.message }, "autoFillAgents failed");
+    return res.status(500).json({ success: false, message: err?.message || "Auto-fill failed" });
   }
 }
 
