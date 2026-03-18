@@ -29,6 +29,7 @@ import TradeAlertPill from "@/components/game/TradeAlertPill";
 import CollectibleInventoryBar from "@/components/collectibles/collectibles-invetory";
 import { Toaster, toast } from "react-hot-toast";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
+import { reportAiAction } from "@/lib/agentFeedback";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "@/components/game/constants";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
@@ -910,6 +911,7 @@ function Board3DPageContent() {
             const action = String(agentRes.data.data?.action ?? "").toLowerCase();
             if (action === "accept") {
               await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(game.id, slot, "acceptTrade");
             } else {
               await apiClient.post("/game-trade-requests/decline", { id: trade.id });
             }
@@ -920,6 +922,7 @@ function Board3DPageContent() {
           const fav = calculateAiFavorability(trade, properties);
           if (fav >= TRADE_ACCEPT_THRESHOLD) {
             await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
           } else {
             await apiClient.post("/game-trade-requests/decline", { id: trade.id });
           }
@@ -964,12 +967,14 @@ function Board3DPageContent() {
           const res = await apiClient.post<ApiResponse>("/game-trade-requests", payload);
           if (res?.data?.success) {
             maxTradeAttempts--;
+            reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
 
             if (isAIPlayer(targetPlayer)) {
               await new Promise((r) => setTimeout(r, 800));
               const favorability = calculateTradeFavorability({ ...payload, requested_amount: 0 }, targetPlayer.address!);
               if (favorability >= TRADE_FAVORABILITY_ACCEPT_RAW) {
                 await apiClient.post("/game-trade-requests/accept", { id: res.data.data.id });
+                reportAiAction(game.id, getAiSlotFromPlayer(targetPlayer) ?? 3, "acceptTrade");
                 await refetchGame();
               } else {
                 await apiClient.post("/game-trade-requests/decline", { id: res.data.data.id });
@@ -1010,6 +1015,7 @@ function Board3DPageContent() {
               user_id: player.user_id,
               property_id: gp.property_id,
             });
+            reportAiAction(game.id, getAiSlotFromPlayer(player) ?? 2, minHouses >= 4 ? "buildHotel" : "buildHouse");
             await new Promise((r) => setTimeout(r, 600));
             break;
           } catch (err) {
@@ -1583,6 +1589,7 @@ function Board3DPageContent() {
             game_id: game.id,
             property_id: square.id,
           });
+          reportAiAction(game.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "buyProperty");
         }
         await refetchGame();
         setTimeout(() => END_TURN(), 900);
@@ -1715,6 +1722,7 @@ function Board3DPageContent() {
               game_id: game.id,
               property_id: square.id,
             });
+            reportAiAction(game.id, 1, "buyProperty");
             toast.success(`Your agent bought ${square.name}.`);
           } else {
             toast(`Your agent skipped buying ${square.name}.`);

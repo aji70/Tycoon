@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api";
 import { Game, GameProperty, Property, Player } from "@/types/game";
 import { ApiResponse } from "@/types/api";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
+import { reportAiAction } from "@/lib/agentFeedback";
 import { MONOPOLY_STATS, BUILD_PRIORITY } from "./constants";
 
 interface UseMobileAiLogicParams {
@@ -123,6 +124,7 @@ export function useMobileAiLogic({
               user_id: player.user_id,
               property_id: gp.property_id,
             });
+            reportAiAction(currentGame.id, getAiSlotFromPlayer(player) ?? 2, minHouses >= 4 ? "buildHotel" : "buildHouse");
             built = true;
             await new Promise((r) => setTimeout(r, 900));
           } catch (err) {
@@ -231,6 +233,7 @@ export function useMobileAiLogic({
           game_id: currentGame.id,
           property_id: justLandedProperty.id,
         });
+        reportAiAction(currentGame.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "buyProperty");
         await fetchUpdatedGame();
       } catch (err) {
         console.error("AI purchase failed", err);
@@ -399,6 +402,7 @@ export function useMobileAiLogic({
             const action = String(agentRes.data.data?.action ?? "").toLowerCase();
             if (action === "accept") {
               await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+              reportAiAction(currentGame.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
               showToast("AI accepted trade offer 🤝", "success");
             } else {
               await apiClient.post("/game-trade-requests/decline", { id: trade.id });
@@ -410,6 +414,7 @@ export function useMobileAiLogic({
           const fav = calculateAiFavorability(trade, properties);
           if (fav >= TRADE_ACCEPT_THRESHOLD) {
             await apiClient.post("/game-trade-requests/accept", { id: trade.id });
+            reportAiAction(currentGame.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "acceptTrade");
             showToast("AI accepted trade offer 🤝", "success");
           } else {
             await apiClient.post("/game-trade-requests/decline", { id: trade.id });
@@ -474,6 +479,7 @@ export function useMobileAiLogic({
               `AI offered $${cashOffer}${offerProperties.length ? " + property" : ""} for ${missing.name}`,
               "default"
             );
+            reportAiAction(currentGame.id, getAiSlotFromPlayer(currentPlayer) ?? 2, "proposeTrade");
             maxTradeAttempts--;
             if (isAIPlayer(targetPlayer)) {
               await new Promise((r) => setTimeout(r, 800));
@@ -485,6 +491,7 @@ export function useMobileAiLogic({
                 await apiClient.post("/game-trade-requests/accept", {
                   id: res.data.data.id,
                 });
+                reportAiAction(currentGame.id, getAiSlotFromPlayer(targetPlayer) ?? 3, "acceptTrade");
                 showToast(
                   `${targetPlayer.username} accepted deal! 🤝`,
                   "success"
