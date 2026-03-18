@@ -279,6 +279,7 @@ function Board3DMobileContent() {
   const [jailChoiceRequired, setJailChoiceRequired] = useState(false);
   const [turnEndScheduled, setTurnEndScheduled] = useState(false);
   const [gameTimeUpLocal, setGameTimeUpLocal] = useState(false);
+  const [endGameReason, setEndGameReason] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState(false);
   const [cardData, setCardData] = useState<{ type: "chance" | "community"; text: string; effect?: string; isGood: boolean } | null>(null);
   const [cardPlayerName, setCardPlayerName] = useState("");
@@ -1430,8 +1431,14 @@ function Board3DMobileContent() {
               toast.success("Turn passed to next player.");
               await refetchGame();
             } else if (!ok && endMsg) {
-              toast.error(endMsg);
-              await refetchGame();
+              const endMsgLower = String(endMsg).toLowerCase();
+              // Expected during fast auto-moves / stale turn state. Suppress noise.
+              if (endMsgLower.includes("not your turn")) {
+                await refetchGame();
+              } else {
+                toast.error(endMsg);
+                await refetchGame();
+              }
             } else {
               await refetchGame();
             }
@@ -2389,12 +2396,16 @@ function Board3DMobileContent() {
     if (timeUpHandledRef.current || game?.status !== "RUNNING") return;
     timeUpHandledRef.current = true;
     setGameTimeUpLocal(true);
+    setEndGameReason(null);
+    setShowBankruptcyModal(false);
     try {
       const res = await apiClient.post<{
         success?: boolean;
+        message?: string;
         data?: { winner_id: number; game?: { players?: Player[] }; valid_win?: boolean };
       }>(`/games/${game!.id}/finish-by-time`);
       const data = res?.data?.data;
+      setEndGameReason(res?.data?.message ?? null);
       const winnerId = data?.winner_id;
       if (winnerId != null) {
         const updatedPlayers = data?.game?.players ?? game?.players ?? [];
@@ -2419,6 +2430,7 @@ function Board3DMobileContent() {
       console.error("Finish by time failed:", e);
       timeUpHandledRef.current = false;
       setGameTimeUpLocal(false);
+      setEndGameReason(null);
     }
   }, [game?.id, game?.status, game?.players, me, refetchGame]);
 
@@ -2426,6 +2438,7 @@ function Board3DMobileContent() {
 
   const handleDeclareBankruptcy = useCallback(async () => {
     if (!game?.id || !me) return;
+    if (gameTimeUpLocal || game?.status !== "RUNNING") return;
     toast("Declaring bankruptcy...", { icon: "…" });
     try {
       // Backend signs endAIGameByBackend when we PUT FINISHED (gasless for user)
@@ -2439,7 +2452,7 @@ function Board3DMobileContent() {
     } catch (err) {
       toast.error(getContractErrorMessage(err, "Failed to end game"));
     }
-  }, [game?.id, me, livePlayers]);
+  }, [game?.id, me, livePlayers, gameTimeUpLocal, game?.status]);
 
   // "My agent" with negative balance: auto-liquidate then declare bankruptcy
   // Placed here (after handleDeclareBankruptcy) to avoid TDZ reference error
@@ -3119,9 +3132,8 @@ function Board3DMobileContent() {
               >
                 <Crown className="w-20 h-20 mx-auto text-cyan-300 mb-4" />
                 <h1 className="text-4xl font-black text-white mb-2">YOU WIN</h1>
-                <p className="text-slate-200 mb-6">
-                  You had the highest net worth when time ran out.
-                </p>
+                <p className="text-slate-200 mb-2">You had the highest net worth when time ran out.</p>
+                {endGameReason && <p className="text-slate-400 mb-6 text-sm">{endGameReason}</p>}
                 {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                   <button
                     type="button"
@@ -3152,6 +3164,7 @@ function Board3DMobileContent() {
                   {winner.username} <span className="text-amber-400">wins</span>
                 </p>
                 <HeartHandshake className="w-12 h-12 mx-auto text-cyan-400 mb-4" />
+                {endGameReason && <p className="text-slate-400 mb-4 text-sm">{endGameReason}</p>}
                 <p className="text-slate-300 mb-6">You still get a consolation prize.</p>
                 {!isGuest && contractGame?.id && contractGame.id !== BigInt(0) && contractGame.ai ? (
                   <button
@@ -3177,7 +3190,7 @@ function Board3DMobileContent() {
       </AnimatePresence>
 
       <BankruptcyModal
-        isOpen={showBankruptcyModal}
+        isOpen={showBankruptcyModal && !gameTimeUpLocal}
         onClose={() => setShowBankruptcyModal(false)}
         onReturnHome={() => (window.location.href = "/")}
         tokensAwarded={0.5}
