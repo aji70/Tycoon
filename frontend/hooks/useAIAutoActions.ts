@@ -126,11 +126,15 @@ export const useAIAutoActions = ({
 
     if (completeGroups.length === 0) return;
 
+    // Only consider properties that are part of a complete color group
+    const completeGroupIds = new Set(completeGroups.flatMap(([_, ids]) => ids));
+
     // Prioritize cheaper house costs + even building
     const buildCandidates = game_properties
       .filter(
         (gp) =>
           aiOwnedIds.includes(gp.property_id) &&
+          completeGroupIds.has(gp.property_id) &&
           !gp.mortgaged &&
           (gp.development ?? 0) < 5
       )
@@ -160,8 +164,10 @@ export const useAIAutoActions = ({
         property_id: target.gp.property_id,
       });
       toast(`AI built a house on ${target.prop.name}!`);
-    } catch (err) {
-      console.error("AI build failed", err);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      console.error("AI build failed", msg || err);
+      if (msg) toast.error(`AI build failed: ${msg}`);
     }
   }, [game.id, game_properties, properties, currentPlayer]);
 
