@@ -7,6 +7,9 @@ import gameController, {
   joinAsGuest,
   createAIAsGuest,
   addAIPlayers,
+  createAgentVsAgent,
+  createAgentVsAI,
+  registerOpponentAgent,
   useMyAgent,
   stopUsingMyAgent,
   getAgentBindings,
@@ -46,8 +49,11 @@ router.post("/join", join);
 router.post("/leave", leave);
 router.post("/create-as-guest", requireAuth, createAsGuest);
 router.post("/create-ai-as-guest", requireAuth, createAIAsGuest);
+router.post("/create-agent-vs-agent", requireAuth, createAgentVsAgent);
+router.post("/create-agent-vs-ai", requireAuth, createAgentVsAI);
 router.post("/join-as-guest", requireAuth, joinAsGuest);
 router.post("/:id/add-ai-players", addAIPlayers);
+router.post("/:id/register-opponent-agent", requireAuth, registerOpponentAgent);
 router.get("/:id/agent-bindings", getAgentBindings);
 router.post("/:id/use-my-agent", requireAuth, useMyAgent);
 router.post("/:id/stop-using-my-agent", requireAuth, stopUsingMyAgent);

@@ -36,6 +36,26 @@ import { getActiveByGameId } from "./auctionController.js";
 import UserAgent from "../models/UserAgent.js";
 import agentRegistry from "../services/agentRegistry.js";
 
+const GAME_TYPES = {
+  PVP_HUMAN: "PVP_HUMAN",
+  AI_HUMAN_VS_AI: "AI_HUMAN_VS_AI",
+  AGENT_VS_AI: "AGENT_VS_AI",
+  AGENT_VS_AGENT: "AGENT_VS_AGENT",
+};
+
+/** Generate a 6-character join code (A–Z, 0–9). */
+function generateJoinCode6() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I to reduce confusion
+  let out = "";
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+function normalizeJoinCode(code) {
+  const c = code != null ? String(code).trim().toUpperCase() : "";
+  return c;
+}
+
 // AI bot addresses (must match frontend) — used to create DB players for guest AI games so we have 2+ players from the start.
 const AI_ADDRESSES = [
   "0xA1FF1c93600c3487FABBdAF21B1A360630f8bac6",
@@ -312,6 +332,7 @@ const gameController = {
         duration,
         chain,
         id: contractGameId,
+        game_type,
       } = req.body;
       const normalizedChain = User.normalizeChain(chain);
       const user = await User.resolveUserByAddress(address, normalizedChain);
@@ -333,6 +354,7 @@ const gameController = {
         duration,
         chain,
         contract_game_id: contractGameId != null ? String(contractGameId) : null,
+        game_type: game_type || (is_ai ? GAME_TYPES.AI_HUMAN_VS_AI : GAME_TYPES.PVP_HUMAN),
       });
 
       const chat = await Chat.create({
@@ -1128,6 +1150,363 @@ const gameController = {
   },
 };
 
+/**
+ * POST /games/create-agent-vs-agent
+ * Body:
+ *  - number_of_players: 2..8
+ *  - duration?: number (minutes) (optional; 0 or missing => untimed)
+ *  - chain?: string (for usernames/user creation; does not require on-chain)
+ *  - settings?: house rules (auction, rent_in_prison, mortgage, even_build, randomize_play_order, starting_cash)
+ *  - agents: array of length N, each:
+ *      { slot: 1..8, user_agent_id?: number } OR { slot, callbackUrl, agentId, name?, chainId? }
+ *
+ * This creates a RUNNING game where all seats are AI users, and each slot is controlled by an agent binding.
+ * It is designed for autonomous backend-runner execution (no browser tab required).
+ */
+export const createAgentVsAgent = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const {
+      number_of_players,
+      duration = 0,
+      chain,
+      settings = {},
+      agents = [],
+      code: rawCode,
+    } = req.body || {};
+
+    const n = Math.max(2, Math.min(8, Number(number_of_players) || 0));
+    if (!n || n < 2 || n > 8) {
+      return res.status(400).json({ success: false, message: "number_of_players must be between 2 and 8" });
+    }
+    if (!Array.isArray(agents) || agents.length < n) {
+      return res.status(400).json({
+        success: false,
+        message: `agents must be an array with at least ${n} entries (one per slot)`,
+      });
+    }
+
+    const normalizedChain = User.normalizeChain(chain || "CELO");
+    const startingCash = Number(settings?.starting_cash ?? 1500);
+
+    // Use provided code or generate a unique-ish one server-side (fallback).
+    let code = normalizeJoinCode(rawCode);
+    if (!code) code = generateJoinCode6();
+    if (code.length !== 6) {
+      return res.status(400).json({ success: false, message: "code must be exactly 6 characters" });
+    }
+
+    // Ensure code doesn't already exist
+    const existingGame = await Game.findByCode(code);
+    if (existingGame) {
+      return res.status(400).json({ success: false, message: "Game code already exists" });
+    }
+
+    // Create game as RUNNING so the runner can start immediately.
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: user.id,
+      next_player_id: null, // set after players seeded
+      number_of_players: n,
+      status: "RUNNING",
+      is_minipay: false,
+      is_ai: true,
+      duration: String(Number(duration) || 0),
+      chain: normalizedChain,
+      contract_game_id: null,
+      game_type: GAME_TYPES.AGENT_VS_AGENT,
+      started_at: db.fn.now(),
+    });
+
+    await Chat.create({ game_id: game.id, status: "open" });
+
+    const gs = await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? false,
+      starting_cash: startingCash,
+      // ai difficulty fields are not relevant here; agent bindings decide behavior
+    });
+
+    // Seed players using reserved AI users/addresses (seat 1..N).
+    const availableSymbols = [...AI_SYMBOLS];
+    const players = [];
+    for (let i = 0; i < n; i++) {
+      const aiUser = await getOrCreateAIUser(i, normalizedChain);
+      if (!aiUser) {
+        return res.status(500).json({ success: false, message: `Failed to create AI user for slot ${i + 1}` });
+      }
+      const sym = availableSymbols[i % availableSymbols.length] || "hat";
+      const gp = await GamePlayer.create({
+        game_id: game.id,
+        user_id: aiUser.id,
+        address: aiUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: i + 1,
+        symbol: sym,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+      players.push(gp);
+    }
+
+    // First turn: seat 1
+    const first = players.find((p) => Number(p.turn_order) === 1) || players[0];
+    if (first?.user_id) {
+      await Game.update(game.id, { next_player_id: first.user_id });
+      await GamePlayer.setTurnStart(game.id, first.user_id);
+    }
+
+    // Register agent bindings for slots 1..N (game-specific).
+    for (let slot = 1; slot <= n; slot++) {
+      const entry = agents.find((a) => Number(a?.slot) === slot) || agents[slot - 1];
+      if (!entry) continue;
+      const payload = {
+        gameId: game.id,
+        slot,
+        agentId: entry.agentId || entry.agent_id || String(entry.user_agent_id || entry.userAgentId || ""),
+        callbackUrl: entry.callbackUrl || entry.callback_url || null,
+        user_agent_id: entry.user_agent_id || entry.userAgentId || null,
+        chainId: entry.chainId || entry.chain_id || 42220,
+        name: entry.name || `Agent ${slot}`,
+      };
+      await agentRegistry.registerAgent(payload);
+    }
+
+    await recordEvent("game_created", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { game_type: GAME_TYPES.AGENT_VS_AGENT, number_of_players: n },
+    });
+
+    const io = req.app.get("io");
+    if (io && game.code) {
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-started", { game: await Game.findById(game.id) });
+    }
+
+    const fullGame = await Game.findById(game.id);
+    const fullPlayers = await GamePlayer.findByGameId(game.id);
+    return res.status(201).json({
+      success: true,
+      data: { ...fullGame, settings: gs, players: fullPlayers },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createAgentVsAgent failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create Agent vs Agent game" });
+  }
+};
+
+/**
+ * POST /games/create-agent-vs-ai
+ * Body:
+ *  - ai_count: 1..7 (opponents). total players = ai_count + 1
+ *  - duration?: number (minutes)
+ *  - chain?: string
+ *  - settings?: house rules
+ *  - my_agent: { user_agent_id } OR { callbackUrl, agentId, name?, chainId? } (binds slot 1, game-specific)
+ *  - opponent_agents?: array for slots 2..N (optional; if omitted, internal AI fallback is used by agentRegistry)
+ *
+ * Creates a RUNNING game where slot 1 is controlled by an agent and slots 2..N are AI seats.
+ */
+export const createAgentVsAI = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user?.id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const {
+      ai_count,
+      duration = 30,
+      chain,
+      settings = {},
+      my_agent,
+      opponent_agents = [],
+      code: rawCode,
+    } = req.body || {};
+
+    const aiCount = Math.max(1, Math.min(7, Number(ai_count) || 0));
+    if (!aiCount) {
+      return res.status(400).json({ success: false, message: "ai_count must be between 1 and 7" });
+    }
+    const n = aiCount + 1;
+
+    if (!my_agent || (my_agent.user_agent_id == null && !my_agent.callbackUrl && !my_agent.callback_url)) {
+      return res.status(400).json({ success: false, message: "my_agent is required (user_agent_id or callbackUrl)" });
+    }
+
+    const normalizedChain = User.normalizeChain(chain || "CELO");
+    const startingCash = Number(settings?.starting_cash ?? 1500);
+
+    let code = normalizeJoinCode(rawCode);
+    if (!code) code = generateJoinCode6();
+    if (code.length !== 6) {
+      return res.status(400).json({ success: false, message: "code must be exactly 6 characters" });
+    }
+
+    const existingGame = await Game.findByCode(code);
+    if (existingGame) {
+      return res.status(400).json({ success: false, message: "Game code already exists" });
+    }
+
+    const game = await Game.create({
+      code,
+      mode: "PRIVATE",
+      creator_id: user.id,
+      next_player_id: null,
+      number_of_players: n,
+      status: "RUNNING",
+      is_minipay: false,
+      is_ai: true,
+      duration: String(Number(duration) || 0),
+      chain: normalizedChain,
+      contract_game_id: null,
+      game_type: GAME_TYPES.AGENT_VS_AI,
+      started_at: db.fn.now(),
+    });
+
+    await Chat.create({ game_id: game.id, status: "open" });
+
+    const gs = await GameSetting.create({
+      game_id: game.id,
+      auction: settings?.auction ?? true,
+      rent_in_prison: settings?.rent_in_prison ?? false,
+      mortgage: settings?.mortgage ?? true,
+      even_build: settings?.even_build ?? true,
+      randomize_play_order: settings?.randomize_play_order ?? false,
+      starting_cash: startingCash,
+      ...buildAiDifficultyPayload(settings?.ai_difficulty || "boss", settings?.ai_difficulty_mode || "random", aiCount, true),
+    });
+
+    // Seed players: seat 1 is creator's AI user (still a real user row), seats 2..N are AI users.
+    const availableSymbols = [...AI_SYMBOLS];
+    const players = [];
+    for (let i = 0; i < n; i++) {
+      const aiUser = await getOrCreateAIUser(i, normalizedChain);
+      if (!aiUser) {
+        return res.status(500).json({ success: false, message: `Failed to create AI user for slot ${i + 1}` });
+      }
+      const sym = availableSymbols[i % availableSymbols.length] || "hat";
+      const gp = await GamePlayer.create({
+        game_id: game.id,
+        user_id: aiUser.id,
+        address: aiUser.address,
+        balance: startingCash,
+        position: 0,
+        turn_order: i + 1,
+        symbol: sym,
+        chance_jail_card: false,
+        community_chest_jail_card: false,
+      });
+      players.push(gp);
+    }
+
+    const first = players.find((p) => Number(p.turn_order) === 1) || players[0];
+    if (first?.user_id) {
+      await Game.update(game.id, { next_player_id: first.user_id });
+      await GamePlayer.setTurnStart(game.id, first.user_id);
+    }
+
+    // Register slot 1 = my agent (game-specific).
+    await agentRegistry.registerAgent({
+      gameId: game.id,
+      slot: 1,
+      agentId: my_agent.agentId || my_agent.agent_id || String(my_agent.user_agent_id || my_agent.userAgentId || ""),
+      callbackUrl: my_agent.callbackUrl || my_agent.callback_url || null,
+      user_agent_id: my_agent.user_agent_id || my_agent.userAgentId || null,
+      chainId: my_agent.chainId || my_agent.chain_id || 42220,
+      name: my_agent.name || "My Agent",
+    });
+
+    // Optional: register opponent agents (slots 2..N)
+    if (Array.isArray(opponent_agents)) {
+      for (const entry of opponent_agents) {
+        const slot = Number(entry?.slot);
+        if (!slot || slot < 2 || slot > n) continue;
+        await agentRegistry.registerAgent({
+          gameId: game.id,
+          slot,
+          agentId: entry.agentId || entry.agent_id || String(entry.user_agent_id || entry.userAgentId || ""),
+          callbackUrl: entry.callbackUrl || entry.callback_url || null,
+          user_agent_id: entry.user_agent_id || entry.userAgentId || null,
+          chainId: entry.chainId || entry.chain_id || 42220,
+          name: entry.name || `Agent ${slot}`,
+        });
+      }
+    }
+
+    await recordEvent("game_created", {
+      entityType: "game",
+      entityId: game.id,
+      payload: { game_type: GAME_TYPES.AGENT_VS_AI, ai_count: aiCount },
+    });
+
+    const io = req.app.get("io");
+    if (io && game.code) {
+      emitGameUpdate(io, game.code);
+      io.to(game.code).emit("game-started", { game: await Game.findById(game.id) });
+    }
+
+    const fullGame = await Game.findById(game.id);
+    const fullPlayers = await GamePlayer.findByGameId(game.id);
+    return res.status(201).json({
+      success: true,
+      data: { ...fullGame, settings: gs, players: fullPlayers },
+    });
+  } catch (err) {
+    logger.error({ err: err?.message }, "createAgentVsAI failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to create Agent vs AI game" });
+  }
+};
+
+/**
+ * POST /games/:id/register-opponent-agent
+ * Host-only. Binds an agent to a slot (2..8) for this game (game-specific binding).
+ * Body: { slot, user_agent_id? } OR { slot, callbackUrl, agentId, name?, chainId? }
+ */
+export const registerOpponentAgent = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+
+    const gameId = Number(req.params.id);
+    const game = await Game.findById(gameId);
+    if (!game) return res.status(404).json({ success: false, message: "Game not found" });
+    if (Number(game.creator_id) !== Number(userId)) {
+      return res.status(403).json({ success: false, message: "Only the game creator can register opponent agents" });
+    }
+
+    const { slot, user_agent_id, callbackUrl, callback_url, agentId, agent_id, name, chainId, chain_id } = req.body || {};
+    const s = Number(slot);
+    if (!s || s < 2 || s > 8) return res.status(400).json({ success: false, message: "slot must be 2..8" });
+
+    const payload = {
+      gameId,
+      slot: s,
+      agentId: agentId || agent_id || String(user_agent_id || ""),
+      callbackUrl: callbackUrl || callback_url || null,
+      user_agent_id: user_agent_id || null,
+      chainId: chainId || chain_id || 42220,
+      name: name || `Agent ${s}`,
+    };
+    const result = await agentRegistry.registerAgent(payload);
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    logger.error({ err: err?.message }, "registerOpponentAgent failed");
+    return res.status(500).json({ success: false, message: err?.message || "Failed to register opponent agent" });
+  }
+};
+
 export const create = async (req, res) => {
   try {
     const {
@@ -1141,6 +1520,7 @@ export const create = async (req, res) => {
       is_ai,
       duration,
       chain,
+      game_type,
     } = req.body;
     const normalizedChain = User.normalizeChain(chain);
     const user = await User.resolveUserByAddress(address, normalizedChain);
@@ -1169,6 +1549,7 @@ export const create = async (req, res) => {
       is_ai,
       duration,
       chain,
+      game_type: game_type || (is_ai ? GAME_TYPES.AI_HUMAN_VS_AI : GAME_TYPES.PVP_HUMAN),
     });
 
     const aiDiff = req.body.ai_difficulty || settings?.ai_difficulty || "boss";

@@ -19,6 +19,7 @@ This project combines **strategic gameplay** with **true ownership** and **trans
 
 - **Play vs AI** — You play against AI opponents. Create a game from **Play with AI**, choose settings (e.g. number of AI players), then start. Your wallet must be **registered on-chain** before playing.
 - **Play vs Humans (PvP)** — Multiplayer with real players. One person **creates a game** (game settings, entry stake, number of players) and gets a **6-character game code**. Others **join by code** (Join Room), enter the code, and are taken to the **waiting room**.
+- **Agent vs Agent (Autonomous)** — Up to **8 agents** play against each other. The backend advances turns automatically (no browser required). Each seat maps to a **slot (1–8)** backed by a registered agent (callback URL or Tycoon-hosted agent).
 
 ### Getting into a game
 
@@ -181,6 +182,7 @@ See [Contract addresses](#-contract-addresses) for addresses. In `frontend/.env.
 - **Pre-roll flow** — Agent uses perks (e.g. Jail Free, Instant Cash, Lucky 7) → then build on monopolies → then roll.
 - **ERC-8004** — Optional Agent Trust Protocol on Celo (identity/reputation); backend can submit feedback after AI games.
 - **Internal AI (backend)** — Anthropic-based opponent for “Play vs AI” when configured in backend env.
+- **Autonomous agent battles (backend runner)** — When `ENABLE_AGENT_GAME_RUNNER=true`, the backend can run **Agent vs Agent** matches without any connected clients.
 
 ### Perks & collectibles
 
