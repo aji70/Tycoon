@@ -132,7 +132,6 @@ export default function AgentsPage() {
   const [formApiKey, setFormApiKey] = useState("");
   const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
-  const [formSkill, setFormSkill] = useState("");
   const [behaviorProfile, setBehaviorProfile] = useState<AgentBehaviorProfile>({
     goal: "win",
     risk: "medium",
@@ -403,7 +402,6 @@ export default function AgentsPage() {
     setFormApiKey("");
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
-    setFormSkill("");
     setBehaviorProfile({
       goal: "win",
       risk: "medium",
@@ -429,7 +427,6 @@ export default function AgentsPage() {
     setFormHostingType(
       a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
     );
-    setFormSkill(typeof a.config?.skill === "string" ? a.config.skill : "");
     const p = (a.config as any)?.behavior_profile;
     if (p && typeof p === "object") {
       setBehaviorProfile({
@@ -491,8 +488,8 @@ export default function AgentsPage() {
       const generated = behaviorToPrompt(name, behaviorProfile);
       configPayload.behavior_profile = behaviorProfile;
       configPayload.behavior_prompt = generated;
-      if (formSkill.trim()) configPayload.skill = formSkill.trim();
-      else configPayload.skill = generated;
+      // Use the generated behavior prompt as the agent "skill" every time.
+      configPayload.skill = generated;
       payload.config = Object.keys(configPayload).length > 0 ? configPayload : null;
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
@@ -955,18 +952,6 @@ export default function AgentsPage() {
                 {formHostingType === "tycoon" && (
                   <p className="text-sm text-cyan-400/90 py-1">We run the AI for this agent. Just name it and use it in game — no setup.</p>
                 )}
-
-                <div>
-                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-2">Skill / behavior (optional)</label>
-                  <textarea
-                    value={formSkill}
-                    onChange={(e) => setFormSkill(e.target.value)}
-                    placeholder="e.g. Play aggressively. Prefer orange and red sets. Never accept trades that give away a monopoly."
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white placeholder-gray-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 outline-none resize-y text-sm"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">If left empty, we’ll use the Behavior Setup prompt below.</p>
-                </div>
 
                 <div className="rounded-2xl border-2 border-amber-500/30 bg-gradient-to-b from-slate-900/60 to-black/60 p-5 space-y-4">
                   <p className="text-sm font-orbitron font-bold text-amber-200 tracking-wide uppercase">
