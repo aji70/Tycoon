@@ -714,7 +714,15 @@ export default function Profile() {
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
 
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress);
-  const smartWalletAddress = isValidWallet(registrySmartWallet) ? registrySmartWallet : undefined;
+  // Smart wallet can come from on-chain registry OR from the logged-in account (guest/Privy)
+  // Depending on the connected chain / registry deployment, the registry lookup may be empty even though
+  // the account has a smart wallet created on another supported chain. Prefer registry, then fall back.
+  const accountSmartWallet = isValidWallet(guestUser?.smart_wallet_address)
+    ? (guestUser!.smart_wallet_address as Address)
+    : undefined;
+  const smartWalletAddress = isValidWallet(registrySmartWallet)
+    ? (registrySmartWallet as Address)
+    : accountSmartWallet;
   const smartWallet = smartWalletAddress;
   const { data: smartWalletOwner } = useProfileOwner(smartWallet);
 
@@ -1111,12 +1119,17 @@ export default function Profile() {
                     {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
-                {/* Smart wallet: always show so users know where to find it */}
+                {/* Smart wallet: show the best-known value (registry or account), without contradictions */}
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
                   <span className="text-slate-500 text-xs">Smart wallet:</span>
                   {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
                     <>
                       <span className="text-cyan-300/90 font-mono text-xs truncate max-w-full">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
+                      {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
+                        <span className="text-[10px] text-slate-500">
+                          (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
+                        </span>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Smart wallet address copied'); }}

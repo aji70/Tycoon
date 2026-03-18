@@ -339,7 +339,34 @@ function Board3DPageContent() {
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
   const playerCanRoll = isLiveGame && isMyTurn && (me?.balance ?? 0) > 0 && !gameTimeUp && !turnEndScheduled && !buyPrompted && !(meInJail && jailChoiceRequired);
 
-  const livePlayers = useMemo(() => game?.players ?? [], [game?.players]);
+  const { bindings, myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+
+  const livePlayersRaw = useMemo(() => game?.players ?? [], [game?.players]);
+  const isAgentBattle = useMemo(() => {
+    const t = String((game as any)?.game_type ?? "");
+    return t === "AGENT_VS_AI" || t === "AGENT_VS_AGENT";
+  }, [game]);
+
+  const agentNameBySlot = useMemo(() => {
+    if (!isAgentBattle) return new Map<number, string>();
+    const map = new Map<number, string>();
+    (bindings ?? []).forEach((b) => {
+      const slot = Number((b as any)?.slot);
+      const name = String((b as any)?.name ?? "").trim();
+      if (slot > 0 && name) map.set(slot, name);
+    });
+    return map;
+  }, [bindings, isAgentBattle]);
+
+  const livePlayers = useMemo(() => {
+    if (!isAgentBattle) return livePlayersRaw;
+    return livePlayersRaw.map((p) => {
+      const slot = Number((p as any)?.turn_order);
+      const agentName = agentNameBySlot.get(slot);
+      if (!agentName) return p;
+      return { ...p, username: agentName };
+    });
+  }, [isAgentBattle, livePlayersRaw, agentNameBySlot]);
   const liveAnimatedPositions = useMemo(() => {
     const out: Record<number, number> = {};
     livePlayers.forEach((p) => {
@@ -354,11 +381,9 @@ function Board3DPageContent() {
   const [strategyRanThisTurn, setStrategyRanThisTurn] = useState(false);
 
   const currentPlayer = useMemo(() => {
-    if (!game?.players || currentPlayerId == null) return null;
-    return game.players.find((p: Player) => p.user_id === currentPlayerId) ?? null;
-  }, [game?.players, currentPlayerId]);
-
-  const { myAgentOn, refetch: refetchAgentBindings } = useAgentBindings(game?.id);
+    if (!livePlayers || currentPlayerId == null) return null;
+    return livePlayers.find((p: Player) => p.user_id === currentPlayerId) ?? null;
+  }, [livePlayers, currentPlayerId]);
   const [myAgentApiKey, setMyAgentApiKeyState] = useState<{ provider: string; apiKey: string } | null>(() => getStoredAgentApiKey());
   const setMyAgentApiKey = useCallback((value: { provider: string; apiKey: string } | null) => {
     setMyAgentApiKeyState(value);

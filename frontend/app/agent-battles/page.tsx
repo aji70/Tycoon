@@ -31,6 +31,7 @@ export default function AgentBattlesPage() {
   const [playerCount, setPlayerCount] = useState(2);
   const [aiCount, setAiCount] = useState(1);
   const [duration, setDuration] = useState(30);
+  const [useCustomCode, setUseCustomCode] = useState(false);
   const [code, setCode] = useState(() => randomCode6());
   const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([0, 0]);
   const [creating, setCreating] = useState(false);
@@ -87,7 +88,7 @@ export default function AgentBattlesPage() {
 
   const canCreate = useMemo(() => {
     if (creating) return false;
-    if (!code || code.trim().length !== 6) return false;
+    if (useCustomCode && (!code || code.trim().length !== 6)) return false;
     if (mode === "agent_vs_agent" && (playerCount < 2 || playerCount > 8)) return false;
     if (mode === "agent_vs_ai" && (aiCount < 1 || aiCount > 7)) return false;
     if (agents.length === 0) return false;
@@ -95,7 +96,7 @@ export default function AgentBattlesPage() {
       return selectedAgentIds.length === playerCount && selectedAgentIds.every((id) => id > 0);
     }
     return selectedAgentIds.length === 1 && selectedAgentIds[0] > 0;
-  }, [creating, code, playerCount, aiCount, mode, agents.length, selectedAgentIds]);
+  }, [creating, useCustomCode, code, playerCount, aiCount, mode, agents.length, selectedAgentIds]);
 
   const handleCreate = async () => {
     if (!canCreate) return;
@@ -111,7 +112,7 @@ export default function AgentBattlesPage() {
       };
 
       const base = {
-        code: code.trim().toUpperCase(),
+        ...(useCustomCode ? { code: code.trim().toUpperCase() } : {}),
         duration,
         chain: "CELO",
         settings,
@@ -131,12 +132,12 @@ export default function AgentBattlesPage() {
             });
 
       const game = (res as any)?.data?.data;
-      const gameCode = game?.code || base.code;
+      const gameCode = game?.code || (useCustomCode ? (base as any).code : null) || "";
       toast.success(`Match created: ${gameCode}`);
       try {
         localStorage.setItem("gameCode", gameCode);
       } catch {}
-      router.push(`/ai-play?gameCode=${encodeURIComponent(gameCode)}`);
+      router.push(`/board-3d?gameCode=${encodeURIComponent(gameCode)}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create match";
       toast.error(msg);
@@ -220,19 +221,37 @@ export default function AgentBattlesPage() {
 
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-black/60 rounded-2xl p-6 border border-cyan-500/30">
-                <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Game code</p>
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
-                  className="w-full px-4 py-3 rounded-xl bg-black/70 border border-cyan-500/40 text-white font-mono tracking-widest text-center text-lg"
-                />
-                <button
-                  type="button"
-                  onClick={() => setCode(randomCode6())}
-                  className="mt-3 w-full px-4 py-2 rounded-xl border border-slate-600 text-slate-200 hover:bg-white/5"
-                >
-                  Randomize
-                </button>
+                <p className="text-xs text-slate-400 uppercase tracking-wide mb-3">Game code</p>
+                <label className="flex items-center gap-2 text-sm text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={useCustomCode}
+                    onChange={(e) => setUseCustomCode(e.target.checked)}
+                    className="rounded border-slate-600 bg-black/40"
+                  />
+                  Use custom code
+                </label>
+                {useCustomCode ? (
+                  <>
+                    <input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
+                      className="mt-3 w-full px-4 py-3 rounded-xl bg-black/70 border border-cyan-500/40 text-white font-mono tracking-widest text-center text-lg"
+                      aria-label="Custom game code"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCode(randomCode6())}
+                      className="mt-3 w-full px-4 py-2 rounded-xl border border-slate-600 text-slate-200 hover:bg-white/5"
+                    >
+                      Randomize
+                    </button>
+                  </>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-400">
+                    A code will be generated automatically when you create the match.
+                  </p>
+                )}
               </div>
 
               {mode === "agent_vs_agent" ? (
