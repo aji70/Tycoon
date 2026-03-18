@@ -81,7 +81,20 @@ function buildTradePrompt(context) {
   const { myBalance = 0, myProperties = [], opponents = [], opponentMonopolies } = context;
   const monopolies = getMonopolies(myProperties || []).join(", ") || "None";
   const oppMonos = opponentMonopolies != null ? ` Opponent monopolies: ${opponentMonopolies}.` : "";
-  return `Monopoly trade. Receive: $${trade.offer_amount ?? 0}, props ${(trade.offer_properties || []).join(",") || "none"}. Give: $${trade.requested_amount ?? 0}, props ${(trade.requested_properties || []).join(",") || "none"}. Balance: $${myBalance}. My monopolies: ${monopolies}.${oppMonos} Does it complete my monopoly? Theirs? Fair? Avoid giving them a monopoly. If you counter, suggest cashAdjustment: positive = I want more from them, negative = I add cash. JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (cashAdjustment only if action is "counter")`;
+
+  // Resolve property names from myProperties or from the trade offer ids directly
+  const allKnownProps = [...(myProperties || [])];
+  const resolvePropName = (id) => {
+    const found = allKnownProps.find((p) => (p.id ?? p.property_id) === id);
+    return found?.name ? `${found.name}($${found.price ?? "?"})` : `#${id}`;
+  };
+
+  const receiveProps = (trade.offer_properties || []).map(resolvePropName).join(", ") || "none";
+  const giveProps = (trade.requested_properties || []).map(resolvePropName).join(", ") || "none";
+  const receiveCash = trade.offer_amount ?? 0;
+  const giveCash = trade.requested_amount ?? 0;
+
+  return `Monopoly trade offer received. You (AI) are evaluating whether to accept. Receive: $${receiveCash} cash + properties [${receiveProps}]. Give: $${giveCash} cash + properties [${giveProps}]. Your balance: $${myBalance}. Your monopolies: ${monopolies}.${oppMonos} Key questions: Does receiving these properties complete or progress YOUR monopoly? Does giving away these properties help the OPPONENT complete theirs? Is the cash fair for the property values? Accept if you gain more value than you give, or if it completes your set. Decline if it would hand them a monopoly or costs too much. Counter if roughly fair but slightly off. If you counter, cashAdjustment > 0 means you want more cash from them, < 0 means you add cash to sweeten the deal. JSON only: {"action":"accept"|"decline"|"counter","reasoning":"brief","confidence":85,"counterOffer":{"cashAdjustment":0}} (counterOffer only if action is "counter")`;
 }
 
 function buildBuildingPrompt(context) {
