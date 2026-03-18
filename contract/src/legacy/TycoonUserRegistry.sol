@@ -235,11 +235,19 @@ contract TycoonUserRegistry is Ownable, ReentrancyGuard {
 
     /// @notice Existing user creates a new smart wallet; profile is updated to the new wallet. Callable by the profile owner.
     /// @dev Old wallet is unchanged (same owner, funds remain). User can withdraw from old wallet to new one manually.
-    /// New wallet gets current defaults: operator, withdrawal authority, daily cap, Naira vault.
     function recreateWalletForUser() external nonReentrant returns (address newWallet) {
-        UserProfile storage profile = profileByAddress[msg.sender];
+        return _recreateWalletFor(msg.sender);
+    }
+
+    /// @notice Backend recreates smart wallet for a profile owner (e.g. guest without connected wallet). Callable by game or registry owner.
+    function recreateWalletForUserByBackend(address profileOwner) external onlyGame nonReentrant returns (address newWallet) {
+        if (profileOwner == address(0)) revert InvalidAddress();
+        return _recreateWalletFor(profileOwner);
+    }
+
+    function _recreateWalletFor(address ownerAddress) internal returns (address newWallet) {
+        UserProfile storage profile = profileByAddress[ownerAddress];
         if (!profile.exists) revert NoProfile();
-        address ownerAddress = msg.sender;
         address oldWallet = profile.wallet;
 
         newWallet = address(new TycoonUserWallet(ownerAddress, address(this), nairaVaultAddress, defaultDailyCapUsd6, defaultPriceCeloUsd6));

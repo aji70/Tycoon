@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { 
   BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag, 
@@ -115,9 +115,8 @@ const isValidWallet = (a: unknown): a is Address => {
 /** Guest/Privy profile when wallet is not connected: username, Account & login, game count; full on-chain stats when user has linked wallet. */
 function GuestProfileViewMobile({
   guestUser,
-  isConnected,
-  onRecreateWallet,
-  recreateWalletPending,
+  onRecreateClick,
+  recreatePending,
 }: {
   guestUser: {
     address: string;
@@ -125,9 +124,8 @@ function GuestProfileViewMobile({
     linked_wallet_address?: string | null;
     smart_wallet_address?: string | null;
   };
-  isConnected?: boolean;
-  onRecreateWallet?: () => Promise<unknown>;
-  recreateWalletPending?: boolean;
+  onRecreateClick?: () => void | Promise<void>;
+  recreatePending?: boolean;
 }) {
   const username = guestUser.username;
   // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
@@ -386,23 +384,11 @@ function GuestProfileViewMobile({
         {shortSmartWalletAddress && (
           <button
             type="button"
-            disabled={!isConnected || recreateWalletPending}
-            onClick={async () => {
-              if (!isConnected) {
-                toast.info('Connect your wallet to recreate your smart wallet');
-                return;
-              }
-              try {
-                await onRecreateWallet?.();
-                toast.info('Creating new smart wallet…');
-              } catch (e: any) {
-                toast.error(e?.shortMessage ?? e?.message ?? 'Failed');
-              }
-            }}
+            disabled={recreatePending}
+            onClick={async () => { await onRecreateClick?.(); }}
             className="w-full px-4 py-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60 disabled:hover:bg-cyan-500/15"
-            title={!isConnected ? 'Connect your wallet to use' : undefined}
           >
-            {recreateWalletPending ? 'Creating…' : !isConnected ? 'Recreate smart wallet (connect wallet to use)' : 'Recreate smart wallet'}
+            {recreatePending ? 'Creating…' : 'Recreate smart wallet'}
           </button>
         )}
 
@@ -806,14 +792,31 @@ export default function ProfilePageMobile() {
     toast.success('Bio saved');
   };
 
+  const guestAuth = useGuestAuthOptional();
+  const refetchGuest = guestAuth?.refetchGuest;
+  const [recreateApiPending, setRecreateApiPending] = useState(false);
+
+  const handleRecreateViaApi = useCallback(async () => {
+    setRecreateApiPending(true);
+    try {
+      await apiClient.post<ApiResponse & { data?: { smart_wallet_address?: string } }>('auth/recreate-smart-wallet');
+      await refetchGuest?.();
+      toast.success('Smart wallet recreated');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(err?.response?.data?.message ?? err?.message ?? 'Failed to recreate');
+    } finally {
+      setRecreateApiPending(false);
+    }
+  }, [refetchGuest]);
+
   if (!isConnected || loading || error || !userData) {
     if (guestUser && !isConnected) {
       return (
         <GuestProfileViewMobile
           guestUser={guestUser}
-          isConnected={isConnected}
-          onRecreateWallet={recreateWallet}
-          recreateWalletPending={recreateWalletPending}
+          onRecreateClick={handleRecreateViaApi}
+          recreatePending={recreateApiPending}
         />
       );
     }
