@@ -214,16 +214,14 @@ export function useMobileAiLogic({
       } else {
         const balanceAfter = balance - price;
         const reserveOk = balanceAfter >= 500;
-        const goodLandingRank = landingRank <= 12;
-        const affordable = balance >= price * 2.2 && reserveOk;
-        shouldBuy = completesMonopoly || (goodLandingRank && affordable);
+        // Buy anything we can afford while keeping a $500 reserve.
+        // Completing a monopoly overrides even the reserve check.
+        shouldBuy = completesMonopoly || (balance >= price && reserveOk);
       }
     } catch (_) {
       const balanceAfter = balance - price;
       const reserveOk = balanceAfter >= 500;
-      const goodLandingRank = landingRank <= 12;
-      const affordable = balance >= price * 2.2 && reserveOk;
-      shouldBuy = completesMonopoly || (goodLandingRank && affordable);
+      shouldBuy = completesMonopoly || (balance >= price && reserveOk);
     }
 
     if (shouldBuy) {

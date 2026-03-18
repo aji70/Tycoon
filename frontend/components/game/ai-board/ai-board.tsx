@@ -1367,10 +1367,8 @@ const endTurnAfterSpecialMove = useCallback(() => {
         } else {
           const balanceAfter = (currentPlayer.balance ?? 0) - justLandedProperty.price;
           const reserveOk = balanceAfter >= 500;
-          shouldBuy =
-            buyScore >= 78 &&
-            (currentPlayer.balance ?? 0) >= justLandedProperty.price * 2.2 &&
-            (reserveOk || (groupIds.length > 0 && ownedInGroup === groupIds.length - 1));
+          // Buy if we can afford it and keep reserve. Monopoly completion bypasses reserve.
+          shouldBuy = completesMonopoly || ((currentPlayer.balance ?? 0) >= justLandedProperty.price && reserveOk);
           if (shouldBuy) {
             showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
           } else {
@@ -1380,10 +1378,7 @@ const endTurnAfterSpecialMove = useCallback(() => {
       } catch (_) {
         const balanceAfter = (currentPlayer.balance ?? 0) - justLandedProperty.price;
         const reserveOk = balanceAfter >= 500;
-        shouldBuy =
-          buyScore >= 78 &&
-          (currentPlayer.balance ?? 0) >= justLandedProperty.price * 2.2 &&
-          (reserveOk || (groupIds.length > 0 && ownedInGroup === groupIds.length - 1));
+        shouldBuy = completesMonopoly || ((currentPlayer.balance ?? 0) >= justLandedProperty.price && reserveOk);
         if (shouldBuy) {
           showToast(`AI bought ${justLandedProperty.name} (score: ${buyScore}%)`, "success");
         } else {
