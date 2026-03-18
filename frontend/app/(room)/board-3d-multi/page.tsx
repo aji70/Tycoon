@@ -26,6 +26,7 @@ import CollectibleInventoryBar from "@/components/collectibles/collectibles-inve
 import { Toaster, toast } from "react-hot-toast";
 import { CardModal } from "@/components/game/modals/cards";
 import { BankruptcyModal } from "@/components/game/modals/bankruptcy";
+import RaiseFundsPanel from "@/components/game/modals/RaiseFundsPanel";
 import PropertyDetailModal3D from "@/components/game/board3d/PropertyDetailModal3D";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2753,15 +2754,16 @@ function Board3DPageContent() {
           )}
         </AnimatePresence>
 
-        {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
-            <button
-              onClick={handleDeclareBankruptcy}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold"
-            >
-              Declare bankruptcy
-            </button>
-          </div>
+        {isLiveGame && isMyTurn && (me?.balance ?? 0) <= 0 && me && game && (
+          <RaiseFundsPanel
+            me={me}
+            game={game}
+            gameProperties={gameProperties}
+            properties={properties}
+            onRefetch={async () => { await refetchGame(); await refetchGameProperties(); }}
+            onDeclareBankruptcy={handleDeclareBankruptcy}
+            bottomClass="bottom-4"
+          />
         )}
       </div>
 
