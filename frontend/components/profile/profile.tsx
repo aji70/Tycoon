@@ -678,7 +678,9 @@ export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
   const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
   const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
-  const { guestUser } = useGuestAuthOptional() ?? {};
+  const guestAuth = useGuestAuthOptional();
+  const guestUser = guestAuth?.guestUser ?? null;
+  const guestLoading = guestAuth?.isLoading ?? false;
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -717,9 +719,10 @@ export default function Profile() {
   // Smart wallet can come from on-chain registry OR from the logged-in account (guest/Privy)
   // Depending on the connected chain / registry deployment, the registry lookup may be empty even though
   // the account has a smart wallet created on another supported chain. Prefer registry, then fall back.
-  const accountSmartWallet = isValidWallet(guestUser?.smart_wallet_address)
-    ? (guestUser!.smart_wallet_address as Address)
-    : undefined;
+  const accountSmartWallet =
+    guestUser && isValidWallet(guestUser.smart_wallet_address)
+      ? (guestUser.smart_wallet_address as Address)
+      : undefined;
   const smartWalletAddress = isValidWallet(registrySmartWallet)
     ? (registrySmartWallet as Address)
     : accountSmartWallet;
@@ -1158,7 +1161,9 @@ export default function Profile() {
                       )}
                     </>
                   ) : (
-                    <span className="text-slate-500 text-xs italic">— (register in-game to get one)</span>
+                    <span className="text-slate-500 text-xs italic">
+                      {guestLoading ? "Loading…" : "— (register in-game to get one)"}
+                    </span>
                   )}
                 </div>
               </div>

@@ -16,6 +16,12 @@ type UserAgent = {
   use_tycoon_key?: boolean;
 };
 
+function autoAssignAgentIds(agents: UserAgent[], desiredLen: number): number[] {
+  const ids = agents.map((a) => a.id).filter((id) => Number(id) > 0);
+  if (ids.length === 0) return Array.from({ length: desiredLen }, () => 0);
+  return Array.from({ length: desiredLen }, (_, i) => ids[i % ids.length]);
+}
+
 function randomCode6() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -85,6 +91,24 @@ export default function AgentBattlesPage() {
       return next;
     });
   }, [playerCount, agents, mode]);
+
+  // If agents list changes (or loads late), make sure all slots point at a real agent id.
+  useEffect(() => {
+    if (agents.length === 0) return;
+    const valid = new Set(agents.map((a) => a.id));
+    const desiredLen = mode === "agent_vs_agent" ? playerCount : 1;
+    setSelectedAgentIds((prev) => {
+      const next = prev.length === desiredLen ? [...prev] : autoAssignAgentIds(agents, desiredLen);
+      let changed = false;
+      for (let i = 0; i < desiredLen; i++) {
+        if (!valid.has(next[i])) {
+          next[i] = agents[0].id;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [agents, mode, playerCount]);
 
   const canCreate = useMemo(() => {
     if (creating) return false;
@@ -306,6 +330,20 @@ export default function AgentBattlesPage() {
               <p className="text-sm font-semibold text-slate-200 mb-4">
                 {mode === "agent_vs_agent" ? "Assign agents to slots" : "Pick your agent"}
               </p>
+              {mode === "agent_vs_agent" && agents.length > 0 && (
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <p className="text-xs text-slate-400">
+                    We can auto-fill seats using your agents (cycles if you have fewer agents than players).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAgentIds(autoAssignAgentIds(agents, playerCount))}
+                    className="shrink-0 px-3 py-2 rounded-xl border border-slate-600 text-slate-200 hover:bg-white/5 text-xs font-semibold"
+                  >
+                    Auto-assign
+                  </button>
+                </div>
+              )}
               <div className="grid md:grid-cols-2 gap-4">
                 {Array.from({ length: mode === "agent_vs_agent" ? playerCount : 1 }).map((_, idx) => (
                   <div key={idx} className="flex items-center gap-3">
