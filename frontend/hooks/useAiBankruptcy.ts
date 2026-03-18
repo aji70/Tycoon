@@ -36,7 +36,7 @@ export function useAiBankruptcy({
   // AI: Sell houses
   const aiSellHouses = async (needed: number): Promise<number> => {
     const improved = game_properties
-      .filter(gp => gp.address === currentPlayer?.address && (gp.development ?? 0) > 0)
+      .filter(gp => gp.address?.toLowerCase() === currentPlayer?.address?.toLowerCase() && (gp.development ?? 0) > 0)
       .sort((a, b) => {
         const pa = properties.find(p => p.id === a.property_id);
         const pb = properties.find(p => p.id === b.property_id);
@@ -72,7 +72,7 @@ export function useAiBankruptcy({
   // AI: Mortgage properties
   const aiMortgageProperties = async (needed: number): Promise<number> => {
     const unmortgaged = game_properties
-      .filter(gp => gp.address === currentPlayer?.address && !gp.mortgaged && gp.development === 0)
+      .filter(gp => gp.address?.toLowerCase() === currentPlayer?.address?.toLowerCase() && !gp.mortgaged && gp.development === 0)
       .map(gp => ({ gp, prop: properties.find(p => p.id === gp.property_id) }))
       .filter(({ prop }) => prop?.price)
       .sort((a, b) => (b.prop?.price || 0) - (a.prop?.price || 0));
@@ -153,7 +153,7 @@ export function useAiBankruptcy({
           : null;
 
         const aiProperties = game_properties.filter(
-          gp => gp.address === currentPlayer.address
+          gp => gp.address?.toLowerCase() === currentPlayer.address?.toLowerCase()
         );
 
         let successCount = 0;

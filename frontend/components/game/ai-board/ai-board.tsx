@@ -46,6 +46,7 @@ function totalToDice(total: number): { die1: number; die2: number; total: number
 import { MONOPOLY_STATS, BOARD_SQUARES, ROLL_ANIMATION_MS, MOVE_ANIMATION_MS_PER_SQUARE, JAIL_POSITION, getDiceValues, BUILD_PRIORITY } from "../constants";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { isAIPlayer, getAiSlotFromPlayer, TRADE_FAVORABILITY_ACCEPT_RAW, calculateAiFavorability, TRADE_ACCEPT_THRESHOLD } from "@/utils/gameUtils";
+import { useAiBankruptcy } from "@/hooks/useAiBankruptcy";
 
 const calculateBuyScore = (
   property: Property,
@@ -219,6 +220,18 @@ const AiBoard = ({
   const playerCanRoll = Boolean(
     isMyTurn && currentPlayer && (currentPlayer.balance ?? 0) > 0 && !gameTimeUp
   );
+
+  // AI with negative balance: liquidate then declare bankruptcy automatically
+  useAiBankruptcy({
+    isAITurn,
+    currentPlayer: currentPlayer ?? null,
+    game_properties,
+    properties,
+    game,
+    refetchGame: onRefetchGame
+      ? async () => { await onRefetchGame(); return undefined; }
+      : undefined,
+  });
 
   const currentPlayerInJail = currentPlayer?.position === JAIL_POSITION && Boolean(currentPlayer?.in_jail);
 
@@ -1141,6 +1154,8 @@ const endTurnAfterSpecialMove = useCallback(() => {
 
   useEffect(() => {
     if (!isAITurn || isRolling || actionLock || roll || rolledForPlayerId.current === currentPlayerId || !strategyRanThisTurn) return;
+    // Do not roll when AI has negative balance — useAiBankruptcy will liquidate / bankrupt first
+    if ((currentPlayer?.balance ?? 0) < 0) return;
     const timer = setTimeout(() => ROLL_DICE(true), 1500);
     return () => clearTimeout(timer);
   }, [isAITurn, isRolling, actionLock, roll, currentPlayerId, ROLL_DICE, strategyRanThisTurn]);
