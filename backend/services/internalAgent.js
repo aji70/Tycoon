@@ -73,7 +73,7 @@ function buildPropertyPrompt(context) {
   const oppMonos = opponentMonopolies != null ? ` Opponent monopolies: ${opponentMonopolies}.` : "";
   const price = Number(landedProperty.price) || 0;
   const balanceAfter = myBalance - price;
-  return `Monopoly: buy or skip? Be SELECTIVE — default to skip unless clearly good value or completing a monopoly. Property: ${landedProperty.name ?? "?"} $${price} ${landedProperty.color ?? ""}. Rank #${landedProperty.landingRank ?? "?"} (lower=better). Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Your balance: $${myBalance} (after buy: $${balanceAfter}). Own ${(myProperties || []).length} props, ${monopolies.length} monopolies. Opponents: ${opps}.${phase}${oppMonos} HARD RULES: (1) MUST skip if balance after buy would be under $${CASH_RESERVE_MIN} unless this completes a monopoly. (2) Prefer skip for weak sets (brown, dark blue), high rank (>15), or when you already have many properties. (3) Buy mainly when: completes monopoly, or strong set (orange/red/yellow) with rank <10 and balance after stays >= $${CASH_RESERVE_MIN}. JSON only: {"action":"buy"|"skip","reasoning":"brief reason","confidence":85}`;
+  return `Monopoly AI: buy or skip this property? Default strategy is BUY — acquiring properties is how you win. Only skip if you truly can't afford it or it hurts your position. Property: ${landedProperty.name ?? "?"} $${price} ${landedProperty.color ?? ""}. Rank #${landedProperty.landingRank ?? "?"} (lower=better). Completes monopoly: ${landedProperty.completesMonopoly ? "Y" : "N"}. Your balance: $${myBalance} (after buy: $${balanceAfter}). Own ${(myProperties || []).length} props, ${monopolies.length} monopolies. Opponents: ${opps}.${phase}${oppMonos} RULES: (1) MUST skip only if price > balance or balance after would be under $${CASH_RESERVE_MIN} (unless completing a monopoly). (2) Buy everything else — all color groups, railroads, utilities are valuable. (3) Completing a monopoly is always worth it even if cash falls below reserve. JSON only: {"action":"buy"|"skip","reasoning":"brief reason","confidence":85}`;
 }
 
 function buildTradePrompt(context) {
@@ -123,12 +123,12 @@ function buildTipPrompt(context) {
       ? `They have ${landedProperty.ownedInGroup} of ${landedProperty.groupSize} in this set.`
       : landedProperty.completesMonopoly ? "Buying this COMPLETES their set." : "";
     const strategyNote = [
-      "Best sets: orange, red, yellow (high traffic). Brown/darkblue weaker.",
-      "Rank 1-10 = strong property, 20+ = weaker.",
-      "Keep $500+ cash if possible; avoid buying if balance after would be under $300.",
-      "Railroads/utilities: lower priority unless completing set.",
+      "Buy most properties — owning land is how you win Monopoly.",
+      "Orange, red, yellow are the highest traffic. All railroads together are very strong.",
+      "Only skip if you genuinely can't afford it (balance would drop below $300) and it doesn't complete a set.",
+      "Completing ANY color set is almost always worth buying even if tight on cash.",
     ].join(" ");
-    return `Monopoly: human landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Rules: ${strategyNote} Recommend either buy or skip. Give ONE short tip in plain language. Be specific: e.g. "Buy — completes set" or "Skip — save cash". One sentence, max 12 words. No jargon. Put the actual tip text in reasoning. JSON only: {"action":"buy"|"skip","reasoning":"your one-sentence tip"}`;
+    return `Monopoly tip for human player: they landed on ${landedProperty.name ?? "?"}. Price: $${price}. Color/set: ${color}. Quality rank: ${rank} (lower=better, 1-10 strong). Rent (site only): $${rentSite}. Completes set: ${landedProperty.completesMonopoly ? "YES" : "NO"}. ${setProgress} Their balance: $${myBalance}; after buying: $${balanceAfter}. Opponents: ${opps}. Their monopolies: ${(monopolies || []).join(", ") || "none"}. Strategy context: ${strategyNote} Give ONE short tip telling them buy or skip and why. Be specific and encouraging. Examples: "Buy — completes your orange set!" or "Buy — railroads pay well" or "Skip — you'd be nearly broke". One sentence, max 12 words. Put the actual tip text in reasoning. JSON only: {"action":"buy"|"skip","reasoning":"your one-sentence tip"}`;
   }
   return `Monopoly turn. Balance: $${myBalance}. Recommend buy or skip. One short tip, one sentence. Put the actual tip in reasoning. JSON only: {"action":"buy"|"skip","reasoning":"tip"}`;
 }
@@ -145,7 +145,7 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
   switch (decisionType) {
     case "property":
       prompt = buildPropertyPrompt(context);
-      fallback = { action: "skip", reasoning: "No API", confidence: 0 };
+      fallback = { action: "buy", reasoning: "Buy by default — properties win games.", confidence: 50 };
       break;
     case "trade":
       prompt = buildTradePrompt(context);
@@ -161,7 +161,7 @@ async function runDecisionWithClient(anthropic, decisionType, context, opts = {}
       break;
     case "tip":
       prompt = buildTipPrompt(context);
-      fallback = { action: "skip", reasoning: "Buy if it completes a set; otherwise save cash." };
+      fallback = { action: "buy", reasoning: "Buy it — owning properties is how you win!" };
       break;
     default:
       return { action: "wait", reasoning: "Unknown type.", confidence: 0 };
