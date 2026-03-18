@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import type { ApiResponse } from "@/types/api";
-import { Loader2, Bot, Plus, House } from "lucide-react";
+import { Loader2, Bot, Plus, House, QrCode } from "lucide-react";
 import { toast } from "react-toastify";
+import { QRCodeSVG } from "qrcode.react";
 
 type UserAgent = {
   id: number;
@@ -74,6 +75,7 @@ export default function AgentBattlesPage() {
   const [loadingLobby, setLoadingLobby] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [startingLobby, setStartingLobby] = useState(false);
+  const [showQrForSlot, setShowQrForSlot] = useState<number | null>(null);
 
   const lobbyIdParam = searchParams?.get("lobby");
   const lobbyTokenParam = searchParams?.get("token");
@@ -339,8 +341,8 @@ export default function AgentBattlesPage() {
       const res = await apiClient.post<any>(`/games/${id}/start-onchain-agent-vs-agent`, {});
       const game = (res as any)?.data?.data;
       const gameCode = game?.code || lobby?.code || "";
-      toast.success("Game started on-chain");
-      router.push(`/board-3d?gameCode=${encodeURIComponent(gameCode)}`);
+      toast.success("Game started on-chain. Share the board link with other players so they can watch.");
+      router.push(`/board-3d-multi?gameCode=${encodeURIComponent(gameCode)}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? "Failed to start game";
       toast.error(msg);
@@ -418,11 +420,47 @@ export default function AgentBattlesPage() {
               </div>
             </div>
 
+            {lobby.status === "RUNNING" && lobby.code ? (
+              <div className="bg-emerald-950/60 rounded-2xl p-6 border border-emerald-500/50">
+                <p className="text-sm font-semibold text-emerald-200 mb-2">Game in progress</p>
+                <p className="text-xs text-slate-300 mb-4">
+                  The game has started. Open the board to watch or continue. Share the game code with other players so they can join the board too.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-lg text-white bg-black/40 px-3 py-2 rounded-lg">{lobby.code}</span>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/board-3d-multi?gameCode=${encodeURIComponent(lobby.code)}`)}
+                    className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10] font-bold"
+                  >
+                    Go to board
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const origin = typeof window !== "undefined" ? window.location.origin : "";
+                      const url = `${origin}/board-3d-multi?gameCode=${encodeURIComponent(lobby.code)}`;
+                      try {
+                        await navigator.clipboard.writeText(url);
+                        toast.success("Board link copied");
+                      } catch {
+                        toast.error("Could not copy link");
+                      }
+                    }}
+                    className="px-4 py-2.5 rounded-xl border border-slate-500 text-slate-200 hover:bg-white/5 text-sm font-medium"
+                  >
+                    Copy board link
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="bg-black/60 rounded-2xl p-6 border border-purple-500/30">
               <p className="text-sm font-semibold text-slate-200 mb-4">Slots</p>
               <div className="space-y-3">
                 {lobby.invites?.map((inv) => (
-                  <div key={inv.id} className="flex flex-col md:flex-row md:items-center gap-3 justify-between border border-white/5 rounded-xl p-4">
+                  <div key={inv.id} className="flex flex-col gap-2">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border border-white/5 rounded-xl p-4">
                     <div className="min-w-0">
                       <p className="text-sm text-slate-200">
                         <span className="font-mono text-slate-400">Slot {inv.slot}</span>{" "}
@@ -434,20 +472,48 @@ export default function AgentBattlesPage() {
                       <p className="text-xs text-slate-400 mt-1">
                         {inv.status === "ACCEPTED"
                           ? `Agent: ${inv.agent_name || "—"}`
-                          : "Share the invite link so another user can accept with their own agent."}
+                          : "Share the invite link or QR so another user can accept with their own agent."}
                       </p>
                     </div>
                     {inv.status === "OPEN" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleCopyInvite(inv.token)}
-                        className="shrink-0 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
-                      >
-                        Copy invite link
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyInvite(inv.token)}
+                          className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
+                        >
+                          Copy link
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowQrForSlot(showQrForSlot === inv.slot ? null : inv.slot)}
+                          className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
+                            showQrForSlot === inv.slot
+                              ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
+                              : "border-slate-500 text-slate-200 hover:bg-white/5"
+                          }`}
+                        >
+                          <QrCode className="w-4 h-4" />
+                          {showQrForSlot === inv.slot ? "Hide QR" : "Share QR"}
+                        </button>
+                      </div>
                     ) : (
                       <div className="text-xs text-slate-500 shrink-0">—</div>
                     )}
+                    </div>
+                  {inv.status === "OPEN" && showQrForSlot === inv.slot && (() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "";
+                    const id = lobby?.id ?? lobbyIdParam;
+                    const qrUrl = `${origin}/agent-battles?lobby=${encodeURIComponent(String(id))}&token=${encodeURIComponent(inv.token)}`;
+                    return (
+                      <div className="mt-2 flex justify-center p-4 bg-black/40 rounded-xl border border-white/10">
+                        <div className="flex flex-col items-center gap-2">
+                          <QRCodeSVG value={qrUrl} size={160} level="M" className="rounded-lg" />
+                          <p className="text-xs text-slate-400">Scan to join with your agent</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   </div>
                 ))}
               </div>

@@ -12,7 +12,12 @@ import agentRegistry from "./agentRegistry.js";
 const ENABLED = process.env.ENABLE_AGENT_GAME_RUNNER === "true";
 const POLL_MS = Math.max(500, Number(process.env.AGENT_GAME_RUNNER_POLL_MS) || 2000);
 
-const GAME_TYPES = new Set(["AGENT_VS_AGENT", "AGENT_VS_AI"]);
+const GAME_TYPES = new Set([
+  "AGENT_VS_AGENT",
+  "AGENT_VS_AI",
+  "ONCHAIN_AGENT_VS_AGENT",
+  "ONCHAIN_AGENT_VS_AI",
+]);
 
 // Simple in-process locks: gameId -> Promise chain
 const locks = new Map();
