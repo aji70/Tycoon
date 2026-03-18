@@ -221,9 +221,7 @@ export const useAIAutoActions = ({
       ) {
         toast(`Agent chose not to build: ${agentRes.data.data.reasoning}`);
       }
-      if (agentRes?.data?.success && agentRes.data.useBuiltIn === true) {
-        toast("Using built-in rules for building (no agent or no credits).", { id: "agent-built-in-building" });
-      }
+      
     } catch (_) {
       /* fallback to built-in */
     }
