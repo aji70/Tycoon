@@ -1279,9 +1279,11 @@ export default function Profile() {
                     Member since {new Date(userData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                   </p>
                 )}
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
-                  <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{userData.shortAddress || walletAddress}</span>
-                  <button
+                <div className="flex flex-col gap-1 mt-4">
+                  <span className="text-slate-500 text-xs">Connected wallet</span>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <span className="text-slate-400 font-mono text-xs sm:text-sm truncate max-w-full">{userData.shortAddress || walletAddress}</span>
+                    <button
                     type="button"
                     onClick={copyAddress}
                     className="p-2 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 transition shrink-0"
@@ -1289,6 +1291,7 @@ export default function Profile() {
                   >
                     {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
+                  </div>
                 </div>
                 {/* Smart wallet: show the best-known value (registry or account), without contradictions */}
                 <div className="flex flex-col gap-2 mt-2">
@@ -1317,7 +1320,7 @@ export default function Profile() {
                       </span>
                     )}
                   </div>
-                  {!!walletAddress && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                  {isConnected && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
                     <button
                       type="button"
                       onClick={async () => {
