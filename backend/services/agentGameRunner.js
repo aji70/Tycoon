@@ -73,6 +73,128 @@ function isBuyableProperty(prop) {
   return !["corner", "chance", "community_chest", "income_tax", "luxury_tax", "special"].includes(t);
 }
 
+function isHouseBuildableType(propType) {
+  // In this game, houses/hotels are only for the colored "property" tiles.
+  // Railroads/utilities don't build houses.
+  return String(propType || "").toLowerCase() === "property";
+}
+
+async function maybeBuildHouses({ gameId, gp, slot, myBalance }) {
+  // gp is a row from game_players (contains: id, user_id, in_jail?, position, balance, turn_order, etc.)
+  if (!gp?.id) return;
+
+  // Owned properties for this game seat (game_properties.player_id references game_players.id)
+  const ownedProps = await db("game_properties")
+    .where({ game_id: gameId, player_id: gp.id })
+    .select("property_id", "development", "mortgaged");
+
+  if (!ownedProps?.length) return;
+
+  const ownedPropertyIds = ownedProps.map((o) => Number(o.property_id));
+  const ownedById = new Map(ownedProps.map((o) => [Number(o.property_id), o]));
+
+  // Load metadata for owned properties
+  const ownedMeta = await db("properties")
+    .whereIn("id", ownedPropertyIds)
+    .select("id", "type", "group_id", "cost_of_house");
+
+  const ownedMetaById = new Map(ownedMeta.map((p) => [Number(p.id), p]));
+
+  // Consider only groups that contain buildable "property" tiles.
+  const candidateGroupIds = Array.from(
+    new Set(
+      ownedMeta
+        .filter((p) => isHouseBuildableType(p.type))
+        .map((p) => Number(p.group_id || 0))
+        .filter((gid) => gid > 0)
+    )
+  );
+  if (!candidateGroupIds.length) return;
+
+  // Fetch full set of properties per candidate group (again only buildable "property" tiles)
+  const groupProps = await db("properties")
+    .whereIn("group_id", candidateGroupIds)
+    .andWhereRaw("LOWER(type) = 'property'")
+    .select("id", "group_id", "type", "cost_of_house");
+
+  const groupToPropIds = new Map();
+  for (const p of groupProps) {
+    const gid = Number(p.group_id || 0);
+    if (!groupToPropIds.has(gid)) groupToPropIds.set(gid, []);
+    groupToPropIds.get(gid).push(Number(p.id));
+  }
+
+  // Buildable candidates: complete monopoly groups, non-mortgaged props, development < 5, affordable
+  const buildCandidates = [];
+
+  for (const gid of candidateGroupIds) {
+    const ids = groupToPropIds.get(gid) || [];
+    if (!ids.length) continue;
+
+    // Must own every property in the group
+    const ownsAll = ids.every((id) => ownedById.has(id));
+    if (!ownsAll) continue;
+
+    // Can't build on mortgaged properties; and we disallow that group if any property is mortgaged.
+    const anyMortgaged = ids.some((id) => Boolean(ownedById.get(id)?.mortgaged));
+    if (anyMortgaged) continue;
+
+    for (const pid of ids) {
+      const owned = ownedById.get(pid);
+      if (!owned) continue;
+      const dev = Number(owned.development ?? 0);
+      if (dev >= 5) continue;
+      const meta = ownedMetaById.get(pid);
+      const cost = Number(meta?.cost_of_house ?? 0);
+      if (cost <= 0) continue;
+      if (myBalance < cost) continue;
+      buildCandidates.push({ propertyId: pid, development: dev, cost, groupId: gid });
+    }
+  }
+
+  if (!buildCandidates.length) return;
+
+  // Try the agent decision first (preferred).
+  // If it fails or points to a non-candidate, fallback to a safe heuristic.
+  try {
+    const decision = await agentRegistry.getAIDecision(gameId, slot, "building", {
+      myBalance,
+      // Provide enough info for smarter agents without bloating context.
+      myProperties: buildCandidates.map((c) => ({
+        propertyId: c.propertyId,
+        development: c.development,
+        cost_of_house: c.cost,
+        group_id: c.groupId,
+      })),
+    });
+
+    const wantsBuild = String(decision?.action || "").toLowerCase() === "build";
+    const targetId = wantsBuild ? Number(decision?.propertyId ?? decision?.property_id ?? 0) : 0;
+    const target = buildCandidates.find((c) => c.propertyId === targetId);
+    if (target) {
+      await post("/game-properties/development", {
+        user_id: gp.user_id,
+        game_id: gameId,
+        property_id: target.propertyId,
+      });
+      return;
+    }
+  } catch (err) {
+    logger.warn({ err: err?.message, gameId, slot }, "agent build decision failed; using fallback");
+  }
+
+  // Fallback: build on the lowest-development candidate (typical Monopoly building rule).
+  buildCandidates.sort((a, b) => (a.development ?? 0) - (b.development ?? 0) || (a.cost ?? 0) - (b.cost ?? 0));
+  const target = buildCandidates[0];
+  if (!target) return;
+
+  await post("/game-properties/development", {
+    user_id: gp.user_id,
+    game_id: gameId,
+    property_id: target.propertyId,
+  });
+}
+
 async function stepGame(game) {
   const gameId = Number(game.id);
   if (!gameId || game.status !== "RUNNING") return;
@@ -86,10 +208,61 @@ async function stepGame(game) {
   if (!gp) return;
   const slot = Math.max(1, Math.min(8, Number(gp.turn_order || 1)));
 
+  // Pre-roll build phase: agents should build on their turn start when they have monopoly.
+  // This mirrors the frontend "pre-roll build" flow and avoids only building on turns
+  // where they happen to land on an unowned property.
+  const myBalance = Number(gp.balance || 0);
+  if (Number(gp.in_jail) !== 1) {
+    try {
+      await maybeBuildHouses({ gameId, gp, slot, myBalance });
+    } catch (err) {
+      logger.warn({ err: err?.message, gameId, slot }, "agent runner pre-roll build failed");
+    }
+  }
+
   // Basic jail handling: if in jail at position 10, just stay (simple + deterministic).
   if (Number(gp.in_jail) === 1 && Number(gp.position) === 10) {
+    // Give the agent better options than always "stay":
+    // 1) Use a Get Out of Jail Free card (Chance or Community Chest)
+    // 2) If no card, pay $50 to leave jail (if balance allows)
+    // 3) Otherwise, stay in jail (advances to next player)
+    const chanceCards = Number(gp.chance_jail_card || 0);
+    const chestCards = Number(gp.community_chest_jail_card || 0);
+    // Use the pre-fetched balance (avoids re-querying during the pre-roll phase).
+
+    try {
+      if (chanceCards > 0) {
+        await post("/game-players/use-get-out-of-jail-free", {
+          user_id: nextUserId,
+          game_id: gameId,
+          card_type: "chance",
+        });
+        // Note: backend does NOT end turn here — player can then roll on next poll.
+        return;
+      }
+      if (chestCards > 0) {
+        await post("/game-players/use-get-out-of-jail-free", {
+          user_id: nextUserId,
+          game_id: gameId,
+          card_type: "community_chest",
+        });
+        // Note: backend does NOT end turn here — player can then roll on next poll.
+        return;
+      }
+      if (myBalance >= 50) {
+        await post("/game-players/pay-to-leave-jail", { user_id: nextUserId, game_id: gameId });
+        // Note: backend does NOT end turn here — player can then roll on next poll.
+        return;
+      }
+    } catch (err) {
+      logger.warn(
+        { err: err?.message, gameId: gameId, user_id: nextUserId },
+        "agent runner jail decision failed; falling back to stay-in-jail"
+      );
+    }
+
     await post("/game-players/stay-in-jail", { user_id: nextUserId, game_id: gameId });
-    await post("/game-players/end-turn", { user_id: nextUserId, game_id: gameId });
+    // stay-in-jail already advances to next player, so no need to end-turn explicitly.
     return;
   }
 
@@ -121,7 +294,6 @@ async function stepGame(game) {
     return;
   }
 
-  const myBalance = Number(gp.balance || 0);
   const decision = await agentRegistry.getAIDecision(gameId, slot, "property", {
     myBalance,
     myProperties: [], // keep minimal for now; can enrich later

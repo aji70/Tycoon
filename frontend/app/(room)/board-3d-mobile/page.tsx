@@ -1845,6 +1845,11 @@ function Board3DMobileContent() {
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
+  const handleCloseCardModal = useCallback(() => {
+    setShowCardModal(false);
+    fetchUpdatedGame();
+  }, [fetchUpdatedGame]);
+
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
     if (!el) return;
@@ -3071,7 +3076,7 @@ function Board3DMobileContent() {
 
       <CardModal
         isOpen={showCardModal}
-        onClose={() => setShowCardModal(false)}
+        onClose={handleCloseCardModal}
         card={cardData}
         playerName={cardPlayerName}
         isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}

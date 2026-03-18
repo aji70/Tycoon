@@ -492,6 +492,11 @@ function Board3DMobilePageContent() {
   const canPayToLeaveJail = meInJail && (me?.balance ?? 0) >= 50;
   const hasChanceJailCard = (me?.chance_jail_card ?? 0) >= 1;
   const hasCommunityChestJailCard = (me?.community_chest_jail_card ?? 0) >= 1;
+
+  // If agent/logic paid/used a card to leave jail, clear the after-roll jail popup.
+  useEffect(() => {
+    if (!meInJail && jailChoiceRequired) setJailChoiceRequired(false);
+  }, [meInJail, jailChoiceRequired]);
   const playerCanRoll =
     isLiveGame &&
     isMyTurn &&
@@ -551,10 +556,16 @@ function Board3DMobilePageContent() {
   const ownerByPropertyId = useMemo(() => {
     const out: Record<number, string> = {};
     gameProperties.forEach((gp) => {
-      if (gp.address) {
-        const owner = livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase());
-        if (owner?.username) out[gp.property_id] = owner.username;
-      }
+      const ownerBySeatId =
+        gp.player_id != null
+          ? livePlayers.find((p) => p.id != null && Number(p.id) === Number(gp.player_id))
+          : undefined;
+      const ownerByAddress =
+        gp.address
+          ? livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase())
+          : undefined;
+      const owner = ownerBySeatId ?? ownerByAddress;
+      if (owner?.username) out[gp.property_id] = owner.username;
     });
     return out;
   }, [gameProperties, livePlayers]);
@@ -562,21 +573,32 @@ function Board3DMobilePageContent() {
   const ownerSymbolByPropertyId = useMemo(() => {
     const out: Record<number, string> = {};
     gameProperties.forEach((gp) => {
-      if (gp.address) {
-        const owner = livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase());
-        if (owner?.symbol) out[gp.property_id] = owner.symbol;
-      }
+      const ownerBySeatId =
+        gp.player_id != null
+          ? livePlayers.find((p) => p.id != null && Number(p.id) === Number(gp.player_id))
+          : undefined;
+      const ownerByAddress =
+        gp.address
+          ? livePlayers.find((p) => p.address?.toLowerCase() === gp.address?.toLowerCase())
+          : undefined;
+      const owner = ownerBySeatId ?? ownerByAddress;
+      if (owner?.symbol) out[gp.property_id] = owner.symbol;
     });
     return out;
   }, [gameProperties, livePlayers]);
 
   const my_properties = useMemo(() => {
     if (!me?.address) return [];
-    const myIds = gameProperties
-      .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
-      .map((gp) => gp.property_id);
+    const myIds =
+      me?.id != null
+        ? gameProperties
+            .filter((gp) => gp.player_id != null && Number(gp.player_id) === Number(me.id))
+            .map((gp) => gp.property_id)
+        : gameProperties
+            .filter((gp) => gp.address?.toLowerCase() === me.address?.toLowerCase())
+            .map((gp) => gp.property_id);
     return properties.filter((p) => myIds.includes(p.id));
-  }, [me?.address, gameProperties, properties]);
+  }, [me?.id, me?.address, gameProperties, properties]);
 
   const justLandedProperty = useMemo(() => {
     const pos = landedPositionForBuy ?? me?.position;
@@ -1827,6 +1849,11 @@ function Board3DMobilePageContent() {
     }
   }, [me, game?.id, refetchGame, END_TURN]);
 
+  const handleCloseCardModal = useCallback(() => {
+    setShowCardModal(false);
+    fetchUpdatedGame();
+  }, [fetchUpdatedGame]);
+
   const toggleFullscreen = useCallback(() => {
     const el = fullscreenRef.current;
     if (!el) return;
@@ -2844,10 +2871,7 @@ function Board3DMobilePageContent() {
 
       <CardModal
         isOpen={showCardModal}
-        onClose={() => {
-          setShowCardModal(false);
-          fetchUpdatedGame();
-        }}
+        onClose={handleCloseCardModal}
         card={cardData}
         playerName={cardPlayerName}
         isCurrentPlayerDrawer={cardIsCurrentPlayerDrawer}
