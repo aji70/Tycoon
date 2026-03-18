@@ -1291,47 +1291,49 @@ export default function Profile() {
                   </button>
                 </div>
                 {/* Smart wallet: show the best-known value (registry or account), without contradictions */}
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
-                  <span className="text-slate-500 text-xs">Smart wallet:</span>
-                  {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
-                    <>
-                      <span className="text-cyan-300/90 font-mono text-xs truncate max-w-full">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
-                      {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
-                        <span className="text-[10px] text-slate-500">
-                          (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Smart wallet address copied'); }}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 transition shrink-0"
-                        title="Copy smart wallet"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                      {!!walletAddress && (
+                <div className="flex flex-col gap-2 mt-2">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <span className="text-slate-500 text-xs">Smart wallet:</span>
+                    {smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' ? (
+                      <>
+                        <span className="text-cyan-300/90 font-mono text-xs truncate max-w-full">{`${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`}</span>
+                        {accountSmartWallet && isValidWallet(registrySmartWallet) && accountSmartWallet.toLowerCase() !== (registrySmartWallet as string).toLowerCase() ? (
+                          <span className="text-[10px] text-slate-500">
+                            (account: {accountSmartWallet.slice(0, 6)}...{accountSmartWallet.slice(-4)})
+                          </span>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={async () => {
-                            try {
-                              await recreateWallet();
-                              toast.info('Creating new smart wallet…');
-                            } catch (e: any) {
-                              toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
-                            }
-                          }}
-                          disabled={recreateWalletPending}
-                          className="ml-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 text-xs font-semibold transition disabled:opacity-60"
-                          title="Create a new smart wallet (old wallet stays; move funds manually)"
+                          onClick={() => { navigator.clipboard.writeText(smartWalletAddress); toast.success('Smart wallet address copied'); }}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 transition shrink-0"
+                          title="Copy smart wallet"
                         >
-                          {recreateWalletPending ? 'Creating…' : 'Create new'}
+                          <Copy className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-slate-500 text-xs italic">
-                      {guestLoading ? "Loading…" : "— (register in-game to get one)"}
-                    </span>
+                      </>
+                    ) : (
+                      <span className="text-slate-500 text-xs italic">
+                        {guestLoading ? "Loading…" : "— (register in-game to get one)"}
+                      </span>
+                    )}
+                  </div>
+                  {!!walletAddress && smartWalletAddress && smartWalletAddress !== '0x0000000000000000000000000000000000000000' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await recreateWallet();
+                          toast.info('Creating new smart wallet…');
+                        } catch (e: any) {
+                          toast.error(e?.shortMessage ?? e?.message ?? 'Failed to create new smart wallet');
+                        }
+                      }}
+                      disabled={recreateWalletPending}
+                      className="w-full sm:w-auto px-4 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-200 text-sm font-semibold transition disabled:opacity-60"
+                      title="Create a new smart wallet (old wallet stays; move funds manually)"
+                    >
+                      {recreateWalletPending ? 'Creating…' : 'Recreate smart wallet'}
+                    </button>
                   )}
                 </div>
               </div>
