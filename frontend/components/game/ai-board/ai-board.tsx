@@ -469,7 +469,7 @@ const AiBoard = ({
 
 // ── Then your BUY_PROPERTY becomes: ──
 const BUY_PROPERTY = useCallback(async (isAiAction = false) => {
-  if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
+  if (currentPlayer?.position == null || actionLock || justLandedProperty?.price == null) {
     showToast("Cannot buy right now", "error");
     return;
   }

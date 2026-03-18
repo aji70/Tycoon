@@ -9,7 +9,7 @@ import { useAccount, useBalance, useReadContract, useReadContracts, useWriteCont
 import { formatUnits, type Address, type Abi } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProfile } from '@/context/ProfileContext';
+import { useProfileForAddress } from '@/context/ProfileContext';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import AccountLinkWallet from '@/components/auth/AccountLinkWallet';
 
@@ -118,17 +118,6 @@ function GuestProfileView({
   guestUser: { username: string; linked_wallet_address?: string | null; smart_wallet_address?: string | null };
 }) {
   const username = guestUser.username;
-  const { profile, setDisplayName, setBio, setProfile } = useProfile();
-  const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
-  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
-  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
-  const [editingBio, setEditingBio] = useState(false);
-
-  React.useEffect(() => {
-    setLocalDisplayName(profile?.displayName ?? '');
-    setLocalBio(profile?.bio ?? '');
-  }, [profile?.displayName, profile?.bio]);
-
   // When wallet is not connected:
   // - stats/username use the "wallet linked" address when available
   // - balances can be shown for both linked + smart wallets
@@ -141,6 +130,18 @@ function GuestProfileView({
       ? (guestUser.smart_wallet_address as Address)
       : null;
   const guestOnChainAddress = linkedWalletAddress ?? smartWalletAddress ?? null;
+  const profileKeyAddress = linkedWalletAddress ?? smartWalletAddress ?? undefined;
+
+  const { profile, setDisplayName, setBio, setProfile } = useProfileForAddress(profileKeyAddress);
+  const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
+  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
+  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const [editingBio, setEditingBio] = useState(false);
+
+  React.useEffect(() => {
+    setLocalDisplayName(profile?.displayName ?? '');
+    setLocalBio(profile?.bio ?? '');
+  }, [profile?.displayName, profile?.bio]);
 
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[CELO_CHAIN_ID] as Address | undefined;
@@ -328,7 +329,6 @@ function GuestProfileView({
     },
   });
   const gameCount = games.length;
-  const runningCount = games.filter((g) => g.status === 'RUNNING').length;
 
   const saveDisplayName = () => {
     const trimmed = localDisplayName.trim() || null;
@@ -376,7 +376,11 @@ function GuestProfileView({
               <div className="relative group shrink-0">
                 <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(0,240,255,0.15)] border border-white/10">
                   <span className="absolute inset-0 [&>img]:object-cover">
-                    <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
+                    {profile?.avatar ? (
+                      <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <Image src={avatar} alt="Avatar" width={128} height={128} className="w-full h-full object-cover" />
+                    )}
                   </span>
                 </div>
                 <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border-2 border-[#030c0d]">
@@ -416,90 +420,84 @@ function GuestProfileView({
                     <span className="text-cyan-400 font-semibold">{gameCount}</span>
                     <span className="text-white/70 ml-1">games played</span>
                   </div>
-                  {runningCount > 0 && (
-                    <div>
-                      <span className="text-amber-400 font-semibold">{runningCount}</span>
-                      <span className="text-white/70 ml-1">in progress</span>
-                    </div>
-                  )}
                 </div>
-              </div>
-            </div>
 
-            {/* Balances row (same layout as wallet-connected) */}
-            <div className="mt-6 pt-6 border-t border-white/10">
-              <div className="space-y-3">
-                {linkedWalletAddress ? (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
-                      Linked wallet balances
-                    </p>
-                    <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-                      {[
-                        {
-                          label: 'TYC',
-                          value: tycBalanceLinked.isLoading ? '...' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2),
-                          color: 'cyan',
-                        },
-                        {
-                          label: 'USDC',
-                          value: usdcBalanceLinked.isLoading ? '...' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
-                          color: 'emerald',
-                        },
-                        {
-                          label: 'Celo',
-                          value: nativeBalanceLinked.isLoading
-                            ? '...'
-                            : nativeBalanceLinked.data
-                              ? Number(nativeBalanceLinked.data.formatted).toFixed(4)
-                              : '0',
-                          color: 'slate',
-                        },
-                      ].map(({ label, value, color }) => (
-                        <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                          <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                {/* Balances (same card area as avatar/identity) */}
+                <div className="mt-5 w-full">
+                  <div className="space-y-3">
+                    {linkedWalletAddress ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
+                          Linked wallet balances
+                        </p>
+                        <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                          {[
+                            {
+                              label: 'TYC',
+                              value: tycBalanceLinked.isLoading ? '...' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2),
+                              color: 'cyan',
+                            },
+                            {
+                              label: 'USDC',
+                              value: usdcBalanceLinked.isLoading ? '...' : Number(usdcBalanceLinked.data?.formatted || 0).toFixed(2),
+                              color: 'emerald',
+                            },
+                            {
+                              label: 'Celo',
+                              value: nativeBalanceLinked.isLoading
+                                ? '...'
+                                : nativeBalanceLinked.data
+                                  ? Number(nativeBalanceLinked.data.formatted).toFixed(4)
+                                  : '0',
+                              color: 'slate',
+                            },
+                          ].map(({ label, value, color }) => (
+                            <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                              <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                              <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                      </div>
+                    ) : null}
 
-                {showSmartBalances ? (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
-                      Smart wallet balances
-                    </p>
-                    <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-                      {[
-                        {
-                          label: 'TYC',
-                          value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2),
-                          color: 'cyan',
-                        },
-                        {
-                          label: 'USDC',
-                          value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
-                          color: 'emerald',
-                        },
-                        {
-                          label: 'Celo',
-                          value: nativeBalanceSmart.isLoading
-                            ? '...'
-                            : nativeBalanceSmart.data
-                              ? Number(nativeBalanceSmart.data.formatted).toFixed(4)
-                              : '0',
-                          color: 'slate',
-                        },
-                      ].map(({ label, value, color }) => (
-                        <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
-                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
-                          <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                    {showSmartBalances ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50 mb-3">
+                          Smart wallet balances
+                        </p>
+                        <div className="flex flex-row sm:flex-col gap-3 shrink-0 w-full sm:w-auto justify-center sm:justify-start">
+                          {[
+                            {
+                              label: 'TYC',
+                              value: tycBalanceSmart.isLoading ? '...' : Number(tycBalanceSmart.data?.formatted || 0).toFixed(2),
+                              color: 'cyan',
+                            },
+                            {
+                              label: 'USDC',
+                              value: usdcBalanceSmart.isLoading ? '...' : Number(usdcBalanceSmart.data?.formatted || 0).toFixed(2),
+                              color: 'emerald',
+                            },
+                            {
+                              label: 'Celo',
+                              value: nativeBalanceSmart.isLoading
+                                ? '...'
+                                : nativeBalanceSmart.data
+                                  ? Number(nativeBalanceSmart.data.formatted).toFixed(4)
+                                  : '0',
+                              color: 'slate',
+                            },
+                          ].map(({ label, value, color }) => (
+                            <div key={label} className={`flex-1 sm:flex-none text-center py-3 px-4 rounded-2xl min-w-0 balance-pill balance-${color}`}>
+                              <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-white/50">{label}</p>
+                              <p className="text-base sm:text-lg font-bold text-white truncate mt-0.5">{value}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
               </div>
             </div>
           </div>
@@ -784,7 +782,6 @@ function GuestProfileView({
 export default function Profile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
   const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
-  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const guestLoading = guestAuth?.isLoading ?? false;
@@ -798,17 +795,10 @@ export default function Profile() {
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [copied, setCopied] = useState(false);
-  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
-  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const [localDisplayName, setLocalDisplayName] = useState('');
+  const [localBio, setLocalBio] = useState('');
   const [editingBio, setEditingBio] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    setLocalDisplayName(profile?.displayName ?? '');
-    setLocalBio(profile?.bio ?? '');
-  }, [profile?.displayName, profile?.bio]);
-
-  const displayName = profile?.displayName?.trim() || null;
 
   const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
@@ -852,6 +842,17 @@ export default function Profile() {
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
+
+  // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
+  // not by whichever wallet is currently connected (smart wallet).
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(tycoonProfileOwnerAddress);
+
+  React.useEffect(() => {
+    setLocalDisplayName(profile?.displayName ?? '');
+    setLocalBio(profile?.bio ?? '');
+  }, [profile?.displayName, profile?.bio]);
+
+  const displayName = profile?.displayName?.trim() || null;
 
   const {
     data: username,

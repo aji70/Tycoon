@@ -37,6 +37,28 @@ import UserAgent from "../models/UserAgent.js";
 import agentRegistry from "../services/agentRegistry.js";
 import crypto from "crypto";
 
+function isValidEthAddress(maybeAddress) {
+  return typeof maybeAddress === "string" && /^0x[a-fA-F0-9]{40}$/.test(maybeAddress.trim());
+}
+
+/**
+ * Pick the best address to use for on-chain registration/calls for a user.
+ * We must validate `linked_wallet_address` / `smart_wallet_address` because some
+ * code paths can leave them as non-address strings, which breaks on-chain setup.
+ */
+function getOnchainAddressForUser(user) {
+  const linked = user?.linked_wallet_address;
+  if (isValidEthAddress(linked)) return linked.trim();
+
+  const smart = user?.smart_wallet_address;
+  if (isValidEthAddress(smart)) return smart.trim();
+
+  const primary = user?.address;
+  if (isValidEthAddress(primary)) return primary.trim();
+
+  return null;
+}
+
 const GAME_TYPES = {
   PVP_HUMAN: "PVP_HUMAN",
   AI_HUMAN_VS_AI: "AI_HUMAN_VS_AI",
@@ -2000,10 +2022,7 @@ async function startOnchainAgentVsAgentInternal({ req, gameId, starterUserId }) 
 
   const contractByOwnerId = new Map();
   for (const [ownerId, owner] of ownerById.entries()) {
-    const addrForChain =
-      (owner.linked_wallet_address && String(owner.linked_wallet_address).trim()) ||
-      (owner.smart_wallet_address && String(owner.smart_wallet_address).trim()) ||
-      owner.address;
+    const addrForChain = getOnchainAddressForUser(owner);
     const contractUser = await ensureUserHasContractPassword(db, ownerId, chainForStart, addrForChain);
     if (!contractUser?.password_hash) {
       throw new Error(
@@ -2418,10 +2437,7 @@ export const createAsGuest = async (req, res) => {
     const chainForCreate = User.normalizeChain(chain || "CELO");
 
     // Use linked EOA, or smart wallet (wallet-first Privy), or placeholder.
-    const addrForChain =
-      (user.linked_wallet_address && String(user.linked_wallet_address).trim()) ||
-      (user.smart_wallet_address && String(user.smart_wallet_address).trim()) ||
-      user.address;
+    const addrForChain = getOnchainAddressForUser(user);
     const contractUser = await ensureUserHasContractPassword(db, user.id, chainForCreate, addrForChain);
     if (!contractUser?.password_hash) {
       return res.status(403).json({

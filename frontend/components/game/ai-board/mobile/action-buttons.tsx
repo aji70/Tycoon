@@ -54,7 +54,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   const onEndTurn = () => endTurnGuard.submit(() => END_TURN());
 
   const BUY_PROPERTY = async () => {
-    if (!currentPlayer?.position || !justLandedProperty?.price || !me) {
+    if (currentPlayer?.position == null || justLandedProperty?.price == null || !me) {
       showToast("Cannot buy right now", "error");
       return;
     }

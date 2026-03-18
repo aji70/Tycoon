@@ -407,7 +407,7 @@ const endTime =
   }, [END_TURN]);
 
   const BUY_PROPERTY = useCallback(async () => {
-    if (!currentPlayer?.position || actionLock || !justLandedProperty?.price) {
+    if (currentPlayer?.position == null || actionLock || justLandedProperty?.price == null) {
       showToast("Cannot buy right now", "error");
       return;
     }

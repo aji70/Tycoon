@@ -12,7 +12,7 @@ import { useAccount, useBalance, useReadContract, useReadContracts, useWriteCont
 import { formatUnits, type Address, type Abi } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProfile } from '@/context/ProfileContext';
+import { useProfileForAddress } from '@/context/ProfileContext';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import AccountLinkWallet from '@/components/auth/AccountLinkWallet';
 
@@ -220,7 +220,6 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
     },
   });
   const gameCount = games.length;
-  const runningCount = games.filter((g) => g.status === 'RUNNING').length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#010F10] via-[#0A1C1E] to-[#0E1415] px-4 pb-24">
@@ -256,12 +255,6 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
               <span className="text-cyan-400 font-semibold">{gameCount}</span>
               <span className="text-white/70 ml-1">games</span>
             </div>
-            {runningCount > 0 && (
-              <div>
-                <span className="text-amber-400 font-semibold">{runningCount}</span>
-                <span className="text-white/70 ml-1">in progress</span>
-              </div>
-            )}
           </div>
         </div>
 
@@ -391,7 +384,6 @@ function GuestProfileViewMobile({ guestUser }: { guestUser: { username: string; 
 export default function ProfilePageMobile() {
   const { address: walletAddress, isConnected, chainId } = useAccount();
   const { recreate: recreateWallet, isPending: recreateWalletPending } = useRecreateWalletForUser();
-  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfile();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -402,8 +394,8 @@ export default function ProfilePageMobile() {
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
   const [copied, setCopied] = useState(false);
-  const [localDisplayName, setLocalDisplayName] = useState(profile?.displayName ?? '');
-  const [localBio, setLocalBio] = useState(profile?.bio ?? '');
+  const [localDisplayName, setLocalDisplayName] = useState('');
+  const [localBio, setLocalBio] = useState('');
   const [editingBio, setEditingBio] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -428,6 +420,10 @@ export default function ProfilePageMobile() {
   const tycoonProfileOwnerAddress =
     (isValidWallet(smartWalletOwner) ? smartWalletOwner : null) ??
     walletAddress;
+
+  // Local avatar/displayName/bio should be keyed by the profile owner (linked EOA),
+  // not by whichever wallet is currently connected (smart wallet).
+  const { profile, setAvatar, setDisplayName, setBio, setProfile } = useProfileForAddress(tycoonProfileOwnerAddress);
 
   const tycBalance = useBalance({ address: walletAddress, token: tycTokenAddress, query: { enabled: !!walletAddress && !!tycTokenAddress } });
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
