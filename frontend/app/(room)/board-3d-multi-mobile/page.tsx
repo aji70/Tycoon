@@ -1467,7 +1467,7 @@ function Board3DMobilePageContent() {
           user_id: me.user_id,
           property_id: agentRes.data.data.propertyId,
         });
-        reportAiAction(game.id, 1, devLevel >= 4 ? "buildHotel" : "buildHouse");
+        if (devLevel >= 4) reportAiAction(game.id, 1, "buildHotel");
         toast.success(prop ? `Your agent built on ${prop.name}.` : "Your agent built a house.");
         didBuild = true;
       } else if (
@@ -1495,7 +1495,7 @@ function Board3DMobilePageContent() {
             user_id: me.user_id,
             property_id: target.p.property_id,
           });
-          reportAiAction(game.id, 1, (target.p.development ?? 0) >= 4 ? "buildHotel" : "buildHouse");
+          if ((target.p.development ?? 0) >= 4) reportAiAction(game.id, 1, "buildHotel");
           const propName = properties.find((p) => p.id === target.p.property_id)?.name;
           toast.success(propName ? `Your agent built on ${propName}.` : "Your agent built a house.");
           didBuild = true;

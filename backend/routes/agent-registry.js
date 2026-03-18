@@ -145,7 +145,6 @@ router.post("/action-feedback", async (req, res) => {
 
     const SCORES = {
       buyProperty: 5,
-      buildHouse: 8,
       buildHotel: 15,
       proposeTrade: 5,
       acceptTrade: 5,
