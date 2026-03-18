@@ -123,7 +123,6 @@ export default function AgentsPageMobile() {
   const [formApiKey, setFormApiKey] = useState("");
   const [formClearApiKey, setFormClearApiKey] = useState(false);
   const [formHostingType, setFormHostingType] = useState<HostingType>("tycoon");
-  const [formSkill, setFormSkill] = useState("");
   const [behaviorProfile, setBehaviorProfile] = useState<AgentBehaviorProfile>({
     goal: "win",
     risk: "medium",
@@ -317,7 +316,6 @@ export default function AgentsPageMobile() {
     setFormApiKey("");
     setFormClearApiKey(false);
     setFormHostingType("tycoon");
-    setFormSkill("");
     setBehaviorProfile({
       goal: "win",
       risk: "medium",
@@ -343,7 +341,6 @@ export default function AgentsPageMobile() {
     setFormHostingType(
       a.use_tycoon_key ? "tycoon" : a.has_api_key ? "my_key" : a.callback_url ? "my_url" : "tycoon"
     );
-    setFormSkill(typeof a.config?.skill === "string" ? a.config.skill : "");
     const p = (a.config as any)?.behavior_profile;
     if (p && typeof p === "object") {
       setBehaviorProfile({
@@ -405,8 +402,8 @@ export default function AgentsPageMobile() {
       const generated = behaviorToPrompt(name, behaviorProfile);
       configPayload.behavior_profile = behaviorProfile;
       configPayload.behavior_prompt = generated;
-      if (formSkill.trim()) configPayload.skill = formSkill.trim();
-      else configPayload.skill = generated;
+      // Use the generated behavior prompt as the agent "skill" every time.
+      configPayload.skill = generated;
       payload.config = Object.keys(configPayload).length > 0 ? configPayload : null;
       if (editingId) {
         await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
@@ -894,18 +891,6 @@ export default function AgentsPageMobile() {
                     )}
                   </div>
                 )}
-                <div>
-                  <label className="block text-xs font-orbitron uppercase tracking-wider text-cyan-400/90 mb-1">Skill (optional)</label>
-                  <textarea
-                    value={formSkill}
-                    onChange={(e) => setFormSkill(e.target.value)}
-                    placeholder="How should the AI play?"
-                    rows={2}
-                    className="w-full px-3 py-2 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">Leave empty to use Behavior Setup below.</p>
-                </div>
-
                 <div className="rounded-xl border border-amber-500/30 bg-black/60 p-4 space-y-3">
                   <p className="text-xs font-orbitron font-bold text-amber-200 uppercase tracking-wide">Behavior setup</p>
                   <div className="grid grid-cols-2 gap-3">
