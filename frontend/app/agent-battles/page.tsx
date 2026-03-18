@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api";
@@ -273,7 +273,7 @@ export default function AgentBattlesPage() {
     }
   };
 
-  const refreshLobby = async () => {
+  const refreshLobby = useCallback(async () => {
     const id = Number(lobbyIdParam || 0);
     if (!id) return;
     setLoadingLobby(true);
@@ -287,7 +287,7 @@ export default function AgentBattlesPage() {
     } finally {
       setLoadingLobby(false);
     }
-  };
+  }, [lobbyIdParam]);
 
   const handleCopyInvite = async (token: string) => {
     try {
@@ -300,6 +300,30 @@ export default function AgentBattlesPage() {
       toast.error("Could not copy invite link");
     }
   };
+
+  // Poll lobby state until the game starts; then redirect everyone to the board.
+  useEffect(() => {
+    if (!lobbyIdParam) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      timer = setInterval(() => {
+        void refreshLobby();
+      }, 2500);
+    };
+
+    // If already running, redirect immediately.
+    if (lobby?.status === "RUNNING" && lobby?.code) {
+      router.push(`/board-3d-multi?gameCode=${encodeURIComponent(lobby.code)}`);
+      return;
+    }
+
+    startPolling();
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lobbyIdParam, lobby?.status, lobby?.code, refreshLobby]);
 
   const handleAcceptSeat = async () => {
     const id = Number(lobby?.id || lobbyIdParam || 0);
@@ -413,7 +437,7 @@ export default function AgentBattlesPage() {
               <div className="bg-emerald-950/60 rounded-2xl p-6 border border-emerald-500/50">
                 <p className="text-sm font-semibold text-emerald-200 mb-2">Game in progress</p>
                 <p className="text-xs text-slate-300 mb-4">
-                  The game has started. Open the board to watch or continue. Share the game code with other players so they can join the board too.
+                  The game has started. You can watch immediately on the board (we'll redirect you too).
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="font-mono text-lg text-white bg-black/40 px-3 py-2 rounded-lg">{lobby.code}</span>
@@ -498,7 +522,7 @@ export default function AgentBattlesPage() {
                       <div className="mt-2 flex justify-center p-4 bg-black/40 rounded-xl border border-white/10">
                         <div className="flex flex-col items-center gap-2">
                           <QRCodeSVG value={qrUrl} size={160} level="M" className="rounded-lg" />
-                          <p className="text-xs text-slate-400">Scan to join with your agent</p>
+                          <p className="text-xs text-slate-400">Scan to accept this seat (only works while lobby is pending)</p>
                         </div>
                       </div>
                     );
@@ -510,35 +534,58 @@ export default function AgentBattlesPage() {
 
             {lobbyTokenParam ? (
               <div className="bg-black/60 rounded-2xl p-6 border border-emerald-500/30">
-                <p className="text-sm font-semibold text-slate-200 mb-2">Accept seat</p>
-                <p className="text-xs text-slate-400 mb-4">
-                  Pick one of your agents and accept the seat linked from the invite.
-                </p>
-                <div className="flex flex-col md:flex-row gap-3 items-center">
-                  <select
-                    value={selectedAgentIds[0] ?? 0}
-                    onChange={(e) => setSelectedAgentIds([Number(e.target.value)])}
-                    className="flex-1 w-full px-3 py-3 rounded-xl bg-black/70 border border-slate-600 text-white"
-                  >
-                    {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAcceptSeat}
-                    disabled={accepting}
-                    className="w-full md:w-auto px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold"
-                  >
-                    {accepting ? "Accepting…" : "Accept seat"}
-                  </button>
-                </div>
+                {lobby?.status !== "PENDING" ? (
+                  <>
+                    <p className="text-sm font-semibold text-slate-200 mb-2">Game already started</p>
+                    <p className="text-xs text-slate-400 mb-4">
+                      This invite seat can only be accepted while the lobby is pending. Opening the board for you instead.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const code = lobby?.code || "";
+                        if (!code) return;
+                        router.push(`/board-3d-multi?gameCode=${encodeURIComponent(code)}`);
+                      }}
+                      disabled={!lobby?.code}
+                      className="w-full md:w-auto px-5 py-3 rounded-xl bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10] font-bold disabled:opacity-60"
+                    >
+                      Go to board
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-slate-200 mb-2">Accept seat</p>
+                    <p className="text-xs text-slate-400 mb-4">
+                      Pick one of your agents and accept the seat linked from the invite.
+                    </p>
+                    <div className="flex flex-col md:flex-row gap-3 items-center">
+                      <select
+                        value={selectedAgentIds[0] ?? 0}
+                        onChange={(e) => setSelectedAgentIds([Number(e.target.value)])}
+                        className="flex-1 w-full px-3 py-3 rounded-xl bg-black/70 border border-slate-600 text-white"
+                      >
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAcceptSeat}
+                        disabled={accepting}
+                        className="w-full md:w-auto px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold"
+                      >
+                        {accepting ? "Accepting…" : "Accept seat"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : null}
 
-            {meId != null && Number(lobby.creator_id) === Number(meId) ? (
+            {meId != null && Number(lobby.creator_id) === Number(meId) && lobby.status === "PENDING" ? (
               <div className="flex justify-center pt-2">
                 <button
                   type="button"
