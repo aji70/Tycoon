@@ -346,8 +346,18 @@ async function stepGame(game) {
     },
   });
 
-  const wantsBuy = String(decision?.action || "").toLowerCase() === "buy";
-  const canBuy = myBalance >= Number(prop.price || 0);
+  const propPrice = Number(prop.price || 0);
+  const canBuy = myBalance >= propPrice;
+
+  let wantsBuy = String(decision?.action || "").toLowerCase() === "buy";
+  // Fallback when no agent decision is available (e.g. AGENT_VS_AGENT games with no
+  // external callback and internal agent gated behind game.is_ai):
+  if (!decision) {
+    const balanceAfter = myBalance - propPrice;
+    const reserveOk = balanceAfter >= 500; // matches INTERNAL_AGENT CASH_RESERVE_MIN = 500
+    wantsBuy = completesMono || (canBuy && reserveOk);
+  }
+
   if (wantsBuy && canBuy) {
     try {
       await post("/game-properties/buy", {
