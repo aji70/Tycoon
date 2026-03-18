@@ -691,11 +691,12 @@ export default function ProfilePageMobile() {
   const handleRedeemVoucher = (tokenId: bigint) => {
     if (!rewardAddress) return toast.error("Contract not available");
     setRedeemingId(tokenId);
+    const isSmartWalletVoucher = rewardOwnerAddress && walletAddress && rewardOwnerAddress.toLowerCase() !== walletAddress.toLowerCase();
     writeContract({
       address: rewardAddress,
       abi: RewardABI,
-      functionName: 'redeemVoucher',
-      args: [tokenId],
+      functionName: isSmartWalletVoucher ? 'redeemVoucherFor' : 'redeemVoucher',
+      args: isSmartWalletVoucher ? [rewardOwnerAddress, tokenId] : [tokenId],
     });
   };
 
